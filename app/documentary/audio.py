@@ -117,7 +117,7 @@ def measure_loudness(path: str | Path, target_lufs: float = -16.0,
 
 def normalize_loudness(
     src: str | Path, dst: str | Path, target_lufs: float, true_peak: float,
-    lra: float, sample_rate: int,
+    lra: float, sample_rate: int, channels: int = 1,
 ) -> dict:
     """Two-pass loudnorm in linear mode (one constant gain, timing and
     dynamics preserved). Returns the first-pass measurement."""
@@ -133,7 +133,7 @@ def normalize_loudness(
     )
     _run([
         "ffmpeg", "-y", "-v", "error", "-i", str(src), "-af", filt,
-        "-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_s16le", str(dst),
+        "-ac", str(channels), "-ar", str(sample_rate), "-c:a", "pcm_s16le", str(dst),
     ])
     return m
 

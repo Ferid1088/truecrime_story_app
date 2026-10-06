@@ -14,6 +14,7 @@ from app.db.models import (
     Fact,
     Contradiction,
     StoryVersion,
+    EditorialBlueprint,
     DiscoveryCandidate,
     AgentRun,
     ResearchJob,
@@ -60,6 +61,13 @@ from app.documentary.blueprint import (
     latest_blueprint,
 )
 from app.documentary.performance import performance_for_version
+from app.documentary.spoken import SpokenNarrator
+from app.documentary.audio_director import (
+    AudioDirector,
+    audio_plan_dict,
+    latest_audio_plan,
+)
+from app.documentary.music import DocumentaryMixer
 from app.providers import get_research_provider
 from app.providers.voice import VoiceProviderError
 from app.providers.base import ProviderError
@@ -1343,10 +1351,11 @@ async def render_story_voice(
     story = _story_or_404(db, case_id, version_id)
     plan = performance_for_version(db, story)
     try:
-        manifest = await VoiceRenderer().render(
+        manifest = await render_documentary_audio(
             plan, case_id=case_id, story_version_id=version_id,
             max_seconds=payload.max_seconds, style=payload.style,
             force_block_ids=payload.force_block_ids,
+            with_music=payload.with_music,
         )
     except VoiceProviderError as e:
         code = 503 if e.kind == "missing_credentials" else 502
@@ -1357,7 +1366,92 @@ async def render_story_voice(
         raise HTTPException(status_code=500, detail=str(e))
     summary = _voice_summary(manifest)
     summary["blueprint_used"] = plan.get("blueprint_used", False)
+    summary["directed"] = plan.get("directed", False)
     return summary
+
+
+async def render_documentary_audio(
+    plan: dict, *, case_id: int, story_version_id: int, max_seconds=None,
+    style=None, force_block_ids=None, with_music: bool = True,
+) -> dict:
+    """Narration (+ music mix when the plan is directed)."""
+    renderer = VoiceRenderer()
+    manifest = await renderer.render(
+        plan, case_id=case_id, story_version_id=story_version_id,
+        max_seconds=max_seconds, style=style, force_block_ids=force_block_ids,
+    )
+    if with_music and plan.get("directed"):
+        out = renderer.out_dir(case_id, plan["language"], story_version_id)
+        manifest["mix"] = await DocumentaryMixer().mix(manifest, plan, out)
+        manifest["audio_notes"] = plan.get("audio_notes")
+        (out / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8")
+    return manifest
+
+
+@app.post("/api/cases/{case_id}/stories/{version_id}/spoken")
+async def create_spoken_version(
+    case_id: int, version_id: int, language: str, db: Session = Depends(get_db),
+):
+    """Spoken storytelling version of a story (needs its blueprint): the
+    text the way a person tells a true story, natively in `language`
+    (en/de/fa/ar), beat by beat, facts unchanged — checked for meaning by
+    one model and for storyteller tone by another."""
+    story = _story_or_404(db, case_id, version_id)
+    await _require_generation_authorized()
+    case = _get_case_or_404(db, case_id)
+    try:
+        spoken = await SpokenNarrator().create(db, case, story, language)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except GenerationError as e:
+        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)})
+    body = story_full_dict(spoken)
+    body["spoken_checks"] = (json.loads(spoken.critic_notes or "{}").get("spoken"))
+    return body
+
+
+def _blueprint_row_for(db: Session, story: StoryVersion):
+    """The blueprint behind a story: its own, or — for a spoken version —
+    the one its beats were written from (shared by all languages)."""
+    if story.kind == "spoken":
+        try:
+            bp_id = json.loads(story.narrative_structure or "{}").get("blueprint_id")
+        except (ValueError, TypeError):
+            bp_id = None
+        return db.get(EditorialBlueprint, bp_id) if bp_id else None
+    return latest_blueprint(db, story.id)
+
+
+@app.post("/api/cases/{case_id}/stories/{version_id}/audio-plan")
+async def create_audio_plan(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    """Audio director's plan (breaths, music beds, bridges, emotional
+    moments, stings, silences) for this story's blueprint — shared by
+    every language version made from it."""
+    story = _story_or_404(db, case_id, version_id)
+    row = _blueprint_row_for(db, story)
+    if not row or row.status == "invalid":
+        raise HTTPException(status_code=409, detail="Create a valid blueprint first.")
+    await _require_generation_authorized()
+    case = _get_case_or_404(db, case_id)
+    try:
+        plan = await AudioDirector().create(db, case, row)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except GenerationError as e:
+        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)})
+    return audio_plan_dict(plan)
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/audio-plan")
+def get_audio_plan(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    story = _story_or_404(db, case_id, version_id)
+    row = _blueprint_row_for(db, story)
+    plan = latest_audio_plan(db, row.id) if row else None
+    if not plan:
+        raise HTTPException(status_code=404, detail="No audio plan for this story")
+    return audio_plan_dict(plan)
 
 
 @app.post("/api/cases/{case_id}/stories/{version_id}/blueprint")

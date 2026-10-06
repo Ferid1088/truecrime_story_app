@@ -538,3 +538,26 @@ class EditorialBlueprint(Base):
     generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class AudioPlan(Base):
+    """The audio director's plan for one blueprint — language-independent:
+    per beat the breath between paragraphs, a music bed (or none) and the
+    transition after it (breath, music bridge, emotional moment, sting,
+    silence, chapter break). Exact times are computed per language from
+    the real narration audio."""
+
+    __tablename__ = "audio_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(
+        ForeignKey("editorial_blueprints.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="invalid", index=True)
+    plan_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

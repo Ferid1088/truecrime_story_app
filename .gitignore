@@ -19,3 +19,5 @@ truecrime.db*
 
 # Rendered documentary media (audio/video per case) — regenerable, large
 data/cases/
+data/music_library/
+Claude outputs/

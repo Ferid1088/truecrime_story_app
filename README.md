@@ -206,6 +206,62 @@ check. Voice ids, model ids, styles, pauses and loudness live in
   blueprint exists for exactly that story text; the manifest then has a
   beat timeline (`timeline.beats`).
 
+### Spoken storytelling (EN / DE / FA / AR)
+
+A script that reads well on paper sounds like a news bulletin when it is
+spoken. `POST /api/cases/{case_id}/stories/{version_id}/spoken?language=en`
+(needs a valid blueprint for that story) retells it, beat by beat, the
+way a storyteller talks to one listener:
+
+- **Writer** (`spoken_writer`, Claude): rebuilds every beat in its own
+  spoken sentences instead of polishing the old ones: one idea per
+  sentence, at most `spoken.max_sentence_words` words, spoken connectors,
+  paragraphs of two to four sentences (each paragraph break is a breath
+  in the recording). Each language has a native house style and
+  before/after examples (German Präteritum and Konjunktiv for claims,
+  Persian spoken standard without officialese, Arabic storytelling
+  fusha without «تمّ»/«من قِبَل» calques). Facts, names, numbers,
+  quotations and certainty never change. Comments a model adds for the
+  "user" are removed, and the call is retried once.
+- **Checks by other models** (group `spoken_adaptation` in
+  `review_independence`, strict): a meaning check per beat (missing,
+  added or changed facts, certainty) and a native style critic
+  (storyteller | mixed | newsreader, with the exact phrases and spoken
+  alternatives), plus a deterministic ear check (sentence length, stiff
+  written phrases). Up to `spoken.max_repair_iterations` repair rounds.
+- **Gates**: meaning unchanged, no newsreader beat, at least
+  `spoken.min_storyteller_share` storyteller beats, few long sentences,
+  language quality, clean output, similar speaking time.
+- The result is a StoryVersion (`kind: "spoken"`) whose sections are the
+  blueprint's beats, so pauses, music and later visuals line up beat by
+  beat in every language.
+
+`review_independence.groups` gives each pipeline its own author/reviewer
+set: a reviewer never routes or falls back to a model that writes the
+text it judges, and in a `strict` group the writer never falls back to
+its critics' model either.
+
+### Audio direction and music
+
+- `POST …/audio-plan` — the audio director (`audio_director`) decides
+  per beat: breath between paragraphs, a quiet music bed (mood, very
+  low/low), and what follows the beat: breath, music bridge (scene
+  change), emotional moment, sting (turn/reveal), near-silence or
+  chapter break. A validator clamps lengths (`audio_direction.
+  transitions`), keeps music moments special (spacing, share cap) and
+  ends the film on the last beat. One plan per blueprint serves all four
+  languages; `GET …/audio-plan` works for spoken versions too.
+- With an audio plan, `GET …/performance` is a *directed* script: a
+  breath between paragraph groups, the planned transition after every
+  beat. `voice/render` then mixes `documentary.wav/.mp3`: beds under
+  runs of beats (EQ'd to leave room for the voice), bridges and
+  emotional moments in the planned gaps (starting softly under the last
+  words), stings, room tone for silences, final loudness −16 LUFS.
+  `with_music: false` renders the narration only.
+- Music cues (`music_library`) are generated once with ElevenLabs sound
+  generation, normalized and cached in `data/music_library/` — shared by
+  every film and language.
+
 ## Workflow پیشنهادی
 
 1. `POST /api/topics/discover`

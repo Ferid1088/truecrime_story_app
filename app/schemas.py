@@ -87,3 +87,6 @@ class VoiceRenderRequest(BaseModel):
     style: str | None = None
     # Blocks to re-record as a new take (different seed), ignoring cache.
     force_block_ids: list[str] = []
+    # Mix music beds, bridges, stings and room tone when the story has an
+    # audio plan (directed performance).
+    with_music: bool = True

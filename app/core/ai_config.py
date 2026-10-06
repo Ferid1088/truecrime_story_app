@@ -73,6 +73,12 @@ REQUIRED_ROLES = {
     "research_assembler",
     # Documentary engine: editorial blueprint (beats, reveals, intents).
     "narrative_director",
+    # Spoken storytelling adaptation (author) + its independent checks.
+    "spoken_writer",
+    "spoken_meaning_checker",
+    "spoken_style_critic",
+    # Professional audio direction: breaths, music moments, silences.
+    "audio_director",
 }
 
 # Strict provider split: the research PROVIDER is now infrastructure
@@ -570,7 +576,42 @@ class ReviewIndependenceConfig(BaseModel):
     enabled: bool = False
     author_roles: list[str] = []
     reviewer_roles: list[str] = []
+    # Extra, independent pipelines: each group's reviewers judge only that
+    # group's authors (e.g. the spoken adaptation may be written by the
+    # model that reviews the master story, but never by its own critics).
+    groups: list["ReviewGroup"] = []
     reviewer_fallbacks: dict[str, list[str]] = {}
+
+    def all_groups(self) -> list["ReviewGroup"]:
+        base = ReviewGroup(name="default", authors=self.author_roles,
+                           reviewers=self.reviewer_roles)
+        return [base, *self.groups]
+
+    def all_reviewers(self) -> set[str]:
+        return {r for g in self.all_groups() for r in g.reviewers}
+
+    def authors_judged_by(self, reviewer: str) -> set[str]:
+        """Author roles whose text this reviewer may judge."""
+        return {a for g in self.all_groups() if reviewer in g.reviewers
+                for a in g.authors}
+
+    def strict_reviewers_of(self, author: str) -> set[str]:
+        """Reviewer roles of strict groups that judge this author."""
+        return {r for g in self.all_groups() if g.strict and author in g.authors
+                for r in g.reviewers}
+
+
+class ReviewGroup(BaseModel):
+    name: str = ""
+    authors: list[str] = []
+    reviewers: list[str] = []
+    # strict: the authors' fallback chain also skips the reviewers'
+    # models, so a rate-limited writer never hands its text to the model
+    # that will grade it.
+    strict: bool = False
+
+
+ReviewIndependenceConfig.model_rebuild()
 
 
 class VoiceBlocksConfig(BaseModel):
@@ -719,6 +760,92 @@ class BlueprintConfig(BaseModel):
     max_revision_iterations: int = Field(default=1, ge=0, le=3)
 
 
+class SpokenConfig(BaseModel):
+    """Spoken storytelling adaptation: the approved script rewritten the
+    way a person TELLS a true story (not how a newsreader reads it),
+    natively per language, facts and uncertainty unchanged."""
+
+    languages: list[str] = ["en", "de", "fa", "ar"]
+    # Estimated speaking time of the spoken text vs. the source (per
+    # language words-per-minute). Storytelling may breathe a little more.
+    min_duration_ratio: float = Field(default=0.85, gt=0.0, le=1.0)
+    max_duration_ratio: float = Field(default=1.3, ge=1.0, le=3.0)
+    max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    # 0 = the whole story in one writer call (best flow); N = N beats per
+    # call, each continuing from the previous chunk's spoken ending.
+    beats_per_call: int = Field(default=0, ge=0)
+    # Share of beats the native style critic must rate "storyteller"
+    # ("mixed" beats are tolerated up to the rest; "newsreader" fails).
+    min_storyteller_share: float = Field(default=0.7, ge=0.0, le=1.0)
+    # Ear-friendly sentences: words per sentence above which a sentence is
+    # "long" for the listener, and the share of long sentences allowed.
+    max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
+    max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
+
+
+class AudioDirectionConfig(BaseModel):
+    """Guard-rails for the audio director's plan (deterministic)."""
+
+    # Allowed length (seconds) of each transition type after a beat.
+    transitions: dict[str, list[float]] = Field(default_factory=lambda: {
+        "breath": [1.0, 1.8],
+        "music_bridge": [3.0, 8.0],
+        "emotional_moment": [4.0, 9.0],
+        "sting": [1.5, 3.5],
+        "silence": [1.5, 3.5],
+        "chapter_break": [5.0, 10.0],
+    })
+    # Pause between paragraphs inside a beat (a speaker's breath).
+    paragraph_breath_ms: dict[str, int] = Field(default_factory=lambda: {
+        "short": 600, "normal": 850, "long": 1150,
+    })
+    # Music-only moments may take at most this share of the runtime …
+    max_music_only_share: float = Field(default=0.12, ge=0.0, le=0.5)
+    # … and need this much narration in between (chapter breaks and the
+    # moment after a reveal / chapter end are exempt).
+    min_seconds_between_music_moments: float = Field(default=75.0, ge=0.0)
+    # Music bed level under narration, dB relative to the narration.
+    bed_levels_db: dict[str, float] = Field(default_factory=lambda: {
+        "very_low": -26.0, "low": -21.0,
+    })
+    # Music-only moments relative to narration level.
+    moment_level_db: float = Field(default=-7.0, le=0.0)
+    sting_level_db: float = Field(default=-5.0, le=0.0)
+    room_tone_level_db: float = Field(default=-34.0, le=0.0)
+    max_repair_iterations: int = Field(default=1, ge=0, le=3)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        for kind, rng in self.transitions.items():
+            if len(rng) != 2 or not (0 <= rng[0] <= rng[1]):
+                raise ValueError(f"audio_direction.transitions.{kind} must be [min, max]")
+        return self
+
+
+class MusicCue(BaseModel):
+    id: str
+    kind: str          # bed | bridge | sting | room_tone
+    mood: str          # mystery | tension | emotional | reflective | neutral
+    seconds: float = Field(gt=0, le=30)
+    loop: bool = False
+    prompt: str
+
+
+class MusicLibraryConfig(BaseModel):
+    provider: str = "elevenlabs_sound"
+    dir: str = "data/music_library"
+    prompt_influence: float = Field(default=0.45, ge=0.0, le=1.0)
+    # Every cue is normalized to this loudness when created, so mix
+    # levels in audio_direction are predictable.
+    reference_lufs: float = Field(default=-16.0)
+    cues: list[MusicCue] = []
+
+    def find(self, kind: str, mood: str | None = None) -> MusicCue | None:
+        options = [c for c in self.cues if c.kind == kind]
+        exact = [c for c in options if mood and c.mood == mood]
+        return (exact or options or [None])[0]
+
+
 class PerformanceConfig(BaseModel):
     """Voice direction: blueprint intents -> voice styles and pauses.
 
@@ -798,6 +925,9 @@ class AIConfig(BaseModel):
     loudness: LoudnessConfig = Field(default_factory=LoudnessConfig)
     blueprint: BlueprintConfig = Field(default_factory=BlueprintConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
+    spoken: SpokenConfig = Field(default_factory=SpokenConfig)
+    audio_direction: AudioDirectionConfig = Field(default_factory=AudioDirectionConfig)
+    music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -855,13 +985,15 @@ class AIConfig(BaseModel):
         if not ri.enabled:
             return
         gp = self.generation_provider()
-        listed = set(ri.author_roles) | set(ri.reviewer_roles)
+        groups = ri.all_groups()
+        listed = {r for g in groups for r in [*g.authors, *g.reviewers]}
         unknown = listed - set(gp.routing)
         if unknown:
             raise ValueError(
                 f"review_independence lists unknown roles: {sorted(unknown)}"
             )
-        both = set(ri.author_roles) & set(ri.reviewer_roles)
+        all_authors = {a for g in groups for a in g.authors}
+        both = all_authors & ri.all_reviewers()
         if both:
             raise ValueError(
                 f"roles cannot be both author and reviewer: {sorted(both)}"
@@ -873,14 +1005,15 @@ class AIConfig(BaseModel):
                         f"review_independence.reviewer_fallbacks uses unknown "
                         f"alias {a!r}"
                     )
-        author_models = {gp.models[gp.routing[r]] for r in ri.author_roles}
-        for role in ri.reviewer_roles:
-            model = gp.models[gp.routing[role]]
-            if model in author_models:
-                raise ValueError(
-                    f"reviewer role {role!r} routes to {model!r}, which also "
-                    "writes the narration it would judge"
-                )
+        for g in groups:
+            author_models = {gp.models[gp.routing[r]] for r in g.authors}
+            for role in g.reviewers:
+                model = gp.models[gp.routing[role]]
+                if model in author_models:
+                    raise ValueError(
+                        f"reviewer role {role!r} routes to {model!r}, which also "
+                        "writes the narration it would judge"
+                    )
 
     @staticmethod
     def _require_capability(
@@ -952,13 +1085,13 @@ class AIConfig(BaseModel):
         alias = self.alias_for(role)
         chain = section.fallbacks.get(alias) or []
         ri = self.review_independence
-        if ri.enabled and role in ri.reviewer_roles:
+        if ri.enabled and role in ri.all_reviewers():
             # A reviewer never falls back to a model that writes the
-            # narration — a rate limit must not turn a critic into the
-            # author grading its own text.
+            # narration it judges — a rate limit must not turn a critic
+            # into the author grading its own text.
             chain = ri.reviewer_fallbacks.get(alias, chain)
             gp = self.generation_provider()
-            authors = {gp.models[gp.routing[r]] for r in ri.author_roles}
+            authors = {gp.models[gp.routing[r]] for r in ri.authors_judged_by(role)}
             primary = section.models[alias]
             out: list[str] = []
             for a in chain:
@@ -966,6 +1099,12 @@ class AIConfig(BaseModel):
                 if a != alias and m != primary and m not in authors and m not in out:
                     out.append(m)
             return out
+        if ri.enabled and ri.strict_reviewers_of(role):
+            gp = self.generation_provider()
+            critics = {gp.models[gp.routing[r]]
+                       for r in ri.strict_reviewers_of(role)}
+            return [section.models[a] for a in chain
+                    if a != alias and section.models[a] not in critics]
         return [section.models[a] for a in chain if a != alias]
 
     def generation_for(self, role: str) -> GenerationSettings:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import os
 
 import httpx
@@ -139,3 +140,63 @@ class ElevenLabsVoiceProvider(VoiceProvider):
             request_id=lower.get("request-id"),
             character_cost=int(cost) if cost and str(cost).isdigit() else None,
         )
+
+
+class ElevenLabsSoundProvider:
+    """Short music/atmosphere cues from text (POST /v1/sound-generation).
+
+    Used for the documentary's music beds, bridges, stings and room tone
+    (up to ~22 s each; beds as seamless loops). Same key and settings as
+    the voice provider; needs the key's sound-generation permission."""
+
+    name = "elevenlabs_sound"
+
+    def __init__(self):
+        self.cfg = ai_config.voice.elevenlabs
+        self.api_key = os.getenv(self.cfg.secret_env) or ""
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    async def _post(self, url: str, body: dict) -> tuple[int, bytes, dict]:
+        async with httpx.AsyncClient(timeout=self.cfg.request_timeout_s) as client:
+            r = await client.post(
+                url, params={"output_format": self.cfg.output_format},
+                headers={"xi-api-key": self.api_key,
+                         "Content-Type": "application/json"},
+                json=body,
+            )
+            return r.status_code, r.content, dict(r.headers)
+
+    async def generate(self, prompt: str, seconds: float, loop: bool,
+                       prompt_influence: float) -> tuple[bytes, int | None]:
+        if not self.is_configured():
+            raise VoiceProviderError(
+                "missing_credentials", f"{self.cfg.secret_env} is not set (.env).")
+        body = {"text": prompt, "duration_seconds": float(seconds),
+                "prompt_influence": float(prompt_influence)}
+        if loop:
+            body["loop"] = True
+            body["model_id"] = "eleven_text_to_sound_v2"
+        url = f"{self.cfg.base_url.rstrip('/')}/v1/sound-generation"
+        last: VoiceProviderError | None = None
+        for attempt in range(self.cfg.max_retries + 1):
+            try:
+                status, content, headers = await self._post(url, body)
+            except httpx.TimeoutException as e:
+                last = VoiceProviderError("timeout", f"ElevenLabs timeout: {e}")
+            except httpx.HTTPError as e:
+                last = VoiceProviderError("unreachable", f"ElevenLabs unreachable: {e}")
+            else:
+                if status == 200 and content:
+                    cost = {k.lower(): v for k, v in headers.items()}.get("character-cost")
+                    return content, int(cost) if cost and str(cost).isdigit() else None
+                try:
+                    data = json.loads(content.decode("utf-8", "replace"))
+                except ValueError:
+                    data = {"raw": content[:200].decode("utf-8", "replace")}
+                last = ElevenLabsVoiceProvider._error(status, data)
+            if last.kind not in _RETRYABLE or attempt == self.cfg.max_retries:
+                break
+            await asyncio.sleep(min(2 ** attempt, 8))
+        raise last  # type: ignore[misc]
