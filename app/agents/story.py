@@ -596,6 +596,7 @@ Output only markers plus story text — nothing else.
         language: str,
         tone: str,
         role: str = "writer",
+        already_narrated: list[str] | None = None,
     ) -> tuple[str, GenerationResult]:
         """Write ONE act against its word budget and assigned evidence.
 
@@ -619,12 +620,18 @@ GROUNDING — the hard contract:
   biographical or procedural details that are not in the evidence pack.
 - Items flagged "uncertain"/"disputed" MUST be narrated with uncertainty
   language — never presented as certain.
+- Absence of records, failed searches or unproven theories are NEVER
+  proof — narrate what was searched and found, not conclusions the
+  evidence does not support.
 
 Act rules:
 - This act's target is ~{act.get('target_words')} words.
 - Purpose: {act.get('purpose', '')}
 - Narrate only this act's assigned evidence; do not use or foreshadow
   evidence assigned to later acts.
+- "already_narrated" lists evidence earlier acts have ALREADY told the
+  audience. Never re-explain those facts; reference them in at most one
+  short clause where continuity requires it. New information only.
 - Open loops this act may raise: {act.get('open_loops') or []}
 - Loops this act must resolve: {act.get('resolved_loops') or []}
 - No invented quotes, dialogue, evidence, motives, or scenes.
@@ -641,6 +648,7 @@ Output only this act's narration text — nothing else.
                          "do_not_reveal")},
                 "episode_position": prior_position,
                 "reserved_for_later_acts": later_reserved,
+                "already_narrated": already_narrated or [],
                 "evidence": act_pack,
             },
             ensure_ascii=False,
@@ -856,6 +864,11 @@ class StoryPipeline:
             # Validation/repair use the act-scoped pack (Part 18), not the
             # whole case database.
             max_g_passes = ai_config.story_quality.max_grounding_repair_iterations + 1
+            # Repair-call ceiling: grounding repair must not consume the
+            # entire case budget before engagement cycles ever run — the
+            # assembled gate still judges whatever repairs did not reach.
+            max_repairs = ai_config.master_generation.max_span_repairs_per_pass * 5
+            repairs_done = 0
             for i, s in enumerate(sections):
                 act_pack = build_act_pack(
                     pack, (s.get("meta") or {}).get("evidence_ids")
@@ -875,9 +888,16 @@ class StoryPipeline:
                 for _ in range(max_g_passes):
                     if not self._grounding_fails(rep):
                         break
+                    if repairs_done >= max_repairs:
+                        revision_log.append(
+                            {"section_id": s["id"], "repaired": False,
+                             "reason": "repair_budget_exhausted"}
+                        )
+                        break
                     try:
                         new_text, rlog = await self._repair_section_spans(
-                            db, case, s, rep, act_pack, language
+                            db, case, s, rep, act_pack, language,
+                            limit=max_repairs - repairs_done,
                         )
                     except Exception:
                         # A failed repair must not kill the run — keep the
@@ -889,6 +909,10 @@ class StoryPipeline:
                         )
                         break
                     revision_log.extend(rlog)
+                    repairs_done += sum(
+                        1 for e in rlog
+                        if e.get("repaired") or e.get("rewrite_rejected")
+                    )
                     if new_text == s["text"]:
                         break  # repairs exhausted or rejected — stop
                     s["text"] = new_text
@@ -914,6 +938,52 @@ class StoryPipeline:
             text = _join_sections(sections)
             grounding = await self._checked_grounding(db, case, text, pack)
             consistency = await self._checked_consistency(db, case, text, pack)
+
+            # --- consistency repair: high/medium violations get surgical
+            # span fixes on the assembled text — detection alone never
+            # clears the gate (Master_Prompt step 18). One bounded pass.
+            cons_violations = consistency.get("violations") or []
+            repairable = [
+                v for v in cons_violations
+                if v.get("severity") in ("high", "medium")
+            ][: ai_config.master_generation.max_span_repairs_per_pass]
+            if repairable:
+                pseudo = {"id": "assembled", "text": text}
+                report = {
+                    "unsupported_claims": [
+                        {
+                            "claim": v.get("detail") or "",
+                            "exact_text_span": v.get("location") or "",
+                            "reason": (
+                                f"consistency violation "
+                                f"({v.get('type')}, {v.get('severity')}): "
+                                f"{v.get('detail')}"
+                            ),
+                            "nearest_supported_evidence_ids": [],
+                        }
+                        for v in repairable
+                    ]
+                }
+                try:
+                    new_text, clog = await self._repair_section_spans(
+                        db, case, pseudo, report, pack, language
+                    )
+                except Exception:
+                    clog = [{"stage": "consistency_repair",
+                             "reason": "repair_call_failed"}]
+                    new_text = text
+                revision_log.extend(
+                    {**e, "stage": "consistency_repair"} for e in clog
+                )
+                if new_text != text:
+                    text = new_text
+                    sections = _parse_sections(text)
+                    consistency = await self._checked_consistency(
+                        db, case, text, pack
+                    )
+                    grounding = await self._checked_grounding(
+                        db, case, text, pack
+                    )
 
             # --- engagement revision cycles: targeted ops, not full rewrites ---
             critique = {}
@@ -1090,12 +1160,18 @@ class StoryPipeline:
             final_critique["budget_exhausted"] = budget_exhausted
 
             similarity, sim_status = self._score_similarity(db, case, text, sources)
-            if similarity is not None and similarity > ai_config.story.similarity_threshold:
+            # Phrase-level originality against authorized source texts —
+            # vocabulary overlap (token_set) stays telemetry-only because
+            # faithful same-case coverage saturates it without any copying.
+            from app.services.similarity import check_source_text_similarity
+            src_sim = check_source_text_similarity(db, case.id, text)
+            final_critique["source_text_similarity"] = src_sim
+            if src_sim["status"] == "fail":
                 final_critique["similarity_flagged"] = True
                 gates["pass"] = False
                 failures = gates.setdefault("failures", [])
-                if "similarity_above_threshold" not in failures:
-                    failures.append("similarity_above_threshold")
+                if "source_phrase_overlap" not in failures:
+                    failures.append("source_phrase_overlap")
 
             # Source-separation gates (Master_Prompt 16/17): the story must
             # share the case's facts but never a transcript's phrasing or
@@ -1149,11 +1225,17 @@ class StoryPipeline:
         """Apply an editorial instruction to an existing version and store a new one."""
         sources = db.query(Source).filter(Source.case_id == case.id).all()
 
-        system = """
+        orig_words = len((story_version.story_text or "").split())
+        tol = ai_config.master_generation.rewrite_length_tolerance
+        system = f"""
 You are revising a long-form true-crime script.
 Apply the requested editorial improvement while preserving factual accuracy.
 Do not invent quotes, dialogue, evidence, motives, or scenes.
 Do not add citations, URLs, headings, or source notes.
+LENGTH CONTRACT: the source is {orig_words} words — output
+{int(orig_words * (1 - tol))}–{int(orig_words * (1 + tol))} words.
+Cut redundant material only where duplicated, and expand with grounded
+detail when removing text would shrink the piece below the contract.
 Output only the rewritten story.
 """
         user = json.dumps(
@@ -1180,8 +1262,34 @@ Output only the rewritten story.
                 run.output_summary = f"words={len(story.split())}"
 
             story = strip_narration_artifacts(story)
+            new_words = len(story.split())
+            if not (
+                orig_words * (1 - tol)
+                <= new_words
+                <= orig_words * (1 + tol)
+            ):
+                # Step-15 length contract: a candidate that collapses or
+                # balloons the draft is rejected, never stored.
+                raise ValueError(
+                    f"improve candidate violated length contract: "
+                    f"{new_words} words vs contract "
+                    f"{int(orig_words * (1 - tol))}–"
+                    f"{int(orig_words * (1 + tol))}"
+                )
             sections = _parse_sections(story)
-            est_minutes = max(10, round(len(story.split()) / ai_config.story.words_per_minute))
+            est_minutes = max(10, round(new_words / ai_config.story.words_per_minute))
+
+            # A rewritten candidate must pass the same grounding and
+            # consistency gates as a fresh generation — never stored blind.
+            facts = db.query(Fact).filter(Fact.case_id == case.id).all()
+            contradictions = (
+                db.query(Contradiction)
+                .filter(Contradiction.case_id == case.id)
+                .all()
+            )
+            pack = build_evidence_pack(facts, contradictions, sources)
+            grounding = await self._checked_grounding(db, case, story, pack)
+            consistency = await self._checked_consistency(db, case, story, pack)
 
             # Critic always scores the exact text being stored.
             h = text_hash(story)
@@ -1191,13 +1299,29 @@ Output only the rewritten story.
                 run.output_summary = f"score={critique.get('score', 0)} hash={h[:8]}"
 
             gates = self._evaluate_gates(
-                story, story_version.language, est_minutes, None, None,
+                story, story_version.language, est_minutes,
+                grounding, consistency,
                 float(critique.get("score", 0)),
             )
+            critique["consistency"] = consistency
+            critique["grounding"] = {
+                k: grounding.get(k)
+                for k in ("grounding_score", "unsupported_claims",
+                          "uncertainty_errors")
+            }
             critique["quality_gates"] = gates
             critique["text_hash"] = h
 
             similarity, sim_status = self._score_similarity(db, case, story, sources)
+            # Same phrase-level originality gate as fresh generation.
+            from app.services.similarity import check_source_text_similarity
+            src_sim = check_source_text_similarity(db, case.id, story)
+            critique["source_text_similarity"] = src_sim
+            if src_sim["status"] == "fail":
+                gates["pass"] = False
+                failures = gates.setdefault("failures", [])
+                if "source_phrase_overlap" not in failures:
+                    failures.append("source_phrase_overlap")
             row = self._new_version(
                 db, case, story_version.narrative_angle,
                 sections, story, float(critique.get("score", 0)),
@@ -1251,6 +1375,7 @@ Output only the rewritten story.
         sections: list[dict] = []
         last_res = GenerationResult(text="", model="", provider="")
         n = len(acts)
+        narrated_ids: set[str] = set()
         for i, act in enumerate(acts):
             act.setdefault("id", f"act{i + 1}")
             later_reserved = sorted(
@@ -1273,6 +1398,7 @@ Output only the rewritten story.
                 text, last_res = await self.writer.write_act(
                     case, pack, plan, act, prior, later_reserved,
                     language, tone, role=self.roles["writer"],
+                    already_narrated=sorted(narrated_ids),
                 )
                 stamp_run(run, last_res, self.roles["writer"])
                 run.output_summary = f"words={len(text.split())}"
@@ -1286,6 +1412,9 @@ Output only the rewritten story.
                 {"id": act["id"], "text": text, "meta": act,
                  "draft_log": revision_note}
             )
+            # Everything this act may have narrated becomes established for
+            # later acts — even if the director assigned overlapping ids.
+            narrated_ids.update(act.get("evidence_ids") or [])
         return sections, last_res
 
     async def _fit_section_length(
@@ -1392,7 +1521,7 @@ uncertainty language and voice. Output only the act text.
 
     async def _repair_section_spans(
         self, db: Session, case: Case, section: dict, report: dict,
-        pack: dict, language: str,
+        pack: dict, language: str, limit: int | None = None,
     ) -> tuple[str, list[dict]]:
         """Surgical grounding repair: fix only the paragraphs containing
         unsupported claims, under an explicit length contract."""
@@ -1400,9 +1529,10 @@ uncertainty language and voice. Output only the act text.
         tol = mg.rewrite_length_tolerance
         text = section["text"]
         log: list[dict] = []
-        unsupported = (report.get("unsupported_claims") or [])[
-            : mg.max_span_repairs_per_pass
-        ]
+        cap = mg.max_span_repairs_per_pass
+        if limit is not None:
+            cap = min(cap, max(limit, 0))
+        unsupported = (report.get("unsupported_claims") or [])[:cap]
         for claim_obj in unsupported:
             span = (
                 claim_obj.get("exact_text_span")

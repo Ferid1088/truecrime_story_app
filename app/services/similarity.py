@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import (
+    Source,
     TranscriptClaim,
     TranscriptSegment,
     VideoSource,
@@ -114,6 +115,59 @@ def check_text_similarity(db: Session, case_id: int, story_text: str) -> dict:
         "score": round(min(worst["score"], 9.99), 3),
         "status": status,
         "worst_video_source_id": worst["video_source_id"],
+        "ngram_overlap": worst["overlap"],
+        "longest_sequence_ratio": worst["lcs_ratio"],
+    }
+
+
+def check_source_text_similarity(db: Session, case_id: int, story_text: str) -> dict:
+    """Phrase-level originality against authorized *web* source texts.
+
+    Unlike token-set vocabulary overlap (which saturates for any faithful
+    same-case coverage), this measures sustained verbatim copying: n-gram
+    containment plus longest-common-sequence ratio against each source.
+    Shared facts may overlap; copied expression may not."""
+    cfg = ai_config.similarity
+    story_tokens = _tokens(story_text)
+    if not story_tokens:
+        return {"score": 0.0, "status": "pass", "detail": "empty story"}
+    story_ngrams = _ngrams(story_tokens, cfg.ngram_size)
+    worst = {"score": 0.0, "source_id": None, "overlap": 0.0, "lcs_ratio": 0.0}
+    sources = (
+        db.query(Source)
+        .filter(Source.case_id == case_id, Source.is_authorized_text.is_(True))
+        .all()
+    )
+    for s in sources:
+        corpus = _tokens(s.raw_text or "")
+        if not corpus:
+            continue
+        c_ngrams = _ngrams(corpus, cfg.ngram_size)
+        overlap = (
+            len(story_ngrams & c_ngrams) / len(story_ngrams)
+            if story_ngrams else 0.0
+        )
+        # The quadratic LCS pass only runs where n-gram overlap shows any
+        # shared material at all — most sources score zero cheaply.
+        lcs_ratio = (
+            _lcs_len(story_tokens, corpus) / len(story_tokens)
+            if overlap > 0 else 0.0
+        )
+        score = max(
+            overlap / max(cfg.max_ngram_overlap_ratio, 1e-9),
+            lcs_ratio / max(cfg.max_longest_sequence_ratio, 1e-9),
+        )
+        if score > worst["score"]:
+            worst = {
+                "score": score,
+                "source_id": s.id,
+                "overlap": round(overlap, 4),
+                "lcs_ratio": round(lcs_ratio, 4),
+            }
+    return {
+        "score": round(min(worst["score"], 9.99), 3),
+        "status": "fail" if worst["score"] > 1.0 else "pass",
+        "worst_source_id": worst["source_id"],
         "ngram_overlap": worst["overlap"],
         "longest_sequence_ratio": worst["lcs_ratio"],
     }

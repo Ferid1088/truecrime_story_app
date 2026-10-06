@@ -337,6 +337,14 @@ export const fixtures = {
     embedding: { model: "test-embed", configured: true },
     llm: { provider: "apimaster", configured: true },
   },
+  // Historical provider — retired from active research, status kept for
+  // display only.
+  openrouterStatus: {
+    provider: "openrouter",
+    configured: false,
+    reachable: false,
+    active: false,
+  },
   dbOverview: {
     cases: { count: 1, items: [{ id: 1, title: CASE.title, status: "story_ready", created_at: CASE.created_at }] },
     sources: { count: 3, items: [] },

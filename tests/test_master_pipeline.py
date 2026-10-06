@@ -590,7 +590,9 @@ def test_improve_preserves_master_kind(db_session, monkeypatch):
         narrative_structure=json.dumps({"sections": []}),
         language="en",
         kind="master",
-        story_text="original master text " * 10,
+        # 60 words so the fake rewriter's 60-word candidate stays inside the
+        # improve() length contract (±15%).
+        story_text="original master text " * 20,
         text_hash="h1",
         engagement_score=40,
         similarity_score=0.1,
