@@ -184,6 +184,28 @@ check. Voice ids, model ids, styles, pauses and loudness live in
 - `GET …/voice` → manifest (QA per block + word timeline),
   `GET …/voice/narration.mp3` → audio.
 
+### Editorial blueprint and performance
+
+- `POST /api/cases/{case_id}/stories/{version_id}/blueprint` — the
+  Narrative Director (role `narrative_director`) divides the finished
+  story into beats (paragraph ranges per act) with purpose, first-time
+  reveals (evidence ids), listener questions (opened / answered /
+  honestly *unresolved*), human focus, low/medium/high load levels and
+  attention, visual, audio, pause and music intents. A deterministic
+  validator checks coverage, ids, reveal order, open-question load, beat
+  length and pacing; one repair round fixes errors, one improvement
+  round (kept only if better) addresses listener-load warnings.
+  Status: `valid` | `needs_review` | `invalid`. `GET …/blueprint` returns
+  the latest.
+- `GET …/performance` — voice blocks with style (from
+  `performance.style_for_intent`), beat ranges and the pause after each
+  block. Style changes and dramatic pauses/silences are block
+  boundaries; the silence director keeps long pauses rare (share cap,
+  never two in a row unless both are reveals/chapter ends) and slightly
+  varied in length. `voice/render` uses this automatically when a usable
+  blueprint exists for exactly that story text; the manifest then has a
+  beat timeline (`timeline.beats`).
+
 ## Workflow پیشنهادی
 
 1. `POST /api/topics/discover`

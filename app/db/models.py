@@ -510,3 +510,31 @@ class ResearchSourceLink(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
     result = relationship("ResearchResult", back_populates="source_links")
+
+class EditorialBlueprint(Base):
+    """Language-independent documentary strategy for one story version:
+    beats (which paragraphs, what they reveal, which questions they open
+    or answer, how they should feel, sound and look). Every later stage —
+    voice performance, visuals, music, the reveal firewall — reads this.
+    The narration text itself stays in StoryVersion."""
+
+    __tablename__ = "editorial_blueprints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(
+        ForeignKey("story_versions.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # valid | needs_review (warnings) | invalid (structural errors)
+    status: Mapped[str] = mapped_column(String(20), default="invalid", index=True)
+    evidence_fingerprint: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    story_text_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    central_question: Mapped[str | None] = mapped_column(Text, nullable=True)
+    editorial_thesis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    human_thread: Mapped[str | None] = mapped_column(Text, nullable=True)
+    blueprint_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

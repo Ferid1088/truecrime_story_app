@@ -54,10 +54,17 @@ from app.agents.localization import LocalizationPipeline
 from app.documentary.audio import AudioToolError
 from app.documentary.voice_blocks import plan_for_version
 from app.documentary.voice_render import VoiceRenderer
+from app.documentary.blueprint import (
+    NarrativeDirector,
+    blueprint_dict,
+    latest_blueprint,
+)
+from app.documentary.performance import performance_for_version
 from app.providers import get_research_provider
 from app.providers.voice import VoiceProviderError
 from app.providers.base import ProviderError
 from app.providers.generation import get_generation_provider
+from app.providers.generation.base import GenerationError
 from app.services import research_jobs
 from app.services.readiness import build_readiness
 
@@ -1330,9 +1337,11 @@ async def render_story_voice(
     word timestamps, independent speech-to-text check (with automatic
     re-take of failing blocks), loudness normalization, one narration
     track + timeline. Unchanged blocks come from cache (no cost).
-    `max_seconds` renders only the opening (e.g. a 3-minute pilot)."""
+    `max_seconds` renders only the opening (e.g. a 3-minute pilot).
+    With a usable editorial blueprint, blocks follow its performance
+    script (style per beat, dramatic pauses, silences)."""
     story = _story_or_404(db, case_id, version_id)
-    plan = plan_for_version(story)
+    plan = performance_for_version(db, story)
     try:
         manifest = await VoiceRenderer().render(
             plan, case_id=case_id, story_version_id=version_id,
@@ -1346,7 +1355,46 @@ async def render_story_voice(
         raise HTTPException(status_code=409, detail=str(e))
     except AudioToolError as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return _voice_summary(manifest)
+    summary = _voice_summary(manifest)
+    summary["blueprint_used"] = plan.get("blueprint_used", False)
+    return summary
+
+
+@app.post("/api/cases/{case_id}/stories/{version_id}/blueprint")
+async def create_story_blueprint(
+    case_id: int, version_id: int, db: Session = Depends(get_db),
+):
+    """Editorial blueprint for a story: beats (paragraph ranges per act)
+    with purpose, reveals, listener questions, attention/visual/audio
+    intents and pauses — validated deterministically (status valid |
+    needs_review | invalid)."""
+    story = _story_or_404(db, case_id, version_id)
+    await _require_generation_authorized()
+    case = _get_case_or_404(db, case_id)
+    try:
+        row = await NarrativeDirector().create(db, case, story)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except GenerationError as e:
+        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)})
+    return blueprint_dict(row)
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/blueprint")
+def get_story_blueprint(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    _story_or_404(db, case_id, version_id)
+    row = latest_blueprint(db, version_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="No blueprint for this story version")
+    return blueprint_dict(row)
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/performance")
+def get_story_performance(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    """Performance script (read-only, no provider cost): voice blocks with
+    style, beat ranges and the pause after each block."""
+    story = _story_or_404(db, case_id, version_id)
+    return performance_for_version(db, story)
 
 
 def _voice_dir(story: StoryVersion):

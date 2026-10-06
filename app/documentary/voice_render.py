@@ -63,6 +63,31 @@ def words_from_alignment(
     return words
 
 
+def beat_times(beats: list[dict], text: str, alignment: dict, t0: float) -> list[dict]:
+    """Start/end time (block-local, after trimming) of each beat part in
+    a block, from the provider's per-character timing. Falls back to a
+    proportional estimate if the alignment does not match the text."""
+    chars, starts, ends = (alignment["characters"], alignment["starts"],
+                           alignment["ends"])
+    exact = "".join(chars) == text
+    out = []
+    for bt in beats:
+        s, e = bt["start_char"], bt["end_char"]
+        if exact:
+            idx = [i for i in range(s, min(e, len(chars))) if not chars[i].isspace()]
+            if not idx:
+                continue
+            start, end = starts[idx[0]], ends[idx[-1]]
+        else:
+            total = ends[-1] if ends else 0.0
+            start = total * s / max(len(text), 1)
+            end = total * e / max(len(text), 1)
+        out.append({"beat_id": bt["beat_id"],
+                    "start": round(max(start - t0, 0.0), 3),
+                    "end": round(max(end - t0, 0.0), 3)})
+    return out
+
+
 def select_blocks(blocks: list[dict], max_seconds: float | None) -> list[dict]:
     """Leading blocks up to roughly max_seconds of estimated speech
     (whole blocks only — a block is never cut)."""
@@ -135,6 +160,12 @@ class VoiceRenderer:
             blocks_dir / f"{stem}.mp3", blocks_dir / f"{stem}.json",
             blocks_dir / f"{stem}.wav",
         )
+        if not (raw.exists() and meta_path.exists()):
+            # Same take under another block id (e.g. after re-segmenting):
+            # the content key decides, so it is reused, not paid again.
+            other = next(iter(sorted(blocks_dir.glob(f"*__{key}.json"))), None)
+            if other is not None and other.with_suffix(".mp3").exists():
+                raw, meta_path = other.with_suffix(".mp3"), other
         cache_hit = raw.exists() and meta_path.exists()
         if cache_hit:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -170,6 +201,7 @@ class VoiceRenderer:
             {**w, "start": round(w["start"] - t0, 3), "end": round(w["end"] - t0, 3)}
             for w in words
         ]
+        local_beats = beat_times(block.get("beats") or [], req.text, al, t0)
 
         asr = None
         if self.asr is not None:
@@ -182,6 +214,7 @@ class VoiceRenderer:
             "raw_duration": round(raw_duration, 3),
             "trimmed": {"start": round(t0, 3), "end": round(t1, 3)},
             "duration": round(duration, 3), "words": local_words,
+            "beats": local_beats,
             "character_cost": None if cache_hit else meta.get("character_cost"),
             "request_id": meta.get("request_id"), "asr": asr,
         }
@@ -204,11 +237,15 @@ class VoiceRenderer:
     ) -> dict:
         language = plan["language"]
         lang_cfg = self.cfg.for_language(language)
-        style_name = style or self.cfg.default_style
-        if style_name not in self.cfg.styles:
-            raise ValueError(f"Unknown voice style {style_name!r}")
-        settings = self.cfg.styles[style_name].model_dump()
+        # An explicit style overrides the performance script (A/B tests);
+        # otherwise each block uses its own style, else the default.
+        for name in {style} | {b.get("style") for b in plan["blocks"]}:
+            if name and name not in self.cfg.styles:
+                raise ValueError(f"Unknown voice style {name!r}")
         force = set(force_block_ids or [])
+
+        def block_style(b: dict) -> str:
+            return style or b.get("style") or self.cfg.default_style
 
         out = self.out_dir(case_id, language, story_version_id)
         blocks_dir = out / "blocks"
@@ -221,6 +258,7 @@ class VoiceRenderer:
             # reproducible; normal renders reuse the cached take.
             base_seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
             takes: list[dict] = []
+            settings = self.cfg.styles[block_style(b)].model_dump()
             for attempt in range(1 + self.asr_cfg.auto_retakes):
                 req = VoiceRequest(
                     text=b["text"], voice_id=lang_cfg.voice_id,
@@ -252,6 +290,7 @@ class VoiceRenderer:
         pieces: list[str] = []
         timeline_blocks: list[dict] = []
         words_global: list[dict] = []
+        beat_spans: dict[str, dict] = {}
         t = 0.0
         sr = self.loud.sample_rate
         for i, r in enumerate(results):
@@ -259,9 +298,20 @@ class VoiceRenderer:
             pieces.append(take["wav_path"])
             start = t
             t += take["duration"]
+            gap_ms = 0
+            if i + 1 < len(results):
+                if b.get("pause_after_ms") is not None:
+                    gap_ms = int(b["pause_after_ms"])  # performance script
+                else:
+                    same = results[i + 1]["block"]["section_id"] == b["section_id"]
+                    gap_ms = (self.cfg.between_blocks_ms if same
+                              else self.cfg.between_sections_ms)
             timeline_blocks.append({
                 "block_id": b["block_id"], "section_id": b["section_id"],
+                "style": block_style(b),
                 "start": round(start, 3), "end": round(t, 3),
+                "pause_after_ms": gap_ms,
+                "pause_after_kind": b.get("pause_after_kind"),
                 "wav": _rel(take["wav_path"]),
             })
             for w in take["words"]:
@@ -269,10 +319,13 @@ class VoiceRenderer:
                     **w, "start": round(w["start"] + start, 3),
                     "end": round(w["end"] + start, 3), "block_id": b["block_id"],
                 })
+            for bt in take.get("beats") or []:
+                span = beat_spans.setdefault(
+                    bt["beat_id"], {"beat_id": bt["beat_id"],
+                                    "start": bt["start"] + start, "end": 0.0})
+                span["end"] = round(bt["end"] + start, 3)
+                span["start"] = round(min(span["start"], bt["start"] + start), 3)
             if i + 1 < len(results):
-                same_section = results[i + 1]["block"]["section_id"] == b["section_id"]
-                gap_ms = (self.cfg.between_blocks_ms if same_section
-                          else self.cfg.between_sections_ms)
                 if gap_ms:
                     gap = blocks_dir / f"silence_{gap_ms}ms.wav"
                     if not gap.exists():
@@ -324,6 +377,8 @@ class VoiceRenderer:
                 if take["duration"] else None,
                 "attempts": r["attempts"], "seed": take["seed"],
                 "cache_hit": take["cache_hit"], "characters_paid": paid,
+                "style": block_style(b),
+                "beat_ids": [bt["beat_id"] for bt in b.get("beats") or []],
                 "loudness_lufs": loud["integrated_lufs"],
                 "loudness_deviation_lu": dev,
                 "asr": None if not asr else {
@@ -339,8 +394,10 @@ class VoiceRenderer:
         manifest = {
             "case_id": case_id, "story_version_id": story_version_id,
             "language": language, "voice_id": lang_cfg.voice_id,
-            "model_id": lang_cfg.model_id, "style": style_name,
-            "settings": settings, "provider": self.provider.name,
+            "model_id": lang_cfg.model_id,
+            "style_override": style,
+            "styles_used": sorted({block_style(r["block"]) for r in results}),
+            "provider": self.provider.name,
             "asr": (self.asr.name if self.asr else None),
             "asr_error": self.asr_error,
             "blocks_rendered": len(results),
@@ -361,7 +418,11 @@ class VoiceRenderer:
                 "manifest": _rel(out / "manifest.json"),
             },
             "blocks": qa_blocks,
-            "timeline": {"blocks": timeline_blocks, "words": words_global},
+            "timeline": {
+                "blocks": timeline_blocks,
+                "beats": sorted(beat_spans.values(), key=lambda x: x["start"]),
+                "words": words_global,
+            },
         }
         (out / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"

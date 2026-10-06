@@ -88,7 +88,8 @@
         "research_evaluator": "cheap",
         "research_assembler": "cheap",
         "case_discovery_agent": "research_intelligence",
-        "youtube_discovery_agent": "research_intelligence"
+        "youtube_discovery_agent": "research_intelligence",
+        "narrative_director": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -263,6 +264,10 @@
     "research_normalizer": {
       "temperature": 0.0,
       "max_tokens": 8000
+    },
+    "narrative_director": {
+      "temperature": 0.3,
+      "max_tokens": 32000
     }
   },
   "search_engine": {
@@ -687,5 +692,45 @@
     "lra": 11,
     "max_block_deviation_lu": 2.0,
     "sample_rate": 44100
+  },
+  "blueprint": {
+    "max_open_questions": 3,
+    "max_unanswered_questions": 2,
+    "max_dense_run": 3,
+    "max_beat_words": 230,
+    "max_repair_iterations": 1,
+    "revise_on_warnings": [
+      "too_many_open_questions",
+      "beat_too_long",
+      "hook_not_at_act_start",
+      "chapter_end_not_at_act_end",
+      "many_unanswered_questions",
+      "dense_run_without_recovery"
+    ],
+    "max_revision_iterations": 1
+  },
+  "performance": {
+    "style_for_intent": {
+      "neutral": "neutral_documentary",
+      "factual": "factual",
+      "investigative": "factual",
+      "controlled_tension": "controlled_tension",
+      "urgent_but_controlled": "controlled_tension",
+      "reveal": "reveal",
+      "reflective": "reflective",
+      "emotional_restraint": "reflective"
+    },
+    "pause_ms": {
+      "none": 0,
+      "short": 350,
+      "dramatic": 1400,
+      "silence": 2800
+    },
+    "pause_jitter": 0.15,
+    "max_long_pause_share": 0.2,
+    "protected_purposes": [
+      "reveal",
+      "chapter_end"
+    ]
   }
 }

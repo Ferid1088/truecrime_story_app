@@ -71,6 +71,8 @@ REQUIRED_ROLES = {
     # role-routed generation too — no model IDs hardcoded anywhere.
     "research_evaluator",
     "research_assembler",
+    # Documentary engine: editorial blueprint (beats, reveals, intents).
+    "narrative_director",
 }
 
 # Strict provider split: the research PROVIDER is now infrastructure
@@ -695,6 +697,63 @@ class LoudnessConfig(BaseModel):
     sample_rate: int = Field(default=44100, ge=8000)
 
 
+class BlueprintConfig(BaseModel):
+    """Editorial blueprint checks (deterministic, after the director)."""
+
+    # More simultaneously open questions than this overloads a listener.
+    max_open_questions: int = Field(default=3, ge=1)
+    # Questions raised but never answered (beyond genuine unknowns).
+    max_unanswered_questions: int = Field(default=2, ge=0)
+    # Consecutive high-information beats before a recovery beat is due.
+    max_dense_run: int = Field(default=3, ge=1)
+    # One beat = one listener moment (~90 s at documentary pace).
+    max_beat_words: int = Field(default=230, ge=50)
+    max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    # Warnings worth one improvement round by the director. The revision
+    # is kept only if it is error-free and has fewer such warnings.
+    revise_on_warnings: list[str] = [
+        "too_many_open_questions", "beat_too_long", "hook_not_at_act_start",
+        "chapter_end_not_at_act_end", "many_unanswered_questions",
+        "dense_run_without_recovery",
+    ]
+    max_revision_iterations: int = Field(default=1, ge=0, le=3)
+
+
+class PerformanceConfig(BaseModel):
+    """Voice direction: blueprint intents -> voice styles and pauses.
+
+    Pause classes: micro pauses inside sentences belong to the voice
+    engine; 'dramatic' and 'silence' are inserted by the app between
+    blocks (silence = no narrator, no music, only room tone later)."""
+
+    style_for_intent: dict[str, str] = Field(default_factory=lambda: {
+        "neutral": "neutral_documentary",
+        "factual": "factual",
+        "investigative": "factual",
+        "controlled_tension": "controlled_tension",
+        "urgent_but_controlled": "controlled_tension",
+        "reveal": "reveal",
+        "reflective": "reflective",
+        "emotional_restraint": "reflective",
+    })
+    pause_ms: dict[str, int] = Field(default_factory=lambda: {
+        "none": 0, "short": 350, "dramatic": 1400, "silence": 2800,
+    })
+    # ± variation of long pauses so they never sound machine-identical.
+    pause_jitter: float = Field(default=0.15, ge=0.0, le=0.5)
+    # At most this share of beats may end in a dramatic pause/silence.
+    max_long_pause_share: float = Field(default=0.2, ge=0.0, le=1.0)
+    # These beat purposes keep their long pause when caps apply.
+    protected_purposes: list[str] = ["reveal", "chapter_end"]
+
+    @model_validator(mode="after")
+    def _validate(self):
+        missing = {"none", "short", "dramatic", "silence"} - set(self.pause_ms)
+        if missing:
+            raise ValueError(f"performance.pause_ms missing {sorted(missing)}")
+        return self
+
+
 class AIConfig(BaseModel):
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
@@ -737,6 +796,8 @@ class AIConfig(BaseModel):
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     asr_check: ASRCheckConfig = Field(default_factory=ASRCheckConfig)
     loudness: LoudnessConfig = Field(default_factory=LoudnessConfig)
+    blueprint: BlueprintConfig = Field(default_factory=BlueprintConfig)
+    performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -782,6 +843,11 @@ class AIConfig(BaseModel):
             for role in _WEB_FETCH_ROLES:
                 self._require_capability(rp, role, "web_fetch")
         self._validate_review_independence()
+        unknown_styles = set(self.performance.style_for_intent.values()) - set(self.voice.styles)
+        if unknown_styles:
+            raise ValueError(
+                f"performance.style_for_intent uses unknown voice styles: {sorted(unknown_styles)}"
+            )
         return self
 
     def _validate_review_independence(self) -> None:

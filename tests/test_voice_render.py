@@ -75,7 +75,9 @@ class FakeASR:
 
     def transcribe(self, audio_path: str, language: str) -> dict:
         self.calls += 1
-        meta = json.loads(Path(audio_path).with_suffix(".json").read_text())
+        wav = Path(audio_path)
+        key = wav.stem.split("__")[-1]  # takes may be reused across block ids
+        meta = json.loads(next(wav.parent.glob(f"*__{key}.json")).read_text())
         words = meta["text"].split()
         if meta["seed"] in self.drop_for_seeds:
             words = words[:3] + words[8:]  # five words skipped
