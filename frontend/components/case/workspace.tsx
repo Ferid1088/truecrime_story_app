@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowLeft, FlaskConical, PenLine } from "lucide-react";
+import { Archive, ArrowLeft, Clapperboard, FlaskConical, PenLine } from "lucide-react";
 import { api, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
@@ -139,6 +139,9 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
           </Button>
           <Button size="sm" onClick={() => router.push(`/studio?case=${caseId}`)}>
             <PenLine className="size-3.5" /> Generate Story
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => router.push(`/documentary/${caseId}`)}>
+            <Clapperboard className="size-3.5" /> Documentary
           </Button>
           <Button
             variant="outline"

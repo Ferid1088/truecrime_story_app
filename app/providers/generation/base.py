@@ -52,11 +52,12 @@ class GenerationProvider:
         raise NotImplementedError
 
     async def generate_text(
-        self, role: str, system: str, user: str
+        self, role: str, system: str, user: str, images: list[str] | None = None
     ) -> GenerationResult:
         raise NotImplementedError
 
     async def generate_structured(
-        self, role: str, system: str, user: str
+        self, role: str, system: str, user: str, images: list[str] | None = None
     ) -> tuple[dict[str, Any], GenerationResult]:
+        """`images`: optional data:/https URLs for vision-capable roles."""
         raise NotImplementedError

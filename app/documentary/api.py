@@ -1,0 +1,429 @@
+"""Documentary production API (Parts 43–49): one-button jobs and the data
+behind every tab — Blueprint, Language Versions, Voice, Visual Library,
+Timeline, Music & Sound, Production Script, Critique, Render.
+Secrets are never exposed."""
+
+from __future__ import annotations
+
+import json
+from typing import Literal
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.core.ai_config import ai_config
+from app.db.base import get_db
+from app.db.models import (
+    Case, DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
+)
+from app.documentary import jobs as J
+from app.documentary import storage
+from app.documentary.audio_director import audio_plan_dict, latest_audio_plan
+from app.documentary.blueprint import blueprint_dict, latest_blueprint
+from app.documentary.visuals import rights as R
+
+router = APIRouter(tags=["documentary"])
+
+
+def _case(db: Session, case_id: int) -> Case:
+    case = db.get(Case, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case
+
+
+def _loads(text, default):
+    try:
+        return json.loads(text) if text else default
+    except (ValueError, TypeError):
+        return default
+
+
+def _masters(db: Session, case_id: int) -> list[StoryVersion]:
+    return (db.query(StoryVersion)
+            .filter(StoryVersion.case_id == case_id,
+                    StoryVersion.kind.in_(("master", "direct")))
+            .order_by(StoryVersion.id.desc()).all())
+
+
+def _pick_master(db: Session, case_id: int, version_id: int | None) -> StoryVersion:
+    if version_id:
+        v = db.get(StoryVersion, version_id)
+        if not v or v.case_id != case_id:
+            raise HTTPException(status_code=404, detail="Story version not found")
+        return v
+    masters = [m for m in _masters(db, case_id) if (m.language or "en") == "en"]
+    if not masters:
+        raise HTTPException(status_code=409, detail="Write an English master story first.")
+    # prefer one that already has a blueprint (work is reused)
+    for m in masters:
+        if latest_blueprint(db, m.id):
+            return m
+    return masters[0]
+
+
+def asset_dict(a: VisualAsset) -> dict:
+    return {
+        "id": a.id, "asset_id": a.asset_code, "type": a.asset_type,
+        "subject_type": a.subject_type, "title": a.title, "description": a.description,
+        "caption": a.caption, "entities": _loads(a.entities_json, []),
+        "role": a.asset_role, "provider": a.provider, "source_url": a.source_url,
+        "page_url": a.page_url, "source_name": a.source_name, "found_for": a.found_for,
+        "license": a.license, "credit": a.credit, "rights": a.rights_status,
+        "rights_reason": a.rights_reason,
+        "usable_preview": R.allowed(a.rights_status, "preview"),
+        "usable_publish": R.allowed(a.rights_status, "publish"),
+        "verification": a.verification_status,
+        "verification_confidence": a.verification_confidence,
+        "verification_detail": _loads(a.verification_json, None),
+        "quality": a.quality_score, "reveals": _loads(a.reveals_json, []),
+        "width": a.width, "height": a.height, "date": a.date_start,
+        "location": a.location, "human_override": a.human_override,
+        "image_url": f"/api/visuals/{a.id}/file",
+        "thumbnail_url": f"/api/visuals/{a.id}/file?thumb=1",
+        "created_at": a.created_at,
+    }
+
+
+def production_dict(ps: ProductionScript, full: bool = True) -> dict:
+    out = {
+        "id": ps.id, "story_version_id": ps.story_version_id, "language": ps.language,
+        "version": ps.version, "mode": ps.mode, "status": ps.status,
+        "duration_seconds": ps.duration_seconds,
+        "critique": _loads(ps.critique_json, None),
+        "render": _loads(ps.render_json, None),
+        "video_url": f"/api/documentary/production/{ps.id}/video.mp4" if ps.render_json else None,
+        "subtitles_url": f"/api/documentary/production/{ps.id}/subtitles.srt" if ps.render_json else None,
+        "created_at": ps.created_at,
+    }
+    if full:
+        out["script"] = _loads(ps.script_json, {})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# overview + jobs
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/documentary/settings")
+def documentary_settings():
+    d = ai_config.documentary
+    return {
+        "languages": d.languages,
+        "film_minutes": {"min": d.min_film_minutes, "max": d.max_film_minutes},
+        "pilot_seconds": d.pilot_seconds,
+        "voices": {l: {"voice_id": v.voice_id, "model_id": v.model_id}
+                   for l, v in ai_config.voice.languages.items()},
+        "styles": {k: v.model_dump() for k, v in ai_config.voice.styles.items()},
+        "render": ai_config.render.model_dump(),
+        "rights_profiles": ai_config.rights.allowed_for_render,
+    }
+
+
+@router.get("/api/cases/{case_id}/documentary")
+def documentary_overview(case_id: int, version_id: int | None = None,
+                         db: Session = Depends(get_db)):
+    _case(db, case_id)
+    masters = _masters(db, case_id)
+    master = None
+    try:
+        master = _pick_master(db, case_id, version_id)
+    except HTTPException:
+        pass
+    out = {
+        "masters": [{"id": m.id, "version": m.version, "language": m.language,
+                     "status": m.status, "words": len((m.story_text or "").split()),
+                     "kind": m.kind} for m in masters],
+        "master_version_id": master.id if master else None,
+        "film_minutes": {"min": ai_config.documentary.min_film_minutes,
+                         "max": ai_config.documentary.max_film_minutes},
+        "blueprint": None, "audio_plan": None, "languages": {}, "visual_plan": None,
+        "jobs": [J.job_dict(j) for j in db.query(DocumentaryJob)
+                 .filter(DocumentaryJob.case_id == case_id)
+                 .order_by(DocumentaryJob.id.desc()).limit(10).all()],
+        "visual_counts": {},
+    }
+    assets = db.query(VisualAsset).filter(VisualAsset.case_id == case_id).all()
+    for a in assets:
+        out["visual_counts"][a.verification_status] = out["visual_counts"].get(
+            a.verification_status, 0) + 1
+    if not master:
+        return out
+    bp = latest_blueprint(db, master.id)
+    if bp:
+        out["blueprint"] = blueprint_dict(bp)
+        ap = latest_audio_plan(db, bp.id)
+        out["audio_plan"] = audio_plan_dict(ap) if ap else None
+        vp = J.latest_visual_plan(db, bp.id)
+        if vp:
+            out["visual_plan"] = {"id": vp.id, "status": vp.status, "version": vp.version,
+                                  "validation": _loads(vp.validation_json, {})}
+        plan = json.loads(ap.plan_json) if ap else None
+        for lang in ai_config.documentary.languages:
+            v = J.latest_spoken(db, master, lang, bp.id)
+            if not v:
+                out["languages"][lang] = None
+                continue
+            crit = _loads(v.critic_notes, {})
+            ps = J.latest_production(db, v.id)
+            out["languages"][lang] = {
+                "version_id": v.id, "status": v.status,
+                "quality_gates": crit.get("quality_gates"),
+                "storyteller_beats": (crit.get("spoken") or {}).get("storyteller_beats"),
+                "beats": (crit.get("spoken") or {}).get("beats"),
+                "estimated_film_minutes": J.estimate_film_minutes(v, plan),
+                "production": production_dict(ps, full=False) if ps else None,
+            }
+    return out
+
+
+class JobRequest(BaseModel):
+    master_version_id: int | None = None
+    languages: list[str] = Field(default_factory=lambda: list(ai_config.documentary.languages))
+    mode: Literal["pilot", "full"] = "pilot"
+    pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
+    render_profile: Literal["preview", "publish"] = "preview"
+    refresh_visuals: bool = False
+
+
+@router.post("/api/cases/{case_id}/documentary/jobs")
+async def start_documentary_job(case_id: int, payload: JobRequest,
+                                db: Session = Depends(get_db)):
+    case = _case(db, case_id)
+    langs = [l for l in payload.languages if l in ai_config.documentary.languages]
+    if not langs:
+        raise HTTPException(status_code=422, detail="No supported language selected.")
+    for l in langs:
+        if not (ai_config.voice.languages.get(l) and ai_config.voice.languages[l].voice_id):
+            raise HTTPException(status_code=409, detail=f"No narrator voice configured for {l}.")
+    master = _pick_master(db, case_id, payload.master_version_id)
+    running = db.query(DocumentaryJob).filter(
+        DocumentaryJob.case_id == case_id,
+        DocumentaryJob.status.in_(("queued", "running", "cancelling"))).first()
+    if running:
+        raise HTTPException(status_code=409, detail=f"Job {running.id} is still running.")
+    job = J.create_job(db, case, master, langs, payload.mode,
+                       payload.pilot_seconds or (ai_config.documentary.pilot_seconds
+                                                 if payload.mode == "pilot" else None),
+                       payload.render_profile, payload.refresh_visuals)
+    J.launch(job.id)
+    return J.job_dict(job)
+
+
+@router.get("/api/cases/{case_id}/documentary/jobs")
+def list_documentary_jobs(case_id: int, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    rows = (db.query(DocumentaryJob).filter(DocumentaryJob.case_id == case_id)
+            .order_by(DocumentaryJob.id.desc()).limit(50).all())
+    return [J.job_dict(j) for j in rows]
+
+
+@router.get("/api/documentary/jobs/{job_id}")
+def get_documentary_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.get(DocumentaryJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return J.job_dict(job)
+
+
+@router.post("/api/documentary/jobs/{job_id}/cancel")
+def cancel_documentary_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.get(DocumentaryJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status in ("queued", "running"):
+        job.status = "cancelling"
+        db.commit()
+    return J.job_dict(job)
+
+
+@router.post("/api/documentary/jobs/{job_id}/resume")
+def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.get(DocumentaryJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status not in ("failed", "cancelled"):
+        raise HTTPException(status_code=409, detail="Only failed or cancelled jobs resume.")
+    stages = json.loads(job.stages_json)
+    for s in stages:
+        if s["status"] in ("failed", "running"):
+            s["status"] = "pending"
+    job.stages_json = json.dumps(stages)
+    job.status = "queued"
+    db.commit()
+    J.launch(job.id)
+    return J.job_dict(job)
+
+
+# ---------------------------------------------------------------------------
+# visual library
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/cases/{case_id}/visuals")
+def list_visuals(case_id: int, type: str | None = None, role: str | None = None,
+                 rights: str | None = None, verification: str | None = None,
+                 q: str | None = None, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    query = db.query(VisualAsset).filter(VisualAsset.case_id == case_id)
+    if type:
+        query = query.filter(VisualAsset.asset_type == type)
+    if role:
+        query = query.filter(VisualAsset.asset_role == role)
+    if rights:
+        query = query.filter(VisualAsset.rights_status == rights)
+    if verification:
+        query = query.filter(VisualAsset.verification_status == verification)
+    rows = query.order_by(VisualAsset.id.desc()).all()
+    if q:
+        ql = q.lower()
+        rows = [a for a in rows if ql in " ".join(filter(None, [
+            a.title, a.caption, a.description, a.entities_json, a.found_for])).lower()]
+    return [asset_dict(a) for a in rows]
+
+
+class AssetUpdate(BaseModel):
+    role: Literal["evidence", "context", "illustration"] | None = None
+    rights: str | None = None
+    verification: Literal["verified", "needs_review", "rejected", "unverified"] | None = None
+    description: str | None = None
+    entities: list[str] | None = None
+    reveals: list[str] | None = None
+
+
+@router.patch("/api/visuals/{asset_id}")
+def update_visual(asset_id: int, payload: AssetUpdate, db: Session = Depends(get_db)):
+    a = db.get(VisualAsset, asset_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Visual not found")
+    if payload.rights is not None:
+        if payload.rights not in R.RIGHTS:
+            raise HTTPException(status_code=422, detail="Unknown rights status")
+        a.rights_status = payload.rights
+        a.rights_reason = "set by a human reviewer"
+    if payload.role:
+        a.asset_role = payload.role
+    if payload.verification:
+        a.verification_status = payload.verification
+    if payload.description is not None:
+        a.description = payload.description
+    if payload.entities is not None:
+        a.entities_json = json.dumps(payload.entities)
+    if payload.reveals is not None:
+        a.reveals_json = json.dumps(payload.reveals)
+    a.human_override = True
+    db.commit()
+    return asset_dict(a)
+
+
+@router.get("/api/visuals/{asset_id}/file")
+def visual_file(asset_id: int, thumb: int = 0, db: Session = Depends(get_db)):
+    a = db.get(VisualAsset, asset_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Visual not found")
+    path = storage.resolve(a.thumbnail_path if thumb else a.local_path)
+    if path is None or not path.exists():
+        raise HTTPException(status_code=404, detail="File missing")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@router.post("/api/cases/{case_id}/visuals/upload")
+async def upload_visual(case_id: int, file: UploadFile = File(...),
+                        title: str | None = Form(None), caption: str | None = Form(None),
+                        role: str = Form("evidence"), rights: str = Form("owned"),
+                        db: Session = Depends(get_db)):
+    from app.documentary.visuals.images import ImageError
+    from app.documentary.visuals.research import add_uploaded_image
+
+    case = _case(db, case_id)
+    data = await file.read()
+    if len(data) > ai_config.visual_search.max_download_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large")
+    try:
+        a = add_uploaded_image(db, case, data, file.filename or "upload", title, caption,
+                               role if role in ("evidence", "context", "illustration") else "evidence",
+                               rights)
+    except ImageError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return asset_dict(a)
+
+
+# ---------------------------------------------------------------------------
+# plans, production scripts, renders
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/cases/{case_id}/documentary/visual-plan")
+def get_visual_plan(case_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
+    master = _pick_master(db, case_id, version_id)
+    bp = latest_blueprint(db, master.id)
+    vp = J.latest_visual_plan(db, bp.id) if bp else None
+    if not vp:
+        raise HTTPException(status_code=404, detail="No visual plan yet")
+    return {"id": vp.id, "blueprint_id": vp.blueprint_id, "version": vp.version,
+            "status": vp.status, "requirements": _loads(vp.requirements_json, {}),
+            "plan": _loads(vp.plan_json, {}), "validation": _loads(vp.validation_json, {}),
+            "model": vp.generation_model}
+
+
+@router.get("/api/cases/{case_id}/documentary/production/{language}")
+def get_production(case_id: int, language: str, version_id: int | None = None,
+                   db: Session = Depends(get_db)):
+    master = _pick_master(db, case_id, version_id)
+    bp = latest_blueprint(db, master.id)
+    v = J.latest_spoken(db, master, language, bp.id if bp else None)
+    ps = J.latest_production(db, v.id) if v else None
+    if not ps:
+        raise HTTPException(status_code=404, detail="No production script for this language")
+    return production_dict(ps)
+
+
+def _ps(db: Session, ps_id: int) -> ProductionScript:
+    ps = db.get(ProductionScript, ps_id)
+    if not ps:
+        raise HTTPException(status_code=404, detail="Production script not found")
+    return ps
+
+
+@router.get("/api/documentary/production/{ps_id}/video.mp4")
+def production_video(ps_id: int, db: Session = Depends(get_db)):
+    info = _loads(_ps(db, ps_id).render_json, None)
+    path = storage.resolve((info or {}).get("path"))
+    if path is None or not path.exists():
+        raise HTTPException(status_code=404, detail="Not rendered yet")
+    return FileResponse(path, media_type="video/mp4", filename=path.name)
+
+
+@router.get("/api/documentary/production/{ps_id}/subtitles.srt")
+def production_subtitles(ps_id: int, db: Session = Depends(get_db)):
+    info = _loads(_ps(db, ps_id).render_json, None)
+    path = storage.resolve((info or {}).get("srt"))
+    if path is None or not path.exists():
+        raise HTTPException(status_code=404, detail="Not rendered yet")
+    return FileResponse(path, media_type="text/plain; charset=utf-8", filename=path.name)
+
+
+@router.get("/api/documentary/music")
+def music_library():
+    from app.documentary.music import MusicLibrary
+
+    lib = MusicLibrary()
+    return [{**c.model_dump(), "generated": lib.path_for(c).exists(),
+             "url": f"/api/documentary/music/{c.id}/file"}
+            for c in ai_config.music_library.cues]
+
+
+@router.get("/api/documentary/music/{cue_id}/file")
+def music_file(cue_id: str):
+    from app.documentary.music import MusicLibrary
+
+    cue = next((c for c in ai_config.music_library.cues if c.id == cue_id), None)
+    if not cue:
+        raise HTTPException(status_code=404, detail="Unknown cue")
+    path = MusicLibrary().path_for(cue)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Cue not generated yet")
+    return FileResponse(path, media_type="audio/wav")

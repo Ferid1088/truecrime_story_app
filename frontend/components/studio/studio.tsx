@@ -31,10 +31,10 @@ const TONES = [
   { value: "__custom__", label: "Custom…" },
 ];
 
-// 5 min = short pilot segment for documentary tests (backend range comes
-// from config: story.min_target_minutes / max_target_minutes).
-const DURATIONS = [5, 20, 30, 40, 45, 60];
-const PILOT_MINUTES = 5;
+// Every documentary runs 45–120 minutes (backend: story.min/max_target_minutes
+// and documentary.min/max_film_minutes). Pilots are short renders of a
+// full-length story, made in the Documentary section — never short stories.
+const DURATIONS = [45, 60, 75, 90, 120];
 
 const IMPROVE_ACTIONS = [
   { label: "Improve Hook", instruction: "Rewrite the opening hook so it creates an immediate, strong curiosity gap without spoiling later reveals." },
@@ -226,14 +226,18 @@ function StudioBody({
                 </Select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Target duration</label>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Film length</label>
                 <Select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
                   {DURATIONS.map((m) => (
                     <option key={m} value={m}>
-                      {m === PILOT_MINUTES ? `${m} min (pilot)` : `${m} min`}
+                      {m} min
                     </option>
                   ))}
                 </Select>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  Every documentary runs 45–120 min. Short pilots are rendered from the full story in the
+                  Documentary section.
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Tone</label>

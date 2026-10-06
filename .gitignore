@@ -21,3 +21,4 @@ truecrime.db*
 data/cases/
 data/music_library/
 Claude outputs/
+data/map_cache/

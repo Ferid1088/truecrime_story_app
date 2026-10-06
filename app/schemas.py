@@ -63,7 +63,7 @@ def check_target_minutes(value: int) -> int:
 
 
 class GenerateStoryRequest(BaseModel):
-    target_minutes: int = Field(default=45, ge=1)
+    target_minutes: int = Field(default=50, ge=1)
     language: str = "fa"
     tone: str = "cinematic, suspenseful, investigative, respectful"
     iterations: int = Field(default=2, ge=1, le=5)

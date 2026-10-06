@@ -402,18 +402,19 @@ def test_localization_accepts_master_with_current_evidence(db_session, monkeypat
 
 
 # ---------------------------------------------------------------------------
-# Pilot length comes from config, not a hard-coded 10-minute floor
+# Film length comes from config: every documentary is 45–120 minutes;
+# pilots are short renders of a full-length story, not short stories.
 # ---------------------------------------------------------------------------
 
 
-def test_pilot_length_range_from_config():
+def test_story_length_range_from_config():
     from pydantic import ValidationError
 
     from app.schemas import GenerateStoryRequest
 
     lo = ai_config.story.min_target_minutes
     hi = ai_config.story.max_target_minutes
-    assert lo <= 5  # a 3–5 minute pilot must be possible
+    assert (lo, hi) == (45, 120)
     assert GenerateStoryRequest(target_minutes=lo).target_minutes == lo
     with pytest.raises(ValidationError):
         GenerateStoryRequest(target_minutes=lo - 1)

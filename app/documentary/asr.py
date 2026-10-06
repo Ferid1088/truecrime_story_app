@@ -132,7 +132,7 @@ def _is_spelling_variant(ref: list[str], hyp: list[str], min_similarity: float) 
 def compare_transcript(
     script: str, heard: str, language: str, cfg: ASRCheckConfig | None = None
 ) -> dict:
-    cfg = cfg or ai_config.asr_check
+    cfg = (cfg or ai_config.asr_check).for_language(language)
     ref = normalize_tokens(script, language)
     hyp = normalize_tokens(heard, language)
     sm = SequenceMatcher(a=ref, b=hyp, autojunk=False)
@@ -204,20 +204,21 @@ class FasterWhisperASR:
                 "(pip install -r requirements-documentary.txt)"
             )
 
-    def _model(self):
-        key = (self.cfg.model, self.cfg.compute_type)
+    def _model(self, language: str | None = None):
+        cfg = self.cfg.for_language(language)
+        key = (cfg.model, cfg.compute_type)
         if key not in self._models:
             from faster_whisper import WhisperModel
 
             self._models[key] = WhisperModel(
-                self.cfg.model, device="cpu", compute_type=self.cfg.compute_type
+                cfg.model, device="cpu", compute_type=cfg.compute_type
             )
         return self._models[key]
 
     def transcribe(self, audio_path: str, language: str) -> dict:
         from app.documentary.audio import pcm16k_float32
 
-        segments, _ = self._model().transcribe(
+        segments, _ = self._model(language).transcribe(
             pcm16k_float32(audio_path), language=language,
             word_timestamps=True, vad_filter=False,
             # No script prompt: priming with the expected text would make

@@ -27,19 +27,22 @@
           "structured_output": true,
           "tool_calling": true,
           "web_search": "none",
-          "web_fetch": "none"
+          "web_fetch": "none",
+          "vision": true
         },
         "gemini-3.8-flash": {
           "structured_output": true,
           "tool_calling": true,
           "web_search": "none",
-          "web_fetch": "none"
+          "web_fetch": "none",
+          "vision": true
         },
         "claude-sonnet-5-5": {
           "structured_output": true,
           "tool_calling": true,
           "web_search": "none",
-          "web_fetch": "none"
+          "web_fetch": "none",
+          "vision": true
         },
         "bge-m3": {
           "structured_output": false,
@@ -93,7 +96,15 @@
         "spoken_writer": "premium",
         "spoken_meaning_checker": "writer",
         "spoken_style_critic": "writer",
-        "audio_director": "premium"
+        "audio_director": "premium",
+        "visual_planner": "writer",
+        "visual_verifier": "writer",
+        "visual_director": "premium",
+        "overlay_localizer": "writer",
+        "automation_feel_critic": "writer",
+        "attention_critic": "writer",
+        "visual_accuracy_critic": "writer",
+        "production_critic": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -288,6 +299,38 @@
     "audio_director": {
       "temperature": 0.3,
       "max_tokens": 16000
+    },
+    "visual_planner": {
+      "temperature": 0.3,
+      "max_tokens": 32000
+    },
+    "visual_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 4000
+    },
+    "visual_director": {
+      "temperature": 0.4,
+      "max_tokens": 32000
+    },
+    "overlay_localizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "automation_feel_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "attention_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "visual_accuracy_critic": {
+      "temperature": 0.1,
+      "max_tokens": 12000
+    },
+    "production_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
     }
   },
   "search_engine": {
@@ -319,9 +362,9 @@
   },
   "story": {
     "default_language": "fa",
-    "default_target_minutes": 45,
-    "min_target_minutes": 3,
-    "max_target_minutes": 90,
+    "default_target_minutes": 50,
+    "min_target_minutes": 45,
+    "max_target_minutes": 120,
     "words_per_minute": 135,
     "minimum_length_ratio": 0.85,
     "maximum_length_ratio": 1.15,
@@ -617,6 +660,19 @@
           "spoken_style_critic"
         ],
         "strict": true
+      },
+      {
+        "name": "documentary_production",
+        "authors": [
+          "visual_director"
+        ],
+        "reviewers": [
+          "automation_feel_critic",
+          "attention_critic",
+          "visual_accuracy_critic",
+          "production_critic"
+        ],
+        "strict": true
       }
     ],
     "reviewer_fallbacks": {
@@ -646,23 +702,26 @@
       "base_url": "https://api.elevenlabs.io",
       "output_format": "mp3_44100_128",
       "request_timeout_s": 120,
-      "max_retries": 2
+      "max_retries": 2,
+      "no_context_models": [
+        "eleven_v3"
+      ]
     },
     "languages": {
       "en": {
-        "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+        "voice_id": "nPczCjzI2devNBz1zQrb",
         "model_id": "eleven_multilingual_v2"
       },
       "de": {
-        "voice_id": null,
+        "voice_id": "pqHfZKP75CvOlQylNhV4",
         "model_id": "eleven_multilingual_v2"
       },
       "fa": {
-        "voice_id": null,
+        "voice_id": "p0JzY49oCvpeLkyAr11f",
         "model_id": "eleven_v3"
       },
       "ar": {
-        "voice_id": null,
+        "voice_id": "pqHfZKP75CvOlQylNhV4",
         "model_id": "eleven_multilingual_v2"
       }
     },
@@ -720,7 +779,14 @@
     "max_missing_run": 3,
     "max_extra_run": 3,
     "spelling_variant_similarity": 80,
-    "auto_retakes": 1
+    "auto_retakes": 1,
+    "languages": {
+      "fa": {
+        "model": "large-v3-turbo",
+        "max_word_error_rate": 0.2,
+        "max_missing_run": 4
+      }
+    }
   },
   "loudness": {
     "narration_target_lufs": -16.0,
@@ -795,24 +861,24 @@
         1.8
       ],
       "music_bridge": [
-        3.0,
-        8.0
+        8.0,
+        16.0
       ],
       "emotional_moment": [
-        4.0,
-        9.0
+        9.0,
+        18.0
       ],
       "sting": [
-        1.5,
-        3.5
+        2.0,
+        4.0
       ],
       "silence": [
-        1.5,
-        3.5
+        2.0,
+        4.0
       ],
       "chapter_break": [
-        5.0,
-        10.0
+        12.0,
+        22.0
       ]
     },
     "paragraph_breath_ms": {
@@ -820,16 +886,18 @@
       "normal": 850,
       "long": 1150
     },
-    "max_music_only_share": 0.12,
+    "max_music_only_share": 0.2,
     "min_seconds_between_music_moments": 75,
     "bed_levels_db": {
-      "very_low": -26,
-      "low": -21
+      "very_low": -24.0,
+      "low": -20.0
     },
     "moment_level_db": -7,
     "sting_level_db": -5,
     "room_tone_level_db": -34,
-    "max_repair_iterations": 1
+    "max_repair_iterations": 1,
+    "music_lead_seconds": 2.0,
+    "music_tail_seconds": 3.0
   },
   "music_library": {
     "provider": "elevenlabs_sound",
@@ -873,33 +941,33 @@
         "id": "bridge_mystery",
         "kind": "bridge",
         "mood": "mystery",
-        "seconds": 10,
-        "loop": false,
-        "prompt": "short cinematic mystery transition for a true crime documentary, a low cello swell with a few soft piano notes, rising gently then fading out into silence, no vocals"
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, cinematic mystery interlude for a true crime documentary, a low cello swell with a few soft piano notes, slowly evolving, no vocals"
       },
       {
         "id": "bridge_tension",
         "kind": "bridge",
         "mood": "tension",
-        "seconds": 8,
-        "loop": false,
-        "prompt": "short tense documentary transition, low synth pulse slowly building with dark strings, then fading out, no drums, no vocals"
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, tense documentary interlude, low synth pulse slowly building with dark strings, slowly evolving, no drums, no vocals"
       },
       {
         "id": "bridge_emotional",
         "kind": "bridge",
         "mood": "emotional",
-        "seconds": 10,
-        "loop": false,
-        "prompt": "short emotional documentary transition, a soft piano melody with warm strings swelling gently and fading away, sad and respectful, no vocals"
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, emotional documentary interlude, a soft piano melody with warm strings swelling gently, sad and respectful, no vocals"
       },
       {
         "id": "bridge_reflective",
         "kind": "bridge",
         "mood": "reflective",
-        "seconds": 10,
-        "loop": false,
-        "prompt": "short calm reflective transition, warm ambient pad with a few soft piano notes, slow fade out, no vocals"
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, calm reflective interlude, warm ambient pad with a few soft piano notes, slowly evolving, no vocals"
       },
       {
         "id": "sting_reveal",
@@ -918,5 +986,136 @@
         "prompt": "seamless loop, very quiet room tone, soft air, faint distant hum, no voices, no music"
       }
     ]
+  },
+  "documentary": {
+    "languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "min_film_minutes": 45,
+    "max_film_minutes": 120,
+    "pilot_seconds": 180,
+    "speech_wpm": {
+      "en": 150,
+      "de": 128,
+      "fa": 116,
+      "ar": 104
+    },
+    "storage_dir": "data/cases"
+  },
+  "visual_search": {
+    "providers": [
+      "source_pages",
+      "wikimedia",
+      "searxng_images"
+    ],
+    "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
+    "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
+    "max_queries": 30,
+    "max_candidates_per_query": 5,
+    "max_source_pages": 25,
+    "max_assets": 120,
+    "min_width": 600,
+    "max_download_mb": 15,
+    "request_timeout_s": 25,
+    "blocked_domains": [
+      "gettyimages.",
+      "shutterstock.",
+      "alamy.",
+      "istockphoto.",
+      "dreamstime.",
+      "depositphotos.",
+      "123rf.",
+      "stock.adobe."
+    ],
+    "min_request_interval_s": 1.0
+  },
+  "visual_verification": {
+    "verified_min_confidence": 0.7,
+    "reject_below_confidence": 0.35,
+    "thumbnail_px": 768
+  },
+  "rights": {
+    "allowed_for_render": {
+      "preview": [
+        "owned",
+        "licensed",
+        "public_domain",
+        "creative_commons",
+        "editorial_review_required"
+      ],
+      "publish": [
+        "owned",
+        "licensed",
+        "public_domain",
+        "creative_commons"
+      ]
+    },
+    "attribution_required": [
+      "creative_commons"
+    ]
+  },
+  "motion": {
+    "push_scale": 1.07,
+    "pan_fraction": 0.05,
+    "emotional_slowdown": 0.6,
+    "parallax_enabled": true,
+    "parallax_shift_fraction": 0.012,
+    "min_hold_seconds": 5.0,
+    "max_still_seconds": 16.0,
+    "crossfade_seconds": [
+      0.7,
+      1.4
+    ],
+    "max_same_motion_run": 2
+  },
+  "maps": {
+    "tile_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "attribution": "© OpenStreetMap contributors",
+    "geocoder_url": "https://nominatim.openstreetmap.org/search",
+    "tile_size": 256,
+    "zoom_levels": [
+      4,
+      7,
+      11
+    ],
+    "darken": 0.55
+  },
+  "attention": {
+    "max_overlay_words": 14,
+    "max_read_items_per_beat": 1,
+    "max_changes_per_minute": 7,
+    "min_changes_per_minute": 1,
+    "firewall_purposes": [
+      "reveal",
+      "contradiction",
+      "evidence",
+      "false_lead",
+      "chapter_end"
+    ]
+  },
+  "render": {
+    "profile": "preview",
+    "width": 1920,
+    "height": 1080,
+    "fps": 25,
+    "crf": 20,
+    "preset": "veryfast",
+    "burn_subtitles": false,
+    "subtitle_max_chars": 42,
+    "subtitle_max_seconds": 6.0,
+    "show_credits": true
+  },
+  "documentary_critics": {
+    "critics": [
+      "automation_feel",
+      "attention",
+      "visual_accuracy",
+      "production"
+    ],
+    "max_fix_iterations": 1,
+    "max_asset_reuse": 3
   }
 }

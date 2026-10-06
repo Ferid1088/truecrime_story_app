@@ -160,15 +160,18 @@ def plan_placements(manifest: dict, script: dict) -> list[dict]:
                         "level_db": direction.room_tone_level_db})
             continue
         sting = kind == "sting"
-        lead = 0.0 if sting else 0.35
-        tail = 2.0 if sting else 1.4
+        # Music moments rise softly under the beat's last words and keep
+        # playing under the next beat's first words (never a hard stop).
+        lead = 0.0 if sting else min(direction.music_lead_seconds, s["end"] - s["start"])
+        tail = 2.0 if sting else direction.music_tail_seconds
         start = max(s["end"] - lead, 0.0)
         dur = min(gap + lead + tail, total - start)
         out.append({
             "role": kind, "cue_kind": "sting" if sting else kind,
             "mood": after.get("mood"), "after_beat": s["beat_id"],
             "start": round(start, 3), "duration": round(dur, 3),
-            "fade_in": 0.02 if sting else 0.6, "fade_out": 1.2 if sting else 1.5,
+            "fade_in": 0.02 if sting else round(lead + 0.4, 3),
+            "fade_out": 1.2 if sting else round(max(tail, 1.5), 3),
             "level_db": direction.sting_level_db if sting else direction.moment_level_db,
         })
     return sorted(out, key=lambda p: p["start"])

@@ -12,11 +12,17 @@ import type {
   ResearchProviderStatus,
   SearchEngineStatus,
   DiscoveryRequest,
+  DocumentaryJob,
+  DocumentaryJobRequest,
+  DocumentaryOverview,
+  DocumentarySettings,
   Fact,
   JobStartResponse,
   LocalizationCompare,
   MasterStoryResponse,
+  MusicCue,
   NarrativeCapacity,
+  Production,
   ResearchDepth,
   ResearchJob,
   ResearchQueryItem,
@@ -30,6 +36,11 @@ import type {
   CaseStatus,
   VideoDetail,
   VideoSourceItem,
+  VisualAsset,
+  VisualFilters,
+  VisualUpdate,
+  VisualUpload,
+  VoiceManifest,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -98,6 +109,16 @@ const post = <T>(path: string, body?: unknown) =>
 
 const patch = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+
+/** Absolute URL for a file path the API returns relative (`/api/...`). */
+export const apiFileUrl = (path: string) => `${API_BASE}${path}`;
+
+/** Resolve a 404 to null — for resources that simply do not exist yet. */
+export function nullIfNotFound<T>(promise: Promise<T>): Promise<T | null> {
+  return promise.catch((e: unknown) =>
+    e instanceof ApiError && e.status === 404 ? null : Promise.reject(e),
+  );
+}
 
 export interface AddSourcePayload {
   title: string;
@@ -251,6 +272,52 @@ export const api = {
 
   settingsStatus: () => request<SettingsStatus>("/api/settings/status"),
   dbOverview: () => request<DbOverview>("/api/db/overview"),
+
+  // Documentary production
+  documentarySettings: () => request<DocumentarySettings>("/api/documentary/settings"),
+  documentaryOverview: (caseId: number, versionId?: number | null) =>
+    request<DocumentaryOverview>(
+      `/api/cases/${caseId}/documentary${versionId != null ? `?version_id=${versionId}` : ""}`,
+    ),
+  startDocumentaryJob: (caseId: number, payload: DocumentaryJobRequest) =>
+    post<DocumentaryJob>(`/api/cases/${caseId}/documentary/jobs`, payload),
+  documentaryJob: (jobId: number) => request<DocumentaryJob>(`/api/documentary/jobs/${jobId}`),
+  cancelDocumentaryJob: (jobId: number) =>
+    post<DocumentaryJob>(`/api/documentary/jobs/${jobId}/cancel`),
+  resumeDocumentaryJob: (jobId: number) =>
+    post<DocumentaryJob>(`/api/documentary/jobs/${jobId}/resume`),
+  documentaryProduction: (caseId: number, language: string, versionId?: number | null) =>
+    request<Production>(
+      `/api/cases/${caseId}/documentary/production/${language}` +
+        (versionId != null ? `?version_id=${versionId}` : ""),
+    ),
+  musicLibrary: () => request<MusicCue[]>("/api/documentary/music"),
+  storyVoice: (caseId: number, versionId: number) =>
+    request<VoiceManifest>(`/api/cases/${caseId}/stories/${versionId}/voice`),
+
+  listVisuals: (caseId: number, filters: VisualFilters = {}) => {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) qs.set(key, value);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<VisualAsset[]>(`/api/cases/${caseId}/visuals${suffix}`);
+  },
+  updateVisual: (assetId: number, payload: VisualUpdate) =>
+    patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  uploadVisual: (caseId: number, upload: VisualUpload) => {
+    const form = new FormData();
+    form.set("file", upload.file);
+    if (upload.title.trim()) form.set("title", upload.title.trim());
+    if (upload.caption.trim()) form.set("caption", upload.caption.trim());
+    form.set("role", upload.role);
+    form.set("rights", upload.rights);
+    // Empty headers drop the JSON content type: the browser sets the
+    // multipart boundary itself.
+    return request<VisualAsset>(`/api/cases/${caseId}/visuals/upload`, {
+      method: "POST",
+      body: form,
+      headers: {},
+    });
+  },
 };
 
 export interface PollOptions {

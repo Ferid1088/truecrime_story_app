@@ -421,8 +421,9 @@ def test_directed_performance_breathes_and_follows_the_plan():
     para = [b for b in by_beat["B02"] if b["pause_after_kind"] == "paragraph"]
     assert para and all(normal * (1 - jitter) - 1 <= b["pause_after_ms"]
                         <= normal * (1 + jitter) + 1 for b in para)
+    bridge_lo = ai_config.audio_direction.transitions["music_bridge"][0]
     assert by_beat["B03"][-1]["pause_after_kind"] == "music_bridge"
-    assert by_beat["B03"][-1]["pause_after_ms"] == 5000
+    assert by_beat["B03"][-1]["pause_after_ms"] == int(max(5.0, bridge_lo) * 1000)
     assert by_beat["B04"][-1]["pause_after_kind"] == "silence"
     assert blocks[-1]["pause_after_kind"] == "end" and blocks[-1]["pause_after_ms"] == 0
     assert script["directed"] and script["beat_audio"]["B02"]["bed"] == "tension"
@@ -470,8 +471,10 @@ def test_plan_placements():
     lv = ai_config.audio_direction.bed_levels_db
     assert bed["level_db"] == lv["very_low"] and bed2["level_db"] == lv["low"]
     # the bridge starts softly under the last words and fades under the next
-    assert bridge["start"] == pytest.approx(39.65)
-    assert bridge["duration"] == pytest.approx(6.0 + 0.35 + 1.4)
+    lead = ai_config.audio_direction.music_lead_seconds
+    tail = ai_config.audio_direction.music_tail_seconds
+    assert bridge["start"] == pytest.approx(40.0 - lead)
+    assert bridge["duration"] == pytest.approx(6.0 + lead + tail)
     assert silence["level_db"] == ai_config.audio_direction.room_tone_level_db
     assert silence["duration"] == pytest.approx(2.5)
     assert sting["start"] == 90.0 and sting["fade_in"] < 0.1

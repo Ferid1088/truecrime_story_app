@@ -61,13 +61,13 @@ from app.documentary.blueprint import (
     latest_blueprint,
 )
 from app.documentary.performance import performance_for_version
+from app.documentary.production.audio import render_documentary_audio
 from app.documentary.spoken import SpokenNarrator
 from app.documentary.audio_director import (
     AudioDirector,
     audio_plan_dict,
     latest_audio_plan,
 )
-from app.documentary.music import DocumentaryMixer
 from app.providers import get_research_provider
 from app.providers.voice import VoiceProviderError
 from app.providers.base import ProviderError
@@ -244,6 +244,10 @@ app = FastAPI(
     version="1.0.0",
     description="Research → Facts → Contradictions → Story Direction → Writing → Critique",
 )
+
+from app.documentary.api import router as documentary_router  # noqa: E402
+
+app.include_router(documentary_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1368,26 +1372,6 @@ async def render_story_voice(
     summary["blueprint_used"] = plan.get("blueprint_used", False)
     summary["directed"] = plan.get("directed", False)
     return summary
-
-
-async def render_documentary_audio(
-    plan: dict, *, case_id: int, story_version_id: int, max_seconds=None,
-    style=None, force_block_ids=None, with_music: bool = True,
-) -> dict:
-    """Narration (+ music mix when the plan is directed)."""
-    renderer = VoiceRenderer()
-    manifest = await renderer.render(
-        plan, case_id=case_id, story_version_id=story_version_id,
-        max_seconds=max_seconds, style=style, force_block_ids=force_block_ids,
-    )
-    if with_music and plan.get("directed"):
-        out = renderer.out_dir(case_id, plan["language"], story_version_id)
-        manifest["mix"] = await DocumentaryMixer().mix(manifest, plan, out)
-        manifest["audio_notes"] = plan.get("audio_notes")
-        (out / "manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8")
-    return manifest
 
 
 @app.post("/api/cases/{case_id}/stories/{version_id}/spoken")

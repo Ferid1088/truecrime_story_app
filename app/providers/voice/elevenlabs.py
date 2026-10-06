@@ -45,9 +45,10 @@ class ElevenLabsVoiceProvider(VoiceProvider):
             "model_id": req.model_id,
             "voice_settings": dict(req.settings),
         }
-        if req.previous_text:
+        context_ok = req.model_id not in self.cfg.no_context_models
+        if req.previous_text and context_ok:
             body["previous_text"] = req.previous_text
-        if req.next_text:
+        if req.next_text and context_ok:
             body["next_text"] = req.next_text
         if req.seed is not None:
             body["seed"] = int(req.seed)

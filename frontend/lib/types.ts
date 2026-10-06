@@ -323,7 +323,7 @@ export type StoryStatus =
   | "outdated"
   | "failed";
 
-export type StoryKind = "master" | "localized" | "direct";
+export type StoryKind = "master" | "localized" | "direct" | "spoken";
 
 export interface StoryMeta {
   id: number;
@@ -769,4 +769,489 @@ export interface DbOverview {
     created_at: string;
   }>;
   agent_runs: { count: number };
+}
+
+// ---------------------------------------------------------------------------
+// Documentary production — mirrors app/documentary/api.py serializers.
+// ---------------------------------------------------------------------------
+
+export type DocumentaryMode = "pilot" | "full";
+export type RenderProfile = "preview" | "publish";
+export type DocumentaryJobStatus =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "completed"
+  | "failed"
+  | "cancelled";
+export type DocumentaryStageStatus = "pending" | "running" | "done" | "skipped" | "failed";
+
+export interface FilmMinutesRange {
+  min: number;
+  max: number;
+}
+
+export interface VoiceStyleSettings {
+  stability: number;
+  similarity_boost: number;
+  style: number;
+  use_speaker_boost: boolean;
+  speed: number;
+}
+
+/** GET /api/documentary/settings — never carries provider secrets. */
+export interface DocumentarySettings {
+  languages: string[];
+  film_minutes: FilmMinutesRange;
+  pilot_seconds: number;
+  voices: Record<string, { voice_id: string | null; model_id: string }>;
+  styles: Record<string, VoiceStyleSettings>;
+  render: {
+    profile: string;
+    width: number;
+    height: number;
+    fps: number;
+    crf: number;
+    preset: string;
+    burn_subtitles: boolean;
+    subtitle_max_chars: number;
+    subtitle_max_seconds: number;
+    show_credits: boolean;
+  };
+  rights_profiles: Record<string, string[]>;
+}
+
+export interface DocumentaryStage {
+  /** e.g. "blueprint", "spoken:fa", "render:en" */
+  name: string;
+  status: DocumentaryStageStatus;
+  /** Stage result (object) or the failure message (string). */
+  detail: unknown;
+}
+
+export interface DocumentaryJob {
+  id: number;
+  case_id: number;
+  master_version_id: number;
+  mode: DocumentaryMode;
+  languages: string[];
+  pilot_seconds: number | null;
+  render_profile: RenderProfile;
+  /** Re-run visual research, verification and shot direction. */
+  refresh_visuals: boolean;
+  status: DocumentaryJobStatus;
+  stage: string | null;
+  /** 0–1: share of stages done or skipped. */
+  progress: number;
+  stages: DocumentaryStage[];
+  result: Record<string, unknown>;
+  error: string | null;
+  created_at: string;
+  updated_at: string | null;
+  completed_at: string | null;
+}
+
+export interface DocumentaryJobRequest {
+  master_version_id: number | null;
+  languages: string[];
+  mode: DocumentaryMode;
+  pilot_seconds: number | null;
+  render_profile: RenderProfile;
+  refresh_visuals: boolean;
+}
+
+export type Level = "low" | "medium" | "high";
+
+export interface ValidationIssue {
+  code: string;
+  [key: string]: unknown;
+}
+
+export interface BlueprintBeat {
+  id: string;
+  act_id: string;
+  paragraphs: [number, number];
+  summary: string;
+  human_focus: string | null;
+  purpose: string;
+  emotional_load: Level;
+  information_density: Level;
+  mystery_intensity: Level;
+  attention: string;
+  visual_intent: string;
+  audio_intent: string;
+  pause_after: string;
+  music_intent: string;
+  words: number;
+  reveals: string[];
+  relies_on: string[];
+  opens: string[];
+  answers: string[];
+  unresolved: string[];
+  viewer_knows?: string[];
+  open_questions?: string[];
+}
+
+export interface BlueprintQuestion {
+  id: string;
+  question: string;
+  kind: "mystery" | "human" | "investigation";
+  opened_in: string | null;
+  resolved_in: string | null;
+  status: "answered" | "unresolved" | "open" | "never_opened";
+}
+
+export interface BlueprintRecord {
+  id: number;
+  case_id: number;
+  story_version_id: number;
+  version: number;
+  status: "valid" | "needs_review" | "invalid";
+  evidence_fingerprint: string | null;
+  generation_model: string | null;
+  created_at: string;
+  blueprint: {
+    central_question?: string;
+    editorial_thesis?: string;
+    human_thread?: string;
+    arcs?: Record<string, string>;
+    questions?: BlueprintQuestion[];
+    beats?: BlueprintBeat[];
+  };
+  validation: {
+    status?: string;
+    errors?: ValidationIssue[];
+    warnings?: ValidationIssue[];
+    unanswered_questions?: string[];
+  };
+}
+
+export interface AudioPlanBeat {
+  beat_id: string;
+  purpose: string | null;
+  paragraph_breath: string;
+  bed: string;
+  bed_level: string;
+  after: { type: string; seconds: number | null; mood: string | null };
+  why: string;
+}
+
+export interface AudioPlanRecord {
+  id: number;
+  case_id: number;
+  blueprint_id: number;
+  version: number;
+  status: string;
+  generation_model: string | null;
+  created_at: string;
+  plan: { notes?: string; beats?: AudioPlanBeat[] };
+  validation: {
+    status?: string;
+    estimated_runtime_seconds?: number;
+    music_only_seconds?: number;
+    music_only_share?: number;
+    music_moments?: number;
+    bed_switches?: number;
+  };
+}
+
+export interface CritiqueIssue {
+  check: string;
+  severity: "low" | "medium" | "high";
+  why: string;
+  shot?: number;
+  time?: string;
+  fix?: string;
+}
+
+export interface DeterministicReport {
+  issues: CritiqueIssue[];
+  changes_per_minute: number;
+  music_only_share: number;
+  high: number;
+}
+
+export interface CriticProblem {
+  time?: string;
+  shot?: number;
+  beat_id?: string;
+  severity?: string;
+  why?: string;
+  fix?: string;
+  fix_detail?: string;
+}
+
+export interface CriticReport {
+  score: number | null;
+  summary: string | null;
+  problems: CriticProblem[];
+  model: string | null;
+}
+
+export interface AppliedFix {
+  shot: number;
+  fix: string;
+  to?: string;
+}
+
+export interface CritiqueReport {
+  deterministic: DeterministicReport;
+  critics: Record<string, CriticReport>;
+  fixes: AppliedFix[];
+  after_fixes?: DeterministicReport;
+  score: number | null;
+}
+
+export interface RenderInfo {
+  path: string;
+  srt: string;
+  duration: number;
+  width: number;
+  height: number;
+  fps: number;
+  frames: number;
+  shots: number;
+}
+
+export interface ScriptShot {
+  index: number;
+  beat_id: string;
+  start: number;
+  end: number;
+  command: string;
+  kind?: string;
+  motion: string;
+  speed?: number;
+  transition_in: string;
+  asset_id?: string | null;
+  type?: string;
+  role?: string;
+  rights?: string;
+  credit?: string | null;
+  subject_type?: string | null;
+  reframe?: boolean;
+}
+
+export interface ScriptOverlay {
+  kind: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface ScriptMusic {
+  role: string;
+  cue_id: string | null;
+  mood: string | null;
+  start: number;
+  duration: number;
+  level_db: number | null;
+}
+
+export interface ScriptSilence {
+  start: number;
+  duration: number;
+  kind: string | null;
+}
+
+/** Render-ready timeline of one language (app/documentary/production/script.py). */
+export interface ProductionScriptData {
+  language?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  beats?: { beat_id: string; start: number; end: number }[];
+  voice?: { block_id: string; start: number; end: number }[];
+  silences?: ScriptSilence[];
+  shots?: ScriptShot[];
+  overlays?: ScriptOverlay[];
+  music?: ScriptMusic[];
+  subtitles?: { start: number; end: number; text: string }[];
+  credits?: string[];
+}
+
+export interface ProductionSummary {
+  id: number;
+  story_version_id: number;
+  language: string;
+  version: number;
+  mode: DocumentaryMode;
+  status: string;
+  duration_seconds: number | null;
+  critique: CritiqueReport | null;
+  render: RenderInfo | null;
+  /** Relative API paths — prefix with API_BASE. */
+  video_url: string | null;
+  subtitles_url: string | null;
+  created_at: string;
+}
+
+export interface Production extends ProductionSummary {
+  script: ProductionScriptData;
+}
+
+export interface DocumentaryLanguage {
+  version_id: number;
+  status: string;
+  quality_gates: { pass: boolean; failures: string[] } | null;
+  storyteller_beats: number | null;
+  beats: number | null;
+  estimated_film_minutes: number;
+  production: ProductionSummary | null;
+}
+
+export interface DocumentaryMaster {
+  id: number;
+  version: number;
+  language: string;
+  status: string;
+  words: number;
+  kind: StoryKind;
+}
+
+export interface DocumentaryOverview {
+  masters: DocumentaryMaster[];
+  master_version_id: number | null;
+  film_minutes: FilmMinutesRange;
+  blueprint: BlueprintRecord | null;
+  audio_plan: AudioPlanRecord | null;
+  languages: Record<string, DocumentaryLanguage | null>;
+  visual_plan: {
+    id: number;
+    status: string;
+    version: number;
+    validation: Record<string, unknown>;
+  } | null;
+  jobs: DocumentaryJob[];
+  /** Visual assets of the case by verification status. */
+  visual_counts: Record<string, number>;
+}
+
+export type AssetRole = "evidence" | "context" | "illustration";
+export type VerificationStatus = "verified" | "needs_review" | "rejected" | "unverified";
+
+export interface VisualAsset {
+  id: number;
+  asset_id: string;
+  type: string;
+  subject_type: string | null;
+  title: string | null;
+  description: string | null;
+  caption: string | null;
+  entities: string[];
+  role: AssetRole;
+  provider: string;
+  source_url: string | null;
+  page_url: string | null;
+  source_name: string | null;
+  found_for: string | null;
+  license: string | null;
+  credit: string | null;
+  rights: string;
+  rights_reason: string | null;
+  usable_preview: boolean;
+  usable_publish: boolean;
+  verification: VerificationStatus;
+  verification_confidence: number | null;
+  verification_detail: Record<string, unknown> | null;
+  quality: number | null;
+  reveals: string[];
+  width: number | null;
+  height: number | null;
+  date: string | null;
+  location: string | null;
+  human_override: boolean;
+  /** Relative API paths — prefix with API_BASE. */
+  image_url: string;
+  thumbnail_url: string;
+  created_at: string;
+}
+
+export interface VisualFilters {
+  role?: string;
+  rights?: string;
+  verification?: string;
+  q?: string;
+}
+
+export interface VisualUpdate {
+  role?: AssetRole;
+  rights?: string;
+  verification?: VerificationStatus;
+}
+
+export interface VisualUpload {
+  file: File;
+  title: string;
+  caption: string;
+  role: AssetRole;
+  rights: string;
+}
+
+export interface MusicCue {
+  id: string;
+  kind: string;
+  mood: string;
+  seconds: number;
+  loop: boolean;
+  prompt: string;
+  generated: boolean;
+  /** Relative API path — prefix with API_BASE. */
+  url: string;
+}
+
+export interface VoiceManifestBlock {
+  block_id: string;
+  section_id: string;
+  words: number;
+  est_seconds: number;
+  actual_seconds: number;
+  words_per_minute: number | null;
+  attempts: number;
+  cache_hit: boolean;
+  characters_paid: number;
+  style: string;
+  beat_ids: string[];
+  loudness_lufs: number | null;
+  loudness_deviation_lu: number | null;
+  asr: {
+    passed: boolean;
+    failures: string[];
+    word_error_rate: number;
+    heard_text?: string;
+  } | null;
+  flags: string[];
+}
+
+/** GET /api/cases/{id}/stories/{version}/voice — narration manifest. */
+export interface VoiceManifest {
+  case_id: number;
+  story_version_id: number;
+  language: string;
+  voice_id: string | null;
+  model_id: string;
+  styles_used: string[];
+  provider: string;
+  asr: string | null;
+  asr_error: string | null;
+  blocks_rendered: number;
+  blocks_in_plan: number;
+  duration_seconds: number;
+  estimated_seconds: number;
+  characters_paid: number;
+  loudness: {
+    target_lufs: number;
+    before_lufs: number | null;
+    after_lufs: number | null;
+    after_true_peak_db: number | null;
+  };
+  flags: string[];
+  blocks: VoiceManifestBlock[];
+  mix?: {
+    music_moments: number;
+    beds: number;
+    music_only_seconds: number;
+    loudness_lufs: number | null;
+  };
 }

@@ -164,14 +164,22 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         base["status"] = "models_missing" if missing else "ok"
         return base
 
-    async def _chat(self, model: str, system: str, user: str, gen) -> str:
+    async def _chat(self, model: str, system: str, user: str, gen,
+                    images: list[str] | None = None) -> str:
+        content: Any = user
+        if images:
+            # OpenAI-compatible multimodal message: text + image parts
+            # (data: URLs or https URLs).
+            content = [{"type": "text", "text": user}] + [
+                {"type": "image_url", "image_url": {"url": url}} for url in images
+            ]
         body: dict[str, Any] = {
             "model": model,
             "temperature": gen.temperature,
             "max_tokens": gen.max_tokens,
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": user},
+                {"role": "user", "content": content},
             ],
             **self.extra_body,
         }
@@ -217,7 +225,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         return content, data.get("model") or model, meta
 
     async def generate_text(
-        self, role: str, system: str, user: str
+        self, role: str, system: str, user: str, images: list[str] | None = None
     ) -> GenerationResult:
         gen = ai_config.generation_for(role)
         attempted = ai_config.model_for(role)
@@ -229,7 +237,11 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             # falling back — they are not model-quality failures.
             for attempt in range(2):
                 try:
-                    text, used, meta = await self._chat(model, system, user, gen)
+                    if images:
+                        text, used, meta = await self._chat(
+                            model, system, user, gen, images)
+                    else:
+                        text, used, meta = await self._chat(model, system, user, gen)
                     fallback_used = model != attempted
                     if fallback_used:
                         log.warning(
@@ -275,9 +287,9 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         raise json.JSONDecodeError("no JSON object found", cleaned, 0)
 
     async def generate_structured(
-        self, role: str, system: str, user: str
+        self, role: str, system: str, user: str, images: list[str] | None = None
     ) -> tuple[dict[str, Any], GenerationResult]:
-        result = await self.generate_text(role, system, user)
+        result = await self.generate_text(role, system, user, images)
         try:
             return self._extract_json(result.text), result
         except json.JSONDecodeError:
@@ -294,7 +306,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             + "\n\nCRITICAL: return ONLY one valid JSON object — no prose, "
               "no markdown fences, no trailing text."
         )
-        result = await self.generate_text(role, strict, user)
+        result = await self.generate_text(role, strict, user, images)
         try:
             return self._extract_json(result.text), result
         except json.JSONDecodeError as e:

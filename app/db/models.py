@@ -561,3 +561,156 @@ class AudioPlan(Base):
     generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VisualAsset(Base):
+    """One visual in the case library: a real photo/document/footage
+    found by visual research, a user upload, or a generated card/map.
+
+    Semantic meaning lives here, never in the filename (Part 19).
+    asset_role: evidence (real case material) | context (real place or
+    period, not evidence) | illustration (atmospheric, generic).
+    rights_status: owned | licensed | public_domain | creative_commons |
+    editorial_review_required | permission_required | unknown | do_not_use.
+    verification_status: unverified | verified | needs_review | rejected."""
+
+    __tablename__ = "visual_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    asset_code: Mapped[str] = mapped_column(String(20), index=True)
+    asset_type: Mapped[str] = mapped_column(String(20), default="photo", index=True)
+    subject_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    entities_json: Mapped[str] = mapped_column(Text, default="[]")
+    date_start: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    date_end: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    asset_role: Mapped[str] = mapped_column(String(20), default="illustration", index=True)
+    story_functions_json: Mapped[str] = mapped_column(Text, default="[]")
+    provider: Mapped[str] = mapped_column(String(30), default="upload")
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    found_for: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    license: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    credit: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    rights_status: Mapped[str] = mapped_column(String(40), default="unknown", index=True)
+    rights_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    verification_status: Mapped[str] = mapped_column(String(20), default="unverified", index=True)
+    verification_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    verification_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    historical_accuracy_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Evidence ids this visual would reveal: never shown before the beat
+    # that reveals them (reveal firewall).
+    reveals_json: Mapped[str] = mapped_column(Text, default="[]")
+    local_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    phash: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    has_original_audio: Mapped[bool] = mapped_column(Boolean, default=False)
+    original_audio_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Generated assets (maps, document/date/quote cards) keep their spec.
+    spec_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    human_override: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VisualPlan(Base):
+    """Language-independent visual direction for one blueprint: per beat
+    the visual requirements and the shots (command, asset, share of the
+    beat, motion, overlay). Exact times are computed per language."""
+
+    __tablename__ = "visual_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(
+        ForeignKey("editorial_blueprints.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    requirements_json: Mapped[str] = mapped_column(Text, default="{}")
+    plan_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class ProductionScript(Base):
+    """Render-ready timeline for ONE language: voice, silences, visuals,
+    overlays, music, subtitles — from the real narration audio."""
+
+    __tablename__ = "production_scripts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(
+        ForeignKey("story_versions.id"), index=True
+    )
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    blueprint_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    visual_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    mode: Mapped[str] = mapped_column(String(10), default="pilot")
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    script_json: Mapped[str] = mapped_column(Text, default="{}")
+    critique_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    render_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class OriginalMediaSegment(Base):
+    """A selected piece of real footage/audio (interview, news clip) that
+    may play with its own sound, with its language handling."""
+
+    __tablename__ = "original_media_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
+    beat_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    source_start: Mapped[float] = mapped_column(Float, default=0.0)
+    source_end: Mapped[float] = mapped_column(Float, default=0.0)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    story_use: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # per target language: original_with_subtitles | voiceover | skip
+    translation_strategy_json: Mapped[str] = mapped_column(Text, default="{}")
+    selected: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class DocumentaryJob(Base):
+    """One run of the documentary pipeline for a case: blueprint, audio
+    plan, spoken versions, visuals, voice, production script, critique
+    and render — per language, as a pilot or the full film."""
+
+    __tablename__ = "documentary_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    master_version_id: Mapped[int] = mapped_column(ForeignKey("story_versions.id"))
+    mode: Mapped[str] = mapped_column(String(10), default="pilot")
+    languages_json: Mapped[str] = mapped_column(Text, default='["en"]')
+    pilot_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    render_profile: Mapped[str] = mapped_column(String(20), default="preview")
+    # Re-plan visuals (new research, verification and shot direction)
+    # even when a visual plan already exists.
+    refresh_visuals: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    stage: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    progress: Mapped[float] = mapped_column(Float, default=0.0)
+    stages_json: Mapped[str] = mapped_column(Text, default="[]")
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

@@ -79,7 +79,21 @@ REQUIRED_ROLES = {
     "spoken_style_critic",
     # Professional audio direction: breaths, music moments, silences.
     "audio_director",
+    # Visual intelligence: needs per beat, image verification (vision),
+    # shot direction, on-screen text per language.
+    "visual_planner",
+    "visual_verifier",
+    "visual_director",
+    "overlay_localizer",
+    # Documentary critics (independent of the visual director).
+    "automation_feel_critic",
+    "attention_critic",
+    "visual_accuracy_critic",
+    "production_critic",
 }
+
+# Roles that send images and need a vision-capable model.
+VISION_ROLES = {"visual_verifier"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
@@ -113,6 +127,7 @@ class ModelCapabilities(BaseModel):
     web_fetch: str = "none"  # native | plugin | none
     structured_output: bool = True
     tool_calling: bool = False
+    vision: bool = False
 
     @field_validator("web_search", "web_fetch")
     @classmethod
@@ -666,6 +681,8 @@ class ElevenLabsConfig(BaseModel):
     output_format: str = "mp3_44100_128"
     request_timeout_s: float = Field(default=120.0, gt=0)
     max_retries: int = Field(default=2, ge=0, le=5)
+    # Models that reject previous_text / next_text (request stitching).
+    no_context_models: list[str] = ["eleven_v3"]
 
 
 class VoiceConfig(BaseModel):
@@ -727,6 +744,26 @@ class ASRCheckConfig(BaseModel):
     spelling_variant_similarity: float = Field(default=80.0, ge=0.0, le=100.0)
     # Extra takes (different seed) when a block fails the check.
     auto_retakes: int = Field(default=1, ge=0, le=3)
+    # Per-language overrides (e.g. a larger Whisper model and a more
+    # lenient threshold where small Whisper models are weak, like Persian).
+    languages: dict[str, "ASRLanguageOverride"] = {}
+
+    def for_language(self, language: str | None) -> "ASRCheckConfig":
+        o = self.languages.get(language or "")
+        if not o:
+            return self
+        return self.model_copy(update=o.model_dump(exclude_none=True))
+
+
+class ASRLanguageOverride(BaseModel):
+    model: str | None = None
+    max_word_error_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_missing_run: int | None = Field(default=None, ge=1)
+    max_extra_run: int | None = Field(default=None, ge=1)
+    spelling_variant_similarity: float | None = Field(default=None, ge=0.0, le=100.0)
+
+
+ASRCheckConfig.model_rebuild()
 
 
 class LoudnessConfig(BaseModel):
@@ -789,11 +826,11 @@ class AudioDirectionConfig(BaseModel):
     # Allowed length (seconds) of each transition type after a beat.
     transitions: dict[str, list[float]] = Field(default_factory=lambda: {
         "breath": [1.0, 1.8],
-        "music_bridge": [3.0, 8.0],
-        "emotional_moment": [4.0, 9.0],
-        "sting": [1.5, 3.5],
-        "silence": [1.5, 3.5],
-        "chapter_break": [5.0, 10.0],
+        "music_bridge": [8.0, 16.0],
+        "emotional_moment": [9.0, 18.0],
+        "sting": [2.0, 4.0],
+        "silence": [2.0, 4.0],
+        "chapter_break": [12.0, 22.0],
     })
     # Pause between paragraphs inside a beat (a speaker's breath).
     paragraph_breath_ms: dict[str, int] = Field(default_factory=lambda: {
@@ -813,6 +850,10 @@ class AudioDirectionConfig(BaseModel):
     sting_level_db: float = Field(default=-5.0, le=0.0)
     room_tone_level_db: float = Field(default=-34.0, le=0.0)
     max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    # A music moment starts this long before the beat's last word (fading
+    # in under it) and keeps playing under the next beat's first words.
+    music_lead_seconds: float = Field(default=2.0, ge=0.0, le=8.0)
+    music_tail_seconds: float = Field(default=3.0, ge=0.0, le=10.0)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -844,6 +885,121 @@ class MusicLibraryConfig(BaseModel):
         options = [c for c in self.cues if c.kind == kind]
         exact = [c for c in options if mood and c.mood == mood]
         return (exact or options or [None])[0]
+
+
+class DocumentaryConfig(BaseModel):
+    """Film-level rules shared by every stage."""
+
+    languages: list[str] = ["en", "de", "fa", "ar"]
+    # Every finished documentary runs 45–120 minutes. Pilots are short
+    # renders (pilot_seconds) of a full-length story, never short stories.
+    min_film_minutes: float = Field(default=45.0, gt=0)
+    max_film_minutes: float = Field(default=120.0, gt=0)
+    pilot_seconds: float = Field(default=180.0, gt=0)
+    # Measured speed of the rendered narration per language (words per
+    # minute), used to estimate film length before anything is rendered.
+    speech_wpm: dict[str, int] = {"en": 150, "de": 128, "fa": 116, "ar": 104}
+    storage_dir: str = "data/cases"
+
+    def wpm(self, language: str) -> int:
+        return self.speech_wpm.get(language) or 140
+
+
+class VisualSearchConfig(BaseModel):
+    providers: list[str] = ["source_pages", "wikimedia", "searxng_images"]
+    user_agent: str = ("TrueCrimeStudio/1.0 (local documentary research tool; "
+                       "https://github.com/Ferid1088/truecrime_story_app)")
+    # Seconds between requests to public APIs (Wikimedia robot policy).
+    min_request_interval_s: float = Field(default=1.0, ge=0.0)
+    wikimedia_api: str = "https://commons.wikimedia.org/w/api.php"
+    max_queries: int = Field(default=30, ge=1)
+    max_candidates_per_query: int = Field(default=5, ge=1)
+    max_source_pages: int = Field(default=25, ge=0)
+    max_assets: int = Field(default=120, ge=1)
+    min_width: int = Field(default=600, ge=64)
+    max_download_mb: float = Field(default=15.0, gt=0)
+    request_timeout_s: float = Field(default=25.0, gt=0)
+    # Stock libraries: found there means watermarked/licensed — never used.
+    blocked_domains: list[str] = [
+        "gettyimages.", "shutterstock.", "alamy.", "istockphoto.",
+        "dreamstime.", "depositphotos.", "123rf.", "stock.adobe.",
+    ]
+
+
+class VisualVerificationConfig(BaseModel):
+    verified_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    reject_below_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
+    thumbnail_px: int = Field(default=768, ge=128)
+
+
+class RightsConfig(BaseModel):
+    """FOUND does not mean USABLE. Which rights statuses each render
+    profile may show; 'preview' renders are internal review copies."""
+
+    allowed_for_render: dict[str, list[str]] = Field(default_factory=lambda: {
+        "preview": ["owned", "licensed", "public_domain", "creative_commons",
+                    "editorial_review_required"],
+        "publish": ["owned", "licensed", "public_domain", "creative_commons"],
+    })
+    attribution_required: list[str] = ["creative_commons"]
+
+
+class MotionConfig(BaseModel):
+    """Subtle camera moves on stills — never a visible slideshow effect."""
+
+    push_scale: float = Field(default=1.07, ge=1.0, le=1.3)
+    pan_fraction: float = Field(default=0.05, ge=0.0, le=0.3)
+    emotional_slowdown: float = Field(default=0.6, gt=0.0, le=1.0)
+    parallax_enabled: bool = True
+    parallax_shift_fraction: float = Field(default=0.012, ge=0.0, le=0.05)
+    min_hold_seconds: float = Field(default=5.0, gt=0.0)
+    max_still_seconds: float = Field(default=16.0, gt=0.0)
+    crossfade_seconds: list[float] = [0.7, 1.4]
+    # The same motion is not used more than this many shots in a row.
+    max_same_motion_run: int = Field(default=2, ge=1)
+
+
+class MapsConfig(BaseModel):
+    tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    attribution: str = "© OpenStreetMap contributors"
+    geocoder_url: str = "https://nominatim.openstreetmap.org/search"
+    tile_size: int = 256
+    # Zoom steps of an orientation sequence (wide -> close).
+    zoom_levels: list[int] = [4, 7, 11]
+    darken: float = Field(default=0.55, ge=0.0, le=1.0)
+
+
+class AttentionConfig(BaseModel):
+    """Cognitive load: the viewer is never asked to read, look and follow
+    dense narration at the same time."""
+
+    max_overlay_words: int = Field(default=14, ge=1)
+    max_read_items_per_beat: int = Field(default=1, ge=0)
+    max_changes_per_minute: float = Field(default=7.0, gt=0)
+    min_changes_per_minute: float = Field(default=1.0, ge=0)
+    # Reveal firewall: a visual may not show evidence that a LATER beat
+    # with one of these purposes discloses.
+    firewall_purposes: list[str] = ["reveal", "contradiction", "evidence",
+                                    "false_lead", "chapter_end"]
+
+
+class RenderConfig(BaseModel):
+    profile: str = "preview"
+    width: int = Field(default=1920, ge=320)
+    height: int = Field(default=1080, ge=240)
+    fps: int = Field(default=25, ge=10, le=60)
+    crf: int = Field(default=20, ge=10, le=40)
+    preset: str = "veryfast"
+    burn_subtitles: bool = False
+    subtitle_max_chars: int = Field(default=42, ge=10)
+    subtitle_max_seconds: float = Field(default=6.0, gt=0)
+    show_credits: bool = True
+
+
+class DocumentaryCriticsConfig(BaseModel):
+    critics: list[str] = ["automation_feel", "attention", "visual_accuracy", "production"]
+    max_fix_iterations: int = Field(default=1, ge=0, le=3)
+    max_asset_reuse: int = Field(default=3, ge=1)
 
 
 class PerformanceConfig(BaseModel):
@@ -928,6 +1084,17 @@ class AIConfig(BaseModel):
     spoken: SpokenConfig = Field(default_factory=SpokenConfig)
     audio_direction: AudioDirectionConfig = Field(default_factory=AudioDirectionConfig)
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
+    documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
+    visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
+    visual_verification: VisualVerificationConfig = Field(
+        default_factory=VisualVerificationConfig)
+    rights: RightsConfig = Field(default_factory=RightsConfig)
+    motion: MotionConfig = Field(default_factory=MotionConfig)
+    maps: MapsConfig = Field(default_factory=MapsConfig)
+    attention: AttentionConfig = Field(default_factory=AttentionConfig)
+    render: RenderConfig = Field(default_factory=RenderConfig)
+    documentary_critics: DocumentaryCriticsConfig = Field(
+        default_factory=DocumentaryCriticsConfig)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -973,6 +1140,14 @@ class AIConfig(BaseModel):
             for role in _WEB_FETCH_ROLES:
                 self._require_capability(rp, role, "web_fetch")
         self._validate_review_independence()
+        gp = self.generation_provider()
+        for role in VISION_ROLES:
+            model = gp.models[gp.routing[role]]
+            if not gp.capabilities.get(model, ModelCapabilities()).vision:
+                raise ValueError(
+                    f"role {role!r} sends images but its model {model!r} has "
+                    "no vision capability"
+                )
         unknown_styles = set(self.performance.style_for_intent.values()) - set(self.voice.styles)
         if unknown_styles:
             raise ValueError(

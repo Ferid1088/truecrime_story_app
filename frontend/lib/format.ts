@@ -78,3 +78,27 @@ export function parseNarrativePlan(raw: string | null | undefined): NarrativePla
     return null;
   }
 }
+
+/**
+ * Film timecode as total minutes and seconds ("95:07") — the same mm:ss
+ * convention the documentary critics use for 45–120 minute films.
+ * `tenths` adds a decimal for shot-accurate times ("03:05.4").
+ */
+export function formatTimecode(
+  seconds: number | null | undefined,
+  { tenths = false }: { tenths?: boolean } = {},
+): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  const total = Math.max(0, seconds);
+  const whole = tenths ? Math.floor(total) : Math.round(total);
+  const mm = String(Math.floor(whole / 60)).padStart(2, "0");
+  const ss = String(whole % 60).padStart(2, "0");
+  if (!tenths) return `${mm}:${ss}`;
+  return `${mm}:${ss}.${Math.floor((total - whole) * 10)}`;
+}
+
+/** "snake_case" enum value → "snake case" for display. */
+export function humanize(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.replace(/[_:]+/g, " ").toLowerCase();
+}

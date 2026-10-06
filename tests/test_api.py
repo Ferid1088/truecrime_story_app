@@ -135,7 +135,7 @@ def test_missing_case_404s():
 def test_generate_story_without_facts_fails():
     r = client.post("/api/cases", json={"canonical_title": "No Facts Case"})
     case_id = r.json()["id"]
-    r = client.post(f"/api/cases/{case_id}/generate-story", json={"target_minutes": 30})
+    r = client.post(f"/api/cases/{case_id}/generate-story", json={"target_minutes": 45})
     assert r.status_code == 500
     assert "facts" in r.json()["detail"].lower()
 

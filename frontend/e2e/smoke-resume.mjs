@@ -39,8 +39,8 @@ page.on("response", (r) => {
 // Master generation from the actual Studio UI
 // ------------------------------------------------------------------
 await page.goto(`${BASE}/studio?case=${CASE_ID}`, { waitUntil: "domcontentloaded" });
-await page.locator("select").nth(2).selectOption("20"); // smallest duration — cost control
-log("master", "generating English Master (20min target) via OpenRouter — this blocks…");
+await page.locator("select").nth(2).selectOption("45"); // smallest film length — cost control
+log("master", "generating English Master (45min target) via OpenRouter — this blocks…");
 const genStart = Date.now();
 await page.getByRole("button", { name: /generate english master/i }).click();
 

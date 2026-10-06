@@ -262,6 +262,74 @@ its critics' model either.
   generation, normalized and cached in `data/music_library/` — shared by
   every film and language.
 
+### Visuals, production and render (the documentary video)
+
+Policy (V1): real photos, documents, maps, typography and black frames —
+no AI video. "If the listener closes their eyes, the documentary must
+still work. If they open them, the visuals deepen understanding."
+
+1. **Visual needs** (`visual_planner`): per beat what the viewer should
+   see (people, places, objects, documents) with search queries; plus a
+   map place, an anchor date, a short real quotation or a document
+   passage — each checked against the evidence (exact quotes only).
+2. **Visual research**: images from the case's own sources (news
+   articles: og:image, figures with captions), Wikimedia Commons
+   (license metadata; polite User-Agent and request spacing) and the
+   SearXNG image search. Downloads are size-checked, deduplicated by
+   perceptual hash and stored per case (`data/cases/<id>/visuals/`).
+3. **Rights** (deterministic): owned, licensed, public_domain,
+   creative_commons, editorial_review_required, permission_required,
+   unknown, do_not_use (stock libraries, watermarks). FOUND is not
+   USABLE: `rights.allowed_for_render` decides per render profile
+   (`preview` = internal review copy, `publish` = cleared material only).
+4. **Verification** (`visual_verifier`, vision model): what the image
+   actually shows vs. what it is claimed to show; role (evidence /
+   context / illustration); branding or burned-in text; sensitive
+   content. Rejected images are never used; humans can override in the
+   Visual Library.
+5. **Visual direction** (`visual_director`): shots per beat anchored to
+   the narration sentences (KEEP_CURRENT_IMAGE, NEW_IMAGE, SHOW_MAP,
+   SHOW_DOCUMENT, SHOW_DATE, SHOW_QUOTE, BLACK_SCREEN, …). Validator:
+   reveal firewall (no picture shows what a later reveal/evidence beat
+   discloses), cognitive load (one thing to read, none during dense
+   narration), minimum holds, illustrations labelled on screen, fallback
+   hierarchy (map → date → hold → black). Motion is deterministic and
+   subtle (slow push/pull, pans, focus on faces, document highlight, map
+   zoom, light 2.5D parallax), never the same move three times in a row.
+6. **Production script** per language from the real audio: shots,
+   transitions, overlays localized per language (dates formatted
+   deterministically, place names/quotes by `overlay_localizer`),
+   music placements, silences, subtitles, credits.
+7. **Critics** (`automation_feel_critic`, `attention_critic`,
+   `visual_accuracy_critic`, `production_critic` — never the director's
+   model) plus deterministic checks; targeted fixes per shot
+   (replace picture, keep previous, change motion, black, remove text).
+   Each language is judged on its own.
+8. **Render** (FFmpeg + OpenCV + Pillow, no editorial logic): 1080p/25
+   MP4, H.264 + AAC, soft subtitle track and `.srt`, credits for
+   attributed material.
+
+**One button**: the Documentary section of the app (`/documentary`)
+runs `POST /api/cases/{id}/documentary/jobs` — blueprint → audio plan →
+storyteller text per language → film-length check → visual needs →
+research → verification → visual plan → voice → production script →
+critique → render. Stages are resumable; a re-run reuses everything that
+exists (`refresh_visuals` re-plans pictures). `mode: "pilot"` renders the
+opening `pilot_seconds` of every language; `mode: "full"` renders the
+whole film and refuses stories outside 45–120 minutes
+(`documentary.min_film_minutes` / `max_film_minutes`; story length in
+the Studio is 45–120 minutes too).
+
+Setup on top of the voice requirements: `pip install -r
+requirements-documentary.txt` (Pillow with raqm for Persian/Arabic
+shaping, OpenCV). Fonts (SIL OFL) ship in `app/documentary/assets/fonts`.
+Maps use OpenStreetMap tiles and Nominatim by default (credited on
+screen, cached in `data/map_cache`); switch `maps.tile_url` /
+`maps.geocoder_url` to a commercial provider for heavy or published
+use. Persian narration uses ElevenLabs `eleven_v3` (no request
+stitching) and a larger Whisper model for the speech check
+(`asr_check.languages.fa`).
+
 ## Workflow پیشنهادی
 
 1. `POST /api/topics/discover`
