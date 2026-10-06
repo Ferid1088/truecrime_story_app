@@ -601,6 +601,100 @@ class VoiceBlocksConfig(BaseModel):
         return self
 
 
+class VoiceStyle(BaseModel):
+    """Provider voice settings for one performance style. Small variation
+    beats dramatic acting: styles differ mainly in speed and stability."""
+
+    stability: float = Field(default=0.5, ge=0.0, le=1.0)
+    similarity_boost: float = Field(default=0.75, ge=0.0, le=1.0)
+    style: float = Field(default=0.0, ge=0.0, le=1.0)
+    use_speaker_boost: bool = True
+    speed: float = Field(default=1.0, ge=0.7, le=1.2)
+
+
+class VoiceLanguageConfig(BaseModel):
+    voice_id: str | None = None
+    model_id: str = "eleven_multilingual_v2"
+
+
+class ElevenLabsConfig(BaseModel):
+    secret_env: str = "TrueCrime_ELEVENLABS_API_KEY"
+    base_url: str = "https://api.elevenlabs.io"
+    output_format: str = "mp3_44100_128"
+    request_timeout_s: float = Field(default=120.0, gt=0)
+    max_retries: int = Field(default=2, ge=0, le=5)
+
+
+class VoiceConfig(BaseModel):
+    provider: str = "elevenlabs"
+    elevenlabs: ElevenLabsConfig = Field(default_factory=ElevenLabsConfig)
+    languages: dict[str, VoiceLanguageConfig] = {}
+    default_style: str = "neutral_documentary"
+    styles: dict[str, VoiceStyle] = Field(
+        default_factory=lambda: {"neutral_documentary": VoiceStyle()}
+    )
+    # Base seed; a re-take after a failed check uses seed + attempt so a
+    # retry is a genuinely different performance, reproducibly.
+    seed: int = Field(default=1, ge=0)
+    # Silence kept around the speech the provider reports (alignment),
+    # so trimming never clips a breath or a word ending.
+    lead_pad_ms: int = Field(default=60, ge=0, le=1000)
+    tail_pad_ms: int = Field(default=150, ge=0, le=2000)
+    # App-level pauses when blocks are assembled into one narration
+    # track (dramatic pauses/silence come later from the director).
+    between_blocks_ms: int = Field(default=200, ge=0, le=10000)
+    between_sections_ms: int = Field(default=1400, ge=0, le=10000)
+    work_dir: str = "data/cases"
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if self.default_style not in self.styles:
+            raise ValueError(
+                f"voice.default_style {self.default_style!r} is not in voice.styles"
+            )
+        return self
+
+    def for_language(self, language: str) -> VoiceLanguageConfig:
+        cfg = self.languages.get(language)
+        if not cfg or not cfg.voice_id:
+            raise ValueError(
+                f"No narrator voice configured for language {language!r} "
+                "(config: voice.languages.<lang>.voice_id)."
+            )
+        return cfg
+
+
+class ASRCheckConfig(BaseModel):
+    """Independent speech-to-text check of every rendered voice block:
+    catches skipped, repeated, invented and badly mispronounced words."""
+
+    enabled: bool = True
+    provider: str = "faster_whisper"
+    model: str = "small"
+    compute_type: str = "int8"
+    max_word_error_rate: float = Field(default=0.08, ge=0.0, le=1.0)
+    # A run of this many consecutive missing (or extra) words fails the
+    # block even when the overall error rate is low — that is a skipped
+    # or invented phrase, not a transcription quirk.
+    max_missing_run: int = Field(default=3, ge=1)
+    max_extra_run: int = Field(default=3, ge=1)
+    # Word pairs at least this similar (0–100, rapidfuzz ratio) count as
+    # spelling variants, not errors — Whisper spells rare names its own
+    # way ("Kadwill" -> "Cadwill"). Listed separately for review.
+    spelling_variant_similarity: float = Field(default=80.0, ge=0.0, le=100.0)
+    # Extra takes (different seed) when a block fails the check.
+    auto_retakes: int = Field(default=1, ge=0, le=3)
+
+
+class LoudnessConfig(BaseModel):
+    narration_target_lufs: float = Field(default=-16.0, ge=-40.0, le=-5.0)
+    true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
+    lra: float = Field(default=11.0, gt=0.0, le=50.0)
+    # Flag a block whose loudness differs this much from the median.
+    max_block_deviation_lu: float = Field(default=2.0, gt=0.0)
+    sample_rate: int = Field(default=44100, ge=8000)
+
+
 class AIConfig(BaseModel):
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
@@ -640,6 +734,9 @@ class AIConfig(BaseModel):
         default_factory=ReviewIndependenceConfig
     )
     voice_blocks: VoiceBlocksConfig = Field(default_factory=VoiceBlocksConfig)
+    voice: VoiceConfig = Field(default_factory=VoiceConfig)
+    asr_check: ASRCheckConfig = Field(default_factory=ASRCheckConfig)
+    loudness: LoudnessConfig = Field(default_factory=LoudnessConfig)
 
     @model_validator(mode="after")
     def _validate(self):

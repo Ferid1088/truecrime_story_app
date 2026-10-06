@@ -2,8 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ffmpeg: audio decode/trim/loudness for the documentary voice pipeline
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-documentary.txt ./
+RUN pip install --no-cache-dir -r requirements-documentary.txt
 
 COPY . .
 

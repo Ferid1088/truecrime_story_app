@@ -1,0 +1,5 @@
+# Optional extras for the documentary engine (voice QA).
+# System requirement: ffmpeg (brew install ffmpeg / apt-get install ffmpeg).
+-r requirements.txt
+faster-whisper>=1.1,<2      # local speech-to-text check of rendered voice blocks
+whisper-normalizer>=0.1.12  # number/date-aware English normalization for that check

@@ -77,3 +77,13 @@ class GenerateStoryRequest(BaseModel):
 class ImproveStoryRequest(BaseModel):
     story_version_id: int
     instruction: str = Field(min_length=3, max_length=2000)
+
+
+class VoiceRenderRequest(BaseModel):
+    # Render only the opening (whole blocks) — e.g. 180 for a 3-minute
+    # pilot. None renders the full story.
+    max_seconds: float | None = Field(default=None, gt=0)
+    # Voice style from config voice.styles (default: voice.default_style).
+    style: str | None = None
+    # Blocks to re-record as a new take (different seed), ignoring cache.
+    force_block_ids: list[str] = []

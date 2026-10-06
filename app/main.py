@@ -2,6 +2,7 @@ import json
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
 
@@ -33,6 +34,7 @@ from app.schemas import (
     AddSourceRequest,
     GenerateStoryRequest,
     ImproveStoryRequest,
+    VoiceRenderRequest,
     check_target_minutes,
 )
 from app.core.config import settings
@@ -49,8 +51,11 @@ from app.agents.story import (
     structure_without_text,
 )
 from app.agents.localization import LocalizationPipeline
+from app.documentary.audio import AudioToolError
 from app.documentary.voice_blocks import plan_for_version
+from app.documentary.voice_render import VoiceRenderer
 from app.providers import get_research_provider
+from app.providers.voice import VoiceProviderError
 from app.providers.base import ProviderError
 from app.providers.generation import get_generation_provider
 from app.services import research_jobs
@@ -1292,6 +1297,78 @@ def story_voice_blocks(case_id: int, version_id: int, db: Session = Depends(get_
         else stored_fp == current_evidence_fingerprint(db, case_id)
     )
     return plan
+
+
+def _story_or_404(db: Session, case_id: int, version_id: int) -> StoryVersion:
+    _get_case_or_404(db, case_id)
+    story = (
+        db.query(StoryVersion)
+        .filter(StoryVersion.id == version_id, StoryVersion.case_id == case_id)
+        .first()
+    )
+    if not story:
+        raise HTTPException(status_code=404, detail="Story version not found")
+    return story
+
+
+def _voice_summary(manifest: dict) -> dict:
+    """Manifest without the (long) word-level timeline."""
+    timeline = manifest.get("timeline") or {}
+    return {
+        **{k: v for k, v in manifest.items() if k != "timeline"},
+        "timeline_blocks": timeline.get("blocks") or [],
+        "timeline_word_count": len(timeline.get("words") or []),
+    }
+
+
+@app.post("/api/cases/{case_id}/stories/{version_id}/voice/render")
+async def render_story_voice(
+    case_id: int, version_id: int, payload: VoiceRenderRequest,
+    db: Session = Depends(get_db),
+):
+    """Render narration for a story version: TTS per voice block with
+    word timestamps, independent speech-to-text check (with automatic
+    re-take of failing blocks), loudness normalization, one narration
+    track + timeline. Unchanged blocks come from cache (no cost).
+    `max_seconds` renders only the opening (e.g. a 3-minute pilot)."""
+    story = _story_or_404(db, case_id, version_id)
+    plan = plan_for_version(story)
+    try:
+        manifest = await VoiceRenderer().render(
+            plan, case_id=case_id, story_version_id=version_id,
+            max_seconds=payload.max_seconds, style=payload.style,
+            force_block_ids=payload.force_block_ids,
+        )
+    except VoiceProviderError as e:
+        code = 503 if e.kind == "missing_credentials" else 502
+        raise HTTPException(status_code=code, detail={"code": e.kind, "message": str(e)})
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except AudioToolError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return _voice_summary(manifest)
+
+
+def _voice_dir(story: StoryVersion):
+    return VoiceRenderer.out_dir_for(story.case_id, story.language, story.id)
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/voice")
+def story_voice_manifest(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    story = _story_or_404(db, case_id, version_id)
+    path = _voice_dir(story) / "manifest.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="No narration rendered yet")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/voice/narration.mp3")
+def story_voice_audio(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    story = _story_or_404(db, case_id, version_id)
+    path = _voice_dir(story) / "narration.mp3"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="No narration rendered yet")
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @app.get("/api/cases/{case_id}/story/latest")

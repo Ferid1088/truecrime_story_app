@@ -161,6 +161,29 @@ Groundwork for the audio-first documentary engine (`app/documentary/`).
   flags (never cuts) a sentence longer than the maximum. Sentence
   detection is pysbd plus repair rules for German/Persian/Arabic.
 
+### Voice (narration audio)
+
+Setup: `TrueCrime_ELEVENLABS_API_KEY` in `.env` (the key needs the
+text-to-speech permission), `ffmpeg` installed, and
+`pip install -r requirements-documentary.txt` for the speech-to-text
+check. Voice ids, model ids, styles, pauses and loudness live in
+`config/ai_config.json` (`voice`, `asr_check`, `loudness`).
+
+- `POST /api/cases/{case_id}/stories/{version_id}/voice/render`
+  `{"max_seconds": 180}` renders the opening (whole blocks) — omit it
+  for the full story. CLI: `python -m scripts.render_voice --case 2
+  --version 9 --max-seconds 180`.
+- Per block: ElevenLabs with character timestamps (neighbouring
+  sentences sent as context), trim to the reported speech, word
+  timestamps, independent local Whisper check (skipped / extra / changed
+  words; a failing block gets one automatic re-take with another seed),
+  loudness per block. Blocks are joined with app-level pauses and the
+  narration is normalized to −16 LUFS with one constant gain.
+- Unchanged blocks come from cache (`data/cases/…/blocks`), so re-runs
+  only pay for edited blocks; `force_block_ids` records a new take.
+- `GET …/voice` → manifest (QA per block + word timeline),
+  `GET …/voice/narration.mp3` → audio.
+
 ## Workflow پیشنهادی
 
 1. `POST /api/topics/discover`

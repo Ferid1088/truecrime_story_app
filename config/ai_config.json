@@ -597,5 +597,95 @@
     "sentence_break_penalty": 0.35,
     "short_block_penalty": 4.0,
     "context_chars": 300
+  },
+  "voice": {
+    "provider": "elevenlabs",
+    "elevenlabs": {
+      "secret_env": "TrueCrime_ELEVENLABS_API_KEY",
+      "base_url": "https://api.elevenlabs.io",
+      "output_format": "mp3_44100_128",
+      "request_timeout_s": 120,
+      "max_retries": 2
+    },
+    "languages": {
+      "en": {
+        "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+        "model_id": "eleven_multilingual_v2"
+      },
+      "de": {
+        "voice_id": null,
+        "model_id": "eleven_multilingual_v2"
+      },
+      "fa": {
+        "voice_id": null,
+        "model_id": "eleven_v3"
+      },
+      "ar": {
+        "voice_id": null,
+        "model_id": "eleven_multilingual_v2"
+      }
+    },
+    "default_style": "neutral_documentary",
+    "styles": {
+      "neutral_documentary": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 1.0
+      },
+      "factual": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 1.03
+      },
+      "controlled_tension": {
+        "stability": 0.6,
+        "similarity_boost": 0.75,
+        "style": 0.05,
+        "use_speaker_boost": true,
+        "speed": 0.94
+      },
+      "reveal": {
+        "stability": 0.65,
+        "similarity_boost": 0.75,
+        "style": 0.05,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "reflective": {
+        "stability": 0.6,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 0.95
+      }
+    },
+    "seed": 1,
+    "lead_pad_ms": 60,
+    "tail_pad_ms": 150,
+    "between_blocks_ms": 200,
+    "between_sections_ms": 1400,
+    "work_dir": "data/cases"
+  },
+  "asr_check": {
+    "enabled": true,
+    "provider": "faster_whisper",
+    "model": "small",
+    "compute_type": "int8",
+    "max_word_error_rate": 0.08,
+    "max_missing_run": 3,
+    "max_extra_run": 3,
+    "spelling_variant_similarity": 80,
+    "auto_retakes": 1
+  },
+  "loudness": {
+    "narration_target_lufs": -16.0,
+    "true_peak_db": -1.5,
+    "lra": 11,
+    "max_block_deviation_lu": 2.0,
+    "sample_rate": 44100
   }
 }
