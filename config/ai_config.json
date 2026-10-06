@@ -835,7 +835,8 @@
       "fa": {
         "model": "large-v3-turbo",
         "max_word_error_rate": 0.2,
-        "max_missing_run": 4
+        "max_missing_run": 4,
+        "spelling_variant_similarity": 70
       }
     }
   },
@@ -907,7 +908,7 @@
     "speech_script": {
       "fa": "finglish"
     },
-    "finglish_sentences_per_call": 45,
+    "finglish_sentences_per_call": 20,
     "finglish_fix_rounds": 2,
     "finglish_min_fix_similarity": 70
   },
@@ -1261,7 +1262,7 @@
     "breath_per_level": 0.15
   },
   "concurrency": {
-    "llm": 6,
+    "llm": 10,
     "vision": 4,
     "elevenlabs_tts": 4,
     "elevenlabs_sound": 2,

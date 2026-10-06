@@ -840,7 +840,8 @@ class SpokenConfig(BaseModel):
     # the Finglish verifier provides.
     speech_script: dict[str, str] = {"fa": "finglish"}
     # Finglish verifier: sentences per call and fix rounds.
-    finglish_sentences_per_call: int = Field(default=45, ge=5)
+    # small chunks: the verifier model thinks a lot per sentence
+    finglish_sentences_per_call: int = Field(default=20, ge=3)
     finglish_fix_rounds: int = Field(default=2, ge=0, le=4)
     # A corrected sentence must stay this similar (0–100) to the
     # original: the verifier fixes words, it does not rewrite.
@@ -1123,7 +1124,7 @@ class ConcurrencyConfig(BaseModel):
     inside one documentary (languages, critics, image checks and voice
     blocks in parallel) and several documentaries at once (jobs)."""
 
-    llm: int = Field(default=6, ge=1, le=64)
+    llm: int = Field(default=10, ge=1, le=64)
     vision: int = Field(default=4, ge=1, le=32)
     # ElevenLabs allows 5 concurrent requests on this plan; keep one free.
     elevenlabs_tts: int = Field(default=4, ge=1, le=32)
