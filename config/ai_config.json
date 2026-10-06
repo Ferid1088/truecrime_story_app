@@ -1,0 +1,557 @@
+{
+  "providers": {
+    "research": "truecrime",
+    "generation": "apimaster"
+  },
+  "research_providers": {
+    "truecrime": {
+      "enabled": true,
+      "type": "search_engine",
+      "role": "internet_research"
+    }
+  },
+  "generation_providers": {
+    "apimaster": {
+      "enabled": true,
+      "base_url": "https://apimaster.ai/v1",
+      "secret_env": "TrueCrime_APIMASTER_API_KEY",
+      "models": {
+        "cheap": "gpt-5.6-luna",
+        "research_intelligence": "gpt-5.6-luna",
+        "writer": "gemini-3.8-flash",
+        "premium": "claude-sonnet-5-5",
+        "embedding": "bge-m3"
+      },
+      "capabilities": {
+        "gpt-5.6-luna": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none"
+        },
+        "gemini-3.8-flash": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none"
+        },
+        "claude-sonnet-5-5": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none"
+        },
+        "bge-m3": {
+          "structured_output": false,
+          "tool_calling": false,
+          "web_search": "none",
+          "web_fetch": "none"
+        }
+      },
+      "routing": {
+        "fact_extractor": "cheap",
+        "timeline_builder": "cheap",
+        "contradiction_analyzer": "cheap",
+        "discovery": "cheap",
+        "story_director": "writer",
+        "writer": "writer",
+        "rewriter": "writer",
+        "engagement_critic": "premium",
+        "final_editor": "premium",
+        "section_critic": "premium",
+        "grounding_validator": "cheap",
+        "consistency_checker": "cheap",
+        "evidence_normalizer": "cheap",
+        "semantic_consistency_checker": "cheap",
+        "localized_grounding_validator": "cheap",
+        "master_story_director": "writer",
+        "master_writer": "writer",
+        "master_rewriter": "writer",
+        "localization_writer": "writer",
+        "master_engagement_critic": "premium",
+        "master_final_editor": "premium",
+        "native_language_critic": "premium",
+        "localized_engagement_critic": "premium",
+        "localized_final_editor": "premium",
+        "transcript_normalizer": "cheap",
+        "transcript_intelligence_extractor": "cheap",
+        "claim_clusterer": "cheap",
+        "source_dependence_analyzer": "cheap",
+        "evidence_verifier": "cheap",
+        "narrative_research_synthesizer": "cheap",
+        "source_similarity_critic": "premium",
+        "structure_originality_critic": "premium",
+        "research_verifier": "cheap",
+        "research_normalizer": "cheap",
+        "research_query_planner": "research_intelligence",
+        "result_reranker": "research_intelligence",
+        "research_evaluator": "cheap",
+        "research_assembler": "cheap",
+        "case_discovery_agent": "research_intelligence",
+        "youtube_discovery_agent": "research_intelligence"
+      },
+      "fallbacks": {
+        "cheap": [
+          "writer"
+        ],
+        "writer": [
+          "premium"
+        ],
+        "premium": [
+          "writer"
+        ]
+      }
+    }
+  },
+  "generation": {
+    "fact_extractor": {
+      "temperature": 0.1,
+      "max_tokens": 6000
+    },
+    "timeline_builder": {
+      "temperature": 0.1,
+      "max_tokens": 5000
+    },
+    "contradiction_analyzer": {
+      "temperature": 0.1,
+      "max_tokens": 5000
+    },
+    "discovery": {
+      "temperature": 0.7,
+      "max_tokens": 8000
+    },
+    "story_director": {
+      "temperature": 0.5,
+      "max_tokens": 6000
+    },
+    "writer": {
+      "temperature": 0.7,
+      "max_tokens": 20000
+    },
+    "engagement_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "rewriter": {
+      "temperature": 0.65,
+      "max_tokens": 20000
+    },
+    "final_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "section_critic": {
+      "temperature": 0.2,
+      "max_tokens": 4000
+    },
+    "grounding_validator": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "consistency_checker": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "evidence_normalizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "semantic_consistency_checker": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "localized_grounding_validator": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "master_story_director": {
+      "temperature": 0.5,
+      "max_tokens": 16000
+    },
+    "master_writer": {
+      "temperature": 0.7,
+      "max_tokens": 20000
+    },
+    "master_rewriter": {
+      "temperature": 0.65,
+      "max_tokens": 20000
+    },
+    "localization_writer": {
+      "temperature": 0.6,
+      "max_tokens": 20000
+    },
+    "master_engagement_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "master_final_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "native_language_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "localized_engagement_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "localized_final_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "transcript_normalizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "transcript_intelligence_extractor": {
+      "temperature": 0.1,
+      "max_tokens": 8000
+    },
+    "claim_clusterer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "source_dependence_analyzer": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "evidence_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "narrative_research_synthesizer": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "source_similarity_critic": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "structure_originality_critic": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "research_query_planner": {
+      "temperature": 0.3,
+      "max_tokens": 3000
+    },
+    "result_reranker": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "research_evaluator": {
+      "temperature": 0.0,
+      "max_tokens": 5000
+    },
+    "research_assembler": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "case_discovery_agent": {
+      "temperature": 0.3,
+      "max_tokens": 8000
+    },
+    "youtube_discovery_agent": {
+      "temperature": 0.1,
+      "max_tokens": 6000
+    },
+    "research_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "research_normalizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    }
+  },
+  "search_engine": {
+    "searxng_url_env": "TRUECRIME_SEARXNG_URL",
+    "searxng_url": "http://localhost:8085",
+    "request_timeout_s": 25,
+    "max_results_per_query": 10,
+    "max_queries_per_language": 6,
+    "max_rounds_per_language": 3,
+    "max_fetches_per_language": 10,
+    "consecutive_low_novelty_stop": 2,
+    "max_duration_s": 900,
+    "min_accept_score": 0.2,
+    "fetch_quality_floor": 0.15,
+    "rerank_band_low": 0.35,
+    "rerank_band_high": 0.6,
+    "max_rerank_candidates": 10,
+    "enable_llm_rerank": true,
+    "enable_gap_analysis": true,
+    "min_full_text_chars": 1200,
+    "fetch_timeout_s": 30,
+    "fetch_max_bytes": 8000000,
+    "fetch_cache_max_age_s": 604800,
+    "fetch_resolve_dns": true,
+    "min_delay_per_domain_s": 1.0,
+    "max_fetch_concurrency": 4,
+    "bm25_weight": 0.55,
+    "dense_weight": 0.45
+  },
+  "story": {
+    "default_language": "fa",
+    "default_target_minutes": 45,
+    "words_per_minute": 135,
+    "minimum_length_ratio": 0.85,
+    "maximum_length_ratio": 1.15,
+    "max_rewrite_iterations": 3,
+    "max_length_repair_iterations": 2,
+    "engagement_threshold": 85,
+    "similarity_threshold": 0.45
+  },
+  "story_quality": {
+    "minimum_grounding_score": 0.85,
+    "max_unsupported_claims": 2,
+    "max_grounding_repair_iterations": 1,
+    "section_engagement_threshold": 55,
+    "max_section_rewrites": 2,
+    "consistency_max_high_severity": 0,
+    "disputed_confidence_threshold": 0.7,
+    "strip_markdown_artifacts": true,
+    "section_marker_prefix": "[[ACT:"
+  },
+  "master_generation": {
+    "section_based_generation": true,
+    "section_word_tolerance": 0.25,
+    "rewrite_length_tolerance": 0.15,
+    "max_sections_per_revision_cycle": 2,
+    "max_revision_cycles": 2,
+    "minimum_engagement_improvement": 5,
+    "min_act_budget_share": 0.08,
+    "max_span_repairs_per_pass": 5,
+    "narrative_value_hints": {
+      "scene": 1.6,
+      "human": 1.4,
+      "investigation": 1.2,
+      "turning_point": 1.8,
+      "context": 0.6
+    }
+  },
+  "cost_control": {
+    "max_master_tokens_per_case": 800000,
+    "max_master_cost_usd": 1.5
+  },
+  "research_depth": {
+    "minutes_per_fulltext_source": 2.5,
+    "minutes_per_partial_source": 1.2,
+    "minutes_per_summary_source": 0.35,
+    "minutes_per_metadata_source": 0.0,
+    "minutes_per_evidence_item": 0.15,
+    "minutes_per_human_detail": 0.5,
+    "minutes_per_scene_detail": 0.5,
+    "minutes_per_investigation_detail": 0.4,
+    "minutes_per_quote": 0.3,
+    "minutes_per_timeline_event": 0.25,
+    "minutes_per_contradiction": 1.0,
+    "minutes_per_independent_family": 0.4,
+    "max_evidence_item_minutes": 18.0,
+    "minimum_capacity_ratio": 0.75,
+    "source_readiness_min_ratio": 0.5,
+    "min_retrieved_sources": 1,
+    "weak_area_minimums": {
+      "human_details": 3,
+      "scene_details": 3,
+      "approved_quotes": 1,
+      "investigation_details": 2
+    }
+  },
+  "source_chunking": {
+    "target_tokens": 900,
+    "min_tokens": 200,
+    "max_tokens": 1400,
+    "overlap_sentences": 1,
+    "max_chunks_per_source_for_extraction": 4
+  },
+  "evidence_strength": {
+    "weights": {
+      "primary": 1.0,
+      "strong_secondary": 0.8,
+      "secondary": 0.6,
+      "tertiary": 0.35,
+      "weak": 0.15,
+      "disputed": 0.2
+    },
+    "preferred_for_scene": [
+      "primary",
+      "strong_secondary"
+    ]
+  },
+  "follow_up_research": {
+    "max_rounds": 1,
+    "queries_per_gap": 2
+  },
+  "multilingual": {
+    "research_languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "canonical_language": "en",
+    "localization_languages": [
+      "de",
+      "fa",
+      "ar"
+    ]
+  },
+  "localization": {
+    "require_master_ready": true,
+    "words_per_minute": {
+      "en": 150,
+      "de": 140,
+      "fa": 135,
+      "ar": 130
+    },
+    "minimum_native_quality_score": 75,
+    "minimum_semantic_consistency_score": 90,
+    "minimum_factual_consistency_score": 0.9,
+    "minimum_engagement_score": 80,
+    "max_localization_repair_iterations": 1,
+    "minimum_duration_ratio": 0.8,
+    "maximum_duration_ratio": 1.25
+  },
+  "language_quality": {
+    "fa": {
+      "minimum_target_script_ratio": 0.9,
+      "max_foreign_token_ratio": 0.03
+    },
+    "ar": {
+      "minimum_target_script_ratio": 0.9,
+      "max_foreign_token_ratio": 0.03
+    }
+  },
+  "research": {
+    "provider": "truecrime",
+    "default_candidate_count": 5,
+    "max_sources_per_case": 40,
+    "minimum_independent_sources": 3,
+    "dedupe_similarity_threshold": 85,
+    "job_timeout_minutes": 45,
+    "max_search_calls_per_language": 6,
+    "max_fetch_calls_per_language": 5,
+    "max_research_cost_per_case": 1.5,
+    "max_followup_rounds": 2,
+    "minimum_result_novelty": 0.15,
+    "min_fetch_score": 0.45,
+    "default_profile": "DEEP_CASE_RESEARCH",
+    "minimum_language_budget_share": 0.1,
+    "adaptive_redistribution": true,
+    "min_accept_score": 0.2
+  },
+  "research_profiles": {
+    "FAST_DISCOVERY": {
+      "model_alias": "research",
+      "search_context_size": "low",
+      "max_search_calls_per_language": 2,
+      "max_results_per_search": 6,
+      "max_fetch_calls_per_language": 1,
+      "max_followup_rounds": 0,
+      "max_cost_usd": 0.2,
+      "minimum_result_novelty": 0.2
+    },
+    "LOW_COST_RESEARCH": {
+      "model_alias": "research",
+      "search_context_size": "medium",
+      "max_search_calls_per_language": 3,
+      "max_results_per_search": 6,
+      "max_fetch_calls_per_language": 2,
+      "max_followup_rounds": 1,
+      "max_cost_usd": 0.5,
+      "minimum_result_novelty": 0.15
+    },
+    "DEEP_CASE_RESEARCH": {
+      "model_alias": "research",
+      "search_context_size": "high",
+      "max_search_calls_per_language": 6,
+      "max_results_per_search": 10,
+      "max_fetch_calls_per_language": 5,
+      "max_followup_rounds": 2,
+      "max_cost_usd": 1.5,
+      "minimum_result_novelty": 0.15
+    },
+    "TRANSCRIPT_RESEARCH": {
+      "model_alias": "research",
+      "search_context_size": "medium",
+      "max_search_calls_per_language": 4,
+      "max_results_per_search": 8,
+      "max_fetch_calls_per_language": 3,
+      "max_followup_rounds": 1,
+      "max_cost_usd": 0.8,
+      "minimum_result_novelty": 0.15
+    },
+    "TARGETED_GAP_RESEARCH": {
+      "model_alias": "research",
+      "search_context_size": "high",
+      "max_search_calls_per_language": 4,
+      "max_results_per_search": 8,
+      "max_fetch_calls_per_language": 3,
+      "max_followup_rounds": 2,
+      "max_cost_usd": 0.6,
+      "minimum_result_novelty": 0.2
+    }
+  },
+  "youtube_research": {
+    "languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "max_results_per_language": 8,
+    "max_videos_per_language": 4,
+    "min_duration_seconds": 300,
+    "discovery_provider": "auto"
+  },
+  "transcript_ingestion": {
+    "preferred_languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "max_transcript_seconds": 10800,
+    "max_segments_per_video": 2000
+  },
+  "transcript_chunking": {
+    "target_tokens": 700,
+    "min_tokens": 150,
+    "max_tokens": 1000
+  },
+  "transcript_value": {
+    "weights": {
+      "unique_claims": 0.3,
+      "credible_details": 0.2,
+      "human_details": 0.15,
+      "scene_details": 0.1,
+      "quotes": 0.1,
+      "contradictions": 0.1,
+      "independence": 0.05
+    },
+    "high_value_threshold": 0.5,
+    "skip_process_threshold": 0.15
+  },
+  "claim_clustering": {
+    "near_duplicate_threshold": 88,
+    "batch_size": 60,
+    "min_independent_families_for_verified": 2
+  },
+  "source_independence": {
+    "shared_unusual_claim_ratio": 0.6,
+    "min_shared_unusual_claims": 3
+  },
+  "similarity": {
+    "ngram_size": 8,
+    "max_ngram_overlap_ratio": 0.02,
+    "max_longest_sequence_ratio": 0.05,
+    "structure_overlap_threshold": 0.7
+  },
+  "research_stop_conditions": {
+    "max_transcripts_per_case": 24,
+    "minimum_novel_information_ratio": 0.08,
+    "consecutive_low_value_stop": 2
+  }
+}

@@ -1,0 +1,36 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+    environment:
+      - TRUECRIME_SEARXNG_URL=http://searxng:8080
+    depends_on:
+      - searxng
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: truecrime-searxng
+    ports:
+      - "127.0.0.1:8085:8080"
+    volumes:
+      - ./docker/searxng:/etc/searxng:rw
+    environment:
+      - BASE_URL=http://localhost:8085/
+      - INSTANCE_NAME=truecrime-searxng
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+    restart: unless-stopped

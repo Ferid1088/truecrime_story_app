@@ -1,0 +1,51 @@
+# SearXNG settings for TrueCrime Search Engine.
+# JSON API enabled — the app talks to /search?format=json.
+use_default_settings: true
+
+general:
+  instance_name: "truecrime-searxng"
+  privacypolicy_url: false
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "truecrime-local-searxng-secret-change-in-prod"
+  limiter: false
+  image_proxy: false
+  method: "GET"
+
+# Enable a broad set of general engines; SearXNG aggregates them.
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: startpage
+    disabled: true
+  - name: yahoo
+    disabled: true
+  - name: qwant
+    disabled: false
+
+outgoing:
+  request_timeout: 15.0
+  max_request_timeout: 25.0
+  useragent_suffix: "truecrime-research"
+  pool_connections: 100
+  pool_maxsize: 20
