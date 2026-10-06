@@ -7,8 +7,22 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, Contradiction, Fact, Source, StoryVersion
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
-from app.utils import language_quality, strip_narration_artifacts, text_hash
-from app.agents.story import EngagementCritic, StoryPipeline, build_evidence_pack
+from app.utils import language_quality, text_hash
+from app.agents.story import (
+    _MARKER_INSTRUCTION,
+    EngagementCritic,
+    StoryPipeline,
+    _join_sections,
+    _mark_sections,
+    build_evidence_pack,
+    evidence_fingerprint,
+    is_structured,
+    realign_sections,
+    stored_evidence_fingerprint,
+    stored_sections,
+    strip_section_markers,
+    structure_without_text,
+)
 
 # Native-style critic guidance per target language. Prompts are evaluated
 # IN the target language's critical vocabulary, not translated from English.
@@ -87,17 +101,50 @@ class LocalizationPipeline:
             db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
             db.query(Source).filter(Source.case_id == case.id).all(),
         )
+        fingerprint = evidence_fingerprint(pack)
+        master_fp = stored_evidence_fingerprint(master)
+        if loc.require_current_evidence and master_fp and master_fp != fingerprint:
+            # Evidence IDs in the master's plan (F012, …) would now point
+            # at different facts, and grounding would judge the story
+            # against evidence it was never written from.
+            raise RuntimeError(
+                f"Master v{master.version} was written from an older evidence "
+                "set (research changed since). Regenerate the master before "
+                "localizing."
+            )
         protected = self._protected_payload(master, pack)
+
+        # Act structure: localize WITH [[ACT:id]] markers so every act of
+        # the master maps to the same act in every language.
+        master_sections = stored_sections(master)
+        structured = bool(master_sections) and is_structured(master_sections)
+        if not structured:
+            master_sections = [{"id": "full", "text": master.story_text}]
+        structure_lost_at: list[str] = []
+        per_section_fallback = False
 
         with track_run(
             db, case.id, "Localization Writer",
             input_summary=f"lang={language} master_v{master.version}",
         ) as run:
-            text, writer_res = await self._write(
-                case, master, protected, language, wpm, minutes
+            raw, writer_res = await self._write(
+                case, master, master_sections, protected, language, wpm,
+                minutes, marked=structured,
             )
             stamp_run(run, writer_res, "localization_writer")
-            run.output_summary = f"words={len(text.split())}"
+            run.output_summary = f"words={len(raw.split())}"
+        # Across languages paragraph counts legitimately differ, so only
+        # the markers themselves can prove which text belongs to which act.
+        sections, kept = realign_sections(
+            master_sections, raw, allow_paragraph_fallback=False
+        )
+        if not kept:
+            # The one-call transcreation dropped markers — localize act by
+            # act instead (more calls, guaranteed structure).
+            sections, writer_res = await self._write_per_section(
+                db, case, master_sections, protected, language, wpm, minutes
+            )
+            per_section_fallback = True
 
         native: dict = {}
         semantic: dict = {}
@@ -105,7 +152,7 @@ class LocalizationPipeline:
         engagement = 0.0
 
         for attempt in range(1 + loc.max_localization_repair_iterations):
-            text = strip_narration_artifacts(text)
+            text = _join_sections(sections)
             native = await self._native_critic(db, case, text, language)
             semantic = await self._semantic_check(
                 db, case, master.story_text, text, protected, language
@@ -120,31 +167,55 @@ class LocalizationPipeline:
             if gates["pass"]:
                 break
             if attempt < loc.max_localization_repair_iterations:
+                marked_now = is_structured(sections)
                 with track_run(
                     db, case.id, "Localization Repair",
                     input_summary=f"lang={language} failures={gates['failures']}",
                 ) as run:
-                    text, res = await self._repair(
-                        text, master, protected, gates, language
+                    raw, res = await self._repair(
+                        _mark_sections(sections) if marked_now else text,
+                        master, protected, gates, language, marked=marked_now,
                     )
                     stamp_run(run, res, "localization_writer")
-                    run.output_summary = f"words={len(text.split())}"
+                    run.output_summary = f"words={len(raw.split())}"
+                # Same language now: paragraph-count realignment is valid.
+                sections, kept = realign_sections(sections, raw)
+                if not kept:
+                    structure_lost_at.append("localization_repair")
+                text = _join_sections(sections)
 
         # Final editor runs only when the main gates pass, then is
-        # re-validated and kept only if it did not break anything.
+        # re-validated and kept only if it did not break anything —
+        # including the act structure.
+        final_edit_note = None
         if gates["pass"]:
-            edited, edit_res = await self._final_edit(db, case, text, language)
+            marked_now = is_structured(sections)
+            edited, edit_res = await self._final_edit(
+                db, case, _mark_sections(sections) if marked_now else text,
+                language, marked=marked_now,
+            )
             if edited:
-                edit_text = strip_narration_artifacts(edited)
-                edit_semantic = await self._semantic_check(
-                    db, case, master.story_text, edit_text, protected, language
+                edit_sections, kept = realign_sections(sections, edited)
+                if not kept:
+                    final_edit_note = "rejected_structure_lost"
+                edit_text = _join_sections(edit_sections)
+                edit_semantic = (
+                    await self._semantic_check(
+                        db, case, master.story_text, edit_text, protected,
+                        language,
+                    )
+                    if kept else {}
                 )
-                edit_gates = self._evaluate_gates(
-                    edit_text, language, minutes, wpm, native,
-                    edit_semantic, grounding, engagement=None,
+                edit_gates = (
+                    self._evaluate_gates(
+                        edit_text, language, minutes, wpm, native,
+                        edit_semantic, grounding, engagement=None,
+                    )
+                    if kept else {"pass": False}
                 )
                 if edit_gates["pass"]:
                     text = edit_text
+                    sections = edit_sections
                     semantic = edit_semantic
                     gates = edit_gates
                     writer_res = edit_res
@@ -171,12 +242,15 @@ class LocalizationPipeline:
         critique["localization"] = {
             "language": language,
             "derived_from_master_version": master.version,
+            "structured": is_structured(sections),
+            "per_section_fallback": per_section_fallback,
+            "final_edit": final_edit_note,
         }
 
         row = StoryPipeline()._new_version(
             db, case,
-            json.loads(master.narrative_structure or "{}"),
-            [{"id": "full", "text": text}],
+            structure_without_text(json.loads(master.narrative_structure or "{}")),
+            sections,
             text, engagement, None, "not_evaluated", critique, language,
             writer_res,
             kind="localized",
@@ -189,6 +263,11 @@ class LocalizationPipeline:
             factual_consistency_score=float(
                 grounding.get("grounding_score") or 0
             ),
+            extra_structure={
+                "evidence_fingerprint": fingerprint,
+                "structure_lost_at": structure_lost_at,
+                "localized_per_section": per_section_fallback,
+            },
         )
         return row
 
@@ -202,6 +281,9 @@ class LocalizationPipeline:
             structure = json.loads(master.narrative_structure or "{}")
         except (ValueError, TypeError):
             structure = {}
+        # Section TEXT is the master story itself — already sent as
+        # master_story. Keep only ids/lengths here (no double tokens).
+        structure = structure_without_text(structure)
         return {
             "narrative_structure": structure,
             "verified_facts": [
@@ -221,17 +303,9 @@ class LocalizationPipeline:
             ],
         }
 
-    async def _write(
-        self,
-        case: Case,
-        master: StoryVersion,
-        protected: dict,
-        language: str,
-        wpm: int,
-        minutes: int,
-    ) -> tuple[str, object]:
-        target_words = int(minutes * wpm)
-        system = f"""
+    @staticmethod
+    def _writer_rules(language: str) -> str:
+        return f"""
 You are an excellent native {language} true-crime storyteller.
 
 Rewrite the supplied English master story as if it had been ORIGINALLY
@@ -246,14 +320,32 @@ No new facts. No removed critical facts. No invented dialogue, inner
 thoughts, or scene details. No citations, URLs, or meta-commentary.
 If a quotation appears, render it faithfully — never turn a paraphrase
 into a direct quote.
+"""
 
+    async def _write(
+        self,
+        case: Case,
+        master: StoryVersion,
+        master_sections: list[dict],
+        protected: dict,
+        language: str,
+        wpm: int,
+        minutes: int,
+        marked: bool = False,
+    ) -> tuple[str, object]:
+        target_words = int(minutes * wpm)
+        system = f"""{self._writer_rules(language)}
+{_MARKER_INSTRUCTION if marked else ""}
 Length: aim for about {target_words} words (narration duration target).
 Output only the story text.
 """
         user = json.dumps(
             {
                 "case": case.canonical_title,
-                "master_story": master.story_text,
+                "master_story": (
+                    _mark_sections(master_sections) if marked
+                    else master.story_text
+                ),
                 "protected": protected,
                 "target_language": language,
             },
@@ -261,6 +353,62 @@ Output only the story text.
         )
         res = await self.gen.generate_text("localization_writer", system, user)
         return res.text, res
+
+    async def _write_per_section(
+        self,
+        db: Session,
+        case: Case,
+        master_sections: list[dict],
+        protected: dict,
+        language: str,
+        wpm: int,
+        minutes: int,
+    ) -> tuple[list[dict], object]:
+        """Fallback: transcreate one act per call. The previous localized
+        act's ending and the next master act's opening are passed as
+        context so transitions still read as one story."""
+        master_words = sum(len(s["text"].split()) for s in master_sections) or 1
+        target_total = int(minutes * wpm)
+        out: list[dict] = []
+        last_res = None
+        for i, s in enumerate(master_sections):
+            share = len(s["text"].split()) / master_words
+            target = max(1, int(target_total * share))
+            system = f"""{self._writer_rules(language)}
+You are localizing ONE act of a longer story. Continue naturally from
+the previous act's ending; do not summarize other acts.
+Length: aim for about {target} words.
+Output only this act's text.
+"""
+            nxt = master_sections[i + 1]["text"] if i + 1 < len(master_sections) else ""
+            user = json.dumps(
+                {
+                    "case": case.canonical_title,
+                    "act_id": s["id"],
+                    "master_act": s["text"],
+                    "previous_localized_act_ending": (
+                        " ".join(out[-1]["text"].split()[-60:]) if out else ""
+                    ),
+                    "next_master_act_opening": " ".join(nxt.split()[:40]),
+                    "protected": protected,
+                    "target_language": language,
+                },
+                ensure_ascii=False,
+            )
+            with track_run(
+                db, case.id, "Localization Writer",
+                input_summary=f"lang={language} act={s['id']} (per-act)",
+            ) as run:
+                res = await self.gen.generate_text(
+                    "localization_writer", system, user
+                )
+                stamp_run(run, res, "localization_writer")
+                run.output_summary = f"words={len(res.text.split())}"
+            out.append(
+                {"id": s["id"], "text": strip_section_markers(res.text)}
+            )
+            last_res = res
+        return out, last_res
 
     # ------------------------------------------------------------------
     # validators
@@ -404,12 +552,15 @@ Return JSON only:
         protected: dict,
         gates: dict,
         language: str,
+        marked: bool = False,
     ) -> tuple[str, object]:
         system = f"""
 You are an excellent native {language} true-crime storyteller revising
 your own localized narration. Fix ONLY the reported problems. All
 factual invariants still apply: no fact changes, no new facts, no
-removed facts, uncertainty stays intact. Output only the story text.
+removed facts, uncertainty stays intact.
+{_MARKER_INSTRUCTION if marked else ""}
+Output only the story text.
 """
         user = json.dumps(
             {
@@ -429,14 +580,17 @@ removed facts, uncertainty stays intact. Output only the story text.
         return res.text, res
 
     async def _final_edit(
-        self, db: Session, case: Case, text: str, language: str
+        self, db: Session, case: Case, text: str, language: str,
+        marked: bool = False,
     ) -> tuple[str | None, object]:
         system = f"""
 You are a native {language} line editor doing a final polish pass on a
 localized true-crime narration. Improve phrasing, transitions, clarity
 and rhythm ONLY. You must NOT: add facts, remove facts, invent dialogue,
 turn uncertain claims into facts, shorten the story materially, add
-citations, or change meaning. Output only the story text.
+citations, or change meaning.
+{_MARKER_INSTRUCTION if marked else ""}
+Output only the story text.
 """
         with track_run(
             db, case.id, "Localized Final Editor",

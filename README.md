@@ -134,6 +134,33 @@ AgentRun (provider/model/role/temperature) and StoryVersion
 Agents never contain model IDs, temperatures, token limits or thresholds —
 they ask `ai_config.model_for(role)` / `generation_for(role)`.
 
+## Documentary foundations
+
+Groundwork for the audio-first documentary engine (`app/documentary/`).
+
+- **Act structure survives every step.** Stories are written per act with
+  `[[ACT:id]]` markers; repairs, the final editor, `improve` and
+  localization now keep those markers, and each StoryVersion stores its
+  act text in `narrative_structure.sections`. Localization falls back to
+  act-by-act transcreation if a one-call rewrite drops markers. A final
+  polish that would destroy the structure is rejected.
+  `structure_lost_at` records any step that still lost it.
+- **Evidence meaning is tracked.** Evidence IDs (F001…) follow database
+  order, and every version stores an `evidence_fingerprint`. Localizing a
+  master written from an older evidence set is refused
+  (`localization.require_current_evidence`).
+- **Pilot length.** `story.min_target_minutes` / `max_target_minutes`
+  (default 3–90) replace the hard-coded 10-minute floor.
+- **Reviewers stay independent.** `review_independence` lists author and
+  reviewer roles; a reviewer never routes or falls back to a model that
+  writes narration.
+- **Voice blocks.** `GET /api/cases/{case_id}/stories/{version_id}/voice-blocks`
+  plans text-to-speech blocks (config `voice_blocks`, default 30–90 s):
+  never cuts a sentence or a quotation, keeps a speaker's "…said:" with
+  its quote, starts a new block at every act, prefers paragraph ends, and
+  flags (never cuts) a sentence longer than the maximum. Sentence
+  detection is pysbd plus repair rules for German/Persian/Arabic.
+
 ## Workflow پیشنهادی
 
 1. `POST /api/topics/discover`

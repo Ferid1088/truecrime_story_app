@@ -31,7 +31,10 @@ const TONES = [
   { value: "__custom__", label: "Custom…" },
 ];
 
-const DURATIONS = [20, 30, 40, 45, 60];
+// 5 min = short pilot segment for documentary tests (backend range comes
+// from config: story.min_target_minutes / max_target_minutes).
+const DURATIONS = [5, 20, 30, 40, 45, 60];
+const PILOT_MINUTES = 5;
 
 const IMPROVE_ACTIONS = [
   { label: "Improve Hook", instruction: "Rewrite the opening hook so it creates an immediate, strong curiosity gap without spoiling later reveals." },
@@ -227,7 +230,7 @@ function StudioBody({
                 <Select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
                   {DURATIONS.map((m) => (
                     <option key={m} value={m}>
-                      {m} min
+                      {m === PILOT_MINUTES ? `${m} min (pilot)` : `${m} min`}
                     </option>
                   ))}
                 </Select>

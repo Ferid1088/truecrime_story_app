@@ -275,7 +275,12 @@ class GenerationSettings(BaseModel):
 
 class StoryConfig(BaseModel):
     default_language: str
-    default_target_minutes: int = Field(ge=10, le=120)
+    default_target_minutes: int = Field(ge=1, le=120)
+    # Allowed request range for story length. A low minimum enables short
+    # pilot segments (e.g. a 3–5 minute documentary test) without code
+    # changes; defaults keep the historical 10–90 minute range.
+    min_target_minutes: int = Field(default=10, ge=1, le=120)
+    max_target_minutes: int = Field(default=90, ge=1, le=240)
     words_per_minute: int = Field(ge=50, le=300)
     minimum_length_ratio: float = Field(gt=0.0, le=1.0)
     maximum_length_ratio: float = Field(ge=1.0, le=3.0)
@@ -289,6 +294,15 @@ class StoryConfig(BaseModel):
         if self.minimum_length_ratio > self.maximum_length_ratio:
             raise ValueError(
                 "story.minimum_length_ratio must not exceed maximum_length_ratio"
+            )
+        if not (
+            self.min_target_minutes
+            <= self.default_target_minutes
+            <= self.max_target_minutes
+        ):
+            raise ValueError(
+                "story.default_target_minutes must lie within "
+                "[min_target_minutes, max_target_minutes]"
             )
         return self
 
@@ -323,6 +337,9 @@ class MultilingualConfig(BaseModel):
 
 class LocalizationConfig(BaseModel):
     require_master_ready: bool = True
+    # Refuse to localize a master whose evidence fingerprint no longer
+    # matches the case's current facts (research re-ran since).
+    require_current_evidence: bool = True
     words_per_minute: dict[str, int] = {}
     minimum_native_quality_score: float = Field(ge=0, le=100)
     minimum_semantic_consistency_score: float = Field(ge=0, le=100)
@@ -538,6 +555,52 @@ class ResearchStopConditionsConfig(BaseModel):
     consecutive_low_value_stop: int = Field(ge=1)
 
 
+class ReviewIndependenceConfig(BaseModel):
+    """A reviewer must never be the model that wrote the text it judges.
+
+    author_roles write narration; reviewer_roles score or validate it.
+    When enabled: a reviewer's primary model may not be any author's
+    model (checked at load), and a reviewer's fallback chain skips every
+    author model — instead of silently letting the writer grade itself
+    during a rate limit. reviewer_fallbacks optionally replaces the
+    generic chain for reviewer roles (alias -> [aliases])."""
+
+    enabled: bool = False
+    author_roles: list[str] = []
+    reviewer_roles: list[str] = []
+    reviewer_fallbacks: dict[str, list[str]] = {}
+
+
+class VoiceBlocksConfig(BaseModel):
+    """How narration is cut into text-to-speech blocks.
+
+    Blocks never split a sentence, never cross an act boundary and prefer
+    paragraph ends. Durations are estimated from the per-language
+    localization.words_per_minute until real audio exists."""
+
+    min_seconds: float = Field(default=30.0, gt=0)
+    target_seconds: float = Field(default=60.0, gt=0)
+    max_seconds: float = Field(default=90.0, gt=0)
+    # Extra cost for ending a block mid-paragraph (between sentences)
+    # instead of at a paragraph end. Relative to the squared-deviation
+    # size cost, so 0.35 ≈ "accept ~60% size deviation to end a paragraph".
+    sentence_break_penalty: float = Field(default=0.35, ge=0)
+    # Cost for a block shorter than min_seconds when the act is long
+    # enough to avoid one.
+    short_block_penalty: float = Field(default=4.0, ge=0)
+    # Characters of neighbouring text passed as TTS context
+    # (ElevenLabs previous_text / next_text) for natural continuity.
+    context_chars: int = Field(default=300, ge=0, le=2000)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if not (self.min_seconds <= self.target_seconds <= self.max_seconds):
+            raise ValueError(
+                "voice_blocks requires min_seconds <= target_seconds <= max_seconds"
+            )
+        return self
+
+
 class AIConfig(BaseModel):
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
@@ -573,6 +636,10 @@ class AIConfig(BaseModel):
     source_independence: SourceIndependenceConfig
     similarity: SimilarityConfig
     research_stop_conditions: ResearchStopConditionsConfig
+    review_independence: ReviewIndependenceConfig = Field(
+        default_factory=ReviewIndependenceConfig
+    )
+    voice_blocks: VoiceBlocksConfig = Field(default_factory=VoiceBlocksConfig)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -617,7 +684,40 @@ class AIConfig(BaseModel):
                 self._require_capability(rp, role, "web_search")
             for role in _WEB_FETCH_ROLES:
                 self._require_capability(rp, role, "web_fetch")
+        self._validate_review_independence()
         return self
+
+    def _validate_review_independence(self) -> None:
+        ri = self.review_independence
+        if not ri.enabled:
+            return
+        gp = self.generation_provider()
+        listed = set(ri.author_roles) | set(ri.reviewer_roles)
+        unknown = listed - set(gp.routing)
+        if unknown:
+            raise ValueError(
+                f"review_independence lists unknown roles: {sorted(unknown)}"
+            )
+        both = set(ri.author_roles) & set(ri.reviewer_roles)
+        if both:
+            raise ValueError(
+                f"roles cannot be both author and reviewer: {sorted(both)}"
+            )
+        for alias, chain in ri.reviewer_fallbacks.items():
+            for a in [alias, *chain]:
+                if a not in gp.models:
+                    raise ValueError(
+                        f"review_independence.reviewer_fallbacks uses unknown "
+                        f"alias {a!r}"
+                    )
+        author_models = {gp.models[gp.routing[r]] for r in ri.author_roles}
+        for role in ri.reviewer_roles:
+            model = gp.models[gp.routing[role]]
+            if model in author_models:
+                raise ValueError(
+                    f"reviewer role {role!r} routes to {model!r}, which also "
+                    "writes the narration it would judge"
+                )
 
     @staticmethod
     def _require_capability(
@@ -688,6 +788,21 @@ class AIConfig(BaseModel):
         section = self._section_for_role(role)
         alias = self.alias_for(role)
         chain = section.fallbacks.get(alias) or []
+        ri = self.review_independence
+        if ri.enabled and role in ri.reviewer_roles:
+            # A reviewer never falls back to a model that writes the
+            # narration — a rate limit must not turn a critic into the
+            # author grading its own text.
+            chain = ri.reviewer_fallbacks.get(alias, chain)
+            gp = self.generation_provider()
+            authors = {gp.models[gp.routing[r]] for r in ri.author_roles}
+            primary = section.models[alias]
+            out: list[str] = []
+            for a in chain:
+                m = section.models[a]
+                if a != alias and m != primary and m not in authors and m not in out:
+                    out.append(m)
+            return out
         return [section.models[a] for a in chain if a != alias]
 
     def generation_for(self, role: str) -> GenerationSettings:

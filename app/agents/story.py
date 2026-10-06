@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -22,10 +23,50 @@ from app.utils import (
 # Internal IDs (F001, T001, C001, CTX001) never appear in story output.
 # ---------------------------------------------------------------------------
 
+def _by_id(rows: list) -> list:
+    """Deterministic evidence order: database primary key first, insertion
+    order for rows that are not flushed yet (id None). Without this, the
+    positional IDs below depend on whatever order the query returned."""
+    return sorted(
+        rows,
+        key=lambda r: (getattr(r, "id", None) is None, getattr(r, "id", None) or 0),
+    )
+
+
+def evidence_fingerprint(pack: dict) -> str:
+    """Short hash of what every evidence ID *means* in this pack.
+
+    Pack IDs are positional (F001 = first fact of the case), and research
+    re-runs replace the whole fact set. A story stores this fingerprint
+    so later stages (localization, voice, visuals) can tell whether the
+    F012 in its plan still refers to the same fact — instead of silently
+    resolving it against a different one.
+    """
+    payload = {
+        "facts": [
+            [f["id"], f.get("claim"), bool(f.get("uncertain"))]
+            for f in pack.get("facts") or []
+        ],
+        "timeline": [
+            [t["id"], t.get("event_date"), t.get("claim")]
+            for t in pack.get("timeline") or []
+        ],
+        "contradictions": [
+            [c["id"], c.get("topic"), c.get("description")]
+            for c in pack.get("contradictions") or []
+        ],
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
 def build_evidence_pack(
     facts: list[Fact], contradictions: list[Contradiction], sources: list[Source]
 ) -> dict:
     q = ai_config.story_quality
+    facts = _by_id(list(facts))
+    contradictions = _by_id(list(contradictions))
+    sources = _by_id(list(sources))
     fact_items = []
     for i, f in enumerate(facts, 1):
         uncertain = bool(f.disputed) or f.confidence < q.disputed_confidence_threshold
@@ -424,6 +465,152 @@ def _mark_sections(sections: list[dict]) -> str:
     marker = ai_config.story_quality.section_marker_prefix
     return "\n\n".join(
         f"{marker}{s['id']}]]\n\n{s['text']}" for s in sections
+    )
+
+
+# ---------------------------------------------------------------------------
+# Section (act) structure must survive every edit step: voice blocks,
+# per-language timelines and reveal planning all need to know which text
+# belongs to which act. These helpers carry the structure through
+# repairs, polish passes, rewrites and localization.
+# ---------------------------------------------------------------------------
+
+_MARKER_INSTRUCTION = (
+    "Lines of the form [[ACT:<id>]] are structural markers. Keep every "
+    "marker line exactly as given, on its own line, in the same order, "
+    "and keep each passage under its own marker. Never add, rename, "
+    "merge or drop markers."
+)
+
+
+def _marker_re() -> re.Pattern:
+    prefix = ai_config.story_quality.section_marker_prefix
+    return re.compile(rf"^\s*{re.escape(prefix)}([^\]]+)\]\]\s*$", re.M)
+
+
+def strip_section_markers(text: str) -> str:
+    return re.sub(r"\n{3,}", "\n\n", _marker_re().sub("", text or "")).strip()
+
+
+def _paragraphs(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"\n\s*\n", text or "") if p.strip()]
+
+
+def _norm_ws(text: str) -> str:
+    return " ".join((text or "").split())
+
+
+def is_structured(sections: list[dict]) -> bool:
+    """True when the sections are real acts, not the single 'full' blob."""
+    return bool(sections) and not (
+        len(sections) == 1 and sections[0].get("id") == "full"
+    )
+
+
+def clean_sections(sections: list[dict]) -> list[dict]:
+    """Per-section artifact stripping, so joined sections equal the
+    stored story text (which is stripped the same way)."""
+    out = []
+    for s in sections:
+        t = strip_narration_artifacts(s.get("text") or "")
+        if t.strip():
+            out.append({"id": s["id"], "text": t.strip()})
+    return out
+
+
+def realign_sections(
+    previous: list[dict], new_raw: str, allow_paragraph_fallback: bool = True
+) -> tuple[list[dict], bool]:
+    """Map an edited/rewritten/localized text back onto the previous
+    section ids.
+
+    1. Markers present and in the same order -> use them.
+    2. (same-language edits only) no usable markers but the paragraph
+       count is unchanged -> assign paragraphs by the previous counts.
+    3. Otherwise -> a single 'full' section and ok=False, so the caller
+       can record that this step lost the act structure.
+    """
+    prev_ids = [s["id"] for s in previous]
+
+    def _carry(new: list[dict]) -> list[dict]:
+        # Keep per-act metadata (evidence ids, grounding) on the new text.
+        return [
+            {**{k: v for k, v in p.items() if k != "text"}, "text": n["text"]}
+            for p, n in zip(previous, new)
+        ]
+
+    parsed = _parse_sections(new_raw)
+    ids = [s["id"] for s in parsed]
+    if ids == prev_ids:
+        return _carry(parsed), True
+    if ids[:1] == ["prologue"] and ids[1:] == prev_ids:
+        # A model-added lead-in before the first marker belongs to act 1.
+        parsed[1] = dict(
+            parsed[1], text=parsed[0]["text"] + "\n\n" + parsed[1]["text"]
+        )
+        return _carry(parsed[1:]), True
+    plain = strip_section_markers(new_raw)
+    if allow_paragraph_fallback and is_structured(previous):
+        paras = _paragraphs(plain)
+        counts = [len(_paragraphs(s["text"])) for s in previous]
+        if all(counts) and len(paras) == sum(counts):
+            out, k = [], 0
+            for c in counts:
+                out.append({"text": "\n\n".join(paras[k:k + c])})
+                k += c
+            return _carry(out), True
+    return [{"id": "full", "text": plain}], not is_structured(previous)
+
+
+def stored_sections(version: StoryVersion) -> list[dict] | None:
+    """The act sections saved with a StoryVersion — only when they add up
+    to exactly the approved story text (what gets narrated must be what
+    passed the gates). None for legacy versions without section text."""
+    try:
+        struct = json.loads(version.narrative_structure or "{}")
+    except (ValueError, TypeError):
+        return None
+    secs = struct.get("sections") if isinstance(struct, dict) else None
+    if not secs or any(not isinstance(s, dict) or "text" not in s for s in secs):
+        return None
+    sections = [{"id": str(s["id"]), "text": s["text"]} for s in secs]
+    joined = "\n\n".join(s["text"] for s in sections)
+    if _norm_ws(joined) != _norm_ws(version.story_text):
+        return None
+    return sections
+
+
+def structure_without_text(structure: dict) -> dict:
+    """A stored narrative_structure minus the section TEXT (ids and word
+    counts stay). Use whenever the structure is sent to a model or reused
+    as a plan — the text is the story itself and would double the tokens."""
+    if not isinstance(structure, dict) or not structure.get("sections"):
+        return structure
+    return dict(
+        structure,
+        sections=[
+            {"id": s.get("id"), "words": s.get("words")}
+            for s in structure["sections"]
+            if isinstance(s, dict)
+        ],
+    )
+
+
+def stored_evidence_fingerprint(version: StoryVersion) -> str | None:
+    try:
+        struct = json.loads(version.narrative_structure or "{}")
+    except (ValueError, TypeError):
+        return None
+    return struct.get("evidence_fingerprint") if isinstance(struct, dict) else None
+
+
+def current_evidence_fingerprint(db: Session, case_id: int) -> str:
+    return evidence_fingerprint(
+        build_evidence_pack(
+            db.query(Fact).filter(Fact.case_id == case_id).all(),
+            db.query(Contradiction).filter(Contradiction.case_id == case_id).all(),
+            db.query(Source).filter(Source.case_id == case_id).all(),
+        )
     )
 
 
@@ -827,6 +1014,7 @@ class StoryPipeline:
         target_words = int(target_minutes * wpm)
         run_started = utc_now()
         revision_log: list[dict] = []
+        structure_lost_at: list[str] = []
         budget_exhausted = False
 
         previous_status = case.status
@@ -948,7 +1136,11 @@ class StoryPipeline:
                 if v.get("severity") in ("high", "medium")
             ][: ai_config.master_generation.max_span_repairs_per_pass]
             if repairable:
-                pseudo = {"id": "assembled", "text": text}
+                # Repair on the MARKED text: paragraph-level span fixes
+                # leave the [[ACT:id]] lines untouched, so the act
+                # structure survives the repair.
+                marked = _mark_sections(sections)
+                pseudo = {"id": "assembled", "text": marked}
                 report = {
                     "unsupported_claims": [
                         {
@@ -965,19 +1157,21 @@ class StoryPipeline:
                     ]
                 }
                 try:
-                    new_text, clog = await self._repair_section_spans(
+                    new_marked, clog = await self._repair_section_spans(
                         db, case, pseudo, report, pack, language
                     )
                 except Exception:
                     clog = [{"stage": "consistency_repair",
                              "reason": "repair_call_failed"}]
-                    new_text = text
+                    new_marked = marked
                 revision_log.extend(
                     {**e, "stage": "consistency_repair"} for e in clog
                 )
-                if new_text != text:
-                    text = new_text
-                    sections = _parse_sections(text)
+                if new_marked != marked:
+                    sections, kept = realign_sections(sections, new_marked)
+                    if not kept:
+                        structure_lost_at.append("consistency_repair")
+                    text = _join_sections(sections)
                     consistency = await self._checked_consistency(
                         db, case, text, pack
                     )
@@ -1075,9 +1269,12 @@ class StoryPipeline:
                 wpm=words_per_minute,
             )
             if gates["pass"]:
+                structured = is_structured(sections)
                 try:
                     edited, editor_res = await self._final_edit(
-                        db, case, text, language
+                        db, case,
+                        _mark_sections(sections) if structured else text,
+                        language, marked=structured,
                     )
                 except Exception:
                     # Editor outage must not discard a passing draft.
@@ -1087,11 +1284,25 @@ class StoryPipeline:
                          "reason": "final_editor_failed",
                          "stage": "final_editor"}
                     )
+                edit_sections: list[dict] = []
+                edit_text = ""
+                if edited is not None:
+                    edit_sections, kept = realign_sections(sections, edited)
+                    edit_text = _join_sections(edit_sections)
+                    if not kept:
+                        # Polish is optional; the act structure that voice
+                        # blocks and timelines depend on is not.
+                        revision_log.append(
+                            {"rewrite_rejected": True,
+                             "reason": "structure_lost",
+                             "stage": "final_editor"}
+                        )
+                        edited = None
                 orig_words = len(text.split())
                 tol = mg.rewrite_length_tolerance
                 if edited is not None and not (
                     orig_words * (1 - tol)
-                    <= len(edited.split())
+                    <= len(edit_text.split())
                     <= orig_words * (1 + tol)
                 ):
                     # Length contract violation — keep the passing text.
@@ -1104,7 +1315,6 @@ class StoryPipeline:
                     )
                     edited = None
                 if edited is not None:
-                    edit_text = strip_narration_artifacts(edited)
                     # Fail-closed: a validator error rejects the edit
                     # rather than killing the whole run.
                     edit_grounding = await self._checked_grounding(
@@ -1122,7 +1332,7 @@ class StoryPipeline:
                     # Never let the final polish break a passing story.
                     if edit_gates["pass"]:
                         text = edit_text
-                        sections = _parse_sections(edited)
+                        sections = edit_sections
                         story_res = editor_res
                         gates = edit_gates
                         grounding = edit_grounding
@@ -1207,6 +1417,8 @@ class StoryPipeline:
                         plan.get("acts") or [], pack
                     ),
                     "budget_exhausted": budget_exhausted,
+                    "evidence_fingerprint": evidence_fingerprint(pack),
+                    "structure_lost_at": structure_lost_at,
                 },
             )
         except Exception:
@@ -1227,6 +1439,10 @@ class StoryPipeline:
 
         orig_words = len((story_version.story_text or "").split())
         tol = ai_config.master_generation.rewrite_length_tolerance
+        prev_sections = stored_sections(story_version) or [
+            {"id": "full", "text": story_version.story_text or ""}
+        ]
+        structured = is_structured(prev_sections)
         system = f"""
 You are revising a long-form true-crime script.
 Apply the requested editorial improvement while preserving factual accuracy.
@@ -1236,6 +1452,7 @@ LENGTH CONTRACT: the source is {orig_words} words — output
 {int(orig_words * (1 - tol))}–{int(orig_words * (1 + tol))} words.
 Cut redundant material only where duplicated, and expand with grounded
 detail when removing text would shrink the piece below the contract.
+{_MARKER_INSTRUCTION if structured else ""}
 Output only the rewritten story.
 """
         user = json.dumps(
@@ -1243,7 +1460,10 @@ Output only the rewritten story.
                 "case": case.canonical_title,
                 "instruction": instruction,
                 "narrative_plan": story_version.narrative_angle,
-                "story": story_version.story_text,
+                "story": (
+                    _mark_sections(prev_sections) if structured
+                    else story_version.story_text
+                ),
             },
             ensure_ascii=False,
         )
@@ -1261,7 +1481,8 @@ Output only the rewritten story.
                 stamp_run(run, story_res, self.roles["rewriter"])
                 run.output_summary = f"words={len(story.split())}"
 
-            story = strip_narration_artifacts(story)
+            sections, structure_kept = realign_sections(prev_sections, story)
+            story = _join_sections(sections)
             new_words = len(story.split())
             if not (
                 orig_words * (1 - tol)
@@ -1276,8 +1497,10 @@ Output only the rewritten story.
                     f"{int(orig_words * (1 - tol))}–"
                     f"{int(orig_words * (1 + tol))}"
                 )
-            sections = _parse_sections(story)
-            est_minutes = max(10, round(new_words / ai_config.story.words_per_minute))
+            est_minutes = max(
+                ai_config.story.min_target_minutes,
+                round(new_words / ai_config.story.words_per_minute),
+            )
 
             # A rewritten candidate must pass the same grounding and
             # consistency gates as a fresh generation — never stored blind.
@@ -1322,8 +1545,12 @@ Output only the rewritten story.
                 failures = gates.setdefault("failures", [])
                 if "source_phrase_overlap" not in failures:
                     failures.append("source_phrase_overlap")
+            try:
+                plan = json.loads(story_version.narrative_angle or "")
+            except (ValueError, TypeError):
+                plan = story_version.narrative_angle
             row = self._new_version(
-                db, case, story_version.narrative_angle,
+                db, case, plan,
                 sections, story, float(critique.get("score", 0)),
                 similarity, sim_status, critique,
                 story_version.language,
@@ -1331,6 +1558,10 @@ Output only the rewritten story.
                 kind=story_version.kind,
                 master_version_id=story_version.master_version_id,
                 derived_from_master_version=story_version.derived_from_master_version,
+                extra_structure={
+                    "evidence_fingerprint": evidence_fingerprint(pack),
+                    "structure_lost_at": [] if structure_kept else ["improve"],
+                },
             )
         except Exception:
             case.status = previous_status
@@ -1510,12 +1741,19 @@ uncertainty language and voice. Output only the act text.
         if not span:
             return None
         needle = " ".join(span.split()).lower()
-        for i, p in enumerate(paragraphs):
-            if needle in " ".join(p.split()).lower():
+        marker = _marker_re()
+        # [[ACT:id]] lines are structure, never repair targets.
+        candidates = [
+            (i, " ".join(p.split()).lower())
+            for i, p in enumerate(paragraphs)
+            if not marker.fullmatch(p.strip())
+        ]
+        for i, p in candidates:
+            if needle in p:
                 return i
         frag = needle[:60]
-        for i, p in enumerate(paragraphs):
-            if frag in " ".join(p.split()).lower():
+        for i, p in candidates:
+            if frag in p:
                 return i
         return None
 
@@ -2112,9 +2350,12 @@ no markers, no headings, no commentary.
         return sections, scores
 
     async def _final_edit(
-        self, db: Session, case: Case, story: str, language: str
+        self, db: Session, case: Case, story: str, language: str,
+        marked: bool = False,
     ) -> tuple[str | None, GenerationResult | None]:
-        """Last-pass copyedit through the premium final_editor role."""
+        """Last-pass copyedit through the premium final_editor role.
+        With marked=True the story carries [[ACT:id]] lines that must
+        survive the edit."""
         system = f"""
 You are the final editor of a documentary script.
 Polish the story in its existing language ({language}) without rewriting it.
@@ -2122,6 +2363,7 @@ Remove awkward phrasing, repetition and meta-commentary; improve transitions
 and clarity; remove any leftover model artifacts, markdown headings or
 separator lines. Preserve all verified facts, uncertainty, tone, structure
 and approximate length. Do not add or remove substantive content.
+{_MARKER_INSTRUCTION if marked else ""}
 Output only the story text.
 """
         user = json.dumps(
@@ -2275,7 +2517,17 @@ Output only the story text.
                 StoryVersion.language == language,
             ).update({"is_best": False})
 
-        # Internal structure kept separate from narration text.
+        # Internal structure kept separate from narration text. Section
+        # TEXT is stored too: voice blocks and per-language timelines need
+        # to know which words belong to which act.
+        stored = clean_sections(sections)
+        sections_match = _norm_ws(
+            "\n\n".join(s["text"] for s in stored)
+        ) == _norm_ws(story)
+        if not sections_match:
+            # Never store act text that differs from the approved story —
+            # fall back to the story itself as one section.
+            stored = [{"id": "full", "text": story}]
         structure = {
             "title": plan.get("title") if isinstance(plan, dict) else None,
             "central_question": plan.get("central_question")
@@ -2283,11 +2535,17 @@ Output only the story text.
             else None,
             "acts": plan.get("acts") if isinstance(plan, dict) else None,
             "sections": [
-                {"id": s["id"], "words": len(s["text"].split())} for s in sections
+                {"id": s["id"], "words": len(s["text"].split()), "text": s["text"]}
+                for s in stored
             ],
+            "structured": is_structured(stored),
         }
         if extra_structure:
             structure.update(extra_structure)
+        if not sections_match and is_structured(sections):
+            structure["structure_lost_at"] = list(
+                structure.get("structure_lost_at") or []
+            ) + ["save_text_mismatch"]
 
         row = StoryVersion(
             case_id=case.id,

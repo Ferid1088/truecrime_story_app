@@ -33,6 +33,7 @@ from app.schemas import (
     AddSourceRequest,
     GenerateStoryRequest,
     ImproveStoryRequest,
+    check_target_minutes,
 )
 from app.core.config import settings
 from app.core.ai_config import ai_config
@@ -41,10 +42,14 @@ from app.agents.topic_discovery import TopicDiscoveryAgent
 from app.agents.research import ResearchAgent
 from app.agents.story import (
     StoryPipeline,
+    current_evidence_fingerprint,
     estimate_narrative_capacity,
     research_gap_plan,
+    stored_evidence_fingerprint,
+    structure_without_text,
 )
 from app.agents.localization import LocalizationPipeline
+from app.documentary.voice_blocks import plan_for_version
 from app.providers import get_research_provider
 from app.providers.base import ProviderError
 from app.providers.generation import get_generation_provider
@@ -337,7 +342,11 @@ def story_meta_dict(s: StoryVersion) -> dict:
         "generation_provider": s.generation_provider,
         "generation_model": s.generation_model,
         "text_hash": s.text_hash,
-        "narrative_structure": json.loads(s.narrative_structure)
+        # Section text duplicates story_text; the voice-blocks endpoint
+        # exposes per-act text where it is actually needed.
+        "narrative_structure": structure_without_text(
+            json.loads(s.narrative_structure)
+        )
         if s.narrative_structure
         else None,
         "created_at": s.created_at,
@@ -1263,6 +1272,28 @@ def get_story_version(case_id: int, version_id: int, db: Session = Depends(get_d
     return story_full_dict(story)
 
 
+@app.get("/api/cases/{case_id}/stories/{version_id}/voice-blocks")
+def story_voice_blocks(case_id: int, version_id: int, db: Session = Depends(get_db)):
+    """Sentence-safe TTS block plan for one story version (read-only, no
+    provider cost). `evidence_current` is False when research changed
+    after this version was written (its evidence IDs are then stale)."""
+    _get_case_or_404(db, case_id)
+    story = (
+        db.query(StoryVersion)
+        .filter(StoryVersion.id == version_id, StoryVersion.case_id == case_id)
+        .first()
+    )
+    if not story:
+        raise HTTPException(status_code=404, detail="Story version not found")
+    plan = plan_for_version(story)
+    stored_fp = stored_evidence_fingerprint(story)
+    plan["evidence_current"] = (
+        None if stored_fp is None
+        else stored_fp == current_evidence_fingerprint(db, case_id)
+    )
+    return plan
+
+
 @app.get("/api/cases/{case_id}/story/latest")
 def latest_story(case_id: int, db: Session = Depends(get_db)):
     # "Latest" for consumers means the best version, not the newest.
@@ -1931,6 +1962,11 @@ async def generate_localization(
     db: Session = Depends(get_db),
 ):
     case = _get_case_or_404(db, case_id)
+    if target_minutes is not None:
+        try:
+            check_target_minutes(target_minutes)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
     master = _best_master(db, case_id)
     if not master:
         raise HTTPException(status_code=404, detail="No master story found")

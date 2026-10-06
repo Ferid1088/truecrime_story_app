@@ -137,7 +137,12 @@ def test_fallback_chain_from_config():
     models = ai_config.generation_provider().models
     assert ai_config.fallback_models_for("writer") == [models["premium"]]
     assert ai_config.fallback_models_for("fact_extractor") == [models["writer"]]
-    assert ai_config.fallback_models_for("engagement_critic") == [models["writer"]]
+    # Reviewers never fall back to the writer model (review_independence):
+    # a rate-limited critic must not become the author grading itself.
+    assert ai_config.fallback_models_for("engagement_critic") == [models["cheap"]]
+    assert models["writer"] not in ai_config.fallback_models_for(
+        "native_language_critic"
+    )
 
 
 def test_unknown_role_raises():

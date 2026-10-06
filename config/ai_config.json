@@ -295,6 +295,8 @@
   "story": {
     "default_language": "fa",
     "default_target_minutes": 45,
+    "min_target_minutes": 3,
+    "max_target_minutes": 90,
     "words_per_minute": 135,
     "minimum_length_ratio": 0.85,
     "maximum_length_ratio": 1.15,
@@ -412,7 +414,8 @@
     "minimum_engagement_score": 80,
     "max_localization_repair_iterations": 1,
     "minimum_duration_ratio": 0.8,
-    "maximum_duration_ratio": 1.25
+    "maximum_duration_ratio": 1.25,
+    "require_current_evidence": true
   },
   "language_quality": {
     "fa": {
@@ -553,5 +556,46 @@
     "max_transcripts_per_case": 24,
     "minimum_novel_information_ratio": 0.08,
     "consecutive_low_value_stop": 2
+  },
+  "review_independence": {
+    "enabled": true,
+    "author_roles": [
+      "story_director",
+      "writer",
+      "rewriter",
+      "master_story_director",
+      "master_writer",
+      "master_rewriter",
+      "localization_writer"
+    ],
+    "reviewer_roles": [
+      "engagement_critic",
+      "section_critic",
+      "master_engagement_critic",
+      "native_language_critic",
+      "localized_engagement_critic",
+      "grounding_validator",
+      "consistency_checker",
+      "semantic_consistency_checker",
+      "localized_grounding_validator",
+      "source_similarity_critic",
+      "structure_originality_critic"
+    ],
+    "reviewer_fallbacks": {
+      "premium": [
+        "cheap"
+      ],
+      "cheap": [
+        "premium"
+      ]
+    }
+  },
+  "voice_blocks": {
+    "min_seconds": 30,
+    "target_seconds": 60,
+    "max_seconds": 90,
+    "sentence_break_penalty": 0.35,
+    "short_block_penalty": 4.0,
+    "context_chars": 300
   }
 }
