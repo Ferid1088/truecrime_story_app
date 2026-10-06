@@ -246,23 +246,70 @@ def _paragraph_groups(paras: list[str], wpm: int, min_seconds: float) -> list[li
     return groups
 
 
+def _block_level(levels: list[int]) -> int:
+    """One voice style per request: the block sits at its typical level,
+    lifted toward its strongest sentence (tags shape the rest)."""
+    if not levels:
+        return 0
+    ordered = sorted(levels)
+    median = ordered[len(ordered) // 2]
+    return max(median, max(levels) - 1)
+
+
+def attach_speech(blocks: list[dict], records: list[dict], use_tags: bool
+                  ) -> list[str]:
+    """Give each block (in order) its sentence records: tts text (audio
+    tags), display text (subtitles / speech-to-text check) and level.
+    Blocks whose sentences do not line up keep their plain text."""
+    flags: list[str] = []
+    cursor = 0
+    for blk in blocks:
+        n = blk["sentence_count"]
+        recs = records[cursor:cursor + n]
+        cursor += n
+        if len(recs) != n or " ".join(r["speech"] for r in recs) != " ".join(blk["text"].split()):
+            flags.append(f"{blk['block_id']}:speech_not_aligned")
+            continue
+        blk["sentences"] = [
+            {"speech": r["speech"], "display": r.get("display"),
+             "tts": (r.get("tts") or r["speech"]) if use_tags else r["speech"],
+             "level": r.get("level")}
+            for r in recs
+        ]
+        if use_tags and any(r.get("tts") for r in recs):
+            blk["tts_text"] = " ".join(x["tts"] for x in blk["sentences"])
+        if all(r.get("display") for r in recs):
+            blk["display_text"] = " ".join(r["display"] for r in recs)
+        levels = [int(r["level"]) for r in recs if r.get("level") is not None]
+        if levels:
+            blk["level"] = _block_level(levels)
+    return flags
+
+
 def build_directed_performance(
     sections: list[dict], language: str, blueprint: dict, audio_plan: dict,
-    words_per_minute: int | None = None,
+    words_per_minute: int | None = None, speech: dict | None = None,
+    split_language: str | None = None, use_tags: bool = False,
 ) -> dict:
     """Performance script driven by the audio director's plan: a breath
     between paragraphs, and after every beat the planned transition
     (breath, music bridge, emotional moment, sting, silence, chapter
     break). Each beat and each breath group is its own voice block run,
-    so every planned pause is an exact app-level gap."""
+    so every planned pause is an exact app-level gap.
+
+    speech: {beat_id: paragraphs of sentence records} from the voice
+    performance director (tts with audio tags, display text, level) —
+    the level sets the block's voice style and lengthens breaths."""
     perf = ai_config.performance
     voice = ai_config.voice
     direction = ai_config.audio_direction
+    vp = ai_config.voice_performance
     wpm = words_per_minute or ai_config.words_per_minute_for(language)
     act_paras = {s["id"]: [" ".join(p.split()) for p in _paragraphs(s["text"])]
                  for s in sections}
     plan_by_beat = {pb["beat_id"]: pb for pb in audio_plan.get("beats") or []}
     beats = blueprint.get("beats") or []
+    speech = speech or {}
 
     groups: list[dict] = []   # voice sections
     for b in beats:
@@ -271,7 +318,12 @@ def build_directed_performance(
         pb = plan_by_beat.get(b["id"], {})
         style = perf.style_for_intent.get(b.get("audio_intent"), voice.default_style)
         parts = _paragraph_groups(paras, wpm, min_seconds=8.0)
+        # records are stored per section (= beat for spoken versions)
+        beat_recs = speech.get(b["act_id"]) or []
+        p0 = first - 1
         for gi, part in enumerate(parts, 1):
+            recs = [r for para in beat_recs[p0:p0 + len(part)] for r in para]
+            p0 += len(part)
             groups.append({
                 "id": f"{b['id']}.g{gi:02d}", "beat_id": b["id"],
                 "act_id": b["act_id"], "style": style,
@@ -279,28 +331,40 @@ def build_directed_performance(
                 "last_in_beat": gi == len(parts),
                 "breath": pb.get("paragraph_breath", "normal"),
                 "after": pb.get("after") or {"type": "breath", "seconds": 1.0},
+                "records": recs,
             })
 
     plan = plan_voice_blocks(
         [{"id": g["id"], "text": g["text"]} for g in groups], language,
-        words_per_minute=words_per_minute,
+        words_per_minute=words_per_minute, split_language=split_language,
     )
     by_group: dict[str, list[dict]] = {}
     for blk in plan["blocks"]:
         by_group.setdefault(blk["section_id"], []).append(blk)
 
     blocks: list[dict] = []
+    speech_flags: list[str] = []
     for gi, g in enumerate(groups):
         g_blocks = by_group.get(g["id"], [])
+        if g["records"]:
+            speech_flags += attach_speech(g_blocks, g["records"], use_tags)
         for bi, blk in enumerate(g_blocks):
             last_block = bi == len(g_blocks) - 1
             final = gi == len(groups) - 1 and last_block
+            level = blk.get("level")
+            style = g["style"]
+            if level is not None and use_tags:
+                lvl_style = vp.style_for_level(level)
+                if lvl_style in voice.styles:
+                    style = lvl_style
             if final:
                 kind, ms, after = "end", 0, {"type": "end", "seconds": 0.0}
             elif not last_block:
                 kind, ms, after = "block", voice.between_blocks_ms, None
             elif not g["last_in_beat"]:
                 base = direction.paragraph_breath_ms[g["breath"]]
+                if level:
+                    base *= 1 + vp.breath_per_level * level
                 kind = "paragraph"
                 ms = int(round(base * _jitter(g["id"], perf.pause_jitter)))
                 after = None
@@ -315,11 +379,12 @@ def build_directed_performance(
                 ms = int(round(secs * 1000))
                 if kind == "breath":
                     ms = int(round(ms * _jitter(g["beat_id"], perf.pause_jitter)))
+            text_len = len(blk.get("tts_text") or blk["text"])
             blocks.append({
                 **blk, "act_id": g["act_id"], "segment_id": g["id"],
-                "style": g["style"],
+                "style": style,
                 "beats": [{"beat_id": g["beat_id"], "start_char": 0,
-                           "end_char": len(blk["text"])}],
+                           "end_char": text_len}],
                 "pause_after_kind": kind, "pause_after_ms": int(ms),
                 "transition": after if kind not in ("block", "paragraph") else None,
             })
@@ -327,6 +392,9 @@ def build_directed_performance(
     return {
         "language": language,
         "beats_mapped": True, "blueprint_used": True, "directed": True,
+        "voice_performance": bool(speech),
+        "audio_tags": use_tags and any(b.get("tts_text") for b in blocks),
+        "speech_flags": speech_flags,
         "segments": [{"id": g["id"], "act_id": g["act_id"], "style": g["style"],
                       "beat_ids": [g["beat_id"]], "pause_after": g["after"]["type"]
                       if g["last_in_beat"] else "paragraph"} for g in groups],
@@ -376,11 +444,30 @@ def performance_for_version(db, version) -> dict:
     default style with act-level pacing."""
     from app.documentary.blueprint import version_sections
 
+    from app.documentary.voice_performance import (
+        latest_performance, performance_records, speech_script, speech_structure,
+        split_language,
+    )
+
     blueprint, audio_plan = blueprint_and_plan_for_version(db, version)
     language = version.language or "en"
+    script_kind = speech_script(version)
     if blueprint and audio_plan:
+        row = latest_performance(db, version.id)
+        if row is not None:
+            speech = performance_records(row)
+        else:
+            speech = {s["beat_id"]: s["paragraphs"] for s in speech_structure(version)}
+        lang_cfg = ai_config.voice.languages.get(language)
+        use_tags = bool(
+            row is not None and ai_config.voice_performance.enabled and lang_cfg
+            and lang_cfg.model_id in ai_config.voice.elevenlabs.audio_tag_models)
         script = build_directed_performance(
-            version_sections(version), language, blueprint, audio_plan)
+            version_sections(version), language, blueprint, audio_plan,
+            speech=speech, split_language=split_language(language, script_kind),
+            use_tags=use_tags)
+        script["voice_performance_id"] = row.id if row else None
+        script["speech_script"] = script_kind
     else:
         script = build_performance(version_sections(version), language, blueprint)
         script["directed"] = False

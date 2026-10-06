@@ -26,6 +26,7 @@ import statistics
 from pathlib import Path
 
 from app.core.ai_config import ai_config
+from app.core.concurrency import slot
 from app.documentary import audio as A
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
@@ -42,25 +43,52 @@ def _rel(path: str | Path) -> str:
         return str(p)
 
 
+def tag_mask(chars: list[str]) -> list[bool]:
+    """True for characters inside an audio tag ("[whispers]"): the voice
+    does not speak them, so they never count as words or speech time."""
+    mask, inside = [], False
+    for c in chars:
+        if c == "[":
+            inside = True
+        mask.append(inside)
+        if c == "]":
+            inside = False
+    return mask
+
+
 def words_from_alignment(
     chars: list[str], starts: list[float], ends: list[float]
 ) -> list[dict]:
-    """Group the provider's character timing into word timing."""
+    """Group the provider's character timing into word timing (audio tags
+    and pure punctuation such as "..." are not words)."""
     words: list[dict] = []
     cur, ws, we = "", 0.0, 0.0
-    for c, s, e in zip(chars, starts, ends):
-        if c.isspace():
-            if cur:
-                words.append({"word": cur, "start": round(ws, 3), "end": round(we, 3)})
-                cur = ""
+
+    def flush():
+        nonlocal cur
+        if cur and any(ch.isalnum() for ch in cur):
+            words.append({"word": cur, "start": round(ws, 3), "end": round(we, 3)})
+        cur = ""
+
+    for c, s, e, tag in zip(chars, starts, ends, tag_mask(chars)):
+        if c.isspace() or tag:
+            flush()
             continue
         if not cur:
             ws = s
         cur += c
         we = e
-    if cur:
-        words.append({"word": cur, "start": round(ws, 3), "end": round(we, 3)})
+    flush()
     return words
+
+
+def _spoken_span(chars: list[str], mask: list[bool], starts: list[float],
+                 ends: list[float], s: int, e: int) -> tuple[float, float] | None:
+    idx = [i for i in range(max(s, 0), min(e, len(chars)))
+           if not chars[i].isspace() and not mask[i]]
+    if not idx:
+        return None
+    return starts[idx[0]], ends[idx[-1]]
 
 
 def beat_times(beats: list[dict], text: str, alignment: dict, t0: float) -> list[dict]:
@@ -70,11 +98,13 @@ def beat_times(beats: list[dict], text: str, alignment: dict, t0: float) -> list
     chars, starts, ends = (alignment["characters"], alignment["starts"],
                            alignment["ends"])
     exact = "".join(chars) == text
+    mask = tag_mask(chars)
     out = []
     for bt in beats:
         s, e = bt["start_char"], bt["end_char"]
         if exact:
-            idx = [i for i in range(s, min(e, len(chars))) if not chars[i].isspace()]
+            idx = [i for i in range(s, min(e, len(chars)))
+                   if not chars[i].isspace() and not mask[i]]
             if not idx:
                 continue
             start, end = starts[idx[0]], ends[idx[-1]]
@@ -85,6 +115,38 @@ def beat_times(beats: list[dict], text: str, alignment: dict, t0: float) -> list
         out.append({"beat_id": bt["beat_id"],
                     "start": round(max(start - t0, 0.0), 3),
                     "end": round(max(end - t0, 0.0), 3)})
+    return out
+
+
+def sentence_times(sentences: list[dict], text: str, alignment: dict, t0: float
+                   ) -> list[dict]:
+    """Block-local start/end of every sentence (its tts form is found in
+    the request text in order). Sentences that cannot be located get a
+    proportional estimate between their neighbours."""
+    chars, starts, ends = (alignment["characters"], alignment["starts"],
+                           alignment["ends"])
+    exact = "".join(chars) == text
+    mask = tag_mask(chars)
+    total = ends[-1] if ends else 0.0
+    out, cursor = [], 0
+    for k, sn in enumerate(sentences):
+        form = sn.get("tts") or sn["speech"]
+        pos = text.find(form, cursor)
+        span = None
+        if pos >= 0:
+            cursor = pos + len(form)
+            if exact:
+                span = _spoken_span(chars, mask, starts, ends, pos, pos + len(form))
+            else:
+                span = (total * pos / max(len(text), 1),
+                        total * (pos + len(form)) / max(len(text), 1))
+        if span is None:
+            span = (total * k / max(len(sentences), 1),
+                    total * (k + 1) / max(len(sentences), 1))
+        out.append({"speech": sn["speech"], "display": sn.get("display") or sn["speech"],
+                    "level": sn.get("level"),
+                    "start": round(max(span[0] - t0, 0.0), 3),
+                    "end": round(max(span[1] - t0, 0.0), 3)})
     return out
 
 
@@ -138,6 +200,7 @@ class VoiceRenderer:
             {
                 "text": req.text, "prev": req.previous_text, "next": req.next_text,
                 "voice": req.voice_id, "model": req.model_id,
+                **({"lang": req.language_code} if req.language_code else {}),
                 "settings": req.settings, "seed": req.seed, "format": output_format,
             },
             sort_keys=True, ensure_ascii=False,
@@ -202,11 +265,17 @@ class VoiceRenderer:
             for w in words
         ]
         local_beats = beat_times(block.get("beats") or [], req.text, al, t0)
+        local_sentences = (sentence_times(block["sentences"], req.text, al, t0)
+                           if block.get("sentences") else [])
 
         asr = None
         if self.asr is not None:
-            heard = await asyncio.to_thread(self.asr.transcribe, str(wav), language)
-            asr = compare_transcript(req.text, heard["text"], language, self.asr_cfg)
+            # The check compares what people should hear (no tags; Persian
+            # script for Finglish narration) with what Whisper heard.
+            async with slot("asr"):
+                heard = await asyncio.to_thread(self.asr.transcribe, str(wav), language)
+            expected = block.get("display_text") or block["text"]
+            asr = compare_transcript(expected, heard["text"], language, self.asr_cfg)
             asr["heard_text"] = heard["text"]
         return {
             "cache_key": key, "cache_hit": cache_hit, "seed": req.seed,
@@ -214,7 +283,7 @@ class VoiceRenderer:
             "raw_duration": round(raw_duration, 3),
             "trimmed": {"start": round(t0, 3), "end": round(t1, 3)},
             "duration": round(duration, 3), "words": local_words,
-            "beats": local_beats,
+            "beats": local_beats, "sentences": local_sentences,
             "character_cost": None if cache_hit else meta.get("character_cost"),
             "request_id": meta.get("request_id"), "asr": asr,
         }
@@ -252,8 +321,7 @@ class VoiceRenderer:
         blocks_dir.mkdir(parents=True, exist_ok=True)
         chosen = select_blocks(plan["blocks"], max_seconds)
 
-        results: list[dict] = []
-        for b in chosen:
+        async def one_block(b: dict) -> dict:
             # A forced re-render is a NEW take (different seed), still
             # reproducible; normal renders reuse the cached take.
             base_seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
@@ -261,19 +329,23 @@ class VoiceRenderer:
             settings = self.cfg.styles[block_style(b)].model_dump()
             for attempt in range(1 + self.asr_cfg.auto_retakes):
                 req = VoiceRequest(
-                    text=b["text"], voice_id=lang_cfg.voice_id,
+                    text=b.get("tts_text") or b["text"], voice_id=lang_cfg.voice_id,
                     model_id=lang_cfg.model_id, settings=settings,
                     previous_text=b.get("previous_text") or "",
                     next_text=b.get("next_text") or "",
                     seed=base_seed + attempt, language=language,
+                    language_code=lang_cfg.language_code,
                 )
                 take = await self._take(b, req, blocks_dir, language)
                 takes.append(take)
                 if not take["asr"] or take["asr"]["passed"]:
                     break
             best = min(takes, key=self._take_rank)
-            results.append({"block": b, "take": best, "attempts": len(takes),
-                            "takes": takes})
+            return {"block": b, "take": best, "attempts": len(takes), "takes": takes}
+
+        # All blocks at once: the provider's limit (concurrency
+        # .elevenlabs_tts) and the speech-to-text limit pace the requests.
+        results: list[dict] = list(await asyncio.gather(*(one_block(b) for b in chosen)))
 
         # --- per-block loudness -------------------------------------
         for r in results:
@@ -290,6 +362,7 @@ class VoiceRenderer:
         pieces: list[str] = []
         timeline_blocks: list[dict] = []
         words_global: list[dict] = []
+        sentences_global: list[dict] = []
         beat_spans: dict[str, dict] = {}
         t = 0.0
         sr = self.loud.sample_rate
@@ -318,6 +391,11 @@ class VoiceRenderer:
                 words_global.append({
                     **w, "start": round(w["start"] + start, 3),
                     "end": round(w["end"] + start, 3), "block_id": b["block_id"],
+                })
+            for sn in take.get("sentences") or []:
+                sentences_global.append({
+                    **sn, "start": round(sn["start"] + start, 3),
+                    "end": round(sn["end"] + start, 3), "block_id": b["block_id"],
                 })
             for bt in take.get("beats") or []:
                 span = beat_spans.setdefault(
@@ -377,7 +455,8 @@ class VoiceRenderer:
                 if take["duration"] else None,
                 "attempts": r["attempts"], "seed": take["seed"],
                 "cache_hit": take["cache_hit"], "characters_paid": paid,
-                "style": block_style(b),
+                "style": block_style(b), "level": b.get("level"),
+                "tts_text": b.get("tts_text"),
                 "beat_ids": [bt["beat_id"] for bt in b.get("beats") or []],
                 "loudness_lufs": loud["integrated_lufs"],
                 "loudness_deviation_lu": dev,
@@ -422,6 +501,7 @@ class VoiceRenderer:
                 "blocks": timeline_blocks,
                 "beats": sorted(beat_spans.values(), key=lambda x: x["start"]),
                 "words": words_global,
+                "sentences": sentences_global,
             },
         }
         (out / "manifest.json").write_text(

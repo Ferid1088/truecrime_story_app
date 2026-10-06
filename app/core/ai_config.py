@@ -77,6 +77,14 @@ REQUIRED_ROLES = {
     "spoken_writer",
     "spoken_meaning_checker",
     "spoken_style_critic",
+    # Persian narration is written in Finglish (Latin letters, vowels
+    # explicit) so the voice cannot misread words like molk/malek; an
+    # independent agent checks every word's meaning and gives the
+    # Persian-script text for subtitles and checks.
+    "finglish_verifier",
+    # Voice performance: ElevenLabs v3 audio tags, emphasis and the
+    # narrator's tension arc (neutral -> dark -> whispered climaxes).
+    "voice_performance_director",
     # Professional audio direction: breaths, music moments, silences.
     "audio_director",
     # Visual intelligence: needs per beat, image verification (vision),
@@ -673,6 +681,9 @@ class VoiceStyle(BaseModel):
 class VoiceLanguageConfig(BaseModel):
     voice_id: str | None = None
     model_id: str = "eleven_multilingual_v2"
+    # ISO 639-1 code sent to models that support language enforcement
+    # (needed for Finglish: Latin letters, Persian speech).
+    language_code: str | None = None
 
 
 class ElevenLabsConfig(BaseModel):
@@ -683,6 +694,11 @@ class ElevenLabsConfig(BaseModel):
     max_retries: int = Field(default=2, ge=0, le=5)
     # Models that reject previous_text / next_text (request stitching).
     no_context_models: list[str] = ["eleven_v3"]
+    # Models that accept language_code (language enforcement).
+    language_code_models: list[str] = ["eleven_v3", "eleven_turbo_v2_5",
+                                       "eleven_flash_v2_5"]
+    # Models that understand inline audio tags ([whispers], [pause] ...).
+    audio_tag_models: list[str] = ["eleven_v3"]
 
 
 class VoiceConfig(BaseModel):
@@ -818,6 +834,20 @@ class SpokenConfig(BaseModel):
     # "long" for the listener, and the share of long sentences allowed.
     max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
+    # Script the narrator reads per language. "finglish" = Persian in
+    # Latin letters with every vowel written (the voice reads it as
+    # Persian with language_code fa); subtitles use the Persian script
+    # the Finglish verifier provides.
+    speech_script: dict[str, str] = {"fa": "finglish"}
+    # Finglish verifier: sentences per call and fix rounds.
+    finglish_sentences_per_call: int = Field(default=45, ge=5)
+    finglish_fix_rounds: int = Field(default=2, ge=0, le=4)
+    # A corrected sentence must stay this similar (0–100) to the
+    # original: the verifier fixes words, it does not rewrite.
+    finglish_min_fix_similarity: float = Field(default=70.0, ge=0.0, le=100.0)
+
+    def script_for(self, language: str) -> str:
+        return self.speech_script.get(language, "native")
 
 
 class AudioDirectionConfig(BaseModel):
@@ -1037,6 +1067,76 @@ class PerformanceConfig(BaseModel):
         return self
 
 
+class VoicePerformanceConfig(BaseModel):
+    """Voice performance director (ElevenLabs v3 audio tags).
+
+    Levels form the narrator's arc: 0 neutral (nothing has happened
+    yet), 1 first unease, 2 dark and crime-specific, 3 breath-taking
+    moments (slow, measured, close to a whisper). Every tag must be on
+    the palette of its level (levels are cumulative); everything else is
+    removed by the validator."""
+
+    enabled: bool = True
+    sentences_per_call: int = Field(default=70, ge=10)
+    # Voice style per level (names in voice.styles).
+    level_styles: dict[str, str] = {
+        "0": "v3_neutral", "1": "v3_unease", "2": "v3_tension", "3": "v3_climax"}
+    level_tags: dict[str, list[str]] = Field(default_factory=lambda: {
+        "0": ["pause", "thoughtful", "calm"],
+        "1": ["softly", "quietly", "slowly", "slow", "sighs", "drawn out",
+              "hesitant", "serious", "concerned", "distant"],
+        "2": ["low", "tense", "uneasy", "anxious", "somber", "ominous",
+              "measured", "deliberate"],
+        "3": ["whispers", "whispering", "hushed", "barely audible",
+              "breathless", "gasps", "fearful"],
+    })
+    # Never used by a documentary narrator (taste, credibility).
+    forbidden_tags: list[str] = [
+        "laughs", "laughing", "giggles", "chuckles", "crying", "sobbing",
+        "shouts", "shouting", "loudly", "yelling", "excited", "playful",
+        "amazed", "proud", "optimistic", "mad", "aggressive", "bitter",
+        "sarcastic", "stammers", "singing", "accent"]
+    max_tags_per_sentence: int = Field(default=2, ge=1, le=4)
+    # Share of sentences (per level) that may carry any tag.
+    max_tagged_share: dict[str, float] = {"0": 0.2, "1": 0.4, "2": 0.55, "3": 0.85}
+    # Share of all sentences allowed at level 3 (climaxes stay rare).
+    max_climax_share: float = Field(default=0.12, ge=0.0, le=1.0)
+    # Emphasis by capitals (one word per sentence, not at level 0) —
+    # only where the script has letter case and it reads naturally.
+    caps_languages: list[str] = ["en"]
+    max_ellipses_per_sentence: int = Field(default=2, ge=0)
+    # Breath between paragraphs grows with the level (x (1 + f*level)).
+    breath_per_level: float = Field(default=0.15, ge=0.0, le=1.0)
+
+    def allowed_tags(self, level: int) -> set[str]:
+        out: set[str] = set()
+        for lv in range(0, max(0, min(level, 3)) + 1):
+            out |= {t.lower() for t in self.level_tags.get(str(lv), [])}
+        return out
+
+    def style_for_level(self, level: int) -> str | None:
+        return self.level_styles.get(str(max(0, min(level, 3))))
+
+
+class ConcurrencyConfig(BaseModel):
+    """How much runs at the same time (per process). Two levels:
+    inside one documentary (languages, critics, image checks and voice
+    blocks in parallel) and several documentaries at once (jobs)."""
+
+    llm: int = Field(default=6, ge=1, le=64)
+    vision: int = Field(default=4, ge=1, le=32)
+    # ElevenLabs allows 5 concurrent requests on this plan; keep one free.
+    elevenlabs_tts: int = Field(default=4, ge=1, le=32)
+    elevenlabs_sound: int = Field(default=2, ge=1, le=16)
+    asr: int = Field(default=1, ge=1, le=8)
+    render: int = Field(default=2, ge=1, le=8)
+    downloads: int = Field(default=4, ge=1, le=32)
+    # Documentaries running at the same time; more wait in "queued".
+    jobs: int = Field(default=2, ge=1, le=16)
+    # Language branches of one documentary running at the same time.
+    languages: int = Field(default=4, ge=1, le=8)
+
+
 class AIConfig(BaseModel):
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
@@ -1093,6 +1193,8 @@ class AIConfig(BaseModel):
     maps: MapsConfig = Field(default_factory=MapsConfig)
     attention: AttentionConfig = Field(default_factory=AttentionConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
+    voice_performance: VoicePerformanceConfig = Field(default_factory=VoicePerformanceConfig)
+    concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
     documentary_critics: DocumentaryCriticsConfig = Field(
         default_factory=DocumentaryCriticsConfig)
 

@@ -30,6 +30,9 @@ export function VoiceTab({ caseId, settings, overview, refreshKey, language, onL
                 <TH>Language</TH>
                 <TH>Voice id</TH>
                 <TH>Model</TH>
+                <TH>Language code</TH>
+                <TH>Audio tags</TH>
+                <TH>Reads</TH>
               </TR>
             </THead>
             <TBody>
@@ -42,6 +45,17 @@ export function VoiceTab({ caseId, settings, overview, refreshKey, language, onL
                       {v?.voice_id ?? <Badge variant="warning">not configured</Badge>}
                     </TD>
                     <TD className="font-mono text-muted-foreground">{v?.model_id ?? "—"}</TD>
+                    <TD className="font-mono text-muted-foreground">{v?.language_code ?? "—"}</TD>
+                    <TD>
+                      {v?.audio_tags ? (
+                        <Badge variant="success">performed</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">no</span>
+                      )}
+                    </TD>
+                    <TD className="text-muted-foreground">
+                      {settings.speech_script[l] === "finglish" ? "Finglish" : "native script"}
+                    </TD>
                   </TR>
                 );
               })}

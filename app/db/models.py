@@ -688,6 +688,28 @@ class OriginalMediaSegment(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class VoicePerformance(Base):
+    """How the narrator performs one spoken version: the tension arc
+    (levels 0–3 per beat and sentence) and per sentence the text sent to
+    the voice — with ElevenLabs v3 audio tags and timing punctuation —
+    next to the plain speech and its display text (subtitles)."""
+
+    __tablename__ = "voice_performances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(
+        ForeignKey("story_versions.id"), index=True
+    )
+    language: Mapped[str] = mapped_column(String(20), default="en")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    performance_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class DocumentaryJob(Base):
     """One run of the documentary pipeline for a case: blueprint, audio
     plan, spoken versions, visuals, voice, production script, critique
@@ -697,7 +719,9 @@ class DocumentaryJob(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
-    master_version_id: Mapped[int] = mapped_column(ForeignKey("story_versions.id"))
+    # None until a "from zero" job has researched and written its master.
+    master_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("story_versions.id"), nullable=True)
     mode: Mapped[str] = mapped_column(String(10), default="pilot")
     languages_json: Mapped[str] = mapped_column(Text, default='["en"]')
     pilot_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -705,6 +729,11 @@ class DocumentaryJob(Base):
     # Re-plan visuals (new research, verification and shot direction)
     # even when a visual plan already exists.
     refresh_visuals: Mapped[bool] = mapped_column(Boolean, default=False)
+    # "From zero": research the case and write the master story first.
+    from_zero: Mapped[bool] = mapped_column(Boolean, default=False)
+    target_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Jobs started together (a batch of documentaries).
+    batch_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     stage: Mapped[str | None] = mapped_column(String(60), nullable=True)
     progress: Mapped[float] = mapped_column(Float, default=0.0)

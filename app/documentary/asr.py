@@ -100,12 +100,118 @@ _POSSESSIVE = re.compile(r"(\w)'s\b")
 _PLURAL_POSSESSIVE = re.compile(r"(\w)s'(?=\W|$)")
 
 
+# --- Persian -------------------------------------------------------------
+# Whisper and a careful script spell the same Persian speech differently:
+# ZWNJ or space or nothing before "می"/"ها", the ezafe "ی" after "ه",
+# آ/ا, Arabic letter forms, number words vs digits. Both sides are brought
+# to one form so only real speech errors remain.
+_FA_PREFIXES = {"می", "نمی", "همی"}
+_FA_SUFFIXES = {"ها", "های", "هایی", "هایم", "هایش", "هایت", "هایشان", "ای",
+                "ام", "اش", "ات", "اند", "ایم", "اید", "تر", "ترین", "ی"}
+_FA_UNITS = {"صفر": 0, "یک": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5, "شش": 6,
+             "شیش": 6, "هفت": 7, "هشت": 8, "نه": 9}
+_FA_TEENS = {"ده": 10, "یازده": 11, "دوازده": 12, "سیزده": 13, "چهارده": 14,
+             "پانزده": 15, "پونزده": 15, "شانزده": 16, "شونزده": 16, "هفده": 17,
+             "هجده": 18, "هیجده": 18, "نوزده": 19}
+_FA_TENS = {"بیست": 20, "سی": 30, "چهل": 40, "پنجاه": 50, "شصت": 60,
+            "هفتاد": 70, "هشتاد": 80, "نود": 90}
+_FA_HUNDREDS = {"صد": 100, "یکصد": 100, "دویست": 200, "سیصد": 300, "چهارصد": 400,
+                "پانصد": 500, "پونصد": 500, "ششصد": 600, "هفتصد": 700,
+                "هشتصد": 800, "نهصد": 900}
+_FA_SCALES = {"هزار": 1000, "میلیون": 10 ** 6, "میلیارد": 10 ** 9}
+_FA_SMALL = {**_FA_UNITS, **_FA_TEENS, **_FA_TENS, **_FA_HUNDREDS}
+# Words that are also ordinary words ("no", "village", "thirty"/"sea"):
+# converted only inside a longer number.
+_FA_AMBIGUOUS = {"نه", "ده", "سی", "صد"}
+
+
+def _fa_letters(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text or "")
+    text = text.translate(_DIGITS)
+    text = _ARABIC_DIACRITICS.sub("", text)
+    for a, b in (("ي", "ی"), ("ى", "ی"), ("ك", "ک"), ("ة", "ه"), ("ۀ", "ه"),
+                 ("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ٱ", "ا"), ("ؤ", "و"),
+                 ("ئ", "ی"), ("ء", ""), ("ـ", "")):
+        text = text.replace(a, b)
+    # ZWNJ joins (خانه‌ها -> خانهها, می‌کند -> میکند)
+    return text.replace("\u200c", "").replace("\u200d", "")
+
+
+def _fa_numbers(tokens: list[str]) -> list[str]:
+    out: list[str] = []
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t not in _FA_SMALL and t not in _FA_SCALES:
+            out.append(t)
+            i += 1
+            continue
+        run = [t]
+        j = i + 1
+        while j < len(tokens):
+            if tokens[j] in _FA_SCALES:
+                run.append(tokens[j])
+                j += 1
+            elif (tokens[j] == "و" and j + 1 < len(tokens)
+                  and (tokens[j + 1] in _FA_SMALL or tokens[j + 1] in _FA_SCALES)):
+                run.append(tokens[j + 1])
+                j += 2
+            else:
+                break
+        if len(run) == 1 and (t in _FA_AMBIGUOUS or t in _FA_SCALES):
+            out.append(t)
+            i += 1
+            continue
+        total, cur = 0, 0
+        for w in run:
+            if w in _FA_SCALES:
+                total += max(cur, 1) * _FA_SCALES[w]
+                cur = 0
+            else:
+                cur += _FA_SMALL[w]
+        out.append(str(total + cur))
+        i = j
+    return out
+
+
+def persian_tokens(text: str) -> list[str]:
+    text = _fa_letters(text)
+    text = re.sub(r"[^\w\s]", " ", text)
+    raw = [t for t in text.split() if t]
+    joined: list[str] = []
+    k = 0
+    while k < len(raw):
+        t = raw[k]
+        if t in _FA_PREFIXES and k + 1 < len(raw):
+            joined.append(t + raw[k + 1])
+            k += 2
+            continue
+        if t in _FA_SUFFIXES and joined and t != "ی":
+            joined[-1] += t
+            k += 1
+            continue
+        if t == "ی" and joined and joined[-1].endswith("ه"):
+            k += 1  # detached ezafe after ه
+            continue
+        joined.append(t)
+        k += 1
+    out = []
+    for t in _fa_numbers(joined):
+        # ezafe / indefinite ی after ه, written or not: خانهی == خانه
+        if len(t) > 2 and t.endswith("هی"):
+            t = t[:-1]
+        out.append(t)
+    return out
+
+
 def normalize_tokens(text: str, language: str) -> list[str]:
     # One apostrophe, and possessives as plain words, on BOTH sides:
     # otherwise "Kadwill’s" becomes "kadwill s" while Whisper's
     # "Kadwill's" becomes "kadwill is" (contraction expansion).
     text = _APOSTROPHES.sub("'", text or "")
     text = _PLURAL_POSSESSIVE.sub(r"\1s", _POSSESSIVE.sub(r"\1s", text))
+    if language == "fa":
+        return persian_tokens(text)
     tokens = _english_tokens(text) if language == "en" else _basic_tokens(text)
     return _canonical_dates(tokens)
 

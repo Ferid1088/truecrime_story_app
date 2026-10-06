@@ -243,10 +243,7 @@ class DocumentaryCritics:
         report = {"deterministic": deterministic_checks(script, assets), "critics": {},
                   "fixes": []}
         cut = describe_cut(script, assets, manifest_words)
-        for name in ai_config.documentary_critics.critics:
-            role = CRITIC_ROLES.get(name)
-            if not role:
-                continue
+        async def critic(name: str, role: str):
             system = CRITIC_SYSTEM.format(language=LANG_NAMES.get(row.language, row.language),
                                           focus=CRITIC_FOCUS[name])
             with track_run(db, row.case_id, f"Documentary Critic: {name} ({row.language})",
@@ -255,11 +252,19 @@ class DocumentaryCritics:
                     role, system, json.dumps({"cut": cut}, ensure_ascii=False))
                 stamp_run(run, res, role)
             data = data if isinstance(data, dict) else {}
-            report["critics"][name] = {
+            return name, {
                 "score": data.get("score"), "summary": data.get("summary"),
                 "problems": [p for p in data.get("problems") or [] if isinstance(p, dict)][:8],
                 "model": getattr(res, "model", None),
             }
+
+        from app.core.concurrency import gather_limited
+
+        named = [(n, CRITIC_ROLES[n]) for n in ai_config.documentary_critics.critics
+                 if CRITIC_ROLES.get(n)]
+        # the critics are independent: all at once
+        for name, entry in await gather_limited(None, [critic(n, r) for n, r in named]):
+            report["critics"][name] = entry
         if apply and ai_config.documentary_critics.max_fix_iterations:
             problems = [p for c in report["critics"].values() for p in c["problems"]]
             problems += [i for i in report["deterministic"]["issues"] if i.get("fix")]

@@ -782,9 +782,14 @@ export type DocumentaryJobStatus =
   | "running"
   | "cancelling"
   | "completed"
+  /** Finished, but at least one language failed (see `result.errors`). */
+  | "partial"
   | "failed"
   | "cancelled";
-export type DocumentaryStageStatus = "pending" | "running" | "done" | "skipped" | "failed";
+/** "blocked": never ran because its language failed earlier. */
+export type DocumentaryStageStatus = "pending" | "running" | "done" | "skipped" | "failed" | "blocked";
+/** What the narrator reads: the language's own script, or Finglish (Persian in Latin letters). */
+export type SpeechScript = "native" | "finglish";
 
 export interface FilmMinutesRange {
   min: number;
@@ -799,12 +804,39 @@ export interface VoiceStyleSettings {
   speed: number;
 }
 
+/** Shared limits of what runs at the same time (config: concurrency). */
+export interface ConcurrencyLimits {
+  llm: number;
+  vision: number;
+  elevenlabs_tts: number;
+  elevenlabs_sound: number;
+  asr: number;
+  render: number;
+  downloads: number;
+  /** Documentaries running at the same time; more wait in "queued". */
+  jobs: number;
+  /** Language branches of one documentary running at the same time. */
+  languages: number;
+}
+
 /** GET /api/documentary/settings — never carries provider secrets. */
 export interface DocumentarySettings {
   languages: string[];
   film_minutes: FilmMinutesRange;
   pilot_seconds: number;
-  voices: Record<string, { voice_id: string | null; model_id: string }>;
+  voices: Record<
+    string,
+    { voice_id: string | null; model_id: string; language_code: string | null; audio_tags: boolean }
+  >;
+  speech_script: Record<string, SpeechScript>;
+  voice_performance: {
+    enabled: boolean;
+    /** Allowed audio tags per arc level "0".."3". */
+    level_tags: Record<string, string[]>;
+    /** Voice style per arc level. */
+    level_styles: Record<string, string>;
+  };
+  concurrency: ConcurrencyLimits;
   styles: Record<string, VoiceStyleSettings>;
   render: {
     profile: string;
@@ -832,32 +864,85 @@ export interface DocumentaryStage {
 export interface DocumentaryJob {
   id: number;
   case_id: number;
-  master_version_id: number;
+  /** null until a from-zero job has written its master story. */
+  master_version_id: number | null;
   mode: DocumentaryMode;
   languages: string[];
   pilot_seconds: number | null;
   render_profile: RenderProfile;
   /** Re-run visual research, verification and shot direction. */
   refresh_visuals: boolean;
+  /** Researches the case and writes the master story first. */
+  from_zero: boolean;
+  /** Length the master story is written for (from-zero jobs). */
+  target_minutes: number | null;
+  batch_id: string | null;
   status: DocumentaryJobStatus;
+  /** Running stage names, comma-separated (stages run in parallel); may be truncated. */
   stage: string | null;
   /** 0–1: share of stages done or skipped. */
   progress: number;
   stages: DocumentaryStage[];
-  result: Record<string, unknown>;
+  /** `errors`: failure per language of a "partial" job. */
+  result: { errors?: Record<string, string>; [key: string]: unknown };
   error: string | null;
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
 }
 
-export interface DocumentaryJobRequest {
-  master_version_id: number | null;
+/** GET /api/documentary/jobs — jobs of every case. */
+export interface DocumentaryJobListItem extends DocumentaryJob {
+  case_title: string | null;
+}
+
+/** Options shared by a single job and a batch. */
+export interface DocumentaryRunOptions {
   languages: string[];
   mode: DocumentaryMode;
   pilot_seconds: number | null;
   render_profile: RenderProfile;
   refresh_visuals: boolean;
+}
+
+export interface DocumentaryJobRequest extends DocumentaryRunOptions {
+  master_version_id: number | null;
+  from_zero: boolean;
+  /** 45–120 min: the master story's length when starting from zero. */
+  target_minutes: number | null;
+}
+
+export interface DocumentaryBatchItem {
+  case_id: number;
+  from_zero: boolean;
+  target_minutes: number | null;
+}
+
+export interface DocumentaryBatchRequest extends DocumentaryRunOptions {
+  items: DocumentaryBatchItem[];
+}
+
+export interface DocumentaryBatchStart {
+  batch_id: string;
+  jobs: DocumentaryJob[];
+  rejected: { case_id: number; reason: string }[];
+  max_parallel_jobs: number;
+}
+
+export interface DocumentaryBatch {
+  batch_id: string;
+  jobs: DocumentaryJob[];
+  /** 0–1: mean progress of the batch's jobs. */
+  progress: number;
+  statuses: Record<string, number>;
+}
+
+/** GET /api/documentary/scheduler — what runs now and what waits. */
+export interface DocumentaryScheduler {
+  max_parallel_jobs: number;
+  running: DocumentaryJob[];
+  queued: DocumentaryJob[];
+  limits: Record<string, { active: number; limit: number }>;
 }
 
 export type Level = "low" | "medium" | "high";
@@ -1091,9 +1176,35 @@ export interface Production extends ProductionSummary {
   script: ProductionScriptData;
 }
 
+/** Finglish narration check (Persian): each sentence verified against its Persian script. */
+export interface FinglishSummary {
+  sentences: number;
+  fixed: number;
+  unverified: number;
+  open_issue_count: number;
+  /** Sentences that break the deterministic spelling rules. */
+  deterministic_count: number;
+}
+
+export interface VoicePerformanceStats {
+  sentences: number;
+  directed: number;
+  levels: { neutral: number; unease: number; dark: number; climax: number };
+  /** Directed sentences carrying at least one audio tag. */
+  tagged: number;
+  tags: Record<string, number>;
+  /** Validator findings by kind. */
+  issues: Record<string, number>;
+  /** Tags removed to keep each level's tag density. */
+  thinned: number;
+}
+
 export interface DocumentaryLanguage {
   version_id: number;
   status: string;
+  speech_script: SpeechScript;
+  finglish: FinglishSummary | null;
+  voice_performance: { id: number; status: string; stats: VoicePerformanceStats | null } | null;
   quality_gates: { pass: boolean; failures: string[] } | null;
   storyteller_beats: number | null;
   beats: number | null;
@@ -1254,4 +1365,63 @@ export interface VoiceManifest {
     music_only_seconds: number;
     loudness_lufs: number | null;
   };
+}
+
+/** One sentence: what the narrator says and what people read. */
+export interface SpeechSentence {
+  /** Narrated text (Finglish for Persian narration). */
+  speech: string;
+  /** Reading text (Persian script for Finglish); null when never verified. */
+  display: string | null;
+}
+
+/** A sentence of the voice performance. */
+export interface PerformanceSentence extends SpeechSentence {
+  /** Text sent to the voice: [audio tags] and punctuation for timing. */
+  tts: string | null;
+  /** Arc level: 0 neutral · 1 unease · 2 dark · 3 climax. */
+  level: number;
+  directed: boolean;
+}
+
+export interface PerformanceBeat {
+  beat_id: string;
+  arc_level: number;
+  arc_peak: number;
+  paragraphs: PerformanceSentence[][];
+}
+
+/** GET/POST /api/documentary/versions/{id}/voice-performance */
+export interface VoicePerformance {
+  id: number;
+  story_version_id: number;
+  language: string;
+  version: number;
+  status: string;
+  model: string | null;
+  performance: {
+    language: string;
+    script: SpeechScript;
+    /** Beat of the story's first incident (everything before it stays neutral). */
+    incident_beat: string | null;
+    incident_sentence: number | null;
+    stats: VoicePerformanceStats;
+    beats: PerformanceBeat[];
+  };
+  validation: {
+    arc_log: string[];
+    level_log: string[];
+    errors: string[];
+    examples: { i: number; issue: string; raw: string | null }[];
+  };
+  created_at: string;
+}
+
+/** GET /api/documentary/versions/{id}/speech */
+export interface SpeechStructure {
+  version_id: number;
+  language: string;
+  script: SpeechScript;
+  finglish_check: FinglishSummary | null;
+  beats: { beat_id: string; paragraphs: SpeechSentence[][] }[];
 }

@@ -51,7 +51,9 @@ from app.core.ai_config import ai_config
 from app.db.models import (
     Case, Contradiction, EditorialBlueprint, Fact, Source, StoryVersion,
 )
+from app.core.concurrency import gather_limited
 from app.documentary.blueprint import latest_blueprint, version_sections
+from app.documentary.finglish import FinglishVerifier, display_sections
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 from app.utils import language_quality
@@ -227,6 +229,46 @@ STIFF_PATTERNS = {
 }
 
 
+# Persian narration is written in colloquial Finglish (see finglish.py):
+# the guide is in English, the narration in Latin-letter spoken Persian.
+FINGLISH_STYLE_GUIDE = """\
+Voice: a gifted Persian storyteller — the host of a true-crime podcast
+from Tehran — telling a true story to one friend late in the evening:
+warm, calm, curious. Everyday SPOKEN Persian (mohaavere), never book
+Persian, never a newsreader, never sensational.
+- Talk the way people in Tehran really talk: khune, khunevaade, un,
+  unaa, mige, mire, nemidunest, "ro" — but respectful and clear, no
+  vulgar words, no youth slang.
+- Short and medium sentences, one thought each, so the verb never comes
+  too late.
+- Everyday words, not officialese: never "mozkur", "naamborde",
+  "mazbur", "tavassote", "mored-e ... gharaar gereft", "anjaam shod",
+  "surat gereft", "mibaashad".
+- Active verbs, people as subjects: "Polis khune ro gasht", not
+  "khune tavassote polis baazresi shod".
+- Now and then, sparingly, pull the listener in: "Un yaaddaashte ruye
+  dar yaadetun hast?"
+- Claims and unproven things stay uncertain: "migan", "zaaheran",
+  "be gofteye ...". Never turn a claim into a fact.
+- Never change a value: dates and numbers are spoken words with the
+  same value ("saale do hezaar o paanzdah")."""
+
+FINGLISH_EXAMPLES = [
+    ("در پی تحقیقات گسترده، از سوی مقامات مشخص گردید که خودروی مذکور در "
+     "ساعات اولیه‌ی بامداد رها شده بود، هرچند هویت راننده همچنان نامعلوم "
+     "باقی ماند.",
+     "Polis moddathaa ruye in maajaraa kaar kard. Va aakharesh, faghat ye chiz "
+     "roshan shod: ye nafar maashino sobhe kheyli zud hamunjaa vel karde bud. "
+     "Vali poshte farmun ki neshaste bud? Ino hichkas natunest bege."),
+    ("او نفوذ قابل‌توجهی بر امور مالی خانواده اعمال می‌کرد.",
+     "Tu un khunevaade, vaghti paaye pul vasat bud, harfe un vazne ziaadi daasht."),
+    ("متعاقباً گزارش شد که فرد مذکور در شب مورد نظر در حوالی ایستگاه "
+     "مشاهده شده است.",
+     "Baadan ye khabar resid. Ye nafar gofte bud un mard ro nazdike istgaah dide. "
+     "Hamun shab."),
+]
+
+
 CONNECTORS = {
     "en": '"So", "But", "And then", "Now", "Here\'s the thing"',
     "de": '"Also", "Aber", "Und dann", "Jetzt", "Und genau hier wird es seltsam"',
@@ -235,8 +277,9 @@ CONNECTORS = {
 }
 
 
-def _examples_block(language: str) -> str:
-    pairs = STYLE_EXAMPLES.get(language) or STYLE_EXAMPLES["en"]
+def _examples_block(language: str, script: str = "native") -> str:
+    pairs = FINGLISH_EXAMPLES if script == "finglish" else (
+        STYLE_EXAMPLES.get(language) or STYLE_EXAMPLES["en"])
     return "\n".join(f"  READ:  {a}\n  TOLD:  {b}\n" for a, b in pairs)
 
 
@@ -276,7 +319,9 @@ def _words_minutes(text: str, language: str) -> float:
     return len((text or "").split()) / max(ai_config.words_per_minute_for(language), 1)
 
 
-def writer_system_prompt(language: str, source_language: str = "en") -> str:
+def writer_system_prompt(language: str, source_language: str = "en",
+                         script: str | None = None) -> str:
+    script = script or ai_config.spoken.script_for(language)
     name = LANG_NAMES.get(language, language)
     limit = ai_config.spoken.max_sentence_words.get(language, 24)
     source_note = (
@@ -285,6 +330,23 @@ def writer_system_prompt(language: str, source_language: str = "en") -> str:
         "would tell it — never as a translation."
         if language != source_language else ""
     )
+    style = STYLE_GUIDES.get(language, STYLE_GUIDES["en"])
+    connectors = CONNECTORS.get(language, CONNECTORS["en"])
+    if script == "finglish":
+        from app.documentary.finglish import FINGLISH_RULES
+
+        name = "spoken Persian (colloquial Tehrani), written in Finglish"
+        source_note = (
+            "The script is in English. Tell it directly in everyday spoken "
+            "Persian and WRITE IT IN FINGLISH (Latin letters, every vowel "
+            "written, rules below) — never in Persian script, never as a "
+            "translation. The voice reads your letters exactly as written, "
+            "so every vowel decides which word is spoken (molk = property, "
+            "malek = king)."
+        )
+        style = FINGLISH_STYLE_GUIDE + "\n\n" + FINGLISH_RULES
+        connectors = '"khob", "vali", "baadesh", "haalaa", "nokte injaast"'
+
     return f"""
 You are one of the best true-crime storytellers working in {name}, and a
 native speaker. You take a written documentary script and TELL it — the
@@ -307,7 +369,7 @@ HOW TO WORK — REBUILD, DON'T POLISH
   happened, then why it matters. Put the strongest word at the end of
   the sentence.
 - Talk to the listener now and then: a plain spoken connector at the
-  start of a sentence ({CONNECTORS.get(language, CONNECTORS["en"])}), a
+  start of a sentence ({connectors}), a
   rare direct question when the story itself raises it. Never every
   sentence; never cute.
 - Concrete beats abstract: name the person, the place, the object that
@@ -317,10 +379,10 @@ HOW TO WORK — REBUILD, DON'T POLISH
   storyteller would pause, look up, and let a fact land.
 
 STYLE
-{STYLE_GUIDES.get(language, STYLE_GUIDES["en"])}
+{style}
 
 EXAMPLES (style only — never reuse their content)
-{_examples_block(language)}
+{_examples_block(language, script)}
 FACTS (non-negotiable)
 - Keep every fact, name, date, number, place and the meaning of every
   quotation. Never add facts, scenes, sounds, smells, weather, thoughts,
@@ -357,13 +419,26 @@ For every beat report:
 Ignore pure style. Be strict on facts, lenient on wording. Empty lists
 when a beat is fine.
 
+Persian may be given in FINGLISH (colloquial spoken Persian in Latin
+letters, read aloud exactly as written) with "spoken_persian_script" for
+reference. Judge the Finglish as it will be heard: a word whose vowels
+make it a different word (malek "king" instead of molk "property") is a
+"changed" fact.
+
 Return JSON only:
 {"beats": [{"beat_id": "B01", "missing": [], "added": [], "changed": [], "certainty": []}]}
 """
 
 
-def critic_system_prompt(language: str) -> str:
+def critic_system_prompt(language: str, script: str | None = None) -> str:
     name = LANG_NAMES.get(language, language)
+    script = script or ai_config.spoken.script_for(language)
+    house = STYLE_GUIDES.get(language, STYLE_GUIDES["en"])
+    if script == "finglish":
+        name = "spoken (colloquial Tehrani) Persian"
+        house = (FINGLISH_STYLE_GUIDE + "\nThe narration is shown in Persian script "
+                 "as it is spoken (خونه، می‌گه، نمی‌دونست): colloquial forms are "
+                 "WANTED, book Persian is a problem.")
     return f"""
 You are a demanding native {name} editor of narrative audio
 documentaries — the person who sends scripts back when they sound read
@@ -381,7 +456,7 @@ Verdicts:
 - newsreader: the beat as a whole sounds like a bulletin or a report.
 
 House style:
-{STYLE_GUIDES.get(language, STYLE_GUIDES["en"])}
+{house}
 
 For each beat give:
 - verdict: storyteller | mixed | newsreader
@@ -425,6 +500,8 @@ def has_meta_text(text: str) -> bool:
 
 def _task_line(language: str, beats: int, repair: bool = False) -> str:
     name = LANG_NAMES.get(language, language)
+    if ai_config.spoken.script_for(language) == "finglish":
+        name = "colloquial Persian (written in Finglish, Latin letters)"
     if repair:
         return (f"TASK: revise the {beats} spoken {name} beat(s) below exactly as your "
                 "instructions say. Output ONLY those beats, each under its marker "
@@ -530,27 +607,46 @@ class SpokenNarrator:
         return out, res, log
 
     async def _check(self, db, case_id, language, source: list[dict],
-                     spoken: list[dict], beat_ids: set[str] | None = None):
+                     spoken: list[dict], beat_ids: set[str] | None = None,
+                     display: list[dict] | None = None):
+        """Meaning check + native style critic per chunk of beats (all
+        chunks and both critics in parallel). `display`: the same beats in
+        the script people read (Persian script for Finglish narration)."""
         src = {s["id"]: s["text"] for s in source}
+        shown = {d["id"]: d["text"] for d in display or []}
         subset = [s for s in spoken if beat_ids is None or s["id"] in beat_ids]
         size = self.cfg.beats_per_call or len(subset) or 1
+        chunks = [subset[i:i + size] for i in range(0, len(subset), size)]
+
+        def meaning_payload(chunk):
+            beats = []
+            for s in chunk:
+                item = {"beat_id": s["id"], "source": src[s["id"]], "spoken": s["text"]}
+                if s["id"] in shown:
+                    item["spoken_persian_script"] = shown[s["id"]]
+                beats.append(item)
+            return {"source_language": "en", "spoken_language": language,
+                    "spoken_script": self.cfg.script_for(language), "beats": beats}
+
+        def style_payload(chunk):
+            return {"language": language, "narration": _mark_sections(
+                [{"id": s["id"], "text": shown.get(s["id"], s["text"])} for s in chunk])}
+
+        calls = []
+        for chunk in chunks:
+            calls.append(self._json(db, case_id, f"Spoken Meaning Check ({language})",
+                                    "spoken_meaning_checker", MEANING_SYSTEM,
+                                    meaning_payload(chunk)))
+            calls.append(self._json(db, case_id, f"Spoken Style Critic ({language})",
+                                    "spoken_style_critic", critic_system_prompt(language),
+                                    style_payload(chunk)))
+        results = await gather_limited(None, calls)
         by_id_m: dict[str, dict] = {}
         by_id_s: dict[str, dict] = {}
         overall, notes = [], []
-        for i in range(0, len(subset), size):
-            chunk = subset[i:i + size]
-            meaning, _ = await self._json(
-                db, case_id, f"Spoken Meaning Check ({language})",
-                "spoken_meaning_checker", MEANING_SYSTEM,
-                {"source_language": "en", "spoken_language": language,
-                 "beats": [{"beat_id": s["id"], "source": src[s["id"]],
-                            "spoken": s["text"]} for s in chunk]},
-            )
-            style, _ = await self._json(
-                db, case_id, f"Spoken Style Critic ({language})",
-                "spoken_style_critic", critic_system_prompt(language),
-                {"language": language, "narration": _mark_sections(chunk)},
-            )
+        for k in range(0, len(results), 2):
+            meaning, _ = results[k]
+            style, _ = results[k + 1]
             for b in meaning.get("beats") or []:
                 if isinstance(b, dict):
                     by_id_m[str(b.get("beat_id"))] = b
@@ -573,7 +669,7 @@ class SpokenNarrator:
                 "meaning_ok": m is not None and _meaning_ok(m),
                 "verdict": verdict,
                 "problems": [p for p in st.get("problems") or [] if isinstance(p, dict)][:4],
-                "ear": read_aloud_metrics(s["text"], language),
+                "ear": read_aloud_metrics(shown.get(s["id"], s["text"]), language),
             }
         worst = next((v for v in ("newsreader", "mixed", "storyteller") if v in overall), None)
         return result, worst, " ".join(notes)[:800]
@@ -669,9 +765,21 @@ else. Return only these beats, each under its marker line.
             )
         uncertain = [f["claim"] for f in pack["disputed_facts"]]
 
+        script = self.cfg.script_for(language)
+        fin = FinglishVerifier() if script == "finglish" else None
+        src_text = {s["id"]: s["text"] for s in source}
+        fin_struct: dict | None = None
+        fin_report: dict | None = None
+        display: list[dict] | None = None
+
         spoken, writer_res, write_log = await self._write(
             db, case.id, language, source, uncertain)
-        checks, overall, notes = await self._check(db, case.id, language, source, spoken)
+        if fin:
+            # every word checked (meaning + vowels) before anyone judges it
+            spoken, fin_struct, fin_report = await fin.process(db, case.id, spoken, src_text)
+            display = display_sections(fin_struct, spoken)
+        checks, overall, notes = await self._check(db, case.id, language, source, spoken,
+                                                   display=display)
         repairs = 0
         while (repairs < self.cfg.max_repair_iterations
                and any(self._needs_repair(c) for c in checks.values())):
@@ -682,11 +790,16 @@ else. Return only these beats, each under its marker line.
             changed = {s["id"] for s in spoken if s["text"] != before[s["id"]]}
             if not changed:
                 break
+            if fin:
+                spoken, fin_struct, fin_report = await fin.process(
+                    db, case.id, spoken, src_text)
+                display = display_sections(fin_struct, spoken)
             rechecked, overall, notes = await self._check(
-                db, case.id, language, source, spoken, changed)
+                db, case.id, language, source, spoken, changed, display=display)
             checks.update(rechecked)
 
         text = _join_sections(spoken)
+        shown_text = _join_sections(display) if display else text
         failures = []
         if any(not c["meaning_ok"] for c in checks.values()):
             failures.append("meaning_changed")
@@ -696,10 +809,17 @@ else. Return only these beats, each under its marker line.
         storyteller = sum(1 for c in checks.values() if c["verdict"] == "storyteller")
         if storyteller / n < self.cfg.min_storyteller_share:
             failures.append("not_enough_storytelling")
-        ear = read_aloud_metrics(text, language)
+        ear = read_aloud_metrics(shown_text, language)
         if ear["long_sentence_share"] > self.cfg.max_long_sentence_share:
             failures.append("sentences_too_long")
-        lq = language_quality(text, language, ai_config.language_quality_for(language))
+        lq = language_quality(shown_text, language, ai_config.language_quality_for(language))
+        if fin_report is not None:
+            if fin_report["unverified"]:
+                failures.append("finglish_unverified")
+            if fin_report["open_issue_count"]:
+                failures.append("finglish_word_errors")
+            if fin_report["deterministic_count"]:
+                failures.append("finglish_format")
         if not lq["pass"]:
             failures.append("language_quality")
         if re.search(r"https?://|www\.", text) or has_meta_text(text):
@@ -723,6 +843,8 @@ else. Return only these beats, each under its marker line.
                 "per_beat": checks,
             },
         }
+        if fin_report is not None:
+            critique["finglish"] = fin_report
         try:
             plan = structure_without_text(json.loads(master.narrative_structure or "{}"))
         except (ValueError, TypeError):
@@ -739,6 +861,10 @@ else. Return only these beats, each under its marker line.
                 "blueprint_id": row.id, "source_version_id": master.id,
                 "beat_sections": True,
                 "evidence_fingerprint": row.evidence_fingerprint,
+                "speech_script": script,
+                **({"speech_sentences": fin_struct["speech"],
+                    "display_sentences": fin_struct["display"],
+                    "display_sections": display} if fin_struct else {}),
             },
         )
         return version

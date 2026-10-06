@@ -310,10 +310,10 @@ still work. If they open them, the visuals deepen understanding."
    attributed material.
 
 **One button**: the Documentary section of the app (`/documentary`)
-runs `POST /api/cases/{id}/documentary/jobs` — blueprint → audio plan →
-storyteller text per language → film-length check → visual needs →
-research → verification → visual plan → voice → production script →
-critique → render. Stages are resumable; a re-run reuses everything that
+runs `POST /api/cases/{id}/documentary/jobs` — (from zero: research →
+master story →) blueprint → audio plan → storyteller text per language →
+film-length check → visual needs → research → verification → visual plan
+→ voice performance → voice → production script → critique → render. Stages are resumable; a re-run reuses everything that
 exists (`refresh_visuals` re-plans pictures). `mode: "pilot"` renders the
 opening `pilot_seconds` of every language; `mode: "full"` renders the
 whole film and refuses stories outside 45–120 minutes
@@ -326,9 +326,99 @@ shaping, OpenCV). Fonts (SIL OFL) ship in `app/documentary/assets/fonts`.
 Maps use OpenStreetMap tiles and Nominatim by default (credited on
 screen, cached in `data/map_cache`); switch `maps.tile_url` /
 `maps.geocoder_url` to a commercial provider for heavy or published
-use. Persian narration uses ElevenLabs `eleven_v3` (no request
-stitching) and a larger Whisper model for the speech check
-(`asr_check.languages.fa`).
+use. All four narrators use ElevenLabs `eleven_v3` with `language_code`
+(v3 has no request stitching) and Persian uses a larger Whisper model for
+the speech check (`asr_check.languages.fa`).
+
+### Persian in Finglish
+
+Persian script leaves most short vowels unwritten («ملک» = molk
+"property", malek "king", melk "estate", malak "angel"), so a voice
+guesses — and sometimes says the wrong word. Persian narration is
+therefore written **directly in Finglish** (`spoken.speech_script.fa =
+"finglish"`): everyday spoken Tehrani Persian in Latin letters with every
+vowel written, the way the producer writes it (*khunevaade, khune, un,
+mige, nemidunest, khune ro*; long vowels aa / i / u; numbers as words).
+
+- The spoken writer tells the English script straight into Finglish — no
+  Persian-script step that could lose the vowels.
+- The **Finglish verifier** (`finglish_verifier`, a different model, part
+  of the strict `spoken_adaptation` review group) checks every word of
+  every sentence: a real spoken Persian word with exactly these vowels,
+  the meaning the sentence needs (compared with the English source),
+  spoken register, numbers as words, consistent names. It fixes words
+  (never rewrites sentences; `spoken.finglish_min_fix_similarity`),
+  re-checks every fix (`spoken.finglish_fix_rounds`) and returns the same
+  sentence in Persian script.
+- The Finglish text goes unchanged to the voice (`language_code: "fa"`);
+  the Persian script is used for subtitles, the speech-to-text check, the
+  meaning check and the native style critic. Gates: `finglish_word_errors`,
+  `finglish_unverified`, `finglish_format` (digits, Persian letters, all-
+  caps words).
+- The speech-to-text check normalizes Persian spelling on both sides
+  (ZWNJ, می/ها joined or apart, ezafe ی, آ/ا, Arabic letter forms, number
+  words vs digits), so only real speech errors remain.
+
+### Voice performance (ElevenLabs v3 audio tags)
+
+`POST /api/documentary/versions/{version_id}/voice-performance`
+(`{"beat_ids": [...]}` for a pilot; `GET` returns the latest) — the voice
+performance director (`voice_performance_director`) turns the spoken text
+into the narrator's performance:
+
+- **Arc** per beat (one call over the whole film): level 0 *neutral*
+  (nothing has happened yet), 1 *unease*, 2 *dark* (the crime is present,
+  lower and more deliberate), 3 *breath-taking* (slow, measured, close to
+  a whisper). Rules: everything before the first incident and the
+  opening beat stay neutral, tension rises in steps, recovery beats calm
+  down, at most one beat in five reaches a climax.
+- **Sentences** (chunks in parallel): a level per sentence and the text
+  for the voice — v3 audio tags from the palette of that level
+  (`voice_performance.level_tags`, e.g. `[pause]`, `[thoughtful]`,
+  `[softly]`, `[slowly]`, `[sighs]`, `[tense]`, `[whispers]`,
+  `[whispering, slowly]`) placed right before the 4–5 words they colour,
+  ellipses and dashes for timing, and (English only) one emphasised word
+  in capitals.
+- **Validator**: forbidden tags removed (laughter, crying, shouting,
+  sound effects, accents, excited/playful — this is a real crime), at most
+  `max_tags_per_sentence`, density per level (`max_tagged_share`: a
+  narrator who performs every line sounds fake), climaxes at most
+  `max_climax_share` of all sentences, no trailing tags, sentence type
+  kept, and the words themselves unchanged — otherwise the plain sentence
+  is used.
+- The directed performance script sends the tagged text to the voice,
+  picks the block's voice style from its level
+  (`voice_performance.level_styles`: speed 0.94 → 0.84), lengthens the
+  breath after tense paragraphs, and keeps the plain text for subtitles
+  and checks. Audio tags are never counted as words or speech time.
+- `GET /api/documentary/versions/{version_id}/speech` shows, sentence by
+  sentence, what the narrator reads and what people read.
+
+### Parallel work
+
+Two levels (limits in `config/ai_config.json` → `concurrency`):
+
+- **Inside one documentary**: the spoken versions of all languages and
+  the visual needs run together; then the visual chain (research →
+  verification → shot direction) runs next to each language's chain
+  (voice performance → voice), and every language continues to
+  production → critique → render as soon as the pictures are planned.
+  Image checks, critics, director chunks, Finglish checks and voice blocks
+  run in parallel too. A language that fails does not stop the others
+  (job status `partial`, resumable).
+- **Several documentaries at once**: `POST /api/documentary/batch`
+  (`{"items": [{"case_id": 3}, {"case_id": 7, "from_zero": true,
+  "target_minutes": 60}], "languages": [...], "mode": "pilot"}`) starts one
+  job per case; `concurrency.jobs` run at the same time, the rest wait in
+  `queued`. `from_zero` jobs first research the case with the search
+  engine and write the master story. `GET /api/documentary/scheduler`
+  shows what runs and how full every limit is.
+- Shared limits pace everything in the process: `llm`, `vision`,
+  `elevenlabs_tts` (the ElevenLabs plan allows 5 parallel requests; a
+  "too many concurrent requests" answer waits and retries),
+  `elevenlabs_sound`, `asr`, `render`. More API keys or a bigger plan →
+  raise the matching limit. SQLite runs in WAL mode so the UI keeps
+  reading while jobs write.
 
 ## Workflow پیشنهادی
 

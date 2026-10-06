@@ -436,6 +436,16 @@ class PipelineGen:
                 out.append({"beat_id": b["beat_id"], "attention": {"listen": 0.8},
                             "shots": shots or [{"command": "KEEP_CURRENT_IMAGE"}]})
             return {"beats": out}, self._res(role)
+        if role == "voice_performance_director":
+            if "INPUT:\n" not in user:
+                data = json.loads(user)
+                return {"incident_beat": "B02", "beats": [
+                    {"beat_id": b["beat_id"], "level": 1, "peak": 2}
+                    for b in data["beats"]]}, self._res(role)
+            data = json.loads(user.split("INPUT:\n", 1)[1])
+            return {"sentences": [
+                {"i": x["i"], "level": b["arc_level"], "tts": f"[softly] {x['text']}"}
+                for b in data["beats"] for x in b["sentences"]]}, self._res(role)
         if role == "overlay_localizer":
             data = json.loads(user)
             return {"texts": {k: f"{v} ({data['language']})" for k, v in data["texts"].items()}}, \
@@ -460,10 +470,12 @@ def documentary_env(tmp_path, monkeypatch):
     gen = PipelineGen()
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
-                "production.critics"):
+                "production.critics", "voice_performance", "finglish"):
         monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
+    tts = FakeTTS()
+    gen.tts = tts
     monkeypatch.setattr("app.documentary.production.audio.VoiceRenderer",
-                        lambda: VoiceRenderer(provider=FakeTTS(), asr=FakeASR()))
+                        lambda: VoiceRenderer(provider=tts, asr=FakeASR()))
     monkeypatch.setattr("app.documentary.production.audio.DocumentaryMixer",
                         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())))
 
@@ -525,6 +537,11 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         assert json.loads(ps.critique_json)["score"] == 80
     vp = db_session.query(VisualPlan).filter_by(case_id=case.id).one()
     assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en", "de"}
+    # the narrator's performance (v3 audio tags) reached the voice
+    assert stages["performance:en"]["detail"]["incident_beat"] == "B02"
+    assert stages["voice:en"]["detail"]["audio_tags"] is True
+    tagged = [r for r in documentary_env.tts.requests if "[softly]" in r.text]
+    assert tagged and all(r.model_id == "eleven_v3" for r in documentary_env.tts.requests)
     # a re-run resumes without new model calls
     roles_before = len(documentary_env.roles)
     job2 = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
@@ -533,6 +550,30 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
     new_roles = documentary_env.roles[roles_before:]
     assert set(new_roles) <= {"automation_feel_critic", "attention_critic",
                               "visual_accuracy_critic", "production_critic"}
+
+
+@needs_ffmpeg
+def test_a_failing_language_does_not_stop_the_others(db_session, documentary_env, monkeypatch):
+    from app.documentary import jobs as J
+
+    real = documentary_env.spoken.generate_text
+
+    async def flaky(role, system, user):
+        if role == "spoken_writer" and "German" in system:
+            raise RuntimeError("writer down for German")
+        return await real(role, system, user)
+
+    monkeypatch.setattr(documentary_env.spoken, "generate_text", flaky)
+    case, master = _story(db_session)
+    job = J.create_job(db_session, case, master, ["en", "de"], "pilot", 60.0, "preview")
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    job = db_session.get(DocumentaryJob, job.id)
+    stages = {s["name"]: s["status"] for s in json.loads(job.stages_json)}
+    assert job.status == "partial" and "writer down for German" in job.error
+    assert stages["spoken:de"] == "failed" and stages["render:de"] == "blocked"
+    assert stages["render:en"] == "done"
+    assert set(json.loads(job.result_json)["renders"]) == {"en"}
 
 
 def test_full_film_refuses_short_stories(db_session, documentary_env):

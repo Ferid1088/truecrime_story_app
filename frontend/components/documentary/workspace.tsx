@@ -13,11 +13,12 @@ import { TabBar, tabId, tabPanelId } from "@/components/ui/tabs";
 import { ErrorState } from "@/components/state";
 import { CaseStatusBadge } from "@/components/status-badge";
 import { useJobPoller } from "./hooks";
-import { InlineAlert, isJobActive, productionLanguages, stageLabel } from "./shared";
+import { InlineAlert, isJobActive, jobActivity, productionLanguages } from "./shared";
 import { RunTab } from "./tabs/run";
 import { BlueprintTab } from "./tabs/blueprint";
 import { LanguagesTab } from "./tabs/languages";
 import { VoiceTab } from "./tabs/voice";
+import { VoicePerformanceTab } from "./tabs/voice-performance";
 import { VisualLibraryTab } from "./tabs/visual-library";
 import { TimelineTab } from "./tabs/timeline";
 import { MusicTab } from "./tabs/music";
@@ -29,6 +30,7 @@ const TABS = [
   "Run",
   "Blueprint",
   "Language Versions",
+  "Voice Performance",
   "Voice",
   "Visual Library",
   "Timeline",
@@ -130,8 +132,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
           className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
         >
           <span className="size-2 animate-pulse rounded-full bg-amber-500" aria-hidden />
-          Job #{job.id} {job.status}
-          {job.stage && job.status === "running" && ` — ${stageLabel(job.stage)}`} · {Math.round(job.progress * 100)}%
+          Job #{job.id} · {Math.round(job.progress * 100)}% · {jobActivity(job)}
           <Button variant="link" size="sm" className="h-auto" onClick={() => setTab("Run")}>
             Show progress
           </Button>
@@ -168,6 +169,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         )}
         {tab === "Blueprint" && <BlueprintTab {...common} />}
         {tab === "Language Versions" && <LanguagesTab {...common} />}
+        {tab === "Voice Performance" && <VoicePerformanceTab {...languageProps} />}
         {tab === "Voice" && <VoiceTab {...languageProps} />}
         {tab === "Visual Library" && <VisualLibraryTab {...common} />}
         {tab === "Timeline" && <TimelineTab {...languageProps} />}

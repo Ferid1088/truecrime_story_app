@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleDashed, Loader2, SkipForward, X } from "lucide-react";
+import { Ban, Check, CircleDashed, Loader2, SkipForward, X } from "lucide-react";
 import type {
   DocumentaryJob,
   DocumentaryJobStatus,
@@ -51,7 +51,31 @@ export function finishedStages(job: DocumentaryJob): number {
   return job.stages.filter((s) => s.status === "done" || s.status === "skipped").length;
 }
 
+/** Stage names currently running — several at once, since stages run in parallel. */
+export function runningStages(job: DocumentaryJob): string[] {
+  return job.stages.filter((s) => s.status === "running").map((s) => s.name);
+}
+
+/** One line for what a job is doing right now. */
+export function jobActivity(job: DocumentaryJob): string {
+  if (job.status === "queued") return "Waiting for a free slot…";
+  if (job.status === "cancelling") return "Stopping after the running stages…";
+  const running = runningStages(job);
+  if (job.status === "running" && running.length) return `Now: ${running.map(stageLabel).join(" · ")}`;
+  return `${finishedStages(job)} of ${job.stages.length} stages finished`;
+}
+
+/** Progress bar colour by job status (running jobs keep the primary colour). */
+export function jobProgressTone(status: DocumentaryJobStatus): string | undefined {
+  if (status === "failed") return "bg-rose-500";
+  if (status === "partial") return "bg-amber-500";
+  if (status === "completed") return "bg-emerald-500";
+  return undefined;
+}
+
 const STAGE_LABELS: Record<string, string> = {
+  research: "Research",
+  master_story: "Master story",
   blueprint: "Editorial blueprint",
   audio_plan: "Audio plan",
   spoken: "Spoken version",
@@ -60,6 +84,7 @@ const STAGE_LABELS: Record<string, string> = {
   visual_research: "Visual research",
   visual_check: "Visual verification",
   visual_plan: "Visual plan",
+  performance: "Narrator performance",
   voice: "Narration & music mix",
   production: "Production script",
   critique: "Critique & fixes",
@@ -78,6 +103,7 @@ const JOB_STATUS: Record<DocumentaryJobStatus, { label: string; variant: Variant
   running: { label: "Running", variant: "warning" },
   cancelling: { label: "Cancelling", variant: "warning" },
   completed: { label: "Completed", variant: "success" },
+  partial: { label: "Partial", variant: "warning" },
   failed: { label: "Failed", variant: "danger" },
   cancelled: { label: "Cancelled", variant: "outline" },
 };
@@ -93,6 +119,7 @@ const STAGE_STATUS_TEXT: Record<DocumentaryStageStatus, string> = {
   done: "Done",
   skipped: "Skipped",
   failed: "Failed",
+  blocked: "Blocked — its language failed earlier",
 };
 
 export function StageIcon({ status }: { status: DocumentaryStageStatus }) {
@@ -105,6 +132,8 @@ export function StageIcon({ status }: { status: DocumentaryStageStatus }) {
       <X className="size-4 text-rose-500" aria-hidden />
     ) : status === "skipped" ? (
       <SkipForward className="size-4 text-muted-foreground" aria-hidden />
+    ) : status === "blocked" ? (
+      <Ban className="size-4 text-rose-400/80" aria-hidden />
     ) : (
       <CircleDashed className="size-4 text-muted-foreground" aria-hidden />
     );

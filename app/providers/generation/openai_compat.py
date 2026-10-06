@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 
 from app.core.ai_config import ai_config
+from app.core.concurrency import slot
 from app.providers.generation.base import (
     GenerationError,
     GenerationProvider,
@@ -237,11 +238,14 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             # falling back — they are not model-quality failures.
             for attempt in range(2):
                 try:
-                    if images:
-                        text, used, meta = await self._chat(
-                            model, system, user, gen, images)
-                    else:
-                        text, used, meta = await self._chat(model, system, user, gen)
+                    # Process-wide limit on parallel model calls (agents
+                    # run in parallel inside and across documentaries).
+                    async with slot("vision" if images else "llm"):
+                        if images:
+                            text, used, meta = await self._chat(
+                                model, system, user, gen, images)
+                        else:
+                            text, used, meta = await self._chat(model, system, user, gen)
                     fallback_used = model != attempted
                     if fallback_used:
                         log.warning(

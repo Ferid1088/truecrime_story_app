@@ -131,3 +131,12 @@ export function useSubtitleTrack(srtUrl: string | null): string | null {
 
   return track && track.src === srtUrl ? track.vtt : null;
 }
+
+/** Calls `refetch` every `intervalMs` while `active` (e.g. while jobs run). */
+export function usePolling(refetch: () => void, active: boolean, intervalMs: number) {
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(refetch, intervalMs);
+    return () => clearInterval(timer);
+  }, [refetch, active, intervalMs]);
+}

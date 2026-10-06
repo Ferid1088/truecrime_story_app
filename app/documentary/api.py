@@ -115,8 +115,17 @@ def documentary_settings():
         "languages": d.languages,
         "film_minutes": {"min": d.min_film_minutes, "max": d.max_film_minutes},
         "pilot_seconds": d.pilot_seconds,
-        "voices": {l: {"voice_id": v.voice_id, "model_id": v.model_id}
+        "voices": {l: {"voice_id": v.voice_id, "model_id": v.model_id,
+                       "language_code": v.language_code,
+                       "audio_tags": v.model_id in ai_config.voice.elevenlabs.audio_tag_models}
                    for l, v in ai_config.voice.languages.items()},
+        "speech_script": {l: ai_config.spoken.script_for(l) for l in d.languages},
+        "voice_performance": {
+            "enabled": ai_config.voice_performance.enabled,
+            "level_tags": ai_config.voice_performance.level_tags,
+            "level_styles": ai_config.voice_performance.level_styles,
+        },
+        "concurrency": ai_config.concurrency.model_dump(),
         "styles": {k: v.model_dump() for k, v in ai_config.voice.styles.items()},
         "render": ai_config.render.model_dump(),
         "rights_profiles": ai_config.rights.allowed_for_render,
@@ -169,8 +178,20 @@ def documentary_overview(case_id: int, version_id: int | None = None,
                 continue
             crit = _loads(v.critic_notes, {})
             ps = J.latest_production(db, v.id)
+            from app.documentary.voice_performance import latest_performance
+
+            vperf = latest_performance(db, v.id)
+            vstats = (_loads(vperf.performance_json, {}) or {}).get("stats") if vperf else None
             out["languages"][lang] = {
                 "version_id": v.id, "status": v.status,
+                "speech_script": (_loads(v.narrative_structure, {}) or {}).get(
+                    "speech_script") or "native",
+                "finglish": (crit.get("finglish") or None) and {
+                    k: crit["finglish"].get(k) for k in (
+                        "sentences", "fixed", "unverified", "open_issue_count",
+                        "deterministic_count")},
+                "voice_performance": {"id": vperf.id, "status": vperf.status,
+                                      "stats": vstats} if vperf else None,
                 "quality_gates": crit.get("quality_gates"),
                 "storyteller_beats": (crit.get("spoken") or {}).get("storyteller_beats"),
                 "beats": (crit.get("spoken") or {}).get("beats"),
@@ -187,30 +208,176 @@ class JobRequest(BaseModel):
     pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
     render_profile: Literal["preview", "publish"] = "preview"
     refresh_visuals: bool = False
+    # "From zero": research the case and write the master story first.
+    from_zero: bool = False
+    target_minutes: float | None = Field(default=None, ge=45, le=120)
 
 
-@router.post("/api/cases/{case_id}/documentary/jobs")
-async def start_documentary_job(case_id: int, payload: JobRequest,
-                                db: Session = Depends(get_db)):
-    case = _case(db, case_id)
-    langs = [l for l in payload.languages if l in ai_config.documentary.languages]
+def _check_languages(languages: list[str]) -> list[str]:
+    langs = [l for l in languages if l in ai_config.documentary.languages]
     if not langs:
         raise HTTPException(status_code=422, detail="No supported language selected.")
     for l in langs:
         if not (ai_config.voice.languages.get(l) and ai_config.voice.languages[l].voice_id):
             raise HTTPException(status_code=409, detail=f"No narrator voice configured for {l}.")
-    master = _pick_master(db, case_id, payload.master_version_id)
+    return langs
+
+
+def _start_job(db: Session, case: Case, payload: JobRequest, langs: list[str],
+               batch_id: str | None = None) -> DocumentaryJob:
+    master = None
+    if payload.master_version_id or not payload.from_zero:
+        try:
+            master = _pick_master(db, case.id, payload.master_version_id)
+        except HTTPException:
+            if not payload.from_zero:
+                raise
     running = db.query(DocumentaryJob).filter(
-        DocumentaryJob.case_id == case_id,
+        DocumentaryJob.case_id == case.id,
         DocumentaryJob.status.in_(("queued", "running", "cancelling"))).first()
     if running:
         raise HTTPException(status_code=409, detail=f"Job {running.id} is still running.")
     job = J.create_job(db, case, master, langs, payload.mode,
                        payload.pilot_seconds or (ai_config.documentary.pilot_seconds
                                                  if payload.mode == "pilot" else None),
-                       payload.render_profile, payload.refresh_visuals)
+                       payload.render_profile, payload.refresh_visuals,
+                       from_zero=payload.from_zero and master is None,
+                       target_minutes=payload.target_minutes, batch_id=batch_id)
     J.launch(job.id)
-    return J.job_dict(job)
+    return job
+
+
+@router.post("/api/cases/{case_id}/documentary/jobs")
+async def start_documentary_job(case_id: int, payload: JobRequest,
+                                db: Session = Depends(get_db)):
+    case = _case(db, case_id)
+    langs = _check_languages(payload.languages)
+    return J.job_dict(_start_job(db, case, payload, langs))
+
+
+class BatchItem(BaseModel):
+    case_id: int
+    master_version_id: int | None = None
+    from_zero: bool = False
+    target_minutes: float | None = Field(default=None, ge=45, le=120)
+
+
+class BatchRequest(BaseModel):
+    items: list[BatchItem] = Field(min_length=1, max_length=50)
+    languages: list[str] = Field(default_factory=lambda: list(ai_config.documentary.languages))
+    mode: Literal["pilot", "full"] = "pilot"
+    pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
+    render_profile: Literal["preview", "publish"] = "preview"
+    refresh_visuals: bool = False
+
+
+@router.post("/api/documentary/batch")
+def start_documentary_batch(payload: BatchRequest, db: Session = Depends(get_db)):
+    """Several documentaries at once: one job per case, run in parallel up
+    to concurrency.jobs (the rest wait in "queued")."""
+    langs = _check_languages(payload.languages)
+    batch_id = J.new_batch_id()
+    started, rejected = [], []
+    for item in payload.items:
+        case = db.get(Case, item.case_id)
+        if not case:
+            rejected.append({"case_id": item.case_id, "reason": "case not found"})
+            continue
+        req = JobRequest(master_version_id=item.master_version_id, languages=langs,
+                         mode=payload.mode, pilot_seconds=payload.pilot_seconds,
+                         render_profile=payload.render_profile,
+                         refresh_visuals=payload.refresh_visuals,
+                         from_zero=item.from_zero, target_minutes=item.target_minutes)
+        try:
+            started.append(J.job_dict(_start_job(db, case, req, langs, batch_id)))
+        except HTTPException as e:
+            rejected.append({"case_id": item.case_id, "reason": str(e.detail)})
+    if not started:
+        raise HTTPException(status_code=409, detail={"message": "No job could start.",
+                                                     "rejected": rejected})
+    return {"batch_id": batch_id, "jobs": started, "rejected": rejected,
+            "max_parallel_jobs": ai_config.concurrency.jobs}
+
+
+@router.get("/api/documentary/batches/{batch_id}")
+def get_documentary_batch(batch_id: str, db: Session = Depends(get_db)):
+    rows = (db.query(DocumentaryJob).filter(DocumentaryJob.batch_id == batch_id)
+            .order_by(DocumentaryJob.id).all())
+    if not rows:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    jobs = [J.job_dict(j) for j in rows]
+    return {"batch_id": batch_id, "jobs": jobs,
+            "progress": round(sum(j["progress"] for j in jobs) / len(jobs), 3),
+            "statuses": {s: sum(1 for j in jobs if j["status"] == s)
+                         for s in {j["status"] for j in jobs}}}
+
+
+@router.get("/api/documentary/jobs")
+def list_all_documentary_jobs(status: str | None = None, limit: int = 50,
+                              db: Session = Depends(get_db)):
+    q = db.query(DocumentaryJob)
+    if status:
+        q = q.filter(DocumentaryJob.status == status)
+    rows = q.order_by(DocumentaryJob.id.desc()).limit(min(max(limit, 1), 200)).all()
+    titles = {c.id: c.canonical_title for c in db.query(Case).filter(
+        Case.id.in_({j.case_id for j in rows})).all()} if rows else {}
+    return [{**J.job_dict(j), "case_title": titles.get(j.case_id)} for j in rows]
+
+
+@router.get("/api/documentary/scheduler")
+async def documentary_scheduler(db: Session = Depends(get_db)):
+    return J.scheduler_status(db)
+
+
+# ---------------------------------------------------------------------------
+# voice performance (narrator arc + audio tags) and Persian display text
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/documentary/versions/{version_id}/voice-performance")
+def get_voice_performance(version_id: int, db: Session = Depends(get_db)):
+    from app.documentary.voice_performance import latest_performance, performance_dict
+
+    row = latest_performance(db, version_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="No voice performance yet.")
+    return performance_dict(row)
+
+
+class PerformanceRequest(BaseModel):
+    beat_ids: list[str] | None = None
+
+
+@router.post("/api/documentary/versions/{version_id}/voice-performance")
+async def create_voice_performance(version_id: int, payload: PerformanceRequest,
+                                   db: Session = Depends(get_db)):
+    from app.documentary.spoken import spoken_blueprint
+    from app.documentary.voice_performance import VoicePerformanceDirector, performance_dict
+
+    v = db.get(StoryVersion, version_id)
+    if not v or v.kind != "spoken":
+        raise HTTPException(status_code=404, detail="Spoken version not found")
+    bp = spoken_blueprint(db, v)
+    if not bp:
+        raise HTTPException(status_code=409, detail="This version has no usable blueprint.")
+    row = await VoicePerformanceDirector().create(db, db.get(Case, v.case_id), v, bp,
+                                                  payload.beat_ids)
+    return performance_dict(row)
+
+
+@router.get("/api/documentary/versions/{version_id}/speech")
+def get_speech_structure(version_id: int, db: Session = Depends(get_db)):
+    """Sentence by sentence: what the narrator reads (Finglish for
+    Persian) and what people read (Persian script)."""
+    from app.documentary.voice_performance import speech_script, speech_structure
+
+    v = db.get(StoryVersion, version_id)
+    if not v:
+        raise HTTPException(status_code=404, detail="Version not found")
+    crit = _loads(v.critic_notes, {})
+    return {"version_id": v.id, "language": v.language, "script": speech_script(v),
+            "finglish_check": crit.get("finglish"),
+            "beats": speech_structure(v)}
 
 
 @router.get("/api/cases/{case_id}/documentary/jobs")
@@ -245,11 +412,12 @@ def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
     job = db.get(DocumentaryJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.status not in ("failed", "cancelled"):
-        raise HTTPException(status_code=409, detail="Only failed or cancelled jobs resume.")
+    if job.status not in ("failed", "cancelled", "partial"):
+        raise HTTPException(status_code=409,
+                            detail="Only failed, partial or cancelled jobs resume.")
     stages = json.loads(job.stages_json)
     for s in stages:
-        if s["status"] in ("failed", "running"):
+        if s["status"] in ("failed", "running", "blocked"):
             s["status"] = "pending"
     job.stages_json = json.dumps(stages)
     job.status = "queued"

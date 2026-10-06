@@ -28,6 +28,9 @@ class VoiceRequest:
     next_text: str = ""
     seed: int | None = None
     language: str | None = None
+    # Sent as language_code to models that support it (config:
+    # voice.elevenlabs.language_code_models) — e.g. Finglish read as Persian.
+    language_code: str | None = None
 
 
 @dataclass

@@ -125,7 +125,7 @@ def test_read_aloud_metrics():
 
 @pytest.mark.parametrize("lang, needle", [
     ("en", "Here's the thing"), ("de", "Die Polizei ermittelte lange"),
-    ("fa", "پلیس مدت‌ها"), ("ar", "حقّقت الشرطة طويلًا"),
+    ("fa", "Polis moddathaa ruye in maajaraa"), ("ar", "حقّقت الشرطة طويلًا"),
 ])
 def test_writer_prompt_is_native_per_language(lang, needle):
     prompt = SP.writer_system_prompt(lang)
@@ -135,6 +135,13 @@ def test_writer_prompt_is_native_per_language(lang, needle):
     assert f"{limit} words" in prompt
     assert "if_mentioned_keep_uncertain" in prompt
     assert ("never as a translation" in prompt) == (lang != "en")
+
+
+def test_persian_script_prompt_still_available():
+    prompt = SP.writer_system_prompt("fa", script="native")
+    assert "پلیس مدت‌ها" in prompt and "FINGLISH" not in prompt
+    fin = SP.writer_system_prompt("fa")
+    assert "FINGLISH" in fin and "khunevaade" in fin and "molk" in fin
 
 
 def test_beat_sections_follow_the_blueprint():

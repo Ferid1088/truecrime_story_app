@@ -86,12 +86,95 @@ def _subtitles(words: list[dict], language: str) -> list[dict]:
     return out
 
 
+def _chunks(text: str, max_chars: int) -> list[str]:
+    """Split a sentence into subtitle lines of at most ~max_chars,
+    preferring breaks after commas, never inside a word."""
+    words = text.split()
+    out, cur = [], []
+    for w in words:
+        if cur and len(" ".join(cur + [w])) > max_chars:
+            # step back to a comma inside the current line if there is one
+            cut = max((k for k, x in enumerate(cur[:-1]) if x[-1:] in ",،;:"), default=None)
+            if cut is not None and cut >= len(cur) // 2:
+                out.append(" ".join(cur[:cut + 1]))
+                cur = cur[cut + 1:]
+            else:
+                out.append(" ".join(cur))
+                cur = []
+        cur.append(w)
+    if cur:
+        out.append(" ".join(cur))
+    # no orphan word at the end
+    if len(out) > 1 and len(out[-1].split()) == 1:
+        out[-2] = out[-2] + " " + out.pop()
+    return out
+
+
+def sentence_subtitles(sentences: list[dict], words: list[dict]) -> list[dict]:
+    """Subtitles from the narration's sentences: the DISPLAY text (no
+    audio tags, no emphasis capitals; Persian script for Finglish
+    narration), timed by the sentence and — where the spoken words line
+    up — by the words inside it."""
+    cfg = ai_config.render
+    out = []
+    for sn in sentences:
+        text = " ".join((sn.get("display") or sn.get("speech") or "").split())
+        if not text:
+            continue
+        start, end = float(sn["start"]), float(sn["end"])
+        lines = _chunks(text, cfg.subtitle_max_chars * 2)
+        inside = [w for w in words if start - 0.05 <= w["start"] <= end + 0.05]
+        same = (len(inside) == len(text.split())
+                and (sn.get("display") or "") == (sn.get("speech") or ""))
+        pos = 0
+        total_chars = max(sum(len(x) for x in lines), 1)
+        acc = 0
+        for line in lines:
+            n = len(line.split())
+            if same:
+                a, b = inside[pos]["start"], inside[pos + n - 1]["end"]
+            else:
+                a = start + (end - start) * acc / total_chars
+                b = start + (end - start) * (acc + len(line)) / total_chars
+            out.append({"start": round(a, 3), "end": round(max(b, a + 0.4), 3), "text": line})
+            pos += n
+            acc += len(line)
+    # never overlap
+    for x, y in zip(out, out[1:]):
+        if x["end"] > y["start"]:
+            x["end"] = round(max(x["start"] + 0.2, y["start"] - 0.02), 3)
+    return out
+
+
+def display_words(manifest: dict) -> list[dict]:
+    """Timed words in the script people read: the alignment words, or —
+    when the narration is read from another script (Finglish) — the
+    display sentences' words spread over each sentence."""
+    tl = manifest.get("timeline") or {}
+    sentences = tl.get("sentences") or []
+    if not sentences or all((sn.get("display") or "") == (sn.get("speech") or "")
+                            for sn in sentences):
+        return tl.get("words") or []
+    out = []
+    for sn in sentences:
+        ws = (sn.get("display") or sn.get("speech") or "").split()
+        if not ws:
+            continue
+        step = (sn["end"] - sn["start"]) / len(ws)
+        for k, w in enumerate(ws):
+            out.append({"word": w, "start": round(sn["start"] + k * step, 3),
+                        "end": round(sn["start"] + (k + 1) * step, 3)})
+    return out
+
+
 _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
-def _spoken_at(words: list[dict], text_en: str, start: float, end: float) -> float | None:
+def _spoken_at(words: list[dict], text_en: str, start: float, end: float,
+               sentences: list[dict] | None = None) -> float | None:
     """When the narration says the year of a date (any language), so the
-    date appears exactly then."""
+    date appears exactly then. Narration that says years as words
+    (Finglish) is matched through the sentence's display text."""
     import re
 
     years = re.findall(r"\b(1[89]\d\d|20\d\d)\b", text_en or "")
@@ -100,6 +183,12 @@ def _spoken_at(words: list[dict], text_en: str, start: float, end: float) -> flo
     for w in words:
         if start - 0.5 <= w["start"] <= end and years[0] in w["word"].translate(_DIGITS):
             return w["start"]
+    for sn in sentences or []:
+        disp = (sn.get("display") or "").translate(_DIGITS)
+        if start - 0.5 <= sn["start"] <= end and years[0] in disp:
+            # proportional position of the year inside the sentence
+            k = disp.find(years[0]) / max(len(disp), 1)
+            return round(sn["start"] + (sn["end"] - sn["start"]) * k, 3)
     return None
 
 
@@ -136,7 +225,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             cmd = s["command"]
             text_key = f"{s.get('overlay', {}).get('kind', 'x')}|{s.get('overlay', {}).get('text_en', '')}"
             if cmd == "SHOW_DATE":
-                said = _spoken_at(words, s.get("overlay", {}).get("text_en"), w_start, w_end)
+                said = _spoken_at(words, s.get("overlay", {}).get("text_en"), w_start, w_end,
+                                  manifest["timeline"].get("sentences"))
                 at = said - 0.2 if said is not None else start + 0.4
                 add_overlay("date", texts.get(text_key), at, at + 4.6)
             if cmd in ("KEEP_CURRENT_IMAGE", "NO_VISUAL_CHANGE", "SHOW_DATE") and shots:
@@ -262,7 +352,10 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         "overlays": sorted(overlays, key=lambda o: o["start"]),
         "music": [{k: p.get(k) for k in ("role", "cue_id", "mood", "start", "duration", "level_db")}
                   for p in (manifest.get("mix") or {}).get("placements", [])],
-        "subtitles": _subtitles(manifest["timeline"].get("words") or [], language),
+        "subtitles": (sentence_subtitles(manifest["timeline"]["sentences"],
+                                         manifest["timeline"].get("words") or [])
+                      if manifest["timeline"].get("sentences")
+                      else _subtitles(manifest["timeline"].get("words") or [], language)),
         "credits": sorted(credits),
     }
 

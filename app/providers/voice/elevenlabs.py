@@ -19,6 +19,7 @@ import os
 import httpx
 
 from app.core.ai_config import ai_config
+from app.core.concurrency import slot
 from app.providers.voice.base import (
     VoiceProvider,
     VoiceProviderError,
@@ -52,6 +53,8 @@ class ElevenLabsVoiceProvider(VoiceProvider):
             body["next_text"] = req.next_text
         if req.seed is not None:
             body["seed"] = int(req.seed)
+        if req.language_code and req.model_id in self.cfg.language_code_models:
+            body["language_code"] = req.language_code
         return body
 
     async def _post(self, url: str, body: dict) -> tuple[int, dict, dict]:
@@ -98,9 +101,13 @@ class ElevenLabsVoiceProvider(VoiceProvider):
         )
         body = self._body(req)
         last: VoiceProviderError | None = None
-        for attempt in range(self.cfg.max_retries + 1):
+        # Too many parallel requests (429 concurrent_limit_exceeded) is a
+        # queueing problem, not an error: wait and retry more often.
+        attempts = self.cfg.max_retries + 1 + 4
+        for attempt in range(attempts):
             try:
-                status, data, headers = await self._post(url, body)
+                async with slot("elevenlabs_tts"):
+                    status, data, headers = await self._post(url, body)
             except httpx.TimeoutException as e:
                 last = VoiceProviderError("timeout", f"ElevenLabs timeout: {e}")
             except httpx.HTTPError as e:
@@ -109,9 +116,11 @@ class ElevenLabsVoiceProvider(VoiceProvider):
                 if status == 200:
                     return self._parse(req, data, headers)
                 last = self._error(status, data)
-            if last.kind not in _RETRYABLE or attempt == self.cfg.max_retries:
+            busy = last.kind == "rate_limited" and "concurren" in str(last).lower()
+            limit = attempts - 1 if busy else self.cfg.max_retries
+            if last.kind not in _RETRYABLE or attempt >= limit:
                 break
-            await asyncio.sleep(min(2 ** attempt, 8))
+            await asyncio.sleep(min(2 ** attempt, 8) * (1.5 if busy else 1))
         raise last  # type: ignore[misc]
 
     def _parse(self, req: VoiceRequest, data: dict, headers: dict) -> VoiceRenderResult:
@@ -183,7 +192,8 @@ class ElevenLabsSoundProvider:
         last: VoiceProviderError | None = None
         for attempt in range(self.cfg.max_retries + 1):
             try:
-                status, content, headers = await self._post(url, body)
+                async with slot("elevenlabs_sound"):
+                    status, content, headers = await self._post(url, body)
             except httpx.TimeoutException as e:
                 last = VoiceProviderError("timeout", f"ElevenLabs timeout: {e}")
             except httpx.HTTPError as e:

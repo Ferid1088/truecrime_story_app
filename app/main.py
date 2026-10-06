@@ -234,6 +234,32 @@ def _ensure_columns():
             }.items():
                 if col not in rj_cols:
                     conn.execute(text(ddl))
+        if "documentary_jobs" in inspect(conn).get_table_names():
+            dj = {c["name"]: c for c in inspect(conn).get_columns("documentary_jobs")}
+            for col, ddl in {
+                "refresh_visuals": "ALTER TABLE documentary_jobs ADD COLUMN refresh_visuals BOOLEAN DEFAULT 0",
+                "from_zero": "ALTER TABLE documentary_jobs ADD COLUMN from_zero BOOLEAN DEFAULT 0",
+                "target_minutes": "ALTER TABLE documentary_jobs ADD COLUMN target_minutes FLOAT",
+                "batch_id": "ALTER TABLE documentary_jobs ADD COLUMN batch_id VARCHAR(40)",
+            }.items():
+                if col not in dj:
+                    conn.execute(text(ddl))
+            if dj.get("master_version_id", {}).get("nullable") is False:
+                # "from zero" jobs have no master yet: relax NOT NULL by
+                # rebuilding the table once (SQLite cannot alter it).
+                cols = ", ".join(f'"{c}"' for c in
+                                 [c["name"] for c in inspect(conn).get_columns("documentary_jobs")])
+                conn.execute(text("ALTER TABLE documentary_jobs RENAME TO documentary_jobs_old"))
+                for (idx,) in conn.execute(text(
+                        "SELECT name FROM sqlite_master WHERE type='index' AND "
+                        "tbl_name='documentary_jobs_old' AND name NOT LIKE 'sqlite_%'")).all():
+                    conn.execute(text(f'DROP INDEX "{idx}"'))
+                conn.commit()
+                from app.db.models import DocumentaryJob
+                DocumentaryJob.__table__.create(conn)
+                conn.execute(text(
+                    f"INSERT INTO documentary_jobs ({cols}) SELECT {cols} FROM documentary_jobs_old"))
+                conn.execute(text("DROP TABLE documentary_jobs_old"))
         conn.commit()
 
 

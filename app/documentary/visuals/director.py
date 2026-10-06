@@ -467,12 +467,16 @@ class VisualDirector:
                     marks[bs["id"]] = sentence_marks(bs["text"])
             except (KeyError, IndexError, TypeError):
                 marks = {}
-        raw_beats, model = [], None
-        for i in range(0, len(beats), chunk):
+        async def direct(i: int):
             part = beats[i:i + chunk]
+            prev = beats[i - 1] if i else None
             payload = {
                 "case": case.canonical_title,
-                "previous_beat": raw_beats[-1] if raw_beats else None,
+                # chunks run in parallel: continuity comes from the story
+                # (the beat before), repetition is handled by the validator
+                "previous_beat": ({"beat_id": prev["id"], "summary": prev.get("summary"),
+                                   "visual_intent": prev.get("visual_intent")}
+                                  if prev else None),
                 "beats": [_beat_view(b, reqs.get(b["id"], {}), cands.get(b["id"], []),
                                      after.get(b["id"]), marks.get(b["id"])) for b in part],
             }
@@ -481,7 +485,14 @@ class VisualDirector:
                 raw, res = await self.gen.generate_structured(
                     "visual_director", DIRECTOR_SYSTEM, json.dumps(payload, ensure_ascii=False))
                 stamp_run(run, res, "visual_director")
-            model = getattr(res, "model", None)
+            return raw, getattr(res, "model", None)
+
+        from app.core.concurrency import gather_limited
+
+        results = await gather_limited(None, [direct(i) for i in range(0, len(beats), chunk)])
+        raw_beats, model = [], None
+        for raw, m in results:
+            model = m or model
             raw_beats += [b for b in (raw or {}).get("beats") or [] if isinstance(b, dict)]
         assets_by_code = {a.asset_code: a for lst in cands.values() for _, a in lst}
         plan, report = validate_visual_plan(

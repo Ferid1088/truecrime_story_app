@@ -12,9 +12,14 @@ import type {
   ResearchProviderStatus,
   SearchEngineStatus,
   DiscoveryRequest,
+  DocumentaryBatch,
+  DocumentaryBatchRequest,
+  DocumentaryBatchStart,
   DocumentaryJob,
+  DocumentaryJobListItem,
   DocumentaryJobRequest,
   DocumentaryOverview,
+  DocumentaryScheduler,
   DocumentarySettings,
   Fact,
   JobStartResponse,
@@ -31,6 +36,7 @@ import type {
   SettingsStatus,
   Source,
   SourceChunk,
+  SpeechStructure,
   StoryFull,
   StoryMeta,
   CaseStatus,
@@ -41,6 +47,7 @@ import type {
   VisualUpdate,
   VisualUpload,
   VoiceManifest,
+  VoicePerformance,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -282,6 +289,13 @@ export const api = {
   startDocumentaryJob: (caseId: number, payload: DocumentaryJobRequest) =>
     post<DocumentaryJob>(`/api/cases/${caseId}/documentary/jobs`, payload),
   documentaryJob: (jobId: number) => request<DocumentaryJob>(`/api/documentary/jobs/${jobId}`),
+  listDocumentaryJobs: (limit = 20) =>
+    request<DocumentaryJobListItem[]>(`/api/documentary/jobs?limit=${limit}`),
+  startDocumentaryBatch: (payload: DocumentaryBatchRequest) =>
+    post<DocumentaryBatchStart>("/api/documentary/batch", payload),
+  documentaryBatch: (batchId: string) =>
+    request<DocumentaryBatch>(`/api/documentary/batches/${encodeURIComponent(batchId)}`),
+  documentaryScheduler: () => request<DocumentaryScheduler>("/api/documentary/scheduler"),
   cancelDocumentaryJob: (jobId: number) =>
     post<DocumentaryJob>(`/api/documentary/jobs/${jobId}/cancel`),
   resumeDocumentaryJob: (jobId: number) =>
@@ -294,6 +308,18 @@ export const api = {
   musicLibrary: () => request<MusicCue[]>("/api/documentary/music"),
   storyVoice: (caseId: number, versionId: number) =>
     request<VoiceManifest>(`/api/cases/${caseId}/stories/${versionId}/voice`),
+  voicePerformance: (versionId: number) =>
+    request<VoicePerformance>(`/api/documentary/versions/${versionId}/voice-performance`),
+  // Directs every requested sentence with the model (a whole film is many
+  // calls): no client timeout, like story generation.
+  directVoicePerformance: (versionId: number, beatIds: string[] | null) =>
+    request<VoicePerformance>(`/api/documentary/versions/${versionId}/voice-performance`, {
+      method: "POST",
+      body: JSON.stringify({ beat_ids: beatIds }),
+      timeoutMs: 0,
+    }),
+  speechStructure: (versionId: number) =>
+    request<SpeechStructure>(`/api/documentary/versions/${versionId}/speech`),
 
   listVisuals: (caseId: number, filters: VisualFilters = {}) => {
     const qs = new URLSearchParams();

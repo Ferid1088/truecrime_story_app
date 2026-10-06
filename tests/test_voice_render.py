@@ -6,6 +6,7 @@ No network: the TTS provider and the ASR are fakes. Real FFmpeg runs
 import asyncio
 import base64
 import json
+import re
 import shutil
 import subprocess
 import uuid
@@ -78,7 +79,8 @@ class FakeASR:
         wav = Path(audio_path)
         key = wav.stem.split("__")[-1]  # takes may be reused across block ids
         meta = json.loads(next(wav.parent.glob(f"*__{key}.json")).read_text())
-        words = meta["text"].split()
+        # audio tags ("[whispers]") are performed, never spoken
+        words = re.sub(r"\[[^\[\]]*\]", " ", meta["text"]).split()
         if meta["seed"] in self.drop_for_seeds:
             words = words[:3] + words[8:]  # five words skipped
         return {"text": " ".join(words), "words": []}
