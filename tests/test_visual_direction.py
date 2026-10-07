@@ -906,3 +906,38 @@ def test_link_music_usage_only_touches_that_film_and_language(db_session):
     db_session.expire_all()
     assert [r.production_script_id for r in rows] == [555, None, None]
 
+
+
+def test_a_map_held_back_from_the_opening_returns_when_allowed():
+    """J: the opening (not about the place) cannot start on the map; the
+    map of the opening's place comes back in the next beat after
+    first_map_not_before_seconds — at the sentence naming the place."""
+    from app.documentary.visuals.director import sentence_marks, validate_visual_plan
+
+    bp = {"beats": [
+        {"id": "B01", "purpose": "hook", "words": 80, "act": "act1"},
+        {"id": "B02", "purpose": "orientation", "words": 120, "act": "act1"},
+    ]}
+    v1, v2 = _asset("VIS_000001", entity_type="person"), _asset("VIS_000002")
+    marks = {"B01": sentence_marks("At dawn a call reached the dispatcher in Tipp City. "
+                                   "A woman had been shot."),
+             "B02": sentence_marks("The house stood on a quiet street. "
+                                   "Tipp City is a small town north of Dayton.")}
+    reqs = _reqs(B01={"map_place": "Tipp City, Ohio"})
+    raw = {"beats": [
+        {"beat_id": "B01", "shots": [{"command": "SHOW_MAP", "from_sentence": 0},
+                                     {"command": "NEW_IMAGE", "asset_id": "VIS_000001",
+                                      "from_sentence": 1}]},
+        {"beat_id": "B02", "shots": [{"command": "NEW_IMAGE", "asset_id": "VIS_000002",
+                                      "from_sentence": 0}]},
+    ]}
+    plan, rep = validate_visual_plan(raw, bp, reqs, {"B01": ["VIS_000001"], "B02": ["VIS_000002"]},
+                                     {"VIS_000001": v1, "VIS_000002": v2}, marks,
+                                     opening={"strategy": "emergency_call"})
+    b = {x["beat_id"]: x for x in plan["beats"]}
+    assert all(s["command"] != "SHOW_MAP" for s in b["B01"]["shots"])
+    b2 = b["B02"]["shots"]
+    assert [s["command"] for s in b2] == ["NEW_IMAGE", "SHOW_MAP"]
+    assert b2[1]["map_place"] == "Tipp City, Ohio" and b2[1]["from_sentence"] == 1
+    assert abs(sum(s["share"] for s in b2) - 1.0) < 1e-3
+    assert {"beat": "B02", "deferred_map": "Tipp City, Ohio"} in rep["adjustments"]

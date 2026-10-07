@@ -486,6 +486,9 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
     shown_picture = False
     last_asset = None
     mapped: set[str] = set()
+    # maps the opening could not show (too early / before any picture):
+    # they return at the first beat where geography may be shown
+    deferred: dict[str, str] = {}
     used: Counter = Counter()
     starts = beat_starts(blueprint)
     openers = opening_beats(blueprint)
@@ -620,6 +623,17 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
                 adjustments.append({"beat": bid, "merged_short_shot": shots[i]["command"],
                                     "kept": shots[j].get("asset_id") or shots[j]["command"]})
                 shots.pop(i)
+        # a map the opening could not show comes back here — at the
+        # sentence naming the place, else at this beat's start
+        if (deferred and not map_first_ok and shown_picture
+                and beat_start >= vd.first_map_not_before_seconds):
+            for key, place in list(deferred.items()):
+                deferred.pop(key)
+                if key in mapped or any(x["command"] == "SHOW_MAP" and
+                                        place_key(x.get("map_place")) == key for x in shots):
+                    continue
+                shots = _insert_deferred_map(shots, place, bmarks, secs, motion.min_hold_seconds)
+                adjustments.append({"beat": bid, "deferred_map": place})
         # maps by geography: never in the film's first seconds or as its
         # first picture (unless the opening is about the place), each
         # place once per film
@@ -644,6 +658,8 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
                 seen_picture = True
                 continue
             warnings.append({"code": reason, "beat": bid, "place": s["map_place"]})
+            if reason in ("map_too_early", "map_as_first_picture"):
+                deferred.setdefault(key, s["map_place"])
             k = shots.index(s)
             if len(shots) > 1:
                 shots[k - 1 if k > 0 else 1]["share"] += s["share"]
@@ -679,6 +695,40 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
               "search_requests": len(search_requests),
               "opening_strategy": strategy}
     return {"beats": out_beats, "search_requests": search_requests}, report
+
+
+def _insert_deferred_map(shots: list[dict], place: str, bmarks: list[dict], secs: float,
+                         min_hold: float) -> list[dict]:
+    """Put a map of `place` into a beat: from the first sentence that
+    names the place (else the beat's start), taking the second part of
+    the shot running there. Shares stay normalized; nothing becomes
+    shorter than min_hold."""
+    from app.lifecycle.identity import fold
+
+    words = [w for w in fold(place.split(",")[0]).split() if len(w) >= 3]
+    n = next((m["n"] for m in bmarks if words and all(w in fold(m["text"]) for w in words)), None)
+    map_shot = {"command": "SHOW_MAP", "map_place": place,
+                "why": f"where this happens: {place} (held back from the opening)"}
+    if not shots:
+        return [{**map_shot, "share": 1.0, "from_sentence": n or 0}]
+    # the shot that is on screen at sentence n (or the first shot)
+    idx = 0
+    if n is not None:
+        for i, sh in enumerate(shots):
+            if (sh.get("from_sentence") or 0) <= n:
+                idx = i
+    host = shots[idx]
+    if host["share"] * secs < 2 * min_hold:
+        # too short to split: the map follows the host instead of it
+        if n is None or n <= (host.get("from_sentence") or 0):
+            return shots
+        shots[idx] = {**map_shot, "share": host["share"], "from_sentence": n}
+        return shots
+    half = round(host["share"] / 2, 4)
+    host["share"] = round(host["share"] - half, 4)
+    fs = n if n is not None and n > (host.get("from_sentence") or 0) else host.get("from_sentence")
+    shots.insert(idx + 1, {**map_shot, "share": half, "from_sentence": fs})
+    return shots
 
 
 # ---------------------------------------------------------------------------
