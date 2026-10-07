@@ -9,7 +9,7 @@ import { formatDateTime, langLabel } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/state";
-import { CaseStatusBadge } from "@/components/status-badge";
+import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BatchPanel } from "@/components/documentary/batch";
 import { usePolling } from "@/components/documentary/hooks";
@@ -32,6 +32,10 @@ export default function DocumentaryPage() {
   const activeSignature = active.map((j) => `${j.id}:${j.status}`).join(",");
 
   const titles = useMemo(() => new Map((cases.data ?? []).map((c) => [c.id, c.title])), [cases.data]);
+  const resolutions = useMemo(
+    () => new Map((cases.data ?? []).map((c) => [c.id, c.resolution_status])),
+    [cases.data],
+  );
   const needle = q.trim().toLowerCase();
   const shown = (cases.data ?? []).filter((c) => !needle || c.title.toLowerCase().includes(needle));
   const fatal = cases.error ?? settings.error;
@@ -68,7 +72,7 @@ export default function DocumentaryPage() {
                 titles={titles}
                 configured={settings.data.concurrency}
               />
-              <RecentJobs refreshKey={`${tick}|${activeSignature}`} />
+              <RecentJobs refreshKey={`${tick}|${activeSignature}`} resolutions={resolutions} />
             </div>
           </div>
 
@@ -111,6 +115,7 @@ export default function DocumentaryPage() {
                         {c.title}
                       </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <ResolutionBadge status={c.resolution_status} />
                         <CaseStatusBadge status={c.status} />
                         <span className="text-xs text-muted-foreground">{langLabel(c.language)}</span>
                       </div>

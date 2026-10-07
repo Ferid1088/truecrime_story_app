@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
 import {
+  Archive,
   Clapperboard,
   Compass,
   Database,
@@ -28,6 +29,7 @@ const NAV = [
   { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/studio", label: "Story Studio", icon: PenLine },
   { href: "/documentary", label: "Documentary", icon: Clapperboard },
+  { href: "/archive", label: "Archive", icon: Archive },
   { href: "/database", label: "Database", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

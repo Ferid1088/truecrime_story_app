@@ -10,6 +10,24 @@ export type CaseStatus =
 
 export type RunStatus = "waiting" | "running" | "completed" | "failed";
 
+/**
+ * Whether the real-world case is solved — a first-class case attribute
+ * (app/lifecycle/status.py), separate from the workflow `status`.
+ */
+export type ResolutionStatus = "SOLVED" | "UNSOLVED" | "UNKNOWN" | "STATUS_UNDER_REVIEW";
+
+/** `resolution_dict` of app/lifecycle/api.py — carried by every case payload. */
+export interface ResolutionFields {
+  resolution_status: ResolutionStatus;
+  /** 0–1; null when nobody has judged it. */
+  resolution_confidence: number | null;
+  resolution_summary: string | null;
+  resolution_checked_at: string | null;
+}
+
+/** How a case entered the system. */
+export type CaseOrigin = "discovery" | "manual" | "follow_up";
+
 export interface DashboardStats {
   total_cases: number;
   cases_researched: number;
@@ -34,7 +52,7 @@ export interface GenerationUsage {
   estimated_cost_usd: number | null;
 }
 
-export interface CaseListItem {
+export interface CaseListItem extends ResolutionFields {
   id: number;
   title: string;
   status: CaseStatus;
@@ -50,11 +68,18 @@ export interface CaseListItem {
   generation_usage: GenerationUsage;
 }
 
-export interface CaseDetail {
+export interface CaseDetail extends ResolutionFields {
   id: number;
   title: string;
   slug: string;
   status: CaseStatus;
+  /** Identity of the real-world incident (duplicate detection). */
+  aliases: string[];
+  people: string[];
+  location: string | null;
+  incident_date: string | null;
+  latest_development_date: string | null;
+  origin: CaseOrigin | null;
   language: string;
   summary: string | null;
   created_at: string;
@@ -73,6 +98,9 @@ export interface DashboardResponse {
   stats: DashboardStats;
   recent_cases: CaseListItem[];
   agent_activity: AgentActivity[];
+  /** Previously covered UNSOLVED cases that are now SOLVED, waiting for a decision. */
+  follow_up_candidates: FollowUpCandidate[];
+  resolution_counts: Record<ResolutionStatus, number>;
 }
 
 export interface Source {
@@ -387,20 +415,84 @@ export interface AgentRun {
   text_hash: string | null;
 }
 
-export interface DiscoveryCandidate {
+/**
+ * suggested: shown to the user · accepted: became a case · ignored: the
+ * user said no · duplicate: the same real-world case exists already ·
+ * filtered: UNSOLVED while the run did not include unsolved cases.
+ */
+export type SuggestionState = "suggested" | "accepted" | "ignored" | "duplicate" | "filtered";
+
+/** `candidate_dict` of app/lifecycle/selection.py — one stored suggestion. */
+export interface SuggestionRecord {
+  id: number;
+  candidate_id: number;
+  title: string;
+  query: string;
+  rationale: string;
+  state: SuggestionState;
+  selected: boolean;
+  rejected: boolean;
+  case_id: number | null;
+  resolution_status: ResolutionStatus;
+  resolution_confidence: number | null;
+  /** The evidence for the status (verifier's latest development, or the claim). */
+  resolution_evidence: string | null;
+  incident_date: string | null;
+  latest_development_date: string | null;
+  location: string | null;
+  aliases: string[];
+  people: string[];
+  source_urls: string[];
+  recency_score: number | null;
+  rank_score: number | null;
+  /** Ranking, dates, status evidence and what it was checked against. */
+  suggestion_reason: string | null;
+  duplicate_of_case_id: number | null;
+  duplicate_of_candidate_id: number | null;
+  duplicate_reason: string | null;
+  created_at: string | null;
+}
+
+/** What the `case_status_verifier` read from targeted searches. */
+export interface StatusVerification {
+  status?: ResolutionStatus;
+  confidence?: number;
+  solved_by?: string | null;
+  latest_development?: string | null;
+  latest_development_date?: string | null;
+  incident_date?: string | null;
+  key_facts?: ({ fact?: string; url?: string } | string)[];
+  supporting_urls?: string[];
+  reason?: string | null;
+}
+
+/**
+ * A suggestion of a discovery run: the stored record plus what the
+ * discovery extraction said about it. The fallback agent (no search
+ * engine configured) returns only the legacy fields.
+ */
+export interface DiscoveryCandidate extends Partial<Omit<SuggestionRecord, "candidate_id" | "title" | "rationale">> {
   candidate_id: number;
   title: string;
   rationale: string;
-  narrative_potential: string;
-  languages_available: string[];
-  source_richness: string;
-  angles: string[];
+  narrative_potential?: string | null;
+  languages_available?: string[];
+  source_richness?: string | null;
+  angles?: string[];
   suggested_queries?: string[];
-  already_covered: boolean;
+  already_covered?: boolean;
   matched_existing_title?: string | null;
   key_people?: string[];
-  location?: string | null;
   approximate_date?: string | null;
+  verification?: StatusVerification | null;
+}
+
+export interface SelectionStats {
+  duplicates?: number;
+  filtered_unsolved?: number;
+  verified?: number;
+  status_searches?: number;
+  checked_against?: { cases?: number; suggestions?: number };
 }
 
 export interface DiscoveryRequest {
@@ -412,6 +504,307 @@ export interface DiscoveryRequest {
   search_web: boolean;
   search_youtube: boolean;
   avoid_existing: boolean;
+  /** The standard pipeline suggests SOLVED cases; true also suggests UNSOLVED ones. */
+  include_unsolved: boolean;
+}
+
+/** 409 detail when the duplicate checker matched an existing case. */
+export interface DuplicateConflict {
+  message: string;
+  duplicate: boolean;
+  matched_kind: "case" | "candidate" | "batch" | string | null;
+  matched_id: number | null;
+  matched_title: string | null;
+  matched_state: string | null;
+  score: number;
+  reasons: string[];
+  /** e.g. "same victim 'Inga Gehricke' + same place 'Stendal'". */
+  reason: string;
+}
+
+export interface CreateCasePayload {
+  canonical_title: string;
+  language?: string;
+  summary?: string;
+  resolution_status?: ResolutionStatus;
+  aliases?: string[];
+  people?: string[];
+  location?: string | null;
+  incident_date?: string | null;
+  /** Create even though the duplicate checker found the same case. */
+  force?: boolean;
+}
+
+export interface CreatedCase extends Partial<ResolutionFields> {
+  id: number;
+  canonical_title: string;
+  slug: string;
+  /** Investigate: the suggestion had already become this case. */
+  existing?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Case lifecycle — app/lifecycle (status history, monitor, films, follow-ups)
+// ---------------------------------------------------------------------------
+
+/** A source behind a status decision. */
+export interface StatusSource {
+  url: string;
+  title?: string | null;
+}
+
+/** Who changed a status. */
+export type StatusChanger = "discovery" | "verifier" | "monitor" | "research" | "user";
+
+export interface StatusHistoryEntry {
+  id: number;
+  case_id: number;
+  /** null for the very first status of a case. */
+  previous_status: ResolutionStatus | null;
+  new_status: ResolutionStatus;
+  confidence: number | null;
+  reason: string | null;
+  sources: StatusSource[];
+  changed_by: StatusChanger | string;
+  status_check_id: number | null;
+  created_at: string;
+}
+
+/** GET/PUT /api/cases/{id}/status */
+export interface CaseResolution extends ResolutionFields {
+  statuses: ResolutionStatus[];
+  history: StatusHistoryEntry[];
+}
+
+export interface SetStatusPayload {
+  status: ResolutionStatus;
+  reason: string;
+  sources?: string[];
+  summary?: string | null;
+}
+
+export interface MonitorSignal {
+  /** arrest, suspect_identified, conviction … */
+  signal: string;
+  term: string;
+  url: string | null;
+  title: string | null;
+  snippet: string;
+  published_at: string | null;
+}
+
+export type StatusCheckOutcome =
+  | "no_signal"
+  | "signal"
+  | "confirmed_change"
+  | "not_confirmed"
+  | "unchanged"
+  | "error";
+
+/** One monitor check of one case (`check_dict`). */
+export interface StatusCheck {
+  id: number;
+  case_id: number;
+  monitor_run_id: number | null;
+  /** fast: searches + signal words only · deep: pages fetched + the verifier. */
+  stage: "fast" | "deep";
+  outcome: StatusCheckOutcome | string;
+  previous_status: ResolutionStatus | null;
+  current_status: ResolutionStatus | null;
+  confidence: number | null;
+  queries: { query: string; language?: string; time_range?: string }[];
+  signals: MonitorSignal[];
+  sources: StatusSource[];
+  new_facts: ({ fact?: string; url?: string } | string)[];
+  reason: string | null;
+  search_calls: number;
+  fetch_calls: number;
+  llm_calls: number;
+  created_at: string;
+}
+
+export interface MonitorRun {
+  id: number;
+  trigger: "scheduled" | "manual" | string;
+  status: "running" | "completed" | "failed" | string;
+  started_at: string;
+  finished_at: string | null;
+  cases_checked: number;
+  deep_checks: number;
+  status_changes: number;
+  follow_ups_created: number;
+  search_calls: number;
+  fetch_calls: number;
+  llm_calls: number;
+  error: string | null;
+}
+
+/** GET /api/monitor */
+export interface MonitorStatus {
+  enabled: boolean;
+  running_in_process: boolean;
+  interval_hours: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  /** UNSOLVED / STATUS_UNDER_REVIEW cases the monitor checks. */
+  watched_cases: number;
+  runs: MonitorRun[];
+}
+
+export type ProductionType = "original" | "follow_up";
+export type FilmState = "rendered" | "published" | "archived";
+
+/** `video_dict` of app/lifecycle/videos.py — one film in one language. */
+export interface Film {
+  id: number;
+  case_id: number;
+  production_script_id: number | null;
+  job_id: number | null;
+  language: string;
+  mode: DocumentaryMode;
+  production_type: ProductionType;
+  /** Follow-ups: the earlier video this one updates. */
+  original_video_id: number | null;
+  episode_number: number | null;
+  title: string | null;
+  youtube_title: string | null;
+  youtube_description: string | null;
+  youtube_tags: string[];
+  status_at_production: ResolutionStatus;
+  status_at_publication: ResolutionStatus | null;
+  opening_strategy: string | null;
+  duration_seconds: number | null;
+  state: FilmState;
+  published_at: string | null;
+  youtube_url: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  /** Relative API path — prefix with API_BASE. */
+  video_url: string | null;
+}
+
+/** GET /api/films */
+export interface FilmListItem extends Film {
+  case_title: string;
+  case_status: ResolutionStatus;
+}
+
+export interface PublishFilmPayload {
+  episode_number?: number | null;
+  youtube_url?: string | null;
+  published_at?: string | null;
+}
+
+export interface ArchiveCase extends ResolutionFields {
+  id: number;
+  title: string;
+  status: CaseStatus;
+  location: string | null;
+  films: Film[];
+}
+
+export type ArchiveFilter = "ALL" | ResolutionStatus;
+
+/** GET /api/archive — `counts` are of the cases in this response. */
+export interface ArchiveResponse {
+  filter: ArchiveFilter;
+  counts: Record<ResolutionStatus, number>;
+  cases: ArchiveCase[];
+}
+
+export type FollowUpState = "pending" | "approved" | "dismissed" | "in_production" | "produced";
+
+/** A covered UNSOLVED case that is now SOLVED (`followups.candidate_dict`). */
+export interface FollowUpCandidate {
+  id: number;
+  case_id: number;
+  case_title: string | null;
+  state: FollowUpState;
+  previous_status: ResolutionStatus;
+  new_status: ResolutionStatus;
+  development: string | null;
+  confidence: number | null;
+  sources: StatusSource[];
+  original_video: Film | null;
+  status_check: { id: number; reason: string | null; created_at: string } | null;
+  /** "Do you want to create an update video?" — asked by the API. */
+  question: string;
+  follow_up_job_id: number | null;
+  follow_up_video_id: number | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface ApproveFollowUpPayload {
+  mode: DocumentaryMode;
+  languages?: string[] | null;
+  render_profile?: RenderProfile;
+  pilot_seconds?: number | null;
+}
+
+/** One appearance of a picture in a production (MediaUsage). */
+export interface AuditPicture {
+  start: number | null;
+  seconds: number | null;
+  kind: string | null;
+  tier: number | null;
+  asset: string | number | null;
+  title: string | null;
+  sentence: string | null;
+  reason: string | null;
+  appearance: number;
+  repeat_justified: boolean | null;
+  repeat_reason: string | null;
+}
+
+/** One music cue or chosen silence (MusicUsage). */
+export interface AuditMusicCue {
+  start: number | null;
+  end: number | null;
+  purpose: string | null;
+  mood: string | null;
+  track: string | null;
+  why: string | null;
+  selection_reason: string | null;
+}
+
+/** A production-time visual search (visuals/gaps.py audit). */
+export interface AuditSearchRequest {
+  beat_id: string;
+  from_sentence?: number | null;
+  sentence?: string | null;
+  entity?: string | null;
+  entity_name?: string | null;
+  why?: string | null;
+  source?: string | null;
+  queries: string[];
+  assets_found: string[];
+  used: boolean;
+}
+
+export interface AuditProduction {
+  production_script_id: number;
+  language: string;
+  mode: DocumentaryMode;
+  case_status: ResolutionStatus | null;
+  production_type: ProductionType | null;
+  opening_strategy: string | null;
+  pictures: AuditPicture[];
+  maps: { start: number | null; reason: string | null; sentence: string | null }[];
+  music: AuditMusicCue[];
+  search_requests: AuditSearchRequest[];
+}
+
+/** GET /api/cases/{id}/audit — why the system decided what it decided. */
+export interface CaseAudit {
+  case: { id: number; title: string; origin: CaseOrigin | null } & ResolutionFields;
+  /** Suggestions that became this case, and duplicates that point to it. */
+  suggestions: SuggestionRecord[];
+  status_history: StatusHistoryEntry[];
+  status_checks: StatusCheck[];
+  productions: AuditProduction[];
+  films: Film[];
+  follow_ups: FollowUpCandidate[];
 }
 
 export interface SettingsStatus {
@@ -514,6 +907,9 @@ export interface ResearchJob {
   error: string | null;
   result?: {
     candidates?: DiscoveryCandidate[];
+    /** Not suggested: duplicates and filtered (unsolved) candidates, with reasons. */
+    rejected?: DiscoveryCandidate[];
+    selection_stats?: SelectionStats;
     skipped_duplicates?: number;
     sources_added?: number;
     language_stats?: Record<string, LanguageRunStats>;
@@ -881,18 +1277,33 @@ export interface DocumentaryJob {
   /** Length the master story is written for (from-zero jobs). */
   target_minutes: number | null;
   batch_id: string | null;
+  /** "follow_up": an update video about a case covered before (approved follow-up). */
+  production_type: ProductionType;
+  follow_up_id: number | null;
   status: DocumentaryJobStatus;
   /** Running stage names, comma-separated (stages run in parallel); may be truncated. */
   stage: string | null;
   /** 0–1: share of stages done or skipped. */
   progress: number;
   stages: DocumentaryStage[];
-  /** `errors`: failure per language of a "partial" job. */
-  result: { errors?: Record<string, string>; [key: string]: unknown };
+  /** `errors`: failure per language of a "partial" job; `renders`: the film per language. */
+  result: {
+    errors?: Record<string, string>;
+    renders?: Record<string, JobRender>;
+    [key: string]: unknown;
+  };
   error: string | null;
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
+}
+
+/** A language's render in a job result: the MP4 and the Video record made from it. */
+export interface JobRender {
+  production_script_id: number;
+  video_id?: number;
+  youtube_title?: string | null;
+  [key: string]: unknown;
 }
 
 /** GET /api/documentary/jobs — jobs of every case. */
@@ -1135,6 +1546,12 @@ export interface ScriptMusic {
   start: number;
   duration: number;
   level_db: number | null;
+  /** Library track (several variants per kind and mood). */
+  track_code?: string | null;
+  /** The audio director's reason for music (or silence) here. */
+  why?: string | null;
+  /** Why this track: unused in recent films, the film's theme … */
+  selection_reason?: string | null;
 }
 
 export interface ScriptSilence {
@@ -1146,6 +1563,11 @@ export interface ScriptSilence {
 /** Render-ready timeline of one language (app/documentary/production/script.py). */
 export interface ProductionScriptData {
   language?: string;
+  /** The case's resolution status when the script was composed (UNSOLVED films carry a status card). */
+  case_status?: ResolutionStatus | null;
+  production_type?: ProductionType;
+  /** How the film opens (critical_moment, victim_introduction, previous_coverage …). */
+  opening_strategy?: string | null;
   duration?: number;
   width?: number;
   height?: number;
@@ -1292,16 +1714,32 @@ export interface VisualUpload {
   rights: string;
 }
 
-export interface MusicCue {
+/** GET /api/documentary/music — one track of the library with its usage (`track_catalogue`). */
+export interface MusicTrack {
+  /** The track code (also used in the file URL). */
   id: string;
+  track_code: string;
+  /** Config cue a variant-1 track was imported from. */
+  cue_id: string | null;
   kind: string;
   mood: string;
+  variant: number;
+  style: string | null;
   seconds: number;
   loop: boolean;
   prompt: string;
+  active: boolean;
+  characters_paid: number | null;
   generated: boolean;
   /** Relative API path — prefix with API_BASE. */
   url: string;
+  /** Placements across all films. */
+  usage_count: number;
+  films_count: number;
+  /** Film keys (one film across its languages), in order of first use. */
+  films: string[];
+  last_used_at: string | null;
+  created_at: string;
 }
 
 /** How a fix makes the voice say a word as its meaning needs. */

@@ -533,3 +533,14 @@ def test_follow_up_master_opens_with_the_earlier_video(db_session, monkeypatch):
     assert struct["opening_strategy"] == "previous_coverage"
     assert struct["follow_up"]["follow_up_id"] == fu.id
     assert struct["sections"][0]["text"].startswith(ctx["intro"])
+
+
+def test_editing_a_published_film_keeps_its_history(db_session):
+    case = _case(db_session, "Lifecycle publish history Ida Brink")
+    set_resolution(db_session, case, "UNSOLVED", changed_by="user", reason="open")
+    film = _covered(db_session, case, episode=5)
+    first_title, first_date = film.youtube_title, film.published_at
+    set_resolution(db_session, case, "SOLVED", changed_by="monitor", reason="verdict")
+    film = V.publish(db_session, film, youtube_url="https://youtube.example/watch?v=1")
+    assert film.status_at_publication == "UNSOLVED" and film.youtube_title == first_title
+    assert film.published_at == first_date and film.youtube_url.endswith("v=1")

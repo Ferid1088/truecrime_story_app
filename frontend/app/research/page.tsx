@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/state";
-import { CaseStatusBadge, RunStatusBadge } from "@/components/status-badge";
+import { CaseStatusBadge, ResolutionBadge, RunStatusBadge } from "@/components/status-badge";
 import { Sheet } from "@/components/ui/sheet";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -121,9 +121,12 @@ export default function ResearchPage() {
                   {queue.map((c) => (
                     <TR key={c.id}>
                       <TD>
-                        <Link href={`/cases/${c.id}`} className="font-medium hover:text-primary">
-                          {c.title}
-                        </Link>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Link href={`/cases/${c.id}`} className="font-medium hover:text-primary">
+                            {c.title}
+                          </Link>
+                          <ResolutionBadge status={c.resolution_status} />
+                        </span>
                       </TD>
                       <TD>
                         <CaseStatusBadge status={c.status} />

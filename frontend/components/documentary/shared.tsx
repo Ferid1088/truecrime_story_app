@@ -85,6 +85,7 @@ const STAGE_LABELS: Record<string, string> = {
   visual_research: "Visual research",
   visual_check: "Visual verification",
   visual_plan: "Visual plan",
+  visual_gaps: "Production-time visual search",
   performance: "Narrator performance",
   voice: "Narration & music mix",
   production: "Production script",

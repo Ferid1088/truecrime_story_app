@@ -1,7 +1,28 @@
 import type {
   AgentRun,
   ApimasterStatus,
+  ApproveFollowUpPayload,
+  ArchiveFilter,
+  ArchiveResponse,
+  CaseAudit,
   CaseDetail,
+  CaseResolution,
+  CreateCasePayload,
+  CreatedCase,
+  DuplicateConflict,
+  Film,
+  FilmListItem,
+  FollowUpCandidate,
+  FollowUpState,
+  MonitorRun,
+  MonitorStatus,
+  PublishFilmPayload,
+  ResolutionFields,
+  ResolutionStatus,
+  SetStatusPayload,
+  StatusCheck,
+  SuggestionRecord,
+  SuggestionState,
   CaseDossier,
   CaseListItem,
   ClaimClusterItem,
@@ -25,7 +46,7 @@ import type {
   JobStartResponse,
   LocalizationCompare,
   MasterStoryResponse,
-  MusicCue,
+  MusicTrack,
   NarrativeCapacity,
   Production,
   ResearchDepth,
@@ -54,10 +75,27 @@ import { API_BASE } from "./config";
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, detail: string) {
+  /** The response's `detail` when it is structured (e.g. a 409 duplicate verdict). */
+  data: unknown;
+  constructor(status: number, detail: string, data?: unknown) {
     super(detail);
     this.status = status;
+    this.data = data ?? null;
   }
+}
+
+/**
+ * The duplicate checker's verdict when a create/investigate call was
+ * refused with 409 because the same real-world case already exists —
+ * null for any other error. Retry with `force` to create it anyway.
+ */
+export function duplicateConflict(e: unknown): DuplicateConflict | null {
+  if (!(e instanceof ApiError) || e.status !== 409) return null;
+  const d = e.data;
+  if (d && typeof d === "object" && typeof (d as { reason?: unknown }).reason === "string") {
+    return d as DuplicateConflict;
+  }
+  return null;
 }
 
 /**
@@ -96,8 +134,10 @@ async function request<T>(
   }
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
+    let data: unknown = null;
     try {
       const body = await res.json();
+      data = body?.detail ?? null;
       if (typeof body?.detail === "string") detail = body.detail;
       else if (typeof body?.detail?.message === "string")
         detail = body.detail.message;
@@ -106,7 +146,7 @@ async function request<T>(
     } catch {
       /* keep default detail */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, data);
   }
   return res.json() as Promise<T>;
 }
@@ -116,6 +156,18 @@ const post = <T>(path: string, body?: unknown) =>
 
 const patch = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+
+const put = <T>(path: string, body: unknown) =>
+  request<T>(path, { method: "PUT", body: JSON.stringify(body) });
+
+/** "?a=1&b=2" from the set values, "" when none is set. */
+function query(params: Record<string, string | number | null | undefined>): string {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params))
+    if (value != null && value !== "") qs.set(key, String(value));
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
 
 /** Absolute URL for a file path the API returns relative (`/api/...`). */
 export const apiFileUrl = (path: string) => `${API_BASE}${path}`;
@@ -144,26 +196,63 @@ export const api = {
 
   discover: (payload: DiscoveryRequest) =>
     post<JobStartResponse>("/api/topics/discover", payload),
-  investigate: (candidateId: number, language = "fa") =>
-    post<{ id: number; canonical_title: string; slug: string }>(
-      `/api/discovery/${candidateId}/investigate`,
-      { language },
-    ),
+  /** 409 (see `duplicateConflict`) when the case already exists — `force` creates it anyway. */
+  investigate: (candidateId: number, language = "fa", force = false) =>
+    post<CreatedCase>(`/api/discovery/${candidateId}/investigate`, { language, force }),
   ignoreCandidate: (candidateId: number) =>
     post<{ id: number; rejected: boolean }>(`/api/discovery/${candidateId}/ignore`),
+  /** Every stored suggestion — also the duplicates/filtered ones, with their reasons. */
+  discoveryHistory: (state?: SuggestionState) =>
+    request<SuggestionRecord[]>(`/api/discovery/history${query({ state })}`),
 
-  listCases: (params?: { status?: string; q?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.status) qs.set("status", params.status);
-    if (params?.q) qs.set("q", params.q);
-    const suffix = qs.toString() ? `?${qs}` : "";
-    return request<CaseListItem[]>(`/api/cases${suffix}`);
-  },
-  createCase: (payload: { canonical_title: string; language?: string; summary?: string }) =>
-    post<{ id: number; canonical_title: string; slug: string }>("/api/cases", payload),
+  listCases: (params?: { status?: string; q?: string; resolution?: ResolutionStatus | "ALL" | "" }) =>
+    request<CaseListItem[]>(
+      `/api/cases${query({ status: params?.status, q: params?.q, resolution: params?.resolution })}`,
+    ),
+  /** 409 (see `duplicateConflict`) when the case already exists — `force` creates it anyway. */
+  createCase: (payload: CreateCasePayload) => post<CreatedCase>("/api/cases", payload),
   getCase: (id: number) => request<CaseDetail>(`/api/cases/${id}`),
   updateCase: (id: number, payload: { status?: CaseStatus }) =>
-    patch<{ id: number; status: CaseStatus }>(`/api/cases/${id}`, payload),
+    patch<{ id: number; status: CaseStatus } & Partial<ResolutionFields>>(`/api/cases/${id}`, payload),
+
+  // Case lifecycle: resolution status, monitor, films, archive, follow-ups, audit
+  caseResolution: (caseId: number) => request<CaseResolution>(`/api/cases/${caseId}/status`),
+  setCaseResolution: (caseId: number, payload: SetStatusPayload) =>
+    put<CaseResolution>(`/api/cases/${caseId}/status`, payload),
+  caseStatusChecks: (caseId: number) =>
+    request<StatusCheck[]>(`/api/cases/${caseId}/status-checks`),
+  caseAudit: (caseId: number) => request<CaseAudit>(`/api/cases/${caseId}/audit`),
+
+  monitorStatus: () => request<MonitorStatus>("/api/monitor"),
+  /** Starts a monitor run in the background (202); follow it via `monitorStatus`. */
+  runMonitor: () => post<{ started: boolean }>("/api/monitor/run"),
+  monitorRun: (runId: number) =>
+    request<MonitorRun & { checks: StatusCheck[] }>(`/api/monitor/runs/${runId}`),
+
+  listFilms: (params?: { case_id?: number; state?: string; status?: string; language?: string }) =>
+    request<FilmListItem[]>(
+      `/api/films${query({
+        case_id: params?.case_id,
+        state: params?.state,
+        status: params?.status,
+        language: params?.language,
+      })}`,
+    ),
+  getFilm: (videoId: number) =>
+    request<FilmListItem & { follow_ups: Film[] }>(`/api/films/${videoId}`),
+  publishFilm: (videoId: number, payload: PublishFilmPayload) =>
+    post<FilmListItem & { follow_ups: Film[] }>(`/api/films/${videoId}/publish`, payload),
+  archiveFilm: (videoId: number) =>
+    post<FilmListItem & { follow_ups: Film[] }>(`/api/films/${videoId}/archive`),
+  archive: (status: ArchiveFilter = "ALL") =>
+    request<ArchiveResponse>(`/api/archive${query({ status })}`),
+
+  followUps: (state: FollowUpState | "all" = "pending") =>
+    request<FollowUpCandidate[]>(`/api/follow-ups${query({ state })}`),
+  /** The user's yes: starts exactly one follow-up documentary job. */
+  approveFollowUp: (id: number, payload: ApproveFollowUpPayload) =>
+    post<{ follow_up: FollowUpCandidate; job: DocumentaryJob }>(`/api/follow-ups/${id}/approve`, payload),
+  dismissFollowUp: (id: number) => post<FollowUpCandidate>(`/api/follow-ups/${id}/dismiss`),
 
   listSources: (caseId: number) => request<Source[]>(`/api/cases/${caseId}/sources`),
   corpusSearch: (caseId: number, q: string, language?: string, limit = 10) => {
@@ -305,7 +394,7 @@ export const api = {
       `/api/cases/${caseId}/documentary/production/${language}` +
         (versionId != null ? `?version_id=${versionId}` : ""),
     ),
-  musicLibrary: () => request<MusicCue[]>("/api/documentary/music"),
+  musicLibrary: () => request<MusicTrack[]>("/api/documentary/music"),
   storyVoice: (caseId: number, versionId: number) =>
     request<VoiceManifest>(`/api/cases/${caseId}/stories/${versionId}/voice`),
   voicePerformance: (versionId: number) =>

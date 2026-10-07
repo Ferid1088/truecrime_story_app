@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/state";
 import { cn } from "@/lib/utils";
+import { ProductionTypeBadge } from "@/components/lifecycle/shared";
 import {
   DEFAULT_TARGET_MINUTES,
   RunOptionsFields,
@@ -282,7 +283,14 @@ export function RunTab({
                         </button>
                       </TD>
                       <TD className="whitespace-nowrap text-muted-foreground">{formatDateTime(j.created_at)}</TD>
-                      <TD className="whitespace-nowrap">{modeLabel(j)}</TD>
+                      <TD className="whitespace-nowrap">
+                        {modeLabel(j)}
+                        {j.production_type === "follow_up" && (
+                          <span className="ml-1.5 align-middle">
+                            <ProductionTypeBadge type={j.production_type} />
+                          </span>
+                        )}
+                      </TD>
                       <TD className="text-muted-foreground">{j.languages.map((l) => l.toUpperCase()).join(" ")}</TD>
                       <TD className="text-muted-foreground">{j.render_profile}</TD>
                       <TD>
@@ -397,6 +405,7 @@ function JobPanel({
       <CardHeader className="flex-wrap gap-2">
         <CardTitle className="flex items-center gap-2">
           Job #{job.id} <JobStatusBadge status={job.status} />
+          <ProductionTypeBadge type={job.production_type} />
           {!isCurrent && <span className="text-xs font-normal text-muted-foreground">(earlier run)</span>}
         </CardTitle>
         <div className="flex flex-wrap gap-2">
@@ -418,6 +427,13 @@ function JobPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {job.production_type === "follow_up" && (
+          <p className="rounded-md border border-indigo-500/20 bg-indigo-500/5 px-3 py-2 text-xs leading-5">
+            Update video (approved follow-up{job.follow_up_id != null ? ` #${job.follow_up_id}` : ""}): research
+            refreshes the new developments first, and the film opens with the earlier episode and says the case is
+            now solved.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           {job.mode === "pilot" ? `Pilot · opening ${formatTimecode(job.pilot_seconds)}` : "Full film"}
           {job.from_zero &&

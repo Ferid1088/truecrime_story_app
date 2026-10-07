@@ -160,10 +160,19 @@ def publish(db: Session, video: Video, *, published_at: datetime | None = None,
     """Mark a video published: the case status at publication is frozen
     and the metadata recomputed with it."""
     case = db.get(Case, video.case_id)
-    video.state = "published"
-    video.published_at = published_at or utc_now()
+    already = video.state == "published" and video.published_at is not None
     video.youtube_url = youtube_url or video.youtube_url
     video.episode_number = episode_number or video.episode_number or next_episode(db, video.language)
+    if already:
+        # editing a published film (URL, episode) never rewrites history:
+        # its publication date and the status it was published with stay
+        if published_at:
+            video.published_at = published_at
+        db.commit()
+        db.refresh(video)
+        return video
+    video.state = "published"
+    video.published_at = published_at or utc_now()
     video.status_at_publication = case.resolution_status or "UNKNOWN"
     apply_metadata(db, case, video)
     db.commit()

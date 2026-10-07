@@ -2,12 +2,13 @@
 
 import { api, apiFileUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { formatTimecode, humanize, langLabel } from "@/lib/format";
+import { formatDateTime, formatTimecode, humanize, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState, ErrorState } from "@/components/state";
+import { cn } from "@/lib/utils";
 import { useProduction } from "../hooks";
 import { LanguagePicker, type LanguageTabProps, Metric } from "../shared";
 
@@ -17,20 +18,22 @@ const MUSIC_MOMENTS = new Set(["music_bridge", "emotional_moment", "chapter_brea
 export function MusicTab(props: LanguageTabProps) {
   return (
     <div className="space-y-4">
-      <CueLibrary />
+      <TrackLibrary />
       <AudioPlanMoments {...props} />
       <Placements {...props} />
     </div>
   );
 }
 
-function CueLibrary() {
+function TrackLibrary() {
   const { data, error, loading, refetch } = useApi(() => api.musicLibrary());
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Music cue library</CardTitle>
-        <span className="text-xs text-muted-foreground">shared by every film and language</span>
+      <CardHeader className="flex-wrap gap-2">
+        <CardTitle>Music track library</CardTitle>
+        <span className="text-xs text-muted-foreground">
+          several variants per kind and mood · a track heard in a recent film is rested while an alternative exists
+        </span>
       </CardHeader>
       <CardContent className="p-0">
         {loading && (
@@ -44,46 +47,74 @@ function CueLibrary() {
           </div>
         )}
         {data && data.length === 0 && (
-          <p className="px-4 py-6 text-sm text-muted-foreground">No music cues are configured.</p>
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            No tracks yet — the library fills when a mix first needs a kind and mood.
+          </p>
         )}
         {data && data.length > 0 && (
           <Table className="text-xs">
             <THead>
               <TR className="hover:bg-transparent">
-                <TH>Cue</TH>
-                <TH>Kind</TH>
-                <TH>Mood</TH>
+                <TH>Track</TH>
+                <TH>Kind · mood</TH>
                 <TH className="text-right">Length</TH>
+                <TH className="text-right">Used</TH>
+                <TH>Films</TH>
+                <TH>Last used</TH>
                 <TH>Status</TH>
                 <TH className="min-w-64">Listen</TH>
               </TR>
             </THead>
             <TBody>
-              {data.map((cue) => (
-                <TR key={cue.id}>
+              {data.map((t) => (
+                <TR key={t.id} className={cn(!t.active && "opacity-60")}>
                   <TD className="max-w-72">
-                    <span className="font-mono font-medium">{cue.id}</span>
-                    <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-muted-foreground" title={cue.prompt}>
-                      {cue.prompt}
+                    <span className="font-mono font-medium">{t.track_code}</span>
+                    {!t.active && (
+                      <Badge variant="outline" className="ml-1.5">
+                        retired
+                      </Badge>
+                    )}
+                    <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-muted-foreground" title={t.prompt}>
+                      {t.style ? `${t.style} — ` : ""}
+                      {t.prompt}
                     </span>
                   </TD>
-                  <TD>{humanize(cue.kind)}</TD>
-                  <TD>{cue.mood}</TD>
-                  <TD className="whitespace-nowrap text-right tabular-nums">
-                    {cue.seconds} s{cue.loop && " · loop"}
+                  <TD className="whitespace-nowrap">
+                    {humanize(t.kind)} · {t.mood}
+                    <span className="block text-[10px] text-muted-foreground">variant {t.variant}</span>
                   </TD>
+                  <TD className="whitespace-nowrap text-right tabular-nums">
+                    {t.seconds} s{t.loop && " · loop"}
+                  </TD>
+                  <TD className="whitespace-nowrap text-right tabular-nums">
+                    {t.usage_count}×
+                    <span className="block text-[10px] text-muted-foreground">
+                      in {t.films_count} film{t.films_count === 1 ? "" : "s"}
+                    </span>
+                  </TD>
+                  <TD className="max-w-40">
+                    {t.films.length ? (
+                      <span className="block truncate font-mono text-[10px] text-muted-foreground" title={t.films.join(", ")}>
+                        {t.films.join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">unused</span>
+                    )}
+                  </TD>
+                  <TD className="whitespace-nowrap text-muted-foreground">{formatDateTime(t.last_used_at)}</TD>
                   <TD>
-                    <Badge variant={cue.generated ? "success" : "outline"}>
-                      {cue.generated ? "generated" : "not generated"}
+                    <Badge variant={t.generated ? "success" : "outline"}>
+                      {t.generated ? "generated" : "not generated"}
                     </Badge>
                   </TD>
                   <TD>
-                    {cue.generated ? (
+                    {t.generated ? (
                       <audio
                         controls
                         preload="none"
-                        src={apiFileUrl(cue.url)}
-                        aria-label={`Play cue ${cue.id}`}
+                        src={apiFileUrl(t.url)}
+                        aria-label={`Play track ${t.track_code}`}
                         className="h-8 w-full min-w-56"
                       />
                     ) : (
@@ -190,7 +221,7 @@ function Placements({ caseId, settings, overview, refreshKey, language, onLangua
   return (
     <Card>
       <CardHeader className="flex-wrap gap-2">
-        <CardTitle>Music in the production script</CardTitle>
+        <CardTitle>Cue sheet of the production</CardTitle>
         <LanguagePicker
           languages={settings.languages}
           value={language}
@@ -222,11 +253,13 @@ function Placements({ caseId, settings, overview, refreshKey, language, onLangua
             <THead>
               <TR className="hover:bg-transparent">
                 <TH>Role</TH>
-                <TH>Cue</TH>
+                <TH>Track</TH>
                 <TH>Mood</TH>
                 <TH className="text-right">Start</TH>
                 <TH className="text-right">Duration</TH>
                 <TH className="text-right">Level</TH>
+                <TH className="min-w-56">Why here</TH>
+                <TH className="min-w-56">Why this track</TH>
               </TR>
             </THead>
             <TBody>
@@ -237,11 +270,13 @@ function Placements({ caseId, settings, overview, refreshKey, language, onLangua
                       {humanize(m.role)}
                     </Badge>
                   </TD>
-                  <TD className="font-mono">{m.cue_id ?? "—"}</TD>
+                  <TD className="font-mono">{m.track_code ?? m.cue_id ?? (m.role === "silence" ? "room tone" : "—")}</TD>
                   <TD>{m.mood ?? "—"}</TD>
                   <TD className="text-right tabular-nums">{formatTimecode(m.start, { tenths: true })}</TD>
                   <TD className="text-right tabular-nums">{m.duration.toFixed(1)} s</TD>
                   <TD className="text-right tabular-nums">{m.level_db != null ? `${m.level_db} dB` : "—"}</TD>
+                  <TD className="leading-5">{m.why || "—"}</TD>
+                  <TD className="leading-5 text-muted-foreground">{m.selection_reason || "—"}</TD>
                 </TR>
               ))}
             </TBody>
