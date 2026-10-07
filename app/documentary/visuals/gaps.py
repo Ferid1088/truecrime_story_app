@@ -181,13 +181,31 @@ def case_place(case: Case, requirements: dict) -> str | None:
     return None
 
 
+def case_region(case: Case, requirements: dict) -> str | None:
+    """Town and region of the case as a search ('Tipp City Ohio'): the
+    first two parts of the case's location or of the first map place,
+    whichever is more precise ('Tipp City, Ohio, United States' over
+    'Ohio, United States')."""
+    options = [getattr(case, "location", None)] + [
+        next((b["map_place"] for b in requirements.get("beats") or [] if b.get("map_place")),
+             None)]
+    options = [o for o in options if o]
+    if not options:
+        return None
+    loc = max(options, key=lambda o: len([p for p in o.split(",") if p.strip()]))
+    parts = [p.strip() for p in loc.split(",") if p.strip()]
+    return " ".join(parts[:2]) or None
+
+
 def request_queries(w: dict, entity: dict | None, place: str | None, n: int,
-                    country: str | None = None) -> list[dict]:
+                    country: str | None = None, region: str | None = None) -> list[dict]:
     """Up to n searches for one weak sentence: the director's queries,
     then the entity's name with the place of the case and — for
     buildings and places — its exterior and historical-photograph
     variants (a person: the name with the place and with the period),
-    the plain name, then the planner's context queries."""
+    the plain name, then the planner's context queries and the case's
+    region (the contextual fallback) — at least one of those whenever
+    n >= 2."""
     if entity is None:
         name = w.get("entity_name") or ""
         entity = {"key": w.get("entity") or fold(name).replace(" ", "_"), "name": name,
@@ -210,7 +228,12 @@ def request_queries(w: dict, entity: dict | None, place: str | None, n: int,
     exact.append(name)  # the plain name last: some archives index only that
     items = [query_item(entity, q, "exact") for q in w.get("queries") or []]
     items += [query_item(entity, q, "exact") for q in exact if q.strip()]
-    items += [query_item(entity, q, "context") for q in entity.get("context_queries") or []]
+    context = list(entity.get("context_queries") or [])
+    if region and fold(region) not in {fold(c) for c in context}:
+        # the contextual fallback (tier 4): the town itself — streets,
+        # landmarks, old postcards — when the real thing was never photographed
+        context.append(region)
+    items += [query_item(entity, q, "context") for q in context]
     out, seen = [], set()
     for q in items:
         k = fold(q["query"])
@@ -218,6 +241,10 @@ def request_queries(w: dict, entity: dict | None, place: str | None, n: int,
             seen.add(k)
             q["footage"] = bool(entity.get("footage", etype in FOOTAGE_TYPES))
             out.append(q)
+    if n >= 2 and not any(q["kind"] == "context" for q in out[:n]):
+        ctx = [q for q in out if q["kind"] == "context"]
+        if ctx:  # one stand-in search is always part of the request
+            return out[:n - 1] + ctx[:1]
     return out[:n]
 
 
@@ -227,6 +254,7 @@ def build_requests(weak: list[dict], requirements: dict, case: Case) -> list[dic
     entities = {e["key"]: e for e in requirements.get("entities") or []}
     place = case_place(case, requirements)
     country = getattr(case, "country", None)
+    region = case_region(case, requirements)
     out, seen = [], set()
     for w in weak:
         ident = w.get("entity") or fold(w.get("entity_name") or "")
@@ -234,7 +262,7 @@ def build_requests(weak: list[dict], requirements: dict, case: Case) -> list[dic
             continue
         seen.add(ident)
         ent = entities.get(w.get("entity") or "")
-        queries = request_queries(w, ent, place, cfg.queries_per_request, country)
+        queries = request_queries(w, ent, place, cfg.queries_per_request, country, region)
         if not queries:
             continue
         out.append({**w, "entity_name": (ent or {}).get("name") or w.get("entity_name"),
@@ -293,9 +321,14 @@ async def fill_visual_gaps(db: Session, case: Case, plan_row: VisualPlan,
             result["research"] = {k: v for k, v in (stats or {}).items()
                                   if k in ("candidates", "added", "duplicates", "rejected",
                                            "errors", "by_provider")}
-            new = [a for a in db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
-                   if a.id not in before]
-            per_request = {id(r): _found_for(r, new) for r in requests}
+            now = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
+            new = [a for a in now if a.id not in before]
+            # what this request's searches found — now or in an earlier
+            # (interrupted) production search: unchecked ones are checked,
+            # verified ones are offered to the director
+            found_here = [a for a in now if a.id not in before
+                          or a.found_during == "production_search"]
+            per_request = {id(r): _found_for(r, found_here) for r in requests}
             todo: list[VisualAsset] = []
             for r in requests:
                 for a in [x for x in per_request[id(r)]

@@ -47,6 +47,7 @@ from app.db.models import (
     AudioPlan, Case, EditorialBlueprint, StoryVersion, VisualAsset, VisualPlan,
 )
 from app.documentary.visuals import rights as R
+from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.planner import fold, sentence_entities
 from app.documentary.visuals.usage import asset_facts, asset_tier, category, limit_of
 from app.providers.generation import get_generation_provider
@@ -887,6 +888,9 @@ def beat_candidates(db: Session, case: Case, blueprint: dict, requirements: dict
     ents = {e["key"]: e for e in requirements.get("entities") or []}
     ent_list = list(ents.values())
     reqs = {b["beat_id"]: b for b in requirements.get("beats") or []}
+    # custody / court pictures wait for the beat that tells of the arrest
+    before_arrest = SP.beats_before([b["id"] for b in blueprint.get("beats") or []],
+                                    SP.arrest_beat(blueprint))
     out = {}
     for beat in blueprint.get("beats") or []:
         bid = beat["id"]
@@ -909,7 +913,7 @@ def beat_candidates(db: Session, case: Case, blueprint: dict, requirements: dict
             if not any(a.asset_type == "video" for _, a in top):
                 top += [x for x in ranked if x[1].asset_type == "video"][:1]
             for sc, a in top:
-                if a.id not in seen:
+                if a.id not in seen and not (bid in before_arrest and SP.shows_custody(a)):
                     seen.add(a.id)
                     picked.append((sc, a))
         out[bid] = picked
@@ -939,6 +943,33 @@ def fill_candidates(cands: dict[str, list[tuple[float, VisualAsset]]]) -> dict[s
                   if sc >= 0.5 and a.verification_status == "verified"
                   and a.asset_role != "illustration"]
             for bid, lst in cands.items()}
+
+
+def add_found_candidates(cands: dict[str, list[tuple[float, VisualAsset]]],
+                         searched: dict[str, list[dict]], assets: dict[str, VisualAsset],
+                         blueprint: dict, profile: str | None = None) -> dict[str, list[str]]:
+    """Pictures a production search found and verified for a beat's
+    sentence become candidates of that beat (a stand-in illustration is
+    not a requirement's role, but it was searched for this very
+    sentence) — within the firewall: no later reveal, no custody picture
+    before the arrest. Returns what was added per beat."""
+    before_arrest = SP.beats_before([b["id"] for b in blueprint.get("beats") or []],
+                                    SP.arrest_beat(blueprint))
+    added: dict[str, list[str]] = {}
+    for bid, notes in (searched or {}).items():
+        have = {a.asset_code for _, a in cands.get(bid, [])}
+        blocked = blocked_at(blueprint, bid)
+        for note in notes:
+            for code in note.get("found") or []:
+                a = assets.get(code)
+                if (a is None or code in have or a.verification_status != "verified"
+                        or not usable(a, profile) or not firewall_ok(a, blocked)
+                        or (bid in before_arrest and SP.shows_custody(a))):
+                    continue
+                cands.setdefault(bid, []).append((0.5, a))
+                have.add(code)
+                added.setdefault(bid, []).append(code)
+    return added
 
 
 def ensure_found_used(raw_beats: list[dict], searched: dict[str, list[dict]],
@@ -1119,6 +1150,8 @@ class VisualDirector:
         and still counts for the film-level rules. `searched`: per beat
         what was searched for which sentence and what was found."""
         ctx = self._context(db, case, plan_row, blueprint_row, audio_plan, profile)
+        add_found_candidates(ctx["cands"], searched or {}, ctx["assets"], ctx["blueprint"],
+                             profile)
         old = _loads(plan_row.plan_json, {})
         old_beats = {pb["beat_id"]: pb for pb in old.get("beats") or []}
         beats = [b for b in ctx["blueprint"].get("beats") or [] if b["id"] in set(beat_ids)]

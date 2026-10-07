@@ -832,3 +832,47 @@ def test_image_search_results_on_news_pages_are_editorial_material():
         assert R.classify("searxng_images", None, "https://cdn.example/a.jpg", page)[0] == "unknown"
     # never allowed in a publish render without a human decision
     assert not R.allowed("editorial_review_required", "publish")
+
+
+def test_long_commons_queries_fall_back_to_their_core_words():
+    from app.documentary.visuals.research import core_query
+
+    assert core_query("police drone and K9 search residential property night") == \
+        "police drone K9"
+    assert core_query("Tipp City Ohio") is None
+    assert core_query("the refrigerator in the garage") is None  # 2 content words
+
+
+def test_case_region_is_town_and_state():
+    from types import SimpleNamespace
+
+    from app.documentary.visuals.gaps import case_region
+
+    assert case_region(SimpleNamespace(location="Tipp City, Ohio, United States"), {}) == \
+        "Tipp City Ohio"
+    req = {"beats": [{"beat_id": "B01", "map_place": "Stendal, Saxony-Anhalt, Germany"}]}
+    assert case_region(SimpleNamespace(location=None), req) == "Stendal Saxony-Anhalt"
+    assert case_region(SimpleNamespace(location=None), {}) is None
+    tipp = {"beats": [{"beat_id": "B01", "map_place": "Tipp City, Ohio, United States"}]}
+    assert case_region(SimpleNamespace(location="Ohio, United States"), tipp) == \
+        "Tipp City Ohio"
+
+
+def test_a_stand_in_is_verified_as_a_labelled_illustration_never_a_face():
+    from types import SimpleNamespace
+
+    from app.documentary.visuals.tiers import verified_why
+    from app.documentary.visuals.verification import decide
+
+    dog = {"matches_claim": "stand_in", "subject_type": "object", "role": "illustration",
+           "confidence": 0.9}
+    assert decide(dog) == ("verified", 0.9, "stand_in")
+    face = {**dog, "subject_type": "person"}
+    assert decide(face)[0] == "rejected" and decide(face)[2] == "stand_in_person"
+    assert decide({**dog, "confidence": 0.1})[0] == "rejected"
+    asset = SimpleNamespace(provider="wikimedia", asset_role="context", entity_type="object",
+                            relevance_tier=2)
+    assert verified_why(asset, dog, 2)[0] == 5
+    assert verified_why(asset, {**dog, "role": "context"}, 2)[0] == 4
+    # an exact claim that does not match stays rejected
+    assert decide({"matches_claim": "no", "confidence": 0.9})[0] == "rejected"

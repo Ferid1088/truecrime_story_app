@@ -275,11 +275,20 @@ def test_compose_timeline_from_real_audio():
     shots = s["shots"]
     # the black beat stays a short pause, then a picture the story has
     # already shown takes over (never 20 s of black)
-    assert [x["kind"] for x in shots] == ["image", "image", "black", "image"]
+    # (the 21 s illustration is a stand-in: after motion.max_map_seconds the
+    # case picture returns — once over its limit rather than a long stand-in)
+    assert [x["kind"] for x in shots] == ["image", "image", "image", "black", "image"]
     assert shots[0]["start"] == 0 and shots[0]["end"] == 20.0  # date extends the image
-    assert shots[1]["start"] == 20.0 and shots[3]["end"] == 60.0
-    assert shots[2]["end"] - shots[2]["start"] == pytest.approx(ai_config.attention.max_black_seconds)
-    assert shots[3]["asset_id"] == "VIS_000001" and shots[3]["black_filled"]
+    assert shots[1]["start"] == 20.0 and shots[4]["end"] == 60.0
+    assert shots[1]["asset_id"] == "VIS_000002"
+    assert shots[1]["end"] - shots[1]["start"] == pytest.approx(ai_config.motion.max_map_seconds)
+    assert shots[2]["asset_id"] == "VIS_000001" and "over its limit" in shots[2]["repeat_reason"]
+    assert shots[3]["end"] - shots[3]["start"] == pytest.approx(ai_config.attention.max_black_seconds)
+    assert shots[4]["asset_id"] == "VIS_000001" and shots[4]["black_filled"]
+    # credits and the illustration label follow the final cut
+    creds = [o for o in s["overlays"] if o["kind"] == "credit"]
+    assert [(o["start"], o["end"]) for o in creds] == [(0.0, 20.0), (32.0, 41.0), (47.0, 60.0)]
+    assert [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"] == [(20.0, 32.0)]
     assert shots[0]["transition_in"] == "FADE_BLACK"
     kinds = {o["kind"]: o for o in s["overlays"]}
     assert kinds["date"]["text"] == "Mai 2006"

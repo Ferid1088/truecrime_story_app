@@ -381,7 +381,9 @@ def _usage_case():
     return m, plan
 
 
-def test_generic_picture_not_twice_person_recurs_when_named_with_gap():
+def test_generic_picture_not_twice_person_recurs_when_named_with_gap(monkeypatch):
+    # repetition only: the 30 s holds stay holds (long holds are tested elsewhere)
+    monkeypatch.setattr(ai_config.motion, "max_hold_seconds", 40.0)
     m, plan = _usage_case()
     s = compose(m, plan, _usage_assets(), {}, "en")
     shots = s["shots"]
@@ -413,6 +415,7 @@ def test_media_usage_rows_record_reasons_and_appearances(db_session, tmp_path, m
         a.case_id = case.id
         db_session.add(a)
     db_session.commit()
+    monkeypatch.setattr(ai_config.motion, "max_hold_seconds", 40.0)
     m, plan = _usage_case()
     script = compose(m, plan, assets, {}, "en")
     row = ProductionScript(case_id=case.id, story_version_id=master.id, language="en",
@@ -795,10 +798,14 @@ def test_weak_sentences_become_searches_and_the_found_pictures_are_used(
     (queries, found_during), = search.calls
     assert found_during == "production_search"
     church_q = [q["query"] for q in queries if q["entity"] == "st_marys_church"]
+    # the exact searches first; one stand-in (context) search is always part
+    # of a request — here the planner's own context query for the church
     assert church_q == ["St Mary's Church Stendal", "St Mary's Church Stendal exterior",
-                        "St Mary's Church Stendal historical photograph"]
+                        "Stendal old town brick church"]
     assert {q["entity"] for q in queries} == {"st_marys_church", "anna_keller"}
-    assert all(q["kind"] == "exact" for q in queries)
+    for ent in ("st_marys_church", "anna_keller"):
+        kinds = [q["kind"] for q in queries if q["entity"] == ent]
+        assert kinds.count("context") == 1 and kinds[-1] == "context"
     assert out["requests"] == 2 and out["verified"] == 2 and out["redirected_beats"] == ["B01", "B02"]
 
     found = {a.entity_key: a for a in db_session.query(VisualAsset).filter_by(
@@ -993,3 +1000,165 @@ def test_a_place_the_planner_maps_gets_one_map_even_if_the_director_forgot():
             if s["command"] == "SHOW_MAP"]
     assert maps == [("B02", "Tipp City, Ohio")]
     assert {"beat": "B01", "map_wanted": "Tipp City, Ohio"} in rep["adjustments"]
+
+
+def test_a_map_is_orientation_not_a_backdrop():
+    """A map whose next picture is held back (repetition gap) must not run
+    on: after motion.max_map_seconds an earned picture takes over, and the
+    map credit is on screen exactly while the map is."""
+    m = {"duration_seconds": 60.0, "files": {"narration_wav": "n.wav"},
+         "timeline": {"beats": [{"beat_id": "B01", "start": 0.0, "end": 14.5},
+                                {"beat_id": "B02", "start": 15.0, "end": 59.5}],
+                      "blocks": [], "words": [],
+                      "sentences": [{"start": t, "end": t + 7.0, "display": f"s{t:g}",
+                                     "speech": f"s{t:g}"} for t in range(0, 60, 8)]}}
+    caleb = dict(entity_type="person", entity_key="caleb", entities_json='["caleb"]',
+                 relevance_tier=2)
+    assets = {"VIS_000011": _asset("VIS_000011", **caleb),
+              "VIS_000012": _asset("VIS_000012", relevance_tier=1, entity_type="building",
+                                   entities_json='["the_house"]'),
+              "VIS_000013": _asset("VIS_000013", relevance_tier=1, entity_type="building",
+                                   entities_json='["the_driveway"]'),
+              "VIS_000020": _asset("VIS_000020", asset_type="map", asset_role="context",
+                                   rights_status="open_data", local_path="m.jpg",
+                                   spec_json='{"marker": [10, 10]}', relevance_tier=3,
+                                   entities_json="[]")}
+    # the house pictures were earned in B01 (not offered to B02's swap)
+    plan = {"candidates": {"B01": ["VIS_000011", "VIS_000012", "VIS_000013"], "B02": []},
+            "beats": [
+                {"beat_id": "B01", "shots": [{"command": "NEW_IMAGE", "asset_id": "VIS_000011",
+                                              "share": 1.0, "motion": "SLOW_PUSH"}]},
+                {"beat_id": "B02", "shots": [
+                    {"command": "SHOW_MAP", "map_assets": ["VIS_000020"], "share": 0.25,
+                     "map_place": "Tipp City, Ohio", "motion": "MAP_ZOOM"},
+                    # Caleb again 15 s later: held back by the repetition gap
+                    {"command": "NEW_IMAGE", "asset_id": "VIS_000011", "share": 0.75,
+                     "motion": "SLOW_PULL"}]}]}
+    s = compose(m, plan, assets, {}, "en")
+    shots = s["shots"]
+    mp = [x for x in shots if x["kind"] == "map"]
+    assert mp[0]["held"][0]["instead_of"] == "VIS_000011"
+    assert len(mp) == 1 and mp[0]["start"] == 15.0
+    cap = ai_config.motion.max_map_seconds
+    assert mp[0]["end"] - mp[0]["start"] <= cap + 3.01
+    after = shots[shots.index(mp[0]) + 1:]
+    assert after and after[0]["kind"] == "image"
+    assert after[0]["asset_id"] in ("VIS_000012", "VIS_000013")
+    assert "map varied" in after[0]["fill_reason"]
+    assert all(x["end"] - x["start"] <= ai_config.motion.max_hold_seconds + 0.01
+               for x in shots)
+    osm = [o for o in s["overlays"] if o["kind"] == "credit"
+           and o["text"] == ai_config.maps.attribution]
+    assert [(o["start"], o["end"]) for o in osm] == [(mp[0]["start"], mp[0]["end"])]
+
+
+def test_custody_pictures_wait_for_the_arrest():
+    """A man in an orange jumpsuit answers the film's question before it
+    is asked: custody/court pictures (what the vision check saw, not the
+    headline) are swapped out before the beat that tells of the arrest."""
+    from app.documentary.visuals import spoilers as SP
+
+    bp = {"beats": [{"id": "B01", "summary": "A 911 call reports an intruder."},
+                    {"id": "B02", "summary": "The side door was blocked from inside."},
+                    {"id": "B03", "summary": "The autopsy leads to Caleb's arrest within days."}]}
+    assert SP.arrest_beat(bp) == "B03"
+    assert SP.arrest_beat({"beats": [{"id": "B01", "summary": "Still missing."}]}) is None
+    court = _asset("VIS_000031", entity_type="person", entities_json='["caleb"]',
+                   relevance_tier=2, title="Caleb Flynn sentenced to life",
+                   description="Caleb Flynn in an orange inmate jumpsuit in a courtroom.")
+    portrait = _asset("VIS_000032", entity_type="person", entities_json='["ashley"]',
+                      relevance_tier=2, title="Daughters speak out as he is sentenced",
+                      description="Portrait photo of Ashley Flynn smiling outdoors.")
+    house = _asset("VIS_000033", relevance_tier=1, entity_type="building",
+                   entities_json='["the_house"]', description="The family home.")
+    assert SP.shows_custody(court) and not SP.shows_custody(portrait)
+    m = {"duration_seconds": 45.0, "files": {"narration_wav": "n.wav"},
+         "timeline": {"beats": [{"beat_id": b, "start": k * 15.0, "end": k * 15.0 + 14.5}
+                                for k, b in enumerate(("B01", "B02", "B03"))],
+                      "blocks": [], "words": [], "sentences": []}}
+    assets = {a.asset_code: a for a in (court, portrait, house)}
+    plan = {"candidates": {"B01": ["VIS_000032"], "B02": ["VIS_000031", "VIS_000033"],
+                           "B03": ["VIS_000031"]},
+            "beats": [{"beat_id": b, "shots": [{"command": "NEW_IMAGE", "asset_id": c,
+                                                "share": 1.0, "motion": "SLOW_PUSH"}]}
+                      for b, c in (("B01", "VIS_000032"), ("B02", "VIS_000031"),
+                                   ("B03", "VIS_000031"))]}
+    s = compose(m, plan, assets, {}, "en", arrest_beat="B03")
+    seq = [(x["beat_id"], x["asset_id"]) for x in s["shots"]]
+    assert seq == [("B01", "VIS_000032"), ("B02", "VIS_000033"), ("B03", "VIS_000031")]
+    assert "custody/court before the story reaches the arrest" in s["shots"][1]["fill_reason"]
+    assert s["firewall"]["custody"] == ["B01", "B02"]
+    # without an arrest in the story nothing is blocked by this rule
+    s2 = compose(m, plan, assets, {}, "en")
+    assert [x["asset_id"] for x in s2["shots"]][1] == "VIS_000031"
+
+
+def test_a_critic_black_fix_stays_a_short_pause():
+    cap = ai_config.attention.max_black_seconds
+    shots = [{"index": 0, "beat_id": "B01", "start": 0.0, "end": 10.0, "kind": "image",
+              "asset_id": "VIS_000001", "path": "a.jpg"},
+             {"index": 1, "beat_id": "B01", "start": 10.0, "end": 24.0, "kind": "image",
+              "asset_id": "VIS_000002", "path": "b.jpg"},
+             {"index": 2, "beat_id": "B02", "start": 24.0, "end": 30.0, "kind": "image",
+              "asset_id": "VIS_000003", "path": "c.jpg"}]
+    script = {"duration": 30.0, "shots": shots, "candidates": {}, "overlays": []}
+    done = apply_fixes(script, [{"shot": 1, "severity": "high", "fix": "black"}], {})
+    s = script["shots"]
+    assert done == [{"shot": 1, "fix": "black", "seconds": cap}]
+    assert s[1]["kind"] == "black" and s[1]["end"] - s[1]["start"] == pytest.approx(cap)
+    assert s[1]["asset_id"] is None and s[2]["start"] == s[1]["end"]
+
+
+def test_found_stand_ins_become_candidates_of_their_beat_within_the_firewall():
+    from app.documentary.visuals.director import add_found_candidates
+
+    bp = {"beats": [{"id": "B01", "summary": "The dogs never barked.", "purpose": "investigation"},
+                    {"id": "B02", "summary": "Caleb's arrest.", "purpose": "timeline"}]}
+    dog = _asset("VIS_000041", asset_role="illustration", relevance_tier=5,
+                 rights_status="creative_commons", description="A goldendoodle on a couch.")
+    court = _asset("VIS_000042", description="A man in an orange jumpsuit in a courtroom.")
+    unchecked = _asset("VIS_000043", verification_status="unverified")
+    cands = {"B01": []}
+    searched = {"B01": [{"from_sentence": 0, "found": ["VIS_000041", "VIS_000042",
+                                                       "VIS_000043"]}]}
+    added = add_found_candidates(cands, searched,
+                                 {a.asset_code: a for a in (dog, court, unchecked)}, bp, "preview")
+    assert added == {"B01": ["VIS_000041"]}
+    assert [a.asset_code for _, a in cands["B01"]] == ["VIS_000041"]
+
+
+def test_a_stand_in_is_a_moment_not_a_backdrop():
+    """A labelled illustration planned for a whole long beat is cut after
+    motion.max_map_seconds; when every case picture is at its limit, case
+    material is shown once more rather than stretching the stand-in, and
+    the illustration label is on screen exactly while the stand-in is."""
+    m = {"duration_seconds": 70.0, "files": {"narration_wav": "n.wav"},
+         "timeline": {"beats": [{"beat_id": "B01", "start": 0.0, "end": 19.5},
+                                {"beat_id": "B02", "start": 20.0, "end": 69.5}],
+                      "blocks": [], "words": [],
+                      "sentences": [{"start": t, "end": t + 6.5, "display": f"s{t:g}",
+                                     "speech": f"s{t:g}"} for t in range(0, 70, 7)]}}
+    house = _asset("VIS_000051", relevance_tier=1, entity_type="building",
+                   entities_json='["the_house"]', description="The house.")
+    dog = _asset("VIS_000052", asset_role="illustration", relevance_tier=5,
+                 rights_status="creative_commons", credit="A / Wikimedia Commons",
+                 entities_json="[]", entity_type="object", description="A goldendoodle.")
+    plan = {"candidates": {"B01": ["VIS_000051"], "B02": []},
+            "beats": [{"beat_id": "B01", "shots": [{"command": "NEW_IMAGE",
+                                                    "asset_id": "VIS_000051", "share": 1.0}]},
+                      {"beat_id": "B02", "shots": [{"command": "ATMOSPHERIC_BROLL",
+                                                    "asset_id": "VIS_000052", "share": 1.0,
+                                                    "label": "illustration"}]}]}
+    monkey_limit = ai_config.visual_direction.max_evidence_appearances
+    try:
+        ai_config.visual_direction.max_evidence_appearances = 1  # the house is at its limit
+        s = compose(m, plan, {"VIS_000051": house, "VIS_000052": dog}, {}, "en")
+    finally:
+        ai_config.visual_direction.max_evidence_appearances = monkey_limit
+    shots = s["shots"]
+    dogs = [x for x in shots if x["asset_id"] == "VIS_000052"]
+    assert len(dogs) == 1 and dogs[0]["end"] - dogs[0]["start"] <= ai_config.motion.max_map_seconds + 3.01
+    after = shots[shots.index(dogs[0]) + 1]
+    assert after["asset_id"] == "VIS_000051" and "over its limit" in after["repeat_reason"]
+    labels = [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"]
+    assert labels == [(dogs[0]["start"], dogs[0]["end"])]

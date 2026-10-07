@@ -1162,6 +1162,8 @@
     "parallax_shift_fraction": 0.012,
     "min_hold_seconds": 5.0,
     "max_still_seconds": 16.0,
+    "max_hold_seconds": 20.0,
+    "max_map_seconds": 12.0,
     "crossfade_seconds": [
       0.7,
       1.4

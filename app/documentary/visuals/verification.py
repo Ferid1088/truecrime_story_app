@@ -41,8 +41,13 @@ Decide:
 - depicts: what is visibly in the image (neutral, one sentence).
 - subject_type: person|place|building|vehicle|object|document|map|
   landscape|event|other
-- matches_claim: yes|no|unclear — does the image show what it is
-  claimed to show (the entity it was found for / its caption)?
+- matches_claim: yes|stand_in|no|unclear — does the image show what it
+  is claimed to show (the entity it was found for / its caption)?
+  stand_in: not the case's own thing, but an honest picture of the SAME
+  KIND of thing the search describes (a dog of the same breed, a police
+  K9 team, a garage side door, the town's main street) — usable only as
+  a labelled illustration. Never stand_in for a person: a different
+  face is "no".
 - identity_evidence: why you think so (caption text, visible signs,
   context) — "unclear" when a person cannot be identified.
 - role: evidence (genuine case material: the actual people, the actual
@@ -85,6 +90,14 @@ def decide(v: dict) -> tuple[str, float, str | None]:
         return "rejected", conf, "does_not_match"
     if conf < cfg.reject_below_confidence:
         return "rejected", conf, "low_confidence"
+    if v.get("matches_claim") == "stand_in":
+        # the same kind of thing, shown as an illustration (tier 4/5) —
+        # never someone else's face
+        if str(v.get("subject_type") or "") == "person":
+            return "rejected", conf, "stand_in_person"
+        if conf >= cfg.verified_min_confidence:
+            return "verified", conf, "stand_in"
+        return "needs_review", conf, "uncertain"
     if v.get("matches_claim") == "yes" and conf >= cfg.verified_min_confidence:
         return "verified", conf, None
     return "needs_review", conf, "uncertain"
@@ -159,6 +172,8 @@ class VisualVerificationAgent:
             asset.subject_type = str(v["subject_type"])[:20]
         if v.get("role") in ("evidence", "context", "illustration"):
             asset.asset_role = v["role"]
+        if v.get("matches_claim") == "stand_in" and asset.asset_role == "evidence":
+            asset.asset_role = "illustration"  # a stand-in is never case material
         ents = [e for e in v.get("entities") or [] if e in known_ents]
         if ents:
             asset.entities_json = json.dumps(sorted(set(ents) | set(claimed)), ensure_ascii=False)

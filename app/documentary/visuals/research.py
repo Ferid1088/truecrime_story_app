@@ -82,6 +82,22 @@ def _clean(text: str | None, n: int = 600) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+_QUERY_STOP = {"a", "an", "and", "the", "of", "in", "on", "at", "to", "for", "with", "from",
+               "by", "into", "inside", "outside", "near", "during", "after", "before", "his",
+               "her", "their", "its", "is", "was", "photo", "photograph", "image", "picture"}
+
+
+def core_query(query: str, words: int = 3) -> str | None:
+    """The first content words of a long query ('police drone and K9
+    search residential property night' -> 'police drone K9'): Commons
+    search needs every word to match, so a sentence-long query finds
+    nothing. None when the query is already short."""
+    toks = [t for t in re.findall(r"[\w'-]+", query or "") if t.lower() not in _QUERY_STOP]
+    if len(toks) <= words:
+        return None
+    return " ".join(toks[:words])
+
+
 class WikimediaProvider:
     name = "wikimedia"
 
@@ -92,6 +108,16 @@ class WikimediaProvider:
     _last = 0.0
 
     async def search(self, query: str, limit: int) -> list[Candidate]:
+        out = await self._search(query, limit)
+        short = None if out else core_query(query)
+        if short:
+            # nothing for the whole sentence: once more with its core words
+            out = [c for c in await self._search(short, limit)]
+            for c in out:
+                c.found_for = query
+        return out
+
+    async def _search(self, query: str, limit: int) -> list[Candidate]:
         import asyncio
         import time
 

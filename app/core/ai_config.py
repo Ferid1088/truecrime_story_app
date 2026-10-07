@@ -1010,6 +1010,13 @@ class MotionConfig(BaseModel):
     parallax_shift_fraction: float = Field(default=0.012, ge=0.0, le=0.05)
     min_hold_seconds: float = Field(default=5.0, gt=0.0)
     max_still_seconds: float = Field(default=16.0, gt=0.0)
+    # One picture (with its reframes) is never on screen longer than this:
+    # a longer hold becomes a sequence of earned pictures.
+    max_hold_seconds: float = Field(default=20.0, gt=0.0)
+    # A map is orientation, not a backdrop: after this many seconds the
+    # story's pictures take over (zoom levels only when nothing else may
+    # be shown).
+    max_map_seconds: float = Field(default=12.0, gt=0.0)
     crossfade_seconds: list[float] = [0.7, 1.4]
     # The same motion is not used more than this many shots in a row.
     max_same_motion_run: int = Field(default=2, ge=1)
@@ -1046,6 +1053,18 @@ class AttentionConfig(BaseModel):
         "search", "police", "officer", "rescue", "investigat", "helicopter",
         "sniffer", "dog handler", "firefighter", "volunteers", "missing poster",
         "cordon", "forensic"]
+    # Pictures of custody or court (what the vision check saw, not the
+    # article headline) are not shown before the beat that tells of the
+    # arrest — the first beat whose summary contains one of arrest_terms.
+    custody_terms: list[str] = [
+        "inmate", "jumpsuit", "prison uniform", "jail uniform", "courtroom", "in court",
+        "sentencing", "verdict", "handcuff", "mugshot", "booking photo", "defense attorney",
+        "defence attorney", "witness stand", "on trial", "arraign", "gefängnis", "gerichtssaal",
+        "handschellen", "angeklagte"]
+    arrest_terms: list[str] = [
+        "arrest", "charged with", "in custody", "indicted", "taken into custody",
+        "festgenommen", "verhaftet", "festnahme", "verhaftung", "angeklagt",
+        "بازداشت", "دستگیر"]
     # The same date or place card is not shown again within this time.
     repeat_overlay_seconds: float = Field(default=150.0, ge=0.0)
 

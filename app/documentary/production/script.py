@@ -35,6 +35,7 @@ from app.db.models import (
 )
 from app.documentary import storage
 from app.documentary.visuals import rights as R
+from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.generated import LABELS, localize_texts
 from app.documentary.visuals.usage import (
     UsageTracker, annotate, asset_facts, named_between, record_media_usage,
@@ -240,15 +241,6 @@ def _spoken_at(words: list[dict], text_en: str, start: float, end: float,
     return None
 
 
-def _shows_investigation(a: VisualAsset | None) -> bool:
-    if a is None:
-        return False
-    ver = json.loads(a.verification_json or "{}") if a.verification_json else {}
-    text = " ".join(str(x or "") for x in (a.description, a.title, a.caption, a.found_for,
-                                            ver.get("depicts"))).lower()
-    return any(t in text for t in ai_config.attention.investigation_terms)
-
-
 def plan_cuts(start: float, end: float, sentence_starts: list[float],
               seed: int = 0) -> list[float]:
     """Cut times between start and end like an editor: lengths follow
@@ -288,9 +280,8 @@ def _repeat_fields(choice: dict) -> dict:
 
 
 def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
-               order: list[str], before_incident: set[str], max_black: float,
+               order: list[str], fw: SP.Firewall, max_black: float,
                sentence_starts: list[float] | None = None,
-               no_investigation: set[str] | None = None,
                tracker: UsageTracker | None = None,
                sentences: list[dict] | None = None) -> list[dict]:
     """A black screen stays a short pause: a black run longer than
@@ -322,8 +313,7 @@ def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
         for code in dict.fromkeys(earned):  # keep order, no duplicates
             a = assets.get(code or "")
             if (a is None or not _still_usable(a) or a.asset_type != "photo"
-                    or (sh["beat_id"] in (no_investigation or before_incident)
-                        and _shows_investigation(a))):
+                    or fw.blocks(sh["beat_id"], a)):
                 continue
             pool.append(a)
         if not pool:
@@ -384,7 +374,7 @@ def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
 
 
 def _earned_pool(beat_id: str, out: list[dict], plan: dict, assets: dict[str, VisualAsset],
-                 order: list[str], before_incident: set[str]) -> list[VisualAsset]:
+                 order: list[str], fw: SP.Firewall) -> list[VisualAsset]:
     """Pictures the story has earned at this beat: candidates of this or
     an earlier beat, and pictures already shown (never a later reveal)."""
     cands = plan.get("candidates") or {}
@@ -395,24 +385,29 @@ def _earned_pool(beat_id: str, out: list[dict], plan: dict, assets: dict[str, Vi
     for code in dict.fromkeys(earned):
         a = assets.get(code or "")
         if (a is None or not _still_usable(a) or a.asset_type != "photo"
-                or (beat_id in before_incident and _shows_investigation(a))):
+                or fw.blocks(beat_id, a)):
             continue
         pool.append(a)
     return pool
 
 
 def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
-                     order: list[str], before_incident: set[str],
+                     order: list[str], fw: SP.Firewall,
                      sentence_starts: list[float] | None = None,
-                     no_investigation: set[str] | None = None,
                      tracker: UsageTracker | None = None,
                      sentences: list[dict] | None = None) -> list[dict]:
-    """One picture held (or reframed) much longer than max_still becomes a
-    sequence: the picture first, then other earned pictures in the cut
-    rhythm — unused ones first, a reuse only when the usage tracker
-    allows it; when nothing else may be shown, the picture on screen is
-    reframed (the same appearance continues)."""
-    max_still = ai_config.motion.max_still_seconds
+    """One picture held (or reframed) longer than motion.max_hold_seconds
+    becomes a sequence: the picture first, then other earned pictures in
+    the cut rhythm — unused ones first, a reuse only when the usage
+    tracker allows it; when nothing else may be shown, the picture on
+    screen is reframed (the same appearance continues). A map is
+    orientation, not a backdrop: after motion.max_map_seconds the story's
+    pictures take over, and only when none may be shown do the map's
+    zoom levels take turns."""
+    motion = ai_config.motion
+    max_still, max_hold, max_map = (motion.max_still_seconds, motion.max_hold_seconds,
+                                    motion.max_map_seconds)
+    shortest = ai_config.visual_direction.min_cut_seconds
     tracker = tracker or UsageTracker.from_shots(shots, _facts(assets))
     moves = ("SLOW_PUSH", "PAN_RIGHT", "SLOW_PULL", "PAN_LEFT", "CROP_FOCUS")
     # runs of consecutive shots of the same picture
@@ -425,81 +420,102 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
         else:
             runs.append([sh])
     final: list[dict] = []
-    for run in runs:
+    for ri, run in enumerate(runs):
         first = run[0]
-        total = run[-1]["end"] - first["start"]
-        if first.get("kind") == "map" and total > max_still * 2 and len(first.get("map_paths") or []) > 1:
-            # a long map: the zoom levels take turns (wide, close, middle ...)
-            # — one place, one appearance
-            paths = first["map_paths"]
-            bounds = [first["start"]] + plan_cuts(first["start"], run[-1]["end"],
-                                                  sentence_starts or [], 1) + [run[-1]["end"]]
-            n = len(bounds) - 1
-            t = first["start"]
-            for k in range(n):
-                seg_end = bounds[k + 1]
-                seg = {**first, "start": round(t, 3), "end": seg_end}
-                if k:
-                    seg.update({"path": paths[(len(paths) - 1 - k) % len(paths)],
-                                "map_paths": [paths[(len(paths) - 1 - k) % len(paths)]],
-                                "motion": ("SLOW_PULL", "PAN_RIGHT", "SLOW_PUSH", "PAN_LEFT")[k % 4],
-                                "command": "SHOW_MAP", "transition_in": "CROSSFADE"})
-                final.append(seg)
-                t = seg_end
-            continue
-        if first.get("kind") != "image" or total <= max_still * 2:
+        run_end = run[-1]["end"]
+        # the picture right after this run (never cut to it a moment early)
+        nxt = runs[ri + 1][0].get("asset_id") if ri + 1 < len(runs) else None
+        total = run_end - first["start"]
+        is_map = first.get("kind") == "map"
+        # a stand-in (generic / illustration, tier >= 4) is a short
+        # moment, never a backdrop: it gets a map's budget
+        stand_in = first.get("kind") == "image" and int(first.get("tier") or 3) >= 4
+        if is_map or stand_in:
+            lead_end = first["start"] + max_map
+            min_lead = min(max_map, 7.0)
+        else:
+            lead_end = first["start"] + min(max(first["end"] - first["start"], 10.0), max_still)
+            min_lead = 7.0
+        if not (((is_map or stand_in) and total > max_map + shortest)
+                or (first.get("kind") == "image" and total > max_hold)):
             final.extend(run)
             continue
-        lead_end = round(first["start"] + min(max(first["end"] - first["start"], 10.0),
-                                              max_still), 3)
         near = [x for x in sentence_starts or [] if abs(x - lead_end) <= 3.0
-                and x - first["start"] >= 7.0]
+                and x - first["start"] >= min_lead and run_end - x >= shortest]
         if near:
-            lead_end = round(min(near, key=lambda x: abs(x - lead_end)), 3)
+            lead_end = min(near, key=lambda x: abs(x - lead_end))
+        lead_end = round(lead_end, 3)
+        if run_end - lead_end < shortest:
+            final.extend(run)
+            continue
         code0 = first.get("asset_id")
         if code0:
-            tracker.discard(code0, first["start"], run[-1]["end"])
+            tracker.discard(code0, first["start"], run_end)
             tracker.add(code0, first["start"], lead_end)
         final.append({**first, "end": lead_end})
-        guard = no_investigation or before_incident
         pool = [a.asset_code for a in _earned_pool(first["beat_id"], final, plan, assets,
-                                                   order, guard)
+                                                   order, fw)
                 if a.asset_code != code0]
         alts = {x["asset_id"]: x for x in first.get("alternatives") or []
                 if x.get("asset_id") and x.get("asset_id") != code0}
-        options = list(dict.fromkeys(pool + list(alts) + ([code0] if code0 else [])))
-        bounds = [lead_end] + plan_cuts(lead_end, run[-1]["end"], sentence_starts or [],
-                                        len(final)) + [run[-1]["end"]]
+        options = list(dict.fromkeys(pool + list(alts) + ([code0] if code0 and not is_map
+                                                          else [])))
+        bounds = [lead_end] + plan_cuts(lead_end, run_end, sentence_starts or [],
+                                        len(final)) + [run_end]
+        paths = first.get("map_paths") or []
         t = lead_end
         for k in range(len(bounds) - 1):
             seg_end = bounds[k + 1]
             # the beat the segment falls in (for firewall / incident rules)
             beat = next((x["beat_id"] for x in run if x["start"] <= t < x["end"]), first["beat_id"])
             recent = {x.get("asset_id") for x in final[-2:]}
-            allowed = [c for c in options
-                       if not (beat in guard and _shows_investigation(assets.get(c)))]
+            last_seg = k == len(bounds) - 2
+            if last_seg and nxt:
+                recent.add(nxt)
+            allowed = [c for c in options if not fw.blocks(beat, assets.get(c))]
             choice = tracker.pick(allowed, t, seg_end, named_between(sentences or [], t, seg_end),
                                   avoid=recent)
+            if choice is None and (is_map or stand_in) and final[-1].get("asset_id") == code0:
+                # still on the map / stand-in: case material once more;
+                # after that the case picture is reframed, not ping-ponged
+                choice = _over_limit(tracker, allowed, t, seg_end,
+                                     {final[-1].get("asset_id"), code0}
+                                     | ({nxt} if last_seg and nxt else set()))
             base = {**_base(first), "start": round(t, 3), "end": seg_end, "beat_id": beat,
                     "motion": moves[len(final) % len(moves)], "transition_in": "CROSSFADE"}
             if choice is not None:
                 c = choice["asset_id"]
                 info = _asset_info(assets[c]) if c in assets else dict(alts.get(c) or {})
-                seg = {**base, **info, "command": "NEW_IMAGE",
-                       "fill_reason": f"long hold varied: {choice['reason']}",
+                if is_map:  # a picture after the map: none of the map's fields
+                    base = {k2: v for k2, v in base.items()
+                            if k2 not in ("map_paths", "place", "marker", "held")}
+                seg = {**base, **info, "kind": "image", "command": "NEW_IMAGE",
+                       "fill_reason": (f"{'map' if is_map else 'long hold'} varied: "
+                                       f"{choice['reason']}"),
                        **_repeat_fields(choice)}
                 tracker.add(c, t, seg_end)
+            elif final[-1].get("kind") == "map" and len(paths) > 1:
+                # nothing else may be shown: the map's zoom levels take turns
+                level = paths[(len(paths) - 2 - k) % len(paths)]
+                seg = {**first, "start": round(t, 3), "end": seg_end, "path": level,
+                       "map_paths": [level], "command": "SHOW_MAP", "transition_in": "CROSSFADE",
+                       "motion": ("SLOW_PULL", "PAN_RIGHT", "SLOW_PUSH", "PAN_LEFT")[k % 4],
+                       "fill_reason": "map: zoom level — no other picture may be shown"}
+                if code0:
+                    tracker.add(code0, t, seg_end)
             else:
                 # nothing else may be shown: reframe what is on screen
                 prev = final[-1]
                 seg = {**base, **{k2: prev[k2] for k2 in prev if k2 not in base
                                   and k2 not in _PER_SHOT},
-                       **{k2: prev.get(k2) for k2 in ("asset_id", "path", "type", "role",
+                       **{k2: prev.get(k2) for k2 in ("kind", "asset_id", "path", "type", "role",
                                                       "width", "height", "focus", "rights",
                                                       "credit", "subject_type", "highlight",
                                                       "marker", "tier", "entity_type",
-                                                      "entities")},
-                       "command": "CROP_EXISTING", "reframe": True,
+                                                      "entities", "map_paths", "place")
+                          if k2 in prev},
+                       "command": "SHOW_MAP" if prev.get("kind") == "map" else "CROP_EXISTING",
+                       "reframe": True,
                        "fill_reason": "long hold: reframed — no other picture may be shown"}
                 if prev.get("asset_id"):
                     tracker.add(prev["asset_id"], t, seg_end)
@@ -508,8 +524,67 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
     return final
 
 
+def _over_limit(tracker: UsageTracker, codes: list[str], start: float, end: float,
+                avoid: set) -> dict | None:
+    """When nothing may be shown within the usage limits and the screen
+    holds a map or a stand-in: case material (tier <= 3) shown once more
+    than its limit beats stretching a stand-in — the most case-specific
+    (lowest tier) first, then the least shown; a face still keeps its
+    minimum gap."""
+    gap = ai_config.visual_direction.min_repeat_gap_seconds
+    ok = [c for c in codes if c and c not in avoid and tracker.tier(c) <= 3
+          and not (tracker.category(c) == "person" and tracker.gap(c, start, end) < gap)]
+    if not ok:
+        return None
+
+    def key(c):
+        last = tracker.last_shown(c, start)
+        return (tracker.tier(c), tracker.appearances(c), last if last is not None else -1.0)
+
+    c = sorted(ok, key=key)[0]
+    return {"asset_id": c, "repeat": True, "repeat_justified": True,
+            "repeat_reason": ("over its limit: nothing else may be shown here, and case "
+                              "material beats stretching a stand-in"),
+            "reason": "reuse over limit instead of a long stand-in"}
+
+
+def label_overlays(shots: list[dict], language: str, duration: float) -> list[dict]:
+    """The 'illustration' label is on screen exactly while an
+    illustration (a stand-in) is."""
+    text = LABELS["illustration"].get(language) or LABELS["illustration"].get("en")
+    out: list[dict] = []
+    for sh in shots:
+        if sh.get("role") != "illustration" or sh.get("kind") not in ("image", "video"):
+            continue
+        start, end = round(sh["start"], 3), round(min(sh["end"], duration), 3)
+        if out and abs(out[-1]["end"] - start) <= 0.05:
+            out[-1]["end"] = end
+        elif end - start > 0.5:
+            out.append({"kind": "label", "text": text, "start": start, "end": end})
+    return out
+
+
+def credit_overlays(shots: list[dict], duration: float) -> list[dict]:
+    """Credits follow the final cut: each attributed picture (and every
+    map) carries its credit exactly while it is on screen."""
+    out: list[dict] = []
+    for sh in shots:
+        if sh.get("kind") == "map":
+            text = ai_config.maps.attribution
+        elif sh.get("credit") and R.needs_attribution(sh.get("rights")):
+            text = sh["credit"]
+        else:
+            continue
+        start, end = round(sh["start"], 3), round(min(sh["end"], duration), 3)
+        if out and out[-1]["text"] == text and abs(out[-1]["end"] - start) <= 0.05:
+            out[-1]["end"] = end
+        elif end - start > 0.5:
+            out.append({"kind": "credit", "text": text, "start": start, "end": end})
+    return out
+
+
 def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
-                   order: list[str], guard: set[str], tracker: UsageTracker,
+                   order: list[str], fw: SP.Firewall, tracker: UsageTracker,
                    sentences: list[dict], sentence_starts: list[float]) -> list[dict]:
     """A clip plays once. When its shot runs much longer than the clip,
     the cut comes when the footage ends (at a sentence start when one is
@@ -529,7 +604,7 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
         near = [x for x in sentence_starts if sh["start"] + hold <= x <= cut and cut - x <= 3.0]
         if near:
             cut = round(max(near), 3)
-        pool = [a.asset_code for a in _earned_pool(sh["beat_id"], out, plan, assets, order, guard)]
+        pool = [a.asset_code for a in _earned_pool(sh["beat_id"], out, plan, assets, order, fw)]
         choice = tracker.pick(pool, cut, sh["end"], named_between(sentences, cut, sh["end"]),
                               avoid={sh.get("asset_id")})
         if choice is None:
@@ -598,7 +673,7 @@ def status_overlays(case_status: str | None, production_type: str | None,
 def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             texts: dict[str, str], language: str, incident_beat: str | None = None, *,
             case_status: str | None = None, production_type: str | None = "original",
-            opening_strategy: str | None = None) -> dict:
+            opening_strategy: str | None = None, arrest_beat: str | None = None) -> dict:
     """Pure function: manifest (audio timeline) + visual plan + localized
     texts -> production timeline. `incident_beat`: where the story's first
     incident happens (voice performance arc) — no investigation pictures
@@ -645,7 +720,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                 and (test is None or test(assets[c]))]
 
     order = [s["beat_id"] for s in spans]
-    before_incident = set(order[:order.index(incident_beat)]) if incident_beat in order else set()
+    before_incident = SP.beats_before(order, incident_beat)
+    # what the director's own pictures may not show (incident, arrest)
+    planfw = SP.Firewall(before_incident, SP.beats_before(order, arrest_beat))
 
     for i, span in enumerate(spans):
         w_start = 0.0 if i == 0 else span["start"]
@@ -679,23 +756,28 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                 named = named_between(named_sents, start, end)
                 recent = {x.get("asset_id") for x in shots[-2:]}
                 fill_reason, repeat = None, None
-                if span["beat_id"] in before_incident and _shows_investigation(a):
-                    # a search/police picture would give the story away
-                    choice = tracker.pick(pool(span["beat_id"], recent,
-                                               lambda x: not _shows_investigation(x)),
-                                          start, end, named, reserved=planned)
+                beat = span["beat_id"]
+
+                def open_(x, beat=beat):
+                    return not planfw.blocks(beat, x)
+
+                spoiler = planfw.why(beat, a) if a is not None else None
+                if spoiler:
+                    # a search/police or a custody/court picture would give
+                    # the story away here
+                    choice = tracker.pick(pool(beat, recent, open_), start, end, named,
+                                          reserved=planned)
                     if choice is None and shots:
                         extend_last(end)
                         continue
                     a = assets[choice["asset_id"]] if choice else None
                     if choice:
-                        fill_reason = ("the planned picture shows the investigation before "
-                                       f"the incident: {choice['reason']}")
+                        fill_reason = f"the planned picture {spoiler}: {choice['reason']}"
                         repeat = choice
                 if a is not None and not _still_usable(a):
                     # reviewed after planning (rejected / rights changed):
                     # another candidate of the beat, else keep the picture
-                    choice = tracker.pick(pool(span["beat_id"], recent), start, end, named,
+                    choice = tracker.pick(pool(beat, recent, open_), start, end, named,
                                           reserved=planned)
                     if choice is None and shots:
                         extend_last(end)
@@ -713,9 +795,10 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                     code = a.asset_code
                     ok, why_not = tracker.allows(code, start, end)
                     who = tracker.named(code, named)
-                    alts = pool(span["beat_id"], recent | {code},
-                                (lambda x: bool(set(asset_facts(x)["entities"]) & set(who)))
-                                if who else None)
+                    alts = pool(beat, recent | {code},
+                                (lambda x: open_(x) and bool(set(asset_facts(x)["entities"])
+                                                             & set(who)))
+                                if who else open_)
                     alt = tracker.pick(alts, start, end, named, reserved=planned - {code},
                                        allow_repeat=False)
                     if alt is not None:
@@ -822,19 +905,23 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     # pictures the editor adds (fills, sequences) never show the
     # investigation before the incident — nor during the incident beat,
     # where the story is still before the moment it happens
-    guard = before_incident | ({incident_beat} if incident_beat in order else set())
+    guard = SP.Firewall(before_incident | ({incident_beat} if incident_beat in order else set()),
+                        planfw.custody)
     # the whole film at once: a fill never takes a picture shown later
     tracker = UsageTracker.from_shots(shots, facts)
     shots = _clip_overruns(shots, plan, assets, order, guard, tracker, named_sents, starts)
-    shots = _cap_black(shots, plan, assets, order, before_incident, att.max_black_seconds,
-                       starts, guard, tracker, named_sents)
-    final = _vary_long_holds(shots, plan, assets, order, before_incident, starts, guard,
-                             tracker, named_sents)
+    shots = _cap_black(shots, plan, assets, order, guard, att.max_black_seconds,
+                       starts, tracker, named_sents)
+    final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
     for n, sh in enumerate(final):
         sh["index"] = n
         if n == 0:
             sh["transition_in"] = "FADE_BLACK"
     annotate(final, facts, named_sents)
+    cred = credit_overlays(final, duration)
+    labels = label_overlays(final, language, duration)
+    overlays[:] = [o for o in overlays if o["kind"] not in ("credit", "label")] + cred + labels
+    credits |= {o["text"] for o in cred}
     for o in status_overlays(case_status, production_type, language, duration):
         add_overlay(o["kind"], o["text"], o["start"], o["end"])
     blocks = manifest["timeline"].get("blocks") or []
@@ -869,6 +956,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         # what fills and critic fixes may use, and what each sentence names
         "candidates": cands,
         "sentence_entities": named_sents,
+        # beats where investigation / custody pictures would give the story away
+        "firewall": {"investigation": sorted(guard.investigation),
+                     "custody": sorted(guard.custody)},
     }
 
 
@@ -941,7 +1031,9 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     bp_row = db.get(EditorialBlueprint, plan_row.blueprint_id) if plan_row.blueprint_id else None
     opening = (opening_of_blueprint(db, bp_row).get("strategy")
                or (plan.get("opening") or {}).get("strategy"))
+    blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
+                     arrest_beat=SP.arrest_beat(blueprint),
                      case_status=getattr(case, "resolution_status", None),
                      production_type=production_type or "original", opening_strategy=opening)
     film_key = film_key_of(plan_row, manifest)

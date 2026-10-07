@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import ProductionScript, VisualAsset
 from app.documentary.visuals import rights as R
+from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.usage import (
     PICTURE_KINDS, UsageTracker, annotate, asset_facts, named_between, record_media_usage,
 )
@@ -343,10 +344,14 @@ def _replace(shots: list[dict], i: int, script: dict | None = None,
     alts = {a["asset_id"]: a for a in s.get("alternatives") or [] if a.get("asset_id")}
     pool = list((script or {}).get("candidates", {}).get(s.get("beat_id"), [])) + list(alts)
     assets = assets or {}
+    fwj = (script or {}).get("firewall") or {}
+    fw = SP.Firewall(set(fwj.get("investigation") or ()), set(fwj.get("custody") or ()))
     pool = [c for c in dict.fromkeys(pool)
-            if c in alts or (c in assets and assets[c].asset_type == "photo"
-                             and assets[c].verification_status != "rejected"
-                             and R.allowed(assets[c].rights_status))]
+            if (c in alts and c not in assets)
+            or (c in assets and assets[c].asset_type == "photo"
+                and assets[c].verification_status != "rejected"
+                and R.allowed(assets[c].rights_status)
+                and not fw.blocks(s.get("beat_id"), assets[c]))]
     tr = UsageTracker.from_shots(shots, {c: asset_facts(a) for c, a in assets.items()},
                                  skip={i})
     names = named_between((script or {}).get("sentence_entities") or [], s["start"], s["end"])
@@ -374,7 +379,7 @@ def _hold_previous(shots: list[dict], s: dict) -> bool:
     if i == 0:
         return False
     prev = shots[i - 1]
-    limit = ai_config.motion.max_still_seconds * 2
+    limit = ai_config.motion.max_hold_seconds
     if prev.get("kind") in ("image", "map", "document", "video") and s["end"] - prev["start"] <= limit:
         prev["end"] = s["end"]
         shots.remove(s)
@@ -431,14 +436,29 @@ def apply_fixes(script: dict, problems: list[dict],
             done.append({"shot": p["shot"], "fix": "replace_picture", "to": s.get("asset_id")})
         elif fix in ("keep_previous", "replace_picture") and i > 0:
             prev = shots[i - 1]
-            limit = ai_config.motion.max_still_seconds * 2
+            limit = ai_config.motion.max_hold_seconds
             if prev.get("kind") in ("image", "map", "document") and s["end"] - prev["start"] <= limit:
                 prev["end"] = s["end"]
                 shots.remove(s)
                 done.append({"shot": p["shot"], "fix": "keep_previous"})
         elif fix == "black":
-            s.update({"kind": "black", "motion": "NONE", "path": None})
-            done.append({"shot": p["shot"], "fix": "black"})
+            # a black screen stays a short pause (attention.max_black_seconds):
+            # a longer shot gets another picture, else black only for the
+            # pause and the next picture comes early, else it stays
+            cap = ai_config.attention.max_black_seconds
+            nxt = shots[i + 1] if i + 1 < len(shots) else None
+            cut = round(s["start"] + cap, 3)
+            if s["end"] - s["start"] <= cap + 1.0:
+                s.update({"kind": "black", "motion": "NONE", "path": None, "asset_id": None})
+                done.append({"shot": p["shot"], "fix": "black"})
+            elif _replace(shots, i, script, assets, allow_repeat=False):
+                done.append({"shot": p["shot"], "fix": "replace_picture",
+                             "to": s.get("asset_id"), "reason": "black would be too long"})
+            elif (nxt is not None and nxt.get("kind") in ("image", "map", "document")
+                  and nxt["end"] - cut <= ai_config.motion.max_hold_seconds):
+                s.update({"kind": "black", "motion": "NONE", "path": None, "asset_id": None, "end": cut})
+                nxt["start"] = cut
+                done.append({"shot": p["shot"], "fix": "black", "seconds": cap})
         elif fix in ("remove_text", "shorten_text"):
             before = len(script.get("overlays") or [])
             script["overlays"] = [o for o in script.get("overlays") or []
@@ -448,6 +468,14 @@ def apply_fixes(script: dict, problems: list[dict],
                 done.append({"shot": p["shot"], "fix": "remove_text"})
     for n, sh in enumerate(shots):
         sh["index"] = n
+    if done and shots:
+        # credits follow the corrected cut
+        from app.documentary.production.script import credit_overlays
+
+        dur = float(script.get("duration") or shots[-1]["end"])
+        script["overlays"] = sorted(
+            [o for o in script.get("overlays") or [] if o["kind"] != "credit"]
+            + credit_overlays(shots, dur), key=lambda o: o["start"])
     return done
 
 
