@@ -819,3 +819,16 @@ def test_materialize_passes_the_previous_map_place(db_session, media_env, monkey
     assert second["zooms"] == [11, 14, 17] and second["starts_at_city"] is True
     assert second["after_place"] == "Stendal, Germany" and second["granularity"] == "building"
     assert len(shots["B03"]["map_assets"]) == 3
+
+
+def test_image_search_results_on_news_pages_are_editorial_material():
+    from app.documentary.visuals import rights as R
+
+    for page in ("https://www.wdtn.com/news/ashley-flynn/x", "https://dayton247now.com/news/local/x",
+                 "https://www.foxnews.com/us/x"):
+        assert R.classify("searxng_images", None, "https://cdn.example/a.jpg", page)[0] == \
+            "editorial_review_required"
+    for page in ("https://www.pinterest.com/pin/1/", "https://shop.example/product/flynn/"):
+        assert R.classify("searxng_images", None, "https://cdn.example/a.jpg", page)[0] == "unknown"
+    # never allowed in a publish render without a human decision
+    assert not R.allowed("editorial_review_required", "publish")

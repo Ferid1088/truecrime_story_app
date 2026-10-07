@@ -58,7 +58,33 @@ def classify(provider: str, license_name: str | None = None,
     if provider == "source_page":
         return ("editorial_review_required",
                 f"image from a case source ({_domain(page_url or url)})")
+    if provider == "searxng_images" and page_url:
+        # an image found on a news / official page is reporting material
+        # like a case source's own picture (a human decides before
+        # publishing); pins, shops and blogs stay unknown
+        from app.research_engine.source_quality import classify_source
+
+        kind = classify_source(page_url).source_type
+        if kind in _NEWS_OR_OFFICIAL or _news_page(page_url):
+            return ("editorial_review_required",
+                    f"image on a news/official page ({_domain(page_url)})")
     return "unknown", "no license information"
+
+
+_NEWS_OR_OFFICIAL = {"credible_journalism", "local_journalism", "police_record", "court_record",
+                     "government_archive", "primary_official", "coroner_record"}
+# local TV/newspaper hosts the domain table does not know, or a /news/ page
+_NEWS_HOST = re.compile(r"news|times|post|herald|gazette|tribune|journal|daily|courier|"
+                        r"abc\d|cbs\d|nbc\d|fox\d|247now|wdtn|whio|wlwt|wcpo|wbns|wkrg|wtoc|wbtv",
+                        re.I)
+
+
+def _news_page(url: str) -> bool:
+    try:
+        path = urlparse(url).path.lower()
+    except ValueError:
+        path = ""
+    return bool(_NEWS_HOST.search(_domain(url))) or path.startswith(("/news/", "/crime/"))
 
 
 def allowed(rights_status: str, profile: str | None = None) -> bool:
