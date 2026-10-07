@@ -1012,6 +1012,17 @@ class AttentionConfig(BaseModel):
     # with one of these purposes discloses.
     firewall_purposes: list[str] = ["reveal", "contradiction", "evidence",
                                     "false_lead", "chapter_end"]
+    # A black screen is a short dramatic pause, never a whole beat: after
+    # this many seconds a picture the story has already earned takes over.
+    max_black_seconds: float = Field(default=6.0, ge=0.0)
+    # Pictures of the investigation (searches, police, rescue teams) are
+    # not shown before the story's first incident (it would reveal it).
+    investigation_terms: list[str] = [
+        "search", "police", "officer", "rescue", "investigat", "helicopter",
+        "sniffer", "dog handler", "firefighter", "volunteers", "missing poster",
+        "cordon", "forensic"]
+    # The same date or place card is not shown again within this time.
+    repeat_overlay_seconds: float = Field(default=150.0, ge=0.0)
 
 
 class RenderConfig(BaseModel):

@@ -15,6 +15,7 @@ import hashlib
 import io
 import json
 import math
+import re
 import time
 from pathlib import Path
 
@@ -44,31 +45,55 @@ async def _polite_get(client: httpx.AsyncClient, url: str, **kw) -> httpx.Respon
     return r
 
 
-async def geocode(place: str, client: httpx.AsyncClient | None = None) -> dict | None:
-    """{"lat", "lon", "display_name"} or None. Cached per query."""
+def _km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    lat1, lon1, lat2, lon2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    h = (math.sin((lat2 - lat1) / 2) ** 2
+         + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2)
+    return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(h)))
+
+
+async def geocode(place: str, client: httpx.AsyncClient | None = None,
+                  near: tuple[float, float] | None = None) -> dict | None:
+    """{"lat", "lon", "display_name"} or None. Several places share a name
+    (there is more than one "Wilhelmshof"): with `near` (a place of the
+    same case) the closest match wins. Results cached per query."""
     key = hashlib.sha1(place.lower().encode()).hexdigest()[:16]
-    f = cache_dir() / f"geo_{key}.json"
+    f = cache_dir() / f"geo5_{key}.json"
     if f.exists():
-        data = json.loads(f.read_text())
-        return data or None
-    own = client is None
-    client = client or httpx.AsyncClient(
-        timeout=25, headers={"User-Agent": ai_config.visual_search.user_agent})
-    try:
-        r = await _polite_get(client, ai_config.maps.geocoder_url,
-                              params={"q": place, "format": "json", "limit": 1})
-        res = r.json()
-    except (httpx.HTTPError, ValueError):
+        res = json.loads(f.read_text())
+    else:
+        own = client is None
+        client = client or httpx.AsyncClient(
+            timeout=25, headers={"User-Agent": ai_config.visual_search.user_agent})
+        try:
+            r = await _polite_get(client, ai_config.maps.geocoder_url,
+                                  params={"q": place, "format": "json", "limit": 5})
+            res = r.json()
+        except (httpx.HTTPError, ValueError):
+            return None
+        finally:
+            if own:
+                await client.aclose()
+        res = [{"lat": float(x["lat"]), "lon": float(x["lon"]),
+                "display_name": x.get("display_name")} for x in res or []
+               if "lat" in x and "lon" in x]
+        f.write_text(json.dumps(res))
+    # The result must really be that place: every word of the name (before
+    # the first comma) appears in the result ("Bundesstraße 188" is not
+    # "An der Bundesstraße").
+    import unicodedata
+
+    def fold(t: str) -> str:
+        t = unicodedata.normalize("NFKD", t or "").lower()
+        return "".join(ch for ch in t if not unicodedata.combining(ch)).replace("ß", "ss")
+
+    words = [w for w in re.findall(r"\w+", fold(place.split(",")[0])) if len(w) > 1 or w.isdigit()]
+    res = [x for x in res if all(w in fold(x.get("display_name") or "") for w in words)]
+    if not res:
         return None
-    finally:
-        if own:
-            await client.aclose()
-    data = {}
-    if res:
-        data = {"lat": float(res[0]["lat"]), "lon": float(res[0]["lon"]),
-                "display_name": res[0].get("display_name")}
-    f.write_text(json.dumps(data))
-    return data or None
+    if near is not None:
+        return min(res, key=lambda x: _km(near, (x["lat"], x["lon"])))
+    return res[0]
 
 
 def _tile_xy(lat: float, lon: float, z: int) -> tuple[float, float]:

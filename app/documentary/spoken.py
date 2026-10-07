@@ -687,14 +687,18 @@ class SpokenNarrator:
         if not targets:
             return spoken
         size = self.cfg.beats_per_call or len(targets)
-        for i in range(0, len(targets), size):
-            spoken = await self._repair_chunk(
-                db, case_id, language, source, spoken, checks, uncertain,
-                targets[i:i + size])
-        return spoken
+        # chunks repair different beats: all at once
+        results = await gather_limited(None, [
+            self._repair_chunk(db, case_id, language, source, spoken, checks, uncertain,
+                               targets[i:i + size])
+            for i in range(0, len(targets), size)])
+        new: dict[str, str] = {}
+        for fixed in results:
+            new.update(fixed)
+        return [{"id": s["id"], "text": new.get(s["id"], s["text"])} for s in spoken]
 
     async def _repair_chunk(self, db, case_id, language, source, spoken, checks,
-                            uncertain, targets) -> list[dict]:
+                            uncertain, targets) -> dict[str, str]:
         src = {s["id"]: s["text"] for s in source}
         system = writer_system_prompt(language) + """
 You are now revising ONLY the beats given. For each beat you get its
@@ -731,9 +735,8 @@ else. Return only these beats, each under its marker line.
             [{"id": s["id"], "text": s["text"]} for s in targets], text,
             allow_paragraph_fallback=False)
         if not ok:
-            return spoken  # keep current text; checks stay honest
-        new = {s["id"]: s["text"] for s in fixed}
-        return [{"id": s["id"], "text": new.get(s["id"], s["text"])} for s in spoken]
+            return {}  # keep current text; checks stay honest
+        return {s["id"]: s["text"] for s in fixed}
 
     # ------------------------------------------------------------------
     # public

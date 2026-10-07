@@ -31,15 +31,31 @@ def _find_generated(db: Session, case_id: int, asset_type: str, spec_key: str) -
     return None
 
 
+async def _case_anchor(db: Session, case: Case, place: str) -> tuple[float, float] | None:
+    """Where the case happens: the first place of the case that was
+    mapped before (so an ambiguous name resolves near it)."""
+    first = (db.query(VisualAsset)
+             .filter(VisualAsset.case_id == case.id, VisualAsset.asset_type == "map",
+                     VisualAsset.location.isnot(None), VisualAsset.location != place)
+             .order_by(VisualAsset.id).first())
+    if first is None:
+        return None
+    geo = await MAPS.geocode(first.location)
+    return (geo["lat"], geo["lon"]) if geo else None
+
+
 async def ensure_map(db: Session, case: Case, place: str) -> list[str]:
     """Asset codes of the zoom sequence for a place (wide -> close)."""
     codes = []
     geo = None
+    near = None
     for z in ai_config.maps.zoom_levels:
         key = f"map|{place.lower()}|{z}"
         a = _find_generated(db, case.id, "map", key)
         if a is None:
-            geo = geo or await MAPS.geocode(place)
+            if geo is None and near is None:
+                near = await _case_anchor(db, case, place)
+            geo = geo or await MAPS.geocode(place, near=near)
             if not geo:
                 return []
             code = next_asset_code(db)

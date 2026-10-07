@@ -1152,7 +1152,9 @@
       "evidence",
       "false_lead",
       "chapter_end"
-    ]
+    ],
+    "max_black_seconds": 6.0,
+    "repeat_overlay_seconds": 150.0
   },
   "render": {
     "profile": "preview",

@@ -514,6 +514,10 @@ def test_subtitles_show_the_display_text():
                                 "display": " ".join(["word"] * 60)}], [])
     assert len(long) > 1 and all(len(s["text"]) <= 84 + 5 for s in long)
     assert all(a["end"] <= b["start"] for a, b in zip(long, long[1:]))
+    # a one-word tail joins the line before (no orphan subtitle)
+    orphan = sentence_subtitles([{"start": 0, "end": 4, "speech": "x",
+                                  "display": " ".join(["abcdefgh"] * 9) + " end."}], [])
+    assert len(orphan) == 1 and orphan[0]["text"].endswith("abcdefgh end.")
     tl = {"timeline": {"sentences": sentences, "words": words}}
     dw = display_words(tl)
     assert dw[0]["word"] == "و" and dw[-1]["word"] == "gone."
@@ -633,3 +637,49 @@ def test_batch_api_starts_one_job_per_case(client, db_session, monkeypatch):
     # without from_zero a case needs a master story
     r2 = client.post("/api/documentary/batch", json={"items": [{"case_id": c3.id}]})
     assert r2.status_code == 409
+
+
+def test_parallel_languages_never_lose_each_others_overlay_texts(db_session, monkeypatch):
+    """Two languages localize at the same time; both results stay."""
+    from app.db.models import VisualPlan
+    from app.documentary.production import script as PS
+    from test_blueprint_performance import _story
+
+    case, master = _story(db_session)
+    from app.documentary.blueprint import NarrativeDirector  # noqa: F401
+    row = VisualPlan(case_id=case.id, blueprint_id=1, plan_json=json.dumps({"beats": []}),
+                     status="planned")
+    db_session.add(row)
+    db_session.commit()
+    monkeypatch.setattr(PS, "overlay_texts", lambda plan: {"date|2 May 2015": "2 May 2015"})
+
+    async def fake_localize(db, case_id, texts, language, excerpt):
+        await asyncio.sleep(0.01 if language == "de" else 0.02)
+        return {k: f"{v} [{language}]" for k, v in texts.items()}
+
+    monkeypatch.setattr(PS, "localize_texts", fake_localize)
+
+    class V:
+        def __init__(self, lang):
+            self.language, self.case_id = lang, case.id
+
+    monkeypatch.setattr(PS, "stored_sections", lambda v: [{"id": "B01", "text": "x"}])
+
+    async def both():
+        return await asyncio.gather(PS.localized_plan_texts(db_session, V("de"), row),
+                                    PS.localized_plan_texts(db_session, V("fa"), row))
+
+    asyncio.run(both())
+    db_session.refresh(row)
+    assert set(json.loads(row.plan_json)["texts"]) == {"de", "fa"}
+
+
+def test_cuts_vary_and_land_on_sentences():
+    from app.documentary.production.script import plan_cuts
+
+    cuts = plan_cuts(0.0, 64.0, [3, 9, 14.5, 21, 26, 33, 40, 45, 51, 58])
+    sentences = {9, 14.5, 21, 26, 33, 40, 45, 51}
+    # cuts land on sentence starts unless none is near (or it is too late)
+    assert cuts[:3] == [9, 26, 40] and set(cuts[:3]) <= sentences
+    gaps = [b - a for a, b in zip([0.0] + cuts, cuts + [64.0])]
+    assert min(gaps) >= 7.0 and len({round(g) for g in gaps}) > 1

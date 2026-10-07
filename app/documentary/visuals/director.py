@@ -84,6 +84,11 @@ Rules:
   house" unless it IS the house).
 - Use only asset_ids listed for that beat. If nothing fits, prefer
   KEEP_CURRENT_IMAGE, a map, a date, or BLACK_SCREEN over a wrong image.
+- BLACK_SCREEN is a short pause (a few seconds, one sentence), never a
+  whole beat: follow it with a picture or KEEP_CURRENT_IMAGE.
+- Do not show the investigation (searches, police, rescue teams) before
+  the story has told that something happened: the opening shows the
+  place and the people, not what is coming.
 - Maps orient: use them when the story arrives somewhere new.
 
 Return JSON only:

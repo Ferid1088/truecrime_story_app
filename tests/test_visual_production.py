@@ -270,9 +270,13 @@ def test_compose_timeline_from_real_audio():
     texts = {"date|May 2006": "Mai 2006"}
     s = compose(_manifest(), plan, assets, texts, "de")
     shots = s["shots"]
-    assert [x["kind"] for x in shots] == ["image", "image", "black"]
+    # the black beat stays a short pause, then a picture the story has
+    # already shown takes over (never 20 s of black)
+    assert [x["kind"] for x in shots] == ["image", "image", "black", "image"]
     assert shots[0]["start"] == 0 and shots[0]["end"] == 20.0  # date extends the image
-    assert shots[1]["start"] == 20.0 and shots[2]["end"] == 60.0
+    assert shots[1]["start"] == 20.0 and shots[3]["end"] == 60.0
+    assert shots[2]["end"] - shots[2]["start"] == pytest.approx(ai_config.attention.max_black_seconds)
+    assert shots[3]["asset_id"] == "VIS_000001" and shots[3]["black_filled"]
     assert shots[0]["transition_in"] == "FADE_BLACK"
     kinds = {o["kind"]: o for o in s["overlays"]}
     assert kinds["date"]["text"] == "Mai 2006"
@@ -296,10 +300,17 @@ def test_compose_folds_flash_cuts_and_swaps_long_holds():
     s = compose(m, plan, assets, {}, "en")
     # the 2.4 s opening flash cut is folded into the next picture
     assert s["shots"][0]["asset_id"] == "VIS_000002" and s["shots"][0]["start"] == 0.0
-    # a 60 s still is split; the second half shows another candidate
-    assert len(s["shots"]) == 2
-    assert s["shots"][1]["asset_id"] in ("VIS_000001", "VIS_000003")
-    assert s["shots"][1]["command"] == "NEW_IMAGE"
+    # a 60 s still becomes a sequence of the beat's pictures, never the
+    # same picture twice in a row and no picture much longer than a hold
+    shots = s["shots"]
+    assert len(shots) >= 4 and shots[-1]["end"] == 60.0
+    assert shots[1]["asset_id"] in ("VIS_000001", "VIS_000003")
+    assert all(x["command"] == "NEW_IMAGE" for x in shots[1:])
+    assert all(a["asset_id"] != b["asset_id"] for a, b in zip(shots, shots[1:]))
+    # (a cut may move up to 4 s to land where a sentence begins)
+    assert all(x["end"] - x["start"] <= ai_config.motion.max_still_seconds + 4.01 for x in shots)
+    lengths = [round(x["end"] - x["start"], 1) for x in shots[1:-1]]
+    assert len(set(lengths)) > 1  # never a metronome
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +506,7 @@ def documentary_env(tmp_path, monkeypatch):
             db.commit()
         return {"added": 2}
 
-    async def fake_geocode(place, client=None):
+    async def fake_geocode(place, client=None, near=None):
         return {"lat": -34.15, "lon": 115.67, "display_name": place}
 
     async def fake_map(lat, lon, zoom, out, W=2400, H=1350, client=None):
@@ -635,3 +646,29 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert client.get(f"/api/cases/{case.id}/documentary/production/en").status_code == 404
     music = client.get("/api/documentary/music").json()
     assert {m["id"] for m in music} >= {"bed_mystery", "sting_reveal"}
+
+
+def test_ambiguous_place_names_resolve_near_the_case(tmp_path, monkeypatch):
+    from app.documentary.visuals import maps as MAPS
+
+    monkeypatch.setattr(MAPS, "cache_dir", lambda: tmp_path)
+    calls = []
+
+    async def fake_get(client, url, params=None):
+        calls.append(params)
+
+        class R:
+            @staticmethod
+            def json():
+                return [{"lat": "51.64", "lon": "11.13", "display_name": "Wilhelmshof, Harzgerode"},
+                        {"lat": "52.53", "lon": "11.60", "display_name": "Wilhelmshof, Uchtspringe"}]
+        return R()
+
+    monkeypatch.setattr(MAPS, "_polite_get", fake_get)
+    far = asyncio.run(MAPS.geocode("Wilhelmshof"))
+    near = asyncio.run(MAPS.geocode("Wilhelmshof", near=(52.54, 11.59)))
+    assert far["display_name"].endswith("Harzgerode")
+    assert near["display_name"].endswith("Uchtspringe")
+    assert len(calls) == 1 and calls[0]["limit"] == 5  # cached
+    # a result that is not that place is no map at all
+    assert asyncio.run(MAPS.geocode("Wilhelmshof 188")) is None
