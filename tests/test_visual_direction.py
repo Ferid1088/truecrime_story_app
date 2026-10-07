@@ -965,3 +965,31 @@ def test_a_deferred_map_never_turns_a_keep_into_a_long_map():
     assert all(s["command"] != "ZOOM_EXISTING" or i > 0 and out[i - 1]["command"] != "SHOW_MAP"
                for i, s in enumerate(out))
     assert abs(sum(s["share"] for s in out) - 1.0) < 1e-3
+
+
+def test_a_place_the_planner_maps_gets_one_map_even_if_the_director_forgot():
+    from app.documentary.visuals.director import sentence_marks, validate_visual_plan
+
+    bp = {"beats": [
+        {"id": "B01", "purpose": "hook", "words": 80, "act": "act1"},
+        {"id": "B02", "purpose": "orientation", "words": 120, "act": "act1"},
+        {"id": "B03", "purpose": "timeline", "words": 120, "act": "act1"},
+    ]}
+    v1, v2, v3 = (_asset("VIS_000001", entity_type="person"), _asset("VIS_000002"),
+                  _asset("VIS_000003"))
+    marks = {"B01": sentence_marks("A call came from Tipp City. A woman had been shot."),
+             "B02": sentence_marks("The house stood on a quiet street. Police arrived fast."),
+             "B03": sentence_marks("Days passed. Then came an arrest.")}
+    reqs = _reqs(B01={"map_place": "Tipp City, Ohio"})
+    raw = {"beats": [{"beat_id": b, "shots": [{"command": "NEW_IMAGE", "asset_id": a,
+                                               "from_sentence": 0}]}
+                     for b, a in (("B01", "VIS_000001"), ("B02", "VIS_000002"),
+                                  ("B03", "VIS_000003"))]}
+    cands = {"B01": ["VIS_000001"], "B02": ["VIS_000002"], "B03": ["VIS_000003"]}
+    plan, rep = validate_visual_plan(raw, bp, reqs, cands, {"VIS_000001": v1, "VIS_000002": v2,
+                                                            "VIS_000003": v3}, marks,
+                                     opening={"strategy": "emergency_call"})
+    maps = [(b["beat_id"], s["map_place"]) for b in plan["beats"] for s in b["shots"]
+            if s["command"] == "SHOW_MAP"]
+    assert maps == [("B02", "Tipp City, Ohio")]
+    assert {"beat": "B01", "map_wanted": "Tipp City, Ohio"} in rep["adjustments"]

@@ -623,10 +623,19 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
                 adjustments.append({"beat": bid, "merged_short_shot": shots[i]["command"],
                                     "kept": shots[j].get("asset_id") or shots[j]["command"]})
                 shots.pop(i)
-        # a map the opening could not show comes back here — at the
+        # the planner wants this place on a map (geography matters here)
+        # and the director gave none: it is shown once — here, or at the
+        # first beat where a map may be shown
+        mp = req.get("map_place")
+        if mp and place_key(mp) not in mapped and place_key(mp) not in deferred and not any(
+                x["command"] == "SHOW_MAP" and place_key(x.get("map_place")) == place_key(mp)
+                for x in shots):
+            deferred[place_key(mp)] = mp
+            adjustments.append({"beat": bid, "map_wanted": mp})
+        # a map that could not be shown yet comes back here — at the
         # sentence naming the place, else at this beat's start
-        if (deferred and not map_first_ok and shown_picture
-                and beat_start >= vd.first_map_not_before_seconds):
+        if deferred and (map_first_ok or (
+                shown_picture and beat_start >= vd.first_map_not_before_seconds)):
             for key, place in list(deferred.items()):
                 deferred.pop(key)
                 if key in mapped or any(x["command"] == "SHOW_MAP" and
