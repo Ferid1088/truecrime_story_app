@@ -86,10 +86,33 @@ def recency_score(newest: date | None, today: date | None = None) -> float:
 
 
 def rank(status: str, newest: date | None, today: date | None = None) -> tuple[float, float]:
-    """(rank score, recency)."""
+    """(rank score, recency) from one date."""
     rec = recency_score(newest, today)
+    return status_score(status, rec), rec
+
+
+def status_score(status: str, rec: float) -> float:
     weight = ai_config.case_selection.status_weights.get(normalize_status(status), 0.3)
-    return round(rec * weight, 4), rec
+    return round(rec * weight, 4)
+
+
+def case_recency(incident: date | None, latest: date | None,
+                 today: date | None = None) -> tuple[float, str]:
+    """How new the CASE is: mostly the incident itself, partly its newest
+    development (a 1996 killing convicted in 2026 is news, but not a new
+    case). Only a development date known: slightly discounted."""
+    w = ai_config.case_selection.incident_weight
+    if incident and latest:
+        rec = w * recency_score(incident, today) + (1 - w) * recency_score(latest, today)
+        how = f"incident {incident.isoformat()}, latest development {latest.isoformat()}"
+    elif incident:
+        rec, how = recency_score(incident, today), f"incident {incident.isoformat()}"
+    elif latest:
+        rec = 0.85 * recency_score(latest, today)
+        how = f"latest development {latest.isoformat()} (incident date unknown)"
+    else:
+        return ai_config.case_selection.undated_recency, "no date known"
+    return round(rec, 4), how
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +275,27 @@ def _newest(raw: dict) -> date | None:
                        raw.get("approximate_date"))
 
 
+def _recency(raw: dict) -> tuple[float, str]:
+    incident = parse_date(raw.get("incident_date")) or parse_date(raw.get("approximate_date"))
+    return case_recency(incident, parse_date(raw.get("latest_development_date")))
+
+
+_EMPTY = {"", "unknown", "n/a", "na", "none", "null", "-", "?", "unbekannt"}
+
+
+def _clean(raw: dict) -> dict:
+    """Extraction placeholders ("UNKNOWN") are no data."""
+    for k in ("location", "incident_date", "latest_development_date", "approximate_date",
+              "resolution_evidence"):
+        v = raw.get(k)
+        if isinstance(v, str) and v.strip().lower() in _EMPTY:
+            raw[k] = None
+    for k in ("aliases", "key_people", "source_urls", "identifiers"):
+        if isinstance(raw.get(k), list):
+            raw[k] = [x for x in raw[k] if not (isinstance(x, str) and x.strip().lower() in _EMPTY)]
+    return raw
+
+
 async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
                              known: IdentityIndex, *, count: int, include_unsolved: bool,
                              registry=None, gen=None, progress=None) -> dict:
@@ -265,6 +309,7 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
     for i, raw in enumerate(raw_candidates):
         if not isinstance(raw, dict) or not (raw.get("title") or "").strip():
             continue
+        _clean(raw)
         ident = raw_identity(raw)
         verdict = batch.check(ident)
         raw["identity"] = ident.to_dict()
@@ -279,20 +324,27 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
 
     # verify the status of the most promising (by claimed status x recency)
     def pre(raw):
-        return rank(_claimed(raw), _newest(raw))[0]
+        return status_score(_claimed(raw), _recency(raw)[0])
 
     to_verify = [r for r in sorted(fresh, key=pre, reverse=True)
                  if include_unsolved or _claimed(r) != UNSOLVED][:cfg.verify_top_n]
     searches = 0
-    if registry is not None and gen is not None:
-        for raw in to_verify:
-            if progress:
-                progress.stage("verifying_status")
+    if registry is not None and gen is not None and to_verify:
+        import asyncio
+
+        if progress:
+            progress.stage("verifying_status")
+
+        async def one(raw):
             try:
-                v = await _verify_one(raw, found, registry, gen)
+                return await _verify_one(raw, found, registry, gen)
             except Exception as e:  # noqa: BLE001
                 log.warning("status verification failed for %s: %s", raw.get("title"), e)
-                v = {"status": UNKNOWN, "confidence": 0.0, "reason": f"verification failed: {e}"[:200]}
+                return {"status": UNKNOWN, "confidence": 0.0,
+                        "reason": f"verification failed: {e}"[:200]}
+
+        verdicts = await asyncio.gather(*(one(r) for r in to_verify))
+        for raw, v in zip(to_verify, verdicts):
             searches += int(v.pop("_searches", 0) or 0)
             raw["verification"] = v
 
@@ -301,9 +353,11 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
         if v:
             status, why = gate_solved(v, cfg.solved_min_confidence, 2)
             conf = v.get("confidence")
+            # the verifier read more about the case than the discovery
+            # snippets: its dates win when it has them
             for k in ("latest_development_date", "incident_date"):
-                if v.get(k) and not raw.get(k):
-                    raw[k] = v[k]
+                if v.get(k) and parse_date(str(v[k])):
+                    raw[k] = str(v[k])
             evidence = v.get("latest_development") or why
             source = "verified"
         else:
@@ -313,10 +367,12 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
             conf, evidence = None, (raw.get("resolution_evidence") or "status not verified")
             why = "status claimed by the discovery extraction, not verified"
             source = "claimed"
-        score, rec = rank(status, _newest(raw))
+        rec, rec_how = _recency(raw)
+        score = status_score(status, rec)
         raw["selection"].update({"status": status, "status_confidence": conf,
                                  "status_reason": why, "status_source": source,
-                                 "evidence": evidence, "rank": score, "recency": rec})
+                                 "evidence": evidence, "rank": score, "recency": rec,
+                                 "recency_basis": rec_how})
         if status == UNSOLVED and not include_unsolved:
             raw["selection"]["state"] = "filtered"
             raw["selection"]["reason"] = ("UNSOLVED — the standard pipeline suggests solved "
@@ -328,11 +384,9 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
         sel = raw["selection"]
         if pos < count:
             sel["state"] = "suggested"
-            newest = _newest(raw)
             sel["reason"] = "; ".join(x for x in [
                 f"rank {pos + 1} of {len(eligible)} (score {sel['rank']:.2f})",
-                f"recent: newest known date {newest.isoformat() if newest else 'unknown'} "
-                f"(recency {sel['recency']:.2f})",
+                f"recent: {sel['recency_basis']} (recency {sel['recency']:.2f})",
                 f"{sel['status']}" + (f" ({sel['status_confidence']:.2f})"
                                       if sel.get("status_confidence") is not None else "")
                 + f" — {sel['evidence']}"[:300],

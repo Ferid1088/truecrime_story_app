@@ -544,3 +544,15 @@ def test_editing_a_published_film_keeps_its_history(db_session):
     film = V.publish(db_session, film, youtube_url="https://youtube.example/watch?v=1")
     assert film.status_at_publication == "UNSOLVED" and film.youtube_title == first_title
     assert film.published_at == first_date and film.youtube_url.endswith("v=1")
+
+
+def test_a_new_case_beats_an_old_case_with_a_new_verdict():
+    """Recency is about the case: a 2025 killing convicted this year ranks
+    above a 1996 killing convicted this year."""
+    from app.lifecycle.selection import case_recency
+
+    recent, _ = case_recency(TODAY - timedelta(days=300), TODAY - timedelta(days=20))
+    old, how = case_recency(date(1996, 9, 13), TODAY - timedelta(days=20))
+    assert recent > old and "incident 1996" in how
+    only_dev, how2 = case_recency(None, TODAY - timedelta(days=20))
+    assert old < only_dev < 1.0 and "unknown" in how2

@@ -1331,6 +1331,7 @@
   },
   "case_selection": {
     "recency_half_life_days": 365.0,
+    "incident_weight": 0.6,
     "undated_recency": 0.15,
     "status_weights": {
       "SOLVED": 1.0,

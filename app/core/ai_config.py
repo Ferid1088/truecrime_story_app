@@ -1192,6 +1192,9 @@ class CaseSelectionConfig(BaseModel):
     only suggested when a request explicitly includes them."""
 
     recency_half_life_days: float = Field(default=365.0, gt=0)
+    # How new the case is: weight of the incident date vs. the newest
+    # development (verdict, arrest) in the recency score.
+    incident_weight: float = Field(default=0.6, ge=0.0, le=1.0)
     # Cases without any known date get this recency.
     undated_recency: float = Field(default=0.15, ge=0.0, le=1.0)
     status_weights: dict[str, float] = Field(default_factory=lambda: {
