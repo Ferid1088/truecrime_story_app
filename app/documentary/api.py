@@ -569,23 +569,25 @@ def production_subtitles(ps_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/documentary/music")
-def music_library():
-    from app.documentary.music import MusicLibrary
+def music_library(db: Session = Depends(get_db)):
+    """The shared track library (several variants per kind and mood): how
+    often each track was used, when last, and in which films (film keys,
+    in order of first use). `id` is the track code used in the file URL;
+    `cue_id` names the config cue a variant-1 track was imported from."""
+    from app.documentary.music import track_catalogue
 
-    lib = MusicLibrary()
-    return [{**c.model_dump(), "generated": lib.path_for(c).exists(),
-             "url": f"/api/documentary/music/{c.id}/file"}
-            for c in ai_config.music_library.cues]
+    return track_catalogue(db)
 
 
 @router.get("/api/documentary/music/{cue_id}/file")
-def music_file(cue_id: str):
-    from app.documentary.music import MusicLibrary
+def music_file(cue_id: str, db: Session = Depends(get_db)):
+    """A track's audio by track_code (e.g. bridge-tension-v3); the old
+    config cue ids (e.g. bridge_tension) still resolve."""
+    from app.documentary.music import track_file
 
-    cue = next((c for c in ai_config.music_library.cues if c.id == cue_id), None)
-    if not cue:
-        raise HTTPException(status_code=404, detail="Unknown cue")
-    path = MusicLibrary().path_for(cue)
+    path = track_file(db, cue_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Unknown track")
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Cue not generated yet")
+        raise HTTPException(status_code=404, detail="Track not generated yet")
     return FileResponse(path, media_type="audio/wav")

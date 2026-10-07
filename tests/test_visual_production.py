@@ -645,7 +645,8 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert client.get(f"/api/cases/{case.id}/documentary/visual-plan").status_code == 404
     assert client.get(f"/api/cases/{case.id}/documentary/production/en").status_code == 404
     music = client.get("/api/documentary/music").json()
-    assert {m["id"] for m in music} >= {"bed_mystery", "sting_reveal"}
+    # config cues are imported as variant-1 library tracks
+    assert {m["cue_id"] for m in music} >= {"bed_mystery", "sting_reveal"}
 
 
 def test_ambiguous_place_names_resolve_near_the_case(tmp_path, monkeypatch):

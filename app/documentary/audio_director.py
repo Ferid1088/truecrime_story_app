@@ -1,24 +1,36 @@
-"""Audio director — breathing room, music moments and silence.
+"""Music/Audio director — music, silence and breathing room around the
+narration.
 
-A professional sound designer / music supervisor (role audio_director)
-reads the editorial blueprint and decides, beat by beat, how the film
-should breathe:
+A music supervisor (role audio_director) reads the editorial blueprint
+and decides, beat by beat, what the listener hears AROUND the narrator:
 
 * the pause between paragraphs inside a beat (short / normal / long);
-* a music bed under the narration (none / mystery / tension / emotional
-  / reflective) and how quiet it stays;
-* what happens when the beat ends — a breath, a music bridge to a new
-  scene, an emotional moment where music lets something land, a sting
-  after a turn, near-silence, or a chapter break.
+* what happens in the gap when the beat ends — a breath, a music bridge
+  to a new scene, an emotional moment where music lets something land, a
+  sting after a turn, deliberate SILENCE (room tone), or a chapter
+  break — with its length, its mood and WHY;
+* a music bed under the narration only when the configuration allows it
+  (audio_direction.beds_under_narration; off by default: when the
+  narrator speaks there is no music).
 
-The plan is language-independent (beats are shared by all four
-languages); exact times come from each language's real narration.
+Moods name the emotional FUNCTION of a moment (audio_direction.moods:
+suspense, investigation, mystery, melancholy, danger, discovery, tension,
+relief, resolution, uncertainty) — never "suspense because it is true
+crime". Moods of the older vocabulary still validate: "emotional" is
+read as melancholy and "reflective" as uncertainty (MOOD_ALIASES), so
+stored plans keep mixing.
+
+The plan is language-independent (beats are shared by all languages);
+exact times come from each language's real narration.
 
 Deterministic guard-rails keep it professional: lengths are clamped to
 the configured ranges, music-only moments stay special (time share and
-spacing, with reveals and chapter ends protected), emotional moments
-need an emotional beat, stings need a turn, and the last beat ends the
-film. Every adjustment is logged.
+spacing, with reveals and chapter ends protected; silence is not music
+and never counts toward the share), emotional moments need an emotional
+beat, stings need a turn, beds are removed while narration must stay
+clean, and the last beat ends the film. Every adjustment is logged, and
+every music or silence choice keeps a short `why` (after.why) that the
+mix stores with each placement (MusicUsage).
 """
 
 from __future__ import annotations
@@ -33,44 +45,144 @@ from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
 MUSIC_TYPES = ("music_bridge", "emotional_moment", "chapter_break", "sting")
-MOODS = ("mystery", "tension", "emotional", "reflective")
+# Choices that carry a reason: every music moment and every deliberate silence.
+EXPLAINED_TYPES = MUSIC_TYPES + ("silence",)
 STING_PURPOSES = {"reveal", "contradiction", "evidence", "false_lead", "chapter_end"}
 PROTECTED_PURPOSES = {"reveal", "chapter_end"}
+
+# Older plans used a four-mood vocabulary. Two of those words are not in
+# the mood catalogue; they map onto the closest emotional function:
+# "emotional" moments were grief and the human cost (melancholy), and
+# "reflective" moments were the listener thinking about an open question
+# (uncertainty). mystery and tension exist in both vocabularies.
+MOOD_ALIASES = {"emotional": "melancholy", "reflective": "uncertainty"}
+
+# What each mood is FOR. The prompt teaches the function of a moment,
+# not a genre — the mood must come from the facts of the beat.
+MOOD_FUNCTIONS = {
+    "suspense": "something is about to happen or be learned and the listener "
+                "knows it — waiting, leaning forward",
+    "investigation": "methodical work: detectives, timelines, records, the "
+                     "slow assembly of a case",
+    "mystery": "something hidden or unexplained; an open question the story "
+               "has just raised",
+    "melancholy": "loss, grief, a life cut short — the human cost",
+    "danger": "a real threat is present or approaching (only when the facts "
+              "show one)",
+    "discovery": "something is found or finally understood — a clue, a "
+                 "body, a breakthrough",
+    "tension": "pressure rises — a confrontation, a contradiction, a "
+               "deadline, a lie about to break",
+    "relief": "a danger passes, someone is found safe, a weight lifts",
+    "resolution": "the case closes — a verdict, a conviction, the end of "
+                  "the story",
+    "uncertainty": "doubt, conflicting accounts, a question that may never "
+                   "be answered",
+}
+
+
+def known_moods(cfg: AudioDirectionConfig | None = None) -> list[str]:
+    cfg = cfg or ai_config.audio_direction
+    return list(cfg.moods)
+
+
+def normalize_mood(mood, kind: str | None = None,
+                   cfg: AudioDirectionConfig | None = None) -> str:
+    """A mood from the catalogue: aliases of the old vocabulary are
+    mapped, anything unknown falls back by transition type (an emotional
+    moment is melancholy; otherwise mystery — the most neutral colour)."""
+    moods = known_moods(cfg)
+    m = str(mood or "").strip().lower()
+    m = MOOD_ALIASES.get(m, m)
+    if m in moods:
+        return m
+    for fallback in (("melancholy",) if kind == "emotional_moment" else ()) + ("mystery",):
+        if fallback in moods:
+            return fallback
+    return moods[0] if moods else "mystery"
+
+
+def _mood_catalogue(cfg: AudioDirectionConfig) -> str:
+    lines = []
+    for m in cfg.moods:
+        what = MOOD_FUNCTIONS.get(m)
+        lines.append(f"   - {m}: {what}" if what else f"   - {m}")
+    return "\n".join(lines)
 
 
 def director_system_prompt(cfg: AudioDirectionConfig | None = None) -> str:
     cfg = cfg or ai_config.audio_direction
     rng = {k: f"{v[0]:g}–{v[1]:g} s" for k, v in cfg.transitions.items()}
     share = round(cfg.max_music_only_share * 100)
+    moods = " | ".join(cfg.moods)
+    if cfg.beds_under_narration:
+        bed_rule = (
+            "A bed under the narration is allowed only where it truly helps:\n"
+            f"   bed: none | {moods}, bed_level: very_low | low. Music under\n"
+            "   words must never compete with them. Leave dense information and\n"
+            "   quotations clean (none). Keep one bed running across several\n"
+            "   consecutive beats instead of switching every beat.")
+    else:
+        bed_rule = (
+            'always "none". While the narrator speaks there is NO music —\n'
+            "   the narration stays clean. Music belongs only in the gaps.")
     return f"""
-You are an award-winning sound designer and music supervisor for
-narrative true-crime audio documentaries — the calibre of the best
-long-form podcasts and streaming documentaries. The narration is final.
-Your job is the listening experience: give the listener time to
-breathe, to think and to feel, without slowing the story to a crawl and
-without decorating it.
+You are the Music and Audio Director of a narrative true-crime
+documentary — the calibre of the best long-form podcasts and streaming
+documentaries. The narration is final and it is the star. You decide
+what the listener hears AROUND it: where music begins and where it
+ends, where silence is stronger than music, which mood fits, how long a
+cue lasts, where the tension rises, and where no music is used at all.
+
+THE CORE RULE: when the narrator speaks, there is no music. Music lives
+only in the gaps the narration leaves — a cue starts after the last
+word and has faded out before the next word. Good places for music:
+- between narration sections, at real scene changes (a new place, a new
+  time, a new person's thread);
+- in a deliberate pause, where the listener must stop to feel or think;
+- at a visual transition, or under a silent visual sequence;
+- BEFORE a revelation: the gap before a reveal beat, so the listener
+  leans in;
+- after an important statement, so it can land;
+- at chapter transitions.
+
+SILENCE is a decision, not an absence. Near-silence (room tone, no
+music) is often stronger than any cue — choose it around disturbing
+facts, revelations, emotional statements, unanswered questions and the
+moment evidence is revealed. Never score a victim's suffering to make
+it "dramatic"; let the silence carry it. No music at all is a valid
+choice for a beat change: a breath.
 
 For EVERY beat decide:
 1. paragraph_breath — pause between paragraphs inside the beat:
    short | normal | long. Dense, factual or emotional beats need more
    air; a brisk hook can use short.
-2. bed — music under the narration: none | mystery | tension |
-   emotional | reflective, and bed_level: very_low | low. Music under
-   words must never compete with them. Leave dense information and
-   quotations clean (none). Keep one bed running across several
-   consecutive beats instead of switching every beat.
-3. after — what happens when the beat ends, before the next begins:
-   - breath ({rng['breath']}): the default; room to think.
+2. bed — {bed_rule}
+3. after — what happens in the gap when the beat ends:
+   - breath ({rng['breath']}): the default; room to think, no music.
    - music_bridge ({rng['music_bridge']}): narration stops, music carries
      us to a new scene, place or time.
-   - emotional_moment ({rng['emotional_moment']}): narration stops after
-     a human or painful moment; music lets it land.
-   - sting ({rng['sting']}): one low accent after a turn or a reveal.
-   - silence ({rng['silence']}): almost nothing — for the hardest moments.
+   - emotional_moment ({rng['emotional_moment']}): narration stops after a
+     human or painful moment; music lets it land.
+   - sting ({rng['sting']}): one low accent right after a turn — a reveal, a
+     contradiction, a piece of evidence, a false lead, a chapter end.
+   - silence ({rng['silence']}): room tone only — the strongest choice for
+     the hardest moments.
    - chapter_break ({rng['chapter_break']}): between big movements of the
      film.
-   Give "seconds" and, for music, a "mood": mystery | tension |
-   emotional | reflective.
+   Give "seconds" (the cue length is the length of the gap), a "mood"
+   for music, and for EVERY music or silence choice a short "why": the
+   emotional function of this moment and why music — or silence —
+   serves it better here than the alternative.
+
+MOODS — choose by the emotional function of THIS moment, from the facts
+of the beat; never "suspense because it is true crime":
+{_mood_catalogue(cfg)}
+Let the moods follow the arc: investigation and mystery while the case
+is assembled, tension rising toward a revelation, discovery or silence
+at the reveal itself, melancholy for the human cost, relief or
+resolution only when the facts resolve something. Do not repeat one
+mood through the whole film.
 
 Rules:
 - Music-only moments (music_bridge, emotional_moment, sting,
@@ -78,13 +190,13 @@ Rules:
   running time, and normally at least
   {cfg.min_seconds_between_music_moments:g} seconds of narration between
   two of them — except right after a reveal or at a chapter end.
+  Silence is not music and does not count toward that share.
 - Every beat change gets at least a breath — a real pause, not a comma.
 - Rhythm: the listener should rarely go more than three or four minutes
   without a music_bridge, emotional_moment, sting, silence or
-  chapter_break. Put music_bridge at real scene changes (a new place, a
-  new time, a new person's thread) and emotional_moment after a human,
-  painful or intimate beat — that is where a listener needs to stop and
-  feel or think.
+  chapter_break. Put music_bridge at real scene changes and
+  emotional_moment after a human, painful or intimate beat — that is
+  where a listener needs to stop and feel or think.
 - Music must not claim what the facts do not: no menace where the facts
   are neutral, nothing triumphant over victims, no sound effects.
 - The last beat ends the film: after = {{"type": "end"}}.
@@ -92,9 +204,10 @@ Rules:
 Return JSON only:
 {{"notes": "two or three sentences on the overall sound arc",
   "beats": [{{"beat_id": "B01", "paragraph_breath": "normal",
-    "bed": "mystery", "bed_level": "very_low",
-    "after": {{"type": "music_bridge", "seconds": 5, "mood": "mystery"}},
-    "why": "short reason"}}]}}
+    "bed": "none", "bed_level": "very_low",
+    "after": {{"type": "music_bridge", "seconds": 10, "mood": "investigation",
+              "why": "the story moves to the police station; a measured bridge carries the change of place"}},
+    "why": "short reason for the beat's sound as a whole"}}]}}
 """
 
 
@@ -120,6 +233,29 @@ def _director_input(blueprint: dict) -> dict:
     }
 
 
+def _bed(value, cfg: AudioDirectionConfig) -> str:
+    """The requested bed as a catalogue mood, or "none"."""
+    if value in (None, "", "none"):
+        return "none"
+    m = MOOD_ALIASES.get(str(value).strip().lower(), str(value).strip().lower())
+    return m if m in cfg.moods else "none"
+
+
+def _explain(pb: dict) -> str:
+    """The reason stored with a music or silence choice: the director's
+    words, plus any guard-rail that changed the choice — so the audit
+    never shows a reason for a cue the director did not pick."""
+    kind = pb["after"]["type"]
+    why = pb["_why"] or (
+        f"{kind.replace('_', ' ')} after the {pb.get('purpose') or 'beat'} beat "
+        "(the director gave no reason)")
+    changed = [c for c in pb["_changes"] if c["to"] == kind]
+    if changed:
+        c = changed[-1]
+        why += f" [validator: {c['from']} → {kind}, {c['reason']}]"
+    return why[:300]
+
+
 def validate_audio_plan(raw: dict, blueprint: dict,
                         cfg: AudioDirectionConfig | None = None) -> tuple[dict, dict]:
     cfg = cfg or ai_config.audio_direction
@@ -143,6 +279,7 @@ def validate_audio_plan(raw: dict, blueprint: dict,
 
     wpm = ai_config.words_per_minute_for("en")
     plan_beats: list[dict] = []
+    beds_removed = 0
     for i, b in enumerate(beats):
         g = given.get(b["id"])
         if g is None:
@@ -151,7 +288,13 @@ def validate_audio_plan(raw: dict, blueprint: dict,
         breath = g.get("paragraph_breath")
         if breath not in cfg.paragraph_breath_ms:
             breath = "normal"
-        bed = g.get("bed") if g.get("bed") in MOODS else "none"
+        bed = _bed(g.get("bed"), cfg)
+        if bed != "none" and not cfg.beds_under_narration:
+            # Clean narration: the narrator never speaks over music.
+            adjustments.append({"beat": b["id"], "bed": [g.get("bed"), "none"],
+                                "reason": "no_music_under_narration"})
+            beds_removed += 1
+            bed = "none"
         level = g.get("bed_level") if g.get("bed_level") in cfg.bed_levels_db else "very_low"
         after = g.get("after") if isinstance(g.get("after"), dict) else {}
         kind = after.get("type")
@@ -160,24 +303,32 @@ def validate_audio_plan(raw: dict, blueprint: dict,
                 warnings.append({"code": "unknown_transition", "beat": b["id"],
                                  "value": kind})
             kind = "breath"
-        mood = after.get("mood") if after.get("mood") in MOODS else (
-            "emotional" if kind == "emotional_moment" else "mystery")
+        asked = after.get("mood")
+        mood = normalize_mood(asked, kind, cfg)
+        if asked in MOOD_ALIASES:
+            adjustments.append({"beat": b["id"], "mood": [asked, mood],
+                                "reason": "mood_alias"})
         try:
             seconds = float(after.get("seconds"))
         except (TypeError, ValueError):
             seconds = None
+        beat_why = str(g.get("why") or "")[:200]
         plan_beats.append({
             "beat_id": b["id"], "purpose": b.get("purpose"),
             "emotional_load": b.get("emotional_load"),
             "seconds_narration": (b.get("words") or 0) / wpm * 60,
             "paragraph_breath": breath, "bed": bed, "bed_level": level,
             "after": {"type": kind, "seconds": seconds, "mood": mood},
-            "why": str(g.get("why") or "")[:200],
+            "why": beat_why,
+            "_why": str(after.get("why") or "").strip()[:240] or beat_why,
+            "_changes": [],
         })
 
     def adjust(pb, to_type, reason, seconds=None):
-        adjustments.append({"beat": pb["beat_id"], "from": pb["after"]["type"],
-                            "to": to_type, "reason": reason})
+        change = {"beat": pb["beat_id"], "from": pb["after"]["type"],
+                  "to": to_type, "reason": reason}
+        adjustments.append(change)
+        pb["_changes"].append(change)
         pb["after"]["type"] = to_type
         pb["after"]["seconds"] = seconds
 
@@ -222,7 +373,7 @@ def validate_audio_plan(raw: dict, blueprint: dict,
             adjustments.append({"beat": pb["beat_id"], "clamped": [s, clamped]})
         pb["after"]["seconds"] = round(clamped, 2)
 
-    # --- share cap ---------------------------------------------------------
+    # --- share cap (silence is not music: it never counts) -------------
     runtime = sum(pb["seconds_narration"] + pb["after"]["seconds"] for pb in plan_beats)
     music = [pb for pb in plan_beats if pb["after"]["type"] in MUSIC_TYPES]
 
@@ -246,7 +397,12 @@ def validate_audio_plan(raw: dict, blueprint: dict,
                 adjust(pb, "breath", "music_share_cap",
                        seconds=sum(cfg.transitions["breath"]) / 2)
 
+    # --- every music / silence choice keeps its reason ----------------
     for pb in plan_beats:
+        if pb["after"]["type"] in EXPLAINED_TYPES:
+            pb["after"]["why"] = _explain(pb)
+        pb.pop("_why", None)
+        pb.pop("_changes", None)
         pb.pop("seconds_narration", None)
         pb.pop("emotional_load", None)
 
@@ -254,6 +410,10 @@ def validate_audio_plan(raw: dict, blueprint: dict,
         1 for a, b in zip(plan_beats, plan_beats[1:]) if a["bed"] != b["bed"]
     )
     report_music = music_seconds()
+    moods: dict[str, int] = {}
+    for pb in plan_beats:
+        if pb["after"]["type"] in MUSIC_TYPES:
+            moods[pb["after"]["mood"]] = moods.get(pb["after"]["mood"], 0) + 1
     status = "invalid" if errors else ("needs_review" if warnings else "valid")
     plan = {"notes": str(raw.get("notes") or "")[:600], "beats": plan_beats}
     report = {
@@ -263,6 +423,10 @@ def validate_audio_plan(raw: dict, blueprint: dict,
         "music_only_seconds": round(report_music, 1),
         "music_only_share": round(report_music / max(runtime, 1.0), 3),
         "music_moments": sum(1 for pb in plan_beats if pb["after"]["type"] in MUSIC_TYPES),
+        "silences": sum(1 for pb in plan_beats if pb["after"]["type"] == "silence"),
+        "moods": moods,
+        "beds_under_narration": cfg.beds_under_narration,
+        "beds_removed": beds_removed,
         "bed_switches": bed_switches,
     }
     return plan, report

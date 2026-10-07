@@ -467,7 +467,10 @@ def _beat_audio():
     }}
 
 
-def test_plan_placements():
+def test_plan_placements(monkeypatch):
+    # The layout with beds under the narration (opt-in since narration
+    # stays clean by default; see test_music_director.py).
+    monkeypatch.setattr(ai_config.audio_direction, "beds_under_narration", True)
     places = plan_placements(_timeline(), _beat_audio())
     roles = [(p["role"], p.get("beats") or p.get("after_beat")) for p in places]
     assert roles == [("bed", ["B01", "B02"]), ("music_bridge", "B02"),
@@ -534,16 +537,21 @@ def test_documentary_mix(tmp_path, monkeypatch):
     result = asyncio.run(mixer.mix(manifest, script, out))
     from app.documentary import audio as A
 
-    assert [p["role"] for p in result["placements"]] == ["bed", "music_bridge"]
-    assert result["music_characters_paid"] > 0 and len(sound.calls) == 2
+    # clean narration: the requested bed is not placed; the bridge sits
+    # in the gap between the words
+    assert [p["role"] for p in result["placements"]] == ["music_bridge"]
+    bridge = result["placements"][0]
+    assert bridge["start"] >= 12.0 and bridge["start"] + bridge["duration"] <= 17.0
+    assert bridge["track_code"] and bridge["selection_reason"]
+    assert result["music_characters_paid"] > 0 and len(sound.calls) == 1
     final = out / "documentary.wav"
     assert final.exists() and (out / "documentary.mp3").exists()
     assert A.probe_duration(final) == pytest.approx(30.0, abs=0.2)
     assert result["loudness_lufs"] == pytest.approx(
         ai_config.loudness.narration_target_lufs, abs=1.0)
-    # cues are generated once and shared
+    # tracks are generated once and shared
     again = asyncio.run(mixer.mix(manifest, script, out))
-    assert again["music_characters_paid"] == 0 and len(sound.calls) == 2
+    assert again["music_characters_paid"] == 0 and len(sound.calls) == 1
 
 
 # ---------------------------------------------------------------------------
