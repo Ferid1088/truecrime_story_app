@@ -937,7 +937,31 @@ def test_a_map_held_back_from_the_opening_returns_when_allowed():
     b = {x["beat_id"]: x for x in plan["beats"]}
     assert all(s["command"] != "SHOW_MAP" for s in b["B01"]["shots"])
     b2 = b["B02"]["shots"]
-    assert [s["command"] for s in b2] == ["NEW_IMAGE", "SHOW_MAP"]
+    cmds = [s["command"] for s in b2]
+    assert cmds[:2] == ["NEW_IMAGE", "SHOW_MAP"]
     assert b2[1]["map_place"] == "Tipp City, Ohio" and b2[1]["from_sentence"] == 1
     assert abs(sum(s["share"] for s in b2) - 1.0) < 1e-3
+    # a short orientation, then the picture returns
+    from app.documentary.visuals.director import DEFERRED_MAP_SECONDS, beat_seconds
+    assert b2[1]["share"] * beat_seconds(bp["beats"][1]) <= DEFERRED_MAP_SECONDS + 0.01
+    if len(b2) > 2:
+        assert b2[2]["command"] == "NEW_IMAGE" and b2[2]["asset_id"] == "VIS_000002"
     assert {"beat": "B02", "deferred_map": "Tipp City, Ohio"} in rep["adjustments"]
+
+
+
+def test_a_deferred_map_never_turns_a_keep_into_a_long_map():
+    """A beat that opens by keeping the previous picture and then zooms
+    on it must not keep/zoom the inserted map for the rest of the beat."""
+    from app.documentary.visuals.director import _insert_deferred_map
+
+    shots = [{"command": "KEEP_CURRENT_IMAGE", "from_sentence": 0, "share": 0.4},
+             {"command": "ZOOM_EXISTING", "from_sentence": 3, "share": 0.6}]
+    marks = [{"n": i, "at": i / 7, "text": t} for i, t in enumerate(
+        ["Officers arrived.", "The house was quiet.", "x", "The gun was gone.", "y", "z", "w"])]
+    out = _insert_deferred_map(shots, "Tipp City, Ohio", marks, 48.8, 5.0, before="VIS_000008")
+    assert out[0]["command"] == "SHOW_MAP" and out[0]["share"] * 48.8 <= 9.01
+    assert out[1]["command"] == "KEEP_CURRENT_IMAGE" or out[1].get("asset_id") == "VIS_000008"
+    assert all(s["command"] != "ZOOM_EXISTING" or i > 0 and out[i - 1]["command"] != "SHOW_MAP"
+               for i, s in enumerate(out))
+    assert abs(sum(s["share"] for s in out) - 1.0) < 1e-3

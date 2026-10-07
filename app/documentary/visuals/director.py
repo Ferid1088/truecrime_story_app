@@ -632,7 +632,8 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
                 if key in mapped or any(x["command"] == "SHOW_MAP" and
                                         place_key(x.get("map_place")) == key for x in shots):
                     continue
-                shots = _insert_deferred_map(shots, place, bmarks, secs, motion.min_hold_seconds)
+                shots = _insert_deferred_map(shots, place, bmarks, secs, motion.min_hold_seconds,
+                                             before=last_asset)
                 adjustments.append({"beat": bid, "deferred_map": place})
         # maps by geography: never in the film's first seconds or as its
         # first picture (unless the opening is about the place), each
@@ -697,12 +698,17 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
     return {"beats": out_beats, "search_requests": search_requests}, report
 
 
+DEFERRED_MAP_SECONDS = 9.0
+
+
 def _insert_deferred_map(shots: list[dict], place: str, bmarks: list[dict], secs: float,
-                         min_hold: float) -> list[dict]:
+                         min_hold: float, before: str | None = None) -> list[dict]:
     """Put a map of `place` into a beat: from the first sentence that
-    names the place (else the beat's start), taking the second part of
-    the shot running there. Shares stay normalized; nothing becomes
-    shorter than min_hold."""
+    names the place (else the beat's start), taking part of the shot
+    running there — a short orientation (DEFERRED_MAP_SECONDS), never the
+    rest of the beat. A following "keep / zoom / crop the current
+    picture" would now act on the map: it returns to the picture that was
+    on screen before (`before`). Shares stay normalized."""
     from app.lifecycle.identity import fold
 
     words = [w for w in fold(place.split(",")[0]).split() if len(w) >= 3]
@@ -719,15 +725,32 @@ def _insert_deferred_map(shots: list[dict], place: str, bmarks: list[dict], secs
                 idx = i
     host = shots[idx]
     if host["share"] * secs < 2 * min_hold:
-        # too short to split: the map follows the host instead of it
-        if n is None or n <= (host.get("from_sentence") or 0):
-            return shots
-        shots[idx] = {**map_shot, "share": host["share"], "from_sentence": n}
-        return shots
-    half = round(host["share"] / 2, 4)
-    host["share"] = round(host["share"] - half, 4)
+        return shots          # no room for a map in this beat
+    share = round(min(host["share"] / 2, max(DEFERRED_MAP_SECONDS, min_hold) / secs), 4)
     fs = n if n is not None and n > (host.get("from_sentence") or 0) else host.get("from_sentence")
-    shots.insert(idx + 1, {**map_shot, "share": half, "from_sentence": fs})
+    if host["command"] in CONTINUE_COMMANDS and idx == 0 and fs == host.get("from_sentence"):
+        # the beat opens on the previous picture: the map comes first,
+        # then the picture returns
+        host["share"] = round(host["share"] - share, 4)
+        shots.insert(0, {**map_shot, "share": share, "from_sentence": fs})
+        after = 1
+    else:
+        rest = round(host["share"] / 2 - share, 4)
+        host["share"] = round(host["share"] / 2, 4)
+        shots.insert(idx + 1, {**map_shot, "share": share, "from_sentence": fs})
+        after = idx + 2
+        if rest > 0:
+            back = {**host, "share": rest, "from_sentence": fs}
+            if back["command"] in CONTINUE_COMMANDS:
+                back = {**back, "command": "NEW_IMAGE" if before else "KEEP_CURRENT_IMAGE",
+                        "asset_id": before}
+            back["why"] = "back to the picture after the map"
+            shots.insert(after, back)
+            after += 1
+    if after < len(shots) and shots[after]["command"] in CONTINUE_COMMANDS and before:
+        nxt = shots[after]
+        shots[after] = {**nxt, "command": "NEW_IMAGE", "asset_id": before,
+                        "why": (nxt.get("why") or "") + " (back to the picture after the map)"}
     return shots
 
 

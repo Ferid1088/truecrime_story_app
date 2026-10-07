@@ -980,6 +980,9 @@ class VisualSearchConfig(BaseModel):
 
 
 class VisualVerificationConfig(BaseModel):
+    # Candidates vision-checked per visual need (more checked = more
+    # usable pictures = less repetition).
+    per_requirement: int = Field(default=5, ge=1, le=20)
     verified_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     reject_below_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
     thumbnail_px: int = Field(default=768, ge=128)

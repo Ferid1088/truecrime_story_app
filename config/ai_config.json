@@ -1129,6 +1129,7 @@
     "min_request_interval_s": 1.0
   },
   "visual_verification": {
+    "per_requirement": 5,
     "verified_min_confidence": 0.7,
     "reject_below_confidence": 0.35,
     "thumbnail_px": 768

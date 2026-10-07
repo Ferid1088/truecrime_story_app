@@ -630,7 +630,7 @@ def _load_manifest(case_id: int, version: StoryVersion) -> dict:
 
 async def verify_candidates(db: Session, case: Case, blueprint: dict, requirements: dict,
                             beat_ids: list[str] | None, profile: str | None,
-                            per_requirement: int = 3) -> dict:
+                            per_requirement: int | None = None) -> dict:
     """Vision-check the best unverified candidates of each need (a pilot
     only checks the beats it shows)."""
     from app.documentary.visuals.director import blocked_at, rank_candidates
@@ -648,7 +648,8 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
             if not ent:
                 continue
             loose = dict(r, acceptable_roles=["evidence", "context", "illustration"])
-            for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:per_requirement]:
+            n = per_requirement or ai_config.visual_verification.per_requirement
+            for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:n]:
                 if a.verification_status == "unverified" and a not in todo:
                     todo.append(a)
     return await verify_assets(db, case, todo, list(ents.values()))
