@@ -7,6 +7,12 @@ Deterministic rules then decide the status:
   rejected     — wrong person/place, unrelated, watermark, unusable;
   verified     — matches with confidence >= verified_min_confidence;
   needs_review — everything in between (a human decides in the UI).
+and the relevance tier (visuals/tiers.py): what the image shows decides
+how close to the case it really is, starting from what the search
+claimed when it was found.
+
+Footage is judged by its keyframe (the clip's thumbnail): one still of
+the stored window, so the same vision check and the same rules apply.
 """
 
 from __future__ import annotations
@@ -20,13 +26,15 @@ from app.db.models import Case, VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
+from app.documentary.visuals import tiers as T
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
 VERIFIER_SYSTEM = """
 You verify images for a factual true-crime documentary. Look at the
 IMAGE ITSELF. The caption, page title and search query are claims to
-check, not facts. Be strict: a wrong face or a wrong building shown as
+check, not facts. For a video clip you see one keyframe of it: judge the
+clip by that frame. Be strict: a wrong face or a wrong building shown as
 "the" person or place is a serious error.
 
 Decide:
@@ -82,16 +90,42 @@ def decide(v: dict) -> tuple[str, float, str | None]:
     return "needs_review", conf, "uncertain"
 
 
+def image_for_check(asset: VisualAsset):
+    """The still the verifier looks at: the thumbnail (for footage the
+    keyframe of the stored window). A clip without one gets its keyframe
+    extracted now — a video file is never sent as an image."""
+    thumb = storage.resolve(asset.thumbnail_path)
+    if thumb is not None and thumb.exists():
+        return thumb
+    if asset.asset_type != "video":
+        return storage.resolve(asset.local_path)
+    from app.documentary.visuals.footage import extract_keyframe
+
+    clip = storage.resolve(asset.local_path)
+    out = storage.thumbs_dir(asset.case_id) / f"{asset.asset_code}.jpg"
+    length = asset.duration_seconds or ((asset.clip_end or 0) - (asset.clip_start or 0))
+    frame = extract_keyframe(clip, (asset.clip_start or 0) + max(length, 0) / 2,
+                             out.with_suffix(".key.jpg"))
+    IM.save_thumbnail(IM.open_image(frame.read_bytes()), out)
+    frame.unlink(missing_ok=True)
+    asset.thumbnail_path = storage.rel(out)
+    return out
+
+
 class VisualVerificationAgent:
     def __init__(self):
         self.gen = get_generation_provider()
 
     async def verify(self, db: Session, case: Case, asset: VisualAsset,
                      entities: list[dict], facts: list[dict]) -> VisualAsset:
-        thumb = storage.resolve(asset.thumbnail_path or asset.local_path)
+        thumb = image_for_check(asset)
         claimed = json.loads(asset.entities_json or "[]")
+        previous = json.loads(asset.verification_json or "{}") if asset.verification_json else {}
+        # what the search claimed when the asset was found (kept across re-checks)
+        provisional = previous.get("provisional_tier") or asset.relevance_tier
         payload = {
             "case": case.canonical_title,
+            "media": "video keyframe" if asset.asset_type == "video" else "image",
             "found_for": asset.found_for,
             "claimed_entities": claimed,
             "title": asset.title, "caption": asset.caption,
@@ -110,10 +144,15 @@ class VisualVerificationAgent:
         status, conf, reason = decide(v)
         known_ents = {e["key"] for e in entities}
         known_facts = {f["id"] for f in facts}
+        tier, tier_reason = T.verified_why(asset, v, provisional)
         asset.verification_status = status
         asset.verification_confidence = round(conf, 3)
+        asset.relevance_tier = tier
+        asset.case_relevance = T.tier_label(tier)
         asset.verification_json = json.dumps({**v, "reason": reason,
-                                              "model": getattr(res, "model", None)},
+                                              "model": getattr(res, "model", None),
+                                              "provisional_tier": provisional,
+                                              "tier": tier, "tier_reason": tier_reason},
                                              ensure_ascii=False)
         asset.description = str(v.get("depicts") or asset.description or "")[:1000] or None
         if v.get("subject_type"):

@@ -16,6 +16,7 @@ from app.db.models import Case, Source, VisualAsset, VisualPlan
 from app.documentary import storage
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import maps as MAPS
+from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import next_asset_code
 from app.documentary.visuals.typography import document_card
 from app.providers.generation import get_generation_provider
@@ -44,26 +45,75 @@ async def _case_anchor(db: Session, case: Case, place: str) -> tuple[float, floa
     return (geo["lat"], geo["lon"]) if geo else None
 
 
-async def ensure_map(db: Session, case: Case, place: str) -> list[str]:
-    """Asset codes of the zoom sequence for a place (wide -> close)."""
-    codes = []
-    geo = None
-    near = None
-    for z in ai_config.maps.zoom_levels:
+def _map_tier(a: VisualAsset) -> None:
+    """Library fields of a map (also for maps made before tiers existed)."""
+    if a.relevance_tier is None:
+        tier = T.provisional_tier("generated", "context", "place")
+        a.relevance_tier, a.case_relevance = tier, T.tier_label(tier)
+        a.entity_type = a.entity_type or "place"
+        a.found_during = a.found_during or "generated"
+
+
+def _cached_chain(db: Session, case: Case, place: str) -> list[VisualAsset]:
+    """The zoom sequence rendered earlier for this place (the latest
+    chain), when the geocoder cannot be asked again."""
+    prefix = f"map|{place.lower()}|"
+    found = {}
+    latest: list[int] = []
+    for a in db.query(VisualAsset).filter(
+            VisualAsset.case_id == case.id, VisualAsset.provider == "generated",
+            VisualAsset.asset_type == "map").order_by(VisualAsset.id).all():
+        spec = json.loads(a.spec_json or "{}")
+        if str(spec.get("key") or "").startswith(prefix):
+            found[spec.get("zoom")] = a
+            latest = spec.get("zooms") or latest
+    if latest and all(z in found for z in latest):
+        return [found[z] for z in latest]
+    return [found[z] for z in sorted(found, key=lambda z: (z is None, z or 0))]
+
+
+async def _previous_point(previous) -> tuple[float, float] | None:
+    if isinstance(previous, str):
+        geo = await MAPS.geocode(previous)
+        return (geo["lat"], geo["lon"]) if geo else None
+    return MAPS.as_point(previous)
+
+
+async def map_chain(db: Session, case: Case, place: str, previous=None) -> dict | None:
+    """The map sequence of one place: one library asset per zoom of its
+    zoom chain (wide -> close), chosen by the place's granularity and,
+    when `previous` (the film's previously mapped place: {"lat","lon"},
+    (lat, lon) or a place name) is nearby, starting at city level.
+
+    Returns {"assets", "zooms", "granularity", "bbox", "near_previous"}
+    or None when the place cannot be geocoded and was never mapped.
+    Each zoom of a place is rendered once per case and reused."""
+    prev = await _previous_point(previous)
+    near = prev or await _case_anchor(db, case, place)
+    geo = await MAPS.geocode(place, near=near)
+    if not geo:
+        cached = _cached_chain(db, case, place)
+        if not cached:
+            return None
+        spec = json.loads(cached[-1].spec_json or "{}")
+        return {"assets": cached, "zooms": [json.loads(a.spec_json or "{}").get("zoom")
+                                             for a in cached],
+                "granularity": spec.get("granularity"), "bbox": spec.get("bbox"),
+                "near_previous": False}
+    chain = MAPS.zoom_chain(geo, prev)
+    gran = geo.get("granularity") or "unknown"
+    assets: list[VisualAsset] = []
+    for z in chain:
         key = f"map|{place.lower()}|{z}"
         a = _find_generated(db, case.id, "map", key)
         if a is None:
-            if geo is None and near is None:
-                near = await _case_anchor(db, case, place)
-            geo = geo or await MAPS.geocode(place, near=near)
-            if not geo:
-                return []
             code = next_asset_code(db)
             out = storage.visuals_dir(case.id, "map") / f"{code}.jpg"
             info = await MAPS.render_map(geo["lat"], geo["lon"], z, out)
             thumb = storage.thumbs_dir(case.id) / f"{code}.jpg"
             img = IM.open_image(out.read_bytes())
             IM.save_thumbnail(img, thumb)
+            tier, why = T.provisional_why("generated", "context", "place")
             a = VisualAsset(
                 case_id=case.id, asset_code=code, asset_type="map", subject_type="geography",
                 title=f"Map: {place} (zoom {z})", description=geo.get("display_name"),
@@ -73,14 +123,28 @@ async def ensure_map(db: Session, case: Case, place: str) -> list[str]:
                 verification_status="verified", verification_confidence=1.0,
                 local_path=storage.rel(out), thumbnail_path=storage.rel(thumb),
                 width=img.width, height=img.height,
+                relevance_tier=tier, case_relevance=T.tier_label(tier),
+                entity_type="place", found_during="generated",
                 spec_json=json.dumps({"key": key, "place": place, "zoom": z,
+                                      "zooms": chain, "granularity": gran,
+                                      "bbox": geo.get("bbox"),
                                       "lat": geo["lat"], "lon": geo["lon"],
-                                      "marker": info["marker"]}),
+                                      "marker": info["marker"], "tier_reason": why}),
             )
             db.add(a)
-            db.commit()
-        codes.append(a.asset_code)
-    return codes
+        else:
+            _map_tier(a)
+        db.commit()
+        assets.append(a)
+    return {"assets": assets, "zooms": chain, "granularity": gran, "bbox": geo.get("bbox"),
+            "near_previous": MAPS.is_nearby(geo, prev)}
+
+
+async def ensure_map(db: Session, case: Case, place: str, previous=None) -> list[str]:
+    """Asset codes of the zoom sequence for a place (wide -> close); see
+    map_chain. `previous` is optional (the film's previously mapped place)."""
+    info = await map_chain(db, case, place, previous)
+    return [a.asset_code for a in info["assets"]] if info else []
 
 
 def ensure_document(db: Session, case: Case, source: Source, passage: str) -> VisualAsset:
@@ -136,20 +200,33 @@ async def materialize(db: Session, case: Case, plan_row: VisualPlan) -> dict:
     plan = json.loads(plan_row.plan_json or "{}")
     reqs = {b["beat_id"]: b for b in json.loads(plan_row.requirements_json or "{}").get("beats", [])}
     stats = {"maps": 0, "documents": 0, "dropped": 0}
+    # the film's previously mapped place: a nearby next map starts at city
+    # level (the viewer already knows the country)
+    previous: dict | None = None
     for pb in plan.get("beats") or []:
         req = reqs.get(pb["beat_id"], {})
         keep = []
         for s in pb["shots"]:
             cmd = s["command"]
             if cmd == "SHOW_MAP":
-                codes = await ensure_map(db, case, req["map_place"])
-                if not codes:
+                place = s.get("map_place") or req.get("map_place")
+                info = await map_chain(db, case, place, previous) if place else None
+                if not info:
                     stats["dropped"] += 1
                     s.update({"command": "KEEP_CURRENT_IMAGE", "motion": "CONTINUE",
                               "why": "map unavailable (geocoding failed)"})
                     s.pop("overlay", None)
                 else:
-                    s["map_assets"] = codes
+                    s["map_assets"] = [a.asset_code for a in info["assets"]]
+                    s["map_info"] = {
+                        "place": place, "zooms": info["zooms"],
+                        "granularity": info["granularity"],
+                        "after_place": (previous or {}).get("place"),
+                        "starts_at_city": bool(info["near_previous"]),
+                    }
+                    spec = json.loads(info["assets"][-1].spec_json or "{}")
+                    if spec.get("lat") is not None:
+                        previous = {"place": place, "lat": spec["lat"], "lon": spec["lon"]}
                     stats["maps"] += 1
             elif cmd == "SHOW_DOCUMENT":
                 doc = req["document"]

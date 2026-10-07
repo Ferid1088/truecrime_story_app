@@ -13,6 +13,15 @@ Providers (config visual_search.providers):
 Search is by semantic need (entities from the visual requirement
 planner), never sentence by sentence. Nothing is trusted yet: the
 verification agent decides what an image actually shows.
+
+Media library (Master task §8): every asset records what it was found
+for (entity key and type, the query, research or production-time search,
+the date) and a provisional relevance tier (visuals/tiers.py). Exact
+queries name the case's own people and places; CONTEXT queries look for
+contextually accurate imagery (the region, the kind of place, the
+period) and therefore only ask providers whose rights are known — never
+case source pages or open web image search. Footage (visuals/footage.py)
+is searched for the queries flagged `footage` (else the top entities).
 """
 
 from __future__ import annotations
@@ -33,6 +42,7 @@ from app.db.models import Case, Source, VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
+from app.documentary.visuals import tiers as T
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +61,9 @@ class Candidate:
     entities: list[str] = field(default_factory=list)
     date: str | None = None
     asset_type: str = "photo"
+    entity_key: str | None = None
+    entity_type: str | None = None
+    query_kind: str | None = None   # source | exact | context
 
 
 def _strip_html(text: str | None) -> str:
@@ -256,6 +269,16 @@ def next_asset_code(db: Session) -> str:
     return f"VIS_{(last.id if last else 0) + 1:06d}"
 
 
+# Providers asked for CONTEXT queries: rights are known per file.
+RIGHTS_KNOWN_PROVIDERS = ("wikimedia",)
+# Within one run: case sources first, then exact finds, then context.
+_KIND_ORDER = {"source": 0, "exact": 1, "context": 2}
+
+
+def query_kind(q: dict) -> str:
+    return "context" if q.get("kind") == "context" else "exact"
+
+
 class VisualResearchAgent:
     def __init__(self, client: httpx.AsyncClient | None = None):
         self.cfg = ai_config.visual_search
@@ -267,37 +290,54 @@ class VisualResearchAgent:
             headers={"User-Agent": self.cfg.user_agent})
 
     async def run(self, db: Session, case: Case, queries: list[dict],
-                  progress=None) -> dict:
-        """queries: [{"query": str, "entity": key, "entities": [...]}].
+                  progress=None, found_during: str = "research") -> dict:
+        """queries: [{"query": str, "entity": key, "entities": [...],
+        "entity_type": person|place|building|object|vehicle|event|document|
+        organization, "kind": "exact"|"context", "footage": bool}] (all but
+        "query" optional). found_during: research | production_search.
         Returns a summary; assets are committed as they arrive."""
         client = self._client or self._new_client()
         stats = {"candidates": 0, "added": 0, "duplicates": 0, "rejected": 0,
                  "errors": 0, "by_provider": {}}
         try:
             existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
-            hashes = [a.phash for a in existing if a.phash]
+            hashes = [a.phash for a in existing if a.phash and a.asset_type != "video"]
             urls = {a.source_url for a in existing}
             budget = self.cfg.max_assets - len(existing)
             candidates: list[Candidate] = []
-            if "source_pages" in self.cfg.providers:
+            # The case's own sources are case-level, not per query: read
+            # them in the research pass when exact material is wanted (a
+            # context-only search never touches them).
+            exact_wanted = not queries or any(query_kind(q) == "exact" for q in queries)
+            if ("source_pages" in self.cfg.providers and exact_wanted
+                    and found_during == "research"):
                 sp = SourcePageProvider(client)
                 sources = (db.query(Source).filter(Source.case_id == case.id)
                            .order_by(Source.reliability_score.desc()).all())
                 for s in sources[: self.cfg.max_source_pages]:
-                    candidates += await sp.images_for(s)
+                    for c in await sp.images_for(s):
+                        c.query_kind = "source"
+                        candidates.append(c)
             searchers = []
             if "wikimedia" in self.cfg.providers:
                 searchers.append(WikimediaProvider(client))
             if "searxng_images" in self.cfg.providers:
                 searchers.append(SearxngImagesProvider(client))
             for q in queries[: self.cfg.max_queries]:
+                kind = query_kind(q)
+                ents = list(q.get("entities") or [])
+                if q.get("entity") and q["entity"] not in ents:
+                    ents.append(q["entity"])
                 for prov in searchers:
-                    ents = list(q.get("entities") or [])
-                    if q.get("entity") and q["entity"] not in ents:
-                        ents.append(q["entity"])
+                    if kind == "context" and prov.name not in RIGHTS_KNOWN_PROVIDERS:
+                        continue
                     for c in await prov.search(q["query"], self.cfg.max_candidates_per_query):
                         c.entities = list(ents)
+                        c.entity_key = q.get("entity")
+                        c.entity_type = q.get("entity_type")
+                        c.query_kind = kind
                         candidates.append(c)
+            candidates.sort(key=lambda c: _KIND_ORDER.get(c.query_kind or "exact", 1))
             stats["candidates"] = len(candidates)
             for i, c in enumerate(candidates):
                 if budget <= 0:
@@ -329,6 +369,8 @@ class VisualResearchAgent:
                 code = next_asset_code(db)
                 master = IM.save_master(img, storage.visuals_dir(case.id, c.asset_type) / f"{code}.jpg")
                 thumb = IM.save_thumbnail(img, storage.thumbs_dir(case.id) / f"{code}.jpg")
+                role = "context" if c.provider == "wikimedia" else "evidence"
+                tier = T.provisional_tier(c.provider, role, c.entity_type, c.query_kind)
                 asset = VisualAsset(
                     case_id=case.id, asset_code=code, asset_type=c.asset_type,
                     title=c.title, caption=c.caption, description=None,
@@ -339,17 +381,36 @@ class VisualResearchAgent:
                     rights_status=status, rights_reason=reason,
                     local_path=storage.rel(master), thumbnail_path=storage.rel(thumb),
                     width=img.width, height=img.height, phash=ph, sha256=IM.sha256(data),
-                    asset_role="context" if c.provider == "wikimedia" else "evidence",
+                    asset_role=role, relevance_tier=tier, case_relevance=T.tier_label(tier),
+                    entity_key=c.entity_key, entity_type=c.entity_type,
+                    found_during=found_during,
                 )
                 db.add(asset)
                 db.commit()
                 budget -= 1
                 stats["added"] += 1
                 stats["by_provider"][c.provider] = stats["by_provider"].get(c.provider, 0) + 1
+            fcfg = ai_config.footage
+            fq = footage_queries(queries, fcfg.max_queries) if (
+                fcfg.enabled and fcfg.providers and budget > 0) else []
+            if fq:
+                from app.documentary.visuals.footage import FootageAgent
+
+                fs = await FootageAgent(client).run(db, case, fq, found_during, progress, budget)
+                stats["footage"] = fs
+                stats["added"] += fs["added"]
+                for k, n in fs["by_provider"].items():
+                    stats["by_provider"][k] = stats["by_provider"].get(k, 0) + n
         finally:
             if self._client is None:
                 await client.aclose()
         return stats
+
+
+def footage_queries(queries: list[dict], max_queries: int) -> list[dict]:
+    from app.documentary.visuals.footage import footage_queries as fq
+
+    return fq(queries, max_queries)
 
 
 def add_uploaded_image(db: Session, case: Case, data: bytes, filename: str,
@@ -369,6 +430,9 @@ def add_uploaded_image(db: Session, case: Case, data: bytes, filename: str,
         local_path=storage.rel(master), thumbnail_path=storage.rel(thumb),
         width=img.width, height=img.height, phash=IM.dhash(img), sha256=IM.sha256(data),
         verification_status="needs_review",
+        relevance_tier=T.provisional_tier("upload", asset_role),
+        case_relevance=T.tier_label(T.provisional_tier("upload", asset_role)),
+        found_during="upload",
     )
     db.add(asset)
     db.commit()
