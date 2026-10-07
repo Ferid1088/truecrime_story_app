@@ -258,9 +258,22 @@ its critics' model either.
   emotional moments in the planned gaps (starting softly under the last
   words), stings, room tone for silences, final loudness −16 LUFS.
   `with_music: false` renders the narration only.
-- Music cues (`music_library`) are generated once with ElevenLabs sound
-  generation, normalized and cached in `data/music_library/` — shared by
-  every film and language.
+- **Clean narration**: with `audio_direction.beds_under_narration=false`
+  (default) no music plays under the narrator's words. The Music/Audio
+  Director puts music only into the gaps — between sections, before a
+  revelation, after a strong statement, at chapter turns, under silent
+  picture sequences — and may choose SILENCE (room tone) instead, above
+  all around disturbing facts, reveals and open questions. Moods follow
+  the emotional function of the moment (suspense, investigation,
+  mystery, melancholy, danger, discovery, tension, relief, resolution,
+  uncertainty); every cue and silence carries a `why`.
+- **Music library** (`music_tracks`): several generated variants per
+  kind and mood (ElevenLabs sound generation, normalized, cached in
+  `data/music_library/`). A film keeps one theme per mood across all its
+  languages; a track used by one of the last
+  `music_library.reuse_after_videos` (10) other films is not chosen while
+  an alternative exists or can be generated. `music_usages` records
+  every placement with the director's reason and the selection reason.
 
 ### Visuals, production and render (the documentary video)
 
@@ -272,11 +285,18 @@ still work. If they open them, the visuals deepen understanding."
    see (people, places, objects, documents) with search queries; plus a
    map place, an anchor date, a short real quotation or a document
    passage — each checked against the evidence (exact quotes only).
-2. **Visual research**: images from the case's own sources (news
-   articles: og:image, figures with captions), Wikimedia Commons
-   (license metadata; polite User-Agent and request spacing) and the
-   SearXNG image search. Downloads are size-checked, deduplicated by
-   perceptual hash and stored per case (`data/cases/<id>/visuals/`).
+2. **Visual research → media library**: images from the case's own
+   sources (news articles: og:image, figures with captions), Wikimedia
+   Commons (license metadata; polite User-Agent and request spacing) and
+   the SearXNG image search; **footage** from Wikimedia Commons video and
+   the Internet Archive (licensed only), stored as short MUTED clips with
+   a keyframe for verification. Every asset keeps source, rights,
+   license, entity, the query it was found for, the date found and a
+   **relevance tier**: 1 exact case evidence/footage, 2 the exact
+   person/place/object, 3 the exact city/building/area, 4 contextual
+   licensed imagery, 5 generic atmosphere (last resort). Downloads are
+   size-checked, deduplicated by perceptual hash and stored per case
+   (`data/cases/<id>/visuals/`).
 3. **Rights** (deterministic): owned, licensed, public_domain,
    creative_commons, editorial_review_required, permission_required,
    unknown, do_not_use (stock libraries, watermarks). FOUND is not
@@ -287,16 +307,34 @@ still work. If they open them, the visuals deepen understanding."
    context / illustration); branding or burned-in text; sensitive
    content. Rejected images are never used; humans can override in the
    Visual Library.
-5. **Visual direction** (`visual_director`): shots per beat anchored to
-   the narration sentences (KEEP_CURRENT_IMAGE, NEW_IMAGE, SHOW_MAP,
-   SHOW_DOCUMENT, SHOW_DATE, SHOW_QUOTE, BLACK_SCREEN, …). Validator:
+5. **Visual direction** (`visual_director`) answers for every sentence
+   "what should the viewer see while this is spoken?" — lowest tier
+   first, the person when the sentence is about them, real footage
+   (SHOW_CLIP, muted) where it helps, and REQUEST_SEARCH when nothing
+   fits. The **visual_gaps** stage then searches for weak sentences
+   (e.g. "St Mary's Church <town> exterior"), verifies what it finds and
+   re-directs those beats; the audit sits in the plan's
+   `search_requests`. **Repetition control** (`media_usages`): generic
+   and contextual pictures and maps appear at most once or twice per
+   film, central people may return (with room in between) when the
+   sentence names them; every reuse records why. **Maps** appear where
+   geography matters — at the first mention of a place, never as the
+   film's first picture unless the opening is `important_location`,
+   once per place — zooming country → region → city → the relevant
+   area. Openings follow the film's opening strategy. Commands:
+   KEEP_CURRENT_IMAGE, NEW_IMAGE, SHOW_CLIP, SHOW_MAP, SHOW_DOCUMENT,
+   SHOW_DATE, SHOW_QUOTE, BLACK_SCREEN, REQUEST_SEARCH, …. Validator:
    reveal firewall (no picture shows what a later reveal/evidence beat
    discloses), cognitive load (one thing to read, none during dense
    narration), minimum holds, illustrations labelled on screen, fallback
-   hierarchy (map → date → hold → black). Motion is deterministic and
+   hierarchy (unused verified picture → document/date card → hold →
+   black). Motion is deterministic and
    subtle (slow push/pull, pans, focus on faces, document highlight, map
    zoom, light 2.5D parallax), never the same move three times in a row.
-6. **Production script** per language from the real audio: shots,
+6. **Production script** per language from the real audio (cuts every
+   ~5–9 s, sentence-snapped; `case_status`, `production_type`,
+   `opening_strategy`; an UNSOLVED case gets an "UNSOLVED CASE" status
+   card at the start and near the end): shots,
    transitions, overlays localized per language (dates formatted
    deterministically, place names/quotes by `overlay_localizer`),
    music placements, silences, subtitles, credits.
@@ -304,7 +342,9 @@ still work. If they open them, the visuals deepen understanding."
    `visual_accuracy_critic`, `production_critic` — never the director's
    model) plus deterministic checks; targeted fixes per shot
    (replace picture, keep previous, change motion, black, remove text).
-   Each language is judged on its own.
+   Each language is judged on its own. A cross-film variety check flags
+   a film that repeats the previous films' opening strategy, first shot,
+   music tracks and cut rhythm (`template_repeat`).
 8. **Render** (FFmpeg + OpenCV + Pillow, no editorial logic): 1080p/25
    MP4, H.264 + AAC, soft subtitle track and `.srt`, credits for
    attributed material.
@@ -329,6 +369,65 @@ screen, cached in `data/map_cache`); switch `maps.tile_url` /
 use. All four narrators use ElevenLabs `eleven_v3` with `language_code`
 (v3 has no request stitching) and Persian uses a larger Whisper model for
 the speech check (`asr_check.languages.fa`).
+
+### Case lifecycle: selection, status, monitor, follow-ups
+
+Brief: `docs/Master_Task_Case_Lifecycle.MD`. Pipeline: discovery →
+duplicate checker → status verifier → research → media research →
+story director → visual director → music/audio director → production →
+render → video record + YouTube metadata → archive → unsolved monitor →
+follow-up.
+
+- **Which cases are suggested**: RECENT + SOLVED + NEVER USED. Discovery
+  searches recent developments (verdicts, convictions, charges;
+  `case_selection.seed_queries`, SearXNG `time_range`), the extraction
+  reports status and dates, the best candidates' status is verified with
+  targeted searches and `case_status_verifier`, and the ranking is
+  recency (half-life `recency_half_life_days`) × status weight. UNSOLVED
+  cases are only suggested with `include_unsolved`. Every suggestion
+  stores its reason; duplicates and filtered ones are stored with theirs.
+- **Duplicate checker** (`app/lifecycle/identity.py`): compares identity,
+  not titles — victim/suspect names (spelling-tolerant: Gehricke ≈
+  Gericke, Müller = Mueller), aliases, places, dates, case-specific
+  source URLs and identifiers — against every case in any state and every
+  suggestion ever shown. Manual case creation and "investigate" answer
+  409 with the matched case and the reason (`force` overrides).
+- **Resolution status** `SOLVED | UNSOLVED | UNKNOWN |
+  STATUS_UNDER_REVIEW` is a case field with a history
+  (`case_status_history`: who, why, sources). Visible on discovery
+  cards, case lists (filter), case page, documentary jobs, production
+  scripts, videos, YouTube titles and the archive
+  (`GET /api/archive?status=SOLVED|UNSOLVED|ALL`).
+- **Unsolved monitor** (in-app scheduler, about twice a week:
+  `case_monitor.interval_hours`; `POST /api/monitor/run` by hand; set
+  `TRUECRIME_DISABLE_SCHEDULER=1` to keep it off): stage 1 runs a couple
+  of searches per UNSOLVED case limited to the time since its last check
+  and looks for deterministic signal words in results that name the case
+  — no signal: stop (no fetch, no LLM). Stage 2 only after a signal:
+  pages are read, `case_status_verifier` judges, and SOLVED needs
+  confidence AND two independent sources or one official source; weaker
+  evidence → STATUS_UNDER_REVIEW. Every check is stored
+  (`case_status_checks`).
+- **Follow-ups**: a covered case (it has a video) that goes UNSOLVED →
+  SOLVED appears on the dashboard: "PREVIOUSLY COVERED UNSOLVED CASE —
+  NOW SOLVED … Do you want to create an update video?". Nothing is
+  produced before approval (`POST /api/follow-ups/{id}/approve`), which
+  starts one `follow_up` job: update research, a master that opens with
+  the earlier episode ("We first told this story in Episode 27 …"), and a
+  video linked to the original.
+- **Videos** (`videos`): one per rendered language with status at
+  production/publication, opening strategy and YouTube metadata —
+  "UNSOLVED: <title>", follow-ups "SOLVED: The <case> Case — What
+  Happened After Our Original Video" (localized). Publish sets the
+  episode number and freezes the status at publication.
+- **Openings vary**: the story director chooses an opening strategy
+  (critical moment, mysterious statement, victim introduction, evidence
+  discovery, emergency call, important location, contradiction, last
+  sighting, courtroom outcome, unanswered question, timeline anomaly)
+  and avoids those of the most recent films (`opening.avoid_recent`).
+- **Audit**: `GET /api/cases/{id}/audit` — why suggested, duplicates,
+  status changes and checks, and per production why each picture, map,
+  repeat, music cue or silence was chosen.
 
 ### Pronunciation check (Persian)
 
