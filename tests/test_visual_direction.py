@@ -869,8 +869,12 @@ def test_requests_are_bounded_and_skippable(db_session, monkeypatch):
 
 
 @needs_ffmpeg
-def test_pipeline_runs_the_gap_stage_and_records_usage(db_session, documentary_env):
+def test_pipeline_runs_the_gap_stage_and_records_usage(db_session, documentary_env, monkeypatch):
     from app.documentary import jobs as J
+
+    # the on-screen host is tested on its own (its memories would carry
+    # over into the next film of the shared test database)
+    monkeypatch.setattr(ai_config.host, "enabled", False)
 
     case, master = _story(db_session)
     case.resolution_status = "UNSOLVED"

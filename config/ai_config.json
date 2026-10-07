@@ -107,7 +107,10 @@
         "production_critic": "writer",
         "voice_performance_director": "premium",
         "pronunciation_editor": "premium",
-        "case_status_verifier": "premium"
+        "case_status_verifier": "premium",
+        "host_director": "premium",
+        "host_writer": "premium",
+        "host_critic": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -346,6 +349,18 @@
     "case_status_verifier": {
       "temperature": 0.0,
       "max_tokens": 6000
+    },
+    "host_director": {
+      "temperature": 0.5,
+      "max_tokens": 12000
+    },
+    "host_writer": {
+      "temperature": 0.7,
+      "max_tokens": 12000
+    },
+    "host_critic": {
+      "temperature": 0.1,
+      "max_tokens": 12000
     }
   },
   "search_engine": {
@@ -686,6 +701,17 @@
           "attention_critic",
           "visual_accuracy_critic",
           "production_critic"
+        ],
+        "strict": true
+      },
+      {
+        "name": "documentary_host",
+        "authors": [
+          "host_director",
+          "host_writer"
+        ],
+        "reviewers": [
+          "host_critic"
         ],
         "strict": true
       }
@@ -1696,5 +1722,13 @@
     "max_source_seconds": 1800.0,
     "clip_seconds": 24.0,
     "min_height": 360
+  },
+  "host": {
+    "enabled": true,
+    "max_mid_segments": 2,
+    "max_total_share": 0.08,
+    "min_beats_between": 3,
+    "pace_factor": 1.08,
+    "max_repair_iterations": 2
   }
 }

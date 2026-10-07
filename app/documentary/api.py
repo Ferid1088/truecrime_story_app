@@ -591,3 +591,117 @@ def music_file(cue_id: str, db: Session = Depends(get_db)):
     if not path.exists():
         raise HTTPException(status_code=404, detail="Track not generated yet")
     return FileResponse(path, media_type="audio/wav")
+
+
+# ---------------------------------------------------------------------------
+# on-screen host (persona_master_prompt.md): plan, dialogue, memory
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/cases/{case_id}/documentary/host-plan")
+def get_host_plan(case_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
+    from app.documentary.host import host_plan_dict, latest_host_plan
+
+    _case(db, case_id)
+    bp = latest_blueprint(db, _pick_master(db, case_id, version_id).id)
+    row = latest_host_plan(db, bp.id) if bp else None
+    if not row:
+        raise HTTPException(status_code=404, detail="No host plan yet.")
+    return host_plan_dict(row)
+
+
+@router.post("/api/cases/{case_id}/documentary/host-plan")
+async def create_host_plan(case_id: int, version_id: int | None = None,
+                           db: Session = Depends(get_db)):
+    from app.documentary.host import HostDirector, host_plan_dict
+
+    case = _case(db, case_id)
+    master = _pick_master(db, case_id, version_id)
+    bp = latest_blueprint(db, master.id)
+    if not bp or bp.status == "invalid":
+        raise HTTPException(status_code=409, detail="This story needs a valid blueprint first.")
+    row = await HostDirector().create_plan(db, case, bp, master)
+    return host_plan_dict(row)
+
+
+@router.get("/api/documentary/versions/{version_id}/host")
+def get_host_segments(version_id: int, db: Session = Depends(get_db)):
+    from app.documentary.host import host_segments_dict, latest_host_segments
+
+    row = latest_host_segments(db, version_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="No host segments yet.")
+    return host_segments_dict(row)
+
+
+@router.post("/api/documentary/versions/{version_id}/host")
+async def create_host_segments(version_id: int, db: Session = Depends(get_db)):
+    """The host's dialogue for one spoken version (its language), from the
+    newest host plan of its blueprint."""
+    from app.documentary.host import HostDirector, host_segments_dict, latest_host_plan
+
+    v = db.get(StoryVersion, version_id)
+    if not v or v.kind != "spoken":
+        raise HTTPException(status_code=404, detail="Spoken version not found")
+    bp_id = _loads(v.narrative_structure, {}).get("blueprint_id")
+    plan = latest_host_plan(db, bp_id) if bp_id else None
+    if not plan:
+        raise HTTPException(status_code=409, detail="Create the host plan first.")
+    row = await HostDirector().write(db, db.get(Case, v.case_id), v, plan)
+    return host_segments_dict(row)
+
+
+@router.get("/api/documentary/host/memory")
+def list_host_memory(case_id: int | None = None, db: Session = Depends(get_db)):
+    from app.db.models import HostMemory
+    from app.documentary.host import memory_dict
+
+    q = db.query(HostMemory)
+    if case_id:
+        q = q.filter(HostMemory.case_id == case_id)
+    return [memory_dict(m) for m in q.order_by(HostMemory.id.desc()).limit(500)]
+
+
+class HostMemoryRequest(BaseModel):
+    case_id: int
+    kind: Literal["opinion", "reaction", "correction", "open_question", "theme"]
+    text: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/api/documentary/host/memory")
+def add_host_memory(payload: HostMemoryRequest, db: Session = Depends(get_db)):
+    """A memory confirmed by an editor (kept when plans are regenerated)."""
+    from app.db.models import HostMemory
+    from app.documentary.host import memory_dict
+
+    _case(db, payload.case_id)
+    m = HostMemory(case_id=payload.case_id, kind=payload.kind, text=payload.text.strip(),
+                   origin="editor")
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return memory_dict(m)
+
+
+class HostMemoryPatch(BaseModel):
+    active: bool | None = None
+    text: str | None = Field(default=None, min_length=3, max_length=500)
+
+
+@router.patch("/api/documentary/host/memory/{memory_id}")
+def update_host_memory(memory_id: int, payload: HostMemoryPatch, db: Session = Depends(get_db)):
+    """Retire a wrong memory (active=false) or correct its text; an edited
+    memory becomes editor-owned."""
+    from app.db.models import HostMemory
+    from app.documentary.host import memory_dict
+
+    m = db.get(HostMemory, memory_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    if payload.active is not None:
+        m.active = payload.active
+    if payload.text is not None:
+        m.text = payload.text.strip()
+        m.origin = "editor"
+    db.commit()
+    return memory_dict(m)

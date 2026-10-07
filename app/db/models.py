@@ -999,3 +999,67 @@ class MusicUsage(Base):
     why: Mapped[str | None] = mapped_column(Text, nullable=True)
     selection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class HostPlan(Base):
+    """The on-screen host's plan for one blueprint — language-independent:
+    which moments the host appears at (opening / after a beat / final),
+    why, which personality dimension shows, the verified memory used and
+    the delivery. The words themselves are written natively per language
+    (HostSegments)."""
+
+    __tablename__ = "host_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(
+        ForeignKey("editorial_blueprints.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="invalid", index=True)
+    plan_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class HostSegments(Base):
+    """The host's on-camera dialogue for one spoken version (one
+    language), written natively from the HostPlan, checked for facts,
+    memory, repetition and length."""
+
+    __tablename__ = "host_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(
+        ForeignKey("story_versions.id"), index=True
+    )
+    host_plan_id: Mapped[int] = mapped_column(ForeignKey("host_plans.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20), default="en", index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    segments_json: Mapped[str] = mapped_column(Text, default="[]")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class HostMemory(Base):
+    """What the host remembers across episodes: opinions, reactions,
+    corrections, unresolved questions and recurring themes — each tied to
+    the case it came from. Only these rows (and the archive of covered
+    cases) may be referred to as memories. kind: opinion | reaction |
+    correction | open_question | theme. origin: host_plan (written by the
+    pipeline) | editor (added or confirmed by a person)."""
+
+    __tablename__ = "host_memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="opinion", index=True)
+    text: Mapped[str] = mapped_column(Text)
+    origin: Mapped[str] = mapped_column(String(20), default="host_plan")
+    host_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
