@@ -159,6 +159,9 @@ def ensure_document(db: Session, case: Case, source: Source, passage: str) -> Vi
     img.save(out, "JPEG", quality=92)
     thumb = storage.thumbs_dir(case.id) / f"{code}.jpg"
     IM.save_thumbnail(img, thumb)
+    # a card quoting a case source is case material (tier 1): repetition
+    # control counts it as evidence, the audit can say why
+    tier, why = T.provisional_why("generated", "evidence", "document")
     a = VisualAsset(
         case_id=case.id, asset_code=code, asset_type="document", subject_type="document",
         title=f"Document: {source.title}"[:500], description=passage[:1000],
@@ -169,8 +172,10 @@ def ensure_document(db: Session, case: Case, source: Source, passage: str) -> Vi
         verification_status="verified", verification_confidence=1.0,
         local_path=storage.rel(out), thumbnail_path=storage.rel(thumb),
         width=img.width, height=img.height,
+        relevance_tier=tier, case_relevance=T.tier_label(tier),
+        entity_type="document", found_during="generated",
         spec_json=json.dumps({"key": key, "source_id": source.id, "passage": passage,
-                              "highlight": list(bbox)}),
+                              "highlight": list(bbox), "tier_reason": why}),
     )
     db.add(a)
     db.commit()
@@ -178,14 +183,17 @@ def ensure_document(db: Session, case: Case, source: Source, passage: str) -> Vi
 
 
 def attach_overlays(plan: dict, requirements: dict) -> dict:
-    """English source text of every on-screen text (localized later)."""
+    """English source text of every on-screen text (localized later). A
+    map names the place it shows (the shot's own place — a place the
+    sentence named — else the beat's map place)."""
     reqs = {b["beat_id"]: b for b in requirements.get("beats") or []}
     for pb in plan.get("beats") or []:
         req = reqs.get(pb["beat_id"], {})
         for s in pb["shots"]:
             cmd = s["command"]
-            if cmd == "SHOW_MAP" and req.get("map_place"):
-                s["overlay"] = {"kind": "place", "text_en": req["map_place"].split(",")[0]}
+            place = s.get("map_place") or req.get("map_place")
+            if cmd == "SHOW_MAP" and place:
+                s["overlay"] = {"kind": "place", "text_en": place.split(",")[0]}
             elif cmd == "SHOW_QUOTE" and req.get("quote"):
                 s["overlay"] = {"kind": "quote", "text_en": req["quote"]["text"],
                                 "fact_id": req["quote"]["fact_id"]}

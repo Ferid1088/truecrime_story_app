@@ -1182,7 +1182,7 @@
   "attention": {
     "max_overlay_words": 14,
     "max_read_items_per_beat": 1,
-    "max_changes_per_minute": 7,
+    "max_changes_per_minute": 12,
     "min_changes_per_minute": 1,
     "firewall_purposes": [
       "reveal",

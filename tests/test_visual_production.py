@@ -143,7 +143,8 @@ def test_requirements_keep_only_grounded_material():
     assert {"unknown_entity", "quote_dropped", "date_dropped", "document_dropped",
             "unknown_beat"} <= codes
     q = research_queries(reqs)
-    assert q == [{"query": "farmhouse Nannup", "entity": "the_house", "entities": ["the_house"]}]
+    assert q == [{"query": "farmhouse Nannup", "entity": "the_house", "entities": ["the_house"],
+                  "entity_type": "building", "kind": "exact", "footage": False}]
 
 
 # ---------------------------------------------------------------------------
@@ -205,8 +206,10 @@ def test_visual_plan_validation_and_fallbacks():
             {"command": "SHOW_DOCUMENT", "from_sentence": 1}]},
     ]}
     marks = {"B02": sentence_marks("One two three four five six. Seven eight.")}
+    # (an opening about the place may show its map first; see
+    # test_visual_direction for the other openings)
     plan, rep = validate_visual_plan(raw, bp, reqs, {"B01": [], "B02": ["VIS_000001"]},
-                                     {"VIS_000001": a1}, marks)
+                                     {"VIS_000001": a1}, marks, opening="important_location")
     b = {x["beat_id"]: x for x in plan["beats"]}
     assert [s["command"] for s in b["B01"]["shots"]] == ["SHOW_MAP"]
     # sentence anchors -> shares (6 of 8 words, then the quote)
@@ -479,6 +482,7 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.render, "width", 320)
     monkeypatch.setattr(ai_config.render, "height", 180)
     gen = PipelineGen()
+    gen.research_calls = []
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
                 "production.critics", "voice_performance", "pronunciation"):
@@ -490,11 +494,13 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr("app.documentary.production.audio.DocumentaryMixer",
                         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())))
 
-    async def fake_research(self, db, case, queries, progress=None):
+    async def fake_research(self, db, case, queries, progress=None, found_during="research",
+                            **kw):
         from app.documentary import storage
         from app.documentary.visuals.research import next_asset_code
 
         assert queries[0]["entity"] == "the_house"
+        gen.research_calls.append(found_during)
         for i in range(2):
             code = next_asset_code(db)
             p = _jpg(storage.visuals_dir(case.id) / f"{code}.jpg", color=(90 + i * 40, 80, 70))

@@ -551,9 +551,10 @@ def test_cuts_vary_and_land_on_sentences():
     cuts = plan_cuts(0.0, 64.0, [3, 9, 14.5, 21, 26, 33, 40, 45, 51, 58])
     sentences = {9, 14.5, 21, 26, 33, 40, 45, 51}
     # cuts land on sentence starts unless none is near (or it is too late)
-    assert cuts[:3] == [9, 26, 40] and set(cuts[:3]) <= sentences
+    assert cuts[:3] == [9, 21, 26] and set(cuts[:3]) <= sentences
     gaps = [b - a for a, b in zip([0.0] + cuts, cuts + [64.0])]
-    assert min(gaps) >= 7.0 and len({round(g) for g in gaps}) > 1
+    assert min(gaps) >= ai_config.visual_direction.min_cut_seconds
+    assert len({round(g) for g in gaps}) > 1
 
 
 # ---------------------------------------------------------------------------

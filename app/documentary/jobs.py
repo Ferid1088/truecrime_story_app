@@ -10,7 +10,9 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   visual_needs       visual requirements per beat
   visual_research    real photos/documents for those needs
   visual_check       vision verification of the best candidates
-  visual_plan        shots per beat + motion; maps/document cards
+  visual_plan        shots per sentence + motion; maps/document cards
+  visual_gaps        targeted searches for sentences with weak pictures,
+                     then those beats are directed again
   performance:<lang> narrator arc + ElevenLabs v3 audio tags
   voice:<lang>       narration + music mix (pilot: first N seconds)
   production:<lang>  language-specific timeline
@@ -153,7 +155,8 @@ def job_dict(job: DocumentaryJob) -> dict:
 def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
     names = (["research", "master_story"] if from_zero else []) + [
         "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + [
-        "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan"]
+        "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan",
+        "visual_gaps"]
     for l in languages:
         names += [f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
                   f"render:{l}"]
@@ -385,6 +388,20 @@ class DocumentaryPipeline:
                             "fallbacks": report.get("fallbacks"), **stats}
 
                 await self._stage("visual_plan", visual_plan)
+
+                async def visual_gaps():
+                    # production-time search for weak sentences; a plan made
+                    # by an earlier job already had its search
+                    if planned:
+                        return {"skipped": True,
+                                "reason": "visual plan exists (refresh_visuals to redo)"}
+                    from app.documentary.visuals.gaps import fill_visual_gaps
+
+                    return await fill_visual_gaps(db, case, db.get(VisualPlan, vp_row.id),
+                                                  bp_row, ap_row, profile=job.render_profile,
+                                                  beat_ids=focus_beats)
+
+                await self._stage("visual_gaps", visual_gaps)
                 visual_state["row"] = db.get(VisualPlan, vp_row.id)
             except BaseException as e:
                 visual_state["error"] = e
@@ -442,8 +459,9 @@ class DocumentaryPipeline:
             async def production():
                 from app.documentary.production.script import build_production_script
 
-                row = await build_production_script(db, version, plan_row, manifest,
-                                                    mode=job.mode)
+                row = await build_production_script(
+                    db, version, plan_row, manifest, mode=job.mode,
+                    production_type=getattr(job, "production_type", None) or "original")
                 return {"production_script_id": row.id, "duration": row.duration_seconds}
 
             d = await self._stage(f"production:{lang}", production)
@@ -585,10 +603,7 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
                             per_requirement: int = 3) -> dict:
     """Vision-check the best unverified candidates of each need (a pilot
     only checks the beats it shows)."""
-    from app.agents.story import build_evidence_pack
-    from app.db.models import Contradiction, Source
     from app.documentary.visuals.director import blocked_at, rank_candidates
-    from app.documentary.visuals.verification import VisualVerificationAgent
 
     assets = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
     ents = {e["key"]: e for e in requirements.get("entities") or []}
@@ -606,6 +621,19 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
             for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:per_requirement]:
                 if a.verification_status == "unverified" and a not in todo:
                     todo.append(a)
+    return await verify_assets(db, case, todo, list(ents.values()))
+
+
+async def verify_assets(db: Session, case: Case, assets: list[VisualAsset],
+                        entities: list[dict]) -> dict:
+    """Vision-check these assets against the case evidence (shared by the
+    visual_check stage and the production-time search)."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Contradiction, Source
+    from app.documentary.visuals.verification import VisualVerificationAgent
+
+    if not assets:
+        return {"checked": 0}
     pack = build_evidence_pack(
         db.query(Fact).filter(Fact.case_id == case.id).all(),
         db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
@@ -613,16 +641,16 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
     agent = VisualVerificationAgent()
     # all candidates at once; the vision limit (concurrency.vision) paces them
     results = await gather_limited(
-        None, [agent.verify(db, case, a, list(ents.values()), pack["facts"]) for a in todo],
+        None, [agent.verify(db, case, a, entities, pack["facts"]) for a in assets],
         return_exceptions=True)
     counts: dict[str, int] = {}
     errors = 0
-    for a, r in zip(todo, results):
+    for a, r in zip(assets, results):
         if isinstance(r, Exception):
             errors += 1
             continue
         counts[a.verification_status] = counts.get(a.verification_status, 0) + 1
-    return {"checked": len(todo), **counts, **({"errors": errors} if errors else {})}
+    return {"checked": len(assets), **counts, **({"errors": errors} if errors else {})}
 
 
 # ---------------------------------------------------------------------------
