@@ -86,6 +86,9 @@ REQUIRED_ROLES = {
     "voice_performance_director",
     # Professional audio direction: breaths, music moments, silences.
     "audio_director",
+    # Solved / unsolved: judges search evidence for discovery suggestions
+    # and for the unsolved-case monitor's deep verification.
+    "case_status_verifier",
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
     "visual_planner",
@@ -868,6 +871,18 @@ class AudioDirectionConfig(BaseModel):
     # in under it) and keeps playing under the next beat's first words.
     music_lead_seconds: float = Field(default=2.0, ge=0.0, le=8.0)
     music_tail_seconds: float = Field(default=3.0, ge=0.0, le=10.0)
+    # Clean narration: no music bed under the narrator's words. Music
+    # lives in the gaps (between sections, before a reveal, after a strong
+    # statement, at chapter turns, under silent picture sequences).
+    beds_under_narration: bool = False
+    # With beds off, a cue starts this long after the last word and is
+    # faded out this long before the next word (no overlap with speech).
+    music_start_after_word_seconds: float = Field(default=0.25, ge=0.0, le=3.0)
+    music_end_before_word_seconds: float = Field(default=0.4, ge=0.0, le=3.0)
+    # The emotional function of a cue (never "suspense because it is
+    # true crime").
+    moods: list[str] = ["suspense", "investigation", "mystery", "melancholy", "danger",
+                        "discovery", "tension", "relief", "resolution", "uncertainty"]
 
     @model_validator(mode="after")
     def _validate(self):
@@ -880,7 +895,7 @@ class AudioDirectionConfig(BaseModel):
 class MusicCue(BaseModel):
     id: str
     kind: str          # bed | bridge | sting | room_tone
-    mood: str          # mystery | tension | emotional | reflective | neutral
+    mood: str          # see audio_direction.moods (+ neutral for room tone)
     seconds: float = Field(gt=0, le=30)
     loop: bool = False
     prompt: str
@@ -894,6 +909,30 @@ class MusicLibraryConfig(BaseModel):
     # levels in audio_direction are predictable.
     reference_lufs: float = Field(default=-16.0)
     cues: list[MusicCue] = []
+    # Variety across films: a track used in one of the last N films is
+    # not chosen again while an alternative exists or can be generated.
+    reuse_after_videos: int = Field(default=10, ge=0)
+    max_variants_per_mood: int = Field(default=6, ge=1, le=30)
+    # Base description per mood; a variant adds one of variant_styles.
+    mood_prompts: dict[str, str] = Field(default_factory=lambda: {
+        "suspense": "slow suspenseful documentary underscore, held low notes, a quiet pulse",
+        "investigation": "measured investigative documentary underscore, steady soft pulse, curious",
+        "mystery": "dark ambient mystery underscore, sparse notes, patient and unresolved",
+        "melancholy": "melancholic documentary underscore, slow and intimate, gentle sadness",
+        "danger": "ominous documentary underscore, low rumble, uneasy dissonance, restrained",
+        "discovery": "documentary underscore for a discovery, rising soft swell, clarity",
+        "tension": "tense documentary underscore, low pulse like a distant heartbeat",
+        "relief": "warm documentary underscore, release of tension, calm resolution",
+        "resolution": "documentary closing underscore, settled harmony, quiet dignity",
+        "uncertainty": "uncertain documentary underscore, unresolved suspended chords, airy",
+        "neutral": "quiet room tone, faint air, no music",
+    })
+    variant_styles: list[str] = [
+        "low cello and felt piano", "warm synth pad and distant piano",
+        "string quartet harmonics", "muted electric guitar swells and soft drone",
+        "solo piano with long reverb", "low brass and soft timpani rolls",
+        "glass harmonica textures and sub bass", "bowed vibraphone and low strings",
+    ]
 
     def find(self, kind: str, mood: str | None = None) -> MusicCue | None:
         options = [c for c in self.cues if c.kind == kind]
@@ -1142,6 +1181,230 @@ class PronunciationConfig(BaseModel):
     sentences_per_call: int = Field(default=60, ge=5)
 
 
+RESOLUTION_STATUSES = ("SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW")
+
+
+class CaseSelectionConfig(BaseModel):
+    """Which cases discovery recommends: RECENT + SOLVED + NEVER USED.
+
+    rank = recency (exponential decay on the newest known date: latest
+    development, else incident date) x status weight. UNSOLVED cases are
+    only suggested when a request explicitly includes them."""
+
+    recency_half_life_days: float = Field(default=365.0, gt=0)
+    # Cases without any known date get this recency.
+    undated_recency: float = Field(default=0.15, ge=0.0, le=1.0)
+    status_weights: dict[str, float] = Field(default_factory=lambda: {
+        "SOLVED": 1.0, "STATUS_UNDER_REVIEW": 0.35, "UNKNOWN": 0.35, "UNSOLVED": 0.2})
+    include_unsolved_default: bool = False
+    # The status verifier must reach this confidence before a suggestion
+    # is labelled SOLVED (otherwise STATUS_UNDER_REVIEW / UNKNOWN).
+    solved_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    # Best candidates checked by the status verifier (search + LLM).
+    verify_top_n: int = Field(default=8, ge=0)
+    # SearXNG time range of discovery searches (day|week|month|year|"").
+    discovery_time_range: str = "year"
+    # Search queries per language; {year} / {last_year} are filled in.
+    seed_queries: dict[str, list[str]] = Field(default_factory=lambda: {
+        "en": ["murder trial verdict convicted {year}", "found guilty of murder sentenced {year}",
+               "charged with murder after disappearance {year}",
+               "cold case solved arrest DNA {year}", "killer sentenced life in prison {last_year}"],
+        "de": ["Mordprozess Urteil lebenslange Haft {year}", "wegen Mordes verurteilt {year}",
+               "Cold Case aufgeklärt Festnahme {year}", "Vermisste tot aufgefunden Täter verurteilt"],
+        "fa": ["دادگاه قاتل محکوم شد {year}", "پرونده قتل حل شد دستگیری"],
+        "ar": ["الحكم على قاتل في قضية {year}", "القبض على قاتل بعد اختفاء"],
+    })
+    # Duplicate checker thresholds (rapidfuzz 0..100).
+    title_threshold: int = Field(default=88, ge=50, le=100)
+    person_threshold: int = Field(default=90, ge=50, le=100)
+    # A shared person counts with a place match or dates this close.
+    date_window_years: int = Field(default=2, ge=0)
+    # URLs on these hosts are not case-specific (search/aggregator pages).
+    generic_url_hosts: list[str] = ["google.", "bing.", "duckduckgo.", "youtube.com/results",
+                                    "facebook.com", "twitter.com", "x.com", "instagram.com"]
+
+
+class CaseMonitorConfig(BaseModel):
+    """Twice-weekly check of every UNSOLVED case for meaningful news.
+
+    Stage 1 (fast, cheap): a few searches + deterministic signal words.
+    No signal -> stop (no fetch, no LLM). Stage 2 (deep) only after a
+    signal: fetch the pages, the case_status_verifier judges, and a case
+    becomes SOLVED only with enough confidence AND independent or
+    official sources."""
+
+    enabled: bool = True
+    # Start the in-app scheduler with the API server.
+    autostart: bool = True
+    interval_hours: float = Field(default=84.0, gt=0)   # ~ twice a week
+    poll_minutes: float = Field(default=30.0, gt=0)
+    statuses: list[str] = ["UNSOLVED", "STATUS_UNDER_REVIEW"]
+    fast_queries_per_case: int = Field(default=2, ge=1, le=6)
+    fast_results_per_query: int = Field(default=8, ge=1, le=30)
+    # time range of the fast searches when a case was never checked
+    first_check_time_range: str = "year"
+    # signal -> words (casefolded substring match) per language
+    signal_terms: dict[str, dict[str, list[str]]] = Field(default_factory=lambda: {
+        "en": {
+            "arrest": ["arrested", "arrest of", "taken into custody", "detained a"],
+            "suspect_identified": ["suspect identified", "identified as the suspect",
+                                   "named as a suspect", "suspect has been named"],
+            "remains_identified": ["remains identified", "remains were identified",
+                                   "body was identified", "identified the remains"],
+            "charges": ["charged with", "charges filed", "indicted", "faces charges"],
+            "confession": ["confessed", "confession", "pleaded guilty", "admitted killing"],
+            "conviction": ["convicted", "found guilty", "guilty verdict", "sentenced to"],
+            "official_update": ["police said", "police announced", "prosecutors said",
+                                "press conference", "police statement"],
+            "case_closed": ["case closed", "case solved", "solved the case", "cold case solved"],
+            "forensic": ["dna match", "dna breakthrough", "genetic genealogy",
+                         "forensic breakthrough", "new dna"],
+            "disappearance_resolved": ["found alive", "found dead", "body found", "remains found"],
+        },
+        "de": {
+            "arrest": ["festgenommen", "verhaftet", "festnahme", "untersuchungshaft"],
+            "suspect_identified": ["tatverdächtig", "mutmaßliche täter", "mutmaßlicher täter"],
+            "remains_identified": ["leiche identifiziert", "überreste identifiziert",
+                                   "identität geklärt"],
+            "charges": ["anklage erhoben", "angeklagt"],
+            "confession": ["gestanden", "geständnis"],
+            "conviction": ["verurteilt", "schuldig gesprochen", "urteil gefallen"],
+            "official_update": ["polizei teilte mit", "staatsanwaltschaft teilte mit",
+                                "pressekonferenz"],
+            "case_closed": ["fall gelöst", "fall geklärt", "aufgeklärt"],
+            "forensic": ["dna-treffer", "dna-spur", "dna-analyse"],
+            "disappearance_resolved": ["tot aufgefunden", "lebend gefunden", "leiche gefunden"],
+        },
+        "fa": {
+            "arrest": ["دستگیر شد", "بازداشت شد", "دستگیری"],
+            "conviction": ["محکوم شد", "حکم صادر شد", "به اعدام محکوم"],
+            "confession": ["اعتراف کرد", "اعتراف"],
+            "charges": ["کیفرخواست", "متهم شد"],
+            "case_closed": ["پرونده حل شد", "معما حل شد"],
+            "disappearance_resolved": ["جسد پیدا شد", "پیدا شد"],
+        },
+        "ar": {
+            "arrest": ["القبض على", "اعتقال", "توقيف"],
+            "conviction": ["أدين", "حكم على", "الحكم بالإعدام"],
+            "confession": ["اعترف", "اعتراف"],
+            "charges": ["وجهت إليه تهمة", "اتهام"],
+            "case_closed": ["حل لغز", "إغلاق القضية"],
+            "disappearance_resolved": ["العثور على جثة", "العثور عليها"],
+        },
+    })
+    deep_max_pages: int = Field(default=6, ge=1, le=20)
+    deep_extra_queries: int = Field(default=2, ge=0, le=6)
+    solved_min_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    min_independent_sources: int = Field(default=2, ge=1)
+    # One source on an official host is enough (police/prosecutor/court).
+    official_source_patterns: list[str] = [
+        "polizei", "police", ".gov", "staatsanwaltschaft", "justiz", "gericht",
+        "court", "prosecutor", "justice.", "bka.de", "fbi.gov"]
+
+
+class YouTubeMetadataConfig(BaseModel):
+    """Deterministic title rules: an unsolved case and a follow-up are
+    recognisable from the title alone, in every language."""
+
+    max_title_chars: int = Field(default=100, ge=20)
+    titles: dict[str, dict[str, str]] = Field(default_factory=lambda: {
+        "en": {"original": "{title}", "unsolved": "UNSOLVED: {title}",
+               "follow_up": "SOLVED: The {name} Case — What Happened After Our Original Video"},
+        "de": {"original": "{title}", "unsolved": "UNGEKLÄRT: {title}",
+               "follow_up": "GELÖST: Der Fall {name} – was nach unserem ersten Video geschah"},
+        "fa": {"original": "{title}", "unsolved": "حل‌نشده: {title}",
+               "follow_up": "حل شد: پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"},
+        "ar": {"original": "{title}", "unsolved": "لم تُحل: {title}",
+               "follow_up": "حُلّت: قضية {name} — ماذا حدث بعد حلقتنا الأولى"},
+    })
+    # On-screen status card (unsolved films, follow-ups).
+    status_labels: dict[str, dict[str, str]] = Field(default_factory=lambda: {
+        "en": {"UNSOLVED": "UNSOLVED CASE", "follow_up": "CASE NOW SOLVED"},
+        "de": {"UNSOLVED": "UNGEKLÄRTER FALL", "follow_up": "FALL INZWISCHEN GELÖST"},
+        "fa": {"UNSOLVED": "پرونده‌ی حل‌نشده", "follow_up": "این پرونده حل شده است"},
+        "ar": {"UNSOLVED": "قضية لم تُحل", "follow_up": "القضية حُلّت"},
+    })
+    status_card_seconds: list[float] = [1.5, 7.5]
+    # Seconds before the end where the status card returns.
+    status_card_end_seconds: float = Field(default=12.0, ge=0.0)
+    # Opening of every follow-up film (master language; the spoken
+    # versions carry it into every language).
+    follow_up_intro: str = (
+        "We first told this story{episode}, \"{original_title}\"{published}, when the "
+        "investigation was still unresolved. The case has now been solved. Today we return "
+        "to it to explain what happened.")
+
+
+class OpeningConfig(BaseModel):
+    """Openings vary with the case: the story director chooses one and
+    avoids the ones used by the most recent films."""
+
+    strategies: dict[str, str] = Field(default_factory=lambda: {
+        "critical_moment": "start inside the decisive moment of the case, then step back",
+        "mysterious_statement": "start with a documented statement that does not add up",
+        "victim_introduction": "start with the person at the centre, their life just before",
+        "evidence_discovery": "start with the moment a piece of evidence was found",
+        "emergency_call": "start with the call or report that set everything in motion",
+        "important_location": "start at the place that holds the story",
+        "contradiction": "start with two facts that cannot both be true",
+        "last_sighting": "start with the last time the person was seen",
+        "courtroom_outcome": "start with the verdict, then ask how it came to this",
+        "unanswered_question": "start with the question the case still leaves open",
+        "timeline_anomaly": "start with a gap or impossibility in the timeline",
+    })
+    # Follow-up films always open with the earlier coverage.
+    follow_up_strategy: str = "previous_coverage"
+    avoid_recent: int = Field(default=3, ge=0)
+
+
+class VisualDirectionConfig(BaseModel):
+    """The Visual Director: what the viewer sees while each sentence is
+    spoken — case material first, low repetition, maps by geography."""
+
+    # Relevance tiers 1 (exact case evidence) .. 5 (generic atmosphere).
+    tier_weights: dict[str, float] = Field(default_factory=lambda: {
+        "1": 1.0, "2": 0.92, "3": 0.78, "4": 0.55, "5": 0.3})
+    # Appearances per film: generic/contextual pictures and maps rarely
+    # repeat; central people may recur, with room in between.
+    max_generic_appearances: int = Field(default=1, ge=1)
+    max_context_appearances: int = Field(default=2, ge=1)
+    max_person_appearances: int = Field(default=5, ge=1)
+    max_evidence_appearances: int = Field(default=3, ge=1)
+    min_repeat_gap_seconds: float = Field(default=45.0, ge=0.0)
+    # Picture changes (seconds) — snapped to sentence starts.
+    cut_pattern: list[float] = [7.0, 9.0, 6.0, 8.5, 5.5, 8.0]
+    min_cut_seconds: float = Field(default=4.0, gt=0)
+    # A beat gets up to beat_seconds / seconds_per_shot shots.
+    seconds_per_shot: float = Field(default=7.0, gt=0)
+    max_shots_per_beat: int = Field(default=14, ge=2)
+    # Maps: never the very first picture (unless the opening is about the
+    # place), one map per place and film.
+    first_map_not_before_seconds: float = Field(default=20.0, ge=0.0)
+    # Production-time search when the visuals of a sentence are weak.
+    production_search: bool = True
+    max_search_requests: int = Field(default=12, ge=0)
+    queries_per_request: int = Field(default=3, ge=1, le=6)
+    # A sentence is weak when its best candidate is above this tier.
+    weak_tier: int = Field(default=3, ge=1, le=5)
+
+
+class FootageConfig(BaseModel):
+    """Real moving pictures of the case/places — always muted."""
+
+    enabled: bool = True
+    providers: list[str] = ["wikimedia_video", "internet_archive"]
+    internet_archive_api: str = "https://archive.org/advancedsearch.php"
+    max_queries: int = Field(default=8, ge=0)
+    max_clips_per_case: int = Field(default=12, ge=0)
+    max_candidates_per_query: int = Field(default=3, ge=1)
+    max_download_mb: float = Field(default=250.0, gt=0)
+    # Longer sources are not downloaded (feature films, full broadcasts).
+    max_source_seconds: float = Field(default=1800.0, gt=0)
+    # Stored window of a clip and its quality floor.
+    clip_seconds: float = Field(default=24.0, gt=1)
+    min_height: int = Field(default=360, ge=120)
+
+
 class ConcurrencyConfig(BaseModel):
     """How much runs at the same time (per process). Two levels:
     inside one documentary (languages, critics, image checks and voice
@@ -1222,6 +1485,12 @@ class AIConfig(BaseModel):
     concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
     documentary_critics: DocumentaryCriticsConfig = Field(
         default_factory=DocumentaryCriticsConfig)
+    case_selection: CaseSelectionConfig = Field(default_factory=CaseSelectionConfig)
+    case_monitor: CaseMonitorConfig = Field(default_factory=CaseMonitorConfig)
+    youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
+    opening: OpeningConfig = Field(default_factory=OpeningConfig)
+    visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)
+    footage: FootageConfig = Field(default_factory=FootageConfig)
 
     @model_validator(mode="after")
     def _validate(self):

@@ -16,6 +16,23 @@ class Case(Base):
     language: Mapped[str] = mapped_column(String(20), default="fa")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # Whether the real-world case is solved — first-class, never only
+    # text in research notes: SOLVED | UNSOLVED | UNKNOWN | STATUS_UNDER_REVIEW.
+    # History of every change: CaseStatusHistory.
+    resolution_status: Mapped[str] = mapped_column(String(30), default="UNKNOWN", index=True)
+    resolution_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resolution_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Identity of the real-world incident (duplicate detection).
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")
+    people_json: Mapped[str] = mapped_column(Text, default="[]")
+    location: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    incident_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    latest_development_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    identifiers_json: Mapped[str] = mapped_column(Text, default="[]")
+    # discovery | manual | follow_up
+    origin: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     sources = relationship("Source", back_populates="case", cascade="all, delete-orphan")
     facts = relationship("Fact", back_populates="case", cascade="all, delete-orphan")
@@ -172,6 +189,26 @@ class DiscoveryCandidate(Base):
     rejected: Mapped[bool] = mapped_column(Boolean, default=False)
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # --- the suggestion record (CaseSuggestion) -----------------------
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # suggested | accepted | ignored | duplicate | filtered
+    state: Mapped[str] = mapped_column(String(20), default="suggested", index=True)
+    resolution_status: Mapped[str] = mapped_column(String(30), default="UNKNOWN")
+    resolution_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resolution_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    incident_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    latest_development_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")
+    people_json: Mapped[str] = mapped_column(Text, default="[]")
+    source_urls_json: Mapped[str] = mapped_column(Text, default="[]")
+    recency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rank_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    suggestion_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duplicate_of_case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duplicate_of_candidate_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duplicate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discovery_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class AgentRun(Base):
@@ -620,6 +657,18 @@ class VisualAsset(Base):
     spec_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     human_override: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # Media library: how directly the asset belongs to the case.
+    # 1 exact case evidence/footage, 2 exact person/place/object,
+    # 3 exact city/building/area, 4 contextual licensed, 5 generic.
+    relevance_tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    case_relevance: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    entity_key: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # research | production_search | upload | generated
+    found_during: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Footage: the usable window of the (muted) clip, seconds.
+    clip_start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    clip_end: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class VisualPlan(Base):
@@ -743,3 +792,210 @@ class DocumentaryJob(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # original | follow_up (an update video about a case covered before)
+    production_type: Mapped[str] = mapped_column(String(20), default="original")
+    follow_up_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Case lifecycle: status history, monitor, videos, follow-ups
+# ---------------------------------------------------------------------------
+
+
+class CaseStatusHistory(Base):
+    """Every change of a case's resolution status: who, why, from which
+    sources (auditability)."""
+
+    __tablename__ = "case_status_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    previous_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(30))
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    # discovery | verifier | monitor | research | user
+    changed_by: Mapped[str] = mapped_column(String(30), default="user")
+    status_check_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class MonitorRun(Base):
+    """One run of the unsolved-case monitor (scheduled or manual)."""
+
+    __tablename__ = "monitor_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(20), default="scheduled")
+    status: Mapped[str] = mapped_column(String(20), default="running", index=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    cases_checked: Mapped[int] = mapped_column(Integer, default=0)
+    deep_checks: Mapped[int] = mapped_column(Integer, default=0)
+    status_changes: Mapped[int] = mapped_column(Integer, default=0)
+    follow_ups_created: Mapped[int] = mapped_column(Integer, default=0)
+    search_calls: Mapped[int] = mapped_column(Integer, default=0)
+    fetch_calls: Mapped[int] = mapped_column(Integer, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class CaseStatusCheck(Base):
+    """One monitor check of one case: fast signal scan, and when a signal
+    appears, the deep verification."""
+
+    __tablename__ = "case_status_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    monitor_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # fast | deep
+    stage: Mapped[str] = mapped_column(String(10), default="fast")
+    # no_signal | signal | confirmed_change | not_confirmed | unchanged | error
+    outcome: Mapped[str] = mapped_column(String(30), default="no_signal")
+    previous_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    current_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    queries_json: Mapped[str] = mapped_column(Text, default="[]")
+    signals_json: Mapped[str] = mapped_column(Text, default="[]")
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    new_facts_json: Mapped[str] = mapped_column(Text, default="[]")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    search_calls: Mapped[int] = mapped_column(Integer, default=0)
+    fetch_calls: Mapped[int] = mapped_column(Integer, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class Video(Base):
+    """A finished film for one language (rendered, later published):
+    what the channel has covered, with its YouTube metadata and the case
+    status at production/publication."""
+
+    __tablename__ = "videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    production_script_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    mode: Mapped[str] = mapped_column(String(10), default="full")
+    # original | follow_up
+    production_type: Mapped[str] = mapped_column(String(20), default="original")
+    original_video_id: Mapped[int | None] = mapped_column(
+        ForeignKey("videos.id"), nullable=True, index=True)
+    episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    youtube_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    youtube_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    youtube_tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    status_at_production: Mapped[str] = mapped_column(String(30), default="UNKNOWN")
+    status_at_publication: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    opening_strategy: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # rendered | published | archived
+    state: Mapped[str] = mapped_column(String(20), default="rendered", index=True)
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    youtube_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class FollowUpCandidate(Base):
+    """A case covered while UNSOLVED that has since been solved: waits
+    for the user's decision; nothing is produced before approval."""
+
+    __tablename__ = "follow_up_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    original_video_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status_check_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    previous_status: Mapped[str] = mapped_column(String(30), default="UNSOLVED")
+    new_status: Mapped[str] = mapped_column(String(30), default="SOLVED")
+    development: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # pending | approved | dismissed | in_production | produced
+    state: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    follow_up_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    follow_up_video_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+# ---------------------------------------------------------------------------
+# Production memory: which picture / which music, where and why
+# ---------------------------------------------------------------------------
+
+
+class MediaUsage(Base):
+    """One appearance of a visual asset in a production script."""
+
+    __tablename__ = "media_usages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
+    production_script_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    film_key: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    shot_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    beat_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end: Mapped[float | None] = mapped_column(Float, nullable=True)
+    seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sentence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    appearance: Mapped[int] = mapped_column(Integer, default=1)
+    repeat_justified: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    repeat_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class MusicTrack(Base):
+    """One generated music cue in the shared library (several variants
+    per kind and mood, so films do not share one soundtrack)."""
+
+    __tablename__ = "music_tracks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    track_code: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)   # bridge | sting | bed | room_tone
+    mood: Mapped[str] = mapped_column(String(30), index=True)
+    variant: Mapped[int] = mapped_column(Integer, default=1)
+    seconds: Mapped[float] = mapped_column(Float, default=20.0)
+    loop: Mapped[bool] = mapped_column(Boolean, default=False)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    style: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    provider: Mapped[str] = mapped_column(String(30), default="elevenlabs_sound")
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    characters_paid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class MusicUsage(Base):
+    """One placement of a music track (or chosen silence) in a film."""
+
+    __tablename__ = "music_usages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    track_id: Mapped[int | None] = mapped_column(ForeignKey("music_tracks.id"), nullable=True,
+                                                 index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    film_key: Mapped[str] = mapped_column(String(60), index=True)
+    production_script_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    beat_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    purpose: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    mood: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end: Mapped[float | None] = mapped_column(Float, nullable=True)
+    why: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

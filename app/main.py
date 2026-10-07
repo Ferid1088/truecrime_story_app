@@ -80,6 +80,27 @@ from app.services.readiness import build_readiness
 Base.metadata.create_all(bind=engine)
 
 
+def _add_model_columns(conn, model) -> None:
+    """ALTER TABLE ADD COLUMN for every column the model declares and the
+    existing table lacks (SQLite; scalar defaults only)."""
+    table = model.__tablename__
+    if table not in inspect(conn).get_table_names():
+        return
+    have = {c["name"] for c in inspect(conn).get_columns(table)}
+    for col in model.__table__.columns:
+        if col.name in have:
+            continue
+        ddl = f'ALTER TABLE {table} ADD COLUMN "{col.name}" {col.type.compile(dialect=conn.dialect)}'
+        default = getattr(col.default, "arg", None)
+        if isinstance(default, bool):
+            ddl += f" DEFAULT {int(default)}"
+        elif isinstance(default, (int, float)):
+            ddl += f" DEFAULT {default}"
+        elif isinstance(default, str):
+            ddl += " DEFAULT '" + default.replace("'", "''") + "'"
+        conn.execute(text(ddl))
+
+
 def _ensure_columns():
     """Lightweight guard for columns added after the initial schema.
 
@@ -241,6 +262,8 @@ def _ensure_columns():
                 "from_zero": "ALTER TABLE documentary_jobs ADD COLUMN from_zero BOOLEAN DEFAULT 0",
                 "target_minutes": "ALTER TABLE documentary_jobs ADD COLUMN target_minutes FLOAT",
                 "batch_id": "ALTER TABLE documentary_jobs ADD COLUMN batch_id VARCHAR(40)",
+                "production_type": "ALTER TABLE documentary_jobs ADD COLUMN production_type VARCHAR(20) DEFAULT 'original'",
+                "follow_up_id": "ALTER TABLE documentary_jobs ADD COLUMN follow_up_id INTEGER",
             }.items():
                 if col not in dj:
                     conn.execute(text(ddl))
@@ -260,6 +283,11 @@ def _ensure_columns():
                 conn.execute(text(
                     f"INSERT INTO documentary_jobs ({cols}) SELECT {cols} FROM documentary_jobs_old"))
                 conn.execute(text("DROP TABLE documentary_jobs_old"))
+        # Case lifecycle + media library columns: added from the models
+        # (new nullable / defaulted columns only).
+        from app.db.models import DiscoveryCandidate as _DC, VisualAsset as _VA
+        for model in (Case, _DC, _VA):
+            _add_model_columns(conn, model)
         conn.commit()
 
 

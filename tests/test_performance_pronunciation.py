@@ -40,7 +40,7 @@ def _res(role):
 
 
 def test_all_languages_use_v3_with_the_new_voices():
-    want = {"en": "vGz31R3QkUSQW2f9PuNA", "de": "Cu4Eelnl4Z2jfrxrEpSr",
+    want = {"en": "ahg8YJc9KBYrw6vdxX60", "de": "Cu4Eelnl4Z2jfrxrEpSr",
             "fa": "wf5gkA603aCfUGoOTBun", "ar": "nGBZQf1mseVvnsC8kKQI"}
     for lang, voice in want.items():
         cfg = ai_config.voice.for_language(lang)
