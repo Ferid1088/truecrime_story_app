@@ -788,8 +788,6 @@ export type DocumentaryJobStatus =
   | "cancelled";
 /** "blocked": never ran because its language failed earlier. */
 export type DocumentaryStageStatus = "pending" | "running" | "done" | "skipped" | "failed" | "blocked";
-/** What the narrator reads: the language's own script, or Finglish (Persian in Latin letters). */
-export type SpeechScript = "native" | "finglish";
 
 export interface FilmMinutesRange {
   min: number;
@@ -828,7 +826,13 @@ export interface DocumentarySettings {
     string,
     { voice_id: string | null; model_id: string; language_code: string | null; audio_tags: boolean }
   >;
-  speech_script: Record<string, SpeechScript>;
+  /** Listening check of words a voice can misread (Persian homographs). */
+  pronunciation_check: {
+    enabled: boolean;
+    languages: string[];
+    /** Corrected takes per block before a word is flagged for a person. */
+    max_rounds: number;
+  };
   voice_performance: {
     enabled: boolean;
     /** Allowed audio tags per arc level "0".."3". */
@@ -1176,16 +1180,6 @@ export interface Production extends ProductionSummary {
   script: ProductionScriptData;
 }
 
-/** Finglish narration check (Persian): each sentence verified against its Persian script. */
-export interface FinglishSummary {
-  sentences: number;
-  fixed: number;
-  unverified: number;
-  open_issue_count: number;
-  /** Sentences that break the deterministic spelling rules. */
-  deterministic_count: number;
-}
-
 export interface VoicePerformanceStats {
   sentences: number;
   directed: number;
@@ -1202,8 +1196,6 @@ export interface VoicePerformanceStats {
 export interface DocumentaryLanguage {
   version_id: number;
   status: string;
-  speech_script: SpeechScript;
-  finglish: FinglishSummary | null;
   voice_performance: { id: number; status: string; stats: VoicePerformanceStats | null } | null;
   quality_gates: { pass: boolean; failures: string[] } | null;
   storyteller_beats: number | null;
@@ -1312,6 +1304,48 @@ export interface MusicCue {
   url: string;
 }
 
+/** How a fix makes the voice say a word as its meaning needs. */
+export type PronunciationFixKind = "vowelled" | "full" | "respell" | "synonym";
+
+/** One risky word judged in a take: its vowels heard vs. the reading the key asks for. */
+export interface PronunciationWord {
+  word: string;
+  /** Reading the meaning needs, in Latin letters (e.g. "molk"). */
+  read: string;
+  /** Form sent to the voice (the word itself until a fix applies). */
+  form: string;
+  /** Fixes applied so far (0 = none). */
+  level: number;
+  /** null: not located in the audio or nothing heard. */
+  ok: boolean | null;
+  expected: string[];
+  heard: string[];
+  heard_ipa: string | null;
+  distance: number | null;
+  reason: string | null;
+  at: [number, number] | null;
+}
+
+export interface PronunciationFix {
+  word: string;
+  read: string;
+  form: string;
+  fix: PronunciationFixKind;
+  level: number;
+  sentence: number;
+}
+
+export interface BlockPronunciation {
+  words: PronunciationWord[];
+  /** Takes of the block (first take plus corrected ones). */
+  rounds: number;
+  /** `after_round`: 0-based take after which the fixes were applied. */
+  fixes: { after_round: number; fixes: PronunciationFix[] }[];
+  /** Words still said wrong after the last take — for a person to check. */
+  unresolved: string[];
+  per_round: { round: number | null; wrong: string[] }[];
+}
+
 export interface VoiceManifestBlock {
   block_id: string;
   section_id: string;
@@ -1333,6 +1367,9 @@ export interface VoiceManifestBlock {
     heard_text?: string;
   } | null;
   flags: string[];
+  /** Text actually sent to the voice (audio tags, added harakat) when it differs. */
+  tts_text?: string | null;
+  pronunciation?: BlockPronunciation | null;
 }
 
 /** GET /api/cases/{id}/stories/{version}/voice — narration manifest. */
@@ -1346,6 +1383,9 @@ export interface VoiceManifest {
   provider: string;
   asr: string | null;
   asr_error: string | null;
+  /** Phoneme model of the pronunciation check, or null when it did not run. */
+  pronunciation_listener?: string | null;
+  pronunciation_error?: string | null;
   blocks_rendered: number;
   blocks_in_plan: number;
   duration_seconds: number;
@@ -1367,12 +1407,26 @@ export interface VoiceManifest {
   };
 }
 
-/** One sentence: what the narrator says and what people read. */
+/** One sentence: what the narrator says and what people read (subtitles). */
 export interface SpeechSentence {
-  /** Narrated text (Finglish for Persian narration). */
   speech: string;
-  /** Reading text (Persian script for Finglish); null when never verified. */
   display: string | null;
+}
+
+/** Pronunciation key entry: a word a voice could misread, with the reading its meaning needs. */
+export interface RiskyWord {
+  w: string;
+  /** Latin reading, e.g. "molk". */
+  read: string;
+  meaning: string;
+  /** Minimal harakat (مُلک). */
+  vowelled?: string;
+  /** Full harakat (مُلْک). */
+  full?: string;
+  /** The same word spelled unambiguously. */
+  respell?: string;
+  synonym?: string;
+  synonym_read?: string;
 }
 
 /** A sentence of the voice performance. */
@@ -1382,6 +1436,8 @@ export interface PerformanceSentence extends SpeechSentence {
   /** Arc level: 0 neutral · 1 unease · 2 dark · 3 climax. */
   level: number;
   directed: boolean;
+  /** Pronunciation key of the sentence (languages with the check). */
+  risky?: RiskyWord[] | null;
 }
 
 export interface PerformanceBeat {
@@ -1401,7 +1457,6 @@ export interface VoicePerformance {
   model: string | null;
   performance: {
     language: string;
-    script: SpeechScript;
     /** Beat of the story's first incident (everything before it stays neutral). */
     incident_beat: string | null;
     incident_sentence: number | null;
@@ -1413,6 +1468,12 @@ export interface VoicePerformance {
     level_log: string[];
     errors: string[];
     examples: { i: number; issue: string; raw: string | null }[];
+    pronunciation_key?: {
+      sentences: number;
+      risky_words: number;
+      issues: string[];
+      errors: string[];
+    } | null;
   };
   created_at: string;
 }
@@ -1421,7 +1482,5 @@ export interface VoicePerformance {
 export interface SpeechStructure {
   version_id: number;
   language: string;
-  script: SpeechScript;
-  finglish_check: FinglishSummary | null;
   beats: { beat_id: string; paragraphs: SpeechSentence[][] }[];
 }

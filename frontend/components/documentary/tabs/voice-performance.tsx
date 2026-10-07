@@ -1,16 +1,15 @@
 "use client";
 
-import { Fragment, useId, useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDown, ChevronRight, Mic } from "lucide-react";
 import { api, nullIfNotFound } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatTimecode, humanize, isRtl, langLabel } from "@/lib/format";
 import type {
   BlueprintBeat,
-  FinglishSummary,
   PerformanceBeat,
   PerformanceSentence,
-  SpeechScript,
+  RiskyWord,
   VoicePerformance,
 } from "@/lib/types";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -20,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
 import { cn } from "@/lib/utils";
 import { Choice } from "../run-options";
-import { InlineAlert, LanguagePicker, type LanguageTabProps, Metric } from "../shared";
+import { InlineAlert, LanguagePicker, type LanguageTabProps, Metric, TagChip, TtsText } from "../shared";
 
 /** Narrator arc levels: 0 neutral · 1 unease · 2 dark · 3 climax. */
 const LEVELS: {
@@ -39,7 +38,6 @@ const LEVELS: {
 
 const level = (n: number) => LEVELS[Math.max(0, Math.min(LEVELS.length - 1, Math.round(n)))];
 
-const AUDIO_TAG = /(\[[^[\]\n]{1,48}\])/g;
 const BEATS_PER_PAGE = 12;
 
 const beatAnchor = (prefix: string, beatId: string) => `${prefix}-beat-${beatId}`;
@@ -100,12 +98,15 @@ export function VoicePerformanceTab({ settings, overview, refreshKey, language, 
           key={entry.version_id}
           versionId={entry.version_id}
           language={language}
-          script={entry.speech_script}
-          finglish={entry.finglish}
           refreshKey={refreshKey}
           pilotBeats={pilotBeats}
           pilotSeconds={settings.pilot_seconds}
           audioTags={settings.voices[language]?.audio_tags ?? false}
+          pronunciation={
+            settings.pronunciation_check.enabled && settings.pronunciation_check.languages.includes(language)
+              ? { maxRounds: settings.pronunciation_check.max_rounds }
+              : null
+          }
         />
       )}
     </div>
@@ -115,21 +116,20 @@ export function VoicePerformanceTab({ settings, overview, refreshKey, language, 
 function PerformancePanel({
   versionId,
   language,
-  script,
-  finglish,
   refreshKey,
   pilotBeats,
   pilotSeconds,
   audioTags,
+  pronunciation,
 }: {
   versionId: number;
   language: string;
-  script: SpeechScript;
-  finglish: FinglishSummary | null;
   refreshKey: number;
   pilotBeats: string[] | null;
   pilotSeconds: number;
   audioTags: boolean;
+  /** Set when this language gets the pronunciation check. */
+  pronunciation: { maxRounds: number } | null;
 }) {
   const ids = useId();
   const [tick, setTick] = useState(0);
@@ -252,14 +252,13 @@ function PerformancePanel({
         <InlineAlert tone="error">Could not refresh the voice performance: {perfState.error}</InlineAlert>
       )}
 
-      {script === "finglish" && <FinglishCard summary={finglish} />}
+      {pronunciation && perf && <PronunciationKeyCard perf={perf} maxRounds={pronunciation.maxRounds} />}
 
       {listBeats ? (
         <SentenceList
           beats={listBeats}
           incidentBeat={perf?.performance.incident_beat ?? null}
           language={language}
-          script={script}
           anchorPrefix={ids}
           shown={shownBeats}
           onShowMore={() => setShownBeats((n) => n + BEATS_PER_PAGE)}
@@ -427,75 +426,102 @@ function ArcCard({
   );
 }
 
-function FinglishCard({ summary }: { summary: FinglishSummary | null }) {
+function PronunciationKeyCard({ perf, maxRounds }: { perf: VoicePerformance; maxRounds: number }) {
+  const sentences = perf.performance.beats.flatMap((b) => b.paragraphs.flat());
+  const keyed = sentences.filter((s) => s.risky != null);
+  const riskyWords = keyed.reduce((n, s) => n + (s.risky?.length ?? 0), 0);
+  const lastRun = perf.validation.pronunciation_key ?? null;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Finglish check</CardTitle>
-        <span className="text-xs text-muted-foreground">Persian narration in Latin letters</span>
+        <CardTitle>Pronunciation key</CardTitle>
+        <span className="text-xs text-muted-foreground">words a voice could misread</span>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs leading-5 text-muted-foreground">
-          The Persian narrator reads Finglish. Every sentence is checked against its Persian-script
-          version, which subtitles and the speech-to-text check use.
+        <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
+          Persian script leaves most short vowels unwritten: <span lang="fa" dir="rtl">ملک</span> can be melk,
+          molk, malek or malak. For each such word the key records the reading the sentence&apos;s
+          meaning needs. After recording, a phoneme listener checks those words; a word said wrong
+          gets harakat (then full harakat, then an unambiguous spelling) and the block is spoken
+          again — up to {maxRounds} corrected take{maxRounds === 1 ? "" : "s"}. Results are in the
+          Voice tab.
         </p>
-        {summary ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <Metric label="Sentences" value={summary.sentences} />
-            <Metric label="Fixed" value={summary.fixed} />
-            <Metric label="Unverified" value={summary.unverified} tone={summary.unverified ? "danger" : "success"} />
-            <Metric
-              label="Open issues"
-              value={summary.open_issue_count}
-              tone={summary.open_issue_count ? "danger" : "success"}
-            />
-            <Metric
-              label="Spelling rule breaks"
-              value={summary.deterministic_count}
-              tone={summary.deterministic_count ? "danger" : "success"}
-            />
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No Finglish check recorded for this version.</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <Metric label="Sentences keyed" value={`${keyed.length}/${sentences.length}`} />
+          <Metric label="Risky words" value={riskyWords} />
+          <Metric
+            label="Key issues (last run)"
+            value={lastRun ? lastRun.issues.length : "—"}
+            tone={lastRun?.issues.length ? "danger" : undefined}
+          />
+        </div>
+        {lastRun && lastRun.issues.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5" aria-label="Pronunciation key issues">
+            {lastRun.issues.map((issue, i) => {
+              const [code, word] = issue.split(":");
+              return (
+                <li key={i}>
+                  <Badge variant="warning">
+                    {humanize(code)}
+                    {word && (
+                      <span lang="fa" dir="rtl">
+                        {word}
+                      </span>
+                    )}
+                  </Badge>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {lastRun && lastRun.errors.length > 0 && (
+          <InlineAlert tone="error">
+            <p className="font-medium">Some sentences could not be keyed:</p>
+            <ul className="mt-1 space-y-0.5">
+              {lastRun.errors.map((e, i) => (
+                <li key={i} className="break-words">
+                  {e}
+                </li>
+              ))}
+            </ul>
+          </InlineAlert>
         )}
       </CardContent>
     </Card>
   );
 }
 
-function TagChip({ tag }: { tag: string }) {
+/** Word → the reading its meaning needs; the vowelled form in the tooltip. */
+function RiskyChip({ word, language }: { word: RiskyWord; language: string }) {
+  const forms = [
+    word.vowelled && `harakat ${word.vowelled}`,
+    word.full && `full harakat ${word.full}`,
+    word.respell && `spelling ${word.respell}`,
+    word.synonym && `synonym ${word.synonym}${word.synonym_read ? ` (${word.synonym_read})` : ""}`,
+  ].filter(Boolean);
   return (
     <span
       dir="ltr"
-      className="mx-0.5 inline-flex items-center rounded border border-indigo-500/20 bg-indigo-500/10 px-1 align-baseline font-mono text-[10px] leading-4 text-indigo-700 dark:text-indigo-300"
+      title={forms.length ? forms.join(" · ") : undefined}
+      className="inline-flex items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 text-[11px] leading-5"
     >
-      {tag.startsWith("[") ? tag : `[${tag}]`}
+      <span lang={language} dir="rtl" className="font-medium">
+        {word.w}
+      </span>
+      <span aria-hidden className="text-muted-foreground">
+        →
+      </span>
+      <span lang={`${language}-Latn`} className="font-mono">
+        {word.read}
+      </span>
+      {word.meaning && <span className="text-muted-foreground">· {word.meaning}</span>}
+      {forms.length > 0 && <span className="sr-only">({forms.join(", ")})</span>}
     </span>
   );
 }
 
-/** Voice text with its [audio tags] shown as chips. */
-function TtsText({ text }: { text: string }) {
-  return (
-    <>
-      {/* split() with a capture group puts the tags at the odd indices */}
-      {text.split(AUDIO_TAG).map((part, i) =>
-        i % 2 === 1 ? <TagChip key={i} tag={part} /> : <Fragment key={i}>{part}</Fragment>,
-      )}
-    </>
-  );
-}
-
-function SentenceRow({
-  sentence,
-  language,
-  script,
-}: {
-  sentence: PerformanceSentence;
-  language: string;
-  script: SpeechScript;
-}) {
-  const finglish = script === "finglish";
+function SentenceRow({ sentence, language }: { sentence: PerformanceSentence; language: string }) {
   const voiceText = sentence.directed && sentence.tts ? sentence.tts : sentence.speech;
   return (
     <li className={cn("flex items-start gap-2 py-1", !sentence.directed && "opacity-55")}>
@@ -507,17 +533,21 @@ function SentenceRow({
         )}
       </span>
       <div className="min-w-0 flex-1 text-sm leading-6">
-        <p
-          lang={finglish ? `${language}-Latn` : language}
-          dir={finglish ? "ltr" : isRtl(language) ? "rtl" : "ltr"}
-          className="break-words"
-        >
+        <p lang={language} dir={isRtl(language) ? "rtl" : "ltr"} className="break-words">
           <TtsText text={voiceText} />
         </p>
-        {finglish && (
-          <p lang={language} dir="rtl" className="break-words text-[13px] leading-6 text-muted-foreground">
-            {sentence.display ?? <span className="text-[11px] italic">Persian text not verified</span>}
-          </p>
+        {sentence.risky && sentence.risky.length > 0 && (
+          <ul
+            dir={isRtl(language) ? "rtl" : "ltr"}
+            aria-label="Pronunciation key"
+            className="mt-0.5 flex flex-wrap gap-1"
+          >
+            {sentence.risky.map((w, i) => (
+              <li key={`${w.w}-${i}`}>
+                <RiskyChip word={w} language={language} />
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </li>
@@ -528,7 +558,6 @@ function SentenceList({
   beats,
   incidentBeat,
   language,
-  script,
   anchorPrefix,
   shown,
   onShowMore,
@@ -536,7 +565,6 @@ function SentenceList({
   beats: PerformanceBeat[];
   incidentBeat: string | null;
   language: string;
-  script: SpeechScript;
   anchorPrefix: string;
   shown: number;
   onShowMore: () => void;
@@ -597,7 +625,7 @@ function SentenceList({
                   {paragraphs.map((p, pi) => (
                     <ul key={pi}>
                       {p.map((s, si) => (
-                        <SentenceRow key={si} sentence={s} language={language} script={script} />
+                        <SentenceRow key={si} sentence={s} language={language} />
                       ))}
                     </ul>
                   ))}

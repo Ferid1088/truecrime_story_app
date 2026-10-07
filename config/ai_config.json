@@ -105,8 +105,8 @@
         "attention_critic": "writer",
         "visual_accuracy_critic": "writer",
         "production_critic": "writer",
-        "finglish_verifier": "writer",
-        "voice_performance_director": "premium"
+        "voice_performance_director": "premium",
+        "pronunciation_editor": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -334,13 +334,13 @@
       "temperature": 0.2,
       "max_tokens": 12000
     },
-    "finglish_verifier": {
-      "temperature": 0.0,
-      "max_tokens": 24000
-    },
     "voice_performance_director": {
       "temperature": 0.5,
       "max_tokens": 32000
+    },
+    "pronunciation_editor": {
+      "temperature": 0.0,
+      "max_tokens": 16000
     }
   },
   "search_engine": {
@@ -667,8 +667,7 @@
         ],
         "reviewers": [
           "spoken_meaning_checker",
-          "spoken_style_critic",
-          "finglish_verifier"
+          "spoken_style_critic"
         ],
         "strict": true
       },
@@ -904,13 +903,7 @@
       "fa": 24,
       "ar": 22
     },
-    "max_long_sentence_share": 0.12,
-    "speech_script": {
-      "fa": "finglish"
-    },
-    "finglish_sentences_per_call": 20,
-    "finglish_fix_rounds": 2,
-    "finglish_min_fix_similarity": 70
+    "max_long_sentence_share": 0.12
   },
   "audio_direction": {
     "transitions": {
@@ -1273,5 +1266,22 @@
     "downloads": 4,
     "jobs": 2,
     "languages": 4
+  },
+  "pronunciation": {
+    "enabled": true,
+    "languages": [
+      "fa"
+    ],
+    "phoneme_model": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "max_rounds": 3,
+    "pad_seconds": 0.12,
+    "max_vowel_distance": 0.6,
+    "fix_order": [
+      "vowelled",
+      "full",
+      "respell",
+      "synonym"
+    ],
+    "sentences_per_call": 60
   }
 }

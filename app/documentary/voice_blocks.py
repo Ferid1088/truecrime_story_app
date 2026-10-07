@@ -256,12 +256,9 @@ def plan_voice_blocks(
     language: str,
     cfg: VoiceBlocksConfig | None = None,
     words_per_minute: int | None = None,
-    split_language: str | None = None,
 ) -> dict:
     """Plan TTS blocks for narration given as ordered act sections
-    ([{"id", "text"}]). Pure function: no provider calls, no DB.
-    `split_language`: sentence rules to use when the script differs from
-    the language (Finglish = Persian in Latin letters -> "en")."""
+    ([{"id", "text"}]). Pure function: no provider calls, no DB."""
     cfg = cfg or ai_config.voice_blocks
     wpm = words_per_minute or ai_config.words_per_minute_for(language)
     per_block: list[tuple[dict, list[_Unit]]] = []
@@ -272,7 +269,7 @@ def plan_voice_blocks(
             p for p in re.split(r"\n\s*\n", section.get("text") or "") if p.strip()
         ]
         for para in paragraphs:
-            sentences = split_sentences(para, split_language or language)
+            sentences = split_sentences(para, language)
             for k, s in enumerate(sentences):
                 words = len(s.split())
                 units.append(

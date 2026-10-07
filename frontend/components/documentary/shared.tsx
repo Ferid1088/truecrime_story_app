@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Ban, Check, CircleDashed, Loader2, SkipForward, X } from "lucide-react";
 import type {
   DocumentaryJob,
@@ -379,3 +380,29 @@ export const RIGHTS_OPTIONS = [
 export const ROLE_OPTIONS = ["evidence", "context", "illustration"] as const;
 
 export const VERIFICATION_OPTIONS = ["verified", "needs_review", "rejected", "unverified"] as const;
+
+const AUDIO_TAG = /(\[[^[\]\n]{1,48}\])/g;
+
+/** An ElevenLabs audio tag ([whispers]) — not spoken, changes how the next words are said. */
+export function TagChip({ tag }: { tag: string }) {
+  return (
+    <span
+      dir="ltr"
+      className="mx-0.5 inline-flex items-center rounded border border-indigo-500/20 bg-indigo-500/10 px-1 align-baseline font-mono text-[10px] leading-4 text-indigo-700 dark:text-indigo-300"
+    >
+      {tag.startsWith("[") ? tag : `[${tag}]`}
+    </span>
+  );
+}
+
+/** Text sent to the voice, with its [audio tags] shown as chips. */
+export function TtsText({ text }: { text: string }) {
+  return (
+    <>
+      {/* split() with a capture group puts the tags at the odd indices */}
+      {text.split(AUDIO_TAG).map((part, i) =>
+        i % 2 === 1 ? <TagChip key={i} tag={part} /> : <Fragment key={i}>{part}</Fragment>,
+      )}
+    </>
+  );
+}

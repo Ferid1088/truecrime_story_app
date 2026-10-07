@@ -113,8 +113,7 @@ def _chunks(text: str, max_chars: int) -> list[str]:
 
 def sentence_subtitles(sentences: list[dict], words: list[dict]) -> list[dict]:
     """Subtitles from the narration's sentences: the DISPLAY text (no
-    audio tags, no emphasis capitals; Persian script for Finglish
-    narration), timed by the sentence and — where the spoken words line
+    audio tags, no emphasis capitals, no pronunciation harakat), timed by the sentence and — where the spoken words line
     up — by the words inside it."""
     cfg = ai_config.render
     out = []
@@ -149,8 +148,8 @@ def sentence_subtitles(sentences: list[dict], words: list[dict]) -> list[dict]:
 
 def display_words(manifest: dict) -> list[dict]:
     """Timed words in the script people read: the alignment words, or —
-    when the narration is read from another script (Finglish) — the
-    display sentences' words spread over each sentence."""
+    when the spoken text differs from the display text — the display
+    sentences' words spread over each sentence."""
     tl = manifest.get("timeline") or {}
     sentences = tl.get("sentences") or []
     if not sentences or all((sn.get("display") or "") == (sn.get("speech") or "")
@@ -174,8 +173,8 @@ _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890
 def _spoken_at(words: list[dict], text_en: str, start: float, end: float,
                sentences: list[dict] | None = None) -> float | None:
     """When the narration says the year of a date (any language), so the
-    date appears exactly then. Narration that says years as words
-    (Finglish) is matched through the sentence's display text."""
+    date appears exactly then. Narration that says years as words is
+    matched through the sentence's display text."""
     import re
 
     years = re.findall(r"\b(1[89]\d\d|20\d\d)\b", text_en or "")

@@ -119,7 +119,11 @@ def documentary_settings():
                        "language_code": v.language_code,
                        "audio_tags": v.model_id in ai_config.voice.elevenlabs.audio_tag_models}
                    for l, v in ai_config.voice.languages.items()},
-        "speech_script": {l: ai_config.spoken.script_for(l) for l in d.languages},
+        "pronunciation_check": {
+            "enabled": ai_config.pronunciation.enabled,
+            "languages": ai_config.pronunciation.languages,
+            "max_rounds": ai_config.pronunciation.max_rounds,
+        },
         "voice_performance": {
             "enabled": ai_config.voice_performance.enabled,
             "level_tags": ai_config.voice_performance.level_tags,
@@ -184,12 +188,6 @@ def documentary_overview(case_id: int, version_id: int | None = None,
             vstats = (_loads(vperf.performance_json, {}) or {}).get("stats") if vperf else None
             out["languages"][lang] = {
                 "version_id": v.id, "status": v.status,
-                "speech_script": (_loads(v.narrative_structure, {}) or {}).get(
-                    "speech_script") or "native",
-                "finglish": (crit.get("finglish") or None) and {
-                    k: crit["finglish"].get(k) for k in (
-                        "sentences", "fixed", "unverified", "open_issue_count",
-                        "deterministic_count")},
                 "voice_performance": {"id": vperf.id, "status": vperf.status,
                                       "stats": vstats} if vperf else None,
                 "quality_gates": crit.get("quality_gates"),
@@ -367,17 +365,13 @@ async def create_voice_performance(version_id: int, payload: PerformanceRequest,
 
 @router.get("/api/documentary/versions/{version_id}/speech")
 def get_speech_structure(version_id: int, db: Session = Depends(get_db)):
-    """Sentence by sentence: what the narrator reads (Finglish for
-    Persian) and what people read (Persian script)."""
-    from app.documentary.voice_performance import speech_script, speech_structure
+    """Sentence by sentence: what the narrator reads and what people read."""
+    from app.documentary.voice_performance import speech_structure
 
     v = db.get(StoryVersion, version_id)
     if not v:
         raise HTTPException(status_code=404, detail="Version not found")
-    crit = _loads(v.critic_notes, {})
-    return {"version_id": v.id, "language": v.language, "script": speech_script(v),
-            "finglish_check": crit.get("finglish"),
-            "beats": speech_structure(v)}
+    return {"version_id": v.id, "language": v.language, "beats": speech_structure(v)}
 
 
 @router.get("/api/cases/{case_id}/documentary/jobs")

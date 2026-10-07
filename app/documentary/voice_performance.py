@@ -27,8 +27,7 @@ spoken text into the narrator's performance:
    fails falls back to the plain sentence with its valid tags.
 
 The voice renderer sends `tts` (tags + punctuation) to the voice and
-uses `display` (no tags; Persian script for Finglish narration) for the
-speech-to-text check and subtitles. Level -> voice style (speed,
+uses `display` (no tags) for the speech-to-text check and subtitles. Level -> voice style (speed,
 stability) per block: config voice_performance.level_styles.
 """
 
@@ -59,46 +58,16 @@ LEVEL_NAMES = {0: "neutral", 1: "unease", 2: "dark", 3: "climax"}
 # ---------------------------------------------------------------------------
 
 
-def speech_script(version: StoryVersion) -> str:
-    try:
-        struct = json.loads(version.narrative_structure or "{}")
-    except (ValueError, TypeError):
-        struct = {}
-    # versions written before Finglish existed are in their native script
-    return struct.get("speech_script") or "native"
-
-
-def split_language(language: str, script: str) -> str:
-    """Finglish is split like a Latin-script language."""
-    return "en" if script == "finglish" else language
-
-
 def speech_structure(version: StoryVersion) -> list[dict]:
     """Per beat (section): paragraphs of sentence records
-    {"speech", "display"}. `display` is what people read (subtitles,
-    speech-to-text check): the same sentence, or its Persian script for
-    Finglish narration (None if it was never verified)."""
+    {"speech", "display"} — what the narrator says and what people read
+    (subtitles, speech-to-text check; the same text)."""
     language = version.language or "en"
-    try:
-        struct = json.loads(version.narrative_structure or "{}")
-    except (ValueError, TypeError):
-        struct = {}
-    script = struct.get("speech_script") or "native"
-    disp = struct.get("display_sentences") or {}
-    lang = split_language(language, script)
     sections = stored_sections(version) or [{"id": "full", "text": version.story_text or ""}]
     out = []
     for sec in sections:
-        dparas = disp.get(sec["id"]) or []
-        paragraphs = []
-        for pi, para in enumerate(_paragraphs(sec["text"])):
-            sents = split_sentences(para, lang)
-            d = dparas[pi] if pi < len(dparas) and len(dparas[pi]) == len(sents) else None
-            paragraphs.append([
-                {"speech": x,
-                 "display": (d[k] if d else None) if script == "finglish" else x}
-                for k, x in enumerate(sents)
-            ])
+        paragraphs = [[{"speech": x, "display": x} for x in split_sentences(para, language)]
+                      for para in _paragraphs(sec["text"])]
         out.append({"beat_id": sec["id"], "paragraphs": paragraphs})
     return out
 
@@ -362,18 +331,13 @@ Return JSON only:
 """
 
 
-def director_system(language: str, script: str, cfg: VoicePerformanceConfig) -> str:
+def director_system(language: str, cfg: VoicePerformanceConfig) -> str:
     caps = (
         "- English only: you may write ONE word of a sentence in CAPITALS where a\n"
         "  storyteller would lean on it (never at level 0, only a few per beat)."
         if language in cfg.caps_languages else
         "- Never change letter case (no capitals for emphasis in this language)."
     )
-    finglish = (
-        "\nThe narration is Persian written in FINGLISH (Latin letters read aloud as\n"
-        "Persian, every vowel decides the word). Never change a single letter.\n"
-        "\"meaning\" gives the Persian script so you understand each sentence;\n"
-        "tags stay in English.\n" if script == "finglish" else "")
     return f"""
 You are the voice director of a true-crime documentary narrated by
 ElevenLabs v3. v3 performs AUDIO TAGS — words in square brackets that are
@@ -421,7 +385,8 @@ PUNCTUATION AND EMPHASIS — the other half of a natural read
 
 THE WORDS NEVER CHANGE
 Every word stays exactly as given — same words, same order, same
-spelling. You only add tags and change punctuation{" (and English emphasis capitals)" if language in cfg.caps_languages else ""}.{finglish}
+spelling. You only add tags and change punctuation{" (and English emphasis capitals)" if language in cfg.caps_languages else ""}.
+Tags are always written in English, whatever the language of the text.
 Return JSON only, one entry per input sentence, in order:
 {{"sentences": [{{"i": 0, "level": 0, "tts": "the sentence with tags and punctuation"}}]}}
 """
@@ -473,9 +438,9 @@ class VoicePerformanceDirector:
             stamp_run(run, res, "voice_performance_director")
         return (data if isinstance(data, dict) else {}), res
 
-    async def _direct_chunk(self, db, case_id, language, script, chunk: list[dict],
+    async def _direct_chunk(self, db, case_id, language, chunk: list[dict],
                             beats_info: dict[str, dict]) -> dict[int, dict]:
-        payload = {"language": language, "script": script, "beats": []}
+        payload = {"language": language, "beats": []}
         for r in chunk:
             if not payload["beats"] or payload["beats"][-1]["beat_id"] != r["beat_id"]:
                 info = beats_info[r["beat_id"]]
@@ -483,14 +448,11 @@ class VoicePerformanceDirector:
                     "beat_id": r["beat_id"], "purpose": info.get("purpose"),
                     "summary": info.get("summary"), "arc_level": info["level"],
                     "arc_peak": info["peak"], "sentences": []})
-            item = {"i": r["i"], "text": r["speech"]}
-            if script == "finglish" and r.get("display"):
-                item["meaning"] = r["display"]
-            payload["beats"][-1]["sentences"].append(item)
+            payload["beats"][-1]["sentences"].append({"i": r["i"], "text": r["speech"]})
         with track_run(db, case_id, f"Voice Performance ({language})",
                        input_summary=f"{len(chunk)} sentences") as run:
             data, res = await self.gen.generate_structured(
-                "voice_performance_director", director_system(language, script, self.cfg),
+                "voice_performance_director", director_system(language, self.cfg),
                 "TASK: direct every sentence below; the words never change. "
                 "Return JSON only.\n\nINPUT:\n" + json.dumps(payload, ensure_ascii=False))
             stamp_run(run, res, "voice_performance_director")
@@ -507,7 +469,6 @@ class VoicePerformanceDirector:
         """Direct the whole version, or only `beat_ids` (a pilot). Beats
         directed before for the same text are reused."""
         language = version.language or "en"
-        script = speech_script(version)
         structure = {s["beat_id"]: s for s in speech_structure(version)}
         bp_beats = [b for b in blueprint.get("beats") or [] if b["id"] in structure]
         if not bp_beats:  # no beat mapping: one pseudo-beat per section
@@ -547,9 +508,13 @@ class VoicePerformanceDirector:
                         "level": (old or {}).get("level", arc[b["id"]]["level"]),
                         "tts": (old or {}).get("tts"), "directed": bool(old),
                         "raw": (old or {}).get("raw"),
+                        "risky": (old or {}).get("risky"),
                     })
         todo = [r for r in records if r["beat_id"] in wanted and not r["directed"]]
-        if prev is not None and not todo and prev.status != "failed":
+        pcfg = ai_config.pronunciation
+        needs_key = pcfg.enabled and language in pcfg.languages and any(
+            r["directed"] and r.get("risky") is None for r in records)
+        if prev is not None and not todo and not needs_key and prev.status != "failed":
             return prev  # everything asked for is directed already
         size = self.cfg.sentences_per_call
         chunks: list[list[dict]] = []
@@ -565,7 +530,7 @@ class VoicePerformanceDirector:
         if cur:
             chunks.append(cur)
         results = await gather_limited(
-            None, [self._direct_chunk(db, case.id, language, script, c, info) for c in chunks],
+            None, [self._direct_chunk(db, case.id, language, c, info) for c in chunks],
             return_exceptions=True)
         errors = []
         for chunk, res in zip(chunks, results):
@@ -596,6 +561,23 @@ class VoicePerformanceDirector:
                     examples.append({"i": r["i"], "issue": pr, "raw": r.get("raw")})
         thinned = thin_tags([r for r in records if r["directed"]], self.cfg)
 
+        # 4. pronunciation key: the words a voice could misread, with the
+        #    reading the meaning needs (used by the listening loop)
+        pron_report = None
+        if pcfg.enabled and language in pcfg.languages:
+            from app.documentary.pronunciation import PronunciationEditor
+
+            need = [r for r in records if r["directed"] and r.get("risky") is None]
+            if need:
+                sources = _beat_sources(db, version, blueprint)
+                keyed, pron_report = await PronunciationEditor().annotate(
+                    db, case.id, language,
+                    [{"i": r["i"], "beat_id": r["beat_id"], "text": r["speech"],
+                      "source": sources.get(r["beat_id"], "")} for r in need])
+                for r in need:
+                    if r["i"] in keyed:
+                        r["risky"] = keyed[r["i"]]
+
         beats_out = []
         for b in bp_beats:
             paras: list[list[dict]] = []
@@ -603,7 +585,7 @@ class VoicePerformanceDirector:
                 while len(paras) <= r["p"]:
                     paras.append([])
                 paras[r["p"]].append({k: r[k] for k in (
-                    "speech", "display", "tts", "level", "directed", "raw")})
+                    "speech", "display", "tts", "level", "directed", "raw", "risky")})
             beats_out.append({"beat_id": b["id"], "arc_level": arc[b["id"]]["level"],
                               "arc_peak": arc[b["id"]]["peak"], "paragraphs": paras})
         directed = [r for r in records if r["directed"]]
@@ -616,11 +598,11 @@ class VoicePerformanceDirector:
             "tags": _tag_counts(directed),
             "issues": issues, "thinned": thinned,
         }
-        data = {"language": language, "script": script, "arc_raw": arc_raw,
+        data = {"language": language, "arc_raw": arc_raw,
                 "incident_beat": incident, "incident_sentence": incident_i,
                 "beats": beats_out, "stats": stats}
         validation = {"arc_log": arc_log, "level_log": level_log, "errors": errors,
-                      "examples": examples}
+                      "examples": examples, "pronunciation_key": pron_report}
         row = VoicePerformance(
             case_id=case.id, story_version_id=version.id, language=language,
             version=(prev.version + 1) if prev else 1,
@@ -634,6 +616,26 @@ class VoicePerformanceDirector:
         db.commit()
         db.refresh(row)
         return row
+
+
+def _beat_sources(db: Session, version: StoryVersion, blueprint: dict) -> dict[str, str]:
+    """English source text of every beat (what the meaning is checked
+    against)."""
+    try:
+        from app.documentary.blueprint import version_sections
+        from app.documentary.spoken import beat_sections
+
+        struct = json.loads(version.narrative_structure or "{}")
+        master = db.get(StoryVersion, struct.get("source_version_id") or version.master_version_id)
+        if master is None:
+            return {}
+        from app.db.models import EditorialBlueprint
+
+        row = db.get(EditorialBlueprint, struct.get("blueprint_id") or -1)
+        bp = json.loads(row.blueprint_json or "{}") if row else blueprint
+        return {s["id"]: s["text"] for s in beat_sections(version_sections(master), bp)}
+    except Exception:  # meaning context is a help, never a blocker
+        return {}
 
 
 def _tag_counts(records: list[dict]) -> dict[str, int]:

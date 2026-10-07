@@ -187,9 +187,6 @@ export function RunOptionsFields({
               {!settings.voices[l]?.voice_id && (
                 <p className="mt-0.5 pl-5.5 text-[10px] text-amber-600 dark:text-amber-400">no narrator voice</p>
               )}
-              {settings.speech_script[l] === "finglish" && (
-                <p className="mt-0.5 pl-5.5 text-[10px] text-muted-foreground">narrated in Finglish</p>
-              )}
             </div>
           ))}
         </div>

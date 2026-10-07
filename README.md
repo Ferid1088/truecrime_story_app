@@ -330,34 +330,42 @@ use. All four narrators use ElevenLabs `eleven_v3` with `language_code`
 (v3 has no request stitching) and Persian uses a larger Whisper model for
 the speech check (`asr_check.languages.fa`).
 
-### Persian in Finglish
+### Pronunciation check (Persian)
 
-Persian script leaves most short vowels unwritten («ملک» = molk
-"property", malek "king", melk "estate", malak "angel"), so a voice
-guesses — and sometimes says the wrong word. Persian narration is
-therefore written **directly in Finglish** (`spoken.speech_script.fa =
-"finglish"`): everyday spoken Tehrani Persian in Latin letters with every
-vowel written, the way the producer writes it (*khunevaade, khune, un,
-mige, nemidunest, khune ro*; long vowels aa / i / u; numbers as words).
+Persian script leaves short vowels unwritten: «ملک» is melk (property),
+molk (realm), malek (king) or malak (angel); «جنت» is jannat, not
+jennat; «اندام» is andam, not endam. The voice guesses — in a live test
+with 12 such sentences it guessed wrong 6–7 times. Whisper cannot catch
+it: it writes Persian without short vowels too (malk and molk both come
+back as «ملک»). So every voice block goes through a listening loop:
 
-- The spoken writer tells the English script straight into Finglish — no
-  Persian-script step that could lose the vowels.
-- The **Finglish verifier** (`finglish_verifier`, a different model, part
-  of the strict `spoken_adaptation` review group) checks every word of
-  every sentence: a real spoken Persian word with exactly these vowels,
-  the meaning the sentence needs (compared with the English source),
-  spoken register, numbers as words, consistent names. It fixes words
-  (never rewrites sentences; `spoken.finglish_min_fix_similarity`),
-  re-checks every fix (`spoken.finglish_fix_rounds`) and returns the same
-  sentence in Persian script.
-- The Finglish text goes unchanged to the voice (`language_code: "fa"`);
-  the Persian script is used for subtitles, the speech-to-text check, the
-  meaning check and the native style critic. Gates: `finglish_word_errors`,
-  `finglish_unverified`, `finglish_format` (digits, Persian letters, all-
-  caps words).
-- The speech-to-text check normalizes Persian spelling on both sides
-  (ZWNJ, می/ها joined or apart, ezafe ی, آ/ا, Arabic letter forms, number
-  words vs digits), so only real speech errors remain.
+1. **Pronunciation key** (`pronunciation_editor`, in the voice
+   performance stage): for each word a reader could misread, the reading
+   the MEANING needs (checked against the English source), the minimal
+   harakat that force it (`مُلک`), full harakat (`مُلْک`), optionally an
+   unambiguous spelling and a synonym with the same meaning. A key whose
+   reading and harakat contradict each other is not used.
+2. **Listening**: after every take a phoneme recognizer
+   (`facebook/wav2vec2-xlsr-53-espeak-cv-ft`, IPA) hears the block; each
+   key word is found at its exact place in the audio (ElevenLabs
+   character timing, then its own consonants) and its vowels are compared
+   with the key (a wrong short vowel — malk for molk, jennat for jannat —
+   is an error; ā heard as o, e as i are tolerated). Whisper still checks
+   that no word was skipped or changed.
+3. **Correction loop**: a wrong word gets harakat in the text the voice
+   reads → spoken again → listened to again; then full harakat; then the
+   unambiguous spelling; last a synonym (only then do the subtitles
+   change). Up to `pronunciation.max_rounds`; anything still wrong is
+   flagged `pronunciation_unresolved` in the manifest.
+
+Live result (12 sentences, key written by the model): 27 words checked,
+6 said wrong on the first take, all 6 fixed (5 by harakat, 1 needed full
+harakat); in another run «گل» (mud) stayed "gol" with harakat and was
+fixed with the synonym «لجن». Subtitles and the Whisper check always use
+the text without added harakat. Setup: `pip install -r
+requirements-documentary.txt` (CPU torch + transformers; the model,
+~1.2 GB, downloads on first use). Without them the loop is skipped and
+the manifest says so (`pronunciation_error`).
 
 ### Voice performance (ElevenLabs v3 audio tags)
 
@@ -403,8 +411,8 @@ Two levels (limits in `config/ai_config.json` → `concurrency`):
   verification → shot direction) runs next to each language's chain
   (voice performance → voice), and every language continues to
   production → critique → render as soon as the pictures are planned.
-  Image checks, critics, director chunks, Finglish checks and voice blocks
-  run in parallel too. A language that fails does not stop the others
+  Image checks, critics, director chunks, spoken repairs and voice
+  blocks run in parallel too. A language that fails does not stop the others
   (job status `partial`, resumable).
 - **Several documentaries at once**: `POST /api/documentary/batch`
   (`{"items": [{"case_id": 3}, {"case_id": 7, "from_zero": true,

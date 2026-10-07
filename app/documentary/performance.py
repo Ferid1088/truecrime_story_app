@@ -273,7 +273,7 @@ def attach_speech(blocks: list[dict], records: list[dict], use_tags: bool
         blk["sentences"] = [
             {"speech": r["speech"], "display": r.get("display"),
              "tts": (r.get("tts") or r["speech"]) if use_tags else r["speech"],
-             "level": r.get("level")}
+             "level": r.get("level"), "risky": r.get("risky") or []}
             for r in recs
         ]
         if use_tags and any(r.get("tts") for r in recs):
@@ -289,7 +289,7 @@ def attach_speech(blocks: list[dict], records: list[dict], use_tags: bool
 def build_directed_performance(
     sections: list[dict], language: str, blueprint: dict, audio_plan: dict,
     words_per_minute: int | None = None, speech: dict | None = None,
-    split_language: str | None = None, use_tags: bool = False,
+    use_tags: bool = False,
 ) -> dict:
     """Performance script driven by the audio director's plan: a breath
     between paragraphs, and after every beat the planned transition
@@ -336,7 +336,7 @@ def build_directed_performance(
 
     plan = plan_voice_blocks(
         [{"id": g["id"], "text": g["text"]} for g in groups], language,
-        words_per_minute=words_per_minute, split_language=split_language,
+        words_per_minute=words_per_minute,
     )
     by_group: dict[str, list[dict]] = {}
     for blk in plan["blocks"]:
@@ -445,13 +445,11 @@ def performance_for_version(db, version) -> dict:
     from app.documentary.blueprint import version_sections
 
     from app.documentary.voice_performance import (
-        latest_performance, performance_records, speech_script, speech_structure,
-        split_language,
+        latest_performance, performance_records, speech_structure,
     )
 
     blueprint, audio_plan = blueprint_and_plan_for_version(db, version)
     language = version.language or "en"
-    script_kind = speech_script(version)
     if blueprint and audio_plan:
         row = latest_performance(db, version.id)
         if row is not None:
@@ -464,10 +462,8 @@ def performance_for_version(db, version) -> dict:
             and lang_cfg.model_id in ai_config.voice.elevenlabs.audio_tag_models)
         script = build_directed_performance(
             version_sections(version), language, blueprint, audio_plan,
-            speech=speech, split_language=split_language(language, script_kind),
-            use_tags=use_tags)
+            speech=speech, use_tags=use_tags)
         script["voice_performance_id"] = row.id if row else None
-        script["speech_script"] = script_kind
     else:
         script = build_performance(version_sections(version), language, blueprint)
         script["directed"] = False

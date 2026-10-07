@@ -1,4 +1,4 @@
-"""Finglish Persian narration, the Finglish verifier, the voice
+"""The pronunciation loop (Persian homographs), the voice
 performance director (ElevenLabs v3 audio tags + tension arc), tag-aware
 voice rendering and subtitles, and parallel execution (limits, batches,
 partial jobs).
@@ -13,12 +13,13 @@ import pytest
 from app.agents.story import _parse_sections, stored_sections
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, limiter, slot, usage
-from app.documentary import finglish as FG
+from app.documentary import pronunciation as PR
 from app.documentary import spoken as SP
 from app.documentary import voice_performance as VP
 from app.documentary.asr import compare_transcript, persian_tokens
 from app.documentary.performance import attach_speech, build_directed_performance
 from app.documentary.production.script import display_words, sentence_subtitles
+from pathlib import Path
 from app.documentary.voice_render import (
     VoiceRenderer, beat_times, sentence_times, words_from_alignment,
 )
@@ -45,17 +46,8 @@ def test_all_languages_use_v3_with_the_new_voices():
         cfg = ai_config.voice.for_language(lang)
         assert cfg.voice_id == voice and cfg.model_id == "eleven_v3"
         assert cfg.language_code == lang
-    assert ai_config.spoken.script_for("fa") == "finglish"
-    assert ai_config.spoken.script_for("de") == "native"
     for lv in "0123":
         assert ai_config.voice_performance.level_styles[lv] in ai_config.voice.styles
-
-
-def test_finglish_verifier_is_independent_of_the_writer():
-    assert ai_config.model_for("finglish_verifier") != ai_config.model_for("spoken_writer")
-    group = next(g for g in ai_config.review_independence.groups
-                 if g.name == "spoken_adaptation")
-    assert "finglish_verifier" in group.reviewers and group.strict
 
 
 def test_elevenlabs_body_language_code_and_context():
@@ -158,127 +150,6 @@ def test_persian_normalization_ignores_spelling_not_speech():
     # "نه" (no) alone is a word, inside a number it is nine
     assert persian_tokens("نه، او نرفت") [0] == "نه"
     assert persian_tokens("بیست و نه سال") == ["29", "سال"]
-
-
-# ---------------------------------------------------------------------------
-# Finglish
-# ---------------------------------------------------------------------------
-
-
-def test_finglish_checks_and_fix_acceptance():
-    assert FG.finglish_problems("In molk maale unaa bud.") == []
-    assert set(FG.finglish_problems("Dar saale 2015 MOLK خانه")) == {
-        "digits", "all_caps_word", "persian_script"}
-    s = "In malk maale unaa bud."
-    assert FG.accept_fix(s, "In molk maale unaa bud.", 70) == "In molk maale unaa bud."
-    assert FG.accept_fix(s, "Een jomle ye kaamelan digar ast ke hich rabti nadaarad.", 70) is None
-    assert FG.accept_fix(s, "این ملک", 70) is None
-    assert FG.accept_fix(s, None, 70) is None
-
-
-def test_finglish_rules_are_colloquial_and_in_both_prompts():
-    for text in (FG.FINGLISH_RULES, FG.VERIFIER_SYSTEM, SP.writer_system_prompt("fa")):
-        assert "khunevaade" in text and "molk" in text
-    assert "colloquial" in SP.critic_system_prompt("fa")
-
-
-class FinglishGen(SpokenGen):
-    """Writer answers in Finglish (one wrong vowel: 'malk'); the verifier
-    fixes it and gives the Persian script."""
-
-    def __init__(self):
-        super().__init__()
-        self.verifier_inputs: list[dict] = []
-
-    async def generate_text(self, role, system, user):
-        self.calls.append((role, system, user))
-        payload = self._payload(user)
-        ids = ([b["beat_id"] for b in payload["beats"]] if "beats" in payload
-               else [s["id"] for s in _parse_sections(payload["script"])])
-        text = "\n\n".join(
-            f"[[ACT:{i}]]\n\nIn malk maale khunevaade bud. Unaa unjaa zendegi mikardan."
-            f"\n\nYe ruz hame chiz avaz shod." for i in ids)
-        return GenerationResult(text=text, model="m/spoken-writer", provider="fake")
-
-    async def generate_structured(self, role, system, user):
-        if role == "finglish_verifier":
-            self.calls.append((role, system, user))
-            payload = json.loads(user.split("INPUT:\n", 1)[1])
-            self.verifier_inputs.append(payload)
-            out = []
-            for b in payload["beats"]:
-                assert b["english_source"]
-                for s in b["sentences"]:
-                    t = s["finglish"]
-                    if "malk" in t:
-                        out.append({"i": s["i"], "fa": "این ملک مال خونواده بود.",
-                                    "issues": [{"word": "malk", "fix": "molk", "why": "ملک"}],
-                                    "fixed": t.replace("malk", "molk")})
-                    elif "molk" in t:
-                        out.append({"i": s["i"], "fa": "این ملک مال خونواده بود.",
-                                    "issues": [], "fixed": None})
-                    else:
-                        out.append({"i": s["i"], "fa": f"فارسی {len(t)}.", "issues": [],
-                                    "fixed": None})
-            return {"sentences": out}, _res(role)
-        if role == "spoken_meaning_checker":
-            payload = json.loads(user)
-            assert payload["spoken_script"] == "finglish"
-            assert all(PERSIAN.search(b["spoken_persian_script"]) for b in payload["beats"])
-        if role == "spoken_style_critic":
-            # the native critic reads Persian script, not Finglish
-            assert PERSIAN.search(json.loads(user)["narration"])
-        return await super().generate_structured(role, system, user)
-
-
-def _narrate_fa(db, monkeypatch, gen):
-    case, v = _with_blueprint(db, monkeypatch)
-    monkeypatch.setattr("app.documentary.spoken.get_generation_provider", lambda: gen)
-    monkeypatch.setattr("app.documentary.finglish.get_generation_provider", lambda: gen)
-    return case, v, asyncio.run(SP.SpokenNarrator().create(db, case, v, "fa"))
-
-
-def test_persian_is_told_in_finglish_and_every_word_is_checked(db_session, monkeypatch):
-    gen = FinglishGen()
-    case, master, sv = _narrate_fa(db_session, monkeypatch, gen)
-    notes = json.loads(sv.critic_notes)
-    struct = json.loads(sv.narrative_structure)
-    # the narrator reads Finglish — with the verifier's fix
-    assert not PERSIAN.search(sv.story_text)
-    assert "malk" not in sv.story_text and "In molk maale khunevaade bud." in sv.story_text
-    assert struct["speech_script"] == "finglish"
-    assert notes["finglish"]["fixed"] == 5 and notes["finglish"]["unverified"] == 0
-    # the fixed sentence was checked again (second round)
-    rechecked = [s["finglish"] for p in gen.verifier_inputs[1:] for b in p["beats"]
-                 for s in b["sentences"]]
-    assert rechecked and all("molk" in s for s in rechecked)
-    # display (Persian script) lines up sentence by sentence
-    beats = VP.speech_structure(sv)
-    first = beats[0]["paragraphs"][0]
-    assert first[0]["speech"] == "In molk maale khunevaade bud."
-    assert first[0]["display"] == "این ملک مال خونواده بود."
-    assert all(r["display"] for b in beats for p in b["paragraphs"] for r in p)
-    assert "finglish_word_errors" not in notes["quality_gates"]["failures"]
-    # writer was told to write Finglish
-    writer_sys = next(s for r, s, _ in gen.calls if r == "spoken_writer")
-    assert "WRITE IT IN FINGLISH" in writer_sys
-
-
-def test_unfixable_word_errors_fail_the_gate(db_session, monkeypatch):
-    class Stubborn(FinglishGen):
-        async def generate_structured(self, role, system, user):
-            data, res = await super().generate_structured(role, system, user)
-            if role == "finglish_verifier":
-                for s in data["sentences"]:
-                    if s["issues"]:
-                        s["fixed"] = "Something completely different that rewrites it all now."
-            return data, res
-
-    case, master, sv = _narrate_fa(db_session, monkeypatch, Stubborn())
-    notes = json.loads(sv.critic_notes)
-    assert "finglish_word_errors" in notes["quality_gates"]["failures"]
-    assert notes["finglish"]["open_issue_count"] == 5
-    assert "malk" in sv.story_text  # never rewritten behind our back
 
 
 # ---------------------------------------------------------------------------
@@ -683,3 +554,111 @@ def test_cuts_vary_and_land_on_sentences():
     assert cuts[:3] == [9, 26, 40] and set(cuts[:3]) <= sentences
     gaps = [b - a for a, b in zip([0.0] + cuts, cuts + [64.0])]
     assert min(gaps) >= 7.0 and len({round(g) for g in gaps}) > 1
+
+
+# ---------------------------------------------------------------------------
+# pronunciation loop (Persian homographs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("read, heard, ok", [
+    ("molk", "n m o l k k e", True),          # realm, said right
+    ("molk", "n m a l k k e", False),         # said "malk"
+    ("melk", "i n m eː l k", True),
+    ("malak", "m e l k", False),              # angel said as "melk"
+    ("jannat", "dʒ a n n aː t", True),
+    ("jannat", "dʒ e n n a t", False),        # the classic "jennat"
+    ("andaam", "a n d o m e", True),          # ā is heard as o: fine
+    ("andaam", "e n d o m", False),           # "endam"
+    ("gel", "t u ɡ e l ɡ iː", True),          # neighbours cut away
+    ("gel", "ɡ o l", False),                  # mud said as "gol" (flower)
+    ("shokr", "ʃ o k r", True),
+    ("mohr", "m u h", True),                  # o/u are close
+])
+def test_listening_judges_vowels_by_meaning(read, heard, ok):
+    assert PR.judge(read, heard.split())["ok"] is ok
+
+
+def test_reading_and_harakat_must_agree():
+    assert PR.harakat_agree("مُلک", "molk") and not PR.harakat_agree("مِلک", "molk")
+    assert PR.harakat_agree("گِلِ", "gel")  # ezafe kasra at the end
+    words, issues = PR.validate_key("مهر مادری هیچ‌وقت تموم نمی‌شه.", [
+        {"w": "مادری", "read": "maaderi", "vowelled": "مادَری"},       # contradicts itself
+        {"w": "مهر", "read": "mehr", "vowelled": "مِهر", "full": "مِهْر",
+         "synonym": "محبت", "synonym_read": "mohabbat"},
+        {"w": "خانه", "read": "khaane", "vowelled": "خانه"},            # not in sentence
+        {"w": "مهر", "read": "مهر", "vowelled": "مِهر"},                  # not Latin
+    ])
+    assert [w["w"] for w in words] == ["مهر"] and words[0]["synonym"] == "محبت"
+    assert {i.split(":")[0] for i in issues} == {"key_inconsistent", "not_in_sentence",
+                                                  "bad_reading"}
+    # a "respelling" that is another word is not a respelling
+    w2, _ = PR.validate_key("تو قصه‌ها، ملک نگهبان بچه‌هاست.", [
+        {"w": "ملک", "read": "malak", "vowelled": "مَلَک", "respell": "فرشته"}])
+    assert "respell" not in w2[0]
+
+
+def test_fixes_escalate_harakat_then_synonym():
+    sentences = [{"speech": "پاش تو گل گیر کرد.", "display": "پاش تو گل گیر کرد.",
+                  "tts": "[calm] پاش تو گل گیر کرد.",
+                  "risky": [{"w": "گل", "read": "gel", "vowelled": "گِل", "full": "گِل",
+                             "synonym": "لجن", "synonym_read": "lajan"}]}]
+    occ = PR.risky_occurrences(sentences)
+    assert [f["kind"] for f in occ[0]["forms"]] == ["vowelled", "synonym"]  # no duplicate
+    wrong = [{"sentence": 0, "word": "گل"}]
+    s1, a1 = PR.apply_fixes(sentences, occ, wrong)
+    assert s1[0]["tts"] == "[calm] پاش تو گِل گیر کرد."
+    assert s1[0]["display"] == "پاش تو گل گیر کرد."  # harakat never reach subtitles
+    s2, a2 = PR.apply_fixes(s1, occ, wrong)
+    assert a2[0]["fix"] == "synonym" and s2[0]["display"] == "پاش تو لجن گیر کرد."
+    assert occ[0]["read"] == "lajan"
+    assert PR.apply_fixes(s2, occ, wrong)[1] == []  # nothing left to try
+    # harakat in the text never hide the word
+    assert PR.find_word("این مُلک بود", "ملک") == (4, 8)
+    assert PR.find_word("این ملکه بود", "ملک") is None
+
+
+class _Listener:
+    """Hears 'malk' until the word carries a damma (مُلک)."""
+    name = "fake_phonemes"
+
+    def __init__(self):
+        self.calls = 0
+
+    def frames(self, wav_path):
+        self.calls += 1
+        meta = json.loads(next(Path(wav_path).parent.glob(
+            f"*__{Path(wav_path).stem.split('__')[-1]}.json")).read_text())
+        fixed = "مُلک" in meta["text"]
+        toks = ["p", "a", "d", "e", "ʃ", "ɑ", "h", "m", "o" if fixed else "a", "l", "k"]
+        # spread over the take
+        return [(t, 0.1 * i, 0.1 * i + 0.1) for i, t in enumerate(toks)]
+
+
+def test_voice_render_fixes_a_misread_word_and_checks_again(tmp_path, monkeypatch):
+    from pathlib import Path as _P  # noqa: F401
+    from test_voice_render import FakeASR, FakeTTS
+
+    monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))
+    monkeypatch.setattr(PR, "span_times", lambda al, text, span, t0: (0.65, 1.15))
+    text = "پادشاه بر این ملک حکومت کرد."
+    block = {
+        "block_id": "FA_B01_01", "section_id": "B01", "text": text, "word_count": 6,
+        "est_seconds": 3.0, "style": "v3_neutral",
+        "beats": [{"beat_id": "B01", "start_char": 0, "end_char": len(text)}],
+        "sentences": [{"speech": text, "display": text, "tts": text, "level": 0,
+                       "risky": [{"w": "ملک", "read": "molk", "vowelled": "مُلک",
+                                  "full": "مُلْک"}]}],
+    }
+    tts, lst = FakeTTS(), _Listener()
+    m = asyncio.run(VoiceRenderer(provider=tts, asr=FakeASR(), listener=lst).render(
+        {"language": "fa", "blocks": [block]}, case_id=1, story_version_id=3))
+    b = m["blocks"][0]
+    assert [r.text for r in tts.requests] == [text, text.replace("ملک", "مُلک")]
+    p = b["pronunciation"]
+    assert p["per_round"] == [{"round": 0, "wrong": ["ملک"]}, {"round": 1, "wrong": []}]
+    assert p["fixes"][0]["fixes"][0]["form"] == "مُلک" and not p["unresolved"]
+    assert b["tts_text"] == text.replace("ملک", "مُلک")
+    assert b["asr"]["passed"]  # Whisper is compared with the text without harakat
+    assert m["timeline"]["sentences"][0]["display"] == text
+    assert "pronunciation_unresolved" not in " ".join(m["flags"])

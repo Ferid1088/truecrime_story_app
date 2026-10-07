@@ -481,7 +481,7 @@ def documentary_env(tmp_path, monkeypatch):
     gen = PipelineGen()
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
-                "production.critics", "voice_performance", "finglish"):
+                "production.critics", "voice_performance", "pronunciation"):
         monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts

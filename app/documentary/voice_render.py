@@ -166,12 +166,17 @@ def select_blocks(blocks: list[dict], max_seconds: float | None) -> list[dict]:
 
 class VoiceRenderer:
     def __init__(self, provider: VoiceProvider | None = None, asr=None,
-                 use_asr: bool = True):
+                 use_asr: bool = True, listener=None, use_listener: bool = True):
         self.cfg = ai_config.voice
         self.loud = ai_config.loudness
         self.asr_cfg = ai_config.asr_check
+        self.pron_cfg = ai_config.pronunciation
         self.provider = provider or get_voice_provider()
         self.asr_error: str | None = None
+        # phoneme listener for the pronunciation loop (loaded when needed)
+        self._listener = listener
+        self._use_listener = use_listener
+        self.listener_error: str | None = None
         if asr is not None or not use_asr:
             self.asr = asr
         else:
@@ -270,8 +275,8 @@ class VoiceRenderer:
 
         asr = None
         if self.asr is not None:
-            # The check compares what people should hear (no tags; Persian
-            # script for Finglish narration) with what Whisper heard.
+            # The check compares what people should hear (no tags, no
+            # harakat added for pronunciation) with what Whisper heard.
             async with slot("asr"):
                 heard = await asyncio.to_thread(self.asr.transcribe, str(wav), language)
             expected = block.get("display_text") or block["text"]
@@ -286,14 +291,38 @@ class VoiceRenderer:
             "beats": local_beats, "sentences": local_sentences,
             "character_cost": None if cache_hit else meta.get("character_cost"),
             "request_id": meta.get("request_id"), "asr": asr,
+            "text": req.text, "alignment": al,
         }
 
     @staticmethod
     def _take_rank(take: dict) -> tuple:
+        wrong = sum(1 for r in take.get("pronunciation") or [] if r.get("ok") is False)
         asr = take.get("asr")
         if not asr:
-            return (0, 0.0)
-        return (0 if asr["passed"] else 1, asr["word_error_rate"])
+            return (wrong, 0, 0.0)
+        return (wrong, 0 if asr["passed"] else 1, asr["word_error_rate"])
+
+    def listener(self):
+        """The phoneme listener, or None (unavailable: recorded once)."""
+        if self._listener is None and self._use_listener and self.listener_error is None:
+            from app.documentary.pronunciation import ListenerUnavailable, get_listener
+            try:
+                self._listener = get_listener()
+            except (ListenerUnavailable, OSError) as e:
+                self.listener_error = str(e)[:300]
+        return self._listener
+
+    async def _listen(self, take: dict, sentences: list[dict], occurrences: list[dict]
+                      ) -> list[dict]:
+        from app.documentary.pronunciation import listen
+
+        lst = self.listener()
+        if lst is None:
+            return []
+        async with slot("asr"):
+            frames = await asyncio.to_thread(lst.frames, take["wav_path"])
+        return listen(frames, take["text"], sentences, occurrences, take["alignment"],
+                      take["trimmed"]["start"], self.pron_cfg)
 
     # ------------------------------------------------------------------
     # whole plan
@@ -322,26 +351,61 @@ class VoiceRenderer:
         chosen = select_blocks(plan["blocks"], max_seconds)
 
         async def one_block(b: dict) -> dict:
+            """Takes of one block: a wrong-sounding word gets its next
+            pronunciation fix and the block is spoken again (pronunciation
+            loop); a failed Whisper check gets a take with another seed."""
+            from app.documentary.pronunciation import apply_fixes, risky_occurrences
+
             # A forced re-render is a NEW take (different seed), still
             # reproducible; normal renders reuse the cached take.
-            base_seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
+            seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
             takes: list[dict] = []
             settings = self.cfg.styles[block_style(b)].model_dump()
-            for attempt in range(1 + self.asr_cfg.auto_retakes):
+            sentences = [dict(x) for x in b.get("sentences") or []]
+            occurrences = (risky_occurrences(sentences)
+                           if self.pron_cfg.enabled and language in self.pron_cfg.languages
+                           and sentences else [])
+            if occurrences and self.listener() is None:
+                occurrences = []
+            text = b.get("tts_text") or b["text"]
+            asr_retakes = self.asr_cfg.auto_retakes
+            rounds = self.pron_cfg.max_rounds if occurrences else 0
+            fixes: list[dict] = []
+            for attempt in range(1 + asr_retakes + rounds):
+                blk = b
+                if sentences:
+                    # what people read follows a synonym fix (never harakat)
+                    blk = {**b, "sentences": sentences, "display_text": " ".join(
+                        x.get("display") or x["speech"] for x in sentences)}
                 req = VoiceRequest(
-                    text=b.get("tts_text") or b["text"], voice_id=lang_cfg.voice_id,
+                    text=text, voice_id=lang_cfg.voice_id,
                     model_id=lang_cfg.model_id, settings=settings,
                     previous_text=b.get("previous_text") or "",
                     next_text=b.get("next_text") or "",
-                    seed=base_seed + attempt, language=language,
+                    seed=seed, language=language,
                     language_code=lang_cfg.language_code,
                 )
-                take = await self._take(b, req, blocks_dir, language)
+                take = await self._take(blk, req, blocks_dir, language)
+                if occurrences:
+                    take["pronunciation"] = await self._listen(take, sentences, occurrences)
+                take["round"] = attempt
                 takes.append(take)
-                if not take["asr"] or take["asr"]["passed"]:
-                    break
+                wrong = [r for r in take.get("pronunciation") or [] if r.get("ok") is False]
+                if wrong and rounds > 0:
+                    sentences, applied = apply_fixes(sentences, occurrences, wrong)
+                    if applied:
+                        rounds -= 1
+                        fixes.append({"after_round": attempt, "fixes": applied})
+                        text = " ".join(x.get("tts") or x["speech"] for x in sentences)
+                        continue
+                if take["asr"] and not take["asr"]["passed"] and asr_retakes > 0:
+                    asr_retakes -= 1
+                    seed += 1
+                    continue
+                break
             best = min(takes, key=self._take_rank)
-            return {"block": b, "take": best, "attempts": len(takes), "takes": takes}
+            return {"block": b, "take": best, "attempts": len(takes), "takes": takes,
+                    "fixes": fixes}
 
         # All blocks at once: the provider's limit (concurrency
         # .elevenlabs_tts) and the speech-to-text limit pace the requests.
@@ -443,6 +507,10 @@ class VoiceRenderer:
                 block_flags.append("loudness_outlier")
             if b.get("oversize"):
                 block_flags.append("oversize_sentence")
+            pron = take.get("pronunciation") or []
+            unresolved = [x for x in pron if x.get("ok") is False]
+            if unresolved:
+                block_flags.append("pronunciation_unresolved")
             flags.extend(f"{b['block_id']}:{f}" for f in block_flags)
             paid = sum(tk["character_cost"] or 0 for tk in r["takes"])
             chars_paid += paid
@@ -456,7 +524,21 @@ class VoiceRenderer:
                 "attempts": r["attempts"], "seed": take["seed"],
                 "cache_hit": take["cache_hit"], "characters_paid": paid,
                 "style": block_style(b), "level": b.get("level"),
-                "tts_text": b.get("tts_text"),
+                "tts_text": take.get("text") if take.get("text") != b["text"] else None,
+                "pronunciation": None if not pron else {
+                    "words": [{k: x.get(k) for k in ("word", "read", "form", "level", "ok",
+                                                     "expected", "heard", "heard_ipa",
+                                                     "distance", "reason", "at")}
+                              for x in pron],
+                    "rounds": len(r["takes"]),
+                    "fixes": r.get("fixes") or [],
+                    "unresolved": [x["word"] for x in unresolved],
+                    "per_round": [
+                        {"round": tk.get("round"),
+                         "wrong": [x["word"] for x in tk.get("pronunciation") or []
+                                   if x.get("ok") is False]}
+                        for tk in r["takes"]],
+                },
                 "beat_ids": [bt["beat_id"] for bt in b.get("beats") or []],
                 "loudness_lufs": loud["integrated_lufs"],
                 "loudness_deviation_lu": dev,
@@ -479,6 +561,9 @@ class VoiceRenderer:
             "provider": self.provider.name,
             "asr": (self.asr.name if self.asr else None),
             "asr_error": self.asr_error,
+            "pronunciation_listener": (getattr(self._listener, "name", None)
+                                       if self._listener else None),
+            "pronunciation_error": self.listener_error,
             "blocks_rendered": len(results),
             "blocks_in_plan": len(plan["blocks"]),
             "duration_seconds": round(total, 3),

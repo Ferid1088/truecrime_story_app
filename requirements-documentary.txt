@@ -5,3 +5,7 @@ faster-whisper>=1.1,<2      # local speech-to-text check of rendered voice block
 whisper-normalizer>=0.1.12  # number/date-aware English normalization for that check
 Pillow>=10.3                 # typography, cards, maps (raqm layout for Persian/Arabic)
 opencv-python-headless>=4.9  # video frames: camera moves, face focus
+# pronunciation check (phoneme listener, CPU is enough):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.3
+transformers>=4.44,<4.50

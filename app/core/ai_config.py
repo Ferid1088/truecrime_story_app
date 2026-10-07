@@ -77,11 +77,10 @@ REQUIRED_ROLES = {
     "spoken_writer",
     "spoken_meaning_checker",
     "spoken_style_critic",
-    # Persian narration is written in Finglish (Latin letters, vowels
-    # explicit) so the voice cannot misread words like molk/malek; an
-    # independent agent checks every word's meaning and gives the
-    # Persian-script text for subtitles and checks.
-    "finglish_verifier",
+    # Pronunciation key: for words a voice can misread (Persian homographs
+    # like ملک = melk / molk / malek / malak) the reading the MEANING needs
+    # and the harakat that force it — used by the listening check.
+    "pronunciation_editor",
     # Voice performance: ElevenLabs v3 audio tags, emphasis and the
     # narrator's tension arc (neutral -> dark -> whispered climaxes).
     "voice_performance_director",
@@ -681,8 +680,7 @@ class VoiceStyle(BaseModel):
 class VoiceLanguageConfig(BaseModel):
     voice_id: str | None = None
     model_id: str = "eleven_multilingual_v2"
-    # ISO 639-1 code sent to models that support language enforcement
-    # (needed for Finglish: Latin letters, Persian speech).
+    # ISO 639-1 code sent to models that support language enforcement.
     language_code: str | None = None
 
 
@@ -834,21 +832,6 @@ class SpokenConfig(BaseModel):
     # "long" for the listener, and the share of long sentences allowed.
     max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
-    # Script the narrator reads per language. "finglish" = Persian in
-    # Latin letters with every vowel written (the voice reads it as
-    # Persian with language_code fa); subtitles use the Persian script
-    # the Finglish verifier provides.
-    speech_script: dict[str, str] = {"fa": "finglish"}
-    # Finglish verifier: sentences per call and fix rounds.
-    # small chunks: the verifier model thinks a lot per sentence
-    finglish_sentences_per_call: int = Field(default=20, ge=3)
-    finglish_fix_rounds: int = Field(default=2, ge=0, le=4)
-    # A corrected sentence must stay this similar (0–100) to the
-    # original: the verifier fixes words, it does not rewrite.
-    finglish_min_fix_similarity: float = Field(default=70.0, ge=0.0, le=100.0)
-
-    def script_for(self, language: str) -> str:
-        return self.speech_script.get(language, "native")
 
 
 class AudioDirectionConfig(BaseModel):
@@ -1130,6 +1113,35 @@ class VoicePerformanceConfig(BaseModel):
         return self.level_styles.get(str(max(0, min(level, 3))))
 
 
+class PronunciationConfig(BaseModel):
+    """Listening check for words a voice can misread (pronunciation loop).
+
+    Whisper writes Persian without short vowels (ملک is melk, molk, malek
+    or malak), so it cannot hear a wrong vowel. A phoneme recognizer
+    (wav2vec2, IPA) listens to every risky word at its exact place in the
+    audio; the vowels heard are compared with the reading the meaning
+    needs (pronunciation key). A wrong word gets harakat (then full
+    harakat, then an unambiguous spelling), the block is spoken again and
+    checked again — up to max_rounds."""
+
+    enabled: bool = True
+    languages: list[str] = ["fa"]
+    phoneme_model: str = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
+    max_rounds: int = Field(default=3, ge=0, le=6)
+    # seconds of context around a word when reading its phonemes
+    # (the word's own consonants then cut out the neighbours' sounds)
+    pad_seconds: float = Field(default=0.12, ge=0.0, le=0.5)
+    # a vowel heard as another vowel class costs 1.0 (o for a: malk/molk);
+    # close pairs cost less (a/ā, e/i, o/u). A word is wrong when one hard
+    # vowel error occurs or the normalized distance passes this value.
+    max_vowel_distance: float = Field(default=0.6, ge=0.0, le=2.0)
+    # Fixes in order: minimal harakat, full harakat, unambiguous spelling,
+    # last a synonym (changes the subtitles too).
+    fix_order: list[str] = ["vowelled", "full", "respell", "synonym"]
+    # Pronunciation-key sentences per model call.
+    sentences_per_call: int = Field(default=60, ge=5)
+
+
 class ConcurrencyConfig(BaseModel):
     """How much runs at the same time (per process). Two levels:
     inside one documentary (languages, critics, image checks and voice
@@ -1206,6 +1218,7 @@ class AIConfig(BaseModel):
     attention: AttentionConfig = Field(default_factory=AttentionConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
     voice_performance: VoicePerformanceConfig = Field(default_factory=VoicePerformanceConfig)
+    pronunciation: PronunciationConfig = Field(default_factory=PronunciationConfig)
     concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
     documentary_critics: DocumentaryCriticsConfig = Field(
         default_factory=DocumentaryCriticsConfig)

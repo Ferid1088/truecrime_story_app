@@ -5,7 +5,7 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   master_story       (from zero) write the English master story
   blueprint          editorial blueprint for the master story
   audio_plan         breaths, music beds/moments, silences
-  spoken:<lang>      storyteller version per language (Persian: Finglish)
+  spoken:<lang>      storyteller version per language
   film_length        every finished film must run 45–120 min
   visual_needs       visual requirements per beat
   visual_research    real photos/documents for those needs
@@ -83,14 +83,12 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
                     StoryVersion.language == language,
                     StoryVersion.master_version_id == master.id)
             .order_by(StoryVersion.id.desc()).all())
-    want = ai_config.spoken.script_for(language)
     for v in rows:
         struct = json.loads(v.narrative_structure or "{}")
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
             continue
-        # a version in another script (Persian script before Finglish)
-        # is not reused
-        if (struct.get("speech_script") or "native") != want:
+        # versions written in Finglish (an earlier experiment) are not reused
+        if struct.get("speech_script", "native") != "native":
             continue
         return v
     return None
