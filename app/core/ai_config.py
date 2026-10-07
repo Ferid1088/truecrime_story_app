@@ -86,6 +86,12 @@ REQUIRED_ROLES = {
     "voice_performance_director",
     # Professional audio direction: breaths, music moments, silences.
     "audio_director",
+    # The recurring on-screen host: when to appear and why (director),
+    # the words natively per language (writer), and an independent check
+    # of facts, memories, repetition and the persona (critic).
+    "host_director",
+    "host_writer",
+    "host_critic",
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
     "visual_planner",
@@ -834,6 +840,46 @@ class SpokenConfig(BaseModel):
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
 
 
+class HostConfig(BaseModel):
+    """The recurring on-screen host (persona_master_prompt.md): when the
+    host appears, how long, and the deterministic guard-rails on what the
+    host may say (memories only from the archive, no spoilers, no stock
+    phrases, nothing repeated from recent episodes)."""
+
+    enabled: bool = True
+    # The persona and its rules (repository-relative markdown file).
+    persona_file: str = "persona_master_prompt.md"
+    # Spoken length per placement, in seconds [min, max].
+    seconds: dict[str, list[float]] = Field(default_factory=lambda: {
+        "opening": [15.0, 40.0], "mid": [8.0, 40.0], "final": [10.0, 45.0]})
+    max_mid_segments: int = Field(default=2, ge=0, le=4)
+    # Host time as a share of the narration (the story stays dominant).
+    max_total_share: float = Field(default=0.08, ge=0.0, le=0.5)
+    # Beats of narration between two host appearances.
+    min_beats_between: int = Field(default=3, ge=0)
+    # The host talks a little faster than the narrator (words per minute
+    # of the language x this factor).
+    pace_factor: float = Field(default=1.08, ge=0.8, le=1.5)
+    # Context sizes sent to the director/writer.
+    archive_cases: int = Field(default=30, ge=0)
+    memory_items: int = Field(default=80, ge=0)
+    recent_segments: int = Field(default=16, ge=0)
+    max_repair_iterations: int = Field(default=2, ge=0, le=4)
+    # A segment sharing more than this share of its word trigrams with a
+    # recent segment repeats it.
+    max_trigram_overlap: float = Field(default=0.25, ge=0.0, le=1.0)
+    # Stock constructions the persona avoids (case-insensitive regexes).
+    stock_phrases: dict[str, list[str]] = Field(default_factory=lambda: {
+        "en": [r"\bwhat do you think\b", r"\bwhat would you do\b", r"\bi noticed\b",
+               r"\bstay tuned\b", r"\bshocking\b", r"\bcase id\b"],
+        "de": [r"\bwas denken sie\b", r"\bwas denkst du\b", r"\bwas würden sie tun\b",
+               r"\bwas würdest du tun\b", r"\bmir ist aufgefallen\b", r"\bschockierend\b"],
+        "fa": ["نظر شما چیست", "شما چه فکر می‌کنید", "شما چه می‌کردید", "متوجه شدم",
+               "تکان‌دهنده"],
+        "ar": ["ما رأيكم", "ماذا تعتقدون", "ماذا كنتم ستفعلون", "لاحظت", "صادم"],
+    })
+
+
 class AudioDirectionConfig(BaseModel):
     """Guard-rails for the audio director's plan (deterministic)."""
 
@@ -1207,6 +1253,7 @@ class AIConfig(BaseModel):
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     spoken: SpokenConfig = Field(default_factory=SpokenConfig)
     audio_direction: AudioDirectionConfig = Field(default_factory=AudioDirectionConfig)
+    host: HostConfig = Field(default_factory=HostConfig)
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)

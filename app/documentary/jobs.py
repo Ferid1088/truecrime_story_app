@@ -6,11 +6,13 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   blueprint          editorial blueprint for the master story
   audio_plan         breaths, music beds/moments, silences
   spoken:<lang>      storyteller version per language
+  host_plan          when/why the on-screen host appears (persona)
   film_length        every finished film must run 45–120 min
   visual_needs       visual requirements per beat
   visual_research    real photos/documents for those needs
   visual_check       vision verification of the best candidates
   visual_plan        shots per beat + motion; maps/document cards
+  host:<lang>        the host's dialogue, natively per language
   performance:<lang> narrator arc + ElevenLabs v3 audio tags
   voice:<lang>       narration + music mix (pilot: first N seconds)
   production:<lang>  language-specific timeline
@@ -26,6 +28,8 @@ Parallel inside one documentary:
   * shared limits (config: concurrency) pace model calls, ElevenLabs,
     speech-to-text and renders across everything that runs.
 A language that fails does not stop the others (job status "partial").
+The host is an addition: a failed host stage is recorded but never stops
+the film.
 Several documentaries run at once up to concurrency.jobs; more wait in
 "queued".
 
@@ -151,12 +155,15 @@ def job_dict(job: DocumentaryJob) -> dict:
 
 
 def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
+    host = ai_config.host.enabled
     names = (["research", "master_story"] if from_zero else []) + [
-        "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + [
+        "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
+        ["host_plan"] if host else []) + [
         "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan"]
     for l in languages:
-        names += [f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
-                  f"render:{l}"]
+        names += ([f"host:{l}"] if host else []) + [
+            f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
+            f"render:{l}"]
     return [{"name": n, "status": "pending", "detail": None} for n in names]
 
 
@@ -313,9 +320,30 @@ class DocumentaryPipeline:
             state["vp"] = row
             return {"visual_plan_id": row.id, "status": row.status}
 
+        async def host_plan():
+            from app.documentary.host import HostDirector, latest_host_plan
+
+            if not ai_config.host.enabled:
+                return {"skipped": True, "reason": "host disabled"}
+            row = latest_host_plan(db, bp_row.id)
+            if row is None:
+                row = await HostDirector().create_plan(db, case, bp_row, master)
+            state["host_plan"] = row
+            plan = json.loads(row.plan_json or "{}")
+            return {"host_plan_id": row.id, "status": row.status,
+                    "segments": [f"{s['id']}:{s['position']}"
+                                 + (f"@{s['beat_id']}" if s["position"] == "mid" else "")
+                                 for s in plan.get("segments") or []],
+                    "memory_updates": len(plan.get("memory_updates") or [])}
+
         await self._parallel([spoken_branch(l) for l in langs]
-                             + [self._stage("visual_needs", visual_needs)],
-                             shared_from=len(langs))
+                             + [self._stage("visual_needs", visual_needs),
+                                self._optional("host_plan", host_plan)],
+                             shared_from=len(langs), shared_count=1)
+        if "host_plan" not in state and ai_config.host.enabled:
+            from app.documentary.host import latest_host_plan
+
+            state["host_plan"] = latest_host_plan(db, bp_row.id)
         ok_langs = [l for l in langs if l in spoken]
         if not ok_langs:
             raise RuntimeError("No language could be told: " + "; ".join(
@@ -414,6 +442,21 @@ class DocumentaryPipeline:
                         "incident_beat": data.get("incident_beat"),
                         "stats": data.get("stats")}
 
+            async def host():
+                from app.documentary.host import HostDirector, latest_host_segments
+
+                plan_row = state.get("host_plan")
+                if plan_row is None or plan_row.status == "invalid":
+                    return {"skipped": True, "reason": "no usable host plan"}
+                row = latest_host_segments(db, version.id)
+                if row is None or row.host_plan_id != plan_row.id:
+                    row = await HostDirector().write(db, case, version, plan_row)
+                rep = json.loads(row.validation_json or "{}")
+                return {"host_segments_id": row.id, "status": row.status,
+                        "seconds": rep.get("host_seconds"),
+                        "needs_review": rep.get("failed_segments")}
+
+            await self._optional(f"host:{lang}", host)
             await self._stage(f"performance:{lang}", performance)
             holder: dict = {}
 
@@ -493,6 +536,18 @@ class DocumentaryPipeline:
             if not renders:
                 raise RuntimeError("; ".join(f"{l}: {e}" for l, e in self.lang_errors.items()))
         return self.result
+
+    async def _optional(self, name: str, fn):
+        """A stage whose failure is recorded but does not stop the job."""
+        try:
+            return await self._stage(name, fn)
+        except JobCancelled:
+            raise
+        except Exception as e:
+            log.warning("optional stage %s failed: %s", name, e)
+            self.result.setdefault("warnings", {})[name] = f"{type(e).__name__}: {e}"[:300]
+            self._save()
+            return None
 
     async def _parallel(self, coros: list, shared_from: int, shared_count: int | None = None):
         """Run branches together. Failures of language branches are

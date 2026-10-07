@@ -330,6 +330,59 @@ use. All four narrators use ElevenLabs `eleven_v3` with `language_code`
 (v3 has no request stitching) and Persian uses a larger Whisper model for
 the speech check (`asr_check.languages.fa`).
 
+### On-screen host (persona)
+
+`persona_master_prompt.md` is the host's character and rules, and it is
+loaded as-is (`host.persona_file`), so edits to it take effect on the
+next run. The narration tells the story. The host appears only where it
+adds something: an opening, one or two mid-story moments, an optional
+final.
+
+1. **Host plan** (`host_director`, once per blueprint, the same for every
+   language): where the host appears and why, one or two personality
+   dimensions, the delivery, the claims the host makes (each labelled
+   with its kind of information: confirmed fact, witness statement,
+   official finding, media report, disputed claim, expert interpretation,
+   speculation or personal reaction, plus its evidence ids), and what
+   the host will remember about this case.
+2. **Dialogue** (`host_writer`, per language): written natively from the
+   plan and that language's own narration around the placement.
+3. **Check** (`host_critic`, an independent model, review group
+   `documentary_host`): the persona's quality check per segment (adds
+   value, conversational, native, fresh, shows rather than tells,
+   emotion justified, verified, respectful, short enough). Failing
+   segments are rewritten up to `host.max_repair_iterations` times. A
+   segment that still fails is marked `needs_review`.
+
+Deterministic checks run on top of the models:
+
+- placement and spacing: never right after a hook or right before a
+  reveal; at least `host.min_beats_between` beats between appearances;
+- reveal firewall: the host never uses evidence that a later beat
+  reveals;
+- memories: only by reference to the archive of covered cases (`A<case>`)
+  or to host memory (`M<id>`);
+- length per placement (`host.seconds`) and host share of the film;
+- stock phrases per language (`host.stock_phrases`);
+- repetition of recent episodes (shared word trigrams, same opening
+  words).
+
+Memory: every plan replaces its own notes for the case. Editors add,
+correct or retire memories, and editor memories are kept:
+`GET/POST /api/documentary/host/memory`,
+`PATCH /api/documentary/host/memory/{id}`.
+
+API: `POST/GET /api/cases/{case_id}/documentary/host-plan`,
+`POST/GET /api/documentary/versions/{version_id}/host` (spoken version).
+Each segment follows the persona's output format: segment id, placement,
+purpose, personality dimension, memory reference, delivery direction,
+avatar dialogue, target duration, transition back.
+
+The documentary job has two host stages: `host_plan`, which runs next to
+the spoken versions, and `host:<lang>`, which runs before the
+performance stage. A failed host stage is recorded under
+`result.warnings` and does not stop the film.
+
 ### Pronunciation check (Persian)
 
 Persian script leaves short vowels unwritten: «ملک» is melk (property),

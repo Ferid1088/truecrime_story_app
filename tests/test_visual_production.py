@@ -416,6 +416,10 @@ class PipelineGen:
             return await self.spoken.generate_structured(role, system, user)
         if role == "narrative_director":
             return _no_contradiction(_good()), self._res(role)
+        if role.startswith("host_"):
+            from test_host import HostGen
+            self.__dict__.setdefault("host", HostGen())
+            return await self.host.generate_structured(role, system, user)
         if role == "audio_director":
             from test_spoken_audio import _good_plan
             return _good_plan(), self._res(role)
@@ -481,7 +485,7 @@ def documentary_env(tmp_path, monkeypatch):
     gen = PipelineGen()
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
-                "production.critics", "voice_performance", "pronunciation"):
+                "production.critics", "voice_performance", "pronunciation", "host"):
         monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts
@@ -551,6 +555,9 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
     # the narrator's performance (v3 audio tags) reached the voice
     assert stages["performance:en"]["detail"]["incident_beat"] == "B02"
     assert stages["voice:en"]["detail"]["audio_tags"] is True
+    # the on-screen host: one plan, dialogue per language
+    assert stages["host_plan"]["detail"]["segments"] == ["S1:opening", "S2:mid@B03"]
+    assert {stages[f"host:{l}"]["detail"]["status"] for l in ("en", "de")} == {"valid"}
     tagged = [r for r in documentary_env.tts.requests if "[softly]" in r.text]
     assert tagged and all(r.model_id == "eleven_v3" for r in documentary_env.tts.requests)
     # a re-run resumes without new model calls
