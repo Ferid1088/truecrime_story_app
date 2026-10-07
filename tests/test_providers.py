@@ -135,8 +135,12 @@ def test_discovery_returns_job_and_completes(client, db_session):
         assert candidates[0]["title"] == "The Lighthouse Keeper Vanishing"
         assert candidates[0]["candidate_id"]
 
-    stored = db_session.query(DiscoveryCandidate).all()
-    assert len(stored) == 1
+    # the duplicate is stored too — with the reason it was rejected (audit)
+    stored = db_session.query(DiscoveryCandidate).order_by(DiscoveryCandidate.id).all()
+    states = {c.title: c.state for c in stored}
+    assert states == {"The Lighthouse Keeper Vanishing": "suggested", "Duplicate Case": "duplicate"}
+    dup = next(c for c in stored if c.state == "duplicate")
+    assert "Lighthouse Keeper Vanishing" in dup.duplicate_reason
 
 
 def test_discovery_fails_cleanly_when_unconfigured(client):
@@ -169,7 +173,7 @@ def test_discovery_fails_cleanly_when_unconfigured(client):
 def _make_case(client) -> int:
     r = client.post(
         "/api/cases",
-        json={"canonical_title": "The Zodiac Letters", "language": "en"},
+        json={"canonical_title": "The Zodiac Letters", "language": "en", "force": True},
     )
     return r.json()["id"]
 

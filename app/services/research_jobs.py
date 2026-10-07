@@ -163,8 +163,11 @@ async def start_discovery_job(db: Session, payload) -> ResearchJob:
             "count": payload.count,
             "languages": payload.languages,
             "theme": payload.theme,
+            "include_unsolved": bool(getattr(payload, "include_unsolved", False)),
         },
     )
+    from app.lifecycle.identity import IdentityIndex
+
     try:
         external_id = await provider.start_discovery(
             count=payload.count,
@@ -173,6 +176,8 @@ async def start_discovery_job(db: Session, payload) -> ResearchJob:
             prefer_undercovered=payload.prefer_undercovered,
             require_multiple_sources=payload.require_multiple_sources,
             existing_titles=known_case_titles(db),
+            known_identities=IdentityIndex.from_db(db).to_list(),
+            include_unsolved=bool(getattr(payload, "include_unsolved", False)),
         )
     except Exception as e:
         job.status = "failed"
@@ -289,82 +294,19 @@ def _record_run(
     )
 
 
-def _dedupe_candidates(db: Session, result: dict) -> tuple[list[dict], int]:
-    """Filter provider candidates against known cases and each other.
-
-    Uses normalized titles, aliases, key-people overlap and fuzzy
-    similarity — not just exact title matching.
-    """
-    known_norms = {_normalize_title(t) for t in known_case_titles(db)}
-    accepted: list[dict] = []
-    accepted_norms: list[str] = []
-    accepted_people: list[set[str]] = []
-    skipped = 0
-
-    for raw in result.get("candidates") or []:
-        title = (raw.get("title") or "").strip()
-        if not title:
-            skipped += 1
-            continue
-        names = [_normalize_title(title)] + [
-            _normalize_title(a) for a in (raw.get("aliases") or [])
-        ]
-        people = {_normalize_title(p) for p in (raw.get("key_people") or []) if p}
-
-        duplicate = any(n in known_norms for n in names)
-        if not duplicate:
-            for prev_name, prev_people in zip(accepted_norms, accepted_people):
-                if any(
-                    fuzz.token_set_ratio(n, prev_name)
-                    >= ai_config.research.dedupe_similarity_threshold
-                    for n in names
-                ):
-                    duplicate = True
-                    break
-                if people and people & prev_people:
-                    duplicate = True
-                    break
-
-        if duplicate:
-            skipped += 1
-            continue
-
-        accepted.append(raw)
-        accepted_norms.append(names[0])
-        accepted_people.append(people)
-
-    return accepted, skipped
-
-
 def _ingest_discovery(db: Session, job: ResearchJob, result: dict):
-    accepted, skipped = _dedupe_candidates(db, result)
-    out = []
-    for raw in accepted:
-        cand = DiscoveryCandidate(
-            title=raw["title"].strip(),
-            query=(raw.get("suggested_queries") or [raw["title"]])[0][:500],
-            rationale=(raw.get("rationale") or "")[:2000],
-            fingerprint=_fingerprint(raw["title"], raw.get("key_people")),
-        )
-        db.add(cand)
-        db.flush()
-        out.append(
-            {
-                "candidate_id": cand.id,
-                "title": cand.title,
-                "rationale": cand.rationale,
-                "narrative_potential": raw.get("narrative_potential"),
-                "languages_available": raw.get("languages_available") or [],
-                "source_richness": raw.get("source_richness"),
-                "angles": raw.get("angles") or [],
-                "key_people": raw.get("key_people") or [],
-                "location": raw.get("location"),
-                "approximate_date": raw.get("approximate_date"),
-                "already_covered": False,
-            }
-        )
-    job.result_summary = f"candidates={len(out)} duplicates_rejected={skipped}"
-    return {"candidates": out, "skipped_duplicates": skipped}
+    """Store the suggestions of a discovery job: duplicate check against
+    everything the system holds (identity, not titles), ranking RECENT +
+    SOLVED, and every decision with its reason (app/lifecycle/selection)."""
+    from app.lifecycle.selection import ingest_candidates
+
+    params = json.loads(job.input_json or "{}")
+    out = ingest_candidates(
+        db, result, count=int(params.get("count") or 5),
+        include_unsolved=bool(params.get("include_unsolved")), job_id=job.id)
+    job.result_summary = (f"candidates={len(out['candidates'])} "
+                          f"duplicates_rejected={out['skipped_duplicates']}")
+    return out
 
 
 def _canonical_url(url: str) -> str:

@@ -232,6 +232,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
         prefer_undercovered: bool,
         require_multiple_sources: bool,
         existing_titles: list[str],
+        known_identities: list[dict] | None = None,
+        include_unsolved: bool = False,
     ) -> str:
         orch = self._orchestrator()
 
@@ -240,7 +242,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
             result = await orch.discover_cases(
                 count=count, languages=languages or ["en"],
                 theme=theme or None,
-                existing_titles=existing_titles, progress=prog)
+                existing_titles=existing_titles, progress=prog,
+                known_identities=known_identities, include_unsolved=include_unsolved)
             p.live_telemetry(result.get("_telemetry") or {})
             return result
 

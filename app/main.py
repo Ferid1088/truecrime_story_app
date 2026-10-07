@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -293,15 +294,32 @@ def _ensure_columns():
 
 _ensure_columns()
 
+@asynccontextmanager
+async def _lifespan(_app):
+    """The unsolved-case monitor runs about twice a week in this process
+    (TRUECRIME_DISABLE_SCHEDULER=1 keeps it off)."""
+    from app.lifecycle import scheduler
+
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.stop()
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="TrueCrime Story Studio",
     version="1.0.0",
     description="Research → Facts → Contradictions → Story Direction → Writing → Critique",
 )
 
 from app.documentary.api import router as documentary_router  # noqa: E402
+from app.lifecycle.api import router as lifecycle_router, resolution_dict  # noqa: E402
 
 app.include_router(documentary_router)
+app.include_router(lifecycle_router)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -684,6 +702,7 @@ def dashboard(db: Session = Depends(get_db)):
                 "id": c.id,
                 "title": c.canonical_title,
                 "status": c.status,
+                **resolution_dict(c),
                 "created_at": c.created_at,
                 **stats,
             }
@@ -717,7 +736,22 @@ def dashboard(db: Session = Depends(get_db)):
         },
         "recent_cases": recent,
         "agent_activity": list(agent_activity.values()),
+        # previously covered UNSOLVED cases that are now SOLVED: waiting
+        # for the user's decision about an update video
+        "follow_up_candidates": _pending_follow_ups(db),
+        "resolution_counts": {
+            s: sum(1 for c in cases if (c.resolution_status or "UNKNOWN") == s)
+            for s in ("SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW")},
     }
+
+
+def _pending_follow_ups(db: Session) -> list[dict]:
+    from app.db.models import FollowUpCandidate
+    from app.lifecycle.followups import candidate_dict
+
+    rows = (db.query(FollowUpCandidate).filter(FollowUpCandidate.state == "pending")
+            .order_by(FollowUpCandidate.id.desc()).all())
+    return [candidate_dict(db, fu) for fu in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -952,25 +986,39 @@ async def corpus_search(
 
 
 @app.get("/api/discovery/history")
-def discovery_history(db: Session = Depends(get_db)):
-    rows = (
-        db.query(DiscoveryCandidate)
-        .order_by(DiscoveryCandidate.created_at.desc())
-        .limit(200)
-        .all()
-    )
-    return [
-        {
-            "id": r.id,
-            "title": r.title,
-            "query": r.query,
-            "rationale": r.rationale,
-            "selected": r.selected,
-            "rejected": r.rejected,
-            "created_at": r.created_at,
-        }
-        for r in rows
-    ]
+def discovery_history(state: str | None = None, db: Session = Depends(get_db)):
+    """Every suggestion with its status, ranking reason — and the
+    duplicates/filtered ones with the reason they were not suggested."""
+    from app.lifecycle.selection import candidate_dict
+
+    q = db.query(DiscoveryCandidate)
+    if state:
+        q = q.filter(DiscoveryCandidate.state == state)
+    rows = q.order_by(DiscoveryCandidate.created_at.desc()).limit(200).all()
+    return [candidate_dict(r) for r in rows]
+
+
+def _duplicate_or_409(db: Session, identity, force: bool, exclude_candidate: int | None = None):
+    """The duplicate checker runs before any case is created (identity:
+    people, places, dates, URLs, aliases — not just the title)."""
+    from app.lifecycle.identity import IdentityIndex
+
+    index = IdentityIndex([i for i in IdentityIndex.from_db(db).items
+                           if i.kind == "case"])
+    verdict = index.check(identity)
+    if verdict.duplicate and not force:
+        raise HTTPException(status_code=409, detail={
+            "message": "This case already exists in the system.", **verdict.to_dict()})
+    return verdict
+
+
+def _unique_slug(db: Session, title: str) -> str:
+    base_slug = slugify(title)
+    slug, i = base_slug, 2
+    while db.query(Case).filter(Case.slug == slug).first():
+        slug = f"{base_slug}-{i}"
+        i += 1
+    return slug
 
 
 @app.post("/api/discovery/{candidate_id}/investigate")
@@ -979,29 +1027,46 @@ def investigate_candidate(
     payload: InvestigateCandidateRequest,
     db: Session = Depends(get_db),
 ):
+    from app.lifecycle.identity import candidate_identity
+    from app.lifecycle.status import set_resolution
+
     cand = db.get(DiscoveryCandidate, candidate_id)
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")
-
-    base_slug = slugify(cand.title)
-    slug = base_slug
-    i = 2
-    while db.query(Case).filter(Case.slug == slug).first():
-        slug = f"{base_slug}-{i}"
-        i += 1
+    if cand.case_id and db.get(Case, cand.case_id):
+        existing = db.get(Case, cand.case_id)
+        return {"id": existing.id, "canonical_title": existing.canonical_title,
+                "slug": existing.slug, "existing": True}
+    _duplicate_or_409(db, candidate_identity(cand), payload.force)
 
     case = Case(
         canonical_title=cand.title,
-        slug=slug,
+        slug=_unique_slug(db, cand.title),
         language=payload.language,
         summary=cand.rationale,
+        aliases_json=cand.aliases_json or "[]",
+        people_json=cand.people_json or "[]",
+        location=cand.location,
+        incident_date=cand.incident_date,
+        latest_development_date=cand.latest_development_date,
+        origin="discovery",
     )
     db.add(case)
+    db.flush()
+    set_resolution(
+        db, case, cand.resolution_status or "UNKNOWN", changed_by="discovery",
+        reason=cand.resolution_evidence or cand.suggestion_reason or "from the suggestion",
+        confidence=cand.resolution_confidence,
+        sources=[{"url": u} for u in json.loads(cand.source_urls_json or "[]")][:10],
+        summary=cand.resolution_evidence, commit=False)
     cand.selected = True
     cand.rejected = False
+    cand.state = "accepted"
+    cand.case_id = case.id
     db.commit()
     db.refresh(case)
-    return {"id": case.id, "canonical_title": case.canonical_title, "slug": case.slug}
+    return {"id": case.id, "canonical_title": case.canonical_title, "slug": case.slug,
+            **resolution_dict(case)}
 
 
 @app.post("/api/discovery/{candidate_id}/ignore")
@@ -1011,6 +1076,7 @@ def ignore_candidate(candidate_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate not found")
     cand.rejected = True
     cand.selected = False
+    cand.state = "ignored"   # stays in the history: never suggested again
     db.commit()
     return {"id": cand.id, "rejected": True}
 
@@ -1022,20 +1088,28 @@ def ignore_candidate(candidate_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/cases")
 def create_case(payload: CreateCaseRequest, db: Session = Depends(get_db)):
-    base_slug = slugify(payload.canonical_title)
-    slug = base_slug
-    i = 2
-    while db.query(Case).filter(Case.slug == slug).first():
-        slug = f"{base_slug}-{i}"
-        i += 1
+    from app.lifecycle.identity import Identity
+    from app.lifecycle.status import set_resolution
 
+    identity = Identity.build("new", None, payload.canonical_title, aliases=payload.aliases,
+                              people=payload.people, location=payload.location,
+                              dates=[payload.incident_date])
+    _duplicate_or_409(db, identity, payload.force)
     row = Case(
         canonical_title=payload.canonical_title,
-        slug=slug,
+        slug=_unique_slug(db, payload.canonical_title),
         language=payload.language,
         summary=payload.summary,
+        aliases_json=json.dumps(payload.aliases, ensure_ascii=False),
+        people_json=json.dumps(payload.people, ensure_ascii=False),
+        location=payload.location,
+        incident_date=payload.incident_date,
+        origin="manual",
     )
     db.add(row)
+    db.flush()
+    set_resolution(db, row, payload.resolution_status, changed_by="user",
+                   reason="set when the case was created", commit=False)
     db.commit()
     db.refresh(row)
 
@@ -1043,14 +1117,18 @@ def create_case(payload: CreateCaseRequest, db: Session = Depends(get_db)):
         "id": row.id,
         "canonical_title": row.canonical_title,
         "slug": row.slug,
+        **resolution_dict(row),
     }
 
 
 @app.get("/api/cases")
-def list_cases(status: str | None = None, q: str | None = None, db: Session = Depends(get_db)):
+def list_cases(status: str | None = None, q: str | None = None,
+               resolution: str | None = None, db: Session = Depends(get_db)):
     query = db.query(Case)
     if status:
         query = query.filter(Case.status == status)
+    if resolution and resolution.upper() != "ALL":
+        query = query.filter(Case.resolution_status == resolution.upper())
     if q:
         query = query.filter(Case.canonical_title.ilike(f"%{q}%"))
     rows = query.order_by(Case.created_at.desc()).all()
@@ -1078,6 +1156,7 @@ def list_cases(status: str | None = None, q: str | None = None, db: Session = De
                 "id": r.id,
                 "title": r.canonical_title,
                 "status": r.status,
+                **resolution_dict(r),
                 "language": r.language,
                 "created_at": r.created_at,
                 "last_activity": max(timestamps),
@@ -1102,6 +1181,13 @@ def get_case(case_id: int, db: Session = Depends(get_db)):
         "title": case.canonical_title,
         "slug": case.slug,
         "status": case.status,
+        **resolution_dict(case),
+        "aliases": json.loads(case.aliases_json or "[]"),
+        "people": json.loads(case.people_json or "[]"),
+        "location": case.location,
+        "incident_date": case.incident_date,
+        "latest_development_date": case.latest_development_date,
+        "origin": case.origin,
         "language": case.language,
         "summary": case.summary,
         "created_at": case.created_at,
@@ -1120,8 +1206,16 @@ def update_case(case_id: int, payload: UpdateCaseRequest, db: Session = Depends(
         case.canonical_title = payload.canonical_title
     if payload.summary is not None:
         case.summary = payload.summary
+    if payload.aliases is not None:
+        case.aliases_json = json.dumps(payload.aliases, ensure_ascii=False)
+    if payload.people is not None:
+        case.people_json = json.dumps(payload.people, ensure_ascii=False)
+    if payload.location is not None:
+        case.location = payload.location or None
+    if payload.incident_date is not None:
+        case.incident_date = payload.incident_date or None
     db.commit()
-    return {"id": case.id, "status": case.status}
+    return {"id": case.id, "status": case.status, **resolution_dict(case)}
 
 
 # ---------------------------------------------------------------------------

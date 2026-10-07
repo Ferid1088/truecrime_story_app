@@ -15,6 +15,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from app.core.ai_config import ai_config
 from app.research_engine.dedupe import SourceFamilyDetector
 from app.research_engine.embeddings import cosine_matrix
 from app.research_engine.extractor import extract
@@ -569,21 +570,27 @@ class ResearchOrchestrator:
     async def discover_cases(
         self, count: int, languages: list[str], theme: str | None,
         existing_titles: list[str], progress: Progress | None = None,
+        known_identities: list[dict] | None = None, include_unsolved: bool = False,
     ) -> dict:
+        """Case discovery -> duplicate checker -> status verifier ->
+        ranking (RECENT + SOLVED + NEVER USED; app/lifecycle/selection)."""
+        from app.lifecycle.identity import IdentityIndex
+        from app.lifecycle.selection import prepare_candidates
+
         progress = progress or Progress()
         tel = _telemetry()
         self._bind_llm(tel)
-        seeds = _discovery_queries(theme)
+        time_range = ai_config.case_selection.discovery_time_range or None
         found: list[dict] = []
         queries_out: list[dict] = []
         for lang in (languages or ["en"]):
-            for q in seeds:
+            for q in _discovery_queries(theme, lang):
                 progress.stage(f"searching:{lang}")
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "case_identity",
-                    "priority": "1", "round": 0})
+                    "priority": "1", "round": 0, "time_range": time_range})
                 try:
-                    raw = await self.registry.search(q, lang, limit=10)
+                    raw = await self.registry.search(q, lang, limit=10, time_range=time_range)
                 except Exception as e:  # noqa: BLE001
                     log.warning("discovery search failed: %s", e)
                     raw = []
@@ -591,13 +598,21 @@ class ResearchOrchestrator:
                 for r in raw:
                     found.append({
                         "title": r.title, "snippet": r.snippet,
-                        "url": r.url, "language": lang})
+                        "url": r.url, "language": lang,
+                        "published_at": r.published_at})
         progress.stage("analyzing")
         candidates = await self._extract_candidates(
-            found, count, existing_titles, theme)
+            found, min(max(count * 3, count + 4), 30), existing_titles, theme)
+        progress.stage("duplicate_check")
+        prepared = await prepare_candidates(
+            candidates, found, IdentityIndex.from_list(known_identities),
+            count=count, include_unsolved=include_unsolved,
+            registry=self.registry, gen=self.gen, progress=progress)
+        tel["searches"] += prepared["stats"].get("status_searches", 0)
         return {
             "queries": queries_out,
-            "candidates": candidates,
+            "candidates": prepared["candidates"],
+            "selection_stats": prepared["stats"],
             "_telemetry": tel,
         }
 
@@ -606,18 +621,31 @@ class ResearchOrchestrator:
         if not self.gen or not found:
             return []
         system = """You identify real true-crime cases in raw search results.
-A candidate is a SPECIFIC named case (a disappearance, murder, cold case,
+A candidate is a SPECIFIC named case (a murder, disappearance, killing,
 missing-persons investigation) — not a channel, genre page or listicle topic.
-Extract only cases explicitly supported by the provided results. JSON only."""
+Extract only cases explicitly supported by the provided results.
+Prefer RECENT cases whose resolution is reported (arrest, charges, verdict,
+conviction, confession). For each case say what the results report about
+its resolution — never guess: UNKNOWN when they do not say.
+resolution_status: SOLVED (conviction / accepted confession / official
+closure naming the perpetrator), UNSOLVED (no one charged, open or cold),
+STATUS_UNDER_REVIEW (arrest, suspect named or charges filed, no verdict),
+UNKNOWN. Dates as YYYY-MM-DD, YYYY-MM or YYYY. source_urls: the result
+URLs that are about this case. JSON only."""
         user = __import__("json").dumps({
             "theme": theme,
             "existing_known_cases": existing_titles[:60],
-            "results": found[:80],
+            "results": found[:90],
             "max_candidates": count,
             "output_schema": {"candidates": [{
                 "title": "canonical case name",
-                "aliases": ["..."], "key_people": ["..."],
-                "location": "...", "approximate_date": "...",
+                "aliases": ["..."], "key_people": ["victim / suspect full names"],
+                "location": "town, region, country", "approximate_date": "...",
+                "incident_date": "YYYY-MM-DD | YYYY-MM | YYYY",
+                "latest_development_date": "date of the newest reported development",
+                "resolution_status": "SOLVED|UNSOLVED|STATUS_UNDER_REVIEW|UNKNOWN",
+                "resolution_evidence": "what the results report (e.g. 'convicted May 2026')",
+                "source_urls": ["..."], "identifiers": ["police / court case numbers"],
                 "rationale": "why it fits a true-crime longform story",
                 "narrative_potential": 0.0,
                 "source_richness": 0.0,
@@ -738,14 +766,15 @@ def _ingest_canonical(r) -> str:
     return canon.split("?")[0]
 
 
-def _discovery_queries(theme: str | None) -> list[str]:
-    base = [
-        "unsolved disappearance documentary cold case",
-        "missing persons cold case investigation",
-        "unsolved murder cold case reopened",
-        "true crime documentary full episode case",
-        "baffling disappearance never solved",
-    ]
-    if theme:
-        base.insert(0, f"{theme} true crime case")
+def _discovery_queries(theme: str | None, language: str = "en") -> list[str]:
+    """Recent, resolved cases first (config case_selection.seed_queries)."""
+    from datetime import datetime, timezone
+
+    year = datetime.now(timezone.utc).year
+    seeds = (ai_config.case_selection.seed_queries.get(language)
+             or ai_config.case_selection.seed_queries.get("en") or [])
+    base = [q.replace("{year}", str(year)).replace("{last_year}", str(year - 1))
+            for q in seeds]
+    if theme and theme.strip().lower() not in ("true crime", ""):
+        base.insert(0, f"{theme} case verdict {year}")
     return base[:6]

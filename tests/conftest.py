@@ -2,6 +2,8 @@ import os
 import tempfile
 
 os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mktemp(suffix='.db')}"
+# the in-app monitor scheduler never starts inside tests
+os.environ["TRUECRIME_DISABLE_SCHEDULER"] = "1"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

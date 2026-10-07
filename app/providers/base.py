@@ -51,8 +51,12 @@ class ResearchProvider:
         prefer_undercovered: bool,
         require_multiple_sources: bool,
         existing_titles: list[str],
+        known_identities: list[dict] | None = None,
+        include_unsolved: bool = False,
     ) -> str:
-        """Submit a case-discovery task; returns the external job id."""
+        """Submit a case-discovery task; returns the external job id.
+        known_identities: the duplicate-check index (everything the
+        system already holds); include_unsolved: also suggest UNSOLVED."""
         raise NotImplementedError
 
     async def start_case_research(

@@ -552,6 +552,13 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         place = next(o for o in script["overlays"] if o["kind"] == "place")
         assert place["text"] == ("Nannup" if lang == "en" else "Nannup (de)")
         assert json.loads(ps.critique_json)["score"] == 80
+        # every render is remembered as a Video with status + YouTube title
+        from app.db.models import Video
+
+        video = db_session.get(Video, r["video_id"])
+        assert video.production_script_id == ps.id and video.language == lang
+        assert video.status_at_production == case.resolution_status
+        assert video.youtube_title and r["youtube_title"] == video.youtube_title
     vp = db_session.query(VisualPlan).filter_by(case_id=case.id).one()
     assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en", "de"}
     # the narrator's performance (v3 audio tags) reached the voice

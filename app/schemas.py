@@ -11,6 +11,8 @@ class TopicDiscoveryRequest(BaseModel):
     search_web: bool = True
     search_youtube: bool = True
     avoid_existing: bool = True
+    # The standard pipeline suggests SOLVED cases; set to also get UNSOLVED.
+    include_unsolved: bool = False
 
 
 class TopicCandidate(BaseModel):
@@ -19,10 +21,22 @@ class TopicCandidate(BaseModel):
     suggested_queries: list[str]
 
 
+ResolutionStatus = Literal["SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW"]
+
+
 class CreateCaseRequest(BaseModel):
     canonical_title: str
     language: str = "fa"
     summary: str | None = None
+    # Solved/unsolved is known from the start (UNKNOWN until verified).
+    resolution_status: ResolutionStatus = "UNKNOWN"
+    # Identity (duplicate detection): victims/suspects, place, dates.
+    aliases: list[str] = []
+    people: list[str] = []
+    location: str | None = None
+    incident_date: str | None = None
+    # Create even though the duplicate checker found the same case.
+    force: bool = False
 
 
 class UpdateCaseRequest(BaseModel):
@@ -32,10 +46,16 @@ class UpdateCaseRequest(BaseModel):
     ] | None = None
     canonical_title: str | None = None
     summary: str | None = None
+    aliases: list[str] | None = None
+    people: list[str] | None = None
+    location: str | None = None
+    incident_date: str | None = None
 
 
 class InvestigateCandidateRequest(BaseModel):
     language: str = "fa"
+    # Investigate even though the duplicate checker matched an existing case.
+    force: bool = False
 
 
 class AddSourceRequest(BaseModel):

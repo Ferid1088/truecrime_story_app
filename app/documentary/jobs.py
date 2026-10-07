@@ -144,6 +144,8 @@ def job_dict(job: DocumentaryJob) -> dict:
         "refresh_visuals": bool(job.refresh_visuals),
         "from_zero": bool(job.from_zero), "target_minutes": job.target_minutes,
         "batch_id": job.batch_id,
+        "production_type": job.production_type or "original",
+        "follow_up_id": job.follow_up_id,
         "status": job.status, "stage": job.stage, "progress": round(job.progress or 0, 3),
         "stages": json.loads(job.stages_json or "[]"),
         "result": json.loads(job.result_json or "{}"), "error": job.error,
@@ -244,7 +246,8 @@ class DocumentaryPipeline:
         state: dict = {}
 
         if job.from_zero:
-            await self._stage("research", lambda: research_case(db, case, self._check_cancel))
+            await self._stage("research",
+                              lambda: research_case(db, case, self._check_cancel, job))
             d = await self._stage("master_story", lambda: write_master(db, case, job))
             if d and d.get("master_version_id"):
                 job.master_version_id = d["master_version_id"]
@@ -489,8 +492,14 @@ class DocumentaryPipeline:
                 ps.render_json = json.dumps(info)
                 ps.status = "rendered"
                 db.commit()
-                renders[lang] = {"production_script_id": ps.id, **info}
-                return info
+                # the channel's memory: a Video with status, opening and
+                # YouTube metadata (UNSOLVED / follow-up titles)
+                from app.lifecycle.videos import register_render
+
+                video = register_render(db, job, ps, info)
+                renders[lang] = {"production_script_id": ps.id, "video_id": video.id,
+                                 "youtube_title": video.youtube_title, **info}
+                return {**info, "video_id": video.id, "youtube_title": video.youtube_title}
 
             await self._stage(f"render:{lang}", render)
 
@@ -528,19 +537,26 @@ class DocumentaryPipeline:
                 raise r
 
 
-async def research_case(db: Session, case: Case, check_cancel) -> dict:
+async def research_case(db: Session, case: Case, check_cancel,
+                        doc_job: DocumentaryJob | None = None) -> dict:
     """From zero, step 1: research with the configured search engine and
-    wait for the facts (skipped when the case already has facts)."""
+    wait for the facts (skipped when the case already has facts). A
+    follow-up film always researches the new developments first."""
     from app.db.models import ResearchJob
     from app.services import research_jobs
 
+    follow_up = doc_job is not None and doc_job.production_type == "follow_up"
     facts = db.query(Fact).filter(Fact.case_id == case.id).count()
-    if facts:
+    if facts and not follow_up:
         return {"skipped": True, "reason": f"case already has {facts} facts"}
     job = (db.query(ResearchJob).filter(ResearchJob.case_id == case.id,
                                         ResearchJob.job_type == "research",
                                         ResearchJob.status.in_(("queued", "running")))
            .order_by(ResearchJob.id.desc()).first())
+    if job is None and follow_up:
+        from app.lifecycle.followups import start_update_research
+
+        job = await start_update_research(db, case, doc_job.follow_up_id)
     if job is None:
         job = await research_jobs.start_research_job(db, case)
     waited = 0.0
@@ -565,12 +581,23 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
     from app.services.readiness import build_readiness
 
     canonical = ai_config.multilingual.canonical_language
+    follow_up = None
+    if job.production_type == "follow_up" and job.follow_up_id:
+        from app.db.models import FollowUpCandidate
+        from app.lifecycle.followups import context as follow_up_context
+
+        fu = db.get(FollowUpCandidate, job.follow_up_id)
+        follow_up = follow_up_context(db, fu) if fu else None
     existing = (db.query(StoryVersion)
                 .filter(StoryVersion.case_id == case.id, StoryVersion.kind == "master",
                         StoryVersion.language == canonical)
-                .order_by(StoryVersion.id.desc()).first())
-    if existing is not None:
-        return {"master_version_id": existing.id, "reused": True}
+                .order_by(StoryVersion.id.desc()).all())
+    for row in existing:
+        struct = json.loads(row.narrative_structure or "{}")
+        same_film = ((struct.get("follow_up") or {}).get("follow_up_id") == job.follow_up_id
+                     if follow_up else not struct.get("follow_up"))
+        if same_film:
+            return {"master_version_id": row.id, "reused": True}
     from app.schemas import GenerateStoryRequest
 
     defaults = GenerateStoryRequest()
@@ -587,8 +614,11 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
     story = await StoryPipeline(roles=roles).run(
         db=db, case=case, target_minutes=minutes, language=canonical,
         tone=defaults.tone, iterations=defaults.iterations, kind="master",
-        words_per_minute=ai_config.words_per_minute_for(canonical))
-    return {"master_version_id": story.id, "minutes": minutes, "status": story.status}
+        words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up)
+    struct = json.loads(story.narrative_structure or "{}")
+    return {"master_version_id": story.id, "minutes": minutes, "status": story.status,
+            "opening_strategy": struct.get("opening_strategy"),
+            "production_type": job.production_type or "original"}
 
 
 def _load_manifest(case_id: int, version: StoryVersion) -> dict:
