@@ -378,9 +378,9 @@ def test_voice_render_api(client, db_session, workdir, monkeypatch):
     db_session.add(story)
     db_session.commit()
 
-    import app.main as main_mod
+    import app.documentary.production.audio as audio_mod
     monkeypatch.setattr(
-        main_mod, "VoiceRenderer",
+        audio_mod, "VoiceRenderer",
         type("R", (VoiceRenderer,), {
             "__init__": lambda self: VoiceRenderer.__init__(
                 self, provider=FakeTTS(), asr=FakeASR())
