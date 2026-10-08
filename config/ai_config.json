@@ -1687,9 +1687,9 @@
       "5": 0.3
     },
     "max_generic_appearances": 1,
-    "max_context_appearances": 2,
-    "max_person_appearances": 5,
-    "max_evidence_appearances": 3,
+    "max_context_appearances": 1,
+    "max_person_appearances": 1,
+    "max_evidence_appearances": 1,
     "min_repeat_gap_seconds": 45.0,
     "cut_pattern": [
       7.0,

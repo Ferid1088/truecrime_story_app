@@ -49,7 +49,7 @@ CUT_SNAP_SECONDS = 3.0
 STATUS_END_MARGIN_SECONDS = 1.0
 # Fill/repeat bookkeeping keys that never travel to a shot made from another.
 _PER_SHOT = ("fill_reason", "repeat_reason", "repeat_justified", "usage", "why",
-             "black_filled", "reframe")
+             "black_filled", "reframe", "held_reason")
 
 
 @lru_cache(maxsize=256)
@@ -316,6 +316,20 @@ def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
                     or fw.blocks(sh["beat_id"], a)):
                 continue
             pool.append(a)
+        prev = out[-1] if out else None
+        if ((not pool or tracker.pick([a.asset_code for a in pool], cut, sh["end"]) is None)
+                and prev is not None and prev.get("kind") in ("image", "map", "document")
+                and abs(prev["end"] - sh["start"]) <= 0.05
+                and sh["end"] - max_black - prev["start"] > 0):
+            # nothing the film has not shown yet (no picture twice): the
+            # picture before the pause stays, the pause comes at its end
+            pause_at = round(sh["end"] - max_black, 3)
+            if prev.get("asset_id"):
+                tracker.add(prev["asset_id"], prev["end"], pause_at)
+            prev["end"] = pause_at
+            prev["held_reason"] = "nothing else may be shown (no picture twice)"
+            out.append({**sh, "start": pause_at})
+            continue
         if not pool:
             out.append(sh)
             continue
@@ -396,14 +410,14 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
                      sentence_starts: list[float] | None = None,
                      tracker: UsageTracker | None = None,
                      sentences: list[dict] | None = None) -> list[dict]:
-    """One picture held (or reframed) longer than motion.max_hold_seconds
-    becomes a sequence: the picture first, then other earned pictures in
-    the cut rhythm — unused ones first, a reuse only when the usage
-    tracker allows it; when nothing else may be shown, the picture on
-    screen is reframed (the same appearance continues). A map is
-    orientation, not a backdrop: after motion.max_map_seconds the story's
-    pictures take over, and only when none may be shown do the map's
-    zoom levels take turns."""
+    """One picture held longer than motion.max_hold_seconds becomes a
+    sequence: the picture first, then other earned pictures in the cut
+    rhythm that the film has not shown yet (no picture appears twice);
+    when nothing else may be shown, the picture on screen simply stays
+    (one shot, one appearance). A map is orientation, not a backdrop:
+    after motion.max_map_seconds the story's pictures take over; when none
+    may be shown the map stays as one shot (its zoom levels are not cut
+    in again)."""
     motion = ai_config.motion
     max_still, max_hold, max_map = (motion.max_still_seconds, motion.max_hold_seconds,
                                     motion.max_map_seconds)
@@ -462,7 +476,6 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
                                                           else [])))
         bounds = [lead_end] + plan_cuts(lead_end, run_end, sentence_starts or [],
                                         len(final)) + [run_end]
-        paths = first.get("map_paths") or []
         t = lead_end
         for k in range(len(bounds) - 1):
             seg_end = bounds[k + 1]
@@ -475,12 +488,6 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
             allowed = [c for c in options if not fw.blocks(beat, assets.get(c))]
             choice = tracker.pick(allowed, t, seg_end, named_between(sentences or [], t, seg_end),
                                   avoid=recent)
-            if choice is None and (is_map or stand_in) and final[-1].get("asset_id") == code0:
-                # still on the map / stand-in: case material once more;
-                # after that the case picture is reframed, not ping-ponged
-                choice = _over_limit(tracker, allowed, t, seg_end,
-                                     {final[-1].get("asset_id"), code0}
-                                     | ({nxt} if last_seg and nxt else set()))
             base = {**_base(first), "start": round(t, 3), "end": seg_end, "beat_id": beat,
                     "motion": moves[len(final) % len(moves)], "transition_in": "CROSSFADE"}
             if choice is not None:
@@ -494,58 +501,20 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
                                        f"{choice['reason']}"),
                        **_repeat_fields(choice)}
                 tracker.add(c, t, seg_end)
-            elif final[-1].get("kind") == "map" and len(paths) > 1:
-                # nothing else may be shown: the map's zoom levels take turns
-                level = paths[(len(paths) - 2 - k) % len(paths)]
-                seg = {**first, "start": round(t, 3), "end": seg_end, "path": level,
-                       "map_paths": [level], "command": "SHOW_MAP", "transition_in": "CROSSFADE",
-                       "motion": ("SLOW_PULL", "PAN_RIGHT", "SLOW_PUSH", "PAN_LEFT")[k % 4],
-                       "fill_reason": "map: zoom level — no other picture may be shown"}
-                if code0:
-                    tracker.add(code0, t, seg_end)
             else:
-                # nothing else may be shown: reframe what is on screen
+                # nothing else may be shown (every picture appears once):
+                # the picture on screen stays — one shot, one appearance,
+                # no cut to a crop of itself
                 prev = final[-1]
-                seg = {**base, **{k2: prev[k2] for k2 in prev if k2 not in base
-                                  and k2 not in _PER_SHOT},
-                       **{k2: prev.get(k2) for k2 in ("kind", "asset_id", "path", "type", "role",
-                                                      "width", "height", "focus", "rights",
-                                                      "credit", "subject_type", "highlight",
-                                                      "marker", "tier", "entity_type",
-                                                      "entities", "map_paths", "place")
-                          if k2 in prev},
-                       "command": "SHOW_MAP" if prev.get("kind") == "map" else "CROP_EXISTING",
-                       "reframe": True,
-                       "fill_reason": "long hold: reframed — no other picture may be shown"}
+                prev["end"] = seg_end
                 if prev.get("asset_id"):
                     tracker.add(prev["asset_id"], t, seg_end)
+                prev["held_reason"] = "nothing else may be shown (no picture twice)"
+                t = seg_end
+                continue
             final.append(seg)
             t = seg_end
     return final
-
-
-def _over_limit(tracker: UsageTracker, codes: list[str], start: float, end: float,
-                avoid: set) -> dict | None:
-    """When nothing may be shown within the usage limits and the screen
-    holds a map or a stand-in: case material (tier <= 3) shown once more
-    than its limit beats stretching a stand-in — the most case-specific
-    (lowest tier) first, then the least shown; a face still keeps its
-    minimum gap."""
-    gap = ai_config.visual_direction.min_repeat_gap_seconds
-    ok = [c for c in codes if c and c not in avoid and tracker.tier(c) <= 3
-          and not (tracker.category(c) == "person" and tracker.gap(c, start, end) < gap)]
-    if not ok:
-        return None
-
-    def key(c):
-        last = tracker.last_shown(c, start)
-        return (tracker.tier(c), tracker.appearances(c), last if last is not None else -1.0)
-
-    c = sorted(ok, key=key)[0]
-    return {"asset_id": c, "repeat": True, "repeat_justified": True,
-            "repeat_reason": ("over its limit: nothing else may be shown here, and case "
-                              "material beats stretching a stand-in"),
-            "reason": "reuse over limit instead of a long stand-in"}
 
 
 def label_overlays(shots: list[dict], language: str, duration: float) -> list[dict]:

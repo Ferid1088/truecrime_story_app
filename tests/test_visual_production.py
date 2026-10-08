@@ -273,22 +273,20 @@ def test_compose_timeline_from_real_audio():
     texts = {"date|May 2006": "Mai 2006"}
     s = compose(_manifest(), plan, assets, texts, "de")
     shots = s["shots"]
-    # the black beat stays a short pause, then a picture the story has
-    # already shown takes over (never 20 s of black)
-    # (the 21 s illustration is a stand-in: after motion.max_map_seconds the
-    # case picture returns — once over its limit rather than a long stand-in)
-    assert [x["kind"] for x in shots] == ["image", "image", "image", "black", "image"]
+    # no picture twice: with nothing new to show, the picture on screen
+    # stays, and the black beat becomes a short pause at its end (never
+    # 20 s of black, never a return of an earlier picture)
+    assert [x["kind"] for x in shots] == ["image", "image", "black"]
     assert shots[0]["start"] == 0 and shots[0]["end"] == 20.0  # date extends the image
-    assert shots[1]["start"] == 20.0 and shots[4]["end"] == 60.0
-    assert shots[1]["asset_id"] == "VIS_000002"
-    assert shots[1]["end"] - shots[1]["start"] == pytest.approx(ai_config.motion.max_map_seconds)
-    assert shots[2]["asset_id"] == "VIS_000001" and "over its limit" in shots[2]["repeat_reason"]
-    assert shots[3]["end"] - shots[3]["start"] == pytest.approx(ai_config.attention.max_black_seconds)
-    assert shots[4]["asset_id"] == "VIS_000001" and shots[4]["black_filled"]
+    assert shots[1]["asset_id"] == "VIS_000002" and shots[1]["start"] == 20.0
+    assert "no picture twice" in shots[1]["held_reason"]
+    assert shots[2]["end"] == 60.0
+    assert shots[2]["end"] - shots[2]["start"] == pytest.approx(ai_config.attention.max_black_seconds)
     # credits and the illustration label follow the final cut
     creds = [o for o in s["overlays"] if o["kind"] == "credit"]
-    assert [(o["start"], o["end"]) for o in creds] == [(0.0, 20.0), (32.0, 41.0), (47.0, 60.0)]
-    assert [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"] == [(20.0, 32.0)]
+    assert [(o["start"], o["end"]) for o in creds] == [(0.0, 20.0)]
+    assert [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"] == \
+        [(20.0, shots[1]["end"])]
     assert shots[0]["transition_in"] == "FADE_BLACK"
     kinds = {o["kind"]: o for o in s["overlays"]}
     assert kinds["date"]["text"] == "Mai 2006"
@@ -312,17 +310,15 @@ def test_compose_folds_flash_cuts_and_swaps_long_holds():
     s = compose(m, plan, assets, {}, "en")
     # the 2.4 s opening flash cut is folded into the next picture
     assert s["shots"][0]["asset_id"] == "VIS_000002" and s["shots"][0]["start"] == 0.0
-    # a 60 s still becomes a sequence of the beat's pictures, never the
-    # same picture twice in a row and no picture much longer than a hold
+    # a 60 s still becomes a sequence of the beat's pictures — each picture
+    # once; when they are all shown, the last one stays
     shots = s["shots"]
-    assert len(shots) >= 4 and shots[-1]["end"] == 60.0
-    assert shots[1]["asset_id"] in ("VIS_000001", "VIS_000003")
+    assert [x["asset_id"] for x in shots] == ["VIS_000002", "VIS_000001", "VIS_000003"]
+    assert shots[-1]["end"] == 60.0 and "no picture twice" in shots[-1]["held_reason"]
     assert all(x["command"] == "NEW_IMAGE" for x in shots[1:])
-    assert all(a["asset_id"] != b["asset_id"] for a, b in zip(shots, shots[1:]))
     # (a cut may move up to 4 s to land where a sentence begins)
-    assert all(x["end"] - x["start"] <= ai_config.motion.max_still_seconds + 4.01 for x in shots)
-    lengths = [round(x["end"] - x["start"], 1) for x in shots[1:-1]]
-    assert len(set(lengths)) > 1  # never a metronome
+    assert all(x["end"] - x["start"] <= ai_config.motion.max_still_seconds + 4.01
+               for x in shots[:-1])
 
 
 # ---------------------------------------------------------------------------

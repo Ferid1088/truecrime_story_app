@@ -1435,12 +1435,12 @@ class VisualDirectionConfig(BaseModel):
     # Relevance tiers 1 (exact case evidence) .. 5 (generic atmosphere).
     tier_weights: dict[str, float] = Field(default_factory=lambda: {
         "1": 1.0, "2": 0.92, "3": 0.78, "4": 0.55, "5": 0.3})
-    # Appearances per film: generic/contextual pictures and maps rarely
-    # repeat; central people may recur, with room in between.
+    # Appearances per film: every picture is shown ONCE (holding it on
+    # screen, with its camera move, is one appearance — never a return).
     max_generic_appearances: int = Field(default=1, ge=1)
-    max_context_appearances: int = Field(default=2, ge=1)
-    max_person_appearances: int = Field(default=5, ge=1)
-    max_evidence_appearances: int = Field(default=3, ge=1)
+    max_context_appearances: int = Field(default=1, ge=1)
+    max_person_appearances: int = Field(default=1, ge=1)
+    max_evidence_appearances: int = Field(default=1, ge=1)
     min_repeat_gap_seconds: float = Field(default=45.0, ge=0.0)
     # Picture changes (seconds) — snapped to sentence starts.
     cut_pattern: list[float] = [7.0, 9.0, 6.0, 8.5, 5.5, 8.0]

@@ -381,7 +381,9 @@ def _usage_case():
     return m, plan
 
 
-def test_generic_picture_not_twice_person_recurs_when_named_with_gap(monkeypatch):
+def test_no_picture_appears_twice(monkeypatch):
+    """Every picture is shown once per film: a planned return is swapped
+    for an unused picture, or the picture on screen holds."""
     # repetition only: the 30 s holds stay holds (long holds are tested elsewhere)
     monkeypatch.setattr(ai_config.motion, "max_hold_seconds", 40.0)
     m, plan = _usage_case()
@@ -389,21 +391,18 @@ def test_generic_picture_not_twice_person_recurs_when_named_with_gap(monkeypatch
     shots = s["shots"]
     seq = [(x["asset_id"], x["start"], x["end"]) for x in shots]
     assert seq == [("VIS_000011", 0.0, 15.0), ("VIS_000012", 15.0, 30.0),
-                   ("VIS_000013", 30.0, 60.0), ("VIS_000014", 60.0, 75.0),
-                   ("VIS_000011", 75.0, 90.0), ("VIS_000015", 90.0, 120.0)]
-    # the street (generic) was planned twice: an unused picture took its place
+                   ("VIS_000013", 30.0, 60.0), ("VIS_000014", 60.0, 90.0),
+                   ("VIS_000015", 90.0, 120.0)]
+    # the street was planned twice: an unused picture took its place
     assert "VIS_000012 was already shown 1x" in shots[3]["fill_reason"]
-    assert sum(1 for x in shots if x["asset_id"] == "VIS_000012") == 1
-    # Anna returns 60 s later while the narration names her: justified
-    u = shots[4]["usage"]
-    assert u["appearance"] == 2 and u["repeat_justified"] is True
-    assert "named in the sentence being spoken (anna_keller)" in u["repeat_reason"]
-    assert u["category"] == "person" and u["tier"] == 2
-    # ... but not 15 s after that: the picture on screen holds instead
-    gap = ai_config.visual_direction.min_repeat_gap_seconds
-    assert shots[5]["held"][0]["instead_of"] == "VIS_000011"
-    assert f"min {gap:.0f}s apart" in shots[5]["held"][0]["why"]
-    assert all(x["usage"]["appearance"] == 1 for x in shots if x["asset_id"] != "VIS_000011")
+    # Anna was planned twice more — even while the narration names her she
+    # does not return: the picture on screen holds
+    assert [h["instead_of"] for h in shots[3]["held"] + shots[4]["held"]] == \
+        ["VIS_000011", "VIS_000011"]
+    assert "already shown 1x (limit 1)" in shots[3]["held"][0]["why"]
+    codes = [x["asset_id"] for x in shots]
+    assert len(codes) == len(set(codes))
+    assert all(x["usage"]["appearance"] == 1 for x in shots)
 
 
 def test_media_usage_rows_record_reasons_and_appearances(db_session, tmp_path, monkeypatch):
@@ -425,20 +424,19 @@ def test_media_usage_rows_record_reasons_and_appearances(db_session, tmp_path, m
     n = record_media_usage(db_session, row, script, "bp77")
     rows = (db_session.query(MediaUsage).filter_by(production_script_id=row.id)
             .order_by(MediaUsage.shot_index).all())
-    assert n == len(rows) == 6
+    assert n == len(rows) == 5
     ids = {a.asset_code: a.id for a in assets.values()}
     anna = [r for r in rows if r.asset_id == ids["VIS_000011"]]
-    assert [r.appearance for r in anna] == [1, 2]
+    assert [r.appearance for r in anna] == [1]  # no picture twice
     assert anna[0].reason == "we meet Anna" and anna[0].repeat_justified is None
-    assert anna[1].repeat_justified is True and "named" in anna[1].repeat_reason
-    assert anna[1].sentence == "s75" and anna[1].seconds == 15.0
+    assert all(r.appearance == 1 for r in rows)
     swap = rows[3]
     assert swap.asset_id == ids["VIS_000014"] and "already shown" in swap.reason
     assert all(r.film_key == "bp77" and r.language == "en" and r.kind == "image" for r in rows)
     assert rows[0].tier == 2 and rows[1].tier == 4
     # delete + insert: a second write replaces the rows
     record_media_usage(db_session, row, script, "bp77")
-    assert db_session.query(MediaUsage).filter_by(production_script_id=row.id).count() == 6
+    assert db_session.query(MediaUsage).filter_by(production_script_id=row.id).count() == 5
 
 
 def test_fills_prefer_unused_pictures_and_never_repeat_a_generic_one():
@@ -475,12 +473,12 @@ def test_tracker_limits_per_category():
         tr.add(code, 0.0, 5.0) if code != "M2" else None
     assert tr.category("G") == "generic" and tr.category("C") == "context"
     assert tr.allows("G", 100, 105) == (False, f"generic picture already shown 1x (limit {vd.max_generic_appearances})")
-    assert tr.allows("C", 100, 105)[0] is (vd.max_context_appearances > 1)
+    # every picture once per film — a named person does not return either
+    assert tr.allows("C", 100, 105)[0] is False
     assert tr.allows("M2", 100, 105)[0] is False          # one map per place
-    assert tr.allows("P", 10, 15)[0] is False              # too soon
+    assert tr.allows("P", 100, 105)[0] is False
     assert tr.allows("P", 5.0, 9.0)[0] is True             # continues the shot
-    choice = tr.pick(["G", "P"], 100, 105, names={"anna"})
-    assert choice["asset_id"] == "P" and choice["repeat_justified"] is True
+    assert tr.pick(["G", "P"], 100, 105, names={"anna"}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -1049,8 +1047,11 @@ def test_a_map_is_orientation_not_a_backdrop():
     assert after and after[0]["kind"] == "image"
     assert after[0]["asset_id"] in ("VIS_000012", "VIS_000013")
     assert "map varied" in after[0]["fill_reason"]
+    # every picture once; the last new picture stays when nothing is left
+    codes = [x["asset_id"] for x in shots]
+    assert len(codes) == len(set(codes))
     assert all(x["end"] - x["start"] <= ai_config.motion.max_hold_seconds + 0.01
-               for x in shots)
+               for x in shots if not x.get("held_reason"))
     osm = [o for o in s["overlays"] if o["kind"] == "credit"
            and o["text"] == ai_config.maps.attribution]
     assert [(o["start"], o["end"]) for o in osm] == [(mp[0]["start"], mp[0]["end"])]
@@ -1133,9 +1134,9 @@ def test_found_stand_ins_become_candidates_of_their_beat_within_the_firewall():
 
 def test_a_stand_in_is_a_moment_not_a_backdrop():
     """A labelled illustration planned for a whole long beat is cut after
-    motion.max_map_seconds; when every case picture is at its limit, case
-    material is shown once more rather than stretching the stand-in, and
-    the illustration label is on screen exactly while the stand-in is."""
+    motion.max_map_seconds when a picture the film has not shown yet is
+    earned; no picture returns (the house stays shown once), and the
+    illustration label is on screen exactly while the stand-in is."""
     m = {"duration_seconds": 70.0, "files": {"narration_wav": "n.wav"},
          "timeline": {"beats": [{"beat_id": "B01", "start": 0.0, "end": 19.5},
                                 {"beat_id": "B02", "start": 20.0, "end": 69.5}],
@@ -1144,26 +1145,25 @@ def test_a_stand_in_is_a_moment_not_a_backdrop():
                                      "speech": f"s{t:g}"} for t in range(0, 70, 7)]}}
     house = _asset("VIS_000051", relevance_tier=1, entity_type="building",
                    entities_json='["the_house"]', description="The house.")
+    door = _asset("VIS_000053", relevance_tier=1, entity_type="object",
+                  entities_json='["the_door"]', description="The side door.")
     dog = _asset("VIS_000052", asset_role="illustration", relevance_tier=5,
                  rights_status="creative_commons", credit="A / Wikimedia Commons",
                  entities_json="[]", entity_type="object", description="A goldendoodle.")
-    plan = {"candidates": {"B01": ["VIS_000051"], "B02": []},
+    plan = {"candidates": {"B01": ["VIS_000051", "VIS_000053"], "B02": []},
             "beats": [{"beat_id": "B01", "shots": [{"command": "NEW_IMAGE",
                                                     "asset_id": "VIS_000051", "share": 1.0}]},
                       {"beat_id": "B02", "shots": [{"command": "ATMOSPHERIC_BROLL",
                                                     "asset_id": "VIS_000052", "share": 1.0,
                                                     "label": "illustration"}]}]}
-    monkey_limit = ai_config.visual_direction.max_evidence_appearances
-    try:
-        ai_config.visual_direction.max_evidence_appearances = 1  # the house is at its limit
-        s = compose(m, plan, {"VIS_000051": house, "VIS_000052": dog}, {}, "en")
-    finally:
-        ai_config.visual_direction.max_evidence_appearances = monkey_limit
+    s = compose(m, plan, {"VIS_000051": house, "VIS_000052": dog, "VIS_000053": door}, {},
+                "en")
     shots = s["shots"]
     dogs = [x for x in shots if x["asset_id"] == "VIS_000052"]
     assert len(dogs) == 1 and dogs[0]["end"] - dogs[0]["start"] <= ai_config.motion.max_map_seconds + 3.01
     after = shots[shots.index(dogs[0]) + 1]
-    assert after["asset_id"] == "VIS_000051" and "over its limit" in after["repeat_reason"]
+    assert after["asset_id"] == "VIS_000053" and after["end"] == 70.0
+    assert [x["asset_id"] for x in shots].count("VIS_000051") == 1
     labels = [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"]
     assert labels == [(dogs[0]["start"], dogs[0]["end"])]
 
