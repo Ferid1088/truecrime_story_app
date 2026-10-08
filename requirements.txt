@@ -13,3 +13,4 @@ pypdf>=5.0,<6
 rank-bm25==0.2.2
 numpy>=1.26
 pysbd==0.3.4
+python-multipart==0.0.32
