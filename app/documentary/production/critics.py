@@ -469,13 +469,15 @@ def apply_fixes(script: dict, problems: list[dict],
     for n, sh in enumerate(shots):
         sh["index"] = n
     if done and shots:
-        # credits follow the corrected cut
-        from app.documentary.production.script import credit_overlays
+        # credits and the illustration label follow the corrected cut
+        from app.documentary.production.script import credit_overlays, label_overlays
 
         dur = float(script.get("duration") or shots[-1]["end"])
         script["overlays"] = sorted(
-            [o for o in script.get("overlays") or [] if o["kind"] != "credit"]
-            + credit_overlays(shots, dur), key=lambda o: o["start"])
+            [o for o in script.get("overlays") or [] if o["kind"] not in ("credit", "label")]
+            + credit_overlays(shots, dur)
+            + label_overlays(shots, script.get("language") or "en", dur),
+            key=lambda o: o["start"])
     return done
 
 

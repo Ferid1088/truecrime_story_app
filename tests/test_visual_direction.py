@@ -1166,3 +1166,15 @@ def test_a_stand_in_is_a_moment_not_a_backdrop():
     assert after["asset_id"] == "VIS_000051" and "over its limit" in after["repeat_reason"]
     labels = [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"]
     assert labels == [(dogs[0]["start"], dogs[0]["end"])]
+
+
+def test_a_critic_fix_takes_the_illustration_label_with_the_picture():
+    shots = [{"index": 0, "beat_id": "B01", "start": 0.0, "end": 10.0, "kind": "image",
+              "asset_id": "VIS_000001", "path": "a.jpg", "role": "evidence"},
+             {"index": 1, "beat_id": "B01", "start": 10.0, "end": 18.0, "kind": "image",
+              "asset_id": "VIS_000002", "path": "b.jpg", "role": "illustration"}]
+    script = {"duration": 18.0, "language": "de", "shots": shots, "candidates": {},
+              "overlays": [{"kind": "label", "text": "Symbolbild", "start": 10.0, "end": 18.0}]}
+    apply_fixes(script, [{"shot": 1, "severity": "high", "fix": "keep_previous"}], {})
+    assert [s["asset_id"] for s in script["shots"]] == ["VIS_000001"]
+    assert not [o for o in script["overlays"] if o["kind"] == "label"]
