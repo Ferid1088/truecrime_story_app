@@ -847,3 +847,32 @@ Two levels (limits in `config/ai_config.json` → `concurrency`):
 7. `GET /api/cases/{case_id}/story/latest`
 
 خروجی آخر فقط متن داستان است.
+
+## Case naming, episode identity and thumbnails
+
+Design: `docs/Master_Task_Case_Naming_Identity.MD`.
+
+- **Public title** — `[Editorial Title] ([Localized Status]) | [Channel]`, e.g.
+  `Der verschwundene Kreis (Ungelöst) | Fallspur`. No episode number
+  (`include_episode_number`, `include_channel_suffix` in `video_identity`). Only
+  SOLVED / UNSOLVED have a public label; any other status has no public title.
+  The technical identity is `Case.case_uid` (`CASE_xxxxxx`); the internal
+  sequence stays on `EpisodeIdentity.episode_sequence`. A published title only
+  changes through an explicit revision.
+- **Naming** — `POST /api/cases/{id}/naming/generate` fills exactly 7 eligible
+  native candidates per language (EN/DE/FA/AR) or reports the shortfall.
+  Deterministic gates (length, generic, ALL CAPS, script, spoiler terms from the
+  blueprint's late reveals, accusation words unless the case is SOLVED), a
+  collision check against **stored** data only (cases, aliases, titles,
+  candidate history incl. rejected, research source and video titles; exact,
+  near and bge-m3 semantic against other cases) and LLM critics
+  (`case_naming_agent`, `case_title_critic`, `native_title_critic`). No search
+  backend is called. Uniqueness means "unique in our data and collected
+  research", not verified on the open internet. UI: case → **Naming**.
+- **Thumbnails** — `data/host/manifest.json` lists the approved Fereidoun cut-outs
+  per `outfit_id` (see `app/thumbnails/hosts.py`); the outfit must match the
+  video's. Only verified, rights-cleared, spoiler-free **real** pictures are
+  used; the composer draws host, one picture, the localized badge and optional
+  0–4 word text deterministically. The critic reports a scorecard and a human
+  approves. UI: case → **Thumbnail**.
+- **Live check** — `python -m scripts.case_naming_report <case_id> [--thumbnail de]`.
