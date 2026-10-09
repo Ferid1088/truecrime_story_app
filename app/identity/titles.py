@@ -41,8 +41,10 @@ def public_status(status: str | None) -> str | None:
 
 
 def channel(language: str) -> dict[str, str]:
-    cfg = ai_config.video_identity.channels
-    return cfg.get(language) or cfg["en"]
+    """{id, name} of the language's channel — from the central `channels`
+    config (the id is the language code)."""
+    lang = language if language in ai_config.channels else "en"
+    return {"id": lang, "name": ai_config.channels[lang].name}
 
 
 def status_label(status: str | None, language: str) -> str | None:

@@ -45,7 +45,7 @@ def test_exact_collision_with_internal_archived_and_production(db_session):
 
 def test_own_family_is_not_a_collision_but_own_research_title_is(db_session):
     me = _case(db_session, "Family subject")
-    db_session.add(EpisodeIdentity(case_id=me.id, language="de", channel_id="fallspur",
+    db_session.add(EpisodeIdentity(case_id=me.id, language="de", channel_id="de",
                                    editorial_title="Der verschwundene Kreis"))
     db_session.add(Source(case_id=me.id, title="Der leere Hof", url="http://x/1",
                           source_type="article", language="de"))
@@ -119,7 +119,7 @@ class FakeEmbedder:
 def test_multilingual_semantic_duplicate_detected_own_family_allowed(db_session):
     me = _case(db_session, "Semantic subject")
     other = _case(db_session, "The Empty House")
-    db_session.add(EpisodeIdentity(case_id=me.id, language="en", channel_id="cluevera",
+    db_session.add(EpisodeIdentity(case_id=me.id, language="en", channel_id="en",
                                    editorial_title="A Lantern In Celle"))
     db_session.commit()
     corpus = get_corpus(db_session)

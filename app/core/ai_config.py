@@ -1648,15 +1648,9 @@ class CaseMonitorConfig(BaseModel):
 
 
 class VideoIdentityConfig(BaseModel):
-    """Public identity of an episode: channels, status words and the
-    YouTube title shape — defined once, read everywhere."""
+    """Public identity of an episode: status words and the YouTube title
+    shape. The channel names live in `channels` (one place per fact)."""
 
-    channels: dict[str, dict[str, str]] = Field(default_factory=lambda: {
-        "en": {"id": "cluevera", "name": "ClueVera"},
-        "de": {"id": "fallspur", "name": "Fallspur"},
-        "fa": {"id": "rad_khamoosh", "name": "رد خاموش"},
-        "ar": {"id": "athar_khafi", "name": "أثر خفي"},
-    })
     # Public words for the only two statuses shown to the audience.
     status_labels: dict[str, dict[str, str]] = Field(default_factory=lambda: {
         "en": {"solved": "Solved", "unsolved": "Unsolved"},

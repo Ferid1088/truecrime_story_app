@@ -46,7 +46,7 @@ Everything in `Master_Task_Case_Lifecycle.MD` §1 applies, plus:
 | `case_resolution_status` | `Case.resolution_status` (`SOLVED, UNSOLVED, UNKNOWN, STATUS_UNDER_REVIEW`), `CaseStatusHistory` (confidence, sources, who, why) | Keep. `partially_solved`, `officially_closed`, `disputed_resolution` all map to `STATUS_UNDER_REVIEW`; only SOLVED/UNSOLVED are public. Provenance = latest history row. |
 | Resolution from research | `lifecycle/status.py`, `monitor.py` (`case_status_verifier`) | Naming reads it, never sets it. |
 | `case_uid` | — | **new** `Case.case_uid` (`CASE_xxxxxx`), backfilled. |
-| Channels | — (none central) | **new** `video_identity.channels` in `ai_config.json`. |
+| Channels | `ai_config.channels` (name per language, studio, logo) | reuse; channel id = language code. |
 | Localized labels | `youtube_metadata.status_labels` (on-screen cards) | **new** `video_identity.status_labels` (public SOLVED/UNSOLVED words). |
 | `episode_sequence` | `Video.episode_number` | stays internal; never in public titles. |
 | YouTube title | `lifecycle/videos.py:youtube_title` (`UNSOLVED:` prefix) | replaced for original films by the builder; follow-up titles unchanged. |

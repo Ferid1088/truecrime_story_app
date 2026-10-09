@@ -388,7 +388,7 @@ const namingLang = (language: string, titles: string[], ytitle: string | null) =
   target: 7,
   short_by: Math.max(7 - titles.length, 0),
   identity: ytitle
-    ? { id: 1, case_uid: "CASE_8f21c7", episode_sequence: 273, channel_id: "cluevera", language,
+    ? { id: 1, case_uid: "CASE_8f21c7", episode_sequence: 273, channel_id: "en", language,
         editorial_title: titles[0], resolution_status: "UNSOLVED", resolution_label: "Unsolved",
         youtube_title: ytitle, title_family_id: "TF_1", thumbnail_status_label: "Unsolved",
         published: false, published_title: null, title_version: 1 }

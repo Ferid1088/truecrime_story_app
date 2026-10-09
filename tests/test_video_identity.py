@@ -103,7 +103,7 @@ def test_identity_keeps_sequence_internal_and_locks_after_publish(db_session):
     assert ident.episode_sequence == 273
     assert ident.youtube_title == "Der verschwundene Kreis (Ungelöst) | Fallspur"
     assert "273" not in ident.youtube_title
-    assert ident.channel_id == "fallspur" and ident.case_uid == case.case_uid
+    assert ident.channel_id == "de" and ident.case_uid == case.case_uid
     ident.editorial_title = "Der leere Kreis"      # free until published
     T.sync_identity(db_session, case, "de", title="Der leere Kreis")
     T.mark_published(db_session, ident)

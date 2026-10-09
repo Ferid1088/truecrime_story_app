@@ -340,9 +340,8 @@ def case_identity(case_id: int, db: Session = Depends(get_db)):
     from app.identity import titles as T
 
     case = _case(db, case_id)
-    cfg = ai_config.video_identity
     out = {}
-    for lang in cfg.channels:
+    for lang in ai_config.channels:
         ident = T.get_identity(db, case.id, lang)
         out[lang] = (T.identity_dict(ident) if ident else {
             "language": lang, "channel_id": T.channel(lang)["id"], "case_uid": case.case_uid,
