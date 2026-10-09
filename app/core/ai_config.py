@@ -1666,6 +1666,27 @@ class VideoIdentityConfig(BaseModel):
     max_title_chars: int = Field(default=100, ge=30)
 
 
+class CaseNamingConfig(BaseModel):
+    """Title naming: counts, length and collision thresholds. Collision
+    checks read stored data only — no search backend is ever called."""
+
+    candidates_per_language: int = Field(default=7, ge=1)
+    max_rounds: int = Field(default=4, ge=1)
+    max_words: int = Field(default=6, ge=2)
+    preferred_words: tuple[int, int] = (2, 5)
+    # lexical (rapidfuzz 0-100) — a candidate this close to a stored title is rejected
+    near_token_threshold: float = Field(default=88.0, ge=0, le=100)
+    near_char_threshold: float = Field(default=90.0, ge=0, le=100)
+    # bge-m3 cosine against other cases' titles; calibrate on real data
+    semantic_threshold: float = Field(default=0.82, ge=0, le=1)
+    semantic_enabled: bool = True
+    semantic_max_entries: int = Field(default=3000, ge=1)
+    # corpus kinds the semantic check compares against
+    semantic_kinds: list[str] = ["case_title", "episode_title", "video_title", "candidate",
+                                 "discovery_title"]
+    bm25_prefilter: int = Field(default=40, ge=1)
+
+
 class YouTubeMetadataConfig(BaseModel):
     """Deterministic title rules: an unsolved case and a follow-up are
     recognisable from the title alone, in every language."""
@@ -1887,6 +1908,7 @@ class AIConfig(BaseModel):
     case_monitor: CaseMonitorConfig = Field(default_factory=CaseMonitorConfig)
     youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
     video_identity: VideoIdentityConfig = Field(default_factory=VideoIdentityConfig)
+    case_naming: CaseNamingConfig = Field(default_factory=CaseNamingConfig)
     opening: OpeningConfig = Field(default_factory=OpeningConfig)
     visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)
     footage: FootageConfig = Field(default_factory=FootageConfig)

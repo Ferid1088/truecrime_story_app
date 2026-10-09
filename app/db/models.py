@@ -1210,3 +1210,37 @@ class EpisodeIdentity(Base):
     title_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class CaseTitleCandidate(Base):
+    """One proposed editorial title for a case in one language. Rejected
+    candidates are kept so the same title is never proposed again."""
+
+    __tablename__ = "case_title_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    title_norm: Mapped[str] = mapped_column(String(300), index=True)
+    title_family_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    editorial_concept: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generation_round: Mapped[int] = mapped_column(Integer, default=1)
+    # candidate | selected | rejected
+    status: Mapped[str] = mapped_column(String(20), default="candidate", index=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exact_collision: Mapped[bool] = mapped_column(Boolean, default=False)
+    near_collision_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    semantic_collision_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    collision_with: Mapped[str | None] = mapped_column(Text, nullable=True)
+    memorability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    curiosity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    specificity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    brevity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sensationalism_risk: Mapped[float | None] = mapped_column(Float, nullable=True)
+    spoiler_risk: Mapped[float | None] = mapped_column(Float, nullable=True)
+    epistemic_risk: Mapped[float | None] = mapped_column(Float, nullable=True)
+    critic_json: Mapped[str] = mapped_column(Text, default="{}")
+    # generated | manual
+    origin: Mapped[str] = mapped_column(String(20), default="generated")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

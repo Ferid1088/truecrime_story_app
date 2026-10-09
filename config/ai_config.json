@@ -1970,5 +1970,27 @@
     "include_channel_suffix": true,
     "include_episode_number": false,
     "max_title_chars": 100
+  },
+  "case_naming": {
+    "candidates_per_language": 7,
+    "max_rounds": 4,
+    "max_words": 6,
+    "preferred_words": [
+      2,
+      5
+    ],
+    "near_token_threshold": 88.0,
+    "near_char_threshold": 90.0,
+    "semantic_threshold": 0.82,
+    "semantic_enabled": true,
+    "semantic_max_entries": 3000,
+    "semantic_kinds": [
+      "case_title",
+      "episode_title",
+      "video_title",
+      "candidate",
+      "discovery_title"
+    ],
+    "bm25_prefilter": 40
   }
 }
