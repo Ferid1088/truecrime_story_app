@@ -31,7 +31,7 @@ def _gen():
 
 
 def _embedder():
-    """The existing bge-m3 client, or None (lexical checks still run)."""
+    """The existing embedding-model client, or None (lexical checks still run)."""
     try:
         from app.providers import get_research_provider
 

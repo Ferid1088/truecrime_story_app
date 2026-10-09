@@ -1680,7 +1680,7 @@ class CaseNamingConfig(BaseModel):
     # lexical (rapidfuzz 0-100) — a candidate this close to a stored title is rejected
     near_token_threshold: float = Field(default=88.0, ge=0, le=100)
     near_char_threshold: float = Field(default=90.0, ge=0, le=100)
-    # bge-m3 cosine against other cases' titles; calibrate on real data
+    # embedding-model cosine against other cases' titles; calibrate on real data
     semantic_threshold: float = Field(default=0.82, ge=0, le=1)
     semantic_enabled: bool = True
     semantic_max_entries: int = Field(default=3000, ge=1)

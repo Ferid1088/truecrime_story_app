@@ -1,6 +1,6 @@
 """Collision check of a title candidate against the stored corpus.
 
-Exact (normalized), near (lexical + character) and semantic (bge-m3,
+Exact (normalized), near (lexical + character) and semantic (embedding-model,
 other cases only). No search backend and no web access: the only
 outside call is the embedding of the candidate itself, plus corpus
 titles that are not cached yet, through the existing embedding client.
