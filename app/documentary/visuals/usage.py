@@ -254,6 +254,10 @@ class UsageTracker:
         n = self.appearances(code)
         if n == 0 or self.continues(code, start):
             return True, ""
+        if self.fact(code).get("type") == "video":
+            # a cut of a video is shown once in a film — never again,
+            # whatever the sentence names
+            return False, "this video cut was already shown (a cut is used only once)"
         cat, lim = self.category(code), self.limit(code)
         if n + 1 > lim:
             return False, f"{cat} picture already shown {n}x (limit {lim})"

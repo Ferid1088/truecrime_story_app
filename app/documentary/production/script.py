@@ -676,7 +676,9 @@ def status_overlays(case_status: str | None, production_type: str | None,
 def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             texts: dict[str, str], language: str, incident_beat: str | None = None, *,
             case_status: str | None = None, production_type: str | None = "original",
-            opening_strategy: str | None = None, arrest_beat: str | None = None) -> dict:
+            opening_strategy: str | None = None, arrest_beat: str | None = None,
+            reveal_blocks: dict[str, list[str]] | None = None,
+            cards: dict | None = None) -> dict:
     """Pure function: manifest (audio timeline) + visual plan + localized
     texts -> production timeline. `incident_beat`: where the story's first
     incident happens (voice performance arc) — no investigation pictures
@@ -725,7 +727,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     order = [s["beat_id"] for s in spans]
     before_incident = SP.beats_before(order, incident_beat)
     # what the director's own pictures may not show (incident, arrest)
-    planfw = SP.Firewall(before_incident, SP.beats_before(order, arrest_beat))
+    # (and the claim firewall: no picture showing a fact the story reveals
+    # only later — reveal_blocks: beat -> fact ids)
+    planfw = SP.Firewall(before_incident, SP.beats_before(order, arrest_beat), reveal_blocks)
 
     for i, span in enumerate(spans):
         w_start = 0.0 if i == 0 else span["start"]
@@ -852,7 +856,17 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                                           "transition_in", "beat_id", "why", "fill_reason",
                                           "repeat_reason", "repeat_justified")})
                 if shot.get("kind") == "video":
-                    shot.update({"command": "SHOW_CLIP", "motion": "NONE"})
+                    # the clip plays on from where the previous shot left
+                    # it — the same footage is never played twice
+                    played = float(current["end"]) - float(current["start"])
+                    lo = float(current.get("clip_start") or 0.0)
+                    hi = current.get("clip_end")
+                    at = lo + played
+                    if hi is not None:
+                        at = min(at, max(float(hi) - 0.05, lo))
+                    shot.update({"command": "SHOW_CLIP", "motion": "NONE",
+                                 "clip_start": round(at, 3)})
+                    current = shot
                 else:
                     shot["motion"] = "CROP_FOCUS"
                 if shot.get("asset_id"):
@@ -909,7 +923,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     # investigation before the incident — nor during the incident beat,
     # where the story is still before the moment it happens
     guard = SP.Firewall(before_incident | ({incident_beat} if incident_beat in order else set()),
-                        planfw.custody)
+                        planfw.custody, reveal_blocks)
     # the whole film at once: a fill never takes a picture shown later
     tracker = UsageTracker.from_shots(shots, facts)
     shots = _clip_overruns(shots, plan, assets, order, guard, tracker, named_sents, starts)
@@ -960,8 +974,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         "candidates": cands,
         "sentence_entities": named_sents,
         # beats where investigation / custody pictures would give the story away
-        "firewall": {"investigation": sorted(guard.investigation),
-                     "custody": sorted(guard.custody)},
+        "firewall": guard.as_json(),
     }
 
 
@@ -1037,6 +1050,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
                      arrest_beat=SP.arrest_beat(blueprint),
+                     reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),
                      production_type=production_type or "original", opening_strategy=opening)
     film_key = film_key_of(plan_row, manifest)

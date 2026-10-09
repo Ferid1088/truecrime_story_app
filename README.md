@@ -655,6 +655,23 @@ shows fits the sentence, never just to fill time — and before render the
 video auditor judges the piece against the exact sentences again: every
 frame must fit.
 
+**Story order — no spoilers.** A picture or a piece is chosen by the
+story so far, not only by the sentence. The director gets `story_reveals`
+(which beat reveals what) and may show nothing a later beat reveals — not
+in one frame of a clip. Compose and every fill keep the claim firewall
+(`spoilers.reveal_blocks`: per beat, the facts revealed only later; a
+picture whose vision check found such a fact is never shown before its
+beat — `script.firewall.reveals`). Before render both auditors judge each
+picture/piece at its point in the story (`spoilers.story_point`:
+`told_so_far`, `told_later`; an unsolved case may suggest no solution)
+and reject it with `spoiler_free: false` — also during a pause without
+words. Verdicts are stored per picture, words **and** story point.
+
+**A cut is used once.** A video piece appears in one shot of the film and
+never again (`UsageTracker.allows`), whatever the sentence names; a
+reframe of a playing clip plays on from where it was, it never replays
+the same footage; overlapping pieces of one video never both appear.
+
 Host time is capped at `host.max_total_seconds` (180 s) per film.
 
 ### Pronunciation check (Persian)

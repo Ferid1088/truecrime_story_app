@@ -41,7 +41,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, ProductionScript, VisualAsset, VisualAudit, VisualPlan
+from app.db.models import (
+    Case,
+    EditorialBlueprint,
+    ProductionScript,
+    VisualAsset,
+    VisualAudit,
+    VisualPlan,
+)
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
@@ -79,7 +86,17 @@ Reject when any of these is true:
 - it contradicts the words (wrong season, place, period, number of
   people/animals, day vs night when the words say night)
 - watermark, logos, burned-in text, gore, injuries, bodies
+- STORY ORDER: it gives away what the story has not told yet. "story"
+  says what the viewer has been told so far (told_so_far) and what the
+  film reveals only LATER (told_later): the picture may show or suggest
+  nothing of told_later (an arrest, a suspect presented as the culprit,
+  a body or a find, a court, the outcome, the answer to an open
+  question) — however well it fits the words. An UNSOLVED case: nothing
+  may suggest a solution. Then spoiler_free is false.
 - (clip) any of the three frames fails the above
+
+No narration (an empty list) means a pause in the film: judge only story
+order, tone and content, and give fits_words 1.0.
 
 Approve with "as":
 - "evidence": the case's own person/place/thing/document
@@ -93,7 +110,7 @@ fits_words: 0–1, how well the picture fits these exact words.
 Return JSON only:
 {"verdict": "approved", "as": "evidence", "fits_words": 0.9,
  "specific_kind_ok": true, "tone_ok": true, "person_ok": true,
- "depicts": "...", "reasons": ["..."]}
+ "spoiler_free": true, "depicts": "...", "reasons": ["..."]}
 """
 
 AUDITED_KINDS = ("image", "video")
@@ -126,8 +143,12 @@ def shot_sentences(shot: dict, spans: list[dict], texts: dict) -> list[str]:
     return out
 
 
-def audit_key(asset: VisualAsset, sentences: list[str]) -> str:
-    payload = json.dumps([asset.asset_code, asset.sha256 or "", sentences], ensure_ascii=False)
+def audit_key(asset: VisualAsset, sentences: list[str], story: dict | None = None) -> str:
+    """One verdict per picture (its exact file, for a piece its window),
+    words and point in the story (what is still to be revealed)."""
+    window = [asset.clip_start, asset.clip_end] if asset.asset_type == "video" else None
+    payload = json.dumps([asset.asset_code, asset.sha256 or "", sentences,
+                          (story or {}).get("told_later") or [], window], ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -145,7 +166,8 @@ def decide(v: dict) -> tuple[str, str | None, list[str]]:
         problems.append("auditor rejected it")
     for flag, why in (("specific_kind_ok", "not the specific kind of thing named"),
                       ("tone_ok", "tone clashes with the narration"),
-                      ("person_ok", "not clearly the person named")):
+                      ("person_ok", "not clearly the person named"),
+                      ("spoiler_free", "gives away what the story tells only later")):
         if v.get(flag) is False:
             problems.append(why)
     if fit < ai_config.visual_audit.min_fit:
@@ -172,8 +194,8 @@ class VisualAuditor:
         self._video = video  # the video auditor (frame by frame) for clips
 
     async def verdict(self, db: Session, case: Case, asset: VisualAsset,
-                      sentences: list[str]) -> VisualAudit:
-        key = audit_key(asset, sentences)
+                      sentences: list[str], story: dict | None = None) -> VisualAudit:
+        key = audit_key(asset, sentences, story)
         row = db.query(VisualAudit).filter(VisualAudit.key == key).first()
         if row is not None:
             return row
@@ -182,13 +204,15 @@ class VisualAuditor:
             from app.documentary.visuals.video_auditor import VideoAuditor
 
             self._video = self._video or VideoAuditor(gen=self.gen)
-            v, res = await self._video.placement(db, case, asset, sentences)
+            v, res = await self._video.placement(db, case, asset, sentences, story)
             return self._store(db, case, asset, key, sentences, v, res)
         thumb = _picture(asset)
         payload = {
             "case": case.canonical_title,
+            "case_status": getattr(case, "resolution_status", None) or "UNKNOWN",
             "media": "photo",
             "narration_while_on_screen": sentences,
+            "story": story or {},
             "what_the_picture_is_claimed_to_be": {
                 "title": asset.title, "caption": asset.caption,
                 "found_for": asset.found_for, "source": asset.source_name,
@@ -221,9 +245,12 @@ class VisualAuditor:
         return row
 
     async def check(self, db: Session, case: Case, asset: VisualAsset,
-                    sentences: list[str]) -> tuple[str, str | None, list[str]]:
-        """(verdict, shown_as, reasons) for one placement — asset
-        verification first, then the auditor."""
+                    sentences: list[str], story: dict | None = None,
+                    firewall: SP.Firewall | None = None
+                    ) -> tuple[str, str | None, list[str]]:
+        """(verdict, shown_as, reasons) for one placement at one point of
+        the story — asset verification first, the deterministic spoiler
+        firewall, then the auditor."""
         if asset.verification_status == "unverified" and self._verify is not None:
             try:
                 await self._verify(db, case, [asset])
@@ -234,11 +261,15 @@ class VisualAuditor:
             return "rejected", None, [f"picture not verified ({asset.verification_status})"]
         if not R.allowed(asset.rights_status):
             return "rejected", None, [f"rights do not allow it ({asset.rights_status})"]
-        if not sentences:
-            # nothing is spoken over it (a pause): the asset check is enough
+        early = firewall.why((story or {}).get("beat"), asset) if firewall else None
+        if early:
+            return "rejected", None, [early]
+        if not sentences and not (story or {}).get("told_later"):
+            # nothing is spoken over it and nothing is still to be revealed
             return "approved", ("symbolic" if asset.asset_role == "illustration"
                                 else asset.asset_role), ["no words over this shot"]
-        row = await self.verdict(db, case, asset, sentences)
+        # (a pause before a later reveal is still checked for spoilers)
+        row = await self.verdict(db, case, asset, sentences, story)
         return row.verdict, row.shown_as, _loads(row.reasons_json, [])
 
 
@@ -254,7 +285,7 @@ def _replacement_pool(script: dict, shot: dict, assets: dict[str, VisualAsset],
     shot is on screen — photos and clips only, rights allowed, never
     beyond the reveal firewall."""
     fwj = script.get("firewall") or {}
-    fw = SP.Firewall(set(fwj.get("investigation") or ()), set(fwj.get("custody") or ()))
+    fw = SP.Firewall.from_json(fwj)
     beat = shot.get("beat_id")
     names = named_between(sentence_entities, shot["start"], shot["end"])
     pool = list((script.get("candidates") or {}).get(beat) or [])
@@ -339,6 +370,12 @@ async def audit_script(db: Session, row: ProductionScript, auditor: VisualAudito
     approved script back and the report to row.audit_json."""
     case = db.get(Case, row.case_id)
     script = _loads(row.script_json, {})
+    bp_row = db.get(EditorialBlueprint, row.blueprint_id) if row.blueprint_id else None
+    blueprint = _loads(bp_row.blueprint_json, {}) if bp_row else {}
+    firewall = SP.Firewall.from_json(script.get("firewall"))
+    if not firewall.reveals:  # scripts composed before the claim firewall
+        firewall.reveals = {b: set(v) for b, v in SP.reveal_blocks(blueprint).items()}
+        script["firewall"] = firewall.as_json()
     plan_row = db.get(VisualPlan, row.visual_plan_id) if row.visual_plan_id else None
     plan = _loads(plan_row.plan_json, {}) if plan_row else {}
     texts = plan_sentences(plan)
@@ -359,6 +396,7 @@ async def audit_script(db: Session, row: ProductionScript, auditor: VisualAudito
             i += 1
             continue
         sentences = shot_sentences(s, spans, texts)
+        story = SP.story_point(blueprint, s.get("beat_id"))
         tries = 0
         approved = False
         while True:
@@ -366,7 +404,8 @@ async def audit_script(db: Session, row: ProductionScript, auditor: VisualAudito
             if a is None:
                 verdict, shown_as, reasons = "rejected", None, ["unknown picture"]
             else:
-                verdict, shown_as, reasons = await auditor.check(db, case, a, sentences)
+                verdict, shown_as, reasons = await auditor.check(db, case, a, sentences,
+                                                                 story, firewall)
             report["audited"] += 1
             s["audit"] = {"verdict": verdict, "as": shown_as, "reasons": reasons[:4],
                           "sentences": sentences, "try": tries}
@@ -406,9 +445,11 @@ async def audit_script(db: Session, row: ProductionScript, auditor: VisualAudito
         what = None
         for label, nb, start, end in _leave_out_options(shots, i):
             if nb.get("kind") in AUDITED_KINDS and nb.get("asset_id") in assets:
+                # the neighbour now also runs at this point of the story
                 v2, _as, _why = await auditor.check(
                     db, case, assets[nb["asset_id"]],
-                    shot_sentences({"start": start, "end": end}, spans, texts))
+                    shot_sentences({"start": start, "end": end}, spans, texts),
+                    SP.story_point(blueprint, s.get("beat_id")), firewall)
                 report["audited"] += 1
                 if v2 != "approved":
                     continue

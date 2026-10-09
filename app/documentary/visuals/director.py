@@ -170,6 +170,17 @@ Rules:
 - BLACK_SCREEN is a short pause (one sentence), never a whole beat.
 - Do not show the investigation (searches, police, rescue teams) before
   the story has told that something happened.
+- STORY ORDER — no spoilers: choose by the story so far, not only by the
+  sentence. The viewer knows only what the narration has told up to this
+  beat. story_reveals lists, by beat, what the film reveals and where: a
+  picture or a video piece may show NOTHING a later beat reveals — not
+  the arrest, the culprit, the body or the find, the court, the outcome,
+  the answer to an open question — not even in one frame of a clip.
+  Judge a video piece by its name and description ("shows") AND by where
+  we are in the story; a piece that would give a later reveal away is
+  not allowed yet, however well it fits the words.
+- A video piece (a cut) is shown ONCE in the film: never choose a piece
+  whose used is 1 or more.
 - case_status UNSOLVED: nothing may suggest a solution (no picture
   presented as the culprit).
 
@@ -850,6 +861,7 @@ def _candidate_view(sc: float, a: VisualAsset, used: Counter) -> dict:
         hi = a.clip_end if a.clip_end is not None else a.duration_seconds
         view["seconds"] = round((hi or 0) - lo, 1) if hi else None
         view["name"] = (a.title or "")[:80]
+        view["max_uses"] = 1  # a cut is shown once
     return view
 
 
@@ -1066,6 +1078,11 @@ class VisualDirector:
             "opening": {"strategy": strategy, "reason": opening.get("reason"),
                         "guidance": OPENING_VISUALS.get(strategy or "")},
             "openers": opening_beats(blueprint),
+            "story_reveals": [
+                {"beat_id": b["id"], "purpose": b.get("purpose"),
+                 "reveals": str(b.get("summary") or "")[:200]}
+                for b in blueprint.get("beats") or []
+                if b.get("purpose") in set(ai_config.attention.firewall_purposes)],
             "case_status": getattr(case, "resolution_status", None) or "UNKNOWN",
         }
 
@@ -1077,6 +1094,8 @@ class VisualDirector:
             "case_status": ctx["case_status"],
             "opening": ctx["opening"],
             "places_already_mapped": mapped,
+            # what the film reveals where (no picture may give it away earlier)
+            "story_reveals": ctx.get("story_reveals") or [],
             "previous_beat": ({"beat_id": prev["id"], "summary": prev.get("summary"),
                                "visual_intent": prev.get("visual_intent")} if prev else None),
             "beats": [_beat_view(b, ctx["reqs"].get(b["id"], {}), ctx["cands"].get(b["id"], []),

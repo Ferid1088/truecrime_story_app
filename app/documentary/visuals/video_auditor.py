@@ -83,6 +83,18 @@ look clashes with the seriousness (sentimental, funny, stock, advert);
 it contradicts the words (night vs day, season, place, period, number of
 people); gore or injuries in any frame.
 
+STORY ORDER — reject when the piece gives away what the story has not
+told yet. "story" says what the viewer has been told so far
+(told_so_far) and what the film reveals only LATER (told_later): no
+frame may show or suggest anything of told_later (an arrest, a suspect
+presented as the culprit, a body or a find, a court, the outcome, the
+answer to an open question) — however well it fits the words. When the
+case is UNSOLVED, nothing may suggest a solution. spoiler_free: false
+when any frame does.
+
+No narration (an empty list) means a pause in the film: judge only story
+order, tone and content, and give fits_words 1.0.
+
 Approve with "as": "evidence" (the case's own footage), "context" (the
 real place / real related event), "symbolic" (an accurate, serious
 depiction of exactly the kind of thing named — it will be labelled).
@@ -90,7 +102,8 @@ depiction of exactly the kind of thing named — it will be labelled).
 Return JSON only:
 {"verdict": "approved", "as": "context", "fits_words": 0.9,
  "specific_kind_ok": true, "tone_ok": true, "person_ok": true,
- "every_frame_ok": true, "problem_frames": [], "reasons": ["..."]}
+ "spoiler_free": true, "every_frame_ok": true, "problem_frames": [],
+ "reasons": ["..."]}
 """
 
 
@@ -315,14 +328,18 @@ class VideoAuditor:
         return True
 
     async def placement(self, db: Session, case: Case, asset: VisualAsset,
-                        sentences: list[str]) -> tuple[dict, object]:
-        """The raw verdict for one piece under these words (the caller
-        decides and stores it — same rules as the picture auditor)."""
+                        sentences: list[str], story: dict | None = None
+                        ) -> tuple[dict, object]:
+        """The raw verdict for one piece under these words at this point
+        of the story (the caller decides and stores it — same rules as the
+        picture auditor)."""
         frames = self._frames(asset)
         payload = {
             "case": case.canonical_title,
+            "case_status": getattr(case, "resolution_status", None) or "UNKNOWN",
             "frames": f"{len(frames)} frames in order, first to last",
             "narration_while_on_screen": sentences,
+            "story": story or {},
             "what_the_piece_is_claimed_to_be": {
                 "title": asset.title, "description": asset.description,
                 "found_for": asset.found_for, "role": asset.asset_role},

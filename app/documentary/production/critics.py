@@ -345,7 +345,7 @@ def _replace(shots: list[dict], i: int, script: dict | None = None,
     pool = list((script or {}).get("candidates", {}).get(s.get("beat_id"), [])) + list(alts)
     assets = assets or {}
     fwj = (script or {}).get("firewall") or {}
-    fw = SP.Firewall(set(fwj.get("investigation") or ()), set(fwj.get("custody") or ()))
+    fw = SP.Firewall.from_json(fwj)
     pool = [c for c in dict.fromkeys(pool)
             if (c in alts and c not in assets)
             or (c in assets and assets[c].asset_type == "photo"
