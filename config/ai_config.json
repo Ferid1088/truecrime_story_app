@@ -113,7 +113,9 @@
         "host_critic": "writer",
         "visual_auditor": "writer",
         "video_auditor": "writer",
-        "video_segmenter": "premium"
+        "video_segmenter": "premium",
+        "chapter_writer": "premium",
+        "chapter_auditor": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -376,6 +378,14 @@
     "video_segmenter": {
       "temperature": 0.1,
       "max_tokens": 6000
+    },
+    "chapter_writer": {
+      "temperature": 0.4,
+      "max_tokens": 12000
+    },
+    "chapter_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 8000
     }
   },
   "search_engine": {
@@ -739,6 +749,16 @@
         ],
         "reviewers": [
           "video_auditor"
+        ],
+        "strict": true
+      },
+      {
+        "name": "documentary_cards",
+        "authors": [
+          "chapter_writer"
+        ],
+        "reviewers": [
+          "chapter_auditor"
         ],
         "strict": true
       }
@@ -1884,5 +1904,17 @@
     "frames_per_second": 1.0,
     "max_frames": 20,
     "frame_width": 384
+  },
+  "chapters": {
+    "enabled": true,
+    "title_card": true,
+    "card_seconds": 4.5,
+    "min_card_seconds": 3.0,
+    "lead_out_seconds": 0.4,
+    "max_title_chars": 48,
+    "max_label_chars": 48,
+    "max_timeline_events": 9,
+    "max_labelled_events": 24,
+    "timeline_move_seconds": 1.2
   }
 }

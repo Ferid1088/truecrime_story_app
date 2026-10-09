@@ -30,6 +30,13 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 from app.core.ai_config import ai_config
 from app.documentary import storage
+from app.documentary.render.cards import (
+    CARD_KINDS,
+    TimelineCard,
+    chapter_image,
+    push,
+    title_image,
+)
 from app.documentary.visuals.typography import overlay as text_layer
 
 MARGIN = 1.16          # canvas headroom for camera moves
@@ -268,9 +275,12 @@ class FrameMaker:
         self.black = np.full((H, W, 3), BLACK, np.uint8)
         self._parallax: dict = {}
         self._clips: dict[tuple[str, float], ClipReader] = {}
+        self._cards: dict = {}
 
     def shot_frame(self, shot: dict, t: float) -> np.ndarray:
         kind = shot.get("kind")
+        if kind in CARD_KINDS:
+            return self._card_frame(shot, t)
         if kind == "black" or not shot.get("path"):
             return self.black
         if kind == "video" or (kind in ("image", None) and is_video_path(shot["path"])):
@@ -298,6 +308,27 @@ class FrameMaker:
         if shot.get("motion") == "DOCUMENT_HIGHLIGHT":
             frame = self._dim_outside(frame, shot, p, z, vx, vy, cw, ch)
         return frame
+
+    def _card_frame(self, shot: dict, t: float) -> np.ndarray:
+        """Chapter / title / timeline card (drawn once, then moved)."""
+        key = (shot.get("kind"), float(shot["start"]))
+        lang = self.script.get("language") or "en"
+        card = self._cards.get(key)
+        if card is None:
+            info = shot.get("card") or {}
+            if shot["kind"] == "timeline":
+                card = TimelineCard(shot, lang, self.W, self.H)
+            elif shot["kind"] == "title":
+                card = title_image(info.get("title") or "", lang, self.W, self.H)
+            else:
+                card = chapter_image(info.get("label") or "", info.get("title"), lang,
+                                     self.W, self.H)
+            self._cards[key] = card
+        length = max(shot["end"] - shot["start"], 0.1)
+        since = max(t - shot["start"], 0.0)
+        if isinstance(card, TimelineCard):
+            return card.frame(since, since / length)
+        return push(card, since / length)
 
     def _video_frame(self, shot: dict, t: float) -> np.ndarray:
         """The clip's frame at clip_start + (t - shot start), the last

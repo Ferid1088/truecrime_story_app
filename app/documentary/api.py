@@ -782,6 +782,23 @@ def music_file(cue_id: str, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/api/cases/{case_id}/documentary/chapters")
+def get_chapters(case_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
+    """The approved chapter titles, film title and timeline labels (all
+    languages) with the auditor's rounds and what was left out."""
+    from app.documentary.chapters import latest_chapter_plan
+
+    _case(db, case_id)
+    bp = latest_blueprint(db, _pick_master(db, case_id, version_id).id)
+    row = latest_chapter_plan(db, bp.id) if bp else None
+    if not row:
+        raise HTTPException(status_code=404, detail="No chapters yet.")
+    return {"id": row.id, "version": row.version, "status": row.status,
+            "blueprint_id": row.blueprint_id, "languages": _loads(row.languages_json, []),
+            "plan": _loads(row.plan_json, {}), "audit": _loads(row.audit_json, {}),
+            "created_at": row.created_at}
+
+
 @router.get("/api/cases/{case_id}/documentary/host-plan")
 def get_host_plan(case_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
     from app.documentary.host import host_plan_dict, latest_host_plan

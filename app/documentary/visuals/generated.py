@@ -199,6 +199,10 @@ def attach_overlays(plan: dict, requirements: dict) -> dict:
                                 "fact_id": req["quote"]["fact_id"]}
             elif cmd == "SHOW_DATE" and req.get("date_text"):
                 s["overlay"] = {"kind": "date", "text_en": req["date_text"]}
+            elif cmd == "SHOW_TIMELINE" and req.get("timeline_event"):
+                s["event"] = req["timeline_event"]["id"]
+                if req.get("date_text"):  # (a date over the picture if the card is lost)
+                    s["overlay"] = {"kind": "date", "text_en": req["date_text"]}
     return plan
 
 

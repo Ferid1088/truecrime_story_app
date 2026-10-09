@@ -45,6 +45,7 @@ import type {
   DocumentaryScheduler,
   DocumentarySettings,
   HostScene,
+  ChapterPlanRecord,
   StudioPatch,
   StudiosResponse,
   StudioValidation,
@@ -384,6 +385,13 @@ export const api = {
   syncStudios: () =>
     post<{ changed: { id: string }[]; validation: Record<string, StudioValidation> }>(
       "/api/studios/sync",
+    ),
+  /** Chapter titles, film title and timeline labels (null before the first run). */
+  chapters: (caseId: number, versionId?: number | null) =>
+    nullIfNotFound(
+      request<ChapterPlanRecord>(
+        `/api/cases/${caseId}/documentary/chapters${query({ version_id: versionId ?? undefined })}`,
+      ),
     ),
   hostScenes: (params: { case_id?: number; language?: string } = {}) =>
     request<HostScene[]>(`/api/host-scenes${query(params)}`),

@@ -312,6 +312,16 @@ def describe_cut(script: dict, assets: dict[str, VisualAsset], words: list[dict]
     for s in script.get("shots") or []:
         a = assets.get(s.get("asset_id") or "")
         what = {"black": "black frame", "map": "map"}.get(s.get("kind"), None)
+        card = s.get("card") or {}
+        if s.get("kind") == "chapter":
+            what = f"chapter card: {card.get('label')}" + (
+                f" — {card['title']}" if card.get("title") else "")
+        elif s.get("kind") == "title":
+            what = f"title card: {card.get('title')}"
+        elif s.get("kind") == "timeline":
+            tl = s.get("timeline") or {}
+            what = f"timeline card: {tl.get('date')}" + (
+                f" — {tl['label']}" if tl.get("label") else "")
         if what is None:
             what = (a.description or a.caption or a.title) if a else s.get("kind")
         role = a.asset_role if a else "-"
@@ -402,6 +412,9 @@ def apply_fixes(script: dict, problems: list[dict],
             continue
         s = by_index.get(p["shot"])
         if s is None or p["shot"] in seen or s not in shots:
+            continue
+        if s.get("kind") in ("chapter", "title", "timeline"):
+            # cards were approved by their own auditor and sit in their gap
             continue
         seen.add(p["shot"])
         fix = p.get("fix")

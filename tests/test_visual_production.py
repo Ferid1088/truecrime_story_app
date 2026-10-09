@@ -473,6 +473,20 @@ class PipelineGen:
             data = json.loads(user)
             return {"texts": {k: f"{v} ({data['language']})" for k, v in data["texts"].items()}}, \
                 self._res(role)
+        if role == "chapter_writer":
+            data = json.loads(user)
+            langs = data["languages"]
+            return {"film_title": {lg: f"The farmhouse ({lg})" for lg in langs},
+                    "chapters": [{"act_id": c["act_id"],
+                                  "title": {lg: f"Part {c['number']} ({lg})" for lg in langs}}
+                                 for c in data["chapters"]],
+                    "events": [{"id": e["id"], "label": {lg: f"Event {e['id']} ({lg})"
+                                                         for lg in langs}}
+                               for e in data["events"]]}, self._res(role)
+        if role == "chapter_auditor":
+            data = json.loads(user)
+            self.cards_audited = sorted(data["texts"])
+            return {"verdicts": [{"key": k, "ok": True} for k in data["texts"]]}, self._res(role)
         if role.endswith("_critic"):
             return {"score": 80, "problems": [], "summary": "fine"}, self._res(role)
         if role == "visual_auditor":
@@ -502,7 +516,7 @@ def documentary_env(tmp_path, monkeypatch):
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
                 "production.critics", "voice_performance", "pronunciation", "host",
-                "visuals.auditor"):
+                "visuals.auditor", "chapters"):
         monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts
@@ -574,6 +588,16 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         assert all(sh["audit"]["verdict"] == "approved"
                    for sh in script["shots"] if sh.get("kind") == "image")
         assert stages[f"visual_audit:{lang}"]["status"] == "done"
+        # after the cold open: the film's title, then chapter 1 — at the end
+        # of the chapter break, the new chapter's picture before its first word
+        cards = [x for x in script["shots"] if x["kind"] in ("title", "chapter")]
+        assert [x["kind"] for x in cards] == ["title", "chapter"]
+        assert cards[1]["card"] == {"label": "Chapter 1" if lang == "en" else "Kapitel 1",
+                                    "title": f"Part 1 ({lang})"}
+        b02 = next(b for b in script["beats"] if b["beat_id"] == "B02")
+        assert abs(cards[1]["end"] - (b02["start"] - ai_config.chapters.lead_out_seconds)) < 0.01
+        after = script["shots"][script["shots"].index(cards[1]) + 1]
+        assert after["beat_id"] == "B02" and after["start"] == cards[1]["end"]
         # every render is remembered as a Video with status + YouTube title
         from app.db.models import Video
 
@@ -581,6 +605,9 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         assert video.production_script_id == ps.id and video.language == lang
         assert video.status_at_production == case.resolution_status
         assert video.youtube_title and r["youtube_title"] == video.youtube_title
+    ch = stages["chapters"]["detail"]
+    assert ch["status"] == "approved" and ch["chapters"] >= 1 and ch["left_out"] == []
+    assert "film_title" in documentary_env.cards_audited
     vp = db_session.query(VisualPlan).filter_by(case_id=case.id).one()
     assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en", "de"}
     # the narrator's performance (v3 audio tags) reached the voice

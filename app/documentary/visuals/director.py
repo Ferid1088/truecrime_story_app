@@ -54,15 +54,16 @@ from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
 COMMANDS = ("NEW_IMAGE", "SHOW_CLIP", "KEEP_CURRENT_IMAGE", "CROP_EXISTING", "ZOOM_EXISTING",
-            "SHOW_DOCUMENT", "SHOW_MAP", "SHOW_DATE", "SHOW_QUOTE", "BLACK_SCREEN",
-            "ATMOSPHERIC_BROLL", "NO_VISUAL_CHANGE", "REQUEST_SEARCH")
+            "SHOW_DOCUMENT", "SHOW_MAP", "SHOW_DATE", "SHOW_TIMELINE", "SHOW_QUOTE",
+            "BLACK_SCREEN", "ATMOSPHERIC_BROLL", "NO_VISUAL_CHANGE", "REQUEST_SEARCH")
 READ_COMMANDS = {"SHOW_DOCUMENT", "SHOW_QUOTE"}
 CONTINUE_COMMANDS = {"KEEP_CURRENT_IMAGE", "CROP_EXISTING", "ZOOM_EXISTING", "NO_VISUAL_CHANGE"}
 ASSET_COMMANDS = {"NEW_IMAGE", "ATMOSPHERIC_BROLL", "SHOW_CLIP"}
 # Commands that put something new on screen (density: at most one per
 # sentence). SHOW_DATE only lays text over the current picture.
 CHANGE_COMMANDS = {"NEW_IMAGE", "ATMOSPHERIC_BROLL", "SHOW_CLIP", "SHOW_MAP", "SHOW_DOCUMENT",
-                   "SHOW_QUOTE", "BLACK_SCREEN", "CROP_EXISTING", "ZOOM_EXISTING"}
+                   "SHOW_QUOTE", "SHOW_TIMELINE", "BLACK_SCREEN", "CROP_EXISTING",
+                   "ZOOM_EXISTING"}
 PHOTO_MOTIONS = ("SLOW_PUSH", "SLOW_PULL", "PAN_LEFT", "PAN_RIGHT", "CROP_FOCUS", "SUBTLE_2_5D")
 CANDIDATES_PER_REQ = 4
 # Beats starting within this many seconds are the film's opening (they
@@ -126,6 +127,10 @@ Commands:
   SHOW_DOCUMENT (the beat's document passage) | SHOW_DATE (the beat's
     date over the current picture) | SHOW_QUOTE (the beat's quote on a
     dark frame)
+  SHOW_TIMELINE (only where the beat has a timeline_event: the running
+    case timeline — a full-frame card that moves to that date and shows
+    the dates the viewer already knows. Use it when the story moves to a
+    new point in time and no picture says it better; at most one per beat)
   BLACK_SCREEN (words alone: a short pause at hard or painful moments)
   ATMOSPHERIC_BROLL (an illustration/context candidate, mood only)
   NO_VISUAL_CHANGE
@@ -345,6 +350,9 @@ def _fallback_shot(beat_req: dict, has_current: bool, options: list[VisualAsset]
         return shot
     if beat_req.get("document"):
         return {"command": "SHOW_DOCUMENT", "share": 1.0, "why": "fallback: document"}
+    if beat_req.get("timeline_event"):
+        return {"command": "SHOW_TIMELINE", "share": 1.0,
+                "why": "fallback: the running timeline moves to this date"}
     if beat_req.get("date_text"):
         return {"command": "SHOW_DATE", "share": 1.0, "why": "fallback: date card"}
     if has_current:
@@ -595,6 +603,12 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
             elif cmd == "SHOW_DATE" and not req.get("date_text"):
                 warnings.append({"code": "no_date", "beat": bid})
                 continue
+            elif cmd == "SHOW_TIMELINE" and not req.get("timeline_event"):
+                warnings.append({"code": "no_timeline_event", "beat": bid})
+                continue
+            elif cmd == "SHOW_TIMELINE" and any(x["command"] == "SHOW_TIMELINE" for x in shots):
+                adjustments.append({"beat": bid, "dropped": cmd, "reason": "one_timeline_per_beat"})
+                continue
             elif cmd == "SHOW_QUOTE" and not req.get("quote"):
                 warnings.append({"code": "no_quote", "beat": bid})
                 continue
@@ -814,7 +828,8 @@ def assign_motion(plan: dict, blueprint: dict, audio_plan: dict | None,
                 s["motion"] = "MAP_ZOOM"
             elif cmd == "SHOW_DOCUMENT":
                 s["motion"] = "DOCUMENT_HIGHLIGHT"
-            elif cmd in ("BLACK_SCREEN", "SHOW_QUOTE", "NO_VISUAL_CHANGE", "SHOW_CLIP"):
+            elif cmd in ("BLACK_SCREEN", "SHOW_QUOTE", "SHOW_TIMELINE", "NO_VISUAL_CHANGE",
+                         "SHOW_CLIP"):
                 s["motion"] = "NONE"  # footage moves by itself: no Ken Burns
             elif cmd in ("KEEP_CURRENT_IMAGE",):
                 s["motion"] = "CONTINUE"
@@ -845,6 +860,27 @@ def assign_motion(plan: dict, blueprint: dict, audio_plan: dict | None,
 # ---------------------------------------------------------------------------
 # director agent
 # ---------------------------------------------------------------------------
+
+
+def _attach_timeline(db: Session, blueprint_row: EditorialBlueprint, blueprint: dict,
+                     requirements: dict) -> None:
+    """Per beat requirement: the timeline event a timeline card there
+    would move to (from the approved chapter plan; none without one)."""
+    from app.documentary.chapters import beat_events, latest_chapter_plan
+
+    if not ai_config.chapters.enabled:
+        return
+    row = latest_chapter_plan(db, blueprint_row.id)
+    if row is None:
+        return
+    events = _loads(row.plan_json, {}).get("events") or []
+    per_beat = beat_events(blueprint, events, requirements)
+    for r in requirements.get("beats") or []:
+        ev = per_beat.get(r.get("beat_id"))
+        if ev:
+            r["timeline_event"] = ev
+        else:
+            r.pop("timeline_event", None)
 
 
 def _candidate_view(sc: float, a: VisualAsset, used: Counter) -> dict:
@@ -886,6 +922,7 @@ def _beat_view(beat: dict, req: dict, cands: list[tuple[float, VisualAsset]],
         "seconds": round(beat_seconds(beat)),
         "max_shots": max_shots(beat, len(marks or []) or None), "after": after,
         "map_place": req.get("map_place"), "date_text": req.get("date_text"),
+        "timeline_event": req.get("timeline_event"),
         "quote": (req.get("quote") or {}).get("text"),
         "document": bool(req.get("document")),
         "candidates": [_candidate_view(sc, a, used or Counter()) for sc, a in cands],
@@ -1061,6 +1098,7 @@ class VisualDirector:
 
         blueprint = json.loads(blueprint_row.blueprint_json or "{}")
         requirements = json.loads(plan_row.requirements_json or "{}")
+        _attach_timeline(db, blueprint_row, blueprint, requirements)
         ap = json.loads(audio_plan.plan_json) if audio_plan else {}
         marks = beat_marks(db, blueprint_row, blueprint)
         opening = opening_of_blueprint(db, blueprint_row)

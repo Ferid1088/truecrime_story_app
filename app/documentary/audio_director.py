@@ -126,6 +126,11 @@ def director_system_prompt(cfg: AudioDirectionConfig | None = None) -> str:
         bed_rule = (
             'always "none". While the narrator speaks there is NO music —\n'
             "   the narration stays clean. Music belongs only in the gaps.")
+    chapter_rule = (
+        "\n     The film shows a chapter card in this gap: use chapter_break\n"
+        "     exactly where a beat ends an act (ends_act true) — every act end —\n"
+        "     and after a cold open (opening_title true); nowhere else."
+        if ai_config.chapters.enabled else "")
     return f"""
 You are the Music and Audio Director of a narrative true-crime
 documentary — the calibre of the best long-form podcasts and streaming
@@ -169,7 +174,7 @@ For EVERY beat decide:
    - silence ({rng['silence']}): room tone only — the strongest choice for
      the hardest moments.
    - chapter_break ({rng['chapter_break']}): between big movements of the
-     film.
+     film.{chapter_rule}
    Give "seconds" (the cue length is the length of the gap), a "mood"
    for music, and for EVERY music or silence choice a short "why": the
    emotional function of this moment and why music — or silence —
@@ -211,13 +216,34 @@ Return JSON only:
 """
 
 
+def chapter_gaps(blueprint: dict) -> dict[str, str]:
+    """Beats after which the film shows a card (chapters enabled): the
+    last beat of every act but the last ("act_end"), and the opening hook
+    when the film has a cold open ("opening_title")."""
+    if not ai_config.chapters.enabled:
+        return {}
+    beats = blueprint.get("beats") or []
+    out = {}
+    for b, n in zip(beats, beats[1:]):
+        if (b.get("act_id") or "") != (n.get("act_id") or ""):
+            out[b["id"]] = "act_end"
+    if (len(beats) > 1 and beats[0].get("purpose") == "hook"
+            and beats[0]["id"] not in out and ai_config.chapters.title_card):
+        out[beats[0]["id"]] = "opening_title"
+    return out
+
+
 def _director_input(blueprint: dict) -> dict:
+    gaps = chapter_gaps(blueprint)
     return {
         "central_question": blueprint.get("central_question"),
         "arcs": blueprint.get("arcs"),
         "beats": [
             {
-                "beat_id": b["id"], "purpose": b.get("purpose"),
+                "beat_id": b["id"], "act_id": b.get("act_id"),
+                "ends_act": gaps.get(b["id"]) == "act_end",
+                "opening_title": gaps.get(b["id"]) == "opening_title",
+                "purpose": b.get("purpose"),
                 "summary": b.get("summary"), "words": b.get("words"),
                 "emotional_load": b.get("emotional_load"),
                 "information_density": b.get("information_density"),
@@ -346,6 +372,19 @@ def validate_audio_plan(raw: dict, blueprint: dict,
             adjust(pb, "music_bridge", "emotional_moment_needs_emotional_beat")
         elif kind == "sting" and pb["purpose"] not in STING_PURPOSES:
             adjust(pb, "breath", "sting_needs_a_turn")
+
+    # --- chapter cards: a chapter_break exactly at every act end (and
+    # after a cold open), nowhere else -----------------------------------
+    gaps = chapter_gaps(blueprint)
+    if gaps:
+        for i, pb in enumerate(plan_beats[:-1]):
+            kind = pb["after"]["type"]
+            if pb["beat_id"] in gaps and kind != "chapter_break":
+                adjust(pb, "chapter_break",
+                       "act_end_is_chapter_break" if gaps[pb["beat_id"]] == "act_end"
+                       else "title_after_cold_open")
+            elif pb["beat_id"] not in gaps and kind == "chapter_break":
+                adjust(pb, "music_bridge", "chapter_break_only_between_acts")
 
     def protected(pb) -> bool:
         return pb["after"]["type"] == "chapter_break" or pb["purpose"] in PROTECTED_PURPOSES

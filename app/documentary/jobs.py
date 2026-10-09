@@ -199,7 +199,8 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
     host = ai_config.host.enabled
     names = (["research", "master_story"] if from_zero else []) + [
         "master_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
-        ["host_plan"] if host else []) + [
+        ["host_plan"] if host else []) + (
+        ["chapters"] if ai_config.chapters.enabled else []) + [
         "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan",
         "visual_gaps"]
     for l in languages:
@@ -452,6 +453,34 @@ class DocumentaryPipeline:
         if not ok_langs:
             raise RuntimeError("No language could be told: " + "; ".join(
                 f"{l}: {e}" for l, e in self.lang_errors.items()))
+
+        async def chapters():
+            # chapter titles, the film title and the timeline labels, in
+            # every language, each approved by the chapter auditor
+            from app.documentary.chapters import ChapterWriter, latest_chapter_plan, plan_covers
+
+            if not ai_config.chapters.enabled:
+                return {"skipped": True, "reason": "chapters disabled"}
+            row = latest_chapter_plan(db, bp_row.id)
+            reused = plan_covers(row, ok_langs) and row.status != "no_texts"
+            if not reused:
+                row = await ChapterWriter().create(db, case, bp_row, master, ok_langs, spoken)
+            plan = json.loads(row.plan_json or "{}")
+            audit = json.loads(row.audit_json or "{}")
+            left = [f"{x['key']} ({', '.join(x['languages'])}): {x.get('reason') or ''}"[:160]
+                    for x in audit.get("left_out") or []]
+            out = {"chapter_plan_id": row.id, "status": row.status, "reused": reused,
+                   "chapters": len(plan.get("chapters") or []),
+                   "timeline_events": len(plan.get("events") or []), "left_out": left}
+            if row.status == "no_texts":
+                out["degraded"] = ("no card texts (writer/auditor failed: "
+                                   f"{audit.get('error')}) — cards show only numbers and dates")
+            elif left:
+                out["degraded"] = (f"{len(left)} card text(s) still rejected after the redos "
+                                   "were left out")
+            return out
+
+        await self._optional("chapters", chapters)
 
         async def film_length():
             est = {l: estimate_film_minutes(v, ap) for l, v in spoken.items()}
@@ -854,7 +883,6 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
 
     assets = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
     ents = {e["key"]: e for e in requirements.get("entities") or []}
-    beats = {b["id"]: b for b in blueprint.get("beats") or []}
     todo: list[VisualAsset] = []
     for rb in requirements.get("beats") or []:
         if beat_ids and rb["beat_id"] not in beat_ids:

@@ -1559,6 +1559,53 @@ export interface ScriptShot {
   credit?: string | null;
   subject_type?: string | null;
   reframe?: boolean;
+  /** Chapter / film-title card. */
+  card?: { label?: string; title?: string | null };
+  /** Running case timeline card (only dates the viewer already knows). */
+  timeline?: {
+    event: string;
+    date: string;
+    label?: string | null;
+    events: { id: string; x: number; year?: string | null; current: boolean }[];
+    from_x: number;
+    to_x: number;
+  };
+}
+
+/** Chapter titles, film title and timeline labels of one blueprint,
+ * in every language, each approved by the chapter auditor. */
+export interface ChapterPlanRecord {
+  id: number;
+  version: number;
+  status: "approved" | "partial" | "no_texts";
+  blueprint_id: number;
+  languages: string[];
+  plan: {
+    languages: string[];
+    cold_open: boolean;
+    film_title: Record<string, string>;
+    chapters: {
+      act_id: string;
+      number: number;
+      first_beat: string;
+      last_beat: string;
+      title: Record<string, string>;
+    }[];
+    events: {
+      id: string;
+      date: string;
+      claim: string;
+      first_beat: string;
+      label: Record<string, string>;
+    }[];
+  };
+  audit: {
+    rounds: { round: number; items: { key: string; approved: string[]; rejected: string[]; reason: string | null }[] }[];
+    left_out: { key: string; languages: string[]; reason: string | null }[];
+    error: string | null;
+    max_redos: number;
+  };
+  created_at: string;
 }
 
 export interface ScriptOverlay {

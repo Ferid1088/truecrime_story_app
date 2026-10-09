@@ -674,6 +674,45 @@ the same footage; overlapping pieces of one video never both appear.
 
 Host time is capped at `host.max_total_seconds` (180 s) per film.
 
+### Chapters and the running case timeline
+
+On-screen cards made from the story itself (`app/documentary/chapters.py`,
+config `chapters`, stage **chapters** after the spoken versions).
+
+- **Chapters = the master story's acts.** The audio plan puts a
+  `chapter_break` (music, 12–22 s) after the last beat of every act — and
+  after the opening hook when the film has a cold open — and nowhere else
+  (`act_end_is_chapter_break`, `title_after_cold_open`,
+  `chapter_break_only_between_acts`). The next chapter's card ("Chapter 2"
+  over a red rule, its title in serif) sits at the **end** of that gap
+  (`card_seconds`), so the new chapter's first picture appears
+  `lead_out_seconds` before its first word; after a cold open the film's
+  title card comes first. Pictures under a card are cut back (a clip plays
+  on after it, the old chapter's picture never flashes up again); text over
+  a card is dropped; a gap too short for a card is reported in the script
+  (`cards_left_out`), never squeezed.
+- **The running timeline.** The dated facts the story tells (evidence-pack
+  T-ids a beat reveals or relies on) each appear from the beat that first
+  tells them. The visual director may use `SHOW_TIMELINE` where a beat has
+  a `timeline_event` (and it is the fallback before a plain date): a
+  full-frame card whose marker slides from the last date to this one, with
+  the date and what happened; only dates the viewer already knows are on
+  it (at most `max_timeline_events`, right-to-left for fa/ar). An event that
+  is not told yet never gets a card — the date goes over the picture.
+- **Texts are approved.** Role `chapter_writer` writes the film title, a
+  title per chapter and a short label per told event, natively in every
+  language of the film; role `chapter_auditor` (another model, review group
+  `documentary_cards`) checks every text in every language: faithful,
+  nothing given away before the story reveals it (each chapter lists what
+  it and later chapters reveal), no solution suggested for an unsolved
+  case, sober, a true translation with the narration's spelling of names,
+  within the length limits. Rejected texts are rewritten with the reasons
+  (at most `documentary.max_redos`); still rejected → left out and
+  reported: the card shows only the chapter number, the timeline only the
+  date. Dates never come from a model (facts' dates, `format_date`).
+- See them in the **Blueprint** tab (Chapters & timeline) and on the
+  production timeline; `GET /api/cases/{id}/documentary/chapters`.
+
 ### Pronunciation check (Persian)
 
 Persian script leaves short vowels unwritten: «ملک» is melk (property),

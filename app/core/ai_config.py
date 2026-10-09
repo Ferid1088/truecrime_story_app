@@ -109,6 +109,12 @@ REQUIRED_ROLES = {
     # the content — and judges it against the words before render.
     "video_segmenter",
     "video_auditor",
+    # Chapters and the running case timeline: the writer gives every
+    # chapter a title and every dated event the story tells a short label
+    # (all languages at once); an independent auditor checks each text —
+    # faithful, no spoiler before its reveal, sober, a true translation.
+    "chapter_writer",
+    "chapter_auditor",
     "overlay_localizer",
     # Documentary critics (independent of the visual director).
     "automation_feel_critic",
@@ -1233,6 +1239,38 @@ class VideoAuditConfig(BaseModel):
     frame_width: int = Field(default=384, ge=160, le=1280)
 
 
+class ChaptersConfig(BaseModel):
+    """Chapter cards and the running case timeline (on-screen cards made
+    from the story's acts and the case's dated facts). Chapters are the
+    master story's acts: the gap after the last beat of an act is a
+    chapter_break (the audio plan makes sure of it) and the next
+    chapter's card sits at the end of that gap. After a cold open (the
+    film opens on a hook beat) the film's title card follows. Timeline
+    cards move to the date the story reaches and show only the dates the
+    viewer already knows. Texts are written by chapter_writer and approved
+    by chapter_auditor (rejected: rewritten with the reasons, at most
+    documentary.max_redos times, then left out — the card shows only the
+    chapter number / the date). Dates come from the facts, never from a
+    model."""
+
+    enabled: bool = True
+    # the film's title card after a cold open
+    title_card: bool = True
+    card_seconds: float = Field(default=4.5, ge=2.0, le=10.0)
+    min_card_seconds: float = Field(default=3.0, ge=1.5, le=8.0)
+    # the first picture of the new chapter appears this long before the
+    # first word
+    lead_out_seconds: float = Field(default=0.4, ge=0.0, le=2.0)
+    max_title_chars: int = Field(default=48, ge=12, le=120)
+    max_label_chars: int = Field(default=48, ge=12, le=120)
+    # events on one timeline card (the current one and its neighbours)
+    max_timeline_events: int = Field(default=9, ge=2, le=30)
+    # events labelled by the writer (the ones the story tells, in order)
+    max_labelled_events: int = Field(default=24, ge=1, le=80)
+    # the marker slides to the new date in this time
+    timeline_move_seconds: float = Field(default=1.2, ge=0.2, le=4.0)
+
+
 class VisualAuditConfig(BaseModel):
     """The visual auditor (gate before render): every photo and clip on
     screen must be verified AND approved for the words spoken over it.
@@ -1799,6 +1837,7 @@ class AIConfig(BaseModel):
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
+    chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)

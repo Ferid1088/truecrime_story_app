@@ -577,6 +577,29 @@ class EditorialBlueprint(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class ChapterPlan(Base):
+    """On-screen cards of one blueprint, for all its languages: the film
+    title, a title per chapter (= act of the master story) and a short
+    label per dated event the story tells (the running timeline). Every
+    text was approved by the chapter auditor; texts it still rejected
+    after the redos are left out (listed in audit_json)."""
+
+    __tablename__ = "chapter_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(
+        ForeignKey("editorial_blueprints.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # approved | partial (some texts left out) | no_texts (writer failed)
+    status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
+    languages_json: Mapped[str] = mapped_column(Text, default="[]")
+    plan_json: Mapped[str] = mapped_column(Text, default="{}")
+    audit_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class AudioPlan(Base):
     """The audio director's plan for one blueprint — language-independent:
     per beat the breath between paragraphs, a music bed (or none) and the

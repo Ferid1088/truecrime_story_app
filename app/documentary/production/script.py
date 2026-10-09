@@ -673,6 +673,182 @@ def status_overlays(case_status: str | None, production_type: str | None,
     return out
 
 
+# ---------------------------------------------------------------------------
+# cards: chapters, the film title, the running timeline
+# ---------------------------------------------------------------------------
+
+CARD_KINDS = ("chapter", "title", "timeline")
+
+
+def _ordinal(date: str) -> float:
+    from datetime import date as _date
+
+    from app.documentary.chapters import parse_date_text
+
+    p = parse_date_text(date)
+    if not p:
+        return 0.0
+    y, m, d = p
+    try:
+        return float(_date(y, m or 7, d or (15 if m else 1)).toordinal())
+    except ValueError:
+        return float(_date(y, 7, 1).toordinal())
+
+
+def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
+                  previous: str | None = None) -> dict | None:
+    """The running timeline at this beat, moving to `event_id`: only the
+    events the story has told by this beat (never a later one), at most
+    chapters.max_timeline_events around the current one. Positions x are
+    0..1 along the line (half time scale, half order, so close dates stay
+    apart); the marker slides from the previous card's date (or the
+    previous event) to the current one. None when the event is not told
+    yet or unknown — the caller shows the date over the picture instead."""
+    cards = cards or {}
+    order = cards.get("beat_order") or []
+    pos = {b: i for i, b in enumerate(order)}
+    if beat_id not in pos or not event_id:
+        return None
+    told = sorted((e for e in cards.get("events") or []
+                   if pos.get(e["first_beat"], 10 ** 9) <= pos[beat_id]),
+                  key=lambda e: (e["date"], e["id"]))
+    cur = next((e for e in told if e["id"] == event_id), None)
+    if cur is None:
+        return None
+    n = ai_config.chapters.max_timeline_events
+    k = told.index(cur)
+    lo = max(0, min(k - n // 2, len(told) - n))
+    window = told[lo:lo + n]
+    ords = [_ordinal(e["date"]) for e in window]
+    span = (max(ords) - min(ords)) or 1.0
+    m = len(window)
+    xs = {e["id"]: (0.5 if m == 1 else
+                    0.5 * (o - min(ords)) / span + 0.5 * (i / (m - 1)))
+          for i, (e, o) in enumerate(zip(window, ords, strict=True))}
+    i = window.index(cur)
+    prev = next((e for e in window if e["id"] == previous and e["id"] != cur["id"]), None) \
+        or (window[i - 1] if i > 0 else None)
+    return {"event": cur["id"], "date": cur.get("date_text") or cur["date"],
+            "label": cur.get("label"),
+            "events": [{"id": e["id"], "x": round(xs[e["id"]], 4), "year": e.get("year"),
+                        "current": e["id"] == cur["id"]} for e in window],
+            "from_x": round(xs[prev["id"]], 4) if prev else 0.0,
+            "to_x": round(xs[cur["id"]], 4)}
+
+
+def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict],
+                         overlays: list[dict]) -> list[dict]:
+    """The film title (after a cold open) and each chapter's card at the
+    END of the gap before the chapter (a chapter_break in the audio plan):
+    the first picture of the new chapter comes chapters.lead_out_seconds
+    before its first word. Pictures under a card are cut back (a clip
+    split by a card plays on after it); text over a card is dropped.
+    Returns what could not be placed (gap too short) — reported."""
+    cfg = ai_config.chapters
+    cards = cards or {}
+    chapters = cards.get("chapters") or []
+    if not chapters or not spans:
+        return []
+    by = {sp["beat_id"]: sp for sp in spans}
+    ids = [sp["beat_id"] for sp in spans]
+    order = cards.get("beat_order") or ids
+    skipped: list[dict] = []
+    todo: list[tuple[float, float, list[dict], dict]] = []
+    for ch in chapters:
+        first = ch["first_beat"]
+        if first not in by:
+            continue
+        k = ids.index(first)
+        items = [{"kind": "chapter", "command": "CHAPTER_CARD", "chapter": ch["number"],
+                  "card": {"label": ch["label"], "title": ch.get("title")}}]
+        if k == 0:
+            continue  # the film starts with this chapter: no gap before it
+        prev = ids[k - 1]
+        if order.index(prev) != order.index(first) - 1:
+            continue  # (a pilot film: the beat before is not in it)
+        gap_from, gap_to = by[prev]["end"], by[first]["start"]
+        todo.append((gap_from, gap_to, items, ch))
+    if cards.get("cold_open") and len(ids) > 1 and order and ids[0] == order[0] \
+            and chapters[0]["first_beat"] == ids[0]:
+        items = []
+        if cards.get("film_title"):
+            items.append({"kind": "title", "command": "TITLE_CARD",
+                          "card": {"title": cards["film_title"]}})
+        ch = chapters[0]
+        items.append({"kind": "chapter", "command": "CHAPTER_CARD", "chapter": ch["number"],
+                      "card": {"label": ch["label"], "title": ch.get("title")}})
+        todo.append((by[ids[0]]["end"], by[ids[1]]["start"], items, ch))
+    placed: list[tuple[float, float]] = []
+    for gap_from, gap_to, items, ch in sorted(todo, key=lambda x: x[0]):
+        end = gap_to - cfg.lead_out_seconds
+        room = end - gap_from - 0.5
+        while items and room / len(items) < cfg.min_card_seconds:
+            items = items[1:] if len(items) > 1 else []   # the film title goes first
+        if not items:
+            skipped.append({"chapter": ch["number"], "at": round(gap_from, 2),
+                            "why": f"gap of {gap_to - gap_from:.1f}s is too short for a card"})
+            continue
+        length = min(cfg.card_seconds, room / len(items))
+        t = end - length * len(items)
+        for item in items:
+            card = {**item, "beat_id": ch["first_beat"], "start": round(t, 3),
+                    "end": round(t + length, 3), "motion": "NONE", "speed": 1.0,
+                    "transition_in": "FADE_BLACK",
+                    "why": "chapter card in the chapter break" if item["kind"] == "chapter"
+                    else "the film's title after the cold open"}
+            _carve(shots, card)
+            placed.append((card["start"], card["end"]))
+            t += length
+    if placed:
+        overlays[:] = [o for o in overlays
+                       if o["kind"] not in ("date", "place", "quote")
+                       or not any(o["start"] < b and o["end"] > a for a, b in placed)]
+    return skipped
+
+
+def _carve(shots: list[dict], card: dict) -> None:
+    """Put `card` on the timeline, cutting back what it covers."""
+    a, b = card["start"], card["end"]
+    out: list[dict] = []
+    for sh in shots:
+        if sh["end"] <= a or sh["start"] >= b:
+            out.append(sh)
+            continue
+        if sh["start"] < a:
+            head = dict(sh)
+            head["end"] = round(a, 3)
+            out.append(head)
+        if sh["end"] > b and sh.get("kind") not in CARD_KINDS:
+            tail = dict(sh)
+            if tail.get("kind") == "video" and tail.get("clip_start") is not None:
+                tail["clip_start"] = round(float(tail["clip_start"])
+                                           + max(b - float(sh["start"]), 0.0), 3)
+            tail["start"] = round(b, 3)
+            tail["transition_in"] = "CROSSFADE"
+            out.append(tail)
+    out.append(card)
+    out.sort(key=lambda x: (x["start"], x["end"]))
+    # no flash fragments next to a card: before it they give their time to
+    # the card; after it the next picture (the new chapter's) comes early —
+    # the old picture never flashes up again after the card
+    final: list[dict] = []
+    for k, sh in enumerate(out):
+        if sh is card:
+            final.append(sh)
+            continue
+        short = sh["end"] - sh["start"] < 1.5
+        if short and sh["end"] <= a + 1e-6 and sh["end"] - sh["start"] < 0.8:
+            card["start"] = min(card["start"], sh["start"])
+            continue
+        nxt = out[k + 1] if k + 1 < len(out) else None
+        if (short and abs(sh["start"] - b) < 1e-6 and nxt is not None
+                and nxt.get("kind") not in CARD_KINDS):
+            nxt["start"] = sh["start"]
+            continue
+        final.append(sh)
+    shots[:] = final
+
+
 def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             texts: dict[str, str], language: str, incident_beat: str | None = None, *,
             case_status: str | None = None, production_type: str | None = "original",
@@ -702,6 +878,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     overlays: list[dict] = []
     credits: set[str] = set()
     current: dict | None = None  # last image shot
+    last_event: str | None = None  # where the running timeline stands
 
     def add_overlay(kind, text, start, end):
         if not text or end - start <= 0.5:
@@ -744,6 +921,11 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             t = end
             cmd = s["command"]
             text_key = f"{s.get('overlay', {}).get('kind', 'x')}|{s.get('overlay', {}).get('text_en', '')}"
+            timeline = None
+            if cmd == "SHOW_TIMELINE":
+                timeline = timeline_card(cards, span["beat_id"], s.get("event"), last_event)
+                if timeline is None:
+                    cmd = "SHOW_DATE"  # the date over the current picture instead
             if cmd == "SHOW_DATE":
                 said = _spoken_at(words, s.get("overlay", {}).get("text_en"), w_start, w_end,
                                   manifest["timeline"].get("sentences"))
@@ -891,6 +1073,11 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                 shot.update({"kind": "black", "motion": "NONE"})
                 add_overlay("quote", texts.get(text_key), start + 0.3, end - 0.3)
                 current = None
+            elif cmd == "SHOW_TIMELINE" and timeline is not None:
+                shot.update({"kind": "timeline", "motion": "NONE", "timeline": timeline,
+                             "event": timeline["event"]})
+                last_event = timeline["event"]
+                current = None
             elif cmd == "SHOW_DATE":
                 shot.update({"kind": "black", "motion": "NONE"})
             else:  # BLACK_SCREEN, or reframing with nothing on screen
@@ -930,6 +1117,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     shots = _cap_black(shots, plan, assets, order, guard, att.max_black_seconds,
                        starts, tracker, named_sents)
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
+    cards_left_out = insert_chapter_cards(final, cards, spans, overlays)
     for n, sh in enumerate(final):
         sh["index"] = n
         if n == 0:
@@ -975,6 +1163,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         "sentence_entities": named_sents,
         # beats where investigation / custody pictures would give the story away
         "firewall": guard.as_json(),
+        # chapter / title cards that found no room (the gap was too short)
+        "cards_left_out": cards_left_out,
     }
 
 
@@ -1048,7 +1238,11 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     opening = (opening_of_blueprint(db, bp_row).get("strategy")
                or (plan.get("opening") or {}).get("strategy"))
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
+    from app.documentary.chapters import cards_for, latest_chapter_plan
+
+    cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
+                     cards=cards,
                      arrest_beat=SP.arrest_beat(blueprint),
                      reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),

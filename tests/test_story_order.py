@@ -7,13 +7,14 @@ import asyncio
 import json
 import uuid
 
+from test_visual_production import _asset
+
 from app.db.models import Case, EditorialBlueprint, ProductionScript, VisualPlan
 from app.documentary.production.script import compose
 from app.documentary.visuals import auditor as AU
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.usage import UsageTracker
 from app.providers.generation.base import GenerationResult
-from test_visual_production import _asset
 
 BP = {"beats": [
     {"id": "B01", "purpose": "orientation", "summary": "The farm outside the village, 1998.",

@@ -315,7 +315,9 @@ def _plan_item(bid, kind, seconds=None, **kw):
             "after": {"type": kind, "seconds": seconds, "mood": kw.get("mood", "mystery")}}
 
 
-def test_audio_plan_structural_rules_and_clamps():
+def test_audio_plan_structural_rules_and_clamps(monkeypatch):
+    # (chapter cards force chapter breaks at act ends: tested separately)
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
     raw = {"beats": [
         _plan_item("B01", "sting", 3),              # hook is not a turn
         _plan_item("B02", "emotional_moment", 30),  # load medium: ok, clamped
@@ -345,7 +347,9 @@ def test_audio_plan_missing_beats_and_empty_plans():
     assert rep["status"] == "invalid" and rep["errors"][0]["code"] == "no_plan"
 
 
-def test_music_moments_stay_special():
+def test_music_moments_stay_special(monkeypatch):
+    # (chapter cards force chapter breaks at act ends: tested separately)
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
     cfg = ai_config.audio_direction.model_copy(update={
         "min_seconds_between_music_moments": 1000.0, "max_music_only_share": 0.5})
     raw = {"beats": [_plan_item("B01", "music_bridge", 5),

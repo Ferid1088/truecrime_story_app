@@ -201,7 +201,9 @@ def test_l_a_requested_bed_is_removed_with_an_adjustment():
     assert plan["beats"][1]["bed"] == "tension" and rep["beds_removed"] == 0
 
 
-def test_l_every_music_or_silence_choice_keeps_its_reason():
+def test_l_every_music_or_silence_choice_keeps_its_reason(monkeypatch):
+    # (chapter cards force chapter breaks at act ends: tested separately)
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
     raw = {"beats": [
         _plan_item("B01", "breath", 1.2),
         _plan_item("B02", "silence", 3),
@@ -228,7 +230,9 @@ def test_l_every_music_or_silence_choice_keeps_its_reason():
         after["B03"]["seconds"] + after["B04"]["seconds"])
 
 
-def test_l_a_guard_rail_change_is_part_of_the_reason():
+def test_l_a_guard_rail_change_is_part_of_the_reason(monkeypatch):
+    # (chapter cards force chapter breaks at act ends: tested separately)
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
     raw = {"beats": [_plan_item("B01", "breath", 1.2),
                      {**_plan_item("B02", "emotional_moment", 10), "why": "loss"},
                      _plan_item("B03", "breath", 1.2), _plan_item("B04", "breath", 1.2),
