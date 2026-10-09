@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabBar, tabId, tabPanelId } from "@/components/ui/tabs";
 import { ErrorState } from "@/components/state";
-import { CaseStatusBadge } from "@/components/status-badge";
+import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
+import { ProductionTypeBadge } from "@/components/lifecycle/shared";
 import { useJobPoller } from "./hooks";
 import { InlineAlert, isJobActive, jobActivity, productionLanguages } from "./shared";
 import { RunTab } from "./tabs/run";
@@ -19,6 +20,7 @@ import { BlueprintTab } from "./tabs/blueprint";
 import { LanguagesTab } from "./tabs/languages";
 import { VoiceTab } from "./tabs/voice";
 import { VoicePerformanceTab } from "./tabs/voice-performance";
+import { HostTab } from "./tabs/host";
 import { VisualLibraryTab } from "./tabs/visual-library";
 import { TimelineTab } from "./tabs/timeline";
 import { MusicTab } from "./tabs/music";
@@ -32,6 +34,7 @@ const TABS = [
   "Language Versions",
   "Voice Performance",
   "Voice",
+  "Host",
   "Visual Library",
   "Timeline",
   "Music & Sound",
@@ -109,7 +112,13 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">{caseData.title}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <ResolutionBadge status={caseData.resolution_status} confidence={caseData.resolution_confidence} />
             <Badge variant="accent">Documentary</Badge>
+            {job?.production_type === "follow_up" && (
+              <span title={`Job #${job.id} produces an update video about a case covered before`}>
+                <ProductionTypeBadge type="follow_up" />
+              </span>
+            )}
             <CaseStatusBadge status={caseData.status} />
             <span className="text-xs text-muted-foreground">
               Case #{caseData.id} · films run {settings.film_minutes.min}–{settings.film_minutes.max} min
@@ -171,6 +180,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Language Versions" && <LanguagesTab {...common} />}
         {tab === "Voice Performance" && <VoicePerformanceTab {...languageProps} />}
         {tab === "Voice" && <VoiceTab {...languageProps} />}
+        {tab === "Host" && <HostTab {...languageProps} />}
         {tab === "Visual Library" && <VisualLibraryTab {...common} />}
         {tab === "Timeline" && <TimelineTab {...languageProps} />}
         {tab === "Music & Sound" && <MusicTab {...languageProps} />}

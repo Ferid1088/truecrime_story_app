@@ -378,14 +378,15 @@ def test_voice_render_api(client, db_session, workdir, monkeypatch):
     db_session.add(story)
     db_session.commit()
 
-    import app.documentary.production.audio as audio_mod
-    monkeypatch.setattr(
-        audio_mod, "VoiceRenderer",
-        type("R", (VoiceRenderer,), {
-            "__init__": lambda self: VoiceRenderer.__init__(
-                self, provider=FakeTTS(), asr=FakeASR())
-        }),
-    )
+    # the endpoint renders through production.audio — patch it there, or
+    # a configured key would make real (paid) TTS calls from the test
+    fake = type("R", (VoiceRenderer,), {
+        "__init__": lambda self: VoiceRenderer.__init__(
+            self, provider=FakeTTS(), asr=FakeASR())
+    })
+    import app.main as main_mod
+    monkeypatch.setattr(main_mod, "VoiceRenderer", fake)
+    monkeypatch.setattr("app.documentary.production.audio.VoiceRenderer", fake)
     base = f"/api/cases/{case.id}/stories/{story.id}/voice"
     assert client.get(base).status_code == 404
     r = client.post(base + "/render", json={"max_seconds": 60})

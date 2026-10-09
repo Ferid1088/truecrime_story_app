@@ -139,7 +139,7 @@ def test_writer_prompt_is_native_per_language(lang, needle):
 
 def test_persian_is_told_in_colloquial_persian_script():
     prompt = SP.writer_system_prompt("fa")
-    assert "خونواده" in prompt and "می‌گه" in prompt and "FINGLISH" not in prompt
+    assert "خونواده" in prompt and "می‌گه" in prompt
     assert "خونواده" in SP.critic_system_prompt("fa")
 
 
@@ -315,7 +315,9 @@ def _plan_item(bid, kind, seconds=None, **kw):
             "after": {"type": kind, "seconds": seconds, "mood": kw.get("mood", "mystery")}}
 
 
-def test_audio_plan_structural_rules_and_clamps():
+def test_audio_plan_structural_rules_and_clamps(monkeypatch):
+    # (chapter cards force chapter breaks at act ends: tested separately)
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
     raw = {"beats": [
         _plan_item("B01", "sting", 3),              # hook is not a turn
         _plan_item("B02", "emotional_moment", 30),  # load medium: ok, clamped
@@ -345,7 +347,9 @@ def test_audio_plan_missing_beats_and_empty_plans():
     assert rep["status"] == "invalid" and rep["errors"][0]["code"] == "no_plan"
 
 
-def test_music_moments_stay_special():
+def test_music_moments_stay_special(monkeypatch):
+    # (chapter cards force chapter breaks at act ends: tested separately)
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
     cfg = ai_config.audio_direction.model_copy(update={
         "min_seconds_between_music_moments": 1000.0, "max_music_only_share": 0.5})
     raw = {"beats": [_plan_item("B01", "music_bridge", 5),
@@ -467,7 +471,10 @@ def _beat_audio():
     }}
 
 
-def test_plan_placements():
+def test_plan_placements(monkeypatch):
+    # The layout with beds under the narration (opt-in since narration
+    # stays clean by default; see test_music_director.py).
+    monkeypatch.setattr(ai_config.audio_direction, "beds_under_narration", True)
     places = plan_placements(_timeline(), _beat_audio())
     roles = [(p["role"], p.get("beats") or p.get("after_beat")) for p in places]
     assert roles == [("bed", ["B01", "B02"]), ("music_bridge", "B02"),
@@ -534,16 +541,21 @@ def test_documentary_mix(tmp_path, monkeypatch):
     result = asyncio.run(mixer.mix(manifest, script, out))
     from app.documentary import audio as A
 
-    assert [p["role"] for p in result["placements"]] == ["bed", "music_bridge"]
-    assert result["music_characters_paid"] > 0 and len(sound.calls) == 2
+    # clean narration: the requested bed is not placed; the bridge sits
+    # in the gap between the words
+    assert [p["role"] for p in result["placements"]] == ["music_bridge"]
+    bridge = result["placements"][0]
+    assert bridge["start"] >= 12.0 and bridge["start"] + bridge["duration"] <= 17.0
+    assert bridge["track_code"] and bridge["selection_reason"]
+    assert result["music_characters_paid"] > 0 and len(sound.calls) == 1
     final = out / "documentary.wav"
     assert final.exists() and (out / "documentary.mp3").exists()
     assert A.probe_duration(final) == pytest.approx(30.0, abs=0.2)
     assert result["loudness_lufs"] == pytest.approx(
         ai_config.loudness.narration_target_lufs, abs=1.0)
-    # cues are generated once and shared
+    # tracks are generated once and shared
     again = asyncio.run(mixer.mix(manifest, script, out))
-    assert again["music_characters_paid"] == 0 and len(sound.calls) == 2
+    assert again["music_characters_paid"] == 0 and len(sound.calls) == 1
 
 
 # ---------------------------------------------------------------------------

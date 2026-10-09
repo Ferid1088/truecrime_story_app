@@ -7,11 +7,19 @@ Frames are produced with OpenCV (sub-pixel affine camera moves on a
 pre-graded canvas), overlays are composited from Pillow layers, raw
 frames are piped into libx264. Stills that do not fit 16:9 sit on a
 blurred, darkened copy of themselves instead of being cropped hard.
+
+Footage shots (kind "video": path, clip_start, clip_end) play the clip's
+own frames in sync with the film — the frame at clip_start + (t - shot
+start); past the clip's end the last frame holds — filled to 16:9 with
+the same grade as the stills. Clips are always silent here: frames are
+read with OpenCV and the only audio input of the encode is the script's
+documentary audio, so archive sound can never reach the film.
 """
 
 from __future__ import annotations
 
 import math
+import os
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -22,10 +30,24 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 from app.core.ai_config import ai_config
 from app.documentary import storage
+from app.documentary.render.cards import (
+    CARD_KINDS,
+    TimelineCard,
+    chapter_image,
+    push,
+    title_image,
+)
 from app.documentary.visuals.typography import overlay as text_layer
 
 MARGIN = 1.16          # canvas headroom for camera moves
 BLACK = (6, 6, 7)
+VIDEO_EXTENSIONS = (".mp4", ".m4v", ".mov", ".webm", ".ogv", ".mkv")
+# A forward jump of more than this many frames seeks instead of decoding
+# every frame in between.
+SEEK_AHEAD_FRAMES = 50
+# A clip reader is released this long after its shot ended (crossfades
+# into the next shot read the previous one for up to ~2 s).
+CLIP_RELEASE_AFTER_S = 3.0
 
 
 class RenderError(RuntimeError):
@@ -71,10 +93,127 @@ def _canvas(path: str, W: int, H: int, kind: str) -> np.ndarray:
         img = ImageEnhance.Contrast(img).enhance(1.06)
     arr = np.asarray(img).astype(np.float32)
     if kind == "image":
-        yy, xx = np.mgrid[0:ch, 0:cw]
-        d = np.sqrt(((xx - cw / 2) / (cw / 2)) ** 2 + ((yy - ch / 2) / (ch / 2)) ** 2)
-        arr *= (1.0 - 0.28 * np.clip(d - 0.55, 0, 1) ** 1.4)[..., None]
+        arr *= _vignette(cw, ch, 1.0)
     return np.clip(arr, 0, 255).astype(np.uint8)
+
+
+@lru_cache(maxsize=4)
+def _vignette(w: int, h: int, zoom: float, channels: int = 1) -> np.ndarray:
+    """Soft vignette multiplier (h, w, channels). `zoom` > 1 is the part
+    a camera at that zoom sees of a canvas vignette (footage frames get
+    the vignette a still shows on screen)."""
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    d = np.sqrt(((xx - w / 2) / (w / 2) / zoom) ** 2 + ((yy - h / 2) / (h / 2) / zoom) ** 2)
+    v = (1.0 - 0.28 * np.clip(d - 0.55, 0, 1) ** 1.4)[..., None].astype(np.float32)
+    return np.ascontiguousarray(np.repeat(v, channels, axis=2)) if channels > 1 else v
+
+
+_LUMA = np.array([0.299, 0.587, 0.114], np.float64)  # RGB, as Pillow's "L"
+GRADE_COLOR, GRADE_CONTRAST = 0.82, 1.06
+
+
+def _grade_matrix(mean_luma: float, bgr_in: bool) -> np.ndarray:
+    """Pillow's Color(0.82) then Contrast(1.06) as ONE 3x4 affine colour
+    transform: colour blends each pixel with its luma (luma unchanged,
+    the weights sum to 1), contrast blends with the mean luma. Input BGR
+    or RGB, output RGB."""
+    m1 = GRADE_COLOR * np.eye(3) + (1 - GRADE_COLOR) * np.outer(np.ones(3), _LUMA)
+    a = GRADE_CONTRAST * m1
+    if bgr_in:
+        a = a[:, ::-1]
+    b = np.full((3, 1), (1 - GRADE_CONTRAST) * mean_luma)
+    return np.hstack([a, b]).astype(np.float32)
+
+
+def grade_frame(img: np.ndarray, vignette: np.ndarray, bgr: bool = False) -> np.ndarray:
+    """The still grade (_canvas) for a moving frame (RGB out), with
+    OpenCV primitives so 1080p footage stays cheap per frame."""
+    mean = cv2.mean(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY if bgr else cv2.COLOR_RGB2GRAY))[0]
+    out = cv2.transform(img, _grade_matrix(mean, bgr))
+    return cv2.multiply(out, vignette, dtype=cv2.CV_8U)
+
+
+def is_video_path(path: str | None) -> bool:
+    return bool(path) and str(path).lower().endswith(VIDEO_EXTENSIONS)
+
+
+class ClipReader:
+    """One open clip: sequential reads, a seek only on a jump, the last
+    frame held past the end. A missing or unreadable file yields None
+    (the caller shows black) — never an exception mid-render."""
+
+    def __init__(self, path: str, W: int, H: int, shot_end: float, raw: bool = False):
+        self.W, self.H, self.shot_end = W, H, shot_end
+        self.ungraded = raw  # (the channel intro is shown exactly as made)
+        src = storage.resolve(path)
+        self.cap = cv2.VideoCapture(str(src)) if src is not None and Path(src).exists() else None
+        if self.cap is not None and not self.cap.isOpened():
+            self.cap.release()
+            self.cap = None
+        fps = self.cap.get(cv2.CAP_PROP_FPS) if self.cap is not None else 0.0
+        self.fps = fps if fps and 1.0 <= fps <= 240.0 else 25.0
+        self.pos = -1          # index of the last decoded frame
+        self.end: int | None = None  # last readable index once known
+        self.raw = None
+        self.graded = None
+        self.graded_pos = -2
+
+    def frame_at(self, seconds: float) -> np.ndarray | None:
+        if self.cap is None:
+            return None
+        idx = max(0, int(seconds * self.fps + 1e-6))
+        if self.end is not None:
+            idx = min(idx, self.end)
+        if idx != self.pos:
+            if idx < self.pos or idx > self.pos + SEEK_AHEAD_FRAMES:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+                self.pos = idx - 1
+            while self.pos < idx:
+                ok, fr = self.cap.read()
+                if not ok or fr is None:
+                    if self.raw is None:  # sought past the end
+                        self.raw, self.pos = self._last_frame()
+                    self.end = max(self.pos, 0)  # freeze on the last frame
+                    break
+                self.pos += 1
+                self.raw = fr
+        if self.raw is None:
+            return None
+        if self.graded_pos != self.pos:
+            if self.ungraded:
+                self.graded = cv2.cvtColor(self._fill(self.raw), cv2.COLOR_BGR2RGB)
+            else:
+                self.graded = grade_frame(self._fill(self.raw),
+                                          _vignette(self.W, self.H, MARGIN * 0.97, 3), bgr=True)
+            self.graded_pos = self.pos
+        return self.graded
+
+    def _last_frame(self):
+        n = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        for i in dict.fromkeys(x for x in (n - 1, n - 2, 0) if x >= 0):
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            ok, fr = self.cap.read()
+            if ok and fr is not None:
+                return fr, i
+        return None, -1
+
+    def _fill(self, bgr: np.ndarray) -> np.ndarray:
+        """Crop the centre to the frame's aspect, scale to the frame
+        (16:9 fill; still BGR)."""
+        h, w = bgr.shape[:2]
+        s = max(self.W / w, self.H / h)
+        cw, ch = min(w, round(self.W / s)), min(h, round(self.H / s))
+        x0, y0 = (w - cw) // 2, (h - ch) // 2
+        crop = bgr[y0:y0 + ch, x0:x0 + cw]
+        if (cw, ch) == (self.W, self.H):
+            return np.ascontiguousarray(crop)
+        return cv2.resize(crop, (self.W, self.H),
+                          interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_LINEAR)
+
+    def close(self) -> None:
+        if self.cap is not None:
+            self.cap.release()
+            self.cap = None
 
 
 def _src_point(shot: dict, key: str, cw: int, ch: int) -> tuple[float, float] | None:
@@ -139,11 +278,31 @@ class FrameMaker:
         self.W, self.H = W, H
         self.black = np.full((H, W, 3), BLACK, np.uint8)
         self._parallax: dict = {}
+        self._clips: dict[tuple[str, float], ClipReader] = {}
+        self._cards: dict = {}
+        self.intro: dict | None = None  # {video, audio, seconds} when the film has one
+
+    def intro_frame(self, at: float) -> np.ndarray:
+        """The channel intro's frame `at` seconds in (black without one)."""
+        if not self.intro:
+            return self.black
+        reader = self._clips.get(("intro", 0.0))
+        if reader is None:
+            reader = self._clips[("intro", 0.0)] = ClipReader(
+                self.intro["video"], self.W, self.H, 1e9, raw=True)
+        frame = reader.frame_at(max(at, 0.0))
+        return self.black if frame is None else frame
 
     def shot_frame(self, shot: dict, t: float) -> np.ndarray:
         kind = shot.get("kind")
+        if kind == "intro":
+            return self.intro_frame(t - float(shot["start"]))
+        if kind in CARD_KINDS:
+            return self._card_frame(shot, t)
         if kind == "black" or not shot.get("path"):
             return self.black
+        if kind == "video" or (kind in ("image", None) and is_video_path(shot["path"])):
+            return self._video_frame(shot, t)
         W, H = self.W, self.H
         length = max(shot["end"] - shot["start"], 0.1)
         p = (t - shot["start"]) / length
@@ -167,6 +326,50 @@ class FrameMaker:
         if shot.get("motion") == "DOCUMENT_HIGHLIGHT":
             frame = self._dim_outside(frame, shot, p, z, vx, vy, cw, ch)
         return frame
+
+    def _card_frame(self, shot: dict, t: float) -> np.ndarray:
+        """Chapter / title / timeline card (drawn once, then moved)."""
+        key = (shot.get("kind"), float(shot["start"]))
+        lang = self.script.get("language") or "en"
+        card = self._cards.get(key)
+        if card is None:
+            info = shot.get("card") or {}
+            if shot["kind"] == "timeline":
+                card = TimelineCard(shot, lang, self.W, self.H)
+            elif shot["kind"] == "title":
+                card = title_image(info.get("title") or "", lang, self.W, self.H)
+            else:
+                card = chapter_image(info.get("label") or "", info.get("title"), lang,
+                                     self.W, self.H)
+            self._cards[key] = card
+        length = max(shot["end"] - shot["start"], 0.1)
+        since = max(t - shot["start"], 0.0)
+        if isinstance(card, TimelineCard):
+            return card.frame(since, since / length)
+        return push(card, since / length)
+
+    def _video_frame(self, shot: dict, t: float) -> np.ndarray:
+        """The clip's frame at clip_start + (t - shot start), the last
+        frame of the window once the shot outlasts the clip."""
+        key = (str(shot["path"]), float(shot["start"]))
+        reader = self._clips.get(key)
+        if reader is None:
+            reader = self._clips[key] = ClipReader(shot["path"], self.W, self.H,
+                                                   float(shot.get("end") or shot["start"]))
+        start = float(shot.get("clip_start") or 0.0)
+        at = start + max(t - float(shot["start"]), 0.0)
+        end = shot.get("clip_end")
+        if end is not None and float(end) > start:
+            at = min(at, max(float(end) - 1.0 / reader.fps, start))
+        frame = reader.frame_at(at)
+        return self.black if frame is None else frame
+
+    def release_clips(self, t: float | None = None) -> None:
+        """Close clip readers whose shot ended a while ago (all with None)."""
+        for key, reader in list(self._clips.items()):
+            if t is None or reader.shot_end + CLIP_RELEASE_AFTER_S < t:
+                reader.close()
+                del self._clips[key]
 
     def _map_frame(self, path: str, p: float, shot: dict) -> np.ndarray:
         canvas = _canvas(path, self.W, self.H, "map")
@@ -255,6 +458,38 @@ class Overlays:
         return frame if out is None else out
 
 
+def _channel_intro(language: str, W: int, H: int, fps: int) -> dict | None:
+    """The channel's intro at the film's size (made on first use) — a film
+    without it still renders."""
+    try:
+        from app.documentary.intros import ensure_intro
+
+        return ensure_intro(language, W, H, fps)
+    except Exception as e:  # noqa: BLE001 — the film goes on without its intro
+        import logging
+
+        logging.getLogger(__name__).warning("channel intro for %s unavailable: %s", language, e)
+        return None
+
+
+def _intro_audio_graph(mode: str | None, start: float, seconds: float) -> str:
+    """ffmpeg filter graph: the film's sound + the intro's own sound. In
+    the cold open's break the film's sound (the chapter-break music) is
+    ducked under the intro, with short ramps; before the first word the
+    film's sound simply starts after the intro."""
+    if mode == "prepend":
+        ms = int(round(seconds * 1000))
+        return (f"[1:a]adelay={ms}|{ms}[d];[3:a]anull[i];"
+                "[d][i]amix=inputs=2:normalize=0:duration=longest:dropout_transition=0[a]")
+    g = 10 ** (ai_config.chapters.intro_duck_db / 20)
+    a, b = start - 0.3, start + seconds + 0.3
+    ms = int(round(start * 1000))
+    duck = (f"volume='1-{1 - g:.4f}*clip((t-{a:.3f})/0.3,0,1)*clip(({b:.3f}-t)/0.3,0,1)'"
+            ":eval=frame")
+    return (f"[1:a]{duck}[d];[3:a]adelay={ms}|{ms}[i];"
+            "[d][i]amix=inputs=2:normalize=0:duration=first:dropout_transition=0[a]")
+
+
 def _transition_seconds(shot: dict) -> float:
     lo, hi = ai_config.motion.crossfade_seconds
     if shot.get("transition_in") == "FADE_BLACK":
@@ -298,29 +533,50 @@ class VideoRenderer:
         if audio is None or not audio.exists():
             raise RenderError("documentary audio is missing; render the voice first")
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        srt = write_srt([s for s in script.get("subtitles") or [] if s["start"] < duration],
-                        out_path.with_suffix(".srt"))
         lang = script.get("language", "und")
+        maker = FrameMaker(script, W, H)
+        # the channel intro: in the cold open's break ("gap") or before the
+        # first word ("prepend": everything after it moves by its length)
+        placed = script.get("intro") or None
+        intro = _channel_intro(lang, W, H, fps) if placed else None
+        maker.intro = intro
+        pre = float(intro["seconds"]) if intro and placed.get("mode") == "prepend" else 0.0
+        srt = write_srt([{**s, "start": s["start"] + pre, "end": s["end"] + pre}
+                         for s in script.get("subtitles") or [] if s["start"] < duration],
+                        out_path.with_suffix(".srt"))
         iso3 = {"en": "eng", "de": "ger", "fa": "per", "ar": "ara"}.get(lang, "und")
         cfg = ai_config.render
+        # written next to the target and renamed when ffmpeg succeeded: a
+        # crash never leaves a half film under the final name
+        part = out_path.with_name(out_path.stem + ".part" + out_path.suffix)
         cmd = [
             "ffmpeg", "-y", "-v", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
             "-i", str(audio), "-i", str(srt),
-            "-map", "0:v", "-map", "1:a", "-map", "2:s",
+        ]
+        if intro:
+            cmd += ["-i", str(intro["audio"]), "-filter_complex",
+                    _intro_audio_graph(placed.get("mode"), float(placed.get("start") or 0.0),
+                                       float(intro["seconds"])),
+                    "-map", "0:v", "-map", "[a]", "-map", "2:s"]
+        else:
+            cmd += ["-map", "0:v", "-map", "1:a", "-map", "2:s"]
+        cmd += [
             "-c:v", "libx264", "-preset", cfg.preset, "-crf", str(cfg.crf),
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-            "-c:s", "mov_text", f"-metadata:s:s:0", f"language={iso3}",
-            "-t", f"{duration:.3f}", "-movflags", "+faststart", str(out_path),
+            "-c:s", "mov_text", "-metadata:s:s:0", f"language={iso3}",
+            "-t", f"{duration + pre:.3f}", "-movflags", "+faststart", str(part),
         ]
-        maker = FrameMaker(script, W, H)
         overlays = Overlays(script, W, H, cfg.burn_subtitles)
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        total = int(math.ceil(duration * fps))
+        total = int(math.ceil((duration + pre) * fps))
         idx = 0
         try:
             for f in range(total):
-                t = f / fps
+                if f / fps < pre:
+                    proc.stdin.write(np.ascontiguousarray(maker.intro_frame(f / fps)).tobytes())
+                    continue
+                t = f / fps - pre
                 while idx + 1 < len(shots) and shots[idx + 1]["start"] <= t:
                     idx += 1
                 shot = shots[idx]
@@ -343,17 +599,29 @@ class VideoRenderer:
                     frame = (frame.astype(np.float32) * _ease((duration - t) / 1.5)).astype(np.uint8)
                 frame = overlays.apply(frame, t)
                 proc.stdin.write(np.ascontiguousarray(frame).tobytes())
+                maker.release_clips(t)
                 if progress and f % (fps * 5) == 0:
                     progress(f / total, f"frame {f}/{total}")
             proc.stdin.close()
             err = proc.stderr.read().decode(errors="replace")
             if proc.wait() != 0:
                 raise RenderError(f"ffmpeg failed: {err[-400:]}")
+            os.replace(part, out_path)
         except BrokenPipeError as e:
             err = proc.stderr.read().decode(errors="replace")
+            part.unlink(missing_ok=True)
             raise RenderError(f"ffmpeg stopped: {err[-400:]}") from e
+        except BaseException:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            part.unlink(missing_ok=True)
+            raise
         finally:
+            maker.release_clips()
             _canvas.cache_clear()
         return {"path": storage.rel(out_path), "srt": storage.rel(srt),
-                "duration": round(duration, 3), "width": W, "height": H, "fps": fps,
-                "frames": total, "shots": len(shots)}
+                "duration": round(duration + pre, 3), "width": W, "height": H, "fps": fps,
+                "frames": total, "shots": len(shots),
+                "intro": ({"mode": placed.get("mode"), "seconds": intro["seconds"],
+                           "concept": intro.get("concept")} if intro else None)}

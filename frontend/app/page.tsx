@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -16,8 +17,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
 import { PageHeader } from "@/components/page-header";
-import { CaseStatusBadge, RunStatusBadge } from "@/components/status-badge";
+import {
+  CaseStatusBadge,
+  RESOLUTION_STATUSES,
+  ResolutionBadge,
+  RunStatusBadge,
+  resolutionLabel,
+} from "@/components/status-badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { FollowUpCard } from "@/components/lifecycle/follow-up-card";
+import { MonitorStatusCard } from "@/components/lifecycle/monitor-status";
+import type { DocumentaryJob, FollowUpCandidate, ResolutionStatus } from "@/lib/types";
 
 const KNOWN_AGENTS = [
   "Discovery Agent",
@@ -34,13 +44,19 @@ const KNOWN_AGENTS = [
 ];
 
 export default function DashboardPage() {
-  const { data, error, loading, refetch } = useApi(() => api.dashboard());
+  const [tick, setTick] = useState(0);
+  // keepPrevious: refreshing after a follow-up decision or a monitor run
+  // keeps the dashboard on screen.
+  const { data, error, loading, refetch } = useApi(() => api.dashboard(), [tick], { keepPrevious: true });
+  const [started, setStarted] = useState<{ fu: FollowUpCandidate; job: DocumentaryJob } | null>(null);
+  const refresh = () => setTick((t) => t + 1);
+  const followUps = data?.follow_up_candidates ?? [];
 
   return (
     <div>
       <PageHeader title="Dashboard" description="Research and writing activity across the studio." />
 
-      {loading && (
+      {loading && !data && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -51,10 +67,57 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {error && <ErrorState message={error} onRetry={refetch} />}
+      {error && !data && <ErrorState message={error} onRetry={refetch} />}
 
       {data && (
         <div className="space-y-6">
+          {error && (
+            <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-4 py-2 text-xs text-rose-600 dark:text-rose-400">
+              Could not refresh the dashboard: {error}
+            </div>
+          )}
+
+          {started && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm"
+            >
+              <span>
+                Update video started for{" "}
+                <span className="font-medium">{started.fu.case_title ?? `case #${started.fu.case_id}`}</span> — follow-up
+                job #{started.job.id} ({started.job.mode}, {started.job.languages.map((l) => l.toUpperCase()).join(" ")}).
+              </span>
+              <span className="flex items-center gap-3">
+                <Link href={`/documentary/${started.fu.case_id}`} className="text-xs font-medium text-primary hover:underline">
+                  Follow the production
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setStarted(null)}
+                  className="cursor-pointer text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Dismiss
+                </button>
+              </span>
+            </div>
+          )}
+
+          {followUps.length > 0 && (
+            <section aria-label="Follow-up decisions" className="space-y-3">
+              {followUps.map((fu) => (
+                <FollowUpCard
+                  key={fu.id}
+                  candidate={fu}
+                  onApproved={(f, job) => {
+                    setStarted({ fu: f, job });
+                    refresh();
+                  }}
+                  onDismissed={refresh}
+                />
+              ))}
+            </section>
+          )}
+
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <Stat icon={FolderOpen} label="Total Cases" value={data.stats.total_cases} />
             <Stat icon={FlaskConical} label="Researched" value={data.stats.cases_researched} />
@@ -62,6 +125,10 @@ export default function DashboardPage() {
             <Stat icon={Timer} label="Waiting for Research" value={data.stats.cases_waiting} />
             <Stat icon={Link2} label="Sources Collected" value={data.stats.sources_collected} />
           </div>
+
+          {data.resolution_counts && <ResolutionTiles counts={data.resolution_counts} />}
+
+          <MonitorStatusCard onRunFinished={refresh} />
 
           <Card>
             <CardHeader>
@@ -101,9 +168,12 @@ export default function DashboardPage() {
                     {data.recent_cases.map((c) => (
                       <TR key={c.id} className="cursor-pointer">
                         <TD>
-                          <Link href={`/cases/${c.id}`} className="font-medium hover:text-primary">
-                            {c.title}
-                          </Link>
+                          <span className="flex flex-wrap items-center gap-2">
+                            <Link href={`/cases/${c.id}`} className="font-medium hover:text-primary">
+                              {c.title}
+                            </Link>
+                            <ResolutionBadge status={c.resolution_status} />
+                          </span>
                         </TD>
                         <TD>
                           <CaseStatusBadge status={c.status} />
@@ -173,6 +243,39 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+const RESOLUTION_TONE: Record<ResolutionStatus, string> = {
+  SOLVED: "text-emerald-600 dark:text-emerald-400",
+  UNSOLVED: "text-rose-600 dark:text-rose-400",
+  STATUS_UNDER_REVIEW: "text-amber-600 dark:text-amber-400",
+  UNKNOWN: "text-foreground",
+};
+
+/** How many cases are solved, unsolved, under review or unknown — each opens the filtered case list. */
+function ResolutionTiles({ counts }: { counts: Partial<Record<ResolutionStatus, number>> }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {RESOLUTION_STATUSES.map((s) => (
+        <Link
+          key={s}
+          href={`/cases?resolution=${s}`}
+          className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          aria-label={`${counts[s] ?? 0} ${resolutionLabel(s).toLowerCase()} cases`}
+        >
+          <Card className="h-full transition-colors hover:bg-muted/40">
+            <CardContent className="flex items-center gap-3 p-4">
+              <p className={`text-xl font-semibold tabular-nums leading-none ${RESOLUTION_TONE[s]}`}>{counts[s] ?? 0}</p>
+              <div className="min-w-0">
+                <ResolutionBadge status={s} />
+                <p className="mt-1 text-xs text-muted-foreground">cases</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      ))}
     </div>
   );
 }

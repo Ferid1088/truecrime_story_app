@@ -18,13 +18,16 @@ class AudioToolError(RuntimeError):
     pass
 
 
-def _run(args: list[str]) -> subprocess.CompletedProcess:
+def _run(args: list[str], data: bytes | None = None) -> subprocess.CompletedProcess:
     if not shutil.which(args[0]):
         raise AudioToolError(f"{args[0]} is not installed (required for audio).")
-    proc = subprocess.run(args, capture_output=True, text=True)
+    proc = subprocess.run(args, input=data, capture_output=True,
+                          text=data is None)
     if proc.returncode != 0:
+        err = proc.stderr
         raise AudioToolError(
-            f"{args[0]} failed ({proc.returncode}): {proc.stderr.strip()[-400:]}"
+            f"{args[0]} failed ({proc.returncode}): "
+            f"{(err if isinstance(err, str) else err.decode(errors='replace')).strip()[-400:]}"
         )
     return proc
 
@@ -143,6 +146,33 @@ def encode_mp3(src: str | Path, dst: str | Path, bitrate: str = "192k") -> Path:
         "ffmpeg", "-y", "-v", "error", "-i", str(src), "-c:a", "libmp3lame",
         "-b:a", bitrate, str(dst),
     ])
+    return Path(dst)
+
+
+def decode_f32(path: str | Path, sample_rate: int):
+    """Decode any audio file to mono float32 samples at `sample_rate`
+    (dynamic-EQ input)."""
+    import numpy as np
+
+    if not shutil.which("ffmpeg"):
+        raise AudioToolError("ffmpeg is not installed (required for audio).")
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(path), "-ac", "1",
+         "-ar", str(sample_rate), "-f", "f32le", "-"],
+        capture_output=True, check=True,
+    ).stdout
+    return np.frombuffer(raw, dtype=np.float32)
+
+
+def write_wav_f32(samples, sample_rate: int, dst: str | Path,
+                  codec: str = "pcm_s24le") -> Path:
+    """Write float32 samples to a lossless PCM WAV (default 24-bit)."""
+    import numpy as np
+
+    _run([
+        "ffmpeg", "-y", "-v", "error", "-f", "f32le", "-ar", str(sample_rate),
+        "-ac", "1", "-i", "-", "-c:a", codec, str(dst),
+    ], data=np.asarray(samples, dtype="<f4").tobytes())
     return Path(dst)
 
 

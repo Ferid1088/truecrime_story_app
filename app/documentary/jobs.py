@@ -11,7 +11,9 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   visual_needs       visual requirements per beat
   visual_research    real photos/documents for those needs
   visual_check       vision verification of the best candidates
-  visual_plan        shots per beat + motion; maps/document cards
+  visual_plan        shots per sentence + motion; maps/document cards
+  visual_gaps        targeted searches for sentences with weak pictures,
+                     then those beats are directed again
   host:<lang>        the host's dialogue, natively per language
   performance:<lang> narrator arc + ElevenLabs v3 audio tags
   voice:<lang>       narration + music mix (pilot: first N seconds)
@@ -41,6 +43,7 @@ shorter than documentary.min_film_minutes.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import traceback
@@ -75,6 +78,45 @@ class LanguageFailed(Exception):
     pass
 
 
+class SpokenRejected(RuntimeError):
+    """A spoken version its checkers did not approve after the redos."""
+
+
+MASTER_ROLES = {"director": "master_story_director", "writer": "master_writer",
+                "rewriter": "master_rewriter", "critic": "master_engagement_critic",
+                "final_editor": "master_final_editor"}
+
+
+async def approve_master(db: Session, case: Case, v: StoryVersion,
+                         max_redos: int | None = None) -> tuple[StoryVersion, list[dict]]:
+    """The master story's approval gate: its critics and quality gates
+    must have passed (status "ready"). A master marked needs_revision is
+    revised with exactly the reasons it failed — the revision is a new
+    version, judged again by the same critics — at most max_redos times.
+    Returns (approved version, the rejected attempts). Raises when it is
+    still not approved: there is no film without an approved story."""
+    from app.agents.story import StoryPipeline
+
+    limit = ai_config.documentary.max_redos if max_redos is None else max_redos
+    history: list[dict] = []
+    while v.status == "needs_revision":
+        notes = json.loads(v.critic_notes or "{}")
+        gates = notes.get("quality_gates") or {}
+        failures = gates.get("failures") or []
+        history.append({"version_id": v.id, "failures": failures})
+        if len(history) > limit:
+            raise RuntimeError(
+                f"Master story not approved after {limit} revision(s): "
+                + (", ".join(map(str, failures)) or "quality gates failed"))
+        instruction = (
+            "Revise the story so that it passes these failed quality checks, and change "
+            "nothing else: " + json.dumps(failures, ensure_ascii=False)
+            + (". Critic notes: " + str(notes.get("summary") or notes.get("notes"))[:1500]
+               if notes.get("summary") or notes.get("notes") else ""))
+        v = await StoryPipeline(roles=MASTER_ROLES).improve(db, case, v, instruction)
+    return v, history
+
+
 # ---------------------------------------------------------------------------
 # helpers shared with the API
 # ---------------------------------------------------------------------------
@@ -90,9 +132,6 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
     for v in rows:
         struct = json.loads(v.narrative_structure or "{}")
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
-            continue
-        # versions written in Finglish (an earlier experiment) are not reused
-        if struct.get("speech_script", "native") != "native":
             continue
         return v
     return None
@@ -146,6 +185,8 @@ def job_dict(job: DocumentaryJob) -> dict:
         "refresh_visuals": bool(job.refresh_visuals),
         "from_zero": bool(job.from_zero), "target_minutes": job.target_minutes,
         "batch_id": job.batch_id,
+        "production_type": job.production_type or "original",
+        "follow_up_id": job.follow_up_id,
         "status": job.status, "stage": job.stage, "progress": round(job.progress or 0, 3),
         "stages": json.loads(job.stages_json or "[]"),
         "result": json.loads(job.result_json or "{}"), "error": job.error,
@@ -157,13 +198,15 @@ def job_dict(job: DocumentaryJob) -> dict:
 def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
     host = ai_config.host.enabled
     names = (["research", "master_story"] if from_zero else []) + [
-        "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
-        ["host_plan"] if host else []) + [
-        "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan"]
+        "master_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
+        ["host_plan"] if host else []) + (
+        ["chapters"] if ai_config.chapters.enabled else []) + [
+        "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan",
+        "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
             f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
-            f"render:{l}"]
+            f"visual_audit:{l}", f"render:{l}"]
     return [{"name": n, "status": "pending", "detail": None} for n in names]
 
 
@@ -185,7 +228,7 @@ class DocumentaryPipeline:
     def _save(self):
         self.job.stages_json = json.dumps(self.stages, ensure_ascii=False, default=str)
         self.job.result_json = json.dumps(self.result, ensure_ascii=False, default=str)
-        done = sum(1 for s in self.stages if s["status"] in ("done", "skipped"))
+        done = sum(1 for s in self.stages if s["status"] in ("done", "skipped", "degraded"))
         self.job.progress = done / max(len(self.stages), 1)
         self.job.stage = (", ".join(self.running) or None) if self.running else None
         if self.job.stage and len(self.job.stage) > 60:
@@ -206,11 +249,20 @@ class DocumentaryPipeline:
         return st
 
     async def _stage(self, name: str, fn):
+        """Run one stage once: its result is saved on the job before the
+        next stage starts. Every attempt is counted and timed, every
+        failure kept (type + message) — a retry does not erase the last
+        one. A result marked {"degraded": reason} is kept and shown as
+        degraded (the film went on without that part; the reason is on
+        the stage and in the job result) — a new run redoes it."""
         st = self._entry(name)
-        if st["status"] in ("done", "skipped"):
+        if st["status"] in ("done", "skipped", "degraded"):
             return st.get("detail")
         self._check_cancel()
         st["status"] = "running"
+        st["attempts"] = int(st.get("attempts") or 0) + 1
+        st["started_at"] = utc_now().isoformat()
+        st.pop("finished_at", None)
         self.running.append(name)
         self._save()
         try:
@@ -218,14 +270,25 @@ class DocumentaryPipeline:
         except Exception as e:
             st["status"] = "failed"
             st["detail"] = str(e)[:500]
+            st["error_type"] = type(e).__name__
+            st["finished_at"] = utc_now().isoformat()
+            st["errors"] = (st.get("errors") or [])[-4:] + [
+                {"at": st["finished_at"], "attempt": st["attempts"],
+                 "type": type(e).__name__, "message": str(e)[:300]}]
             if name in self.running:
                 self.running.remove(name)
             if not self.db.is_active:
                 self.db.rollback()
             self._save()
             raise
-        st["status"] = "skipped" if isinstance(detail, dict) and detail.get("skipped") else "done"
+        degraded = isinstance(detail, dict) and detail.get("degraded")
+        st["status"] = ("skipped" if isinstance(detail, dict) and detail.get("skipped")
+                        else "degraded" if degraded else "done")
         st["detail"] = detail
+        st["finished_at"] = utc_now().isoformat()
+        st.pop("error_type", None)
+        if degraded:
+            self.result.setdefault("degraded", {})[name] = str(degraded)[:300]
         if name in self.running:
             self.running.remove(name)
         self._save()
@@ -248,13 +311,28 @@ class DocumentaryPipeline:
         state: dict = {}
 
         if job.from_zero:
-            await self._stage("research", lambda: research_case(db, case, self._check_cancel))
+            await self._stage("research",
+                              lambda: research_case(db, case, self._check_cancel, job))
             d = await self._stage("master_story", lambda: write_master(db, case, job))
             if d and d.get("master_version_id"):
                 job.master_version_id = d["master_version_id"]
                 db.commit()
         if not job.master_version_id:
             raise RuntimeError("No master story for this job.")
+
+        async def master_approval():
+            # nothing goes into production unapproved: a master its own
+            # critics did not pass is revised with their reasons (each
+            # revision judged again), at most max_redos times
+            v, history = await approve_master(db, case, db.get(StoryVersion,
+                                                               job.master_version_id))
+            if v.id != job.master_version_id:
+                job.master_version_id = v.id
+                db.commit()
+            return {"master_version_id": v.id, "verdict": "approved",
+                    "redos": len(history), "history": history}
+
+        await self._stage("master_approval", master_approval)
         master = db.get(StoryVersion, job.master_version_id)
 
         async def blueprint():
@@ -263,11 +341,18 @@ class DocumentaryPipeline:
                     not row.story_text_hash or row.story_text_hash == master.text_hash):
                 state["bp"] = row
                 return {"blueprint_id": row.id, "reused": True}
-            row = await NarrativeDirector().create(db, case, master)
+            # an invalid blueprint is made again (validated each time)
+            tries = []
+            for _ in range(ai_config.documentary.max_redos + 1):
+                row = await NarrativeDirector().create(db, case, master)
+                tries.append(row.status)
+                if row.status != "invalid":
+                    break
             if row.status == "invalid":
-                raise RuntimeError("The editorial blueprint is invalid; see the Blueprint tab.")
+                raise RuntimeError(f"The editorial blueprint stayed invalid after {len(tries)} "
+                                   "attempts; see the Blueprint tab.")
             state["bp"] = row
-            return {"blueprint_id": row.id, "status": row.status}
+            return {"blueprint_id": row.id, "status": row.status, "attempts": len(tries)}
 
         await self._stage("blueprint", blueprint)
         state.setdefault("bp", latest_blueprint(db, master.id))
@@ -279,7 +364,10 @@ class DocumentaryPipeline:
             if row:
                 return {"audio_plan_id": row.id, "reused": True}
             row = await AudioDirector().create(db, case, bp_row)
-            return {"audio_plan_id": row.id, "status": row.status}
+            out = {"audio_plan_id": row.id, "status": row.status}
+            if row.status == "invalid":
+                out["degraded"] = "audio plan invalid — the film runs without music/sound direction"
+            return out
 
         await self._stage("audio_plan", audio_plan)
         ap_row = latest_audio_plan(db, bp_row.id)
@@ -296,8 +384,21 @@ class DocumentaryPipeline:
                 v = latest_spoken(db, master, lang, bp_row.id)
                 if v is None:
                     v = await SpokenNarrator().create(db, case, master, lang)
+                # approved = its meaning/style checks passed; else made
+                # again (and judged again), at most max_redos times — still
+                # not approved: this language is left out of the film
+                history = []
+                while v.status == "needs_revision":
+                    gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
+                    history.append({"version_id": v.id, "failures": gates.get("failures", [])})
+                    if len(history) > ai_config.documentary.max_redos:
+                        raise SpokenRejected(
+                            f"spoken version not approved after {len(history) - 1} redo(s): "
+                            + ", ".join(gates.get("failures", [])))
+                    v = await SpokenNarrator().create(db, case, master, lang)
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
-                return {"version_id": v.id, "status": v.status,
+                return {"version_id": v.id, "status": v.status, "verdict": "approved",
+                        "redos": len(history), "rejected_before": history,
                         "failures": gates.get("failures", [])}
 
             try:
@@ -315,10 +416,14 @@ class DocumentaryPipeline:
             from app.documentary.visuals.planner import VisualPlanner
 
             row = latest_visual_plan(db, bp_row.id)
-            if row is None:
+            tries = 0
+            while row is None or row.status == "invalid":
+                if tries > ai_config.documentary.max_redos:
+                    raise RuntimeError(f"Visual needs stayed invalid after {tries} attempts.")
                 row = await VisualPlanner().create(db, case, bp_row)
+                tries += 1
             state["vp"] = row
-            return {"visual_plan_id": row.id, "status": row.status}
+            return {"visual_plan_id": row.id, "status": row.status, "attempts": tries}
 
         async def host_plan():
             from app.documentary.host import HostDirector, latest_host_plan
@@ -348,6 +453,34 @@ class DocumentaryPipeline:
         if not ok_langs:
             raise RuntimeError("No language could be told: " + "; ".join(
                 f"{l}: {e}" for l, e in self.lang_errors.items()))
+
+        async def chapters():
+            # chapter titles, the film title and the timeline labels, in
+            # every language, each approved by the chapter auditor
+            from app.documentary.chapters import ChapterWriter, latest_chapter_plan, plan_covers
+
+            if not ai_config.chapters.enabled:
+                return {"skipped": True, "reason": "chapters disabled"}
+            row = latest_chapter_plan(db, bp_row.id)
+            reused = plan_covers(row, ok_langs) and row.status != "no_texts"
+            if not reused:
+                row = await ChapterWriter().create(db, case, bp_row, master, ok_langs, spoken)
+            plan = json.loads(row.plan_json or "{}")
+            audit = json.loads(row.audit_json or "{}")
+            left = [f"{x['key']} ({', '.join(x['languages'])}): {x.get('reason') or ''}"[:160]
+                    for x in audit.get("left_out") or []]
+            out = {"chapter_plan_id": row.id, "status": row.status, "reused": reused,
+                   "chapters": len(plan.get("chapters") or []),
+                   "timeline_events": len(plan.get("events") or []), "left_out": left}
+            if row.status == "no_texts":
+                out["degraded"] = ("no card texts (writer/auditor failed: "
+                                   f"{audit.get('error')}) — cards show only numbers and dates")
+            elif left:
+                out["degraded"] = (f"{len(left)} card text(s) still rejected after the redos "
+                                   "were left out")
+            return out
+
+        await self._optional("chapters", chapters)
 
         async def film_length():
             est = {l: estimate_film_minutes(v, ap) for l, v in spoken.items()}
@@ -394,8 +527,12 @@ class DocumentaryPipeline:
                 async def visual_check():
                     if planned:
                         return {"skipped": True}
-                    return await verify_candidates(db, case, bp, requirements, focus_beats,
-                                                   job.render_profile)
+                    out = await verify_candidates(db, case, bp, requirements, focus_beats,
+                                                  job.render_profile)
+                    if out.get("errors"):
+                        out["degraded"] = (f"{out['errors']} vision checks failed — "
+                                           "those candidates stay unverified")
+                    return out
 
                 await self._stage("visual_check", visual_check)
 
@@ -413,6 +550,23 @@ class DocumentaryPipeline:
                             "fallbacks": report.get("fallbacks"), **stats}
 
                 await self._stage("visual_plan", visual_plan)
+
+                async def visual_gaps():
+                    # production-time search for weak sentences; a plan made
+                    # by an earlier job already had its search
+                    if planned:
+                        return {"skipped": True,
+                                "reason": "visual plan exists (refresh_visuals to redo)"}
+                    from app.documentary.visuals.gaps import fill_visual_gaps
+
+                    out = await fill_visual_gaps(db, case, db.get(VisualPlan, vp_row.id),
+                                                 bp_row, ap_row, profile=job.render_profile,
+                                                 beat_ids=focus_beats)
+                    if out.get("error"):
+                        out["degraded"] = "production search failed — " + out["error"]
+                    return out
+
+                await self._stage("visual_gaps", visual_gaps)
                 visual_state["row"] = db.get(VisualPlan, vp_row.id)
             except BaseException as e:
                 visual_state["error"] = e
@@ -438,9 +592,16 @@ class DocumentaryPipeline:
                     db, case, version, spoken_blueprint(db, version) or bp,
                     beat_ids=focus_beats)
                 data = json.loads(row.performance_json or "{}")
-                return {"voice_performance_id": row.id, "status": row.status,
-                        "incident_beat": data.get("incident_beat"),
-                        "stats": data.get("stats")}
+                out = {"voice_performance_id": row.id, "status": row.status,
+                       "incident_beat": data.get("incident_beat"),
+                       "stats": data.get("stats")}
+                # "partial" alone is normal for a pilot (only its beats are
+                # directed); direction ERRORS mean lines were left plain
+                errs = json.loads(row.validation_json or "{}").get("errors") or []
+                if errs:
+                    out["degraded"] = (f"voice performance: {len(errs)} direction errors — "
+                                       "those lines are read plainly")
+                return out
 
             async def host():
                 from app.documentary.host import HostDirector, latest_host_segments
@@ -452,9 +613,26 @@ class DocumentaryPipeline:
                 if row is None or row.host_plan_id != plan_row.id:
                     row = await HostDirector().write(db, case, version, plan_row)
                 rep = json.loads(row.validation_json or "{}")
+                # the scenes (channel studio + framing, text frozen) are
+                # planned now; voice and avatar run per scene on request
+                from app.documentary.host_scenes import plan_host_scenes
+                from app.documentary.studio import StudioError
+
+                try:
+                    scenes = [s.id for s in plan_host_scenes(db, row)]
+                    scene_error = None
+                except StudioError as e:
+                    scenes, scene_error = [], str(e)
+                # segments the host critic did not approve (after its
+                # rewrites) get no scene: left out of the film
+                left_out = rep.get("failed_segments") or []
                 return {"host_segments_id": row.id, "status": row.status,
                         "seconds": rep.get("host_seconds"),
-                        "needs_review": rep.get("failed_segments")}
+                        "left_out_segments": left_out,
+                        "host_scene_ids": scenes,
+                        **({"degraded": f"host segment(s) not approved, left out: "
+                                        f"{', '.join(left_out)}"} if left_out else {}),
+                        **({"studio_error": scene_error} if scene_error else {})}
 
             await self._optional(f"host:{lang}", host)
             await self._stage(f"performance:{lang}", performance)
@@ -468,11 +646,20 @@ class DocumentaryPipeline:
                     plan, case_id=case.id, story_version_id=version.id,
                     max_seconds=pilot_seconds if pilot else None)
                 holder["m"] = m
-                return {"seconds": m.get("duration_seconds"),
-                        "characters_paid": m.get("characters_paid"),
-                        "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
-                        "audio_tags": plan.get("audio_tags"),
-                        "flags": m.get("flags")}
+                out = {"seconds": m.get("duration_seconds"),
+                       "characters_paid": m.get("characters_paid"),
+                       "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
+                       "audio_tags": plan.get("audio_tags"),
+                       "flags": m.get("flags")}
+                # the listening check (speech-to-text, pronunciation) is the
+                # narration's auditor: takes it still rejects after the
+                # retakes are reported, never silently kept
+                failed = [f for f in m.get("flags") or []
+                          if f.endswith((":asr_check_failed", ":pronunciation_unresolved"))]
+                if failed:
+                    out["degraded"] = (f"{len(failed)} narration block(s) failed the listening "
+                                       "check after retakes: " + ", ".join(failed[:6]))
+                return out
 
             await self._stage(f"voice:{lang}", voice)
             manifest = holder.get("m") or _load_manifest(case.id, version)
@@ -485,8 +672,9 @@ class DocumentaryPipeline:
             async def production():
                 from app.documentary.production.script import build_production_script
 
-                row = await build_production_script(db, version, plan_row, manifest,
-                                                    mode=job.mode)
+                row = await build_production_script(
+                    db, version, plan_row, manifest, mode=job.mode,
+                    production_type=getattr(job, "production_type", None) or "original")
                 return {"production_script_id": row.id, "duration": row.duration_seconds}
 
             d = await self._stage(f"production:{lang}", production)
@@ -503,19 +691,49 @@ class DocumentaryPipeline:
 
             await self._stage(f"critique:{lang}", critique)
 
+            async def visual_audit():
+                # the gate before render: every picture and clip on screen
+                # verified and approved for the words spoken over it
+                # (rejected ones replaced and audited again, else left out)
+                from app.documentary.visuals.auditor import audit_script, audit_summary
+
+                if not ai_config.visual_audit.enabled:
+                    return {"skipped": True, "reason": "visual_audit disabled"}
+                db.refresh(ps)
+                return audit_summary(await audit_script(db, ps))
+
+            await self._stage(f"visual_audit:{lang}", visual_audit)
+
             async def render():
                 from app.documentary.render.engine import VideoRenderer
 
                 script = json.loads(ps.script_json)
+                script_sha = hashlib.sha256(ps.script_json.encode("utf-8")).hexdigest()
                 out = storage.renders_dir(case.id, lang) / f"{job.mode}_v{version.id}_{ps.version}.mp4"
-                async with slot("render"):
-                    info = await asyncio.to_thread(VideoRenderer().render, script, out,
-                                                   pilot_seconds if pilot else None)
-                ps.render_json = json.dumps(info)
-                ps.status = "rendered"
-                db.commit()
-                renders[lang] = {"production_script_id": ps.id, **info}
-                return info
+                prev = json.loads(ps.render_json or "null") if ps.status == "rendered" else None
+                if (prev and prev.get("path") == storage.rel(out)
+                        and prev.get("script_sha256") == script_sha
+                        and out.exists() and out.stat().st_size > 0):
+                    # rendered before the process stopped: the film is
+                    # complete (it is only renamed into place when ffmpeg
+                    # finished), so only the registration is redone
+                    info = {**prev, "reused": True}
+                else:
+                    async with slot("render"):
+                        info = await asyncio.to_thread(VideoRenderer().render, script, out,
+                                                       pilot_seconds if pilot else None)
+                    info["script_sha256"] = script_sha
+                    ps.render_json = json.dumps(info)
+                    ps.status = "rendered"
+                    db.commit()
+                # the channel's memory: a Video with status, opening and
+                # YouTube metadata (UNSOLVED / follow-up titles)
+                from app.lifecycle.videos import register_render
+
+                video = register_render(db, job, ps, info)
+                renders[lang] = {"production_script_id": ps.id, "video_id": video.id,
+                                 "youtube_title": video.youtube_title, **info}
+                return {**info, "video_id": video.id, "youtube_title": video.youtube_title}
 
             await self._stage(f"render:{lang}", render)
 
@@ -565,19 +783,26 @@ class DocumentaryPipeline:
                 raise r
 
 
-async def research_case(db: Session, case: Case, check_cancel) -> dict:
+async def research_case(db: Session, case: Case, check_cancel,
+                        doc_job: DocumentaryJob | None = None) -> dict:
     """From zero, step 1: research with the configured search engine and
-    wait for the facts (skipped when the case already has facts)."""
+    wait for the facts (skipped when the case already has facts). A
+    follow-up film always researches the new developments first."""
     from app.db.models import ResearchJob
     from app.services import research_jobs
 
+    follow_up = doc_job is not None and doc_job.production_type == "follow_up"
     facts = db.query(Fact).filter(Fact.case_id == case.id).count()
-    if facts:
+    if facts and not follow_up:
         return {"skipped": True, "reason": f"case already has {facts} facts"}
     job = (db.query(ResearchJob).filter(ResearchJob.case_id == case.id,
                                         ResearchJob.job_type == "research",
                                         ResearchJob.status.in_(("queued", "running")))
            .order_by(ResearchJob.id.desc()).first())
+    if job is None and follow_up:
+        from app.lifecycle.followups import start_update_research
+
+        job = await start_update_research(db, case, doc_job.follow_up_id)
     if job is None:
         job = await research_jobs.start_research_job(db, case)
     waited = 0.0
@@ -591,6 +816,9 @@ async def research_case(db: Session, case: Case, check_cancel) -> dict:
     if job.status != "completed":
         raise RuntimeError(f"Research job {job.id} {job.status}: {job.error or ''}"[:400])
     facts = db.query(Fact).filter(Fact.case_id == case.id).count()
+    if not facts:
+        raise RuntimeError(f"Research job {job.id} completed but no facts were saved for "
+                           "the case — check the research job before writing a story.")
     return {"research_job_id": job.id, "facts": facts,
             "sources": job.sources_accepted}
 
@@ -602,12 +830,23 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
     from app.services.readiness import build_readiness
 
     canonical = ai_config.multilingual.canonical_language
+    follow_up = None
+    if job.production_type == "follow_up" and job.follow_up_id:
+        from app.db.models import FollowUpCandidate
+        from app.lifecycle.followups import context as follow_up_context
+
+        fu = db.get(FollowUpCandidate, job.follow_up_id)
+        follow_up = follow_up_context(db, fu) if fu else None
     existing = (db.query(StoryVersion)
                 .filter(StoryVersion.case_id == case.id, StoryVersion.kind == "master",
                         StoryVersion.language == canonical)
-                .order_by(StoryVersion.id.desc()).first())
-    if existing is not None:
-        return {"master_version_id": existing.id, "reused": True}
+                .order_by(StoryVersion.id.desc()).all())
+    for row in existing:
+        struct = json.loads(row.narrative_structure or "{}")
+        same_film = ((struct.get("follow_up") or {}).get("follow_up_id") == job.follow_up_id
+                     if follow_up else not struct.get("follow_up"))
+        if same_film:
+            return {"master_version_id": row.id, "reused": True}
     from app.schemas import GenerateStoryRequest
 
     defaults = GenerateStoryRequest()
@@ -618,14 +857,14 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
     if status in ("incomplete_evidence", "failed", "insufficient_research"):
         raise RuntimeError(
             f"Master story blocked ({status}): {report['master_readiness'].get('reason')}")
-    roles = {"director": "master_story_director", "writer": "master_writer",
-             "rewriter": "master_rewriter", "critic": "master_engagement_critic",
-             "final_editor": "master_final_editor"}
-    story = await StoryPipeline(roles=roles).run(
+    story = await StoryPipeline(roles=MASTER_ROLES).run(
         db=db, case=case, target_minutes=minutes, language=canonical,
         tone=defaults.tone, iterations=defaults.iterations, kind="master",
-        words_per_minute=ai_config.words_per_minute_for(canonical))
-    return {"master_version_id": story.id, "minutes": minutes, "status": story.status}
+        words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up)
+    struct = json.loads(story.narrative_structure or "{}")
+    return {"master_version_id": story.id, "minutes": minutes, "status": story.status,
+            "opening_strategy": struct.get("opening_strategy"),
+            "production_type": job.production_type or "original"}
 
 
 def _load_manifest(case_id: int, version: StoryVersion) -> dict:
@@ -637,17 +876,13 @@ def _load_manifest(case_id: int, version: StoryVersion) -> dict:
 
 async def verify_candidates(db: Session, case: Case, blueprint: dict, requirements: dict,
                             beat_ids: list[str] | None, profile: str | None,
-                            per_requirement: int = 3) -> dict:
+                            per_requirement: int | None = None) -> dict:
     """Vision-check the best unverified candidates of each need (a pilot
     only checks the beats it shows)."""
-    from app.agents.story import build_evidence_pack
-    from app.db.models import Contradiction, Source
     from app.documentary.visuals.director import blocked_at, rank_candidates
-    from app.documentary.visuals.verification import VisualVerificationAgent
 
     assets = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
     ents = {e["key"]: e for e in requirements.get("entities") or []}
-    beats = {b["id"]: b for b in blueprint.get("beats") or []}
     todo: list[VisualAsset] = []
     for rb in requirements.get("beats") or []:
         if beat_ids and rb["beat_id"] not in beat_ids:
@@ -658,9 +893,34 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
             if not ent:
                 continue
             loose = dict(r, acceptable_roles=["evidence", "context", "illustration"])
-            for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:per_requirement]:
+            n = per_requirement or ai_config.visual_verification.per_requirement
+            for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:n]:
                 if a.verification_status == "unverified" and a not in todo:
                     todo.append(a)
+    # a relevant piece of a video brings its sibling pieces: the whole
+    # video gets described (each piece by the video auditor), so every
+    # part of it can serve the sentence it belongs to
+    from app.documentary.visuals.pieces import piece_info
+
+    parents = {piece_info(a).get("parent") for a in todo} - {None}
+    if parents:
+        for a in assets:
+            if (a not in todo and a.verification_status == "unverified"
+                    and piece_info(a).get("parent") in parents):
+                todo.append(a)
+    return await verify_assets(db, case, todo, list(ents.values()))
+
+
+async def verify_assets(db: Session, case: Case, assets: list[VisualAsset],
+                        entities: list[dict]) -> dict:
+    """Vision-check these assets against the case evidence (shared by the
+    visual_check stage and the production-time search)."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Contradiction, Source
+    from app.documentary.visuals.verification import VisualVerificationAgent
+
+    if not assets:
+        return {"checked": 0}
     pack = build_evidence_pack(
         db.query(Fact).filter(Fact.case_id == case.id).all(),
         db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
@@ -668,16 +928,16 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
     agent = VisualVerificationAgent()
     # all candidates at once; the vision limit (concurrency.vision) paces them
     results = await gather_limited(
-        None, [agent.verify(db, case, a, list(ents.values()), pack["facts"]) for a in todo],
+        None, [agent.verify(db, case, a, entities, pack["facts"]) for a in assets],
         return_exceptions=True)
     counts: dict[str, int] = {}
     errors = 0
-    for a, r in zip(todo, results):
+    for a, r in zip(assets, results):
         if isinstance(r, Exception):
             errors += 1
             continue
         counts[a.verification_status] = counts.get(a.verification_status, 0) + 1
-    return {"checked": len(todo), **counts, **({"errors": errors} if errors else {})}
+    return {"checked": len(assets), **counts, **({"errors": errors} if errors else {})}
 
 
 # ---------------------------------------------------------------------------

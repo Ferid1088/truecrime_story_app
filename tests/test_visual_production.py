@@ -143,7 +143,8 @@ def test_requirements_keep_only_grounded_material():
     assert {"unknown_entity", "quote_dropped", "date_dropped", "document_dropped",
             "unknown_beat"} <= codes
     q = research_queries(reqs)
-    assert q == [{"query": "farmhouse Nannup", "entity": "the_house", "entities": ["the_house"]}]
+    assert q == [{"query": "farmhouse Nannup", "entity": "the_house", "entities": ["the_house"],
+                  "entity_type": "building", "kind": "exact", "footage": False}]
 
 
 # ---------------------------------------------------------------------------
@@ -205,8 +206,10 @@ def test_visual_plan_validation_and_fallbacks():
             {"command": "SHOW_DOCUMENT", "from_sentence": 1}]},
     ]}
     marks = {"B02": sentence_marks("One two three four five six. Seven eight.")}
+    # (an opening about the place may show its map first; see
+    # test_visual_direction for the other openings)
     plan, rep = validate_visual_plan(raw, bp, reqs, {"B01": [], "B02": ["VIS_000001"]},
-                                     {"VIS_000001": a1}, marks)
+                                     {"VIS_000001": a1}, marks, opening="important_location")
     b = {x["beat_id"]: x for x in plan["beats"]}
     assert [s["command"] for s in b["B01"]["shots"]] == ["SHOW_MAP"]
     # sentence anchors -> shares (6 of 8 words, then the quote)
@@ -270,13 +273,20 @@ def test_compose_timeline_from_real_audio():
     texts = {"date|May 2006": "Mai 2006"}
     s = compose(_manifest(), plan, assets, texts, "de")
     shots = s["shots"]
-    # the black beat stays a short pause, then a picture the story has
-    # already shown takes over (never 20 s of black)
-    assert [x["kind"] for x in shots] == ["image", "image", "black", "image"]
+    # no picture twice: with nothing new to show, the picture on screen
+    # stays, and the black beat becomes a short pause at its end (never
+    # 20 s of black, never a return of an earlier picture)
+    assert [x["kind"] for x in shots] == ["image", "image", "black"]
     assert shots[0]["start"] == 0 and shots[0]["end"] == 20.0  # date extends the image
-    assert shots[1]["start"] == 20.0 and shots[3]["end"] == 60.0
+    assert shots[1]["asset_id"] == "VIS_000002" and shots[1]["start"] == 20.0
+    assert "no picture twice" in shots[1]["held_reason"]
+    assert shots[2]["end"] == 60.0
     assert shots[2]["end"] - shots[2]["start"] == pytest.approx(ai_config.attention.max_black_seconds)
-    assert shots[3]["asset_id"] == "VIS_000001" and shots[3]["black_filled"]
+    # credits and the illustration label follow the final cut
+    creds = [o for o in s["overlays"] if o["kind"] == "credit"]
+    assert [(o["start"], o["end"]) for o in creds] == [(0.0, 20.0)]
+    assert [(o["start"], o["end"]) for o in s["overlays"] if o["kind"] == "label"] == \
+        [(20.0, shots[1]["end"])]
     assert shots[0]["transition_in"] == "FADE_BLACK"
     kinds = {o["kind"]: o for o in s["overlays"]}
     assert kinds["date"]["text"] == "Mai 2006"
@@ -300,17 +310,15 @@ def test_compose_folds_flash_cuts_and_swaps_long_holds():
     s = compose(m, plan, assets, {}, "en")
     # the 2.4 s opening flash cut is folded into the next picture
     assert s["shots"][0]["asset_id"] == "VIS_000002" and s["shots"][0]["start"] == 0.0
-    # a 60 s still becomes a sequence of the beat's pictures, never the
-    # same picture twice in a row and no picture much longer than a hold
+    # a 60 s still becomes a sequence of the beat's pictures — each picture
+    # once; when they are all shown, the last one stays
     shots = s["shots"]
-    assert len(shots) >= 4 and shots[-1]["end"] == 60.0
-    assert shots[1]["asset_id"] in ("VIS_000001", "VIS_000003")
+    assert [x["asset_id"] for x in shots] == ["VIS_000002", "VIS_000001", "VIS_000003"]
+    assert shots[-1]["end"] == 60.0 and "no picture twice" in shots[-1]["held_reason"]
     assert all(x["command"] == "NEW_IMAGE" for x in shots[1:])
-    assert all(a["asset_id"] != b["asset_id"] for a, b in zip(shots, shots[1:]))
     # (a cut may move up to 4 s to land where a sentence begins)
-    assert all(x["end"] - x["start"] <= ai_config.motion.max_still_seconds + 4.01 for x in shots)
-    lengths = [round(x["end"] - x["start"], 1) for x in shots[1:-1]]
-    assert len(set(lengths)) > 1  # never a metronome
+    assert all(x["end"] - x["start"] <= ai_config.motion.max_still_seconds + 4.01
+               for x in shots[:-1])
 
 
 # ---------------------------------------------------------------------------
@@ -465,8 +473,29 @@ class PipelineGen:
             data = json.loads(user)
             return {"texts": {k: f"{v} ({data['language']})" for k, v in data["texts"].items()}}, \
                 self._res(role)
+        if role == "chapter_writer":
+            data = json.loads(user)
+            langs = data["languages"]
+            return {"film_title": {lg: f"The farmhouse ({lg})" for lg in langs},
+                    "chapters": [{"act_id": c["act_id"],
+                                  "title": {lg: f"Part {c['number']} ({lg})" for lg in langs}}
+                                 for c in data["chapters"]],
+                    "events": [{"id": e["id"], "label": {lg: f"Event {e['id']} ({lg})"
+                                                         for lg in langs}}
+                               for e in data["events"]]}, self._res(role)
+        if role == "chapter_auditor":
+            data = json.loads(user)
+            self.cards_audited = sorted(data["texts"])
+            return {"verdicts": [{"key": k, "ok": True} for k in data["texts"]]}, self._res(role)
         if role.endswith("_critic"):
             return {"score": 80, "problems": [], "summary": "fine"}, self._res(role)
+        if role == "visual_auditor":
+            data = json.loads(user)
+            assert images and data["narration_while_on_screen"]
+            self.audited = getattr(self, "audited", 0) + 1
+            return {"verdict": "approved", "as": "evidence", "fits_words": 0.9,
+                    "specific_kind_ok": True, "tone_ok": True, "person_ok": True,
+                    "depicts": "the farmhouse", "reasons": []}, self._res(role)
         raise AssertionError(f"unexpected role {role}")
 
 
@@ -483,9 +512,11 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.render, "width", 320)
     monkeypatch.setattr(ai_config.render, "height", 180)
     gen = PipelineGen()
+    gen.research_calls = []
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
-                "production.critics", "voice_performance", "pronunciation", "host"):
+                "production.critics", "voice_performance", "pronunciation", "host",
+                "visuals.auditor", "chapters"):
         monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts
@@ -494,11 +525,13 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr("app.documentary.production.audio.DocumentaryMixer",
                         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())))
 
-    async def fake_research(self, db, case, queries, progress=None):
+    async def fake_research(self, db, case, queries, progress=None, found_during="research",
+                            **kw):
         from app.documentary import storage
         from app.documentary.visuals.research import next_asset_code
 
         assert queries[0]["entity"] == "the_house"
+        gen.research_calls.append(found_during)
         for i in range(2):
             code = next_asset_code(db)
             p = _jpg(storage.visuals_dir(case.id) / f"{code}.jpg", color=(90 + i * 40, 80, 70))
@@ -550,6 +583,31 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         place = next(o for o in script["overlays"] if o["kind"] == "place")
         assert place["text"] == ("Nannup" if lang == "en" else "Nannup (de)")
         assert json.loads(ps.critique_json)["score"] == 80
+        audit = json.loads(ps.audit_json)
+        assert audit["status"] == "approved" and audit["approved"] >= 1
+        assert all(sh["audit"]["verdict"] == "approved"
+                   for sh in script["shots"] if sh.get("kind") == "image")
+        assert stages[f"visual_audit:{lang}"]["status"] == "done"
+        # after the cold open: the film's title, then chapter 1 — at the end
+        # of the chapter break, the new chapter's picture before its first word
+        cards = [x for x in script["shots"] if x["kind"] in ("title", "chapter")]
+        assert [x["kind"] for x in cards] == ["title", "chapter"]
+        assert cards[1]["card"] == {"label": "Chapter 1" if lang == "en" else "Kapitel 1",
+                                    "title": f"Part 1 ({lang})"}
+        b02 = next(b for b in script["beats"] if b["beat_id"] == "B02")
+        assert abs(cards[1]["end"] - (b02["start"] - ai_config.chapters.lead_out_seconds)) < 0.01
+        after = script["shots"][script["shots"].index(cards[1]) + 1]
+        assert after["beat_id"] == "B02" and after["start"] == cards[1]["end"]
+        # every render is remembered as a Video with status + YouTube title
+        from app.db.models import Video
+
+        video = db_session.get(Video, r["video_id"])
+        assert video.production_script_id == ps.id and video.language == lang
+        assert video.status_at_production == case.resolution_status
+        assert video.youtube_title and r["youtube_title"] == video.youtube_title
+    ch = stages["chapters"]["detail"]
+    assert ch["status"] == "approved" and ch["chapters"] >= 1 and ch["left_out"] == []
+    assert "film_title" in documentary_env.cards_audited
     vp = db_session.query(VisualPlan).filter_by(case_id=case.id).one()
     assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en", "de"}
     # the narrator's performance (v3 audio tags) reached the voice
@@ -627,7 +685,8 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert r.status_code == 200, r.text
     job = r.json()
     assert job["languages"] == ["en"] and launched == [job["id"]]
-    assert job["stages"][0] == {"name": "blueprint", "status": "pending", "detail": None}
+    assert job["stages"][0] == {"name": "master_approval", "status": "pending", "detail": None}
+    assert job["stages"][1]["name"] == "blueprint"
     again = client.post(f"/api/cases/{case.id}/documentary/jobs", json={"mode": "pilot"})
     assert again.status_code == 409
     assert client.post(f"/api/documentary/jobs/{job['id']}/cancel").json()["status"] == "cancelling"
@@ -652,7 +711,8 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert client.get(f"/api/cases/{case.id}/documentary/visual-plan").status_code == 404
     assert client.get(f"/api/cases/{case.id}/documentary/production/en").status_code == 404
     music = client.get("/api/documentary/music").json()
-    assert {m["id"] for m in music} >= {"bed_mystery", "sting_reveal"}
+    # config cues are imported as variant-1 library tracks
+    assert {m["cue_id"] for m in music} >= {"bed_mystery", "sting_reveal"}
 
 
 def test_ambiguous_place_names_resolve_near_the_case(tmp_path, monkeypatch):

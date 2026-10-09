@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { formatDateTime, humanize } from "@/lib/format";
-import type { AudioPlanBeat, BlueprintQuestion, ValidationIssue } from "@/lib/types";
+import { api } from "@/lib/api";
+import { formatDateTime, humanize, isRtl, langLabel } from "@/lib/format";
+import { useApi } from "@/lib/hooks";
+import type { AudioPlanBeat, BlueprintQuestion, ChapterPlanRecord, ValidationIssue } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -84,7 +86,104 @@ function IssueList({ title, issues, tone }: { title: string; issues: ValidationI
   );
 }
 
-export function BlueprintTab({ overview }: DocumentaryTabProps) {
+const CHAPTER_STATUS: Record<ChapterPlanRecord["status"], "success" | "warning" | "danger"> = {
+  approved: "success",
+  partial: "warning",
+  no_texts: "danger",
+};
+
+/** Chapter titles, the film title and the timeline labels in every
+ * language — each approved by the chapter auditor; what it still
+ * rejected after the redos is listed (the card then shows only the
+ * chapter number / the date). */
+function ChaptersCard({ caseId, versionId, refreshKey }: { caseId: number; versionId: number | null; refreshKey: number }) {
+  const { data } = useApi(() => api.chapters(caseId, versionId), [caseId, versionId, refreshKey]);
+  if (!data) return null;
+  const langs = data.languages;
+  const text = (t: Record<string, string> | undefined, lang: string) => t?.[lang];
+  const cell = (t: Record<string, string> | undefined, lang: string, fallback: string) => {
+    const v = text(t, lang);
+    return v ? (
+      <span dir={isRtl(lang) ? "rtl" : undefined}>{v}</span>
+    ) : (
+      <span className="text-muted-foreground" title="left out — the card shows only this">
+        {fallback}
+      </span>
+    );
+  };
+  const rounds = data.audit.rounds?.length ?? 0;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Chapters &amp; timeline</CardTitle>
+        <Badge variant={CHAPTER_STATUS[data.status] ?? "outline"}>{humanize(data.status)}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-xs text-muted-foreground">
+          Every text approved by the chapter auditor in every language ({rounds} round{rounds === 1 ? "" : "s"}, at most{" "}
+          {data.audit.max_redos} redos). A chapter card sits at the end of the chapter break before its act
+          {data.plan.cold_open ? "; after the cold open the film's title comes first" : ""}. Timeline cards show only the
+          dates the story has already told.
+        </p>
+        <Table>
+          <THead>
+            <TR>
+              <TH>Card</TH>
+              {langs.map((l) => (
+                <TH key={l}>{langLabel(l)}</TH>
+              ))}
+            </TR>
+          </THead>
+          <TBody>
+            {data.plan.cold_open && (
+              <TR>
+                <TD className="whitespace-nowrap text-muted-foreground">Film title</TD>
+                {langs.map((l) => (
+                  <TD key={l}>{cell(data.plan.film_title, l, "—")}</TD>
+                ))}
+              </TR>
+            )}
+            {data.plan.chapters.map((c) => (
+              <TR key={c.act_id}>
+                <TD className="whitespace-nowrap text-muted-foreground">
+                  Chapter {c.number} <span className="font-mono text-[10px]">{c.first_beat}</span>
+                </TD>
+                {langs.map((l) => (
+                  <TD key={l}>{cell(c.title, l, "number only")}</TD>
+                ))}
+              </TR>
+            ))}
+            {data.plan.events.map((e) => (
+              <TR key={e.id}>
+                <TD className="whitespace-nowrap text-muted-foreground">
+                  {e.date} <span className="font-mono text-[10px]">from {e.first_beat}</span>
+                </TD>
+                {langs.map((l) => (
+                  <TD key={l}>{cell(e.label, l, "date only")}</TD>
+                ))}
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+        {data.audit.left_out.length > 0 && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs">
+            <p className="mb-1 font-medium">Left out (still rejected after the redos)</p>
+            <ul className="list-disc space-y-0.5 pl-4">
+              {data.audit.left_out.map((x) => (
+                <li key={x.key}>
+                  <span className="font-mono">{x.key}</span> ({x.languages.map(langLabel).join(", ")}): {x.reason}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {data.audit.error && <p className="text-xs text-destructive">{data.audit.error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function BlueprintTab({ caseId, overview, refreshKey }: DocumentaryTabProps) {
   const record = overview.blueprint;
   if (!record) {
     return (
@@ -159,6 +258,8 @@ export function BlueprintTab({ overview }: DocumentaryTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      <ChaptersCard caseId={caseId} versionId={overview.master_version_id ?? null} refreshKey={refreshKey} />
 
       <Card>
         <CardHeader>

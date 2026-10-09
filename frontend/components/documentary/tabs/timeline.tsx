@@ -5,7 +5,7 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatTimecode, humanize, isRtl, langLabel } from "@/lib/format";
-import type { ProductionScriptData } from "@/lib/types";
+import type { ProductionScriptData, ScriptShot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -62,7 +62,19 @@ const SHOT_CLASS: Record<string, string> = {
   document: "bg-amber-500/35",
   map: "bg-emerald-500/35",
   black: "bg-zinc-900 text-zinc-300",
+  video: "bg-sky-500/35",
+  chapter: "bg-zinc-800 text-zinc-100 ring-1 ring-inset ring-red-500/60",
+  title: "bg-zinc-800 text-zinc-100 ring-1 ring-inset ring-red-500/60",
+  timeline: "bg-red-500/30",
 };
+
+/** What a card says (chapter / film title / running timeline). */
+function cardText(s: ScriptShot): string | null {
+  if (s.kind === "chapter") return [s.card?.label, s.card?.title].filter(Boolean).join(" — ");
+  if (s.kind === "title") return s.card?.title ?? null;
+  if (s.kind === "timeline") return [s.timeline?.date, s.timeline?.label].filter(Boolean).join(" — ");
+  return null;
+}
 
 const OVERLAY_CLASS: Record<string, string> = {
   quote: "bg-violet-500/35",
@@ -125,7 +137,7 @@ function buildItems(script: ProductionScriptData, thumbs: Map<string, string>, l
       track: "visual",
       start: s.start,
       end: s.end,
-      label: kind === "black" ? "black" : (s.asset_id ?? kind),
+      label: kind === "black" ? "black" : (cardText(s) ?? s.asset_id ?? kind),
       summary: `Shot ${s.index}, ${humanize(s.command)}, ${kind}${s.asset_id ? ` ${s.asset_id}` : ""}, motion ${humanize(s.motion)}, ${humanize(s.transition_in)} in, ${range(s.start, s.end)}`,
       className: SHOT_CLASS[kind] ?? "bg-muted",
       thumb: s.asset_id && kind !== "black" ? thumbs.get(s.asset_id) : undefined,
@@ -137,6 +149,7 @@ function buildItems(script: ProductionScriptData, thumbs: Map<string, string>, l
         ["Command", humanize(s.command)],
         ["Kind", kind],
         ["Asset", s.asset_id ?? "—"],
+        ...(cardText(s) ? ([["Card", cardText(s) as string]] as [string, string][]) : []),
         ["Role", s.role ?? "—"],
         ["Motion", humanize(s.motion)],
         ["Transition in", humanize(s.transition_in)],

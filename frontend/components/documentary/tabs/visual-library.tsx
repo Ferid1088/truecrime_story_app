@@ -90,7 +90,7 @@ export function VisualLibraryTab({ caseId, overview, refreshKey }: DocumentaryTa
           )}
         </div>
         <Button size="sm" onClick={() => setUploading(true)}>
-          <ImageUp className="size-3.5" /> Upload image
+          <ImageUp className="size-3.5" /> Upload photo or video
         </Button>
       </div>
 
@@ -280,11 +280,55 @@ function VisualCard({ asset, onOpen }: { asset: VisualAsset; onOpen: () => void 
             reveals <span className="font-mono">{asset.reveals.join(" ")}</span>
           </p>
         )}
+        <VideoLine asset={asset} />
         <div className="mt-auto min-w-0 pt-0.5">
           <SourceLink asset={asset} />
         </div>
       </div>
     </Card>
+  );
+}
+
+function secs(t: number) {
+  return `${t.toFixed(1)} s`;
+}
+
+/** One line on a card: which part of which video a piece is, or whether a
+ * kept video has been cut by meaning yet. */
+function VideoLine({ asset }: { asset: VisualAsset }) {
+  const v = asset.video;
+  if (!v) return null;
+  if (v.kind === "source") {
+    return (
+      <p className={v.pieces ? "text-[10px] text-muted-foreground" : "text-[10px] text-amber-700 dark:text-amber-400"}>
+        {v.pieces ? `kept video · ${v.pieces} pieces · never shown whole` : "kept video · not cut yet"}
+      </p>
+    );
+  }
+  if (!v.window) return null;
+  return (
+    <p className="text-[10px] text-muted-foreground">
+      {v.parent ? <>piece of <span className="font-mono">{v.parent}</span> · </> : null}
+      {secs(v.window[0])}–{secs(v.window[1])}
+    </p>
+  );
+}
+
+/** The video itself: a piece plays only its window of the kept video. */
+function VideoPlayer({ asset }: { asset: VisualAsset }) {
+  const v = asset.video;
+  const w = v && v.kind !== "source" ? v.window : null;
+  const src = apiFileUrl(asset.image_url) + (w ? `#t=${w[0]},${w[1]}` : "");
+  return (
+    <video
+      key={src}
+      src={src}
+      controls
+      muted
+      preload="metadata"
+      className="size-full bg-black object-contain"
+      aria-label={altText(asset)}
+    />
   );
 }
 
@@ -303,6 +347,73 @@ function detailText(value: unknown): string {
   if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(2);
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+/** How a video is cut: a piece's window and why it starts and ends there;
+ * for a kept video, its pieces — or why it is not cut, with "Cut again". */
+function VideoCut({ asset, onSaved }: { asset: VisualAsset; onSaved: (asset: VisualAsset) => void }) {
+  const v = asset.video;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<number | null>(null);
+  if (!v) return null;
+
+  async function cutAgain() {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.cutVideoAgain(asset.id);
+      setDone(updated.pieces);
+      onSaved(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (v.kind === "source") {
+    return (
+      <div className="space-y-2 rounded-md border border-border p-2.5 text-xs">
+        <p>
+          The kept video (muted). It is never shown whole: it is cut by <strong>meaning</strong> — each piece is one
+          complete moment with a name and a description of what is visible, checked frame by frame by the video
+          auditor (the cut, the name and the description).
+        </p>
+        {v.pieces > 0 || done ? (
+          <p className="text-muted-foreground">{done ?? v.pieces} pieces — see the library.</p>
+        ) : (
+          <>
+            <InlineAlert tone="error">
+              Not cut yet{v.segment_error ? `: ${v.segment_error}` : ""}. It is never cut by the clock instead.
+            </InlineAlert>
+            <Button size="sm" onClick={cutAgain} loading={busy}>
+              Cut again
+            </Button>
+          </>
+        )}
+        {error && <InlineAlert tone="error">{error}</InlineAlert>}
+      </div>
+    );
+  }
+  if (!v.window) return null;
+  return (
+    <dl className="divide-y divide-border rounded-md border border-border px-2.5 text-xs">
+      <MetaRow label="Piece">
+        {secs(v.window[0])}–{secs(v.window[1])}
+        {v.parent && (
+          <span className="text-muted-foreground">
+            {" "}
+            of <span className="font-mono">{v.parent}</span>
+          </span>
+        )}
+      </MetaRow>
+      <MetaRow label="Cut by">{v.cut_by === "segmenter" ? "meaning (video segmenter)" : detailText(v.cut_by)}</MetaRow>
+      <MetaRow label="Why here">
+        <span dir="auto">{v.why_here || "—"}</span>
+      </MetaRow>
+    </dl>
+  );
 }
 
 function VisualDetailDialog({
@@ -357,8 +468,13 @@ function VisualDetailDialog({
       <div className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_240px]">
         <div className="min-w-0 space-y-4">
           <div className="relative aspect-video overflow-hidden rounded-md bg-muted">
-            <Thumb src={apiFileUrl(asset.image_url)} alt={altText(asset)} sizes="(min-width: 768px) 60vw, 100vw" contain />
+            {asset.video ? (
+              <VideoPlayer asset={asset} />
+            ) : (
+              <Thumb src={apiFileUrl(asset.image_url)} alt={altText(asset)} sizes="(min-width: 768px) 60vw, 100vw" contain />
+            )}
           </div>
+          {asset.video && <VideoCut asset={asset} onSaved={onSaved} />}
           <a
             href={apiFileUrl(asset.image_url)}
             target="_blank"
@@ -498,7 +614,9 @@ function UploadDialog({
   const [caption, setCaption] = useState("");
   const [role, setRole] = useState<AssetRole>("evidence");
   const [rights, setRights] = useState("owned");
+  const [start, setStart] = useState("");
   const [busy, setBusy] = useState(false);
+  const isVideo = !!file && (file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv|avi|mpe?g|ogv)$/i.test(file.name));
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -507,10 +625,18 @@ function UploadDialog({
     setBusy(true);
     setError(null);
     try {
-      const asset = await api.uploadVisual(caseId, { file, title, caption, role, rights });
+      const asset = await api.uploadVisual(caseId, {
+        file,
+        title,
+        caption,
+        role,
+        rights,
+        start: isVideo ? Number(start) || 0 : undefined,
+      });
       setFile(null);
       setTitle("");
       setCaption("");
+      setStart("");
       onUploaded(asset);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -523,23 +649,39 @@ function UploadDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Upload image"
-      description="Add your own photo or scan to the case's visual library."
+      title="Upload photo or video"
+      description="Add your own photo, scan or video. A video is kept without sound (up to 10 min) and cut by meaning — never by the clock — into pieces, each one complete moment with a name and a description. Photos are checked by the picture auditor, video pieces frame by frame by the video auditor (the cut, the name and the description too), before anything can appear in a film."
     >
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label htmlFor={`${ids}-file`} className="mb-1 block text-xs font-medium text-muted-foreground">
-            Image file
+            Photo or video file
           </label>
           <Input
             id={`${ids}-file`}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             required
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="h-auto py-1.5 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:text-foreground"
           />
         </div>
+        {isVideo && (
+          <div>
+            <label htmlFor={`${ids}-start`} className="mb-1 block text-xs font-medium text-muted-foreground">
+              Start at second (optional)
+            </label>
+            <Input
+              id={`${ids}-start`}
+              type="number"
+              min={0}
+              step={0.5}
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              placeholder="0 — kept from here (max. 10 min)"
+            />
+          </div>
+        )}
         <div>
           <label htmlFor={`${ids}-title`} className="mb-1 block text-xs font-medium text-muted-foreground">
             Title (optional)

@@ -27,3 +27,9 @@ data/fetch_cache/
 # hand-over folder for live runs between the app and Claude
 tc_transfer/
 .tc_live/
+
+# macOS folder metadata
+.DS_Store
+
+# studio previews (generated from data/studio, keyed by image hash)
+data/studio_thumbs/

@@ -42,7 +42,11 @@ def test_case_crud_flow():
 
 def test_duplicate_slug_gets_suffix():
     r1 = client.post("/api/cases", json={"canonical_title": "Same Title"})
-    r2 = client.post("/api/cases", json={"canonical_title": "Same Title"})
+    # the duplicate checker refuses the same case twice ...
+    dup = client.post("/api/cases", json={"canonical_title": "Same Title"})
+    assert dup.status_code == 409 and dup.json()["detail"]["matched_id"] == r1.json()["id"]
+    # ... unless explicitly forced
+    r2 = client.post("/api/cases", json={"canonical_title": "Same Title", "force": True})
     assert r1.status_code == 200 and r2.status_code == 200
     assert r1.json()["slug"] != r2.json()["slug"]
 

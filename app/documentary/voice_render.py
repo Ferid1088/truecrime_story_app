@@ -22,14 +22,18 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import statistics
 from pathlib import Path
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
 from app.documentary import audio as A
+from app.documentary import storage
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -234,12 +238,23 @@ class VoiceRenderer:
             other = next(iter(sorted(blocks_dir.glob(f"*__{key}.json"))), None)
             if other is not None and other.with_suffix(".mp3").exists():
                 raw, meta_path = other.with_suffix(".mp3"), other
-        cache_hit = raw.exists() and meta_path.exists()
-        if cache_hit:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        else:
+        meta = None
+        if raw.exists() and meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if not isinstance((meta.get("alignment") or {}).get("characters"), list):
+                    raise ValueError("sidecar without alignment")
+            except (ValueError, AttributeError, OSError):
+                log.warning("voice take %s: unreadable sidecar, paying the take again",
+                            meta_path.name)
+                meta = None
+                raw, meta_path = blocks_dir / f"{stem}.mp3", blocks_dir / f"{stem}.json"
+        cache_hit = meta is not None
+        if not cache_hit:
             res = await self.provider.synthesize(req)
-            raw.write_bytes(res.audio)
+            # the audio first, the sidecar last: a take counts as saved
+            # only when both exist, and neither is ever half written
+            storage.write_atomic(raw, res.audio)
             meta = {
                 "block_id": block["block_id"], "cache_key": key,
                 "text": req.text, "voice_id": res.voice_id,
@@ -252,9 +267,7 @@ class VoiceRenderer:
                     "starts": res.char_starts, "ends": res.char_ends,
                 },
             }
-            meta_path.write_text(
-                json.dumps(meta, ensure_ascii=False), encoding="utf-8"
-            )
+            storage.write_atomic(meta_path, json.dumps(meta, ensure_ascii=False))
 
         al = meta["alignment"]
         words = words_from_alignment(al["characters"], al["starts"], al["ends"])
@@ -488,7 +501,33 @@ class VoiceRenderer:
             A.measure_loudness, final_wav, self.loud.narration_target_lufs,
             self.loud.true_peak_db, self.loud.lra,
         )
-        await asyncio.to_thread(A.encode_mp3, final_wav, final_mp3)
+
+        # --- dynamic EQ / de-esser (post-TTS polish) --------------------
+        # Always fed the ORIGINAL normalized narration; the enhanced
+        # version is a separate file and only becomes the active track
+        # when processing genuinely applied. A failure ships the
+        # original — narration is never lost to a processing error.
+        from app.documentary import dynamic_eq as DEQ
+
+        active_wav = final_wav
+        try:
+            eq_report = await asyncio.to_thread(
+                DEQ.process_into, final_wav, out, language,
+                ai_config.dynamic_eq.resolved(language), sr,
+            )
+        except Exception as e:  # noqa: BLE001 — error recovery, not a crash
+            eq_report = {"enabled": ai_config.dynamic_eq.enabled,
+                         "applied": False, "active": "original",
+                         "error": f"{type(e).__name__}: {e}"[:300]}
+        if eq_report.get("applied"):
+            active_wav = out / "narration_enhanced.wav"
+        else:
+            (out / "narration_original.mp3").unlink(missing_ok=True)
+
+        await asyncio.to_thread(A.encode_mp3, active_wav, final_mp3)
+        if eq_report.get("applied"):
+            await asyncio.to_thread(
+                A.encode_mp3, final_wav, out / "narration_original.mp3")
         raw_mix.unlink(missing_ok=True)
         total = await asyncio.to_thread(A.probe_duration, final_wav)
 
@@ -577,9 +616,14 @@ class VoiceRenderer:
                 "block_median_lufs": median,
             },
             "flags": flags,
+            "dynamic_eq": eq_report,
             "files": {
                 "narration_wav": _rel(final_wav), "narration_mp3": _rel(final_mp3),
                 "manifest": _rel(out / "manifest.json"),
+                **({"narration_enhanced_wav": _rel(out / "narration_enhanced.wav"),
+                    "narration_original_mp3": _rel(out / "narration_original.mp3"),
+                    "dynamics_json": _rel(out / "dynamics.json")}
+                   if eq_report.get("applied") else {}),
             },
             "blocks": qa_blocks,
             "timeline": {
@@ -589,7 +633,6 @@ class VoiceRenderer:
                 "sentences": sentences_global,
             },
         }
-        (out / "manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        storage.write_atomic(out / "manifest.json",
+                             json.dumps(manifest, ensure_ascii=False, indent=2))
         return manifest

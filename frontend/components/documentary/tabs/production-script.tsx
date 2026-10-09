@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState, ErrorState } from "@/components/state";
+import { ResolutionBadge } from "@/components/status-badge";
+import { ProductionTypeBadge, openingLabel } from "@/components/lifecycle/shared";
 import { useProduction } from "../hooks";
 import { LangText, LanguagePicker, type LanguageTabProps, Metric } from "../shared";
 
@@ -76,6 +78,7 @@ function ScriptView({ production }: { production: Production }) {
             Production v{production.version} · {langLabel(production.language)}
             <Badge variant="outline">{production.mode}</Badge>
             <Badge variant={production.status === "rendered" ? "success" : "info"}>{humanize(production.status)}</Badge>
+            <ProductionTypeBadge type={script.production_type} />
           </CardTitle>
           <Button variant="secondary" size="sm" onClick={() => downloadJson(production)}>
             <FileJson className="size-3.5" /> Download JSON
@@ -90,6 +93,35 @@ function ScriptView({ production }: { production: Production }) {
             <Metric label="Overlays" value={overlays.length} />
             <Metric label="Subtitles" value={(script.subtitles ?? []).length} />
           </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-border px-3 py-2 text-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-muted-foreground">Case status in this film</span>
+              {script.case_status ? (
+                <ResolutionBadge status={script.case_status} />
+              ) : (
+                <span className="text-muted-foreground">not recorded (older script)</span>
+              )}
+            </span>
+            <span>
+              <span className="text-muted-foreground">Opening strategy </span>
+              <span className="font-medium">{openingLabel(script.opening_strategy)}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-muted-foreground">Production</span>
+              <ProductionTypeBadge type={script.production_type ?? "original"} showOriginal />
+            </span>
+          </div>
+          {script.case_status === "UNSOLVED" && script.production_type !== "follow_up" && (
+            <p className="text-xs leading-5 text-muted-foreground">
+              An unsolved case: the film shows the localized &ldquo;UNSOLVED CASE&rdquo; status card in the opening and
+              near the end, and its YouTube title starts with &ldquo;UNSOLVED:&rdquo;.
+            </p>
+          )}
+          {script.production_type === "follow_up" && (
+            <p className="text-xs leading-5 text-muted-foreground">
+              A follow-up: the film opens with the earlier episode and a &ldquo;case now solved&rdquo; status card.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">Composed {formatDateTime(production.created_at)}</p>
           <div>
             <p className="mb-1 text-xs font-medium text-muted-foreground">Credits</p>

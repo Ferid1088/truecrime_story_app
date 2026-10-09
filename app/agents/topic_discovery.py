@@ -104,9 +104,15 @@ Rules:
             data, res = await self.gen.generate_structured("discovery", system, user)
             stamp_run(run, res, "discovery")
             candidates = []
+            # identity-based duplicate check (people, places, dates, URLs,
+            # aliases) against every case and every suggestion shown
+            from app.lifecycle.identity import IdentityIndex, raw_identity
+
+            index = IdentityIndex.from_db(db)
 
             for item in data.get("candidates", []):
                 title = item["title"].strip()
+                verdict = index.check(raw_identity(item))
 
                 similar_title = next(
                     (
@@ -117,9 +123,11 @@ Rules:
                     ),
                     None,
                 )
+                if verdict.duplicate and not similar_title:
+                    similar_title = verdict.matched_title
                 fp = fingerprint(title)
                 already_seen = fp in seen_fingerprints
-                already_covered = bool(similar_title) or already_seen
+                already_covered = bool(similar_title) or already_seen or verdict.duplicate
 
                 if avoid_existing and already_covered:
                     continue
@@ -151,6 +159,7 @@ Rules:
                         "suggested_queries": item.get("suggested_queries", []),
                         "already_covered": already_covered,
                         "matched_existing_title": similar_title,
+                        "duplicate_reason": verdict.reason if verdict.duplicate else None,
                     }
                 )
 

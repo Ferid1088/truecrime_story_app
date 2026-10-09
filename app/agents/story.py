@@ -641,16 +641,26 @@ class StoryDirector:
         target_minutes: int,
         language: str,
         role: str = "story_director",
+        context: dict | None = None,
     ) -> tuple[dict, GenerationResult]:
         system = """
 You are a documentary story director designing a long-form true-crime episode.
 
 Core principle — EXPERIENCE THE MYSTERY FIRST, UNDERSTAND IT SECOND,
-DEBUNK IT THIRD:
+DEBUNK IT THIRD. The five acts below are a proven arc you ADAPT to this
+case (rename, merge or reorder acts when the evidence calls for it — a
+solved case may need an investigation-and-trial arc instead of a myth
+act). Every film must feel designed for its case, never a template.
 
-- ACT 1 "The Absence": open on a concrete event and a clear anomaly within
-  the first 30-45 seconds. Establish the central question immediately.
-  No philosophy, no long atmosphere, no mythology explanation.
+- OPENING (act 1, the first 20-40 seconds): choose ONE opening strategy
+  from editorial_context.opening_strategies that fits THIS case's
+  strongest material, and build act 1's start on it. Avoid the strategies
+  in editorial_context.avoid_openings (the channel's most recent films)
+  unless no other fits the evidence. Concrete and case-specific;
+  establish the central question immediately. No philosophy, no long
+  atmosphere, no mythology explanation.
+- ACT 1 "The Absence": the opening moment, then a concrete event and a
+  clear anomaly.
 - ACT 2 "The Last Known World": reconstruct only what evidence allows;
   build timeline; make the people human via names, roles, duties, family
   status, documented behaviour — never invented inner feelings.
@@ -664,6 +674,27 @@ DEBUNK IT THIRD:
   what is plausible, what stays unknowable; end on a strong factual image
   or question.
 
+Case status (editorial_context.case_status) — the viewer must know where
+the case stands:
+- UNSOLVED: the story makes clear the case remains unsolved; nothing may
+  imply a solution or name anyone as the culprit beyond the evidence;
+  the ending separates what is known from what is still open.
+- SOLVED: the resolution (verdict, confession, official closure) is
+  known; you may withhold it for structure but it must be told clearly
+  by the end, with how it was reached.
+- STATUS_UNDER_REVIEW / UNKNOWN: state exactly what is established and
+  what is pending; never present an arrest or a charge as a conviction.
+
+Follow-up film (editorial_context.follow_up present): this is an UPDATE
+to an earlier video made while the case was unsolved. opening_strategy is
+"previous_coverage": act 1 begins with editorial_context.follow_up.intro
+(word for word), then briefly recaps what was known at the time, then
+moves to what changed and how the case was solved; the central question
+is what really happened, now answerable.
+
+Endings vary with the case too: choose an ending that fits this story
+(a final fact, a person, a place, the open question) — not a formula.
+
 Anti-AI-style rules: no repeated symbolic motifs (silence, darkness,
 bureaucracy, "the sea knows"), no ornate clause chains, no repeated
 rhetorical questions, no generic cinematic metaphors. Prefer precise,
@@ -673,7 +704,9 @@ Return JSON only:
 {
   "title": "...",
   "central_question": "...",
-  "hook_design": "the concrete first-45-seconds",
+  "opening_strategy": "one name from editorial_context.opening_strategies",
+  "opening_reason": "why this opening fits this case's evidence",
+  "hook_design": "the concrete first 20-40 seconds",
   "acts": [
     {"id": "act1", "title": "...", "purpose": "...",
      "key_beats": ["..."], "target_words": 1200,
@@ -701,12 +734,63 @@ Act rules:
                 "case": case.canonical_title,
                 "target_minutes": target_minutes,
                 "language": language,
+                "editorial_context": context or {},
                 "evidence": pack,
             },
             ensure_ascii=False,
+            default=str,
         )
         data, res = await self.gen.generate_structured(role, system, user)
         return data, res
+
+
+_OPENING_PREFERENCE = {
+    "SOLVED": ["courtroom_outcome", "critical_moment", "victim_introduction",
+               "evidence_discovery", "last_sighting", "emergency_call"],
+    "UNSOLVED": ["unanswered_question", "last_sighting", "mysterious_statement",
+                 "timeline_anomaly", "important_location"],
+}
+
+
+def editorial_context(db: Session, case: Case, follow_up: dict | None = None) -> dict:
+    """What the story director must know beyond the evidence: where the
+    case stands, the opening strategies and the ones recent films used,
+    and — for an update video — the earlier coverage."""
+    from app.documentary.openings import recent_openings, strategies
+
+    ctx = {
+        "case_status": case.resolution_status or "UNKNOWN",
+        "status_summary": case.resolution_summary,
+        "opening_strategies": strategies(),
+        "avoid_openings": recent_openings(db, exclude_case_id=case.id),
+    }
+    if follow_up:
+        ctx["follow_up"] = {k: follow_up.get(k) for k in (
+            "intro", "original_title", "episode_number", "original_published",
+            "previous_status", "current_status", "development")}
+    return ctx
+
+
+def choose_opening(plan: dict, context: dict) -> tuple[str, str]:
+    """(strategy, reason): the director's choice when it is a known
+    strategy, else a deterministic fallback by case status that avoids
+    the recent films' openings."""
+    from app.documentary.openings import normalize_strategy
+
+    if context.get("follow_up"):
+        return (normalize_strategy(None, follow_up=True),
+                "follow-up film: opens with the earlier coverage")
+    chosen = normalize_strategy(plan.get("opening_strategy") if isinstance(plan, dict) else None)
+    if chosen:
+        return chosen, str((plan or {}).get("opening_reason") or "chosen by the story director")
+    avoid = set(context.get("avoid_openings") or [])
+    prefs = _OPENING_PREFERENCE.get(context.get("case_status"),
+                                    ["critical_moment", "victim_introduction",
+                                     "important_location", "unanswered_question"])
+    names = [p for p in prefs if p in context.get("opening_strategies", {})]
+    pick = next((p for p in names if p not in avoid), names[0] if names else "critical_moment")
+    return pick, "fallback: the director named no known strategy; first fitting one not used " \
+                 "by the most recent films"
 
 
 class WriterAgent:
@@ -999,6 +1083,7 @@ class StoryPipeline:
         iterations: int,
         kind: str = "direct",
         words_per_minute: int | None = None,
+        follow_up: dict | None = None,
     ) -> StoryVersion:
         facts = db.query(Fact).filter(Fact.case_id == case.id).all()
         contradictions = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
@@ -1021,13 +1106,19 @@ class StoryPipeline:
         case.status = "writing"
         db.commit()
         try:
+            context = editorial_context(db, case, follow_up)
             with track_run(db, case.id, "Story Director") as run:
                 plan, res = await self.director.design(
                     case, pack, target_minutes, language,
-                    role=self.roles["director"],
+                    role=self.roles["director"], context=context,
                 )
                 stamp_run(run, res, self.roles["director"])
-                run.output_summary = f"acts={len(plan.get('acts', []))}"
+                if not isinstance(plan, dict):
+                    plan = {}
+                plan["opening_strategy"], plan["opening_reason"] = choose_opening(plan, context)
+                plan["case_status"] = context["case_status"]
+                run.output_summary = (f"acts={len(plan.get('acts', []))} "
+                                      f"opening={plan['opening_strategy']}")
             self._normalize_act_budgets(plan, target_words)
 
             acts = plan.get("acts") or []
@@ -1406,6 +1497,17 @@ class StoryPipeline:
                 if "structural_similarity" not in failures:
                     failures.append("structural_similarity")
 
+            if follow_up:
+                # the update video MUST open with the earlier coverage
+                from app.lifecycle.followups import ensure_intro
+
+                text, inserted = ensure_intro(text, follow_up)
+                if inserted and sections:
+                    sections[0] = {**sections[0], "text": follow_up["intro"] + "\n\n"
+                                   + sections[0]["text"].lstrip()}
+                final_critique["follow_up_intro_inserted"] = inserted
+                plan["follow_up"] = {k: follow_up.get(k) for k in (
+                    "follow_up_id", "original_title", "episode_number", "original_published")}
             row = self._new_version(
                 db, case, plan, sections, text,
                 float(final_critique.get("score", 0)),
@@ -2534,6 +2636,10 @@ Output only the story text.
             if isinstance(plan, dict)
             else None,
             "acts": plan.get("acts") if isinstance(plan, dict) else None,
+            "opening_strategy": plan.get("opening_strategy") if isinstance(plan, dict) else None,
+            "opening_reason": plan.get("opening_reason") if isinstance(plan, dict) else None,
+            "case_status": plan.get("case_status") if isinstance(plan, dict) else None,
+            "follow_up": plan.get("follow_up") if isinstance(plan, dict) else None,
             "sections": [
                 {"id": s["id"], "words": len(s["text"].split()), "text": s["text"]}
                 for s in stored

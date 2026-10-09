@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { langLabel } from "@/lib/format";
 import type { CaseListItem, DocumentaryBatchStart, DocumentarySettings } from "@/lib/types";
+import { ResolutionBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,7 +132,8 @@ export function BatchPanel({
                   <li key={c.id} className="px-3 py-2">
                     <div className="flex items-start justify-between gap-2">
                       <Checkbox label={c.title} checked={!!pick} onChange={(e) => toggle(c, e.target.checked)} />
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                      <span className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+                        <ResolutionBadge status={c.resolution_status} />
                         {c.story_versions
                           ? `${c.story_versions} stor${c.story_versions === 1 ? "y" : "ies"}`
                           : "no story yet"}

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ChannelStudios } from "@/components/settings/channel-studios";
 
 const ROLE_LABELS: Record<string, string> = {
   fact_extractor: "Fact Extractor",
@@ -268,6 +269,8 @@ export default function SettingsPage() {
           />
         </div>
       )}
+
+      <ChannelStudios />
 
       <p className="mt-6 text-xs text-muted-foreground">
         API keys are never sent to the browser — only their configured status.

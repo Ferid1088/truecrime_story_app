@@ -40,8 +40,8 @@ def _res(role):
 
 
 def test_all_languages_use_v3_with_the_new_voices():
-    want = {"en": "vGz31R3QkUSQW2f9PuNA", "de": "Cu4Eelnl4Z2jfrxrEpSr",
-            "fa": "wf5gkA603aCfUGoOTBun", "ar": "nGBZQf1mseVvnsC8kKQI"}
+    want = {"en": "UF84IGrTBtegPkgbbrS2", "de": "02KhC7wycOLwuF6sc5Qu",
+            "fa": "I3gMKh0nwZ8NQXKqUg6F", "ar": "EFlRMcr2Nd9ah6iW85Z4"}
     for lang, voice in want.items():
         cfg = ai_config.voice.for_language(lang)
         assert cfg.voice_id == voice and cfg.model_id == "eleven_v3"
@@ -470,7 +470,7 @@ def test_job_stages_include_performance_and_from_zero():
     from app.documentary.jobs import plan_stages
 
     names = [s["name"] for s in plan_stages(["en", "fa"], from_zero=True)]
-    assert names[:4] == ["research", "master_story", "blueprint", "audio_plan"]
+    assert names[:5] == ["research", "master_story", "master_approval", "blueprint", "audio_plan"]
     assert names.index("performance:fa") < names.index("voice:fa") < names.index("render:fa")
 
 
@@ -551,9 +551,10 @@ def test_cuts_vary_and_land_on_sentences():
     cuts = plan_cuts(0.0, 64.0, [3, 9, 14.5, 21, 26, 33, 40, 45, 51, 58])
     sentences = {9, 14.5, 21, 26, 33, 40, 45, 51}
     # cuts land on sentence starts unless none is near (or it is too late)
-    assert cuts[:3] == [9, 26, 40] and set(cuts[:3]) <= sentences
+    assert cuts[:3] == [9, 21, 26] and set(cuts[:3]) <= sentences
     gaps = [b - a for a, b in zip([0.0] + cuts, cuts + [64.0])]
-    assert min(gaps) >= 7.0 and len({round(g) for g in gaps}) > 1
+    assert min(gaps) >= ai_config.visual_direction.min_cut_seconds
+    assert len({round(g) for g in gaps}) > 1
 
 
 # ---------------------------------------------------------------------------

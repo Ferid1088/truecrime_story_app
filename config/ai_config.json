@@ -107,9 +107,15 @@
         "production_critic": "writer",
         "voice_performance_director": "premium",
         "pronunciation_editor": "premium",
+        "case_status_verifier": "premium",
         "host_director": "premium",
         "host_writer": "premium",
-        "host_critic": "writer"
+        "host_critic": "writer",
+        "visual_auditor": "writer",
+        "video_auditor": "writer",
+        "video_segmenter": "premium",
+        "chapter_writer": "premium",
+        "chapter_auditor": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -345,6 +351,10 @@
       "temperature": 0.0,
       "max_tokens": 16000
     },
+    "case_status_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
     "host_director": {
       "temperature": 0.5,
       "max_tokens": 12000
@@ -356,6 +366,26 @@
     "host_critic": {
       "temperature": 0.1,
       "max_tokens": 12000
+    },
+    "visual_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "video_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "video_segmenter": {
+      "temperature": 0.1,
+      "max_tokens": 6000
+    },
+    "chapter_writer": {
+      "temperature": 0.4,
+      "max_tokens": 12000
+    },
+    "chapter_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 8000
     }
   },
   "search_engine": {
@@ -695,7 +725,9 @@
           "automation_feel_critic",
           "attention_critic",
           "visual_accuracy_critic",
-          "production_critic"
+          "production_critic",
+          "visual_auditor",
+          "video_auditor"
         ],
         "strict": true
       },
@@ -707,6 +739,26 @@
         ],
         "reviewers": [
           "host_critic"
+        ],
+        "strict": true
+      },
+      {
+        "name": "video_pieces",
+        "authors": [
+          "video_segmenter"
+        ],
+        "reviewers": [
+          "video_auditor"
+        ],
+        "strict": true
+      },
+      {
+        "name": "documentary_cards",
+        "authors": [
+          "chapter_writer"
+        ],
+        "reviewers": [
+          "chapter_auditor"
         ],
         "strict": true
       }
@@ -753,22 +805,22 @@
     },
     "languages": {
       "en": {
-        "voice_id": "vGz31R3QkUSQW2f9PuNA",
+        "voice_id": "UF84IGrTBtegPkgbbrS2",
         "model_id": "eleven_v3",
         "language_code": "en"
       },
       "de": {
-        "voice_id": "Cu4Eelnl4Z2jfrxrEpSr",
+        "voice_id": "02KhC7wycOLwuF6sc5Qu",
         "model_id": "eleven_v3",
         "language_code": "de"
       },
       "fa": {
-        "voice_id": "wf5gkA603aCfUGoOTBun",
+        "voice_id": "I3gMKh0nwZ8NQXKqUg6F",
         "model_id": "eleven_v3",
         "language_code": "fa"
       },
       "ar": {
-        "voice_id": "nGBZQf1mseVvnsC8kKQI",
+        "voice_id": "EFlRMcr2Nd9ah6iW85Z4",
         "model_id": "eleven_v3",
         "language_code": "ar"
       }
@@ -974,7 +1026,22 @@
     "room_tone_level_db": -34,
     "max_repair_iterations": 1,
     "music_lead_seconds": 2.0,
-    "music_tail_seconds": 3.0
+    "music_tail_seconds": 3.0,
+    "beds_under_narration": false,
+    "music_start_after_word_seconds": 0.25,
+    "music_end_before_word_seconds": 0.4,
+    "moods": [
+      "suspense",
+      "investigation",
+      "mystery",
+      "melancholy",
+      "danger",
+      "discovery",
+      "tension",
+      "relief",
+      "resolution",
+      "uncertainty"
+    ]
   },
   "music_library": {
     "provider": "elevenlabs_sound",
@@ -1062,6 +1129,31 @@
         "loop": true,
         "prompt": "seamless loop, very quiet room tone, soft air, faint distant hum, no voices, no music"
       }
+    ],
+    "reuse_after_videos": 10,
+    "max_variants_per_mood": 6,
+    "mood_prompts": {
+      "suspense": "slow suspenseful documentary underscore, held low notes, a quiet pulse",
+      "investigation": "measured investigative documentary underscore, steady soft pulse, curious",
+      "mystery": "dark ambient mystery underscore, sparse notes, patient and unresolved",
+      "melancholy": "melancholic documentary underscore, slow and intimate, gentle sadness",
+      "danger": "ominous documentary underscore, low rumble, uneasy dissonance, restrained",
+      "discovery": "documentary underscore for a discovery, rising soft swell, clarity",
+      "tension": "tense documentary underscore, low pulse like a distant heartbeat",
+      "relief": "warm documentary underscore, release of tension, calm resolution",
+      "resolution": "documentary closing underscore, settled harmony, quiet dignity",
+      "uncertainty": "uncertain documentary underscore, unresolved suspended chords, airy",
+      "neutral": "quiet room tone, faint air, no music"
+    },
+    "variant_styles": [
+      "low cello and felt piano",
+      "warm synth pad and distant piano",
+      "string quartet harmonics",
+      "muted electric guitar swells and soft drone",
+      "solo piano with long reverb",
+      "low brass and soft timpani rolls",
+      "glass harmonica textures and sub bass",
+      "bowed vibraphone and low strings"
     ]
   },
   "documentary": {
@@ -1110,6 +1202,7 @@
     "min_request_interval_s": 1.0
   },
   "visual_verification": {
+    "per_requirement": 5,
     "verified_min_confidence": 0.7,
     "reject_below_confidence": 0.35,
     "thumbnail_px": 768
@@ -1142,6 +1235,8 @@
     "parallax_shift_fraction": 0.012,
     "min_hold_seconds": 5.0,
     "max_still_seconds": 16.0,
+    "max_hold_seconds": 20.0,
+    "max_map_seconds": 12.0,
     "crossfade_seconds": [
       0.7,
       1.4
@@ -1163,7 +1258,7 @@
   "attention": {
     "max_overlay_words": 14,
     "max_read_items_per_beat": 1,
-    "max_changes_per_minute": 7,
+    "max_changes_per_minute": 12,
     "min_changes_per_minute": 1,
     "firewall_purposes": [
       "reveal",
@@ -1310,6 +1405,384 @@
     ],
     "sentences_per_call": 60
   },
+  "case_selection": {
+    "recency_half_life_days": 365.0,
+    "incident_weight": 0.6,
+    "undated_recency": 0.15,
+    "status_weights": {
+      "SOLVED": 1.0,
+      "STATUS_UNDER_REVIEW": 0.35,
+      "UNKNOWN": 0.35,
+      "UNSOLVED": 0.2
+    },
+    "include_unsolved_default": false,
+    "solved_min_confidence": 0.7,
+    "verify_top_n": 8,
+    "discovery_time_range": "year",
+    "seed_queries": {
+      "en": [
+        "murder trial verdict convicted {year}",
+        "found guilty of murder sentenced {year}",
+        "charged with murder after disappearance {year}",
+        "cold case solved arrest DNA {year}",
+        "killer sentenced life in prison {last_year}"
+      ],
+      "de": [
+        "Mordprozess Urteil lebenslange Haft {year}",
+        "wegen Mordes verurteilt {year}",
+        "Cold Case aufgeklärt Festnahme {year}",
+        "Vermisste tot aufgefunden Täter verurteilt"
+      ],
+      "fa": [
+        "دادگاه قاتل محکوم شد {year}",
+        "پرونده قتل حل شد دستگیری"
+      ],
+      "ar": [
+        "الحكم على قاتل في قضية {year}",
+        "القبض على قاتل بعد اختفاء"
+      ]
+    },
+    "title_threshold": 88,
+    "person_threshold": 90,
+    "date_window_years": 2,
+    "generic_url_hosts": [
+      "google.",
+      "bing.",
+      "duckduckgo.",
+      "youtube.com/results",
+      "facebook.com",
+      "twitter.com",
+      "x.com",
+      "instagram.com"
+    ]
+  },
+  "case_monitor": {
+    "enabled": true,
+    "autostart": true,
+    "interval_hours": 84.0,
+    "poll_minutes": 30.0,
+    "statuses": [
+      "UNSOLVED",
+      "STATUS_UNDER_REVIEW"
+    ],
+    "fast_queries_per_case": 2,
+    "fast_results_per_query": 8,
+    "first_check_time_range": "year",
+    "signal_terms": {
+      "en": {
+        "arrest": [
+          "arrested",
+          "arrest of",
+          "taken into custody",
+          "detained a"
+        ],
+        "suspect_identified": [
+          "suspect identified",
+          "identified as the suspect",
+          "named as a suspect",
+          "suspect has been named"
+        ],
+        "remains_identified": [
+          "remains identified",
+          "remains were identified",
+          "body was identified",
+          "identified the remains"
+        ],
+        "charges": [
+          "charged with",
+          "charges filed",
+          "indicted",
+          "faces charges"
+        ],
+        "confession": [
+          "confessed",
+          "confession",
+          "pleaded guilty",
+          "admitted killing"
+        ],
+        "conviction": [
+          "convicted",
+          "found guilty",
+          "guilty verdict",
+          "sentenced to"
+        ],
+        "official_update": [
+          "police said",
+          "police announced",
+          "prosecutors said",
+          "press conference",
+          "police statement"
+        ],
+        "case_closed": [
+          "case closed",
+          "case solved",
+          "solved the case",
+          "cold case solved"
+        ],
+        "forensic": [
+          "dna match",
+          "dna breakthrough",
+          "genetic genealogy",
+          "forensic breakthrough",
+          "new dna"
+        ],
+        "disappearance_resolved": [
+          "found alive",
+          "found dead",
+          "body found",
+          "remains found"
+        ]
+      },
+      "de": {
+        "arrest": [
+          "festgenommen",
+          "verhaftet",
+          "festnahme",
+          "untersuchungshaft"
+        ],
+        "suspect_identified": [
+          "tatverdächtig",
+          "mutmaßliche täter",
+          "mutmaßlicher täter"
+        ],
+        "remains_identified": [
+          "leiche identifiziert",
+          "überreste identifiziert",
+          "identität geklärt"
+        ],
+        "charges": [
+          "anklage erhoben",
+          "angeklagt"
+        ],
+        "confession": [
+          "gestanden",
+          "geständnis"
+        ],
+        "conviction": [
+          "verurteilt",
+          "schuldig gesprochen",
+          "urteil gefallen"
+        ],
+        "official_update": [
+          "polizei teilte mit",
+          "staatsanwaltschaft teilte mit",
+          "pressekonferenz"
+        ],
+        "case_closed": [
+          "fall gelöst",
+          "fall geklärt",
+          "aufgeklärt"
+        ],
+        "forensic": [
+          "dna-treffer",
+          "dna-spur",
+          "dna-analyse"
+        ],
+        "disappearance_resolved": [
+          "tot aufgefunden",
+          "lebend gefunden",
+          "leiche gefunden"
+        ]
+      },
+      "fa": {
+        "arrest": [
+          "دستگیر شد",
+          "بازداشت شد",
+          "دستگیری"
+        ],
+        "conviction": [
+          "محکوم شد",
+          "حکم صادر شد",
+          "به اعدام محکوم"
+        ],
+        "confession": [
+          "اعتراف کرد",
+          "اعتراف"
+        ],
+        "charges": [
+          "کیفرخواست",
+          "متهم شد"
+        ],
+        "case_closed": [
+          "پرونده حل شد",
+          "معما حل شد"
+        ],
+        "disappearance_resolved": [
+          "جسد پیدا شد",
+          "پیدا شد"
+        ]
+      },
+      "ar": {
+        "arrest": [
+          "القبض على",
+          "اعتقال",
+          "توقيف"
+        ],
+        "conviction": [
+          "أدين",
+          "حكم على",
+          "الحكم بالإعدام"
+        ],
+        "confession": [
+          "اعترف",
+          "اعتراف"
+        ],
+        "charges": [
+          "وجهت إليه تهمة",
+          "اتهام"
+        ],
+        "case_closed": [
+          "حل لغز",
+          "إغلاق القضية"
+        ],
+        "disappearance_resolved": [
+          "العثور على جثة",
+          "العثور عليها"
+        ]
+      }
+    },
+    "deep_max_pages": 6,
+    "deep_extra_queries": 2,
+    "solved_min_confidence": 0.8,
+    "min_independent_sources": 2,
+    "official_source_patterns": [
+      "polizei",
+      "police",
+      ".gov",
+      "staatsanwaltschaft",
+      "justiz",
+      "gericht",
+      "court",
+      "prosecutor",
+      "justice.",
+      "bka.de",
+      "fbi.gov"
+    ]
+  },
+  "youtube_metadata": {
+    "max_title_chars": 100,
+    "titles": {
+      "en": {
+        "original": "{title}",
+        "unsolved": "UNSOLVED: {title}",
+        "follow_up": "SOLVED: The {name} Case — What Happened After Our Original Video"
+      },
+      "de": {
+        "original": "{title}",
+        "unsolved": "UNGEKLÄRT: {title}",
+        "follow_up": "GELÖST: Der Fall {name} – was nach unserem ersten Video geschah"
+      },
+      "fa": {
+        "original": "{title}",
+        "unsolved": "حل‌نشده: {title}",
+        "follow_up": "حل شد: پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"
+      },
+      "ar": {
+        "original": "{title}",
+        "unsolved": "لم تُحل: {title}",
+        "follow_up": "حُلّت: قضية {name} — ماذا حدث بعد حلقتنا الأولى"
+      }
+    },
+    "status_labels": {
+      "en": {
+        "UNSOLVED": "UNSOLVED CASE",
+        "follow_up": "CASE NOW SOLVED"
+      },
+      "de": {
+        "UNSOLVED": "UNGEKLÄRTER FALL",
+        "follow_up": "FALL INZWISCHEN GELÖST"
+      },
+      "fa": {
+        "UNSOLVED": "پرونده‌ی حل‌نشده",
+        "follow_up": "این پرونده حل شده است"
+      },
+      "ar": {
+        "UNSOLVED": "قضية لم تُحل",
+        "follow_up": "القضية حُلّت"
+      }
+    },
+    "status_card_seconds": [
+      1.5,
+      7.5
+    ],
+    "status_card_end_seconds": 12.0,
+    "follow_up_intro": "We first told this story{episode}, \"{original_title}\"{published}, when the investigation was still unresolved. The case has now been solved. Today we return to it to explain what happened."
+  },
+  "opening": {
+    "strategies": {
+      "critical_moment": "start inside the decisive moment of the case, then step back",
+      "mysterious_statement": "start with a documented statement that does not add up",
+      "victim_introduction": "start with the person at the centre, their life just before",
+      "evidence_discovery": "start with the moment a piece of evidence was found",
+      "emergency_call": "start with the call or report that set everything in motion",
+      "important_location": "start at the place that holds the story",
+      "contradiction": "start with two facts that cannot both be true",
+      "last_sighting": "start with the last time the person was seen",
+      "courtroom_outcome": "start with the verdict, then ask how it came to this",
+      "unanswered_question": "start with the question the case still leaves open",
+      "timeline_anomaly": "start with a gap or impossibility in the timeline"
+    },
+    "follow_up_strategy": "previous_coverage",
+    "avoid_recent": 3
+  },
+  "visual_direction": {
+    "tier_weights": {
+      "1": 1.0,
+      "2": 0.92,
+      "3": 0.78,
+      "4": 0.55,
+      "5": 0.3
+    },
+    "max_generic_appearances": 1,
+    "max_context_appearances": 1,
+    "max_person_appearances": 1,
+    "max_evidence_appearances": 1,
+    "min_repeat_gap_seconds": 45.0,
+    "cut_pattern": [
+      7.0,
+      9.0,
+      6.0,
+      8.5,
+      5.5,
+      8.0
+    ],
+    "min_cut_seconds": 4.0,
+    "seconds_per_shot": 7.0,
+    "max_shots_per_beat": 14,
+    "first_map_not_before_seconds": 20.0,
+    "production_search": true,
+    "max_search_requests": 12,
+    "queries_per_request": 3,
+    "weak_tier": 3
+  },
+  "footage": {
+    "enabled": true,
+    "providers": [
+      "wikimedia_video",
+      "internet_archive"
+    ],
+    "internet_archive_api": "https://archive.org/advancedsearch.php",
+    "max_queries": 8,
+    "max_clips_per_case": 12,
+    "max_candidates_per_query": 3,
+    "max_download_mb": 250.0,
+    "max_source_seconds": 1800.0,
+    "clip_seconds": 24.0,
+    "min_height": 360,
+    "upload_max_seconds": 600.0,
+    "pieces": true,
+    "max_keep_seconds": 600.0,
+    "proxy_height": 720,
+    "piece_min_seconds": 4.0,
+    "piece_max_seconds": 20.0,
+    "piece_overlap_seconds": 2.0,
+    "max_pieces_per_source": 12,
+    "scene_threshold": 0.32,
+    "segment_window_seconds": 90.0,
+    "segment_fps": 0.5,
+    "segment_frame_width": 256,
+    "snap_seconds": 0.6
+  },
   "host": {
     "enabled": true,
     "max_mid_segments": 2,
@@ -1317,5 +1790,142 @@
     "min_beats_between": 3,
     "pace_factor": 1.08,
     "max_repair_iterations": 2
+  },
+  "channels": {
+    "en": {
+      "name": "ClueVera",
+      "studio_dir": "data/studio/en",
+      "studio_profile": "STUDIO_EN",
+      "logo": "data/logos/Logo_English.png",
+      "intro_concept": "flashlight"
+    },
+    "de": {
+      "name": "Fallspur",
+      "studio_dir": "data/studio/de",
+      "studio_profile": "STUDIO_DE",
+      "logo": "data/logos/Logo_German.png",
+      "intro_concept": "trail_stamp"
+    },
+    "fa": {
+      "name": "رد خاموش",
+      "studio_dir": "data/studio/fa",
+      "studio_profile": "STUDIO_FA",
+      "logo": "data/logos/Logo_Persian.png",
+      "intro_concept": "moonrise"
+    },
+    "ar": {
+      "name": "أثر خفي",
+      "studio_dir": "data/studio/ar",
+      "studio_profile": "STUDIO_AR",
+      "logo": "data/logos/Logo_Arabic.png",
+      "intro_concept": "sand"
+    }
+  },
+  "avatar": {
+    "provider": "heygen",
+    "secret_env": "HEYGEN_API_KEY",
+    "avatar_id_env": "TrueCrime_Avatar_ID_Heygen",
+    "enabled": false,
+    "base_url": "https://api.heygen.com",
+    "output_format": "webm",
+    "resolution": "1080p",
+    "request_timeout_s": 120.0,
+    "poll_interval_s": 10.0,
+    "max_poll_minutes": 20.0
+  },
+  "dynamic_eq": {
+    "enabled": true,
+    "frame_ms": 20.0,
+    "hop_ms": 5.0,
+    "gate_dbfs": -55.0,
+    "reference_band_hz": [
+      300.0,
+      2500.0
+    ],
+    "baseline_percentile": 85.0,
+    "attack_ms": 10.0,
+    "release_ms": 120.0,
+    "strength": 1.0,
+    "bands": [
+      {
+        "name": "harsh_3k",
+        "center_hz": 3100.0,
+        "bandwidth_hz": 1500.0,
+        "threshold_offset_db": 12.0,
+        "max_atten_db": 6.0,
+        "ratio": 0.5
+      },
+      {
+        "name": "harsh_4k7",
+        "center_hz": 4700.0,
+        "bandwidth_hz": 1700.0,
+        "threshold_offset_db": 15.0,
+        "max_atten_db": 6.0,
+        "ratio": 0.5
+      }
+    ],
+    "deesser": {
+      "enabled": true,
+      "center_hz": 6500.0,
+      "bandwidth_hz": 4500.0,
+      "threshold_offset_db": 14.0,
+      "max_atten_db": 8.0,
+      "ratio": 0.5,
+      "attack_ms": 5.0,
+      "release_ms": 60.0,
+      "strength": 1.0
+    },
+    "languages": {
+      "en": {},
+      "de": {
+        "threshold_offset_delta_db": 0.5,
+        "deesser_threshold_offset_delta_db": 1.0
+      },
+      "ar": {
+        "deesser_threshold_offset_delta_db": 0.5
+      },
+      "fa": {
+        "threshold_offset_delta_db": 0.5,
+        "deesser_threshold_offset_delta_db": 0.5
+      }
+    },
+    "baseline_floor_db": -20.0,
+    "threshold_ceiling_db": 10.0
+  },
+  "studio": {
+    "registry_path": "config/studio_registry.json",
+    "thumbs_dir": "data/studio_thumbs",
+    "thumb_width": 640,
+    "max_background_upscale": 1.6,
+    "framing_by_position": {
+      "opening": "HOST_MEDIUM",
+      "mid": "HOST_CLOSE",
+      "final": "HOST_WIDE"
+    }
+  },
+  "visual_audit": {
+    "enabled": true,
+    "max_redos": 2,
+    "min_fit": 0.7
+  },
+  "video_audit": {
+    "frames_per_second": 1.0,
+    "max_frames": 20,
+    "frame_width": 384
+  },
+  "chapters": {
+    "enabled": true,
+    "title_card": true,
+    "card_seconds": 4.5,
+    "min_card_seconds": 3.0,
+    "lead_out_seconds": 0.4,
+    "max_title_chars": 48,
+    "max_label_chars": 48,
+    "max_timeline_events": 9,
+    "max_labelled_events": 24,
+    "timeline_move_seconds": 1.2,
+    "intro_enabled": true,
+    "intro_dir": "data/intros",
+    "intro_duck_db": -18.0
   }
 }

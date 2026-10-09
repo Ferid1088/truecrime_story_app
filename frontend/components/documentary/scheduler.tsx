@@ -5,7 +5,9 @@ import { Gauge } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDateTime, humanize } from "@/lib/format";
-import type { ConcurrencyLimits, DocumentaryJob, DocumentaryScheduler } from "@/lib/types";
+import type { ConcurrencyLimits, DocumentaryJob, DocumentaryScheduler, ResolutionStatus } from "@/lib/types";
+import { ResolutionBadge } from "@/components/status-badge";
+import { ProductionTypeBadge } from "@/components/lifecycle/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +25,7 @@ function JobLine({ job, title, position }: { job: DocumentaryJob; title: string;
           {title}
         </Link>
         <span className="flex shrink-0 items-center gap-2">
+          <ProductionTypeBadge type={job.production_type} />
           <span className="tabular-nums text-muted-foreground">{Math.round(job.progress * 100)}%</span>
           <JobStatusBadge status={job.status} />
         </span>
@@ -128,7 +131,14 @@ export function SchedulerCard({
 }
 
 /** Latest documentary jobs of every case. */
-export function RecentJobs({ refreshKey }: { refreshKey: string }) {
+export function RecentJobs({
+  refreshKey,
+  resolutions,
+}: {
+  refreshKey: string;
+  /** Case id → resolution status (job rows carry no case payload). */
+  resolutions?: Map<number, ResolutionStatus>;
+}) {
   const { data, error, loading, refetch } = useApi(() => api.listDocumentaryJobs(10), [refreshKey], {
     keepPrevious: true,
   });
@@ -174,6 +184,12 @@ export function RecentJobs({ refreshKey }: { refreshKey: string }) {
                       #{j.id} · {j.mode}
                       {j.from_zero && " · from zero"} · {formatDateTime(j.created_at)}
                     </span>
+                    {(resolutions?.has(j.case_id) || j.production_type === "follow_up") && (
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {resolutions?.has(j.case_id) && <ResolutionBadge status={resolutions.get(j.case_id)} />}
+                        <ProductionTypeBadge type={j.production_type} />
+                      </span>
+                    )}
                   </TD>
                   <TD>
                     <JobStatusBadge status={j.status} />

@@ -258,9 +258,22 @@ its critics' model either.
   emotional moments in the planned gaps (starting softly under the last
   words), stings, room tone for silences, final loudness −16 LUFS.
   `with_music: false` renders the narration only.
-- Music cues (`music_library`) are generated once with ElevenLabs sound
-  generation, normalized and cached in `data/music_library/` — shared by
-  every film and language.
+- **Clean narration**: with `audio_direction.beds_under_narration=false`
+  (default) no music plays under the narrator's words. The Music/Audio
+  Director puts music only into the gaps — between sections, before a
+  revelation, after a strong statement, at chapter turns, under silent
+  picture sequences — and may choose SILENCE (room tone) instead, above
+  all around disturbing facts, reveals and open questions. Moods follow
+  the emotional function of the moment (suspense, investigation,
+  mystery, melancholy, danger, discovery, tension, relief, resolution,
+  uncertainty); every cue and silence carries a `why`.
+- **Music library** (`music_tracks`): several generated variants per
+  kind and mood (ElevenLabs sound generation, normalized, cached in
+  `data/music_library/`). A film keeps one theme per mood across all its
+  languages; a track used by one of the last
+  `music_library.reuse_after_videos` (10) other films is not chosen while
+  an alternative exists or can be generated. `music_usages` records
+  every placement with the director's reason and the selection reason.
 
 ### Visuals, production and render (the documentary video)
 
@@ -272,11 +285,18 @@ still work. If they open them, the visuals deepen understanding."
    see (people, places, objects, documents) with search queries; plus a
    map place, an anchor date, a short real quotation or a document
    passage — each checked against the evidence (exact quotes only).
-2. **Visual research**: images from the case's own sources (news
-   articles: og:image, figures with captions), Wikimedia Commons
-   (license metadata; polite User-Agent and request spacing) and the
-   SearXNG image search. Downloads are size-checked, deduplicated by
-   perceptual hash and stored per case (`data/cases/<id>/visuals/`).
+2. **Visual research → media library**: images from the case's own
+   sources (news articles: og:image, figures with captions), Wikimedia
+   Commons (license metadata; polite User-Agent and request spacing) and
+   the SearXNG image search; **footage** from Wikimedia Commons video and
+   the Internet Archive (licensed only), stored as short MUTED clips with
+   a keyframe for verification. Every asset keeps source, rights,
+   license, entity, the query it was found for, the date found and a
+   **relevance tier**: 1 exact case evidence/footage, 2 the exact
+   person/place/object, 3 the exact city/building/area, 4 contextual
+   licensed imagery, 5 generic atmosphere (last resort). Downloads are
+   size-checked, deduplicated by perceptual hash and stored per case
+   (`data/cases/<id>/visuals/`).
 3. **Rights** (deterministic): owned, licensed, public_domain,
    creative_commons, editorial_review_required, permission_required,
    unknown, do_not_use (stock libraries, watermarks). FOUND is not
@@ -287,16 +307,34 @@ still work. If they open them, the visuals deepen understanding."
    context / illustration); branding or burned-in text; sensitive
    content. Rejected images are never used; humans can override in the
    Visual Library.
-5. **Visual direction** (`visual_director`): shots per beat anchored to
-   the narration sentences (KEEP_CURRENT_IMAGE, NEW_IMAGE, SHOW_MAP,
-   SHOW_DOCUMENT, SHOW_DATE, SHOW_QUOTE, BLACK_SCREEN, …). Validator:
+5. **Visual direction** (`visual_director`) answers for every sentence
+   "what should the viewer see while this is spoken?" — lowest tier
+   first, the person when the sentence is about them, real footage
+   (SHOW_CLIP, muted) where it helps, and REQUEST_SEARCH when nothing
+   fits. The **visual_gaps** stage then searches for weak sentences
+   (e.g. "St Mary's Church <town> exterior"), verifies what it finds and
+   re-directs those beats; the audit sits in the plan's
+   `search_requests`. **Repetition control** (`media_usages`): generic
+   and contextual pictures and maps appear at most once or twice per
+   film, central people may return (with room in between) when the
+   sentence names them; every reuse records why. **Maps** appear where
+   geography matters — at the first mention of a place, never as the
+   film's first picture unless the opening is `important_location`,
+   once per place — zooming country → region → city → the relevant
+   area. Openings follow the film's opening strategy. Commands:
+   KEEP_CURRENT_IMAGE, NEW_IMAGE, SHOW_CLIP, SHOW_MAP, SHOW_DOCUMENT,
+   SHOW_DATE, SHOW_QUOTE, BLACK_SCREEN, REQUEST_SEARCH, …. Validator:
    reveal firewall (no picture shows what a later reveal/evidence beat
    discloses), cognitive load (one thing to read, none during dense
    narration), minimum holds, illustrations labelled on screen, fallback
-   hierarchy (map → date → hold → black). Motion is deterministic and
+   hierarchy (unused verified picture → document/date card → hold →
+   black). Motion is deterministic and
    subtle (slow push/pull, pans, focus on faces, document highlight, map
    zoom, light 2.5D parallax), never the same move three times in a row.
-6. **Production script** per language from the real audio: shots,
+6. **Production script** per language from the real audio (cuts every
+   ~5–9 s, sentence-snapped; `case_status`, `production_type`,
+   `opening_strategy`; an UNSOLVED case gets an "UNSOLVED CASE" status
+   card at the start and near the end): shots,
    transitions, overlays localized per language (dates formatted
    deterministically, place names/quotes by `overlay_localizer`),
    music placements, silences, subtitles, credits.
@@ -304,7 +342,9 @@ still work. If they open them, the visuals deepen understanding."
    `visual_accuracy_critic`, `production_critic` — never the director's
    model) plus deterministic checks; targeted fixes per shot
    (replace picture, keep previous, change motion, black, remove text).
-   Each language is judged on its own.
+   Each language is judged on its own. A cross-film variety check flags
+   a film that repeats the previous films' opening strategy, first shot,
+   music tracks and cut rhythm (`template_repeat`).
 8. **Render** (FFmpeg + OpenCV + Pillow, no editorial logic): 1080p/25
    MP4, H.264 + AAC, soft subtitle track and `.srt`, credits for
    attributed material.
@@ -329,6 +369,65 @@ screen, cached in `data/map_cache`); switch `maps.tile_url` /
 use. All four narrators use ElevenLabs `eleven_v3` with `language_code`
 (v3 has no request stitching) and Persian uses a larger Whisper model for
 the speech check (`asr_check.languages.fa`).
+
+### Case lifecycle: selection, status, monitor, follow-ups
+
+Brief: `docs/Master_Task_Case_Lifecycle.MD`. Pipeline: discovery →
+duplicate checker → status verifier → research → media research →
+story director → visual director → music/audio director → production →
+render → video record + YouTube metadata → archive → unsolved monitor →
+follow-up.
+
+- **Which cases are suggested**: RECENT + SOLVED + NEVER USED. Discovery
+  searches recent developments (verdicts, convictions, charges;
+  `case_selection.seed_queries`, SearXNG `time_range`), the extraction
+  reports status and dates, the best candidates' status is verified with
+  targeted searches and `case_status_verifier`, and the ranking is
+  recency (half-life `recency_half_life_days`) × status weight. UNSOLVED
+  cases are only suggested with `include_unsolved`. Every suggestion
+  stores its reason; duplicates and filtered ones are stored with theirs.
+- **Duplicate checker** (`app/lifecycle/identity.py`): compares identity,
+  not titles — victim/suspect names (spelling-tolerant: Gehricke ≈
+  Gericke, Müller = Mueller), aliases, places, dates, case-specific
+  source URLs and identifiers — against every case in any state and every
+  suggestion ever shown. Manual case creation and "investigate" answer
+  409 with the matched case and the reason (`force` overrides).
+- **Resolution status** `SOLVED | UNSOLVED | UNKNOWN |
+  STATUS_UNDER_REVIEW` is a case field with a history
+  (`case_status_history`: who, why, sources). Visible on discovery
+  cards, case lists (filter), case page, documentary jobs, production
+  scripts, videos, YouTube titles and the archive
+  (`GET /api/archive?status=SOLVED|UNSOLVED|ALL`).
+- **Unsolved monitor** (in-app scheduler, about twice a week:
+  `case_monitor.interval_hours`; `POST /api/monitor/run` by hand; set
+  `TRUECRIME_DISABLE_SCHEDULER=1` to keep it off): stage 1 runs a couple
+  of searches per UNSOLVED case limited to the time since its last check
+  and looks for deterministic signal words in results that name the case
+  — no signal: stop (no fetch, no LLM). Stage 2 only after a signal:
+  pages are read, `case_status_verifier` judges, and SOLVED needs
+  confidence AND two independent sources or one official source; weaker
+  evidence → STATUS_UNDER_REVIEW. Every check is stored
+  (`case_status_checks`).
+- **Follow-ups**: a covered case (it has a video) that goes UNSOLVED →
+  SOLVED appears on the dashboard: "PREVIOUSLY COVERED UNSOLVED CASE —
+  NOW SOLVED … Do you want to create an update video?". Nothing is
+  produced before approval (`POST /api/follow-ups/{id}/approve`), which
+  starts one `follow_up` job: update research, a master that opens with
+  the earlier episode ("We first told this story in Episode 27 …"), and a
+  video linked to the original.
+- **Videos** (`videos`): one per rendered language with status at
+  production/publication, opening strategy and YouTube metadata —
+  "UNSOLVED: <title>", follow-ups "SOLVED: The <case> Case — What
+  Happened After Our Original Video" (localized). Publish sets the
+  episode number and freezes the status at publication.
+- **Openings vary**: the story director chooses an opening strategy
+  (critical moment, mysterious statement, victim introduction, evidence
+  discovery, emergency call, important location, contradiction, last
+  sighting, courtroom outcome, unanswered question, timeline anomaly)
+  and avoids those of the most recent films (`opening.avoid_recent`).
+- **Audit**: `GET /api/cases/{id}/audit` — why suggested, duplicates,
+  status changes and checks, and per production why each picture, map,
+  repeat, music cue or silence was chosen.
 
 ### On-screen host (persona)
 
@@ -382,6 +481,262 @@ The documentary job has two host stages: `host_plan`, which runs next to
 the spoken versions, and `host:<lang>`, which runs before the
 performance stage. A failed host stage is recorded under
 `result.warnings` and does not stop the film.
+
+### Channel studios and host scenes
+
+One YouTube channel per language, each with its own studio (never shared):
+ClueVera (en), Fallspur (de), أثر خفي (ar), رد خاموش (fa).
+
+- **Where things live.** `config/ai_config.json → channels` holds the channel
+  name, the studio folder and the studio profile id. The voice stays in
+  `voice.languages`, and the avatar env var names stay in `avatar`. Each fact
+  lives in one place; `studio.channel_profile(lang)` assembles them.
+  `config/studio_registry.json` holds every studio image under
+  `data/studio/<lang>/`, with:
+  - a deterministic id such as `STUDIO_DE_02_FRONT_MEDIUM`;
+  - the sha256, size, camera angle and shot size;
+  - whether it is approved for the host;
+  - the safe zones (host, head, logo, lower third), normalized to 0..1.
+
+  The registry also holds one profile per channel: the primary background,
+  `HOST_CLOSE`, `HOST_MEDIUM` and `HOST_WIDE` framing presets, alternate
+  angles, and a review flag that a person confirms in Settings → Channel
+  studios.
+- **No cross-channel fallback.** A channel never resolves another channel's
+  picture: every asset carries its language, and `resolve()` refuses a
+  profile that points elsewhere.
+- **Validation** (shown in Settings):
+  - Errors: no usable host background, missing primary file, invalid zones,
+    a preset on a picture that is not approved or belongs to another
+    channel, no voice configured.
+  - Warnings: no native close shot (`HOST_CLOSE` crops the front shot),
+    background enlarged beyond `studio.max_background_upscale`, review not
+    yet confirmed.
+- **Re-reading the images.** `POST /api/studios/sync` re-reads size and hash
+  from the files. Thumbnails are cached in `data/studio_thumbs/`
+  (git-ignored, keyed by hash).
+
+**Host scenes** (`host_scenes` table, Documentary → Host tab). The host stage
+plans one scene per written segment: the channel's studio, the framing for
+its position (`studio.framing_by_position`), and the text frozen with its
+sha256. After that, each step saves its result before the next one starts:
+
+| Step | Result saved |
+| --- | --- |
+| voice | ElevenLabs audio of exactly that text (mp3 plus a sidecar with the text, voice, model, request id and timing) |
+| avatar_upload | the audio uploaded to HeyGen (asset id) |
+| avatar_request | the job accepted (job id; the request carries an `Idempotency-Key`, so a retried request is never paid twice) |
+| avatar_download | the webm saved atomically, with its sha256 |
+
+A failure records `failed_step` and `last_error`, and the next run continues
+from there. A provider job that fails is requested again with a new key; a
+slow one is polled again, not requested again. `history` lists every
+attempt.
+
+- `POST /api/host-scenes/{id}/run` with `{until: "voice"|"avatar"}` runs or
+  retries a scene in the background.
+- `GET /api/host-scenes?case_id=&language=` lists the scenes.
+
+Avatar videos cost credits and stay off until `avatar.enabled` is true.
+The preferred composition is a transparent avatar (HeyGen v3 `webm` with
+alpha, own audio) over our own studio image, placed by the preset. The
+fallback is `provider_composited`: HeyGen renders the studio image as the
+background (mp4). `TrueCrime_Avatar_ID_Heygen` may name the avatar (a
+group of looks) or one look; the look actually used is stored on the
+scene.
+
+### Saved steps, retries and restarts
+
+Every step's result is saved before the next step starts, so a failed or
+interrupted step is retried without redoing (or paying for) the ones
+before it.
+
+- **Documentary jobs**: each stage stores its status, `attempts`,
+  `started_at`/`finished_at` and the last failures (`errors`: time, type,
+  message). A stage that finished without part of its work (an invalid
+  audio plan, vision checks that errored, a failed production search,
+  voice-direction errors) is `degraded`: the reason is on the stage and in
+  `result.degraded`, and a new run redoes it.
+- **Restart**: at startup, jobs left `running` or `queued` become
+  `interrupted` (their running stage goes back to `pending`, with an
+  "Interrupted" error entry); a monitor run or video-research job left
+  running is marked failed; host scenes lose their running flag. Resume an
+  interrupted job from the Run tab: saved stages are skipped.
+- **Files**: paid voice takes and their sidecars, audio manifests, music
+  (the provider's mp3 is kept before normalizing) and rendered films are
+  written to a `.part` file and renamed when complete. A render whose film
+  already exists for the same script is not rendered again.
+
+### Approval gates and the picture auditor
+
+Nothing goes into a film without "approved" from its auditor. A rejected
+result is made again with the auditor's reasons and judged again, at most
+`documentary.max_redos` (2) times; if it is still rejected it is left out
+and reported (the job never waits for a person).
+
+- **Master story** (`master_approval` stage): its critics must have passed
+  it; otherwise it is revised with exactly the failed checks. Still
+  failing: the job stops (there is no film without an approved story).
+- **Blueprint / visual needs**: an invalid result is made again.
+- **Spoken versions**: a version its meaning/style checks rejected is
+  made again; still rejected → that language is left out of the film.
+- **Host**: segments the host critic rejected get no host scene.
+- **Narration**: blocks that still fail the listening check after the
+  retakes are reported (stage "degraded").
+- **Pictures and clips** (`visual_audit:<lang>`, right before render):
+  each photo/clip must be verified and approved by the visual auditor
+  (role `visual_auditor`, a vision model independent of the visual
+  director), which sees the exact narration sentences. It rejects a wrong
+  or more general kind of thing (a pet for "the police dog"), a face that
+  is not clearly the named person, and sentimental/funny/stock looks.
+  Rejected → the next unused verified clip or photo (a clip first) is
+  tried and audited again; still nothing → the previous picture holds or
+  the next comes early (audited for the extra words), else a short black
+  pause. "Symbolic" approvals carry the "symbolic image" label. Verdicts
+  are stored per picture file + exact sentences (`visual_audits`), so the
+  other languages reuse them. The report is on the production script
+  (`audit_json`, Critique tab).
+- **Verifier**: stand-ins must be the same specific kind and always carry
+  the label; a clash of tone rejects; clips are judged by start, middle
+  and end frames; uploads are checked like found pictures.
+
+### Your own photos and videos
+
+Visual Library → *Upload photo or video*. Every upload starts unverified
+and is checked in the background; before render it is checked again for
+the words it would appear under. Clips rank before photos of the same tier
+(`visual_direction.video_bonus`), and the no-repeat rule covers both.
+
+### Video pieces and the video auditor
+
+A video (found on a rights-clear archive or uploaded) is kept whole,
+muted, as a proxy (`footage.max_keep_seconds`, `proxy_height`) — the
+*source* (`asset_type video_source`, never on screen).
+
+**Cut by meaning, never by the clock.** The video segmenter (role
+`video_segmenter`, a vision model) watches the source stretch by stretch
+(`footage.segment_window_seconds`, frames at `segment_fps`, with the
+scene changes ffmpeg found at `scene_threshold`) and proposes *pieces*:
+each one complete, meaningful moment — an action from its start to its
+end, one continuous view, one situation — of
+`piece_min_seconds`–`piece_max_seconds`, with a **name** and a
+**description** of exactly what is visible and *why it starts and ends
+there*. Pieces may overlap when a moment needs it. Title cards, black
+frames, presenters and burned-in captions are left out. The proposals are
+checked (inside the video, cut points snapped to a scene change within
+`snap_seconds`, length limits, no duplicates; at most
+`max_pieces_per_source`). If the segmenter fails or finds nothing, the
+video is kept *without pieces* and the reason recorded — it is cut again
+on the next research run or with **Cut again** in the library
+(`POST /api/visuals/{id}/cut-again`), never by the clock instead.
+
+Each piece is a library asset (window `clip_start`–`clip_end` of the
+source, `spec_json.parent`, `why_here`), so a sentence shows exactly its
+part of the video and other parts can serve other sentences. Two
+overlapping pieces are never both shown in one film.
+
+**The video auditor checks every piece** (role `video_auditor`, a
+different model from the segmenter — review group `video_pieces`): its
+frames in order, labelled with their time, plus one frame just before and
+just after the cut. It checks three things:
+
+1. **the cut** — does the piece start and end where the moment starts and
+   ends? If not it gives the right times (within ±5 s), the cut is moved
+   and checked again;
+2. **the name and description** — do they say exactly what is visible? If
+   not they are rewritten and checked again;
+3. **the content** — every frame: no burned-in text/logos, gore, wrong
+   period or clashing tone.
+
+At most `documentary.max_redos` corrections; a piece still wrong is
+rejected (`cut_not_meaningful` / `description_wrong`) and never shown.
+The director picks a piece **only by its description** — when what it
+shows fits the sentence, never just to fill time — and before render the
+video auditor judges the piece against the exact sentences again: every
+frame must fit.
+
+**Story order — no spoilers.** A picture or a piece is chosen by the
+story so far, not only by the sentence. The director gets `story_reveals`
+(which beat reveals what) and may show nothing a later beat reveals — not
+in one frame of a clip. Compose and every fill keep the claim firewall
+(`spoilers.reveal_blocks`: per beat, the facts revealed only later; a
+picture whose vision check found such a fact is never shown before its
+beat — `script.firewall.reveals`). Before render both auditors judge each
+picture/piece at its point in the story (`spoilers.story_point`:
+`told_so_far`, `told_later`; an unsolved case may suggest no solution)
+and reject it with `spoiler_free: false` — also during a pause without
+words. Verdicts are stored per picture, words **and** story point.
+
+**A cut is used once.** A video piece appears in one shot of the film and
+never again (`UsageTracker.allows`), whatever the sentence names; a
+reframe of a playing clip plays on from where it was, it never replays
+the same footage; overlapping pieces of one video never both appear.
+
+Host time is capped at `host.max_total_seconds` (180 s) per film.
+
+### Chapters and the running case timeline
+
+On-screen cards made from the story itself (`app/documentary/chapters.py`,
+config `chapters`, stage **chapters** after the spoken versions).
+
+- **Chapters = the master story's acts.** The audio plan puts a
+  `chapter_break` (music, 12–22 s) after the last beat of every act — and
+  after the opening hook when the film has a cold open — and nowhere else
+  (`act_end_is_chapter_break`, `title_after_cold_open`,
+  `chapter_break_only_between_acts`). The next chapter's card ("Chapter 2"
+  over a red rule, its title in serif) sits at the **end** of that gap
+  (`card_seconds`), so the new chapter's first picture appears
+  `lead_out_seconds` before its first word; after a cold open the film's
+  title card comes first. Pictures under a card are cut back (a clip plays
+  on after it, the old chapter's picture never flashes up again); text over
+  a card is dropped; a gap too short for a card is reported in the script
+  (`cards_left_out`), never squeezed.
+- **The running timeline.** The dated facts the story tells (evidence-pack
+  T-ids a beat reveals or relies on) each appear from the beat that first
+  tells them. The visual director may use `SHOW_TIMELINE` where a beat has
+  a `timeline_event` (and it is the fallback before a plain date): a
+  full-frame card whose marker slides from the last date to this one, with
+  the date and what happened; only dates the viewer already knows are on
+  it (at most `max_timeline_events`). Time runs left to right in every
+  language (also Persian and Arabic). Every point carries its label right
+  under it and there is no point without one: over several years one
+  point per year (the year), inside one year one point per day (day and
+  month); the red ball is the current date. An event that
+  is not told yet never gets a card — the date goes over the picture.
+- **Texts are approved.** Role `chapter_writer` writes the film title, a
+  title per chapter and a short label per told event, natively in every
+  language of the film; role `chapter_auditor` (another model, review group
+  `documentary_cards`) checks every text in every language: faithful,
+  nothing given away before the story reveals it (each chapter lists what
+  it and later chapters reveal), no solution suggested for an unsolved
+  case, sober, a true translation with the narration's spelling of names,
+  within the length limits. Rejected texts are rewritten with the reasons
+  (at most `documentary.max_redos`); still rejected → left out and
+  reported: the card shows only the chapter number, the timeline only the
+  date. Dates never come from a model (facts' dates, `format_date`).
+- See them in the **Blueprint** tab (Chapters & timeline) and on the
+  production timeline; `GET /api/cases/{id}/documentary/chapters`.
+
+### Channel intros
+
+Every film of a channel opens with the same 5–7 s intro made from the
+channel's logo (`app/documentary/intros.py`; `channels.<lang>.logo` and
+`intro_concept`): ClueVera — *flashlight* (a beam searches the dark and
+finds the logo), Fallspur — *trail_stamp* (a red evidence trail runs into
+the folder, the logo lands like a stamp), رد خاموش — *moonrise* (the red
+moon, the path drawing down, the calligraphy right to left; a deep
+classical guitar on its bass strings only — deep, no high tones), أثر خفي — *sand* (sand blows away right to left, the
+red trace glows; oud-like notes). Pictures are drawn with numpy/OpenCV and
+the sound is synthesized — no samples, no costs. The intro is rendered
+once per channel and size into `chapters.intro_dir/<lang>/` and reused;
+it is made again only when the logo, the concept, the size or the intro
+code changes (fingerprint).
+
+It plays after the cold open — in its chapter break, before the film's
+title and chapter 1 (when the break is short the title goes first, then the
+chapter card, the intro last) — with the film's sound ducked under it
+(`chapters.intro_duck_db`). A film without a cold open gets the intro
+before its first word (pictures, sound and subtitles move by its length).
 
 ### Pronunciation check (Persian)
 

@@ -9,6 +9,10 @@ composites them. Kinds:
   title         — case title card
   credit        — tiny attribution, lower right
   subtitle      — burned-in caption, bottom centre
+  status        — the case-status stamp ("UNSOLVED CASE"): a near-black
+                  box with a red rule, bold text, upper start corner
+                  (left for Latin, right for RTL) — readable over any
+                  picture, never over the subtitles or the place label
 """
 
 from __future__ import annotations
@@ -159,6 +163,8 @@ def overlay(kind: str, text: str, language: str, W: int, H: int) -> Image.Image:
         d.text((W - margin // 2 - w, H - int(40 * s)), text, font=f,
                fill=(235, 235, 235, 170))
         return _shadowed(layer, 3, 140)
+    if kind == "status":
+        return _status_stamp(layer, d, text, language, W, H, s, margin)
     if kind == "subtitle":
         f = font(language, "sans", "regular", int(40 * s))
         width = int(W * 0.8)
@@ -174,6 +180,34 @@ def overlay(kind: str, text: str, language: str, W: int, H: int) -> Image.Image:
                     (255, 255, 255, 255), 1.3)
         return layer
     raise ValueError(f"unknown overlay kind {kind!r}")
+
+
+# Status stamp: high contrast on any picture (near-black box, warm white
+# text, a red rule on the reading-start edge and a thin red frame).
+STATUS_BOX = (10, 10, 12, 225)
+STATUS_RED = (206, 44, 40, 255)
+STATUS_TEXT = (248, 245, 238, 255)
+
+
+def _status_stamp(layer: Image.Image, d: ImageDraw.ImageDraw, text: str, language: str,
+                  W: int, H: int, s: float, margin: int) -> Image.Image:
+    rtl = language in RTL
+    f = font(language, "sans", "bold", int(44 * s))
+    lines = wrap(" ".join(text.split()), f, language, int(W * 0.42))[:2]
+    lh = int(f.size * 1.3)
+    pad_x, pad_y, rule = int(28 * s), int(16 * s), max(4, int(10 * s))
+    tw = max(text_width(line, f, language) for line in lines) if lines else 0
+    bw, bh = tw + 2 * pad_x + rule, lh * len(lines) + 2 * pad_y
+    y0 = int(64 * s)
+    x0 = W - margin - bw if rtl else margin
+    frame = max(2, int(3 * s))
+    d.rectangle((x0, y0, x0 + bw, y0 + bh), fill=STATUS_BOX, outline=STATUS_RED, width=frame)
+    rx = x0 + bw - rule if rtl else x0
+    d.rectangle((rx, y0, rx + rule, y0 + bh), fill=STATUS_RED)
+    text_x = x0 + pad_x + (0 if rtl else rule)
+    _draw_lines(d, lines, f, language, text_x, y0 + pad_y - int(f.size * 0.08), tw, "start",
+                STATUS_TEXT, 1.3)
+    return _shadowed(layer, 8, 140)
 
 
 def document_card(title: str, publisher: str | None, passage: str, context: str,

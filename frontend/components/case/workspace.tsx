@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowLeft, Clapperboard, FlaskConical, PenLine } from "lucide-react";
+import { Archive, ArrowLeft, CalendarDays, Clapperboard, FlaskConical, MapPin, PenLine } from "lucide-react";
 import { api, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
-import { CaseStatusBadge } from "@/components/status-badge";
+import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
 import { ErrorState } from "@/components/state";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,9 +23,14 @@ import { ResearchLanguagesTab } from "./tabs/research-languages";
 import { LocalizationsTab } from "./tabs/localizations";
 import { VideosTab } from "./tabs/videos";
 import { CorpusSearchTab } from "./tabs/corpus-search";
+import { StatusTab } from "./tabs/status";
+import { FilmsTab } from "./tabs/films";
+import { AuditTab } from "./tabs/audit";
 
 const TABS = [
   "Overview",
+  "Status",
+  "Films",
   "Sources",
   "Corpus Search",
   "Facts",
@@ -35,6 +40,7 @@ const TABS = [
   "Videos",
   "Research Languages",
   "Localizations",
+  "Audit",
   "Agent Runs",
 ] as const;
 
@@ -50,7 +56,15 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const pollAbort = useRef<AbortController | null>(null);
 
-  const { data: caseData, error, loading, refetch } = useApi(() => api.getCase(caseId), [caseId, researchTick]);
+  // keepPrevious: a refresh (status change, finished research) keeps the
+  // workspace and the open tab on screen instead of a skeleton.
+  const {
+    data: loadedCase,
+    error,
+    loading,
+    refetch,
+  } = useApi(() => api.getCase(caseId), [caseId, researchTick], { keepPrevious: true });
+  const caseData = loadedCase && loadedCase.id === caseId ? loadedCase : null;
 
   useEffect(() => () => pollAbort.current?.abort(), []);
 
@@ -103,16 +117,15 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
     }
   }
 
-  if (loading)
-    return (
+  if (!caseData && error) return <ErrorState message={error} onRetry={refetch} />;
+  if (!caseData)
+    return loading ? (
       <div className="space-y-4">
         <Skeleton className="h-8 w-2/3" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
-    );
-  if (error) return <ErrorState message={error} onRetry={refetch} />;
-  if (!caseData) return null;
+    ) : null;
 
   return (
     <div>
@@ -128,9 +141,29 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">{caseData.title}</h1>
-          <div className="mt-1.5 flex items-center gap-2">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTab("Status")}
+              className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              aria-label="Show the case status"
+            >
+              <ResolutionBadge status={caseData.resolution_status} confidence={caseData.resolution_confidence} />
+            </button>
             <CaseStatusBadge status={caseData.status} />
             <span className="text-xs text-muted-foreground">Case #{caseData.id}</span>
+            {caseData.location && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <MapPin className="size-3" aria-hidden /> {caseData.location}
+              </span>
+            )}
+            {(caseData.incident_date || caseData.latest_development_date) && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <CalendarDays className="size-3" aria-hidden />
+                {caseData.incident_date || "—"}
+                {caseData.latest_development_date && ` · latest ${caseData.latest_development_date}`}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -186,6 +219,8 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       </div>
 
       {tab === "Overview" && <OverviewTab caseData={caseData} />}
+      {tab === "Status" && <StatusTab caseData={caseData} onChanged={refetch} />}
+      {tab === "Films" && <FilmsTab caseId={caseId} />}
       {tab === "Sources" && <SourcesTab caseId={caseId} refreshKey={researchTick} />}
       {tab === "Corpus Search" && <CorpusSearchTab caseId={caseId} />}
       {tab === "Facts" && <FactsTab caseId={caseId} refreshKey={researchTick} />}
@@ -195,6 +230,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       {tab === "Videos" && <VideosTab caseId={caseId} refreshKey={researchTick} />}
       {tab === "Research Languages" && <ResearchLanguagesTab caseId={caseId} refreshKey={researchTick} />}
       {tab === "Localizations" && <LocalizationsTab caseId={caseId} />}
+      {tab === "Audit" && <AuditTab caseId={caseId} />}
       {tab === "Agent Runs" && <AgentRunsTab caseId={caseId} refreshKey={researchTick} />}
 
       <Dialog

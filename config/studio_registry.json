@@ -1,0 +1,561 @@
+{
+  "version": 1,
+  "root": "data/studio",
+  "note": "One master picture per channel (the room never changes); medium and close are cuts of it. Safe zones from a visual review — confirm per channel in Settings → Channel studios. Older views: data/studio_archive/.",
+  "assets": [
+    {
+      "id": "STUDIO_EN_01_OVERVIEW_WIDE",
+      "language": "en",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "1fc429823351fc2c6b58128b6b73bd1924881f3e5ee41c7cedaef372b3a43e17",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair left of centre, case wall with the ClueVera sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": {
+          "x": 0.3,
+          "y": 0.31,
+          "width": 0.25,
+          "height": 0.53
+        },
+        "head": {
+          "x": 0.38,
+          "y": 0.32,
+          "width": 0.09,
+          "height": 0.11
+        },
+        "logo": {
+          "x": 0.54,
+          "y": 0.26,
+          "width": 0.11,
+          "height": 0.08
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        },
+        "host_standing": {
+          "x": 0.64,
+          "y": 0.06,
+          "width": 0.18,
+          "height": 0.78
+        },
+        "head_standing": {
+          "x": 0.68,
+          "y": 0.08,
+          "width": 0.09,
+          "height": 0.12
+        }
+      }
+    },
+    {
+      "id": "STUDIO_DE_01_OVERVIEW_WIDE",
+      "language": "de",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "b3d3b0a8b8840ff72f937667ae42461be3a86fbb6f6c0ad25f98a310831f76da",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, worn leather armchair on the left, case wall with the Fallspur sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": {
+          "x": 0.16,
+          "y": 0.35,
+          "width": 0.21,
+          "height": 0.42
+        },
+        "head": {
+          "x": 0.22,
+          "y": 0.37,
+          "width": 0.08,
+          "height": 0.09
+        },
+        "logo": {
+          "x": 0.45,
+          "y": 0.23,
+          "width": 0.15,
+          "height": 0.1
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        },
+        "host_standing": {
+          "x": 0.6,
+          "y": 0.25,
+          "width": 0.12,
+          "height": 0.59
+        },
+        "head_standing": {
+          "x": 0.62,
+          "y": 0.27,
+          "width": 0.06,
+          "height": 0.08
+        }
+      }
+    },
+    {
+      "id": "STUDIO_AR_01_OVERVIEW_WIDE",
+      "language": "ar",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "bfab9740abbca358e69813127d00a3af57affdbae4a14f37887517e34dbfc62a",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side table and lanterns, leather armchair on the left, case wall with the أثر خفي sign on the right",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": {
+          "x": 0.17,
+          "y": 0.32,
+          "width": 0.25,
+          "height": 0.48
+        },
+        "head": {
+          "x": 0.25,
+          "y": 0.335,
+          "width": 0.08,
+          "height": 0.1
+        },
+        "logo": {
+          "x": 0.64,
+          "y": 0.23,
+          "width": 0.09,
+          "height": 0.1
+        },
+        "lower_third": {
+          "x": 0.55,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        },
+        "host_standing": {
+          "x": 0.46,
+          "y": 0.14,
+          "width": 0.12,
+          "height": 0.69
+        },
+        "head_standing": {
+          "x": 0.49,
+          "y": 0.16,
+          "width": 0.07,
+          "height": 0.1
+        }
+      }
+    },
+    {
+      "id": "STUDIO_FA_01_OVERVIEW_WIDE",
+      "language": "fa",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "b7004b1da69e655884141a211b6409da628867f827d9418bb29e5a10a1c29812",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair on the left, tea set, case wall with the رد خاموش sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": {
+          "x": 0.18,
+          "y": 0.39,
+          "width": 0.21,
+          "height": 0.41
+        },
+        "head": {
+          "x": 0.24,
+          "y": 0.41,
+          "width": 0.08,
+          "height": 0.09
+        },
+        "logo": {
+          "x": 0.42,
+          "y": 0.28,
+          "width": 0.14,
+          "height": 0.08
+        },
+        "lower_third": {
+          "x": 0.55,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        },
+        "host_standing": {
+          "x": 0.59,
+          "y": 0.26,
+          "width": 0.12,
+          "height": 0.57
+        },
+        "head_standing": {
+          "x": 0.62,
+          "y": 0.27,
+          "width": 0.06,
+          "height": 0.08
+        }
+      }
+    }
+  ],
+  "profiles": {
+    "en": {
+      "id": "STUDIO_EN",
+      "language": "en",
+      "primary_background": "STUDIO_EN_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_EN_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.51,
+          "host_center_x": 0.425,
+          "host_bottom": 0.84,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_EN_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.115,
+            "y": 0.25,
+            "width": 0.62,
+            "height": 0.62
+          },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.823,
+          "host_center_x": 0.5,
+          "host_bottom": 0.952,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_EN_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.175,
+            "y": 0.16,
+            "width": 0.5,
+            "height": 0.5
+          },
+          "background_blur": 0.2,
+          "host_height_ratio": 1.02,
+          "host_center_x": 0.5,
+          "host_bottom": 1.2,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review of the masters (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "de": {
+      "id": "STUDIO_DE",
+      "language": "de",
+      "primary_background": "STUDIO_DE_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_DE_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.38,
+          "host_center_x": 0.26,
+          "host_bottom": 0.75,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_DE_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.0,
+            "y": 0.25,
+            "width": 0.62,
+            "height": 0.62
+          },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.613,
+          "host_center_x": 0.419,
+          "host_bottom": 0.806,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_DE_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.11,
+            "y": 0.16,
+            "width": 0.5,
+            "height": 0.5
+          },
+          "background_blur": 0.2,
+          "host_height_ratio": 0.76,
+          "host_center_x": 0.3,
+          "host_bottom": 1.18,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review of the masters (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "ar": {
+      "id": "STUDIO_AR",
+      "language": "ar",
+      "primary_background": "STUDIO_AR_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_AR_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.455,
+          "host_center_x": 0.29,
+          "host_bottom": 0.79,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_AR_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.12,
+            "y": 0.22,
+            "width": 0.62,
+            "height": 0.62
+          },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.734,
+          "host_center_x": 0.274,
+          "host_bottom": 0.919,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_AR_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.04,
+            "y": 0.12,
+            "width": 0.5,
+            "height": 0.5
+          },
+          "background_blur": 0.2,
+          "host_height_ratio": 0.91,
+          "host_center_x": 0.5,
+          "host_bottom": 1.2,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review of the masters (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "fa": {
+      "id": "STUDIO_FA",
+      "language": "fa",
+      "primary_background": "STUDIO_FA_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_FA_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.38,
+          "host_center_x": 0.28,
+          "host_bottom": 0.79,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_FA_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.0,
+            "y": 0.28,
+            "width": 0.62,
+            "height": 0.62
+          },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.613,
+          "host_center_x": 0.452,
+          "host_bottom": 0.823,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_FA_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.07,
+            "y": 0.17,
+            "width": 0.5,
+            "height": 0.5
+          },
+          "background_blur": 0.2,
+          "host_height_ratio": 0.76,
+          "host_center_x": 0.42,
+          "host_bottom": 1.2,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review of the masters (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    }
+  }
+}

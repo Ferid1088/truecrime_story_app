@@ -86,6 +86,9 @@ REQUIRED_ROLES = {
     "voice_performance_director",
     # Professional audio direction: breaths, music moments, silences.
     "audio_director",
+    # Solved / unsolved: judges search evidence for discovery suggestions
+    # and for the unsolved-case monitor's deep verification.
+    "case_status_verifier",
     # The recurring on-screen host: when to appear and why (director),
     # the words natively per language (writer), and an independent check
     # of facts, memories, repetition and the persona (critic).
@@ -97,6 +100,21 @@ REQUIRED_ROLES = {
     "visual_planner",
     "visual_verifier",
     "visual_director",
+    # Strict gate before render: is THIS picture/clip right for THESE
+    # words (exact kind, tone, honesty)? Independent of the director.
+    "visual_auditor",
+    # Video pieces: the segmenter watches a whole video and cuts it by
+    # MEANING (complete actions/moments, named and described); the video
+    # auditor checks each piece frame by frame — the cut, the description,
+    # the content — and judges it against the words before render.
+    "video_segmenter",
+    "video_auditor",
+    # Chapters and the running case timeline: the writer gives every
+    # chapter a title and every dated event the story tells a short label
+    # (all languages at once); an independent auditor checks each text —
+    # faithful, no spoiler before its reveal, sober, a true translation.
+    "chapter_writer",
+    "chapter_auditor",
     "overlay_localizer",
     # Documentary critics (independent of the visual director).
     "automation_feel_critic",
@@ -106,7 +124,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier"}
+VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor", "video_segmenter"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
@@ -795,6 +813,124 @@ class LoudnessConfig(BaseModel):
     sample_rate: int = Field(default=44100, ge=8000)
 
 
+class DynamicEQBandConfig(BaseModel):
+    """One harshness band: cut it only while it is brighter than this
+    recording's own baseline + threshold_offset — never a static EQ."""
+    name: str
+    center_hz: float = Field(gt=0)
+    bandwidth_hz: float = Field(gt=0)
+    # Detection: band level must exceed baseline + this offset (dB)
+    # before anything is reduced. The baseline is calibrated per file.
+    threshold_offset_db: float = Field(default=12.0, ge=0.0, le=40.0)
+    max_atten_db: float = Field(default=6.0, ge=0.0, le=24.0)
+    # Share of the detected excess that is removed (0.5 = halve it).
+    ratio: float = Field(default=0.5, gt=0.0, le=1.0)
+    # Per-band envelope override; None uses the section defaults.
+    attack_ms: float | None = Field(default=None, gt=0.0, le=500.0)
+    release_ms: float | None = Field(default=None, gt=0.0, le=2000.0)
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class DeEsserConfig(BaseModel):
+    """Independent dynamic de-esser for excessive sibilance."""
+    enabled: bool = True
+    center_hz: float = Field(default=6500.0, gt=0)
+    bandwidth_hz: float = Field(default=4500.0, gt=0)
+    threshold_offset_db: float = Field(default=14.0, ge=0.0, le=40.0)
+    max_atten_db: float = Field(default=8.0, ge=0.0, le=24.0)
+    ratio: float = Field(default=0.5, gt=0.0, le=1.0)
+    attack_ms: float = Field(default=5.0, gt=0.0, le=500.0)
+    release_ms: float = Field(default=60.0, gt=0.0, le=2000.0)
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class DynamicEQLanguageOverride(BaseModel):
+    """Per-language nudges (deltas), not separate presets: the adaptive
+    baseline already accounts for each voice and language."""
+    strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Shift every harsh band's threshold (negative = more sensitive).
+    threshold_offset_delta_db: float | None = Field(default=None, ge=-20, le=20)
+    max_atten_delta_db: float | None = Field(default=None, ge=-24, le=24)
+    deesser_strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    deesser_threshold_offset_delta_db: float | None = Field(
+        default=None, ge=-20, le=20)
+
+
+class DynamicEQConfig(BaseModel):
+    """Post-TTS dynamic EQ + de-esser (app/documentary/dynamic_eq.py)."""
+    enabled: bool = True
+    frame_ms: float = Field(default=20.0, gt=2.0, le=100.0)
+    hop_ms: float = Field(default=5.0, gt=1.0, le=50.0)
+    # Frames below this reference level are silence — never measured.
+    gate_dbfs: float = Field(default=-55.0, ge=-120.0, le=0.0)
+    # Speech-body reference the harsh bands are compared against.
+    reference_band_hz: tuple[float, float] = (300.0, 2500.0)
+    # Adaptive baseline: this percentile of the band-vs-reference excess
+    # over active frames is "this voice's normal".
+    baseline_percentile: float = Field(default=85.0, ge=1.0, le=99.0)
+    # The baseline can never drop below this excess (dB): a voice whose
+    # harsh band is basically silent must not get a hair-trigger
+    # threshold that treats every mild consonant as a defect.
+    baseline_floor_db: float = Field(default=-20.0, ge=-120.0, le=0.0)
+    # …and the adaptive threshold can never rise above this absolute
+    # excess (dB): a sustained resonance severe enough to become its own
+    # baseline is still treated as harsh.
+    threshold_ceiling_db: float = Field(default=10.0, ge=-20.0, le=30.0)
+    attack_ms: float = Field(default=10.0, gt=0.0, le=500.0)
+    release_ms: float = Field(default=120.0, gt=0.0, le=2000.0)
+    # Global harshness-reduction strength (UI): scales every band.
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
+    bands: list[DynamicEQBandConfig] = Field(default_factory=lambda: [
+        DynamicEQBandConfig(name="harsh_3k", center_hz=3100, bandwidth_hz=1500),
+        DynamicEQBandConfig(name="harsh_4k7", center_hz=4700, bandwidth_hz=1700,
+                            threshold_offset_db=15.0),
+    ])
+    deesser: DeEsserConfig = Field(default_factory=DeEsserConfig)
+    languages: dict[str, DynamicEQLanguageOverride] = {}
+
+    def for_language(self, language: str) -> "DynamicEQConfig":
+        """Effective config for a language: base + its delta overrides."""
+        o = self.languages.get(language or "")
+        if not o:
+            return self
+        update: dict = {}
+        if o.strength is not None:
+            update["strength"] = o.strength
+        if o.threshold_offset_delta_db or o.max_atten_delta_db:
+            update["bands"] = [
+                b.model_copy(update={
+                    "threshold_offset_db": max(
+                        0.0, b.threshold_offset_db
+                        + (o.threshold_offset_delta_db or 0.0)),
+                    "max_atten_db": max(
+                        0.0, min(24.0, b.max_atten_db
+                                 + (o.max_atten_delta_db or 0.0))),
+                })
+                for b in self.bands
+            ]
+        if o.deesser_strength is not None or o.deesser_threshold_offset_delta_db:
+            update["deesser"] = self.deesser.model_copy(update={
+                "strength": (o.deesser_strength
+                             if o.deesser_strength is not None
+                             else self.deesser.strength),
+                "threshold_offset_db": max(
+                    0.0, self.deesser.threshold_offset_db
+                    + (o.deesser_threshold_offset_delta_db or 0.0)),
+            })
+        return self.model_copy(update=update)
+
+    def resolved(self, language: str = "") -> dict:
+        """Plain dict the DSP consumes (language profile applied). The
+        override table itself is dropped so an edit for one language
+        cannot invalidate another language's cached result."""
+        cfg = self.for_language(language)
+        d = cfg.model_dump()
+        d.pop("languages", None)
+        d["deesser"] = cfg.deesser.model_dump()
+        d["bands"] = [b.model_dump() for b in cfg.bands]
+        return d
+
+
 class BlueprintConfig(BaseModel):
     """Editorial blueprint checks (deterministic, after the director)."""
 
@@ -840,6 +976,74 @@ class SpokenConfig(BaseModel):
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
 
 
+class ChannelConfig(BaseModel):
+    """One YouTube channel per language: its name (as the audience sees it)
+    and the folder with its studio shots (data/studio/<lang>/: camera
+    positions 01–06 of the design board and 07_floor_plan; manifest.json
+    holds the shot list)."""
+
+    name: str
+    studio_dir: str | None = None  # repository-relative folder
+    # The channel's studio profile in config/studio_registry.json
+    # (default STUDIO_<LANG>). The voice stays in voice.languages — one
+    # place per fact (see app/documentary/studio.channel_profile).
+    studio_profile: str | None = None
+    # Env var NAMES for this channel's avatar (default: the avatar section's).
+    avatar_id_env: str | None = None
+    avatar_key_env: str | None = None
+    # The channel intro: its logo (repository-relative) and its concept
+    # (app/documentary/intros.CONCEPTS); defaults per language there.
+    logo: str | None = None
+    intro_concept: str | None = None
+
+    def profile_id(self, language: str) -> str:
+        return self.studio_profile or f"STUDIO_{language.upper()}"
+
+
+class AvatarConfig(BaseModel):
+    """The on-screen host's avatar. Only the env-var NAMES live here; the
+    key and the avatar id are read from .env. The id may name an avatar
+    (a group of looks) or one look; a group resolves to its first look
+    (HostScene.avatar_id records the look actually used)."""
+
+    provider: str = "heygen"
+    secret_env: str = "HEYGEN_API_KEY"
+    avatar_id_env: str = "TrueCrime_Avatar_ID_Heygen"
+    # Avatar videos cost provider credits: generated only when enabled
+    # (voice and planning work without it).
+    enabled: bool = False
+    base_url: str = "https://api.heygen.com"
+    # transparent avatar over our own studio (webm with alpha), else the
+    # provider composites the studio image itself (mp4)
+    output_format: str = "webm"
+    resolution: str = "1080p"
+    request_timeout_s: float = Field(default=120.0, gt=0)
+    poll_interval_s: float = Field(default=10.0, gt=0)
+    max_poll_minutes: float = Field(default=20.0, gt=0)
+
+    def configured(self) -> dict[str, bool]:
+        import os
+
+        return {"key_present": bool(os.getenv(self.secret_env)),
+                "avatar_id_present": bool(os.getenv(self.avatar_id_env))}
+
+
+class StudioConfig(BaseModel):
+    """Channel studios: the registry (assets, safe zones, framing presets
+    per channel) lives in config/studio_registry.json; the images stay in
+    data/studio/<lang>/."""
+
+    registry_path: str = "config/studio_registry.json"
+    thumbs_dir: str = "data/studio_thumbs"
+    thumb_width: int = Field(default=640, ge=64)
+    # a framing preset that enlarges its background more than this is
+    # flagged (the studio images are 1672x941; the film is 1920x1080)
+    max_background_upscale: float = Field(default=1.6, ge=1.0)
+    # which framing a host segment gets by where it sits in the film
+    framing_by_position: dict[str, str] = Field(default_factory=lambda: {
+        "opening": "HOST_MEDIUM", "mid": "HOST_CLOSE", "final": "HOST_WIDE"})
+
+
 class HostConfig(BaseModel):
     """The recurring on-screen host (persona_master_prompt.md): when the
     host appears, how long, and the deterministic guard-rails on what the
@@ -855,6 +1059,9 @@ class HostConfig(BaseModel):
     max_mid_segments: int = Field(default=2, ge=0, le=4)
     # Host time as a share of the narration (the story stays dominant).
     max_total_share: float = Field(default=0.08, ge=0.0, le=0.5)
+    # ...and never more than this in one film, however long (the avatar
+    # is used sparingly: 2–3 minutes per video).
+    max_total_seconds: float = Field(default=180.0, ge=0.0)
     # Beats of narration between two host appearances.
     min_beats_between: int = Field(default=3, ge=0)
     # The host talks a little faster than the narrator (words per minute
@@ -914,6 +1121,18 @@ class AudioDirectionConfig(BaseModel):
     # in under it) and keeps playing under the next beat's first words.
     music_lead_seconds: float = Field(default=2.0, ge=0.0, le=8.0)
     music_tail_seconds: float = Field(default=3.0, ge=0.0, le=10.0)
+    # Clean narration: no music bed under the narrator's words. Music
+    # lives in the gaps (between sections, before a reveal, after a strong
+    # statement, at chapter turns, under silent picture sequences).
+    beds_under_narration: bool = False
+    # With beds off, a cue starts this long after the last word and is
+    # faded out this long before the next word (no overlap with speech).
+    music_start_after_word_seconds: float = Field(default=0.25, ge=0.0, le=3.0)
+    music_end_before_word_seconds: float = Field(default=0.4, ge=0.0, le=3.0)
+    # The emotional function of a cue (never "suspense because it is
+    # true crime").
+    moods: list[str] = ["suspense", "investigation", "mystery", "melancholy", "danger",
+                        "discovery", "tension", "relief", "resolution", "uncertainty"]
 
     @model_validator(mode="after")
     def _validate(self):
@@ -926,7 +1145,7 @@ class AudioDirectionConfig(BaseModel):
 class MusicCue(BaseModel):
     id: str
     kind: str          # bed | bridge | sting | room_tone
-    mood: str          # mystery | tension | emotional | reflective | neutral
+    mood: str          # see audio_direction.moods (+ neutral for room tone)
     seconds: float = Field(gt=0, le=30)
     loop: bool = False
     prompt: str
@@ -940,6 +1159,30 @@ class MusicLibraryConfig(BaseModel):
     # levels in audio_direction are predictable.
     reference_lufs: float = Field(default=-16.0)
     cues: list[MusicCue] = []
+    # Variety across films: a track used in one of the last N films is
+    # not chosen again while an alternative exists or can be generated.
+    reuse_after_videos: int = Field(default=10, ge=0)
+    max_variants_per_mood: int = Field(default=6, ge=1, le=30)
+    # Base description per mood; a variant adds one of variant_styles.
+    mood_prompts: dict[str, str] = Field(default_factory=lambda: {
+        "suspense": "slow suspenseful documentary underscore, held low notes, a quiet pulse",
+        "investigation": "measured investigative documentary underscore, steady soft pulse, curious",
+        "mystery": "dark ambient mystery underscore, sparse notes, patient and unresolved",
+        "melancholy": "melancholic documentary underscore, slow and intimate, gentle sadness",
+        "danger": "ominous documentary underscore, low rumble, uneasy dissonance, restrained",
+        "discovery": "documentary underscore for a discovery, rising soft swell, clarity",
+        "tension": "tense documentary underscore, low pulse like a distant heartbeat",
+        "relief": "warm documentary underscore, release of tension, calm resolution",
+        "resolution": "documentary closing underscore, settled harmony, quiet dignity",
+        "uncertainty": "uncertain documentary underscore, unresolved suspended chords, airy",
+        "neutral": "quiet room tone, faint air, no music",
+    })
+    variant_styles: list[str] = [
+        "low cello and felt piano", "warm synth pad and distant piano",
+        "string quartet harmonics", "muted electric guitar swells and soft drone",
+        "solo piano with long reverb", "low brass and soft timpani rolls",
+        "glass harmonica textures and sub bass", "bowed vibraphone and low strings",
+    ]
 
     def find(self, kind: str, mood: str | None = None) -> MusicCue | None:
         options = [c for c in self.cues if c.kind == kind]
@@ -951,6 +1194,10 @@ class DocumentaryConfig(BaseModel):
     """Film-level rules shared by every stage."""
 
     languages: list[str] = ["en", "de", "fa", "ar"]
+    # Approval gates: a result its auditor rejects is made again with the
+    # reasons (and judged again) at most this many times; then it is left
+    # out (a language, a host scene, a picture) or the job stops.
+    max_redos: int = Field(default=2, ge=0, le=5)
     # Every finished documentary runs 45–120 minutes. Pilots are short
     # renders (pilot_seconds) of a full-length story, never short stories.
     min_film_minutes: float = Field(default=45.0, gt=0)
@@ -986,7 +1233,71 @@ class VisualSearchConfig(BaseModel):
     ]
 
 
+class VideoAuditConfig(BaseModel):
+    """The video auditor watches a piece frame by frame (in order): what
+    it shows, cuts inside it, text/logos or faces that appear later,
+    gore — and, before render, whether it fits the words."""
+
+    frames_per_second: float = Field(default=1.0, gt=0.0, le=4.0)
+    max_frames: int = Field(default=20, ge=3, le=40)
+    frame_width: int = Field(default=384, ge=160, le=1280)
+
+
+class ChaptersConfig(BaseModel):
+    """Chapter cards and the running case timeline (on-screen cards made
+    from the story's acts and the case's dated facts). Chapters are the
+    master story's acts: the gap after the last beat of an act is a
+    chapter_break (the audio plan makes sure of it) and the next
+    chapter's card sits at the end of that gap. After a cold open (the
+    film opens on a hook beat) the film's title card follows. Timeline
+    cards move to the date the story reaches and show only the dates the
+    viewer already knows. Texts are written by chapter_writer and approved
+    by chapter_auditor (rejected: rewritten with the reasons, at most
+    documentary.max_redos times, then left out — the card shows only the
+    chapter number / the date). Dates come from the facts, never from a
+    model."""
+
+    enabled: bool = True
+    # the film's title card after a cold open
+    title_card: bool = True
+    card_seconds: float = Field(default=4.5, ge=2.0, le=10.0)
+    min_card_seconds: float = Field(default=3.0, ge=1.5, le=8.0)
+    # the first picture of the new chapter appears this long before the
+    # first word
+    lead_out_seconds: float = Field(default=0.4, ge=0.0, le=2.0)
+    max_title_chars: int = Field(default=48, ge=12, le=120)
+    max_label_chars: int = Field(default=48, ge=12, le=120)
+    # events on one timeline card (the current one and its neighbours)
+    max_timeline_events: int = Field(default=9, ge=2, le=30)
+    # events labelled by the writer (the ones the story tells, in order)
+    max_labelled_events: int = Field(default=24, ge=1, le=80)
+    # the marker slides to the new date in this time
+    timeline_move_seconds: float = Field(default=1.2, ge=0.2, le=4.0)
+    # The channel intro (app/documentary/intros.py): rendered once per
+    # channel into intro_dir/<lang>/ and the same in every film — after
+    # the cold open (in its chapter break), else before the first word.
+    intro_enabled: bool = True
+    intro_dir: str = "data/intros"
+    # the film's sound under the intro (the intro has its own)
+    intro_duck_db: float = Field(default=-18.0, le=0.0)
+
+
+class VisualAuditConfig(BaseModel):
+    """The visual auditor (gate before render): every photo and clip on
+    screen must be verified AND approved for the words spoken over it.
+    A rejected one is replaced (and the replacement audited again) up to
+    max_redos times; then the moment is held, carded or left dark."""
+
+    enabled: bool = True
+    max_redos: int = Field(default=2, ge=0, le=5)
+    # what the auditor needs to approve (0–1): fit to the words
+    min_fit: float = Field(default=0.7, ge=0.0, le=1.0)
+
+
 class VisualVerificationConfig(BaseModel):
+    # Candidates vision-checked per visual need (more checked = more
+    # usable pictures = less repetition).
+    per_requirement: int = Field(default=5, ge=1, le=20)
     verified_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     reject_below_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
     thumbnail_px: int = Field(default=768, ge=128)
@@ -1014,6 +1325,13 @@ class MotionConfig(BaseModel):
     parallax_shift_fraction: float = Field(default=0.012, ge=0.0, le=0.05)
     min_hold_seconds: float = Field(default=5.0, gt=0.0)
     max_still_seconds: float = Field(default=16.0, gt=0.0)
+    # One picture (with its reframes) is never on screen longer than this:
+    # a longer hold becomes a sequence of earned pictures.
+    max_hold_seconds: float = Field(default=20.0, gt=0.0)
+    # A map is orientation, not a backdrop: after this many seconds the
+    # story's pictures take over (zoom levels only when nothing else may
+    # be shown).
+    max_map_seconds: float = Field(default=12.0, gt=0.0)
     crossfade_seconds: list[float] = [0.7, 1.4]
     # The same motion is not used more than this many shots in a row.
     max_same_motion_run: int = Field(default=2, ge=1)
@@ -1050,6 +1368,18 @@ class AttentionConfig(BaseModel):
         "search", "police", "officer", "rescue", "investigat", "helicopter",
         "sniffer", "dog handler", "firefighter", "volunteers", "missing poster",
         "cordon", "forensic"]
+    # Pictures of custody or court (what the vision check saw, not the
+    # article headline) are not shown before the beat that tells of the
+    # arrest — the first beat whose summary contains one of arrest_terms.
+    custody_terms: list[str] = [
+        "inmate", "jumpsuit", "prison uniform", "jail uniform", "courtroom", "in court",
+        "sentencing", "verdict", "handcuff", "mugshot", "booking photo", "defense attorney",
+        "defence attorney", "witness stand", "on trial", "arraign", "gefängnis", "gerichtssaal",
+        "handschellen", "angeklagte"]
+    arrest_terms: list[str] = [
+        "arrest", "charged with", "in custody", "indicted", "taken into custody",
+        "festgenommen", "verhaftet", "festnahme", "verhaftung", "angeklagt",
+        "بازداشت", "دستگیر"]
     # The same date or place card is not shown again within this time.
     repeat_overlay_seconds: float = Field(default=150.0, ge=0.0)
 
@@ -1188,6 +1518,259 @@ class PronunciationConfig(BaseModel):
     sentences_per_call: int = Field(default=60, ge=5)
 
 
+RESOLUTION_STATUSES = ("SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW")
+
+
+class CaseSelectionConfig(BaseModel):
+    """Which cases discovery recommends: RECENT + SOLVED + NEVER USED.
+
+    rank = recency (exponential decay on the newest known date: latest
+    development, else incident date) x status weight. UNSOLVED cases are
+    only suggested when a request explicitly includes them."""
+
+    recency_half_life_days: float = Field(default=365.0, gt=0)
+    # How new the case is: weight of the incident date vs. the newest
+    # development (verdict, arrest) in the recency score.
+    incident_weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    # Cases without any known date get this recency.
+    undated_recency: float = Field(default=0.15, ge=0.0, le=1.0)
+    status_weights: dict[str, float] = Field(default_factory=lambda: {
+        "SOLVED": 1.0, "STATUS_UNDER_REVIEW": 0.35, "UNKNOWN": 0.35, "UNSOLVED": 0.2})
+    include_unsolved_default: bool = False
+    # The status verifier must reach this confidence before a suggestion
+    # is labelled SOLVED (otherwise STATUS_UNDER_REVIEW / UNKNOWN).
+    solved_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    # Best candidates checked by the status verifier (search + LLM).
+    verify_top_n: int = Field(default=8, ge=0)
+    # SearXNG time range of discovery searches (day|week|month|year|"").
+    discovery_time_range: str = "year"
+    # Search queries per language; {year} / {last_year} are filled in.
+    seed_queries: dict[str, list[str]] = Field(default_factory=lambda: {
+        "en": ["murder trial verdict convicted {year}", "found guilty of murder sentenced {year}",
+               "charged with murder after disappearance {year}",
+               "cold case solved arrest DNA {year}", "killer sentenced life in prison {last_year}"],
+        "de": ["Mordprozess Urteil lebenslange Haft {year}", "wegen Mordes verurteilt {year}",
+               "Cold Case aufgeklärt Festnahme {year}", "Vermisste tot aufgefunden Täter verurteilt"],
+        "fa": ["دادگاه قاتل محکوم شد {year}", "پرونده قتل حل شد دستگیری"],
+        "ar": ["الحكم على قاتل في قضية {year}", "القبض على قاتل بعد اختفاء"],
+    })
+    # Duplicate checker thresholds (rapidfuzz 0..100).
+    title_threshold: int = Field(default=88, ge=50, le=100)
+    person_threshold: int = Field(default=90, ge=50, le=100)
+    # A shared person counts with a place match or dates this close.
+    date_window_years: int = Field(default=2, ge=0)
+    # URLs on these hosts are not case-specific (search/aggregator pages).
+    generic_url_hosts: list[str] = ["google.", "bing.", "duckduckgo.", "youtube.com/results",
+                                    "facebook.com", "twitter.com", "x.com", "instagram.com"]
+
+
+class CaseMonitorConfig(BaseModel):
+    """Twice-weekly check of every UNSOLVED case for meaningful news.
+
+    Stage 1 (fast, cheap): a few searches + deterministic signal words.
+    No signal -> stop (no fetch, no LLM). Stage 2 (deep) only after a
+    signal: fetch the pages, the case_status_verifier judges, and a case
+    becomes SOLVED only with enough confidence AND independent or
+    official sources."""
+
+    enabled: bool = True
+    # Start the in-app scheduler with the API server.
+    autostart: bool = True
+    interval_hours: float = Field(default=84.0, gt=0)   # ~ twice a week
+    poll_minutes: float = Field(default=30.0, gt=0)
+    statuses: list[str] = ["UNSOLVED", "STATUS_UNDER_REVIEW"]
+    fast_queries_per_case: int = Field(default=2, ge=1, le=6)
+    fast_results_per_query: int = Field(default=8, ge=1, le=30)
+    # time range of the fast searches when a case was never checked
+    first_check_time_range: str = "year"
+    # signal -> words (casefolded substring match) per language
+    signal_terms: dict[str, dict[str, list[str]]] = Field(default_factory=lambda: {
+        "en": {
+            "arrest": ["arrested", "arrest of", "taken into custody", "detained a"],
+            "suspect_identified": ["suspect identified", "identified as the suspect",
+                                   "named as a suspect", "suspect has been named"],
+            "remains_identified": ["remains identified", "remains were identified",
+                                   "body was identified", "identified the remains"],
+            "charges": ["charged with", "charges filed", "indicted", "faces charges"],
+            "confession": ["confessed", "confession", "pleaded guilty", "admitted killing"],
+            "conviction": ["convicted", "found guilty", "guilty verdict", "sentenced to"],
+            "official_update": ["police said", "police announced", "prosecutors said",
+                                "press conference", "police statement"],
+            "case_closed": ["case closed", "case solved", "solved the case", "cold case solved"],
+            "forensic": ["dna match", "dna breakthrough", "genetic genealogy",
+                         "forensic breakthrough", "new dna"],
+            "disappearance_resolved": ["found alive", "found dead", "body found", "remains found"],
+        },
+        "de": {
+            "arrest": ["festgenommen", "verhaftet", "festnahme", "untersuchungshaft"],
+            "suspect_identified": ["tatverdächtig", "mutmaßliche täter", "mutmaßlicher täter"],
+            "remains_identified": ["leiche identifiziert", "überreste identifiziert",
+                                   "identität geklärt"],
+            "charges": ["anklage erhoben", "angeklagt"],
+            "confession": ["gestanden", "geständnis"],
+            "conviction": ["verurteilt", "schuldig gesprochen", "urteil gefallen"],
+            "official_update": ["polizei teilte mit", "staatsanwaltschaft teilte mit",
+                                "pressekonferenz"],
+            "case_closed": ["fall gelöst", "fall geklärt", "aufgeklärt"],
+            "forensic": ["dna-treffer", "dna-spur", "dna-analyse"],
+            "disappearance_resolved": ["tot aufgefunden", "lebend gefunden", "leiche gefunden"],
+        },
+        "fa": {
+            "arrest": ["دستگیر شد", "بازداشت شد", "دستگیری"],
+            "conviction": ["محکوم شد", "حکم صادر شد", "به اعدام محکوم"],
+            "confession": ["اعتراف کرد", "اعتراف"],
+            "charges": ["کیفرخواست", "متهم شد"],
+            "case_closed": ["پرونده حل شد", "معما حل شد"],
+            "disappearance_resolved": ["جسد پیدا شد", "پیدا شد"],
+        },
+        "ar": {
+            "arrest": ["القبض على", "اعتقال", "توقيف"],
+            "conviction": ["أدين", "حكم على", "الحكم بالإعدام"],
+            "confession": ["اعترف", "اعتراف"],
+            "charges": ["وجهت إليه تهمة", "اتهام"],
+            "case_closed": ["حل لغز", "إغلاق القضية"],
+            "disappearance_resolved": ["العثور على جثة", "العثور عليها"],
+        },
+    })
+    deep_max_pages: int = Field(default=6, ge=1, le=20)
+    deep_extra_queries: int = Field(default=2, ge=0, le=6)
+    solved_min_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    min_independent_sources: int = Field(default=2, ge=1)
+    # One source on an official host is enough (police/prosecutor/court).
+    official_source_patterns: list[str] = [
+        "polizei", "police", ".gov", "staatsanwaltschaft", "justiz", "gericht",
+        "court", "prosecutor", "justice.", "bka.de", "fbi.gov"]
+
+
+class YouTubeMetadataConfig(BaseModel):
+    """Deterministic title rules: an unsolved case and a follow-up are
+    recognisable from the title alone, in every language."""
+
+    max_title_chars: int = Field(default=100, ge=20)
+    titles: dict[str, dict[str, str]] = Field(default_factory=lambda: {
+        "en": {"original": "{title}", "unsolved": "UNSOLVED: {title}",
+               "follow_up": "SOLVED: The {name} Case — What Happened After Our Original Video"},
+        "de": {"original": "{title}", "unsolved": "UNGEKLÄRT: {title}",
+               "follow_up": "GELÖST: Der Fall {name} – was nach unserem ersten Video geschah"},
+        "fa": {"original": "{title}", "unsolved": "حل‌نشده: {title}",
+               "follow_up": "حل شد: پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"},
+        "ar": {"original": "{title}", "unsolved": "لم تُحل: {title}",
+               "follow_up": "حُلّت: قضية {name} — ماذا حدث بعد حلقتنا الأولى"},
+    })
+    # On-screen status card (unsolved films, follow-ups).
+    status_labels: dict[str, dict[str, str]] = Field(default_factory=lambda: {
+        "en": {"UNSOLVED": "UNSOLVED CASE", "follow_up": "CASE NOW SOLVED"},
+        "de": {"UNSOLVED": "UNGEKLÄRTER FALL", "follow_up": "FALL INZWISCHEN GELÖST"},
+        "fa": {"UNSOLVED": "پرونده‌ی حل‌نشده", "follow_up": "این پرونده حل شده است"},
+        "ar": {"UNSOLVED": "قضية لم تُحل", "follow_up": "القضية حُلّت"},
+    })
+    status_card_seconds: list[float] = [1.5, 7.5]
+    # Seconds before the end where the status card returns.
+    status_card_end_seconds: float = Field(default=12.0, ge=0.0)
+    # Opening of every follow-up film (master language; the spoken
+    # versions carry it into every language).
+    follow_up_intro: str = (
+        "We first told this story{episode}, \"{original_title}\"{published}, when the "
+        "investigation was still unresolved. The case has now been solved. Today we return "
+        "to it to explain what happened.")
+
+
+class OpeningConfig(BaseModel):
+    """Openings vary with the case: the story director chooses one and
+    avoids the ones used by the most recent films."""
+
+    strategies: dict[str, str] = Field(default_factory=lambda: {
+        "critical_moment": "start inside the decisive moment of the case, then step back",
+        "mysterious_statement": "start with a documented statement that does not add up",
+        "victim_introduction": "start with the person at the centre, their life just before",
+        "evidence_discovery": "start with the moment a piece of evidence was found",
+        "emergency_call": "start with the call or report that set everything in motion",
+        "important_location": "start at the place that holds the story",
+        "contradiction": "start with two facts that cannot both be true",
+        "last_sighting": "start with the last time the person was seen",
+        "courtroom_outcome": "start with the verdict, then ask how it came to this",
+        "unanswered_question": "start with the question the case still leaves open",
+        "timeline_anomaly": "start with a gap or impossibility in the timeline",
+    })
+    # Follow-up films always open with the earlier coverage.
+    follow_up_strategy: str = "previous_coverage"
+    avoid_recent: int = Field(default=3, ge=0)
+
+
+class VisualDirectionConfig(BaseModel):
+    """The Visual Director: what the viewer sees while each sentence is
+    spoken — case material first, low repetition, maps by geography."""
+
+    # Relevance tiers 1 (exact case evidence) .. 5 (generic atmosphere).
+    tier_weights: dict[str, float] = Field(default_factory=lambda: {
+        "1": 1.0, "2": 0.92, "3": 0.78, "4": 0.55, "5": 0.3})
+    # Appearances per film: every picture is shown ONCE (holding it on
+    # screen, with its camera move, is one appearance — never a return).
+    max_generic_appearances: int = Field(default=1, ge=1)
+    max_context_appearances: int = Field(default=1, ge=1)
+    max_person_appearances: int = Field(default=1, ge=1)
+    max_evidence_appearances: int = Field(default=1, ge=1)
+    min_repeat_gap_seconds: float = Field(default=45.0, ge=0.0)
+    # A verified clip of the same need outranks a photo by this factor
+    # (and within a tier a fill takes a clip before a photo).
+    video_bonus: float = Field(default=1.15, ge=1.0, le=2.0)
+    # Picture changes (seconds) — snapped to sentence starts.
+    cut_pattern: list[float] = [7.0, 9.0, 6.0, 8.5, 5.5, 8.0]
+    min_cut_seconds: float = Field(default=4.0, gt=0)
+    # A beat gets up to beat_seconds / seconds_per_shot shots.
+    seconds_per_shot: float = Field(default=7.0, gt=0)
+    max_shots_per_beat: int = Field(default=14, ge=2)
+    # Maps: never the very first picture (unless the opening is about the
+    # place), one map per place and film.
+    first_map_not_before_seconds: float = Field(default=20.0, ge=0.0)
+    # Production-time search when the visuals of a sentence are weak.
+    production_search: bool = True
+    max_search_requests: int = Field(default=12, ge=0)
+    queries_per_request: int = Field(default=3, ge=1, le=6)
+    # A sentence is weak when its best candidate is above this tier.
+    weak_tier: int = Field(default=3, ge=1, le=5)
+
+
+class FootageConfig(BaseModel):
+    """Real moving pictures of the case/places — always muted."""
+
+    enabled: bool = True
+    providers: list[str] = ["wikimedia_video", "internet_archive"]
+    internet_archive_api: str = "https://archive.org/advancedsearch.php"
+    max_queries: int = Field(default=8, ge=0)
+    max_clips_per_case: int = Field(default=12, ge=0)
+    max_candidates_per_query: int = Field(default=3, ge=1)
+    max_download_mb: float = Field(default=250.0, gt=0)
+    # Longer sources are not downloaded (feature films, full broadcasts).
+    max_source_seconds: float = Field(default=1800.0, gt=0)
+    # Stored window of a clip and its quality floor.
+    clip_seconds: float = Field(default=24.0, gt=1)
+    min_height: int = Field(default=360, ge=120)
+    # An uploaded video keeps up to this many seconds (from its start or
+    # the chosen start) — muted like every clip.
+    upload_max_seconds: float = Field(default=600.0, gt=1)
+    # Video pieces: a video is kept whole (muted, at most max_keep_seconds,
+    # at most proxy_height lines) and cut at its scene changes into pieces
+    # of piece_min..piece_max seconds — a long scene is split into pieces
+    # that overlap by piece_overlap_seconds so each stays meaningful.
+    pieces: bool = True
+    max_keep_seconds: float = Field(default=600.0, gt=1)
+    proxy_height: int = Field(default=720, ge=240)
+    piece_min_seconds: float = Field(default=4.0, gt=0.5)
+    piece_max_seconds: float = Field(default=20.0, gt=2)
+    piece_overlap_seconds: float = Field(default=2.0, ge=0.0)
+    max_pieces_per_source: int = Field(default=12, ge=1, le=60)
+    # ffmpeg scene-change score above which a cut is detected (0..1)
+    scene_threshold: float = Field(default=0.32, gt=0.0, lt=1.0)
+    # The segmenter watches the video in windows of this many seconds
+    # (frames at segment_fps, segment_frame_width wide) and cuts by meaning;
+    # its cut points snap to a detected scene change within snap_seconds.
+    segment_window_seconds: float = Field(default=90.0, gt=10)
+    segment_fps: float = Field(default=0.5, gt=0.0, le=2.0)
+    segment_frame_width: int = Field(default=256, ge=128, le=768)
+    snap_seconds: float = Field(default=0.6, ge=0.0, le=3.0)
+
+
 class ConcurrencyConfig(BaseModel):
     """How much runs at the same time (per process). Two levels:
     inside one documentary (languages, critics, image checks and voice
@@ -1249,16 +1832,23 @@ class AIConfig(BaseModel):
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     asr_check: ASRCheckConfig = Field(default_factory=ASRCheckConfig)
     loudness: LoudnessConfig = Field(default_factory=LoudnessConfig)
+    dynamic_eq: DynamicEQConfig = Field(default_factory=DynamicEQConfig)
     blueprint: BlueprintConfig = Field(default_factory=BlueprintConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     spoken: SpokenConfig = Field(default_factory=SpokenConfig)
     audio_direction: AudioDirectionConfig = Field(default_factory=AudioDirectionConfig)
     host: HostConfig = Field(default_factory=HostConfig)
+    channels: dict[str, ChannelConfig] = {}
+    avatar: AvatarConfig = Field(default_factory=AvatarConfig)
+    studio: StudioConfig = Field(default_factory=StudioConfig)
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
+    visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)
+    video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
+    chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)
@@ -1269,6 +1859,12 @@ class AIConfig(BaseModel):
     concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
     documentary_critics: DocumentaryCriticsConfig = Field(
         default_factory=DocumentaryCriticsConfig)
+    case_selection: CaseSelectionConfig = Field(default_factory=CaseSelectionConfig)
+    case_monitor: CaseMonitorConfig = Field(default_factory=CaseMonitorConfig)
+    youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
+    opening: OpeningConfig = Field(default_factory=OpeningConfig)
+    visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)
+    footage: FootageConfig = Field(default_factory=FootageConfig)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -1513,3 +2109,16 @@ def load_ai_config(path: Path = CONFIG_PATH) -> AIConfig:
 
 
 ai_config = load_ai_config()
+
+
+def save_dynamic_eq(cfg: DynamicEQConfig) -> DynamicEQConfig:
+    """Persist the dynamic_eq section to config/ai_config.json and make
+    it effective immediately (the running process keeps its other
+    sections). Atomic: a crash mid-write can never corrupt the file."""
+    raw = json.loads(CONFIG_PATH.read_text())
+    raw["dynamic_eq"] = cfg.model_dump(mode="json")
+    tmp = CONFIG_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2))
+    tmp.replace(CONFIG_PATH)
+    ai_config.dynamic_eq = cfg
+    return cfg

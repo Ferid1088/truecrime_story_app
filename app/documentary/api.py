@@ -6,6 +6,8 @@ Secrets are never exposed."""
 from __future__ import annotations
 
 import json
+import logging
+import os
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -24,6 +26,7 @@ from app.documentary.audio_director import audio_plan_dict, latest_audio_plan
 from app.documentary.blueprint import blueprint_dict, latest_blueprint
 from app.documentary.visuals import rights as R
 
+log = logging.getLogger(__name__)
 router = APIRouter(tags=["documentary"])
 
 
@@ -84,7 +87,23 @@ def asset_dict(a: VisualAsset) -> dict:
         "image_url": f"/api/visuals/{a.id}/file",
         "thumbnail_url": f"/api/visuals/{a.id}/file?thumb=1",
         "created_at": a.created_at,
+        "video": _video_info(a),
     }
+
+
+def _video_info(a: VisualAsset) -> dict | None:
+    """A kept video: its pieces or why it is not cut yet. A piece: its
+    window in the video and why it starts and ends there."""
+    if a.asset_type not in ("video", "video_source"):
+        return None
+    spec = _loads(a.spec_json, {}) or {}
+    if a.asset_type == "video_source":
+        return {"kind": "source", "pieces": len(spec.get("pieces") or []),
+                "segment_error": spec.get("segment_error"),
+                "duration": a.duration_seconds}
+    return {"kind": "piece" if spec.get("parent") else "clip", "parent": spec.get("parent"),
+            "window": spec.get("window") or [a.clip_start, a.clip_end],
+            "cut_by": spec.get("cut_by"), "why_here": spec.get("why_here")}
 
 
 def production_dict(ps: ProductionScript, full: bool = True) -> dict:
@@ -93,6 +112,7 @@ def production_dict(ps: ProductionScript, full: bool = True) -> dict:
         "version": ps.version, "mode": ps.mode, "status": ps.status,
         "duration_seconds": ps.duration_seconds,
         "critique": _loads(ps.critique_json, None),
+        "audit": _loads(ps.audit_json, None),
         "render": _loads(ps.render_json, None),
         "video_url": f"/api/documentary/production/{ps.id}/video.mp4" if ps.render_json else None,
         "subtitles_url": f"/api/documentary/production/{ps.id}/subtitles.srt" if ps.render_json else None,
@@ -133,7 +153,77 @@ def documentary_settings():
         "styles": {k: v.model_dump() for k, v in ai_config.voice.styles.items()},
         "render": ai_config.render.model_dump(),
         "rights_profiles": ai_config.rights.allowed_for_render,
+        "dynamic_eq": _dynamic_eq_settings(),
+        "channels": {l: c.model_dump() for l, c in ai_config.channels.items()},
+        # avatar video generation (credits) is off until enabled in config
+        "avatar_generation": {"enabled": ai_config.avatar.enabled,
+                              "output_format": ai_config.avatar.output_format},
+        # presence only — never the values
+        "credentials": {
+            "elevenlabs": bool(os.getenv(ai_config.voice.elevenlabs.secret_env)),
+            "avatar": {"provider": ai_config.avatar.provider, **ai_config.avatar.configured()},
+        },
     }
+
+
+def _dynamic_eq_settings() -> dict:
+    """Studio-facing view of the dynamic EQ (full detail lives in
+    config/ai_config.json → dynamic_eq)."""
+    d = ai_config.dynamic_eq
+    return {
+        "enabled": d.enabled,
+        "strength": d.strength,
+        "attack_ms": d.attack_ms,
+        "release_ms": d.release_ms,
+        "bands": [{"name": b.name, "center_hz": b.center_hz,
+                   "max_atten_db": b.max_atten_db,
+                   "threshold_offset_db": b.threshold_offset_db}
+                  for b in d.bands],
+        "deesser": {"enabled": d.deesser.enabled, "strength": d.deesser.strength,
+                    "center_hz": d.deesser.center_hz,
+                    "max_atten_db": d.deesser.max_atten_db},
+        "languages": sorted(d.languages),
+    }
+
+
+class DynamicEQPatch(BaseModel):
+    """Studio controls; anything left out keeps its configured value."""
+    enabled: bool | None = None
+    strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_atten_db: float | None = Field(default=None, ge=0.0, le=24.0)
+    deesser_enabled: bool | None = None
+    deesser_strength: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+@router.patch("/api/documentary/settings/dynamic-eq")
+def update_dynamic_eq_settings(payload: DynamicEQPatch):
+    """Update the dynamic EQ (persisted to config/ai_config.json,
+    effective immediately — applies to the next voice render/preview,
+    never retroactively to already-rendered audio)."""
+    from app.core.ai_config import save_dynamic_eq
+
+    cfg = ai_config.dynamic_eq
+    update: dict = {}
+    if payload.enabled is not None:
+        update["enabled"] = payload.enabled
+    if payload.strength is not None:
+        update["strength"] = payload.strength
+    if payload.max_atten_db is not None:
+        update["bands"] = [
+            b.model_copy(update={"max_atten_db": payload.max_atten_db})
+            for b in cfg.bands
+        ]
+    de: dict = {}
+    if payload.deesser_enabled is not None:
+        de["enabled"] = payload.deesser_enabled
+    if payload.deesser_strength is not None:
+        de["strength"] = payload.deesser_strength
+    if de:
+        update["deesser"] = cfg.deesser.model_copy(update=de)
+    cfg = save_dynamic_eq(cfg.model_copy(update=update))
+    return {"dynamic_eq": _dynamic_eq_settings(),
+            "note": "Applies to the next narration render or EQ preview; "
+                    "existing audio is unchanged."}
 
 
 @router.get("/api/cases/{case_id}/documentary")
@@ -406,9 +496,13 @@ def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
     job = db.get(DocumentaryJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.status not in ("failed", "cancelled", "partial"):
-        raise HTTPException(status_code=409,
-                            detail="Only failed, partial or cancelled jobs resume.")
+    if job.status not in ("failed", "cancelled", "partial", "interrupted"):
+        raise HTTPException(status_code=409, detail=(
+            "Only failed, partial, interrupted or cancelled jobs resume."))
+    # finished stages keep their saved results and are skipped — degraded
+    # ones too (later stages already built on them; a new run redoes
+    # them); failed, interrupted and blocked ones run again, their
+    # attempt and error history stays on the stage
     stages = json.loads(job.stages_json)
     for s in stages:
         if s["status"] in ("failed", "running", "blocked"):
@@ -489,28 +583,118 @@ def visual_file(asset_id: int, thumb: int = 0, db: Session = Depends(get_db)):
     path = storage.resolve(a.thumbnail_path if thumb else a.local_path)
     if path is None or not path.exists():
         raise HTTPException(status_code=404, detail="File missing")
-    return FileResponse(path, media_type="image/jpeg")
+    video = (not thumb and a.asset_type in ("video", "video_source")
+             and path.suffix.lower() == ".mp4")
+    return FileResponse(path, media_type="video/mp4" if video else "image/jpeg")
+
+
+@router.post("/api/visuals/{asset_id}/cut-again")
+async def cut_video_again(asset_id: int, db: Session = Depends(get_db)):
+    """Cut a kept video by meaning when the segmenter failed before. Its
+    pieces then go to the video auditor like any other."""
+    from app.documentary.visuals.pieces import cut_video, is_source
+
+    a = db.get(VisualAsset, asset_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Visual not found")
+    if not is_source(a):
+        raise HTTPException(status_code=400, detail="Only a kept video can be cut")
+    case = db.get(Case, a.case_id)
+    pieces = await cut_video(db, case, a)
+    if not pieces:
+        err = (_loads(a.spec_json, {}) or {}).get("segment_error") or "no meaningful piece"
+        raise HTTPException(status_code=502, detail=f"Not cut: {err}")
+    _verify_later(case.id, a.id)
+    return {**asset_dict(a), "pieces": len(pieces)}
 
 
 @router.post("/api/cases/{case_id}/visuals/upload")
 async def upload_visual(case_id: int, file: UploadFile = File(...),
                         title: str | None = Form(None), caption: str | None = Form(None),
                         role: str = Form("evidence"), rights: str = Form("owned"),
+                        start: float = Form(0.0),
                         db: Session = Depends(get_db)):
+    """A photo or a video supplied by the production. Either starts
+    unverified and is vision-checked right away (in the background):
+    nothing uploaded goes on screen unchecked. A video is stored muted,
+    at most footage.upload_max_seconds from `start`."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from app.documentary.visuals import footage as FT
     from app.documentary.visuals.images import ImageError
     from app.documentary.visuals.research import add_uploaded_image
 
     case = _case(db, case_id)
-    data = await file.read()
-    if len(data) > ai_config.visual_search.max_download_mb * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="File too large")
-    try:
-        a = add_uploaded_image(db, case, data, file.filename or "upload", title, caption,
-                               role if role in ("evidence", "context", "illustration") else "evidence",
-                               rights)
-    except ImageError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    role = role if role in ("evidence", "context", "illustration") else "evidence"
+    name = file.filename or "upload"
+    if FT.is_video_upload(name, file.content_type):
+        cap = int(ai_config.footage.max_download_mb * 1024 * 1024)
+        base = storage.case_dir(case.id)
+        base.mkdir(parents=True, exist_ok=True)
+        tmpdir = Path(tempfile.mkdtemp(prefix=".upload_", dir=base))
+        src = tmpdir / ("source" + (Path(name).suffix.lower() or ".mp4"))
+        try:
+            n = 0
+            with open(src, "wb") as fh:  # noqa: ASYNC230 — chunked, size-capped
+                while chunk := await file.read(1024 * 1024):
+                    n += len(chunk)
+                    if n > cap:
+                        raise HTTPException(status_code=413, detail="Video too large")
+                    fh.write(chunk)
+            try:
+                a = await FT.add_uploaded_video(db, case, src, name, title, caption, role,
+                                                rights, start)
+            except FT.FootageError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    else:
+        data = await file.read()
+        if len(data) > ai_config.visual_search.max_download_mb * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large")
+        try:
+            a = add_uploaded_image(db, case, data, name, title, caption, role, rights)
+        except ImageError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    _verify_later(case.id, a.id)
     return asset_dict(a)
+
+
+def _verify_later(case_id: int, asset_id: int) -> None:
+    """Vision-check an uploaded asset in the background (entities from
+    the case's latest visual plan, so the director can match it)."""
+    import asyncio
+
+    async def run():
+        from app.db.base import SessionLocal
+
+        bg = SessionLocal()
+        try:
+            case, a = bg.get(Case, case_id), bg.get(VisualAsset, asset_id)
+            if case is None or a is None:
+                return
+            vp = (bg.query(VisualPlan).filter(VisualPlan.case_id == case_id)
+                  .order_by(VisualPlan.id.desc()).first())
+            ents = (_loads(vp.requirements_json, {}) if vp else {}).get("entities") or []
+            todo = [a]
+            if a.asset_type == "video_source":  # a video: its pieces are checked
+                from app.documentary.visuals.pieces import piece_info
+
+                todo = [r for r in bg.query(VisualAsset).filter(
+                    VisualAsset.case_id == case_id, VisualAsset.asset_type == "video").all()
+                        if piece_info(r).get("parent") == a.asset_code]
+            await J.verify_assets(bg, case, todo, ents)
+        except Exception as e:  # noqa: BLE001 — the asset stays unverified (audited later)
+            log.warning("upload %s: verification failed: %s", asset_id, e)
+        finally:
+            bg.close()
+
+    try:
+        asyncio.get_running_loop().create_task(run())
+    except RuntimeError:  # no loop (tests calling the function directly)
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -569,31 +753,50 @@ def production_subtitles(ps_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/documentary/music")
-def music_library():
-    from app.documentary.music import MusicLibrary
+def music_library(db: Session = Depends(get_db)):
+    """The shared track library (several variants per kind and mood): how
+    often each track was used, when last, and in which films (film keys,
+    in order of first use). `id` is the track code used in the file URL;
+    `cue_id` names the config cue a variant-1 track was imported from."""
+    from app.documentary.music import track_catalogue
 
-    lib = MusicLibrary()
-    return [{**c.model_dump(), "generated": lib.path_for(c).exists(),
-             "url": f"/api/documentary/music/{c.id}/file"}
-            for c in ai_config.music_library.cues]
+    return track_catalogue(db)
 
 
 @router.get("/api/documentary/music/{cue_id}/file")
-def music_file(cue_id: str):
-    from app.documentary.music import MusicLibrary
+def music_file(cue_id: str, db: Session = Depends(get_db)):
+    """A track's audio by track_code (e.g. bridge-tension-v3); the old
+    config cue ids (e.g. bridge_tension) still resolve."""
+    from app.documentary.music import track_file
 
-    cue = next((c for c in ai_config.music_library.cues if c.id == cue_id), None)
-    if not cue:
-        raise HTTPException(status_code=404, detail="Unknown cue")
-    path = MusicLibrary().path_for(cue)
+    path = track_file(db, cue_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Unknown track")
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Cue not generated yet")
+        raise HTTPException(status_code=404, detail="Track not generated yet")
     return FileResponse(path, media_type="audio/wav")
 
 
 # ---------------------------------------------------------------------------
 # on-screen host (persona_master_prompt.md): plan, dialogue, memory
 # ---------------------------------------------------------------------------
+
+
+@router.get("/api/cases/{case_id}/documentary/chapters")
+def get_chapters(case_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
+    """The approved chapter titles, film title and timeline labels (all
+    languages) with the auditor's rounds and what was left out."""
+    from app.documentary.chapters import latest_chapter_plan
+
+    _case(db, case_id)
+    bp = latest_blueprint(db, _pick_master(db, case_id, version_id).id)
+    row = latest_chapter_plan(db, bp.id) if bp else None
+    if not row:
+        raise HTTPException(status_code=404, detail="No chapters yet.")
+    return {"id": row.id, "version": row.version, "status": row.status,
+            "blueprint_id": row.blueprint_id, "languages": _loads(row.languages_json, []),
+            "plan": _loads(row.plan_json, {}), "audit": _loads(row.audit_json, {}),
+            "created_at": row.created_at}
 
 
 @router.get("/api/cases/{case_id}/documentary/host-plan")
