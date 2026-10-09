@@ -144,7 +144,10 @@ Rules:
   pretends to be case evidence (not "the house" unless it IS the house).
 - Use real footage (SHOW_CLIP) where moving pictures help (places,
   events, searches) and it is relevant to the sentence. Only video
-  candidates can be clips.
+  candidates can be clips. A video candidate is a PIECE of a longer video
+  with a name and a description ("shows") of exactly what it shows:
+  choose a piece only when that description fits the sentence — never a
+  piece just to fill time or to get to the next part.
 - Repetition: a generic or contextual picture is never shown twice
   (check used / max_uses). Prefer an unused candidate. A person or a
   piece of evidence may return when the sentence names them again.
@@ -846,6 +849,7 @@ def _candidate_view(sc: float, a: VisualAsset, used: Counter) -> dict:
         lo = a.clip_start or 0.0
         hi = a.clip_end if a.clip_end is not None else a.duration_seconds
         view["seconds"] = round((hi or 0) - lo, 1) if hi else None
+        view["name"] = (a.title or "")[:80]
     return view
 
 

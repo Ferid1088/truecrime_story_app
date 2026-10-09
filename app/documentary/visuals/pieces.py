@@ -9,12 +9,12 @@ video that belongs to it, and other parts can serve other sentences.
                                       "window"}; described and checked by
                                       the video auditor
 
-Cutting: ffmpeg's scene-change score finds the cuts; scenes shorter than
-footage.piece_min_seconds join a neighbour, a scene longer than
-piece_max_seconds is split into pieces that overlap by
-piece_overlap_seconds (so each piece starts and ends somewhere
-meaningful). Two pieces that overlap are never both shown in one film
-(usage tracker).
+Cutting is by MEANING (video_segmenter.py): the segmenter watches the
+video (frames in order + the scene changes ffmpeg finds) and proposes
+complete, meaningful moments with a name and a description; the video
+auditor then checks each piece's cut, name, description and content
+(video_auditor.py). Never by the clock. Two pieces that overlap are never
+both shown in one film (usage tracker).
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from itertools import pairwise
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -58,58 +57,6 @@ def detect_cuts(path: Path, threshold: float | None = None) -> list[float]:
     except (OSError, subprocess.TimeoutExpired):
         return []
     return sorted({round(float(m), 3) for m in _PTS.findall(res.stderr or "")})
-
-
-def plan_pieces(duration: float, cuts: list[float], min_s: float | None = None,
-                max_s: float | None = None, overlap: float | None = None,
-                max_pieces: int | None = None) -> list[tuple[float, float]]:
-    """[(start, end)] of the pieces of a video of `duration` seconds."""
-    cfg = ai_config.footage
-    min_s = cfg.piece_min_seconds if min_s is None else min_s
-    max_s = cfg.piece_max_seconds if max_s is None else max_s
-    overlap = cfg.piece_overlap_seconds if overlap is None else overlap
-    max_pieces = cfg.max_pieces_per_source if max_pieces is None else max_pieces
-    if duration <= 0:
-        return []
-    bounds = [0.0] + [c for c in cuts if 0.0 < c < duration] + [duration]
-    merged = [[a, b] for a, b in pairwise(bounds) if b - a > 0.05]
-    # a too-short scene joins its shorter neighbour (never a flash piece)
-    while len(merged) > 1:
-        short = [k for k, (a, b) in enumerate(merged) if b - a < min_s]
-        if not short:
-            break
-        k = short[0]
-        if k == 0:
-            j = 1
-        elif k == len(merged) - 1:
-            j = k - 1
-        else:
-            before = merged[k - 1][1] - merged[k - 1][0]
-            after = merged[k + 1][1] - merged[k + 1][0]
-            j = k - 1 if before <= after else k + 1
-        lo, hi = sorted((k, j))
-        merged[lo:hi + 1] = [[merged[lo][0], merged[hi][1]]]
-    pieces: list[tuple[float, float]] = []
-    for a, b in merged:
-        length = b - a
-        if length <= max_s:
-            pieces.append((round(a, 3), round(b, 3)))
-            continue
-        # a long scene: pieces of ~max_s that overlap a little
-        step = max(max_s - overlap, min_s)
-        t = a
-        while t < b - 0.05:
-            end = min(t + max_s, b)
-            if b - end < min_s:  # the rest would be a stub: this piece takes it
-                end = b
-            pieces.append((round(t, 3), round(end, 3)))
-            if end >= b:
-                break
-            t += step
-    if len(pieces) > max_pieces:  # spread over the whole video, not its start
-        k = len(pieces) / max_pieces
-        pieces = [pieces[int(i * k)] for i in range(max_pieces)]
-    return pieces
 
 
 def piece_frames(asset: VisualAsset, fps: float | None = None, max_frames: int | None = None,
@@ -167,17 +114,33 @@ def siblings(db: Session, a: VisualAsset) -> list[VisualAsset]:
     return [r for r in rows if r.id != a.id and piece_info(r).get("parent") == info["parent"]]
 
 
-def ingest_video(db: Session, case: Case, src: Path, meta: dict,
-                 start: float = 0.0, max_seconds: float | None = None
-                 ) -> tuple[VisualAsset, list[VisualAsset]]:
-    """Keep the video whole (muted proxy) and cut it into pieces.
+def pieces_of(db: Session, source: VisualAsset) -> list[VisualAsset]:
+    """The pieces cut from a kept video, in their order."""
+    rows = db.query(VisualAsset).filter(VisualAsset.case_id == source.case_id,
+                                        VisualAsset.asset_type == "video").all()
+    return sorted((r for r in rows if piece_info(r).get("parent") == source.asset_code),
+                  key=lambda r: (r.clip_start or 0.0, r.id))
+
+
+_SHARED = ("case_id", "provider", "source_url", "page_url", "source_name", "found_for",
+           "license", "credit", "rights_status", "rights_reason", "asset_role", "entity_key",
+           "entity_type", "entities_json", "caption", "found_during", "date_start",
+           "relevance_tier", "case_relevance", "width", "height", "has_original_audio",
+           "local_path", "sha256")
+
+
+def keep_video(db: Session, case: Case, src: Path, meta: dict, start: float = 0.0,
+               max_seconds: float | None = None) -> tuple[VisualAsset, list[float]]:
+    """The video kept whole: a muted proxy (at most max_keep_seconds from
+    `start`), its thumbnail and the source row (never on screen), plus the
+    scene changes ffmpeg finds in it. Committed: the video is kept even if
+    cutting it fails later.
 
     meta: VisualAsset fields shared by the source and its pieces (provider,
     source_url, page_url, source_name, found_for, license, credit,
     rights_status, rights_reason, asset_role, entity_key, entity_type,
     entities (list), title, caption, found_during, date_start) plus
-    "query_kind" and "uploaded_name" for the record. Pieces start
-    unverified: the video auditor describes and checks each one."""
+    "query_kind", "uploaded_name" and "media_url" for the record."""
     from app.documentary.visuals.research import next_asset_code
 
     cfg = ai_config.footage
@@ -210,7 +173,8 @@ def ingest_video(db: Session, case: Case, src: Path, meta: dict,
         role = meta.get("asset_role") or "context"
         tier = meta.get("relevance_tier") or T.provisional_tier(
             meta.get("provider"), role, meta.get("entity_type"))
-        common = dict(  # noqa: C408 — keyword list shared by source and pieces
+        cuts = detect_cuts(proxy)
+        source = VisualAsset(
             case_id=case.id, provider=meta.get("provider") or "upload",
             source_url=meta.get("source_url"), page_url=meta.get("page_url"),
             source_name=meta.get("source_name"), found_for=meta.get("found_for"),
@@ -222,8 +186,7 @@ def ingest_video(db: Session, case: Case, src: Path, meta: dict,
             caption=meta.get("caption"), found_during=meta.get("found_during") or "research",
             date_start=meta.get("date_start"), relevance_tier=tier,
             case_relevance=T.tier_label(tier), width=clip["width"], height=clip["height"],
-            has_original_audio=False, local_path=storage.rel(proxy))
-        source = VisualAsset(
+            has_original_audio=False, local_path=storage.rel(proxy),
             asset_code=code, asset_type=SOURCE_TYPE, title=(meta.get("title") or code)[:500],
             thumbnail_path=storage.rel(thumb), phash=IM.dhash(img),
             sha256=IM.sha256_file(proxy), duration_seconds=length, clip_start=0.0,
@@ -231,34 +194,12 @@ def ingest_video(db: Session, case: Case, src: Path, meta: dict,
             spec_json=json.dumps({
                 "kind": "source", "source_window": [round(start, 3), round(start + keep, 3)],
                 "source_duration": round(duration, 3), "source_had_audio": info["has_audio"],
-                "query_kind": meta.get("query_kind"), "uploaded_name": meta.get("uploaded_name"),
-                "media_url": meta.get("media_url")}), **common)
+                "scene_changes": cuts, "query_kind": meta.get("query_kind"),
+                "uploaded_name": meta.get("uploaded_name"), "media_url": meta.get("media_url"),
+                "tier_reason": meta.get("tier_reason")}))
         db.add(source)
-        db.flush()
-        pieces: list[VisualAsset] = []
-        for k, (a, b) in enumerate(plan_pieces(length, detect_cuts(proxy)), 1):
-            pcode = next_asset_code(db)
-            pkey = vdir / f".{pcode}.key.jpg"
-            extract_keyframe(proxy, (a + b) / 2, pkey)
-            pimg = IM.open_image(pkey.read_bytes())
-            pkey.unlink(missing_ok=True)
-            pthumb = IM.save_thumbnail(pimg, storage.thumbs_dir(case.id) / f"{pcode}.jpg")
-            made.append(pthumb)
-            piece = VisualAsset(
-                asset_code=pcode, asset_type="video",
-                title=f"{(meta.get('title') or code)[:440]} — piece {k}",
-                thumbnail_path=storage.rel(pthumb), phash=IM.dhash(pimg),
-                sha256=source.sha256, duration_seconds=round(b - a, 3),
-                clip_start=a, clip_end=b, verification_status="unverified",
-                spec_json=json.dumps({"parent": code, "piece": k, "window": [a, b]}),
-                **common)
-            db.add(piece)
-            db.flush()
-            frame_sheet(proxy, a, b, sheet_path(case.id, pcode))
-            made.append(sheet_path(case.id, pcode))
-            pieces.append(piece)
         db.commit()
-        return source, pieces
+        return source, cuts
     except BaseException:
         db.rollback()
         for p in made:
@@ -266,11 +207,102 @@ def ingest_video(db: Session, case: Case, src: Path, meta: dict,
         raise
 
 
+def store_pieces(db: Session, source: VisualAsset, proposals: list[dict]) -> list[VisualAsset]:
+    """One library asset per approved-to-check proposal: a window of the
+    source with the segmenter's name and description. Unverified until the
+    video auditor has checked the cut, the description and the content."""
+    from app.documentary.visuals.research import next_asset_code
+
+    proxy = storage.resolve(source.local_path)
+    case_id = source.case_id
+    made: list[Path] = []
+    pieces: list[VisualAsset] = []
+    try:
+        for k, p in enumerate(proposals, 1):
+            a, b = p["start"], p["end"]
+            pcode = next_asset_code(db)
+            pkey = proxy.parent / f".{pcode}.key.jpg"
+            extract_keyframe(proxy, (a + b) / 2, pkey)
+            pimg = IM.open_image(pkey.read_bytes())
+            pkey.unlink(missing_ok=True)
+            pthumb = IM.save_thumbnail(pimg, storage.thumbs_dir(case_id) / f"{pcode}.jpg")
+            made.append(pthumb)
+            piece = VisualAsset(
+                **{f: getattr(source, f) for f in _SHARED},
+                asset_code=pcode, asset_type="video", title=p["name"][:500],
+                description=p["description"], thumbnail_path=storage.rel(pthumb),
+                phash=IM.dhash(pimg), duration_seconds=round(b - a, 3),
+                clip_start=a, clip_end=b, verification_status="unverified",
+                spec_json=json.dumps({"parent": source.asset_code, "piece": k, "window": [a, b],
+                                      "cut_by": "segmenter",
+                                      "why_here": p.get("why_here")}, ensure_ascii=False))
+            db.add(piece)
+            db.flush()
+            frame_sheet(proxy, a, b, sheet_path(case_id, pcode))
+            made.append(sheet_path(case_id, pcode))
+            pieces.append(piece)
+        db.commit()
+        return pieces
+    except BaseException:
+        db.rollback()
+        for f in made:
+            Path(f).unlink(missing_ok=True)
+        raise
+
+
+async def ingest_video(db: Session, case: Case, src: Path, meta: dict, start: float = 0.0,
+                       max_seconds: float | None = None, segmenter=None
+                       ) -> tuple[VisualAsset, list[VisualAsset]]:
+    """Keep the video whole, then cut it by meaning (the segmenter). When
+    the segmenter fails or finds nothing usable, the video is kept without
+    pieces (and the reason recorded) — it is never cut by the clock."""
+    import asyncio
+
+    source, _ = await asyncio.to_thread(keep_video, db, case, src, meta, start, max_seconds)
+    return source, await cut_video(db, case, source, segmenter)
+
+
+async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
+                    ) -> list[VisualAsset]:
+    """Cut a kept video by meaning — also again later ("Cut again" in the
+    library, or the next research run) when the segmenter failed before.
+    Pieces from an earlier cut are kept; only a video WITHOUT pieces is
+    cut. On failure the reason is recorded on the source and nothing is
+    cut by the clock instead."""
+    import asyncio
+    import logging
+
+    from app.documentary.visuals.video_segmenter import VideoSegmenter
+
+    done = pieces_of(db, source)
+    if done:
+        return done
+    spec = json.loads(source.spec_json or "{}")
+    cuts = list(spec.get("scene_changes") or [])
+    try:
+        proposals = await (segmenter or VideoSegmenter()).cut(
+            db, case, source, storage.resolve(source.local_path),
+            float(source.duration_seconds or 0), cuts)
+        if not proposals:
+            raise FootageRejected("the segmenter found no meaningful piece")
+    except Exception as e:  # noqa: BLE001 — kept, recorded, can be cut again later
+        logging.getLogger(__name__).warning("cutting %s failed: %s", source.asset_code, e)
+        spec["segment_error"] = f"{type(e).__name__}: {e}"[:300]
+        spec["segment_attempts"] = int(spec.get("segment_attempts") or 0) + 1
+        source.spec_json = json.dumps(spec)
+        db.commit()
+        return []
+    pieces = await asyncio.to_thread(store_pieces, db, source, proposals)
+    spec["pieces"] = [p.asset_code for p in pieces]
+    spec.pop("segment_error", None)
+    source.spec_json = json.dumps(spec)
+    db.commit()
+    return pieces
+
+
 def remove_video(db: Session, source: VisualAsset) -> None:
     """Drop a source and its pieces (and their files) — a duplicate."""
-    rows = [r for r in db.query(VisualAsset).filter(
-        VisualAsset.case_id == source.case_id, VisualAsset.asset_type == "video").all()
-            if piece_info(r).get("parent") == source.asset_code]
+    rows = pieces_of(db, source)
     files = [storage.resolve(source.local_path), storage.resolve(source.thumbnail_path)]
     for r in rows:
         files += [storage.resolve(r.thumbnail_path), sheet_path(r.case_id, r.asset_code)]

@@ -112,7 +112,23 @@ def media_env(tmp_path, monkeypatch):
     monkeypatch.delenv(ai_config.search_engine.searxng_url_env, raising=False)
     monkeypatch.setattr(MAPS, "cache_dir", lambda: tmp_path / "map_cache")
     (tmp_path / "map_cache").mkdir()
+    monkeypatch.setattr("app.documentary.visuals.video_segmenter.get_generation_provider",
+                        lambda: OneMomentSegmenter())
     return tmp_path
+
+
+class OneMomentSegmenter:
+    """The synthetic footage is one continuous moment: one piece per
+    stretch, named and described by what is visible."""
+
+    async def generate_structured(self, role, system, user, images=None):
+        from app.providers.generation.base import GenerationResult
+
+        assert role == "video_segmenter" and images
+        a, b = json.loads(user)["stretch"]
+        return ({"pieces": [{"start": a, "end": min(b, a + 20.0), "name": "Test pattern",
+                             "description": "Coloured test bars, static camera."}]},
+                GenerationResult(text="{}", model="m/seg", provider="fake"))
 
 
 # ---------------------------------------------------------------------------
@@ -568,7 +584,10 @@ def test_video_assets_are_verified_frame_by_frame(db_session, media_env, monkeyp
     assert seen["role"] == "video_auditor"
     assert len(seen["images"]) >= 3
     assert all(u.startswith("data:image/jpeg;base64,") for u in seen["images"])
-    assert seen["payload"]["frames"].endswith("in order, first to last")
+    # every image is labelled with its time in the clip, in order
+    labels = seen["payload"]["frames"]
+    assert len(labels) == len(seen["images"]) and all(s.endswith("s") for s in labels)
+    assert [float(s[:-1]) for s in labels] == sorted(float(s[:-1]) for s in labels)
     assert Path(a.thumbnail_path).suffix == ".jpg"
     assert a.verification_status == "verified"
     assert (a.relevance_tier, a.case_relevance) == (1, "exact_case")

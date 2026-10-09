@@ -87,7 +87,23 @@ def asset_dict(a: VisualAsset) -> dict:
         "image_url": f"/api/visuals/{a.id}/file",
         "thumbnail_url": f"/api/visuals/{a.id}/file?thumb=1",
         "created_at": a.created_at,
+        "video": _video_info(a),
     }
+
+
+def _video_info(a: VisualAsset) -> dict | None:
+    """A kept video: its pieces or why it is not cut yet. A piece: its
+    window in the video and why it starts and ends there."""
+    if a.asset_type not in ("video", "video_source"):
+        return None
+    spec = _loads(a.spec_json, {}) or {}
+    if a.asset_type == "video_source":
+        return {"kind": "source", "pieces": len(spec.get("pieces") or []),
+                "segment_error": spec.get("segment_error"),
+                "duration": a.duration_seconds}
+    return {"kind": "piece" if spec.get("parent") else "clip", "parent": spec.get("parent"),
+            "window": spec.get("window") or [a.clip_start, a.clip_end],
+            "cut_by": spec.get("cut_by"), "why_here": spec.get("why_here")}
 
 
 def production_dict(ps: ProductionScript, full: bool = True) -> dict:
@@ -567,8 +583,29 @@ def visual_file(asset_id: int, thumb: int = 0, db: Session = Depends(get_db)):
     path = storage.resolve(a.thumbnail_path if thumb else a.local_path)
     if path is None or not path.exists():
         raise HTTPException(status_code=404, detail="File missing")
-    video = not thumb and a.asset_type == "video" and path.suffix.lower() == ".mp4"
+    video = (not thumb and a.asset_type in ("video", "video_source")
+             and path.suffix.lower() == ".mp4")
     return FileResponse(path, media_type="video/mp4" if video else "image/jpeg")
+
+
+@router.post("/api/visuals/{asset_id}/cut-again")
+async def cut_video_again(asset_id: int, db: Session = Depends(get_db)):
+    """Cut a kept video by meaning when the segmenter failed before. Its
+    pieces then go to the video auditor like any other."""
+    from app.documentary.visuals.pieces import cut_video, is_source
+
+    a = db.get(VisualAsset, asset_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Visual not found")
+    if not is_source(a):
+        raise HTTPException(status_code=400, detail="Only a kept video can be cut")
+    case = db.get(Case, a.case_id)
+    pieces = await cut_video(db, case, a)
+    if not pieces:
+        err = (_loads(a.spec_json, {}) or {}).get("segment_error") or "no meaningful piece"
+        raise HTTPException(status_code=502, detail=f"Not cut: {err}")
+    _verify_later(case.id, a.id)
+    return {**asset_dict(a), "pieces": len(pieces)}
 
 
 @router.post("/api/cases/{case_id}/visuals/upload")
@@ -581,7 +618,6 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
     unverified and is vision-checked right away (in the background):
     nothing uploaded goes on screen unchecked. A video is stored muted,
     at most footage.upload_max_seconds from `start`."""
-    import asyncio
     import shutil
     import tempfile
     from pathlib import Path
@@ -608,8 +644,8 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
                         raise HTTPException(status_code=413, detail="Video too large")
                     fh.write(chunk)
             try:
-                a = await asyncio.to_thread(FT.add_uploaded_video, db, case, src, name,
-                                            title, caption, role, rights, start)
+                a = await FT.add_uploaded_video(db, case, src, name, title, caption, role,
+                                                rights, start)
             except FT.FootageError as e:
                 raise HTTPException(status_code=422, detail=str(e))
         finally:

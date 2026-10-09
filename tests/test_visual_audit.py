@@ -300,6 +300,16 @@ def test_video_upload_is_stored_muted_and_checked(client, db_session, env, monke
     checked = []
     monkeypatch.setattr("app.documentary.api._verify_later",
                         lambda case_id, asset_id: checked.append(asset_id))
+
+    class Segmenter:      # cuts the 5-second upload by meaning: one moment
+        async def generate_structured(self, role, system, user, images=None):
+            assert role == "video_segmenter" and images
+            return ({"pieces": [{"start": 0.0, "end": 5.0, "name": "Officers search a field",
+                                 "description": "Moving test pattern."}]},
+                    GenerationResult(text="{}", model="m/seg", provider="fake"))
+
+    monkeypatch.setattr("app.documentary.visuals.video_segmenter.get_generation_provider",
+                        lambda: Segmenter())
     case = _case(db_session)
     src = env / "mine.mov"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
@@ -324,6 +334,7 @@ def test_video_upload_is_stored_muted_and_checked(client, db_session, env, monke
     pieces = [a for a in db_session.query(VisualAsset).filter_by(case_id=case.id)
               if piece_info(a).get("parent") == src.asset_code]
     assert pieces and all(p.verification_status == "unverified" for p in pieces)
+    assert [p.title for p in pieces] == ["Officers search a field"]   # named by meaning
     assert all(sheet_path(case.id, p.asset_code).exists() for p in pieces)
     f = client.get(f"/api/visuals/{pieces[0].id}/file")
     assert f.status_code == 200 and f.headers["content-type"] == "video/mp4"

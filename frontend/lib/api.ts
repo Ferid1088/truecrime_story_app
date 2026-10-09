@@ -465,6 +465,11 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  /** Cut a kept video by meaning again (when the segmenter failed). */
+  cutVideoAgain: (assetId: number) =>
+    request<VisualAsset & { pieces: number }>(`/api/visuals/${assetId}/cut-again`, {
+      method: "POST",
+    }),
   uploadVisual: (caseId: number, upload: VisualUpload) => {
     const form = new FormData();
     form.set("file", upload.file);

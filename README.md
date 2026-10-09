@@ -611,22 +611,49 @@ the words it would appear under. Clips rank before photos of the same tier
 
 A video (found on a rights-clear archive or uploaded) is kept whole,
 muted, as a proxy (`footage.max_keep_seconds`, `proxy_height`) — the
-*source* (`asset_type video_source`, never on screen). It is cut at its
-scene changes (ffmpeg scene score `footage.scene_threshold`) into
-*pieces* of `piece_min_seconds`–`piece_max_seconds`: a flash joins its
-shorter neighbour, a long scene becomes pieces that overlap by
-`piece_overlap_seconds`; at most `max_pieces_per_source`. Each piece is a
-library asset (window `clip_start`–`clip_end` of the source,
-`spec_json.parent`), so a sentence shows exactly its part of the video and
-other parts can serve other sentences. Two overlapping pieces are never
-both shown in one film.
+*source* (`asset_type video_source`, never on screen).
 
-The video auditor (role `video_auditor`) judges pieces as video: their
-frames in order (`video_audit.frames_per_second`, at most `max_frames`).
-When a piece enters the library it names and describes it (what, who,
-where, when, mood) and fails it if any frame has burned-in text/logos,
-gore, a wrong period or a clashing tone. Before render it judges the
-piece against the exact sentences — every frame must fit.
+**Cut by meaning, never by the clock.** The video segmenter (role
+`video_segmenter`, a vision model) watches the source stretch by stretch
+(`footage.segment_window_seconds`, frames at `segment_fps`, with the
+scene changes ffmpeg found at `scene_threshold`) and proposes *pieces*:
+each one complete, meaningful moment — an action from its start to its
+end, one continuous view, one situation — of
+`piece_min_seconds`–`piece_max_seconds`, with a **name** and a
+**description** of exactly what is visible and *why it starts and ends
+there*. Pieces may overlap when a moment needs it. Title cards, black
+frames, presenters and burned-in captions are left out. The proposals are
+checked (inside the video, cut points snapped to a scene change within
+`snap_seconds`, length limits, no duplicates; at most
+`max_pieces_per_source`). If the segmenter fails or finds nothing, the
+video is kept *without pieces* and the reason recorded — it is cut again
+on the next research run or with **Cut again** in the library
+(`POST /api/visuals/{id}/cut-again`), never by the clock instead.
+
+Each piece is a library asset (window `clip_start`–`clip_end` of the
+source, `spec_json.parent`, `why_here`), so a sentence shows exactly its
+part of the video and other parts can serve other sentences. Two
+overlapping pieces are never both shown in one film.
+
+**The video auditor checks every piece** (role `video_auditor`, a
+different model from the segmenter — review group `video_pieces`): its
+frames in order, labelled with their time, plus one frame just before and
+just after the cut. It checks three things:
+
+1. **the cut** — does the piece start and end where the moment starts and
+   ends? If not it gives the right times (within ±5 s), the cut is moved
+   and checked again;
+2. **the name and description** — do they say exactly what is visible? If
+   not they are rewritten and checked again;
+3. **the content** — every frame: no burned-in text/logos, gore, wrong
+   period or clashing tone.
+
+At most `documentary.max_redos` corrections; a piece still wrong is
+rejected (`cut_not_meaningful` / `description_wrong`) and never shown.
+The director picks a piece **only by its description** — when what it
+shows fits the sentence, never just to fill time — and before render the
+video auditor judges the piece against the exact sentences again: every
+frame must fit.
 
 Host time is capped at `host.max_total_seconds` (180 s) per film.
 

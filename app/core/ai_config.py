@@ -103,8 +103,11 @@ REQUIRED_ROLES = {
     # Strict gate before render: is THIS picture/clip right for THESE
     # words (exact kind, tone, honesty)? Independent of the director.
     "visual_auditor",
-    # Video pieces, frame by frame: describes and checks each piece (any
-    # frame can fail it) and judges it against the words before render.
+    # Video pieces: the segmenter watches a whole video and cuts it by
+    # MEANING (complete actions/moments, named and described); the video
+    # auditor checks each piece frame by frame — the cut, the description,
+    # the content — and judges it against the words before render.
+    "video_segmenter",
     "video_auditor",
     "overlay_localizer",
     # Documentary critics (independent of the visual director).
@@ -115,7 +118,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor"}
+VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor", "video_segmenter"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
@@ -1710,6 +1713,13 @@ class FootageConfig(BaseModel):
     max_pieces_per_source: int = Field(default=12, ge=1, le=60)
     # ffmpeg scene-change score above which a cut is detected (0..1)
     scene_threshold: float = Field(default=0.32, gt=0.0, lt=1.0)
+    # The segmenter watches the video in windows of this many seconds
+    # (frames at segment_fps, segment_frame_width wide) and cuts by meaning;
+    # its cut points snap to a detected scene change within snap_seconds.
+    segment_window_seconds: float = Field(default=90.0, gt=10)
+    segment_fps: float = Field(default=0.5, gt=0.0, le=2.0)
+    segment_frame_width: int = Field(default=256, ge=128, le=768)
+    snap_seconds: float = Field(default=0.6, ge=0.0, le=3.0)
 
 
 class ConcurrencyConfig(BaseModel):

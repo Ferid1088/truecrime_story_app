@@ -1732,7 +1732,21 @@ export interface VisualAsset {
   image_url: string;
   thumbnail_url: string;
   created_at: string;
+  /** Video only: a kept video (source) or one of its pieces. */
+  video?: VisualVideoInfo | null;
 }
+
+/** A kept video is never shown whole: it is cut by meaning into named,
+ * described pieces; each piece is a window [start, end] of it. */
+export type VisualVideoInfo =
+  | { kind: "source"; pieces: number; segment_error: string | null; duration: number | null }
+  | {
+      kind: "piece" | "clip";
+      parent: string | null;
+      window: [number, number] | null;
+      cut_by: string | null;
+      why_here: string | null;
+    };
 
 export interface VisualFilters {
   role?: string;

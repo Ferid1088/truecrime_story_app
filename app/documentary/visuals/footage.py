@@ -546,7 +546,7 @@ def is_video_upload(filename: str | None, content_type: str | None) -> bool:
     return ctype.startswith("video/") or Path(filename or "").suffix.lower() in VIDEO_SUFFIXES
 
 
-def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
+async def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
                        title: str | None = None, caption: str | None = None,
                        asset_role: str = "evidence", rights_status: str = "owned",
                        start: float = 0.0) -> VisualAsset:
@@ -560,7 +560,7 @@ def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
         from app.documentary.visuals.pieces import ingest_video
 
         role = asset_role if asset_role in ("evidence", "context", "illustration") else "evidence"
-        source, _ = ingest_video(db, case, src, {
+        source, _ = await ingest_video(db, case, src, {
             "provider": "upload", "rights_status": rights_status if rights_status in R.RIGHTS
             else "owned", "rights_reason": "uploaded by the production", "asset_role": role,
             "title": title or filename, "caption": caption, "found_during": "upload",
@@ -652,10 +652,20 @@ class FootageAgent:
     async def run(self, db: Session, case: Case, queries: list[dict],
                   found_during: str = "research", progress=None,
                   budget: int | None = None) -> dict:
-        stats = {"queries": 0, "candidates": 0, "added": 0, "duplicates": 0,
-                 "rejected": 0, "rights_skipped": 0, "errors": 0, "by_provider": {}}
+        stats = {"queries": 0, "candidates": 0, "added": 0, "duplicates": 0, "uncut": 0,
+                 "recut": 0, "rejected": 0, "rights_skipped": 0, "errors": 0,
+                 "by_provider": {}}
         if not self.cfg.enabled:
             return {**stats, "skipped": "footage disabled"}
+        if self.cfg.pieces:
+            # videos kept earlier without pieces (the segmenter failed): cut
+            # them by meaning now, before looking for new ones
+            from app.documentary.visuals.pieces import cut_video, pieces_of
+
+            for s in db.query(VisualAsset).filter(VisualAsset.case_id == case.id,
+                                                  VisualAsset.asset_type == "video_source"):
+                if not pieces_of(db, s) and await cut_video(db, case, s):
+                    stats["recut"] += 1
         existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
         videos = [a for a in existing if a.asset_type in ("video", "video_source")]
         # a video cut into pieces counts once (its source)
@@ -691,7 +701,7 @@ class FootageAgent:
                                  f"footage {prov.name}: {c.title or c.page_url}"[:120])
                     outcome = await self._consider(db, case, prov, c, seen, hashes, found_during)
                     stats[outcome] += 1
-                    if outcome == "added":
+                    if outcome in ("added", "uncut"):   # both count toward the cap
                         left -= 1
                         stats["by_provider"][prov.name] = stats["by_provider"].get(prov.name, 0) + 1
         return stats
@@ -715,8 +725,8 @@ class FootageAgent:
             duration = src["duration"] or c.duration or 0.0
             start = (duration * START_FRACTION
                      if duration > self.cfg.max_keep_seconds else 0.0)
-            source, pieces = await asyncio.to_thread(
-                ingest_video, db, case, tmp, _meta_of(c, status, reason, found_during), start)
+            source, pieces = await ingest_video(
+                db, case, tmp, _meta_of(c, status, reason, found_during), start)
             if any(IM.hamming(source.phash, h) <= DEDUPE_HAMMING for h in hashes if h):
                 # the same footage again: keep the library free of twins
                 from app.documentary.visuals.pieces import remove_video
@@ -724,7 +734,10 @@ class FootageAgent:
                 remove_video(db, source)
                 return "duplicates"
             hashes.append(source.phash)
-            return "added" if pieces else "rejected"
+            # kept even without pieces (the segmenter found nothing usable or
+            # failed — recorded on the source, cut again on the next run or
+            # by "Cut again"): never cut by the clock
+            return "added" if pieces else "uncut"
         finally:
             tmp.unlink(missing_ok=True)
 

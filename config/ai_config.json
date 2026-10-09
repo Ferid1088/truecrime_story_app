@@ -112,7 +112,8 @@
         "host_writer": "premium",
         "host_critic": "writer",
         "visual_auditor": "writer",
-        "video_auditor": "writer"
+        "video_auditor": "writer",
+        "video_segmenter": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -371,6 +372,10 @@
     "video_auditor": {
       "temperature": 0.0,
       "max_tokens": 3000
+    },
+    "video_segmenter": {
+      "temperature": 0.1,
+      "max_tokens": 6000
     }
   },
   "search_engine": {
@@ -724,6 +729,16 @@
         ],
         "reviewers": [
           "host_critic"
+        ],
+        "strict": true
+      },
+      {
+        "name": "video_pieces",
+        "authors": [
+          "video_segmenter"
+        ],
+        "reviewers": [
+          "video_auditor"
         ],
         "strict": true
       }
@@ -1742,7 +1757,11 @@
     "piece_max_seconds": 20.0,
     "piece_overlap_seconds": 2.0,
     "max_pieces_per_source": 12,
-    "scene_threshold": 0.32
+    "scene_threshold": 0.32,
+    "segment_window_seconds": 90.0,
+    "segment_fps": 0.5,
+    "segment_frame_width": 256,
+    "snap_seconds": 0.6
   },
   "host": {
     "enabled": true,
