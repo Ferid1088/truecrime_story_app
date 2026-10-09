@@ -118,7 +118,9 @@
         "chapter_auditor": "writer",
         "case_naming_agent": "writer",
         "case_title_critic": "premium",
-        "native_title_critic": "premium"
+        "native_title_critic": "premium",
+        "thumbnail_brief_agent": "cheap",
+        "thumbnail_critic": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -401,6 +403,14 @@
     "native_title_critic": {
       "temperature": 0.0,
       "max_tokens": 4000
+    },
+    "thumbnail_brief_agent": {
+      "temperature": 0.4,
+      "max_tokens": 1500
+    },
+    "thumbnail_critic": {
+      "temperature": 0.0,
+      "max_tokens": 3000
     }
   },
   "search_engine": {
@@ -2102,5 +2112,89 @@
         "وحش"
       ]
     }
+  },
+  "thumbnail": {
+    "width": 1280,
+    "height": 720,
+    "max_file_bytes": 2000000,
+    "host_manifest": "data/host/manifest.json",
+    "default_outfit_id": null,
+    "max_case_images": 2,
+    "max_text_words": 4,
+    "min_image_px": [
+      480,
+      320
+    ],
+    "min_verification_confidence": 0.6,
+    "rights_profile": "publish",
+    "allow_editorial_override": true,
+    "host_height": 0.94,
+    "host_height_xl": 1.0,
+    "image_width": 0.46,
+    "margin": 0.045,
+    "badge_height": 0.075,
+    "badge_max_area": 0.06,
+    "badge_min_height_px": 40,
+    "accent": {
+      "en": "#d9a441",
+      "de": "#6fa8dc",
+      "fa": "#d9694f",
+      "ar": "#58a582"
+    },
+    "background": "#101114",
+    "style": "minimal_documentary",
+    "forbidden": [
+      "red_arrows",
+      "circles",
+      "fake_blood",
+      "flames",
+      "crowded_collage",
+      "invented_crime_scene",
+      "misleading_relationship",
+      "spoiler_asset",
+      "extreme_glow",
+      "multiple_fonts"
+    ],
+    "subject_priority": {
+      "victim": 0,
+      "person": 1,
+      "suspect": 2,
+      "object": 3,
+      "vehicle": 3,
+      "place": 4,
+      "building": 4,
+      "landscape": 4,
+      "document": 5
+    },
+    "max_elements": 5,
+    "min_contrast": 4.5,
+    "max_automation_feel": 0.5,
+    "max_spoiler_risk": 0.4,
+    "max_misleading_risk": 0.4,
+    "min_scores": {
+      "host_visibility": 0.6,
+      "case_visual_clarity": 0.6,
+      "brand_consistency": 0.6,
+      "cleanliness": 0.6,
+      "authenticity": 0.5,
+      "readability": 0.6
+    },
+    "storage_dir": "data/thumbnails",
+    "graphic_terms": [
+      "blood",
+      "corpse",
+      "dead body",
+      "body bag",
+      "crime scene tape",
+      "gore",
+      "wound",
+      "mutilat",
+      "autopsy",
+      "naked",
+      "nude"
+    ],
+    "opening_beats": 2,
+    "min_host_height": 0.8,
+    "min_host_width": 0.15
   }
 }

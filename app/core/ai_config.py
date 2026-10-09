@@ -126,10 +126,14 @@ REQUIRED_ROLES = {
     "case_naming_agent",
     "case_title_critic",
     "native_title_critic",
+    # Thumbnails: optional 0-4 word text, and the vision critic.
+    "thumbnail_brief_agent",
+    "thumbnail_critic",
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor", "video_segmenter"}
+VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor", "video_segmenter",
+                "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
@@ -1720,6 +1724,62 @@ class CaseNamingConfig(BaseModel):
     }
 
 
+class ThumbnailConfig(BaseModel):
+    """Channel thumbnails: one recognisable host, one real case picture, a
+    small localized status badge. Composed deterministically (no image
+    model), so text and badge are always exact."""
+
+    width: int = 1280
+    height: int = 720
+    max_file_bytes: int = 2_000_000          # YouTube limit
+    host_manifest: str = "data/host/manifest.json"
+    default_outfit_id: str | None = None
+    # images: 1 primary, an optional secondary; more is rejected
+    max_case_images: int = Field(default=2, ge=1, le=3)
+    max_text_words: int = Field(default=4, ge=0)
+    min_image_px: tuple[int, int] = (480, 320)
+    min_verification_confidence: float = Field(default=0.6, ge=0, le=1)
+    # rights: found is not usable — assets whose rights are not in the
+    # publish list need `human_override` (editorial approval) when enabled
+    rights_profile: str = "publish"
+    allow_editorial_override: bool = True
+    # layout (fractions of the canvas)
+    host_height: float = 0.94
+    host_height_xl: float = 1.0
+    image_width: float = 0.46
+    margin: float = 0.045
+    badge_height: float = 0.075
+    badge_max_area: float = 0.06
+    badge_min_height_px: int = 40
+    # per-language accent (badge + frame); the room stays dark and neutral
+    accent: dict[str, str] = {"en": "#d9a441", "de": "#6fa8dc", "fa": "#d9694f", "ar": "#58a582"}
+    background: str = "#101114"
+    style: str = "minimal_documentary"
+    forbidden: list[str] = ["red_arrows", "circles", "fake_blood", "flames", "crowded_collage",
+                            "invented_crime_scene", "misleading_relationship", "spoiler_asset",
+                            "extreme_glow", "multiple_fonts"]
+    # image ranking by what it shows (lower = preferred)
+    subject_priority: dict[str, int] = {"victim": 0, "person": 1, "suspect": 2, "object": 3,
+                                        "vehicle": 3, "place": 4, "building": 4, "landscape": 4,
+                                        "document": 5}
+    # critic gates
+    min_host_height: float = Field(default=0.8, ge=0, le=1)
+    min_host_width: float = Field(default=0.15, ge=0, le=1)
+    max_elements: int = Field(default=5, ge=1)
+    min_contrast: float = Field(default=4.5, ge=1)
+    max_automation_feel: float = Field(default=0.5, ge=0, le=1)
+    max_spoiler_risk: float = Field(default=0.4, ge=0, le=1)
+    max_misleading_risk: float = Field(default=0.4, ge=0, le=1)
+    min_scores: dict[str, float] = {"host_visibility": 0.6, "case_visual_clarity": 0.6,
+                                    "brand_consistency": 0.6, "cleanliness": 0.6,
+                                    "authenticity": 0.5, "readability": 0.6}
+    storage_dir: str = "data/thumbnails"
+    # a picture whose vision description contains these is never used
+    graphic_terms: list[str] = ["blood", "corpse", "dead body", "body bag", "crime scene tape",
+                                "gore", "wound", "mutilat", "autopsy", "naked", "nude"]
+    opening_beats: int = Field(default=2, ge=0)
+
+
 class YouTubeMetadataConfig(BaseModel):
     """Deterministic title rules: an unsolved case and a follow-up are
     recognisable from the title alone, in every language."""
@@ -1942,6 +2002,7 @@ class AIConfig(BaseModel):
     youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
     video_identity: VideoIdentityConfig = Field(default_factory=VideoIdentityConfig)
     case_naming: CaseNamingConfig = Field(default_factory=CaseNamingConfig)
+    thumbnail: ThumbnailConfig = Field(default_factory=ThumbnailConfig)
     opening: OpeningConfig = Field(default_factory=OpeningConfig)
     visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)
     footage: FootageConfig = Field(default_factory=FootageConfig)

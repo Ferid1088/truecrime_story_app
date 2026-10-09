@@ -1244,3 +1244,29 @@ class CaseTitleCandidate(Base):
     # generated | manual
     origin: Mapped[str] = mapped_column(String(20), default="generated")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class Thumbnail(Base):
+    """One composed thumbnail of an episode identity (case + language).
+    The brief, the critic report and the human decision are kept with it."""
+
+    __tablename__ = "thumbnails"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # draft | approved | rejected
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    brief_json: Mapped[str] = mapped_column(Text, default="{}")
+    critic_json: Mapped[str] = mapped_column(Text, default="{}")
+    layout_json: Mapped[str] = mapped_column(Text, default="{}")
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    outfit_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    host_asset_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    primary_asset_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    secondary_asset_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status_label: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

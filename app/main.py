@@ -344,11 +344,13 @@ app = FastAPI(
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router, resolution_dict  # noqa: E402
 from app.naming.api import router as naming_router  # noqa: E402
+from app.thumbnails.api import router as thumbnail_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 
 app.include_router(documentary_router)
 app.include_router(lifecycle_router)
 app.include_router(naming_router)
+app.include_router(thumbnail_router)
 app.include_router(studio_router)
 
 
