@@ -117,6 +117,8 @@ def _asset_info(a: VisualAsset) -> dict:
         # what repetition control needs (critics check a script alone)
         "tier": facts["tier"], "entity_type": facts["entity_type"],
         "entities": facts["entities"],
+        **({"parent": facts["parent"], "window": facts["window"]}
+           if facts.get("parent") else {}),
     }
 
 

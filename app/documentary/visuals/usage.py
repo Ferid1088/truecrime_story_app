@@ -83,8 +83,14 @@ def asset_facts(a) -> dict:
     etype = getattr(a, "entity_type", None)
     if not etype and getattr(a, "subject_type", None) == "person":
         etype = "person"
-    return {"asset_id": a.asset_code, "type": a.asset_type, "role": a.asset_role,
-            "tier": asset_tier(a), "entity_type": etype, "entities": ents, "place": place}
+    out = {"asset_id": a.asset_code, "type": a.asset_type, "role": a.asset_role,
+           "tier": asset_tier(a), "entity_type": etype, "entities": ents, "place": place}
+    if a.asset_type == "video":
+        spec = _loads(a.spec_json, {})
+        if spec.get("parent"):  # a piece of a longer video
+            out["parent"] = spec["parent"]
+            out["window"] = spec.get("window") or [a.clip_start, a.clip_end]
+    return out
 
 
 def category(f: dict) -> str:
@@ -147,7 +153,8 @@ class UsageTracker:
             "asset_id": code, "type": kind, "role": info.get("role"),
             "tier": info.get("tier"), "entity_type": info.get("entity_type"),
             "entities": list(info.get("entities") or []),
-            "place": info.get("place") or (info.get("map_info") or {}).get("place")}
+            "place": info.get("place") or (info.get("map_info") or {}).get("place"),
+            "parent": info.get("parent"), "window": info.get("window")}
 
     # -- facts -----------------------------------------------------------------
     def fact(self, code: str) -> dict:
@@ -204,6 +211,20 @@ class UsageTracker:
     def appearances(self, code: str) -> int:
         return len(self.spans.get(self.key(code), []))
 
+    def overlaps_shown(self, code: str) -> bool:
+        """A piece of a video whose window overlaps a piece already on the
+        film's timeline (the same footage would be seen twice)."""
+        f = self.fact(code)
+        parent, w = f.get("parent"), f.get("window")
+        if not parent or not w:
+            return False
+        for other, of in self.facts.items():
+            if (other != code and of.get("parent") == parent and of.get("window")
+                    and of["window"][0] < w[1] and of["window"][1] > w[0]
+                    and self.appearances(other)):
+                return True
+        return False
+
     def seconds(self, code: str) -> float:
         return round(sum(b - a for a, b in self.spans.get(self.key(code), [])), 3)
 
@@ -228,6 +249,8 @@ class UsageTracker:
 
     def allows(self, code: str, start: float, end: float) -> tuple[bool, str]:
         """Within the limits of its category (count, and the person gap)?"""
+        if self.overlaps_shown(code):
+            return False, "overlaps a piece of the same video already shown"
         n = self.appearances(code)
         if n == 0 or self.continues(code, start):
             return True, ""
@@ -256,7 +279,7 @@ class UsageTracker:
         "reason"} or None (nothing may be shown: hold or black)."""
         names, avoid, reserved = set(names or ()), set(avoid or ()), set(reserved or ())
         order = {c: k for k, c in enumerate(dict.fromkeys(c for c in pool if c))}
-        codes = [c for c in order if c not in avoid]
+        codes = [c for c in order if c not in avoid and not self.overlaps_shown(c)]
 
         def rank(c):
             return ((prefer(c) if prefer else 0), self.tier(c), order[c])

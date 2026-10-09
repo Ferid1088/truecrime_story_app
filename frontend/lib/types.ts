@@ -1753,7 +1753,7 @@ export interface VisualUpload {
   caption: string;
   role: AssetRole;
   rights: string;
-  /** Video only: second of the file where the kept part starts (max. 60 s are kept). */
+  /** Video only: second of the file where the kept part starts (max. 10 min are kept). */
   start?: number;
 }
 

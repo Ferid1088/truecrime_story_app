@@ -445,6 +445,7 @@ def test_footage_is_stored_muted_trimmed_with_keyframe_and_rights(db_session, me
     from app.documentary.visuals.research import VisualResearchAgent
 
     monkeypatch.setattr(ai_config.visual_search, "providers", [])  # footage only
+    monkeypatch.setattr(ai_config.footage, "pieces", False)  # the single-window mode
     monkeypatch.setattr(ai_config.footage, "clip_seconds", 2.5)
     monkeypatch.setattr(ai_config.footage, "max_candidates_per_query", 5)
     wiki = _video(tmp_path / "src" / "wiki.mp4").read_bytes()
@@ -534,7 +535,7 @@ def test_footage_respects_the_clip_cap_and_dedupes_by_keyframe(db_session, media
 
 
 @needs_ffmpeg
-def test_video_assets_are_verified_through_their_keyframe(db_session, media_env, monkeypatch,
+def test_video_assets_are_verified_frame_by_frame(db_session, media_env, monkeypatch,
                                                           tmp_path):
     from app.documentary.visuals.verification import VisualVerificationAgent
     from app.providers.generation.base import GenerationResult
@@ -543,7 +544,7 @@ def test_video_assets_are_verified_through_their_keyframe(db_session, media_env,
 
     class Gen:
         async def generate_structured(self, role, system, user, images=None):
-            seen["payload"], seen["images"] = json.loads(user), images
+            seen["payload"], seen["images"], seen["role"] = json.loads(user), images, role
             return ({"depicts": "Crowd at the church", "subject_type": "event",
                      "matches_claim": "yes", "role": "evidence", "period_ok": "yes",
                      "entities": [], "reveals": [], "quality": 0.7, "watermark": False,
@@ -562,14 +563,12 @@ def test_video_assets_are_verified_through_their_keyframe(db_session, media_env,
     db_session.add(a)
     db_session.commit()
     asyncio.run(VisualVerificationAgent().verify(db_session, case, a, [], []))
-    assert seen["images"][0].startswith("data:image/jpeg;base64,")
-    # judged by start, middle and end frames side by side (one picture)
-    assert seen["payload"]["media"].startswith("video: start, middle and end frames")
-    from PIL import Image
-    import base64, io
-
-    sheet = Image.open(io.BytesIO(base64.b64decode(seen["images"][0].split(",", 1)[1])))
-    assert sheet.width > 2.5 * sheet.height
+    # judged as VIDEO by the video auditor: its frames in order (about one
+    # per second of the 4 s clip), not a single still
+    assert seen["role"] == "video_auditor"
+    assert len(seen["images"]) >= 3
+    assert all(u.startswith("data:image/jpeg;base64,") for u in seen["images"])
+    assert seen["payload"]["frames"].endswith("in order, first to last")
     assert Path(a.thumbnail_path).suffix == ".jpg"
     assert a.verification_status == "verified"
     assert (a.relevance_tier, a.case_relevance) == (1, "exact_case")

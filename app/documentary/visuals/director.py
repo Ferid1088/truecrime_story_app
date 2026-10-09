@@ -250,6 +250,8 @@ def rank_candidates(req: dict, entity: dict, assets: list[VisualAsset],
     for a in assets:
         if a.asset_type in ("map", "document", "card") and a.provider == "generated":
             continue
+        if a.asset_type == "video_source":  # the whole video: only its pieces are shown
+            continue
         if not usable(a, profile) or not firewall_ok(a, blocked):
             continue
         if a.asset_role not in req["acceptable_roles"]:

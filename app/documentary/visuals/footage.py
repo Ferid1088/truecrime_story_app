@@ -452,17 +452,18 @@ def probe_video(path: Path) -> dict | None:
             "has_audio": any(s.get("codec_type") == "audio" for s in streams)}
 
 
-def make_clip(src: Path, out: Path, start: float, length: float) -> None:
+def make_clip(src: Path, out: Path, start: float, length: float,
+              max_w: int = MAX_W, max_h: int = MAX_H, crf: int = CLIP_CRF) -> None:
     """The stored clip: window [start, start+length] of the source, no
-    audio stream (-an), square pixels, at most MAX_W x MAX_H, even
+    audio stream (-an), square pixels, at most max_w x max_h, even
     dimensions, constant CLIP_FPS, H.264 yuv420p."""
     vf = ("scale='trunc(iw*sar/2)*2':'trunc(ih/2)*2',setsar=1,"
-          f"scale='min({MAX_W},iw)':'min({MAX_H},ih)':force_original_aspect_ratio=decrease,"
+          f"scale='min({max_w},iw)':'min({max_h},ih)':force_original_aspect_ratio=decrease,"
           "scale='trunc(iw/2)*2':'trunc(ih/2)*2',"
           f"fps={CLIP_FPS}")
     cmd = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-i", str(src),
            "-t", f"{length:.3f}", "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", vf,
-           "-c:v", "libx264", "-preset", CLIP_PRESET, "-crf", str(CLIP_CRF),
+           "-c:v", "libx264", "-preset", CLIP_PRESET, "-crf", str(crf),
            "-pix_fmt", "yuv420p", "-r", str(CLIP_FPS), "-map_metadata", "-1",
            "-movflags", "+faststart", str(out)]
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_S,
@@ -555,6 +556,16 @@ def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
     start/middle/end sheet. It starts unverified: the verifier and the
     placement auditor check it like any other clip."""
     cfg = ai_config.footage
+    if cfg.pieces:
+        from app.documentary.visuals.pieces import ingest_video
+
+        role = asset_role if asset_role in ("evidence", "context", "illustration") else "evidence"
+        source, _ = ingest_video(db, case, src, {
+            "provider": "upload", "rights_status": rights_status if rights_status in R.RIGHTS
+            else "owned", "rights_reason": "uploaded by the production", "asset_role": role,
+            "title": title or filename, "caption": caption, "found_during": "upload",
+            "uploaded_name": filename}, start=start, max_seconds=cfg.upload_max_seconds)
+        return source
     info = probe_video(src)
     if info is None or not info["has_video"]:
         raise FootageRejected("not a readable video")
@@ -607,6 +618,21 @@ def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
             sheet_path(case.id, code).unlink(missing_ok=True)
 
 
+def _meta_of(c: "FootageCandidate", status: str, reason: str, found_during: str) -> dict:
+    tier, why = T.provisional_why(c.provider, "context", c.entity_type, c.query_kind)
+    return {
+        "provider": c.provider, "source_url": c.source_url or c.url, "page_url": c.page_url,
+        "source_name": (c.source_name or "")[:300] or None,
+        "found_for": (c.found_for or "")[:300] or None,
+        "license": (c.license or "")[:200] or None, "credit": (c.credit or "")[:500] or None,
+        "rights_status": status, "rights_reason": reason, "asset_role": "context",
+        "entity_key": c.entity_key, "entity_type": c.entity_type, "entities": c.entities,
+        "title": c.title, "caption": c.caption, "found_during": found_during,
+        "date_start": (c.date or "")[:20] or None, "relevance_tier": tier,
+        "query_kind": c.query_kind, "media_url": c.url, "tier_reason": why,
+    }
+
+
 # ---------------------------------------------------------------------------
 # agent
 # ---------------------------------------------------------------------------
@@ -631,8 +657,11 @@ class FootageAgent:
         if not self.cfg.enabled:
             return {**stats, "skipped": "footage disabled"}
         existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
-        videos = [a for a in existing if a.asset_type == "video"]
-        left = self.cfg.max_clips_per_case - len(videos)
+        videos = [a for a in existing if a.asset_type in ("video", "video_source")]
+        # a video cut into pieces counts once (its source)
+        sources = [a for a in videos if a.asset_type == "video_source"
+                   or "parent" not in (a.spec_json or "")]
+        left = self.cfg.max_clips_per_case - len(sources)
         if budget is not None:
             left = min(left, budget)
         # identities already in the library: file URLs, and archive pages of clips
@@ -666,6 +695,38 @@ class FootageAgent:
                         left -= 1
                         stats["by_provider"][prov.name] = stats["by_provider"].get(prov.name, 0) + 1
         return stats
+
+    async def _ingest_pieces(self, db, case, c: FootageCandidate, status: str, reason: str,
+                             hashes: list[str], found_during: str) -> str:
+        """The video kept whole (muted) and cut into described pieces."""
+        from app.documentary.visuals.pieces import ingest_video
+
+        code = next_asset_code(db)
+        tmp = storage.visuals_dir(case.id, "video") / f".{code}.download"
+        try:
+            await download_video(c.url, self.client, tmp,
+                                 int(self.cfg.max_download_mb * 1024 * 1024))
+            src = await asyncio.to_thread(probe_video, tmp)
+            if src is None or not src["has_video"]:
+                raise FootageRejected("unreadable video")
+            if (src["height"] or 0) < self.cfg.min_height:
+                return "rejected"
+            # a long source keeps its part from 10 % in (past leaders and titles)
+            duration = src["duration"] or c.duration or 0.0
+            start = (duration * START_FRACTION
+                     if duration > self.cfg.max_keep_seconds else 0.0)
+            source, pieces = await asyncio.to_thread(
+                ingest_video, db, case, tmp, _meta_of(c, status, reason, found_during), start)
+            if any(IM.hamming(source.phash, h) <= DEDUPE_HAMMING for h in hashes if h):
+                # the same footage again: keep the library free of twins
+                from app.documentary.visuals.pieces import remove_video
+
+                remove_video(db, source)
+                return "duplicates"
+            hashes.append(source.phash)
+            return "added" if pieces else "rejected"
+        finally:
+            tmp.unlink(missing_ok=True)
 
     async def _consider(self, db, case, prov, c: FootageCandidate, seen: set[str],
                         hashes: list[str], found_during: str) -> str:
@@ -701,6 +762,8 @@ class FootageAgent:
 
     async def _ingest(self, db, case, c: FootageCandidate, status: str, reason: str,
                       hashes: list[str], found_during: str) -> str:
+        if self.cfg.pieces:
+            return await self._ingest_pieces(db, case, c, status, reason, hashes, found_during)
         cfg = self.cfg
         code = next_asset_code(db)
         vdir = storage.visuals_dir(case.id, "video")

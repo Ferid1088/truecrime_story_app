@@ -159,6 +159,11 @@ class VisualVerificationAgent:
 
     async def verify(self, db: Session, case: Case, asset: VisualAsset,
                      entities: list[dict], facts: list[dict]) -> VisualAsset:
+        if asset.asset_type == "video" and ai_config.footage.pieces:
+            # a video is judged as video: frame by frame, by the video auditor
+            from app.documentary.visuals.video_auditor import VideoAuditor
+
+            return await VideoAuditor(gen=self.gen).describe(db, case, asset, entities, facts)
         thumb = image_for_check(asset)
         claimed = json.loads(asset.entities_json or "[]")
         previous = json.loads(asset.verification_json or "{}") if asset.verification_json else {}

@@ -103,6 +103,9 @@ REQUIRED_ROLES = {
     # Strict gate before render: is THIS picture/clip right for THESE
     # words (exact kind, tone, honesty)? Independent of the director.
     "visual_auditor",
+    # Video pieces, frame by frame: describes and checks each piece (any
+    # frame can fail it) and judges it against the words before render.
+    "video_auditor",
     "overlay_localizer",
     # Documentary critics (independent of the visual director).
     "automation_feel_critic",
@@ -112,7 +115,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier", "visual_auditor"}
+VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
@@ -1043,6 +1046,9 @@ class HostConfig(BaseModel):
     max_mid_segments: int = Field(default=2, ge=0, le=4)
     # Host time as a share of the narration (the story stays dominant).
     max_total_share: float = Field(default=0.08, ge=0.0, le=0.5)
+    # ...and never more than this in one film, however long (the avatar
+    # is used sparingly: 2–3 minutes per video).
+    max_total_seconds: float = Field(default=180.0, ge=0.0)
     # Beats of narration between two host appearances.
     min_beats_between: int = Field(default=3, ge=0)
     # The host talks a little faster than the narrator (words per minute
@@ -1212,6 +1218,16 @@ class VisualSearchConfig(BaseModel):
         "gettyimages.", "shutterstock.", "alamy.", "istockphoto.",
         "dreamstime.", "depositphotos.", "123rf.", "stock.adobe.",
     ]
+
+
+class VideoAuditConfig(BaseModel):
+    """The video auditor watches a piece frame by frame (in order): what
+    it shows, cuts inside it, text/logos or faces that appear later,
+    gore — and, before render, whether it fits the words."""
+
+    frames_per_second: float = Field(default=1.0, gt=0.0, le=4.0)
+    max_frames: int = Field(default=20, ge=3, le=40)
+    frame_width: int = Field(default=384, ge=160, le=1280)
 
 
 class VisualAuditConfig(BaseModel):
@@ -1680,7 +1696,20 @@ class FootageConfig(BaseModel):
     min_height: int = Field(default=360, ge=120)
     # An uploaded video keeps up to this many seconds (from its start or
     # the chosen start) — muted like every clip.
-    upload_max_seconds: float = Field(default=60.0, gt=1)
+    upload_max_seconds: float = Field(default=600.0, gt=1)
+    # Video pieces: a video is kept whole (muted, at most max_keep_seconds,
+    # at most proxy_height lines) and cut at its scene changes into pieces
+    # of piece_min..piece_max seconds — a long scene is split into pieces
+    # that overlap by piece_overlap_seconds so each stays meaningful.
+    pieces: bool = True
+    max_keep_seconds: float = Field(default=600.0, gt=1)
+    proxy_height: int = Field(default=720, ge=240)
+    piece_min_seconds: float = Field(default=4.0, gt=0.5)
+    piece_max_seconds: float = Field(default=20.0, gt=2)
+    piece_overlap_seconds: float = Field(default=2.0, ge=0.0)
+    max_pieces_per_source: int = Field(default=12, ge=1, le=60)
+    # ffmpeg scene-change score above which a cut is detected (0..1)
+    scene_threshold: float = Field(default=0.32, gt=0.0, lt=1.0)
 
 
 class ConcurrencyConfig(BaseModel):
@@ -1759,6 +1788,7 @@ class AIConfig(BaseModel):
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)
+    video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)

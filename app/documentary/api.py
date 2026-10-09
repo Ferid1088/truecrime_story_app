@@ -642,7 +642,14 @@ def _verify_later(case_id: int, asset_id: int) -> None:
             vp = (bg.query(VisualPlan).filter(VisualPlan.case_id == case_id)
                   .order_by(VisualPlan.id.desc()).first())
             ents = (_loads(vp.requirements_json, {}) if vp else {}).get("entities") or []
-            await J.verify_assets(bg, case, [a], ents)
+            todo = [a]
+            if a.asset_type == "video_source":  # a video: its pieces are checked
+                from app.documentary.visuals.pieces import piece_info
+
+                todo = [r for r in bg.query(VisualAsset).filter(
+                    VisualAsset.case_id == case_id, VisualAsset.asset_type == "video").all()
+                        if piece_info(r).get("parent") == a.asset_code]
+            await J.verify_assets(bg, case, todo, ents)
         except Exception as e:  # noqa: BLE001 — the asset stays unverified (audited later)
             log.warning("upload %s: verification failed: %s", asset_id, e)
         finally:

@@ -602,12 +602,33 @@ and reported (the job never waits for a person).
 
 ### Your own photos and videos
 
-Visual Library → *Upload photo or video*. A video is stored muted (H.264,
-at most `footage.upload_max_seconds` = 60 s from the chosen start) with a
-keyframe and a start/middle/end sheet. Every upload starts unverified and
-is vision-checked in the background; the picture auditor checks it again
-for the words it would appear under. Clips rank before photos of the same
-tier (`visual_direction.video_bonus`), and the no-repeat rule covers both.
+Visual Library → *Upload photo or video*. Every upload starts unverified
+and is checked in the background; before render it is checked again for
+the words it would appear under. Clips rank before photos of the same tier
+(`visual_direction.video_bonus`), and the no-repeat rule covers both.
+
+### Video pieces and the video auditor
+
+A video (found on a rights-clear archive or uploaded) is kept whole,
+muted, as a proxy (`footage.max_keep_seconds`, `proxy_height`) — the
+*source* (`asset_type video_source`, never on screen). It is cut at its
+scene changes (ffmpeg scene score `footage.scene_threshold`) into
+*pieces* of `piece_min_seconds`–`piece_max_seconds`: a flash joins its
+shorter neighbour, a long scene becomes pieces that overlap by
+`piece_overlap_seconds`; at most `max_pieces_per_source`. Each piece is a
+library asset (window `clip_start`–`clip_end` of the source,
+`spec_json.parent`), so a sentence shows exactly its part of the video and
+other parts can serve other sentences. Two overlapping pieces are never
+both shown in one film.
+
+The video auditor (role `video_auditor`) judges pieces as video: their
+frames in order (`video_audit.frames_per_second`, at most `max_frames`).
+When a piece enters the library it names and describes it (what, who,
+where, when, mood) and fails it if any frame has burned-in text/logos,
+gore, a wrong period or a clashing tone. Before render it judges the
+piece against the exact sentences — every frame must fit.
+
+Host time is capped at `host.max_total_seconds` (180 s) per film.
 
 ### Pronunciation check (Persian)
 

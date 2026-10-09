@@ -534,7 +534,7 @@ function UploadDialog({
       open={open}
       onClose={onClose}
       title="Upload photo or video"
-      description="Add your own photo, scan or video clip. Videos are stored without sound (max. 60 s). Everything is checked by the picture auditor before it can appear in a film."
+      description="Add your own photo, scan or video. A video is kept without sound (up to 10 min) and cut at its scene changes into described pieces. Photos are checked by the picture auditor, video pieces frame by frame by the video auditor, before anything can appear in a film."
     >
       <form onSubmit={submit} className="space-y-3">
         <div>
@@ -562,7 +562,7 @@ function UploadDialog({
               step={0.5}
               value={start}
               onChange={(e) => setStart(e.target.value)}
-              placeholder="0 — the 60 seconds from here are kept"
+              placeholder="0 — kept from here (max. 10 min)"
             />
           </div>
         )}

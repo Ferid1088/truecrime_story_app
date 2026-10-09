@@ -71,7 +71,7 @@ def _script(db, case, shots, candidates=None, sentences=None):
     plan = {"beats": [{"beat_id": "B01", "sentences": [
         {"n": 0, "at": 0.0, "text": SENT_HOUSE, "entities": ["the_house"]},
         {"n": 1, "at": 0.5, "text": SENT_DOG, "entities": ["police_dog"]}]}]}
-    vp = VisualPlan(case_id=case.id, blueprint_id=1, plan_json=json.dumps(plan),
+    vp = VisualPlan(case_id=case.id, blueprint_id=-1, plan_json=json.dumps(plan),
                     requirements_json=json.dumps({"entities": []}), status="planned")
     db.add(vp)
     db.commit()
@@ -98,12 +98,16 @@ class Gen:
     """Rejects the codes in `reject` for the dog sentence, approves the rest."""
 
     def __init__(self, reject=(), symbolic=()):
-        self.reject, self.symbolic, self.calls = set(reject), set(symbolic), []
+        self.reject, self.symbolic, self.calls, self.roles = set(reject), set(symbolic), [], []
 
     async def generate_structured(self, role, system, user, images=None):
-        assert role == "visual_auditor" and images
+        # photos go to the picture auditor, clips (all frames) to the video auditor
+        assert role in ("visual_auditor", "video_auditor") and images
         data = json.loads(user)
-        code = data["what_the_picture_is_claimed_to_be"]["title"]
+        claim = (data.get("what_the_picture_is_claimed_to_be")
+                 or data.get("what_the_piece_is_claimed_to_be"))
+        code = claim["title"]
+        self.roles.append((code, role, len(images)))
         self.calls.append((code, tuple(data["narration_while_on_screen"])))
         if code in self.reject and SENT_DOG in data["narration_while_on_screen"]:
             v = {"verdict": "rejected", "as": None, "fits_words": 0.2,
@@ -179,8 +183,11 @@ def test_a_pet_for_the_police_dog_is_replaced_by_an_approved_clip(db_session, en
     assert report["replaced"][0]["from"] == pets.asset_code
     assert "pet dogs" in report["replaced"][0]["why"][0]
     assert report["left_out"] == [] and row.status == "audited"
-    # the replacement was audited again before it was accepted
+    # the replacement was audited again before it was accepted — as VIDEO,
+    # frame by frame (about one frame per second of the 10 s it plays)
     assert (clip.asset_code, (SENT_DOG,)) in gen.calls
+    role = next(r for r in gen.roles if r[0] == clip.asset_code)
+    assert role[1] == "video_auditor" and role[2] >= 8
     # verdicts are stored per picture + exact words: another language reuses them
     n = len(gen.calls)
     row2 = _script(db_session, case, [_shot(house, 0, 10), _shot(clip, 10, 20)])
@@ -304,16 +311,21 @@ def test_video_upload_is_stored_muted_and_checked(client, db_session, env, monke
                         files={"file": ("mine.mov", fh, "video/quicktime")},
                         data={"title": "Police search, our footage", "role": "evidence"})
     assert r.status_code == 200, r.text
-    a = db_session.get(VisualAsset, r.json()["id"])
-    assert a.asset_type == "video" and a.provider == "upload"
-    assert a.verification_status == "unverified" and checked == [a.id]
+    src = db_session.get(VisualAsset, r.json()["id"])
+    # kept whole (the source, never on screen) and cut into pieces
+    assert src.asset_type == "video_source" and src.provider == "upload"
+    assert checked == [src.id]
     from app.documentary import storage
     from app.documentary.visuals.footage import probe_video, sheet_path
+    from app.documentary.visuals.pieces import piece_info
 
-    info = probe_video(storage.resolve(a.local_path))
+    info = probe_video(storage.resolve(src.local_path))
     assert info["has_video"] and not info["has_audio"]      # muted
-    assert sheet_path(case.id, a.asset_code).exists()
-    f = client.get(f"/api/visuals/{a.id}/file")
+    pieces = [a for a in db_session.query(VisualAsset).filter_by(case_id=case.id)
+              if piece_info(a).get("parent") == src.asset_code]
+    assert pieces and all(p.verification_status == "unverified" for p in pieces)
+    assert all(sheet_path(case.id, p.asset_code).exists() for p in pieces)
+    f = client.get(f"/api/visuals/{pieces[0].id}/file")
     assert f.status_code == 200 and f.headers["content-type"] == "video/mp4"
 
 

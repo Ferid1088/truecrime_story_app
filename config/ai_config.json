@@ -111,7 +111,8 @@
         "host_director": "premium",
         "host_writer": "premium",
         "host_critic": "writer",
-        "visual_auditor": "writer"
+        "visual_auditor": "writer",
+        "video_auditor": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -364,6 +365,10 @@
       "max_tokens": 12000
     },
     "visual_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "video_auditor": {
       "temperature": 0.0,
       "max_tokens": 3000
     }
@@ -706,7 +711,8 @@
           "attention_critic",
           "visual_accuracy_critic",
           "production_critic",
-          "visual_auditor"
+          "visual_auditor",
+          "video_auditor"
         ],
         "strict": true
       },
@@ -1727,7 +1733,16 @@
     "max_download_mb": 250.0,
     "max_source_seconds": 1800.0,
     "clip_seconds": 24.0,
-    "min_height": 360
+    "min_height": 360,
+    "upload_max_seconds": 600.0,
+    "pieces": true,
+    "max_keep_seconds": 600.0,
+    "proxy_height": 720,
+    "piece_min_seconds": 4.0,
+    "piece_max_seconds": 20.0,
+    "piece_overlap_seconds": 2.0,
+    "max_pieces_per_source": 12,
+    "scene_threshold": 0.32
   },
   "host": {
     "enabled": true,
@@ -1845,5 +1860,10 @@
     "enabled": true,
     "max_redos": 2,
     "min_fit": 0.7
+  },
+  "video_audit": {
+    "frames_per_second": 1.0,
+    "max_frames": 20,
+    "frame_width": 384
   }
 }

@@ -869,6 +869,17 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
             for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:n]:
                 if a.verification_status == "unverified" and a not in todo:
                     todo.append(a)
+    # a relevant piece of a video brings its sibling pieces: the whole
+    # video gets described (each piece by the video auditor), so every
+    # part of it can serve the sentence it belongs to
+    from app.documentary.visuals.pieces import piece_info
+
+    parents = {piece_info(a).get("parent") for a in todo} - {None}
+    if parents:
+        for a in assets:
+            if (a not in todo and a.verification_status == "unverified"
+                    and piece_info(a).get("parent") in parents):
+                todo.append(a)
     return await verify_assets(db, case, todo, list(ents.values()))
 
 

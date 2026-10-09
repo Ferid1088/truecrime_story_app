@@ -7,7 +7,8 @@ while THESE words are spoken? It sees the exact narration sentences
 (English, the language-independent plan) — not a search query — so a
 pet cannot pass for "the police dog", a cheerful stock photo cannot sit
 under a disappearance, a different person cannot pass for a named one.
-A clip is judged by its start, middle and end frames.
+A clip is judged as video by the video auditor (video_auditor.py): all
+its frames in order, every frame must pass.
 
 Rules, in order:
   1. The asset itself must be verified (an unverified one — e.g. a fresh
@@ -164,10 +165,11 @@ def _picture(asset: VisualAsset):
 
 
 class VisualAuditor:
-    def __init__(self, gen=None, verify=None):
+    def __init__(self, gen=None, verify=None, video=None):
         self.gen = gen or get_generation_provider()
         # verify(db, case, [assets]) — vision-check unverified assets first
         self._verify = verify
+        self._video = video  # the video auditor (frame by frame) for clips
 
     async def verdict(self, db: Session, case: Case, asset: VisualAsset,
                       sentences: list[str]) -> VisualAudit:
@@ -175,11 +177,17 @@ class VisualAuditor:
         row = db.query(VisualAudit).filter(VisualAudit.key == key).first()
         if row is not None:
             return row
+        if asset.asset_type == "video":
+            # a clip is judged as video — every frame, in order
+            from app.documentary.visuals.video_auditor import VideoAuditor
+
+            self._video = self._video or VideoAuditor(gen=self.gen)
+            v, res = await self._video.placement(db, case, asset, sentences)
+            return self._store(db, case, asset, key, sentences, v, res)
         thumb = _picture(asset)
         payload = {
             "case": case.canonical_title,
-            "media": ("video clip: start, middle and end frames, left to right"
-                      if asset.asset_type == "video" else "photo"),
+            "media": "photo",
             "narration_while_on_screen": sentences,
             "what_the_picture_is_claimed_to_be": {
                 "title": asset.title, "caption": asset.caption,
@@ -192,6 +200,10 @@ class VisualAuditor:
                 "visual_auditor", AUDITOR_SYSTEM, json.dumps(payload, ensure_ascii=False),
                 images=[IM.data_url(thumb)])
             stamp_run(run, res, "visual_auditor")
+        return self._store(db, case, asset, key, sentences, v, res)
+
+    def _store(self, db: Session, case: Case, asset: VisualAsset, key: str,
+               sentences: list[str], v, res) -> VisualAudit:
         v = v if isinstance(v, dict) else {}
         verdict, shown_as, reasons = decide(v)
         row = VisualAudit(case_id=case.id, asset_code=asset.asset_code, key=key,

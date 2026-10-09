@@ -231,6 +231,8 @@ Placement:
 - position "final" ({sec['final']}): after the last beat, optional.
 - Fewer is better than forced. An appearance that only repeats the
   narration is worse than none.
+- All appearances together: at most {int(cfg.max_total_seconds)} seconds in the
+  whole film (the sum of every target_seconds).
 
 Reveal firewall: at its placement the host knows only what the viewer has
 heard so far. Never use evidence a LATER beat reveals (the opening may
@@ -417,6 +419,9 @@ def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
         warnings.append({"code": "no_appearances"})
 
     host_seconds = sum(s["target_seconds"] for s in segments)
+    if host_seconds > cfg.max_total_seconds:
+        errors.append({"code": "host_time_too_long", "seconds": round(host_seconds, 1),
+                       "max": cfg.max_total_seconds})
     share = host_seconds / max(narration_seconds, 1.0)
     if share > cfg.max_total_share:
         # short pilots cannot hold an opening within the share; only a
