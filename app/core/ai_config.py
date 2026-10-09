@@ -121,6 +121,11 @@ REQUIRED_ROLES = {
     "attention_critic",
     "visual_accuracy_critic",
     "production_critic",
+    # Case naming: native candidate titles per language, an independent
+    # critic for quality/spoiler/epistemic risk, a native-language check.
+    "case_naming_agent",
+    "case_title_critic",
+    "native_title_critic",
 }
 
 # Roles that send images and need a vision-capable model.
@@ -1685,6 +1690,40 @@ class CaseNamingConfig(BaseModel):
     semantic_kinds: list[str] = ["case_title", "episode_title", "video_title", "candidate",
                                  "discovery_title"]
     bm25_prefilter: int = Field(default=40, ge=1)
+    extra_per_round: int = Field(default=4, ge=0)
+    max_chars: int = Field(default=60, ge=10)
+    reject_questions: bool = True
+    # critic gates (scores 0-1; risks: lower is better)
+    min_native_quality: float = Field(default=0.7, ge=0, le=1)
+    min_specificity: float = Field(default=0.4, ge=0, le=1)
+    max_spoiler_risk: float = Field(default=0.5, ge=0, le=1)
+    max_epistemic_risk: float = Field(default=0.4, ge=0, le=1)
+    max_sensationalism_risk: float = Field(default=0.5, ge=0, le=1)
+    # ranking weights
+    weights: dict[str, float] = {"memorability": 0.25, "curiosity": 0.25, "specificity": 0.25,
+                                 "brevity": 0.1, "documentary_tone": 0.15}
+    generic_phrases: dict[str, list[str]] = {
+        "en": ["the dark secret", "the final night", "hidden truth", "the hidden truth",
+               "vanished without trace", "vanished without a trace", "the mystery",
+               "the last day", "the last night", "the missing", "dark secrets", "cold case",
+               "unsolved mystery", "the disappearance", "the murder", "a mother s fear"],
+        "de": ["das dunkle geheimnis", "die letzte nacht", "die wahrheit", "die verborgene wahrheit",
+               "spurlos verschwunden", "das ratsel", "der letzte tag", "dunkle geheimnisse",
+               "ungeloster fall", "der fall", "das verschwinden"],
+        "fa": ["راز تاریک", "شب آخر", "حقیقت پنهان", "بدون ردپا", "معما", "روز آخر",
+               "ناپدید شدن", "پرونده مرموز", "راز پنهان"],
+        "ar": ["السر المظلم", "الليلة الاخيرة", "الحقيقة الخفية", "اختفاء بلا اثر", "اللغز",
+               "اليوم الاخير", "اختفاء غامض", "سر دفين"],
+    }
+    # stems (compared as token prefixes) that state guilt or killing as fact
+    accusation_terms: dict[str, list[str]] = {
+        "en": ["kill", "murder", "slain", "slay", "guilty", "culprit", "butcher", "strangl",
+               "monster", "psychopath", "executioner"],
+        "de": ["morder", "mord", "getotet", "ermordet", "tater", "schuldig", "killer",
+               "monster", "henker"],
+        "fa": ["قاتل", "کشت", "جنایتکار", "مقصر", "گناهکار", "مجرم", "هیولا"],
+        "ar": ["قاتل", "قتل", "قتلة", "مجرم", "جاني", "مذنب", "وحش"],
+    }
 
 
 class YouTubeMetadataConfig(BaseModel):

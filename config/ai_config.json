@@ -115,7 +115,10 @@
         "video_auditor": "writer",
         "video_segmenter": "premium",
         "chapter_writer": "premium",
-        "chapter_auditor": "writer"
+        "chapter_auditor": "writer",
+        "case_naming_agent": "writer",
+        "case_title_critic": "premium",
+        "native_title_critic": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -386,6 +389,18 @@
     "chapter_auditor": {
       "temperature": 0.0,
       "max_tokens": 8000
+    },
+    "case_naming_agent": {
+      "temperature": 0.9,
+      "max_tokens": 6000
+    },
+    "case_title_critic": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "native_title_critic": {
+      "temperature": 0.0,
+      "max_tokens": 4000
     }
   },
   "search_engine": {
@@ -1991,6 +2006,119 @@
       "candidate",
       "discovery_title"
     ],
-    "bm25_prefilter": 40
+    "bm25_prefilter": 40,
+    "extra_per_round": 4,
+    "max_chars": 60,
+    "reject_questions": true,
+    "min_native_quality": 0.7,
+    "min_specificity": 0.4,
+    "max_spoiler_risk": 0.5,
+    "max_epistemic_risk": 0.4,
+    "max_sensationalism_risk": 0.5,
+    "weights": {
+      "memorability": 0.25,
+      "curiosity": 0.25,
+      "specificity": 0.25,
+      "brevity": 0.1,
+      "documentary_tone": 0.15
+    },
+    "generic_phrases": {
+      "en": [
+        "the dark secret",
+        "the final night",
+        "hidden truth",
+        "the hidden truth",
+        "vanished without trace",
+        "vanished without a trace",
+        "the mystery",
+        "the last day",
+        "the last night",
+        "the missing",
+        "dark secrets",
+        "cold case",
+        "unsolved mystery",
+        "the disappearance",
+        "the murder",
+        "a mother s fear"
+      ],
+      "de": [
+        "das dunkle geheimnis",
+        "die letzte nacht",
+        "die wahrheit",
+        "die verborgene wahrheit",
+        "spurlos verschwunden",
+        "das ratsel",
+        "der letzte tag",
+        "dunkle geheimnisse",
+        "ungeloster fall",
+        "der fall",
+        "das verschwinden"
+      ],
+      "fa": [
+        "راز تاریک",
+        "شب آخر",
+        "حقیقت پنهان",
+        "بدون ردپا",
+        "معما",
+        "روز آخر",
+        "ناپدید شدن",
+        "پرونده مرموز",
+        "راز پنهان"
+      ],
+      "ar": [
+        "السر المظلم",
+        "الليلة الاخيرة",
+        "الحقيقة الخفية",
+        "اختفاء بلا اثر",
+        "اللغز",
+        "اليوم الاخير",
+        "اختفاء غامض",
+        "سر دفين"
+      ]
+    },
+    "accusation_terms": {
+      "en": [
+        "kill",
+        "murder",
+        "slain",
+        "slay",
+        "guilty",
+        "culprit",
+        "butcher",
+        "strangl",
+        "monster",
+        "psychopath",
+        "executioner"
+      ],
+      "de": [
+        "morder",
+        "mord",
+        "getotet",
+        "ermordet",
+        "tater",
+        "schuldig",
+        "killer",
+        "monster",
+        "henker"
+      ],
+      "fa": [
+        "قاتل",
+        "کشت",
+        "جنایتکار",
+        "مقصر",
+        "گناهکار",
+        "مجرم",
+        "هیولا"
+      ],
+      "ar": [
+        "قاتل",
+        "قتل",
+        "قتلة",
+        "مجرم",
+        "جاني",
+        "مذنب",
+        "وحش"
+      ]
+    }
   }
 }

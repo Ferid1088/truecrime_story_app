@@ -41,7 +41,7 @@ class Collision:
         return f"{e.kind}:{e.text}" if e else ""
 
 
-def _own_family(e: Entry, case_id: int | None, language: str) -> bool:
+def _own_family(e: Entry, case_id: int | None, language: str, skip_candidates: bool = False) -> bool:
     """True when `e` is part of the candidate case's own identity (not a
     competitor): its names/titles in other languages and approved titles."""
     if case_id is None or e.case_id != case_id:
@@ -49,7 +49,9 @@ def _own_family(e: Entry, case_id: int | None, language: str) -> bool:
     if e.kind in ("case_title", "discovery_title", "episode_title", "video_title"):
         return True
     if e.kind == "candidate":
-        return e.language != language      # same-language candidates do compete
+        # same-language candidates compete, unless the caller re-checks
+        # one of the case's own candidates (approval)
+        return skip_candidates or e.language != language
     return False
 
 
@@ -59,7 +61,7 @@ def _phrase_in(needle: list[str], hay: list[str]) -> bool:
 
 
 def check_lexical(title: str, language: str, case_id: int | None,
-                  corpus: TitleCollisionCorpus) -> Collision:
+                  corpus: TitleCollisionCorpus, *, skip_own_candidates: bool = False) -> Collision:
     cfg = ai_config.case_naming
     res = Collision()
     norm = norm_title(title)
@@ -68,7 +70,7 @@ def check_lexical(title: str, language: str, case_id: int | None,
         return res
     toks = norm.split()
     for e in corpus.by_norm.get(norm, []):
-        if _own_family(e, case_id, language):
+        if _own_family(e, case_id, language, skip_own_candidates):
             continue
         res.exact, res.exact_with = True, e
         prior = " (previously rejected)" if e.kind == "candidate" and e.status == "rejected" else ""
@@ -76,7 +78,7 @@ def check_lexical(title: str, language: str, case_id: int | None,
         break
     best_margin = -1e9
     for e in corpus.entries:
-        if e is res.exact_with or e.norm == norm or _own_family(e, case_id, language):
+        if e is res.exact_with or e.norm == norm or _own_family(e, case_id, language, skip_own_candidates):
             continue
         etoks = e.norm.split()
         tscore = fuzz.token_sort_ratio(norm, e.norm)
