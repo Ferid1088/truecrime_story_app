@@ -1927,5 +1927,48 @@
     "intro_enabled": true,
     "intro_dir": "data/intros",
     "intro_duck_db": -18.0
+  },
+  "video_identity": {
+    "channels": {
+      "en": {
+        "id": "cluevera",
+        "name": "ClueVera"
+      },
+      "de": {
+        "id": "fallspur",
+        "name": "Fallspur"
+      },
+      "fa": {
+        "id": "rad_khamoosh",
+        "name": "رد خاموش"
+      },
+      "ar": {
+        "id": "athar_khafi",
+        "name": "أثر خفي"
+      }
+    },
+    "status_labels": {
+      "en": {
+        "solved": "Solved",
+        "unsolved": "Unsolved"
+      },
+      "de": {
+        "solved": "Gelöst",
+        "unsolved": "Ungelöst"
+      },
+      "fa": {
+        "solved": "حل‌شده",
+        "unsolved": "حل‌نشده"
+      },
+      "ar": {
+        "solved": "محلولة",
+        "unsolved": "غير محلولة"
+      }
+    },
+    "title_format": "{title} ({status}){channel_suffix}",
+    "channel_separator": " | ",
+    "include_channel_suffix": true,
+    "include_episode_number": false,
+    "max_title_chars": 100
   }
 }

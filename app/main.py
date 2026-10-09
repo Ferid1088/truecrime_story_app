@@ -297,6 +297,18 @@ def _ensure_columns():
 
 _ensure_columns()
 
+
+def _backfill_case_uids():
+    from app.db.base import SessionLocal
+    from app.identity.titles import backfill_case_uids
+
+    with SessionLocal() as _db:
+        backfill_case_uids(_db)
+
+
+_backfill_case_uids()
+
+
 @asynccontextmanager
 async def _lifespan(_app):
     """At startup, work left "running" by the previous process is marked

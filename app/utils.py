@@ -3,6 +3,12 @@ import hashlib
 from datetime import datetime, timezone
 
 
+def new_case_uid() -> str:
+    """Stable technical identity of a case (never shown to the audience)."""
+    import secrets
+    return "CASE_" + secrets.token_hex(3)
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 

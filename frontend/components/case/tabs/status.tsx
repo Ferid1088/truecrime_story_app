@@ -193,7 +193,7 @@ function SetStatusForm({
       <CardContent className="space-y-3">
         <p className="text-xs leading-5 text-muted-foreground">
           Your decision is recorded in the history with your reason and sources. UNSOLVED and under-review cases
-          are watched by the monitor; an UNSOLVED film shows a status card and an &ldquo;UNSOLVED:&rdquo; YouTube title.
+          are watched by the monitor; an UNSOLVED film shows a status card and an &ldquo;(Unsolved)&rdquo; YouTube title.
         </p>
         <div>
           <label htmlFor={`${ids}-status`} className="mb-1 block text-xs font-medium text-muted-foreground">

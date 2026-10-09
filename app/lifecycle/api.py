@@ -51,6 +51,7 @@ def _loads(text, default):
 
 def resolution_dict(case: Case) -> dict:
     return {
+        "case_uid": case.case_uid,
         "resolution_status": case.resolution_status or "UNKNOWN",
         "resolution_confidence": case.resolution_confidence,
         "resolution_summary": case.resolution_summary,
@@ -326,3 +327,26 @@ def case_audit(case_id: int, db: Session = Depends(get_db)):
         "follow_ups": [F.candidate_dict(db, fu) for fu in db.query(FollowUpCandidate).filter(
             FollowUpCandidate.case_id == case_id)],
     }
+
+
+# ---------------------------------------------------------------------------
+# episode identity (public title, localized status, channel)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/cases/{case_id}/identity")
+def case_identity(case_id: int, db: Session = Depends(get_db)):
+    """Per language: the episode identity (or the title it would get),
+    plus where the resolution status came from."""
+    from app.identity import titles as T
+
+    case = _case(db, case_id)
+    cfg = ai_config.video_identity
+    out = {}
+    for lang in cfg.channels:
+        ident = T.get_identity(db, case.id, lang)
+        out[lang] = (T.identity_dict(ident) if ident else {
+            "language": lang, "channel_id": T.channel(lang)["id"], "case_uid": case.case_uid,
+            "resolution_label": T.status_label(case.resolution_status, lang)})
+        out[lang]["channel"] = T.channel(lang)["name"]
+    return {"case_id": case.id, "case_uid": case.case_uid,
+            "provenance": T.resolution_provenance(db, case), "languages": out}

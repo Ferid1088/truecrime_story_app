@@ -298,7 +298,7 @@ def test_unsolved_case_is_labelled_everywhere(client, db_session):
     case = _case(db_session, "Lifecycle unsolved Rita Haas", location="Celle, Germany")
     set_resolution(db_session, case, "UNSOLVED", changed_by="user", reason="cold case")
     film = _covered(db_session, case)
-    assert film.youtube_title.startswith("UNSOLVED: ")
+    assert film.youtube_title.endswith("(Unsolved) | ClueVera")
     assert "Status: UNSOLVED" in film.youtube_description
     assert film.status_at_publication == "UNSOLVED"
     listed = client.get("/api/cases", params={"resolution": "UNSOLVED"}).json()
@@ -309,7 +309,7 @@ def test_unsolved_case_is_labelled_everywhere(client, db_session):
     solved = client.get("/api/archive", params={"status": "SOLVED"}).json()
     assert not any(c["id"] == case.id for c in solved["cases"])
     de, rule = V.youtube_title(case, "de", "Rita Haas")
-    assert de.startswith("UNGEKLÄRT:") and rule == "unsolved"
+    assert de.endswith("(Ungelöst) | Fallspur") and rule == "identity"
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, DocumentaryJob, FollowUpCandidate, ProductionScript, StoryVersion, Video
+from app.identity.titles import (build_youtube_title, get_identity, mark_published,
+                                 public_status, sync_identity)
 from app.lifecycle.status import SOLVED, UNSOLVED
 from app.utils import utc_now
 
@@ -60,6 +62,9 @@ def youtube_title(case: Case, language: str, title: str, *, production_type: str
     says UNSOLVED — in the title itself, whatever the language."""
     tpl = _templates(language)
     status = status or case.resolution_status
+    if production_type != "follow_up" and public_status(status):
+        # [Editorial Title] ([Localized Status]) | [Channel] — no episode number
+        return build_youtube_title(title, status, language), "identity"
     if production_type == "follow_up":
         rule, text = "follow_up", tpl["follow_up"].format(name=case_name(case), title=title)
     elif status == UNSOLVED:
@@ -107,7 +112,23 @@ def youtube_metadata(db: Session, case: Case, video: Video) -> dict:
             "tags": [t for t in dict.fromkeys(tags) if t]}
 
 
+def _sync_episode_identity(db: Session, case: Case, video: Video) -> None:
+    """Keep the language's EpisodeIdentity in step with the film: an
+    approved editorial title wins over the master story's own title."""
+    if video.production_type == "follow_up" or not public_status(
+            video.status_at_publication or video.status_at_production):
+        return
+    ident = get_identity(db, case.id, video.language)
+    if ident is not None and ident.editorial_title:
+        video.title = ident.editorial_title if not ident.published else ident.published_title
+    sync_identity(db, case, video.language,
+                  title=video.title if not (ident and ident.editorial_title) else None,
+                  episode_sequence=video.episode_number,
+                  status=video.status_at_publication or video.status_at_production)
+
+
 def apply_metadata(db: Session, case: Case, video: Video) -> None:
+    _sync_episode_identity(db, case, video)
     meta = youtube_metadata(db, case, video)
     video.youtube_title = meta["title"][:200]
     video.youtube_description = meta["description"]
@@ -175,6 +196,10 @@ def publish(db: Session, video: Video, *, published_at: datetime | None = None,
     video.published_at = published_at or utc_now()
     video.status_at_publication = case.resolution_status or "UNKNOWN"
     apply_metadata(db, case, video)
+    if video.production_type != "follow_up":
+        ident = get_identity(db, case.id, video.language)
+        if ident is not None and ident.youtube_title:
+            mark_published(db, ident)
     db.commit()
     db.refresh(video)
     return video

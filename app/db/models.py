@@ -1,9 +1,9 @@
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, Float, ForeignKey, Boolean
+from sqlalchemy import String, Text, Integer, Float, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.types import UTCDateTime
-from app.utils import utc_now
+from app.utils import new_case_uid, utc_now
 
 
 class Case(Base):
@@ -12,6 +12,9 @@ class Case(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     canonical_title: Mapped[str] = mapped_column(String(500), index=True)
     slug: Mapped[str] = mapped_column(String(500), unique=True, index=True)
+    # Stable technical identity, independent of any public title.
+    case_uid: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True,
+                                                 default=new_case_uid)
     status: Mapped[str] = mapped_column(String(50), default="new")
     language: Mapped[str] = mapped_column(String(20), default="fa")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1174,3 +1177,36 @@ class HostScene(Base):
     running_since: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class EpisodeIdentity(Base):
+    """The public identity of one case in one channel language: editorial
+    title, localized status and the YouTube title built from them. The
+    episode number is internal (`episode_sequence`) and never part of the
+    default public title. Once published, the title only changes through
+    an explicit revision (`title_version`)."""
+
+    __tablename__ = "episode_identities"
+    __table_args__ = (UniqueConstraint("case_id", "language", name="uq_episode_identity"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    case_uid: Mapped[str | None] = mapped_column(String(20), index=True)
+    episode_sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    channel_id: Mapped[str] = mapped_column(String(40))
+    language: Mapped[str] = mapped_column(String(10))
+    editorial_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    resolution_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    resolution_label: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    youtube_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    title_family_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    thumbnail_title: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    thumbnail_status_label: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    host_outfit_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    host_reference_asset: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    published_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    title_version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)

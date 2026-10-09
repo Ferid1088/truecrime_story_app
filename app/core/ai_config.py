@@ -1642,6 +1642,30 @@ class CaseMonitorConfig(BaseModel):
         "court", "prosecutor", "justice.", "bka.de", "fbi.gov"]
 
 
+class VideoIdentityConfig(BaseModel):
+    """Public identity of an episode: channels, status words and the
+    YouTube title shape — defined once, read everywhere."""
+
+    channels: dict[str, dict[str, str]] = Field(default_factory=lambda: {
+        "en": {"id": "cluevera", "name": "ClueVera"},
+        "de": {"id": "fallspur", "name": "Fallspur"},
+        "fa": {"id": "rad_khamoosh", "name": "رد خاموش"},
+        "ar": {"id": "athar_khafi", "name": "أثر خفي"},
+    })
+    # Public words for the only two statuses shown to the audience.
+    status_labels: dict[str, dict[str, str]] = Field(default_factory=lambda: {
+        "en": {"solved": "Solved", "unsolved": "Unsolved"},
+        "de": {"solved": "Gelöst", "unsolved": "Ungelöst"},
+        "fa": {"solved": "حل\u200cشده", "unsolved": "حل\u200cنشده"},
+        "ar": {"solved": "محلولة", "unsolved": "غير محلولة"},
+    })
+    title_format: str = "{title} ({status}){channel_suffix}"
+    channel_separator: str = " | "
+    include_channel_suffix: bool = True
+    include_episode_number: bool = False
+    max_title_chars: int = Field(default=100, ge=30)
+
+
 class YouTubeMetadataConfig(BaseModel):
     """Deterministic title rules: an unsolved case and a follow-up are
     recognisable from the title alone, in every language."""
@@ -1862,6 +1886,7 @@ class AIConfig(BaseModel):
     case_selection: CaseSelectionConfig = Field(default_factory=CaseSelectionConfig)
     case_monitor: CaseMonitorConfig = Field(default_factory=CaseMonitorConfig)
     youtube_metadata: YouTubeMetadataConfig = Field(default_factory=YouTubeMetadataConfig)
+    video_identity: VideoIdentityConfig = Field(default_factory=VideoIdentityConfig)
     opening: OpeningConfig = Field(default_factory=OpeningConfig)
     visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)
     footage: FootageConfig = Field(default_factory=FootageConfig)

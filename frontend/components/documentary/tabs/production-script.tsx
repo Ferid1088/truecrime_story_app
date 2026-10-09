@@ -114,7 +114,7 @@ function ScriptView({ production }: { production: Production }) {
           {script.case_status === "UNSOLVED" && script.production_type !== "follow_up" && (
             <p className="text-xs leading-5 text-muted-foreground">
               An unsolved case: the film shows the localized &ldquo;UNSOLVED CASE&rdquo; status card in the opening and
-              near the end, and its YouTube title starts with &ldquo;UNSOLVED:&rdquo;.
+              near the end, and its YouTube title carries &ldquo;(Unsolved)&rdquo;.
             </p>
           )}
           {script.production_type === "follow_up" && (
