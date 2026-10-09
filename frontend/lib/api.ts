@@ -44,6 +44,10 @@ import type {
   DocumentaryOverview,
   DocumentaryScheduler,
   DocumentarySettings,
+  HostScene,
+  StudioPatch,
+  StudiosResponse,
+  StudioValidation,
   Fact,
   JobStartResponse,
   LocalizationCompare,
@@ -374,6 +378,17 @@ export const api = {
 
   // Documentary production
   documentarySettings: () => request<DocumentarySettings>("/api/documentary/settings"),
+  studios: () => request<StudiosResponse>("/api/studios"),
+  updateStudio: (language: string, payload: StudioPatch) =>
+    patch<StudiosResponse & { validation: StudioValidation }>(`/api/studios/${language}`, payload),
+  syncStudios: () =>
+    post<{ changed: { id: string }[]; validation: Record<string, StudioValidation> }>(
+      "/api/studios/sync",
+    ),
+  hostScenes: (params: { case_id?: number; language?: string } = {}) =>
+    request<HostScene[]>(`/api/host-scenes${query(params)}`),
+  runHostScene: (id: number, until: "voice" | "avatar") =>
+    post<HostScene>(`/api/host-scenes/${id}/run`, { until }),
   documentaryOverview: (caseId: number, versionId?: number | null) =>
     request<DocumentaryOverview>(
       `/api/cases/${caseId}/documentary${versionId != null ? `?version_id=${versionId}` : ""}`,

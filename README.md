@@ -482,6 +482,69 @@ the spoken versions, and `host:<lang>`, which runs before the
 performance stage. A failed host stage is recorded under
 `result.warnings` and does not stop the film.
 
+### Channel studios and host scenes
+
+One YouTube channel per language, each with its own studio (never shared):
+ClueVera (en), Fallspur (de), أثر خفي (ar), رد خاموش (fa).
+
+- **Where things live.** `config/ai_config.json → channels` holds the channel
+  name, the studio folder and the studio profile id. The voice stays in
+  `voice.languages`, and the avatar env var names stay in `avatar`. Each fact
+  lives in one place; `studio.channel_profile(lang)` assembles them.
+  `config/studio_registry.json` holds every studio image under
+  `data/studio/<lang>/`, with:
+  - a deterministic id such as `STUDIO_DE_02_FRONT_MEDIUM`;
+  - the sha256, size, camera angle and shot size;
+  - whether it is approved for the host;
+  - the safe zones (host, head, logo, lower third), normalized to 0..1.
+
+  The registry also holds one profile per channel: the primary background,
+  `HOST_CLOSE`, `HOST_MEDIUM` and `HOST_WIDE` framing presets, alternate
+  angles, and a review flag that a person confirms in Settings → Channel
+  studios.
+- **No cross-channel fallback.** A channel never resolves another channel's
+  picture: every asset carries its language, and `resolve()` refuses a
+  profile that points elsewhere.
+- **Validation** (shown in Settings):
+  - Errors: no usable host background, missing primary file, invalid zones,
+    a preset on a picture that is not approved or belongs to another
+    channel, no voice configured.
+  - Warnings: no native close shot (`HOST_CLOSE` crops the front shot),
+    background enlarged beyond `studio.max_background_upscale`, review not
+    yet confirmed.
+- **Re-reading the images.** `POST /api/studios/sync` re-reads size and hash
+  from the files. Thumbnails are cached in `data/studio_thumbs/`
+  (git-ignored, keyed by hash).
+
+**Host scenes** (`host_scenes` table, Documentary → Host tab). The host stage
+plans one scene per written segment: the channel's studio, the framing for
+its position (`studio.framing_by_position`), and the text frozen with its
+sha256. After that, each step saves its result before the next one starts:
+
+| Step | Result saved |
+| --- | --- |
+| voice | ElevenLabs audio of exactly that text (mp3 plus a sidecar with the text, voice, model, request id and timing) |
+| avatar_upload | the audio uploaded to HeyGen (asset id) |
+| avatar_request | the job accepted (job id; the request carries an `Idempotency-Key`, so a retried request is never paid twice) |
+| avatar_download | the webm saved atomically, with its sha256 |
+
+A failure records `failed_step` and `last_error`, and the next run continues
+from there. A provider job that fails is requested again with a new key; a
+slow one is polled again, not requested again. `history` lists every
+attempt.
+
+- `POST /api/host-scenes/{id}/run` with `{until: "voice"|"avatar"}` runs or
+  retries a scene in the background.
+- `GET /api/host-scenes?case_id=&language=` lists the scenes.
+
+Avatar videos cost credits and stay off until `avatar.enabled` is true.
+The preferred composition is a transparent avatar (HeyGen v3 `webm` with
+alpha, own audio) over our own studio image, placed by the preset. The
+fallback is `provider_composited`: HeyGen renders the studio image as the
+background (mp4). `TrueCrime_Avatar_ID_Heygen` may name the avatar (a
+group of looks) or one look; the look actually used is stored on the
+scene.
+
 ### Pronunciation check (Persian)
 
 Persian script leaves short vowels unwritten: «ملک» is melk (property),

@@ -469,9 +469,21 @@ class DocumentaryPipeline:
                 if row is None or row.host_plan_id != plan_row.id:
                     row = await HostDirector().write(db, case, version, plan_row)
                 rep = json.loads(row.validation_json or "{}")
+                # the scenes (channel studio + framing, text frozen) are
+                # planned now; voice and avatar run per scene on request
+                from app.documentary.host_scenes import plan_host_scenes
+                from app.documentary.studio import StudioError
+
+                try:
+                    scenes = [s.id for s in plan_host_scenes(db, row)]
+                    scene_error = None
+                except StudioError as e:
+                    scenes, scene_error = [], str(e)
                 return {"host_segments_id": row.id, "status": row.status,
                         "seconds": rep.get("host_seconds"),
-                        "needs_review": rep.get("failed_segments")}
+                        "needs_review": rep.get("failed_segments"),
+                        "host_scene_ids": scenes,
+                        **({"studio_error": scene_error} if scene_error else {})}
 
             await self._optional(f"host:{lang}", host)
             await self._stage(f"performance:{lang}", performance)

@@ -1252,6 +1252,9 @@ export interface DocumentarySettings {
   };
   rights_profiles: Record<string, string[]>;
   dynamic_eq: DynamicEQSettings;
+  channels?: Record<string, { name: string; studio_dir?: string | null; studio_profile?: string | null }>;
+  /** Avatar videos cost provider credits: generated only when enabled in config. */
+  avatar_generation?: { enabled: boolean; output_format: string };
 }
 
 export interface DocumentaryStage {
@@ -1999,4 +2002,131 @@ export interface SpeechStructure {
   version_id: number;
   language: string;
   beats: { beat_id: string; paragraphs: SpeechSentence[][] }[];
+}
+
+// ---------------------------------------------------------------------------
+// Channel studios + host scenes
+// ---------------------------------------------------------------------------
+
+export interface StudioZone {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface StudioAssetView {
+  id: string;
+  language: string;
+  file_name: string;
+  camera: number | null;
+  shot: string;
+  asset_type: string;
+  camera_angle: string;
+  shot_size: string;
+  width: number | null;
+  height: number | null;
+  aspect_ratio: number | null;
+  orientation: string | null;
+  approved_for_host: boolean;
+  approved_for_avatar: boolean;
+  lighting_style: string | null;
+  studio_style: string | null;
+  notes: string | null;
+  safe_zones: { host?: StudioZone; head?: StudioZone; logo?: StudioZone; lower_third?: StudioZone };
+  file_present: boolean;
+  image_url: string;
+}
+
+export interface FramingPreset {
+  asset_id: string;
+  crop?: StudioZone | null;
+  background_blur: number;
+  host_height_ratio: number;
+  host_center_x: number;
+  host_bottom: number;
+  camera_safe: StudioZone;
+  subtitle_safe: StudioZone;
+}
+
+export interface StudioProfile {
+  id: string;
+  language: string;
+  primary_background: string;
+  presets: Record<string, FramingPreset>;
+  alternate_angles: string[];
+  background_mode: string;
+  review: { by?: string | null; confirmed?: boolean; confirmed_by?: string };
+}
+
+export interface StudioValidation {
+  language: string;
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface StudioChannel {
+  language: string;
+  channel_name: string;
+  elevenlabs_voice_id: string | null;
+  studio_profile_id: string;
+  heygen_avatar_env: string;
+  heygen_key_env: string;
+  profile: StudioProfile | null;
+  assets: StudioAssetView[];
+  validation: StudioValidation | null;
+  upscale: Record<string, number | null>;
+}
+
+export interface StudiosResponse {
+  channels: StudioChannel[];
+  presets: string[];
+  background_modes: string[];
+}
+
+export interface StudioPatch {
+  primary_background?: string;
+  presets?: Record<string, string>;
+  confirm?: boolean;
+}
+
+export interface HostScene {
+  id: number;
+  case_id: number;
+  story_version_id: number;
+  host_segments_id: number;
+  host_segment_id: string;
+  language: string;
+  channel: string;
+  position: string | null;
+  beat_id: string | null;
+  text: string;
+  text_sha256: string;
+  studio_profile_id: string;
+  studio_asset_id: string;
+  framing_preset: string;
+  host_position: { center_x?: number; bottom?: number };
+  host_scale: number | null;
+  background_mode: string;
+  planned_start: number | null;
+  planned_duration: number | null;
+  voice_id: string | null;
+  voice_ready: boolean;
+  voice_seconds: number | null;
+  voice_sha256: string | null;
+  avatar_provider: string | null;
+  avatar_id: string | null;
+  provider_job_id: string | null;
+  provider_generation: number;
+  avatar_ready: boolean;
+  avatar_video_sha256: string | null;
+  status: string;
+  failed_step: string | null;
+  last_error: string | null;
+  attempts: Record<string, number>;
+  history: { at: string; step: string; outcome: string; detail?: unknown }[];
+  running: boolean;
+  created_at: string;
+  updated_at: string;
 }

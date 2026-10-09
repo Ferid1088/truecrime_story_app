@@ -136,6 +136,9 @@ def documentary_settings():
         "rights_profiles": ai_config.rights.allowed_for_render,
         "dynamic_eq": _dynamic_eq_settings(),
         "channels": {l: c.model_dump() for l, c in ai_config.channels.items()},
+        # avatar video generation (credits) is off until enabled in config
+        "avatar_generation": {"enabled": ai_config.avatar.enabled,
+                              "output_format": ai_config.avatar.output_format},
         # presence only — never the values
         "credentials": {
             "elevenlabs": bool(os.getenv(ai_config.voice.elevenlabs.secret_env)),

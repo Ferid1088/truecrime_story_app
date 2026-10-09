@@ -1,0 +1,1057 @@
+{
+  "version": 1,
+  "root": "data/studio",
+  "note": "Shot classification, safe zones and presets from a visual review of the images; confirm per channel in Settings → Channel studios.",
+  "assets": [
+    {
+      "id": "STUDIO_EN_01_OVERVIEW_WIDE",
+      "language": "en",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "060831cc27941de167b7863441160cdf8da0c11454f9ec7dad0b3907963a34ce",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "host in the armchair, small; the chair is turned ~20° — check the avatar's angle",
+      "safe_zones": {
+        "host": {
+          "x": 0.27,
+          "y": 0.32,
+          "width": 0.29,
+          "height": 0.53
+        },
+        "head": {
+          "x": 0.35,
+          "y": 0.33,
+          "width": 0.13,
+          "height": 0.13
+        },
+        "logo": {
+          "x": 0.52,
+          "y": 0.25,
+          "width": 0.14,
+          "height": 0.07
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        }
+      }
+    },
+    {
+      "id": "STUDIO_EN_02_FRONT_MEDIUM",
+      "language": "en",
+      "file": "02_front_medium.png",
+      "camera": 2,
+      "shot": "front_medium",
+      "asset_type": "background",
+      "camera_angle": "front_medium",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "f411a8a201de3180672e467f269cb41dd5d2533a20d93453be8266281f198e68",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "primary: armchair centred, clean space around it, logo above",
+      "safe_zones": {
+        "host": {
+          "x": 0.29,
+          "y": 0.24,
+          "width": 0.42,
+          "height": 0.76
+        },
+        "head": {
+          "x": 0.41,
+          "y": 0.25,
+          "width": 0.18,
+          "height": 0.2
+        },
+        "logo": {
+          "x": 0.52,
+          "y": 0.15,
+          "width": 0.16,
+          "height": 0.09
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.74,
+          "width": 0.4,
+          "height": 0.12
+        }
+      }
+    },
+    {
+      "id": "STUDIO_EN_03_CLOSE_UP",
+      "language": "en",
+      "file": "03_close_up.png",
+      "camera": 3,
+      "shot": "close_up",
+      "asset_type": "detail_reference",
+      "camera_angle": "detail",
+      "shot_size": "close",
+      "width": 1672,
+      "height": 941,
+      "sha256": "a68258e1511aa91c79669ee1354c47ba13ed738e7276fd336b4d23b913f78d7b",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "props detail (mug, books, chair arm) — cutaway, no place for the host",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_EN_04_SIDE_THREE_QUARTER",
+      "language": "en",
+      "file": "04_side_three_quarter.png",
+      "camera": 4,
+      "shot": "side_three_quarter",
+      "asset_type": "background",
+      "camera_angle": "three_quarter",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "2d7051444775f16e29e47f348d5a7c0680b23fdac5c798a7e4cd4c2a075af0fa",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "chair turned to the side: a frontal avatar would not match — empty-studio cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_EN_05_WIDE_SIDE",
+      "language": "en",
+      "file": "05_wide_side.png",
+      "camera": 5,
+      "shot": "wide_side",
+      "asset_type": "background",
+      "camera_angle": "side",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "2312000b41d0293a0a095b064632393b0ba8fccf5fa647fa5c4eee1b3c06891e",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "the room from the side — establishing shot / cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_EN_06_OVER_SHOULDER",
+      "language": "en",
+      "file": "06_over_shoulder.png",
+      "camera": 6,
+      "shot": "over_shoulder",
+      "asset_type": "camera_angle",
+      "camera_angle": "over_shoulder",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "fb46977512a313c8ec8221f430fefa408879f3370e1a7577fefdf123e248e606",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "from behind the armchair — reaction / cutaway only",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_EN_07_FLOOR_PLAN",
+      "language": "en",
+      "file": "07_floor_plan.png",
+      "shot": "floor_plan",
+      "asset_type": "design_board",
+      "camera_angle": "overhead",
+      "shot_size": "plan",
+      "width": 1672,
+      "height": 941,
+      "sha256": "e8ee395c71c93ac3b72a53fca89d83a2a7603a5a81d70570c59787d39fccf425",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "dark-wood library, leather armchair, case wall with the ClueVera sign",
+      "notes": "design board with the camera positions — never on screen",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_DE_01_OVERVIEW_WIDE",
+      "language": "de",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "cd87fcf2f4a2692901a456fdf22f2ed68848f229e5ea2672b203ddf51f210c5d",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "host in the armchair, small; the chair is turned ~20° — check the avatar's angle",
+      "safe_zones": {
+        "host": {
+          "x": 0.27,
+          "y": 0.3,
+          "width": 0.29,
+          "height": 0.55
+        },
+        "head": {
+          "x": 0.36,
+          "y": 0.31,
+          "width": 0.12,
+          "height": 0.13
+        },
+        "logo": {
+          "x": 0.52,
+          "y": 0.23,
+          "width": 0.15,
+          "height": 0.09
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        }
+      }
+    },
+    {
+      "id": "STUDIO_DE_02_FRONT_MEDIUM",
+      "language": "de",
+      "file": "02_front_medium.png",
+      "camera": 2,
+      "shot": "front_medium",
+      "asset_type": "background",
+      "camera_angle": "front_medium",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "53312581e96c265a53c080215f08df44e3fa16c88d8188b381ffd95741dbc8e1",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "primary: armchair centred, clean space around it, logo above",
+      "safe_zones": {
+        "host": {
+          "x": 0.33,
+          "y": 0.32,
+          "width": 0.35,
+          "height": 0.68
+        },
+        "head": {
+          "x": 0.42,
+          "y": 0.33,
+          "width": 0.16,
+          "height": 0.19
+        },
+        "logo": {
+          "x": 0.44,
+          "y": 0.22,
+          "width": 0.18,
+          "height": 0.1
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.74,
+          "width": 0.4,
+          "height": 0.12
+        }
+      }
+    },
+    {
+      "id": "STUDIO_DE_03_CLOSE_UP",
+      "language": "de",
+      "file": "03_close_up.png",
+      "camera": 3,
+      "shot": "close_up",
+      "asset_type": "detail_reference",
+      "camera_angle": "detail",
+      "shot_size": "close",
+      "width": 1672,
+      "height": 941,
+      "sha256": "409996b5f19311726fc76e713b4503ddba77412f8ce004c5792278c3bfd3350a",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "props detail (mug, books, chair arm) — cutaway, no place for the host",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_DE_04_SIDE_THREE_QUARTER",
+      "language": "de",
+      "file": "04_side_three_quarter.png",
+      "camera": 4,
+      "shot": "side_three_quarter",
+      "asset_type": "background",
+      "camera_angle": "three_quarter",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "43f0e81478df13da49b077687dd1b3e1072e1c25fa8d95c5a00dd5af2bd91dd3",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "chair turned to the side: a frontal avatar would not match — empty-studio cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_DE_05_WIDE_SIDE",
+      "language": "de",
+      "file": "05_wide_side.png",
+      "camera": 5,
+      "shot": "wide_side",
+      "asset_type": "background",
+      "camera_angle": "side",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "014e49444d767f88103fdd6a6704efff261922d41c5a7eb990752df96f7e4f46",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "the room from the side — establishing shot / cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_DE_06_OVER_SHOULDER",
+      "language": "de",
+      "file": "06_over_shoulder.png",
+      "camera": 6,
+      "shot": "over_shoulder",
+      "asset_type": "camera_angle",
+      "camera_angle": "over_shoulder",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "f6c382127e76ea6732eba5bc89673f76964e1cae1e06a24cf1bfff5104e40109",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "from behind the armchair — reaction / cutaway only",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_DE_07_FLOOR_PLAN",
+      "language": "de",
+      "file": "07_floor_plan.png",
+      "shot": "floor_plan",
+      "asset_type": "design_board",
+      "camera_angle": "overhead",
+      "shot_size": "plan",
+      "width": 1672,
+      "height": 941,
+      "sha256": "63bf72dfb5dab112b876d624c9b354f1cfa0d9f27d68e4e2144f7481bfe85c29",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm low-key, industrial pendant lamps, blue window light",
+      "studio_style": "industrial archive loft, metal shelving, worn leather armchair, case wall with the Fallspur sign",
+      "notes": "design board with the camera positions — never on screen",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_AR_01_OVERVIEW_WIDE",
+      "language": "ar",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "22aaf1c569bd07984381c96e9c65687c8fdd05b1873e02306152a7629309dce1",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "host in the armchair, small; the chair is turned ~20° — check the avatar's angle",
+      "safe_zones": {
+        "host": {
+          "x": 0.34,
+          "y": 0.29,
+          "width": 0.33,
+          "height": 0.55
+        },
+        "head": {
+          "x": 0.44,
+          "y": 0.3,
+          "width": 0.13,
+          "height": 0.14
+        },
+        "logo": {
+          "x": 0.67,
+          "y": 0.18,
+          "width": 0.14,
+          "height": 0.13
+        },
+        "lower_third": {
+          "x": 0.55,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        }
+      }
+    },
+    {
+      "id": "STUDIO_AR_02_FRONT_MEDIUM",
+      "language": "ar",
+      "file": "02_front_medium.png",
+      "camera": 2,
+      "shot": "front_medium",
+      "asset_type": "background",
+      "camera_angle": "front_medium",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "9135b175b233abcb1b82373d2c3e9d1d2905d8d83944246c26e78e2c5c040a1e",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "primary: armchair centred, clean space around it, logo above",
+      "safe_zones": {
+        "host": {
+          "x": 0.31,
+          "y": 0.24,
+          "width": 0.39,
+          "height": 0.76
+        },
+        "head": {
+          "x": 0.42,
+          "y": 0.25,
+          "width": 0.17,
+          "height": 0.21
+        },
+        "logo": {
+          "x": 0.65,
+          "y": 0.17,
+          "width": 0.14,
+          "height": 0.14
+        },
+        "lower_third": {
+          "x": 0.55,
+          "y": 0.74,
+          "width": 0.4,
+          "height": 0.12
+        }
+      }
+    },
+    {
+      "id": "STUDIO_AR_03_CLOSE_UP",
+      "language": "ar",
+      "file": "03_close_up.png",
+      "camera": 3,
+      "shot": "close_up",
+      "asset_type": "detail_reference",
+      "camera_angle": "detail",
+      "shot_size": "close",
+      "width": 1672,
+      "height": 941,
+      "sha256": "55aa72733f679f16f802de60f7159178a52cf49c29a690df7dcc75a670cf612f",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "props detail (mug, books, chair arm) — cutaway, no place for the host",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_AR_04_SIDE_THREE_QUARTER",
+      "language": "ar",
+      "file": "04_side_three_quarter.png",
+      "camera": 4,
+      "shot": "side_three_quarter",
+      "asset_type": "background",
+      "camera_angle": "three_quarter",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "56c1e6edb80f4a4af46891bc4135b88be62170146b92c4d187f12c3915315fca",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "chair turned to the side: a frontal avatar would not match — empty-studio cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_AR_05_WIDE_SIDE",
+      "language": "ar",
+      "file": "05_wide_side.png",
+      "camera": 5,
+      "shot": "wide_side",
+      "asset_type": "background",
+      "camera_angle": "side",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "a8d07aa8d719da9e2287e54f4b01b8bae3e0ddf92b237433efc1b8c1bfae49f6",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "the room from the side — establishing shot / cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_AR_06_OVER_SHOULDER",
+      "language": "ar",
+      "file": "06_over_shoulder.png",
+      "camera": 6,
+      "shot": "over_shoulder",
+      "asset_type": "camera_angle",
+      "camera_angle": "over_shoulder",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "8cd4c348812840eec2a086d3eae55e35b6f7df0d2b4dce53e5c81d7f2fa074b2",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "from behind the armchair — reaction / cutaway only",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_AR_07_FLOOR_PLAN",
+      "language": "ar",
+      "file": "07_floor_plan.png",
+      "shot": "floor_plan",
+      "asset_type": "design_board",
+      "camera_angle": "overhead",
+      "shot_size": "plan",
+      "width": 1672,
+      "height": 941,
+      "sha256": "b2896048e44bc1146d695a4cbf64eb4fcc8885dc763996ab1713aa44885c609d",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "warm lantern light, amber",
+      "studio_style": "arched alcoves, mashrabiya side tables and lanterns, leather armchair, case wall with the أثر خفي sign",
+      "notes": "design board with the camera positions — never on screen",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_FA_01_OVERVIEW_WIDE",
+      "language": "fa",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "b63091fcebd7b0b31f6f89fe8bb3cee2430a8d2338544d07bb2871b056d7db32",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "host in the armchair, small; the chair is turned ~20° — check the avatar's angle",
+      "safe_zones": {
+        "host": {
+          "x": 0.38,
+          "y": 0.36,
+          "width": 0.26,
+          "height": 0.49
+        },
+        "head": {
+          "x": 0.45,
+          "y": 0.37,
+          "width": 0.11,
+          "height": 0.12
+        },
+        "logo": {
+          "x": 0.42,
+          "y": 0.26,
+          "width": 0.16,
+          "height": 0.09
+        },
+        "lower_third": {
+          "x": 0.55,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        }
+      }
+    },
+    {
+      "id": "STUDIO_FA_02_FRONT_MEDIUM",
+      "language": "fa",
+      "file": "02_front_medium.png",
+      "camera": 2,
+      "shot": "front_medium",
+      "asset_type": "background",
+      "camera_angle": "front_medium",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "c3d753446eba2e1f375aba9d9cbc6429380cd1313346fadfac37ffec55faea5d",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "primary: armchair centred, clean space around it, logo above",
+      "safe_zones": {
+        "host": {
+          "x": 0.34,
+          "y": 0.34,
+          "width": 0.32,
+          "height": 0.66
+        },
+        "head": {
+          "x": 0.43,
+          "y": 0.35,
+          "width": 0.14,
+          "height": 0.18
+        },
+        "logo": {
+          "x": 0.4,
+          "y": 0.22,
+          "width": 0.2,
+          "height": 0.11
+        },
+        "lower_third": {
+          "x": 0.55,
+          "y": 0.74,
+          "width": 0.4,
+          "height": 0.12
+        }
+      }
+    },
+    {
+      "id": "STUDIO_FA_03_CLOSE_UP",
+      "language": "fa",
+      "file": "03_close_up.png",
+      "camera": 3,
+      "shot": "close_up",
+      "asset_type": "detail_reference",
+      "camera_angle": "detail",
+      "shot_size": "close",
+      "width": 1672,
+      "height": 941,
+      "sha256": "80e21ac7cf051b7f7e091ced6e1e43bf5c6e9a5118cc2fbfadae63834658ecdc",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "props detail (mug, books, chair arm) — cutaway, no place for the host",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_FA_04_SIDE_THREE_QUARTER",
+      "language": "fa",
+      "file": "04_side_three_quarter.png",
+      "camera": 4,
+      "shot": "side_three_quarter",
+      "asset_type": "background",
+      "camera_angle": "three_quarter",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "b2a31bb127a1ac6745bef8cd0a53668b1e3f4d47b66203c1cf45549f930ad1bf",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "chair turned to the side: a frontal avatar would not match — empty-studio cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_FA_05_WIDE_SIDE",
+      "language": "fa",
+      "file": "05_wide_side.png",
+      "camera": 5,
+      "shot": "wide_side",
+      "asset_type": "background",
+      "camera_angle": "side",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "0fbb3e008f6b41f79cce7032fc13f162d548fb91f42e97f7fbd6a132334d5ab8",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "the room from the side — establishing shot / cutaway",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_FA_06_OVER_SHOULDER",
+      "language": "fa",
+      "file": "06_over_shoulder.png",
+      "camera": 6,
+      "shot": "over_shoulder",
+      "asset_type": "camera_angle",
+      "camera_angle": "over_shoulder",
+      "shot_size": "medium",
+      "width": 1672,
+      "height": 941,
+      "sha256": "51dcae87872a35dd144475ecbcb81599de9d536c5eabd039c49f356a2ca5b5c6",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "from behind the armchair — reaction / cutaway only",
+      "safe_zones": {}
+    },
+    {
+      "id": "STUDIO_FA_07_FLOOR_PLAN",
+      "language": "fa",
+      "file": "07_floor_plan.png",
+      "shot": "floor_plan",
+      "asset_type": "design_board",
+      "camera_angle": "overhead",
+      "shot_size": "plan",
+      "width": 1672,
+      "height": 941,
+      "sha256": "d467d358bf47d7140c2449f089561c454cf0b1416e6e93d55b98d095a82083cf",
+      "approved_for_host": false,
+      "approved_for_avatar": false,
+      "lighting_style": "candle-warm amber, night city through the window",
+      "studio_style": "Persian arches and calligraphy, burgundy velvet armchair, tea set, case wall with the رد خاموش sign",
+      "notes": "design board with the camera positions — never on screen",
+      "safe_zones": {}
+    }
+  ],
+  "profiles": {
+    "en": {
+      "id": "STUDIO_EN",
+      "language": "en",
+      "primary_background": "STUDIO_EN_02_FRONT_MEDIUM",
+      "presets": {
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_EN_02_FRONT_MEDIUM",
+          "crop": {
+            "x": 0.14,
+            "y": 0.08,
+            "width": 0.72,
+            "height": 0.72
+          },
+          "background_blur": 0.35,
+          "host_height_ratio": 1.1,
+          "host_center_x": 0.5,
+          "host_bottom": 1.08,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_EN_02_FRONT_MEDIUM",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.76,
+          "host_center_x": 0.5,
+          "host_bottom": 1.0,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_EN_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.52,
+          "host_center_x": 0.41,
+          "host_bottom": 0.84,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [
+        "STUDIO_EN_04_SIDE_THREE_QUARTER",
+        "STUDIO_EN_05_WIDE_SIDE",
+        "STUDIO_EN_06_OVER_SHOULDER"
+      ],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "de": {
+      "id": "STUDIO_DE",
+      "language": "de",
+      "primary_background": "STUDIO_DE_02_FRONT_MEDIUM",
+      "presets": {
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_DE_02_FRONT_MEDIUM",
+          "crop": {
+            "x": 0.14,
+            "y": 0.14,
+            "width": 0.72,
+            "height": 0.72
+          },
+          "background_blur": 0.35,
+          "host_height_ratio": 1.1,
+          "host_center_x": 0.5,
+          "host_bottom": 1.08,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_DE_02_FRONT_MEDIUM",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.68,
+          "host_center_x": 0.505,
+          "host_bottom": 1.0,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_DE_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.54,
+          "host_center_x": 0.415,
+          "host_bottom": 0.85,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [
+        "STUDIO_DE_04_SIDE_THREE_QUARTER",
+        "STUDIO_DE_05_WIDE_SIDE",
+        "STUDIO_DE_06_OVER_SHOULDER"
+      ],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "ar": {
+      "id": "STUDIO_AR",
+      "language": "ar",
+      "primary_background": "STUDIO_AR_02_FRONT_MEDIUM",
+      "presets": {
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_AR_02_FRONT_MEDIUM",
+          "crop": {
+            "x": 0.14,
+            "y": 0.1,
+            "width": 0.72,
+            "height": 0.72
+          },
+          "background_blur": 0.35,
+          "host_height_ratio": 1.1,
+          "host_center_x": 0.5,
+          "host_bottom": 1.08,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_AR_02_FRONT_MEDIUM",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.76,
+          "host_center_x": 0.505,
+          "host_bottom": 1.0,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_AR_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.55,
+          "host_center_x": 0.505,
+          "host_bottom": 0.84,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [
+        "STUDIO_AR_04_SIDE_THREE_QUARTER",
+        "STUDIO_AR_05_WIDE_SIDE",
+        "STUDIO_AR_06_OVER_SHOULDER"
+      ],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "fa": {
+      "id": "STUDIO_FA",
+      "language": "fa",
+      "primary_background": "STUDIO_FA_02_FRONT_MEDIUM",
+      "presets": {
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_FA_02_FRONT_MEDIUM",
+          "crop": {
+            "x": 0.14,
+            "y": 0.16,
+            "width": 0.72,
+            "height": 0.72
+          },
+          "background_blur": 0.35,
+          "host_height_ratio": 1.1,
+          "host_center_x": 0.5,
+          "host_bottom": 1.08,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_FA_02_FRONT_MEDIUM",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.66,
+          "host_center_x": 0.505,
+          "host_bottom": 1.0,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_FA_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.47,
+          "host_center_x": 0.51,
+          "host_bottom": 0.85,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [
+        "STUDIO_FA_04_SIDE_THREE_QUARTER",
+        "STUDIO_FA_05_WIDE_SIDE",
+        "STUDIO_FA_06_OVER_SHOULDER"
+      ],
+      "background_mode": "transparent_avatar_over_studio",
+      "review": {
+        "by": "visual review (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    }
+  }
+}

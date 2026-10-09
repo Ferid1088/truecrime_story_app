@@ -1063,3 +1063,67 @@ class HostMemory(Base):
     host_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class HostScene(Base):
+    """One host segment on its way to the screen, step by step. Each step's
+    result is saved before the next step starts, so a failure (ElevenLabs,
+    HeyGen) is retried from where it stopped — the text, the voice and an
+    accepted provider job are never produced twice.
+
+    status: planned → voice_ready → avatar_uploaded → avatar_requested →
+    avatar_ready (→ composited, timeline insertion). failed_step/last_error
+    describe the last failure; the status stays at the last good step.
+    history_json: every attempt of every step ({at, step, outcome, detail})."""
+
+    __tablename__ = "host_scenes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(Integer, index=True)
+    host_segments_id: Mapped[int] = mapped_column(Integer, index=True)
+    host_segment_id: Mapped[str] = mapped_column(String(20))      # S1, S2 …
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    channel: Mapped[str] = mapped_column(String(100))
+    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    beat_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # the words — frozen when the scene is planned (sha256 ties every
+    # later artifact to exactly this text)
+    text: Mapped[str] = mapped_column(Text, default="")
+    text_sha256: Mapped[str] = mapped_column(String(64), default="")
+    # studio and framing
+    studio_profile_id: Mapped[str] = mapped_column(String(50))
+    studio_asset_id: Mapped[str] = mapped_column(String(80))
+    framing_preset: Mapped[str] = mapped_column(String(20))
+    host_position_json: Mapped[str] = mapped_column(Text, default="{}")
+    host_scale: Mapped[float | None] = mapped_column(Float, nullable=True)
+    background_mode: Mapped[str] = mapped_column(String(40),
+                                                 default="transparent_avatar_over_studio")
+    planned_start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    planned_duration: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # voice step
+    voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    voice_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    voice_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    voice_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    voice_meta_json: Mapped[str] = mapped_column(Text, default="{}")
+    # avatar steps
+    avatar_provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    avatar_id: Mapped[str | None] = mapped_column(String(100), nullable=True)   # look used
+    provider_asset_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    provider_asset_voice_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    provider_job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    provider_job_voice_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    provider_generation: Mapped[int] = mapped_column(Integer, default=0)
+    avatar_video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    avatar_video_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    avatar_meta_json: Mapped[str] = mapped_column(Text, default="{}")
+    # bookkeeping
+    status: Mapped[str] = mapped_column(String(30), default="planned", index=True)
+    failed_step: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts_json: Mapped[str] = mapped_column(Text, default="{}")
+    history_json: Mapped[str] = mapped_column(Text, default="[]")
+    running_since: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

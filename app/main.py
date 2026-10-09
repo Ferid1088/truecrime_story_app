@@ -287,8 +287,8 @@ def _ensure_columns():
                 conn.execute(text("DROP TABLE documentary_jobs_old"))
         # Case lifecycle + media library columns: added from the models
         # (new nullable / defaulted columns only).
-        from app.db.models import DiscoveryCandidate as _DC, VisualAsset as _VA
-        for model in (Case, _DC, _VA):
+        from app.db.models import DiscoveryCandidate as _DC, HostScene as _HS, VisualAsset as _VA
+        for model in (Case, _DC, _VA, _HS):
             _add_model_columns(conn, model)
         conn.commit()
 
@@ -317,9 +317,11 @@ app = FastAPI(
 
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router, resolution_dict  # noqa: E402
+from app.documentary.studio_api import router as studio_router  # noqa: E402
 
 app.include_router(documentary_router)
 app.include_router(lifecycle_router)
+app.include_router(studio_router)
 
 
 app.add_middleware(

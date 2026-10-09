@@ -969,21 +969,60 @@ class ChannelConfig(BaseModel):
 
     name: str
     studio_dir: str | None = None  # repository-relative folder
+    # The channel's studio profile in config/studio_registry.json
+    # (default STUDIO_<LANG>). The voice stays in voice.languages — one
+    # place per fact (see app/documentary/studio.channel_profile).
+    studio_profile: str | None = None
+    # Env var NAMES for this channel's avatar (default: the avatar section's).
+    avatar_id_env: str | None = None
+    avatar_key_env: str | None = None
+
+    def profile_id(self, language: str) -> str:
+        return self.studio_profile or f"STUDIO_{language.upper()}"
 
 
 class AvatarConfig(BaseModel):
     """The on-screen host's avatar. Only the env-var NAMES live here; the
-    key and the avatar id are read from .env."""
+    key and the avatar id are read from .env. The id may name an avatar
+    (a group of looks) or one look; a group resolves to its first look
+    (HostScene.avatar_id records the look actually used)."""
 
     provider: str = "heygen"
     secret_env: str = "HEYGEN_API_KEY"
     avatar_id_env: str = "TrueCrime_Avatar_ID_Heygen"
+    # Avatar videos cost provider credits: generated only when enabled
+    # (voice and planning work without it).
+    enabled: bool = False
+    base_url: str = "https://api.heygen.com"
+    # transparent avatar over our own studio (webm with alpha), else the
+    # provider composites the studio image itself (mp4)
+    output_format: str = "webm"
+    resolution: str = "1080p"
+    request_timeout_s: float = Field(default=120.0, gt=0)
+    poll_interval_s: float = Field(default=10.0, gt=0)
+    max_poll_minutes: float = Field(default=20.0, gt=0)
 
     def configured(self) -> dict[str, bool]:
         import os
 
         return {"key_present": bool(os.getenv(self.secret_env)),
                 "avatar_id_present": bool(os.getenv(self.avatar_id_env))}
+
+
+class StudioConfig(BaseModel):
+    """Channel studios: the registry (assets, safe zones, framing presets
+    per channel) lives in config/studio_registry.json; the images stay in
+    data/studio/<lang>/."""
+
+    registry_path: str = "config/studio_registry.json"
+    thumbs_dir: str = "data/studio_thumbs"
+    thumb_width: int = Field(default=640, ge=64)
+    # a framing preset that enlarges its background more than this is
+    # flagged (the studio images are 1672x941; the film is 1920x1080)
+    max_background_upscale: float = Field(default=1.6, ge=1.0)
+    # which framing a host segment gets by where it sits in the film
+    framing_by_position: dict[str, str] = Field(default_factory=lambda: {
+        "opening": "HOST_MEDIUM", "mid": "HOST_CLOSE", "final": "HOST_WIDE"})
 
 
 class HostConfig(BaseModel):
@@ -1688,6 +1727,7 @@ class AIConfig(BaseModel):
     host: HostConfig = Field(default_factory=HostConfig)
     channels: dict[str, ChannelConfig] = {}
     avatar: AvatarConfig = Field(default_factory=AvatarConfig)
+    studio: StudioConfig = Field(default_factory=StudioConfig)
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)

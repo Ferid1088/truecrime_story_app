@@ -30,3 +30,6 @@ tc_transfer/
 
 # macOS folder metadata
 .DS_Store
+
+# studio previews (generated from data/studio, keyed by image hash)
+data/studio_thumbs/

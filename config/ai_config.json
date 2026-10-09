@@ -1732,15 +1732,38 @@
     "max_repair_iterations": 2
   },
   "channels": {
-    "en": {"name": "ClueVera", "studio_dir": "data/studio/en"},
-    "de": {"name": "Fallspur", "studio_dir": "data/studio/de"},
-    "fa": {"name": "رد خاموش", "studio_dir": "data/studio/fa"},
-    "ar": {"name": "أثر خفي", "studio_dir": "data/studio/ar"}
+    "en": {
+      "name": "ClueVera",
+      "studio_dir": "data/studio/en",
+      "studio_profile": "STUDIO_EN"
+    },
+    "de": {
+      "name": "Fallspur",
+      "studio_dir": "data/studio/de",
+      "studio_profile": "STUDIO_DE"
+    },
+    "fa": {
+      "name": "رد خاموش",
+      "studio_dir": "data/studio/fa",
+      "studio_profile": "STUDIO_FA"
+    },
+    "ar": {
+      "name": "أثر خفي",
+      "studio_dir": "data/studio/ar",
+      "studio_profile": "STUDIO_AR"
+    }
   },
   "avatar": {
     "provider": "heygen",
     "secret_env": "HEYGEN_API_KEY",
-    "avatar_id_env": "TrueCrime_Avatar_ID_Heygen"
+    "avatar_id_env": "TrueCrime_Avatar_ID_Heygen",
+    "enabled": false,
+    "base_url": "https://api.heygen.com",
+    "output_format": "webm",
+    "resolution": "1080p",
+    "request_timeout_s": 120.0,
+    "poll_interval_s": 10.0,
+    "max_poll_minutes": 20.0
   },
   "dynamic_eq": {
     "enabled": true,
@@ -1800,5 +1823,16 @@
     },
     "baseline_floor_db": -20.0,
     "threshold_ceiling_db": 10.0
+  },
+  "studio": {
+    "registry_path": "config/studio_registry.json",
+    "thumbs_dir": "data/studio_thumbs",
+    "thumb_width": 640,
+    "max_background_upscale": 1.6,
+    "framing_by_position": {
+      "opening": "HOST_MEDIUM",
+      "mid": "HOST_CLOSE",
+      "final": "HOST_WIDE"
+    }
   }
 }
