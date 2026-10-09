@@ -33,6 +33,8 @@ import type {
   ResearchProviderStatus,
   SearchEngineStatus,
   DiscoveryRequest,
+  DynamicEQSettings,
+  EQPreviewResponse,
   DocumentaryBatch,
   DocumentaryBatchRequest,
   DocumentaryBatchStart,
@@ -67,6 +69,7 @@ import type {
   VisualFilters,
   VisualUpdate,
   VisualUpload,
+  VoiceDynamics,
   VoiceManifest,
   VoicePerformance,
 } from "./types";
@@ -397,6 +400,35 @@ export const api = {
   musicLibrary: () => request<MusicTrack[]>("/api/documentary/music"),
   storyVoice: (caseId: number, versionId: number) =>
     request<VoiceManifest>(`/api/cases/${caseId}/stories/${versionId}/voice`),
+  voiceDynamics: (caseId: number, versionId: number) =>
+    request<VoiceDynamics>(`/api/cases/${caseId}/stories/${versionId}/voice/dynamics`),
+  eqPreview: (
+    caseId: number,
+    versionId: number,
+    payload: {
+      enabled?: boolean;
+      strength?: number;
+      max_atten_db?: number;
+      deesser_enabled?: boolean;
+      deesser_strength?: number;
+      seconds?: number;
+    },
+  ) =>
+    post<EQPreviewResponse>(
+      `/api/cases/${caseId}/stories/${versionId}/voice/eq-preview`,
+      payload,
+    ),
+  updateDynamicEq: (payload: {
+    enabled?: boolean;
+    strength?: number;
+    max_atten_db?: number;
+    deesser_enabled?: boolean;
+    deesser_strength?: number;
+  }) =>
+    request<{ dynamic_eq: DynamicEQSettings; note: string }>(
+      "/api/documentary/settings/dynamic-eq",
+      { method: "PATCH", body: JSON.stringify(payload) },
+    ),
   voicePerformance: (versionId: number) =>
     request<VoicePerformance>(`/api/documentary/versions/${versionId}/voice-performance`),
   // Directs every requested sentence with the model (a whole film is many

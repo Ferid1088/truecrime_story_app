@@ -110,3 +110,15 @@ class VoiceRenderRequest(BaseModel):
     # Mix music beds, bridges, stings and room tone when the story has an
     # audio plan (directed performance).
     with_music: bool = True
+
+
+class DynamicEQPreviewRequest(BaseModel):
+    """Overrides for a pre-rendered dynamic-EQ preview; any field left
+    out keeps the configured value. Nothing is persisted."""
+    enabled: bool | None = None
+    strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_atten_db: float | None = Field(default=None, ge=0.0, le=24.0)
+    deesser_enabled: bool | None = None
+    deesser_strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Seconds of narration to process (from the top).
+    seconds: float = Field(default=60.0, gt=1.0, le=600.0)

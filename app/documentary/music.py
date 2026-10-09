@@ -687,7 +687,11 @@ class DocumentaryMixer:
 
     async def mix(self, manifest: dict, script: dict, out_dir: Path,
                   db: Session | None = None) -> dict:
-        narration = out_dir / "narration.wav"
+        # The dynamic EQ's output when it exists — same length, so every
+        # placement on the narration timeline still lands exactly.
+        narration = out_dir / "narration_enhanced.wav"
+        if not narration.exists():
+            narration = out_dir / "narration.wav"
         chosen = await self.assign_tracks(manifest, script, db)
         resolved = chosen["placements"]
 

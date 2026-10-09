@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useRef, useState } from "react";
+import { ChevronDown, ChevronRight, FlaskConical } from "lucide-react";
 import { api, apiFileUrl, nullIfNotFound } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatTimecode, humanize, isRtl, langLabel } from "@/lib/format";
-import type { BlockPronunciation, PronunciationFixKind, VoiceManifest, VoiceManifestBlock } from "@/lib/types";
+import type {
+  BlockPronunciation,
+  DocumentarySettings,
+  PronunciationFixKind,
+  VoiceDynamics,
+  VoiceManifest,
+  VoiceManifestBlock,
+} from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -119,6 +126,7 @@ export function VoiceTab({ caseId, settings, overview, refreshKey, language, onL
           versionId={versionId}
           refreshKey={refreshKey}
           pronunciationChecked={pronChecked(language)}
+          settings={settings}
         />
       )}
     </div>
@@ -130,11 +138,13 @@ function Narration({
   versionId,
   refreshKey,
   pronunciationChecked,
+  settings,
 }: {
   caseId: number;
   versionId: number;
   refreshKey: number;
   pronunciationChecked: boolean;
+  settings: DocumentarySettings;
 }) {
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const { data, error, loading, refetch } = useApi(
@@ -247,6 +257,13 @@ function Narration({
           )}
         </CardContent>
       </Card>
+
+      <PolishCard
+        caseId={caseId}
+        versionId={versionId}
+        manifest={manifest}
+        settings={settings}
+      />
 
       <Card>
         <CardHeader>
@@ -537,5 +554,337 @@ function PronunciationBlock({ block, language }: { block: VoiceManifestBlock; la
         </Table>
       )}
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic EQ (post-TTS polish): A/B compare, controls, preview, GR curve
+// ---------------------------------------------------------------------------
+
+const EQ_BAND_COLORS = ["#f59e0b", "#e11d48", "#38bdf8", "#a78bfa"];
+
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  disabled?: boolean;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-mono tabular-nums">
+          {value.toFixed(step < 1 ? 1 : 0)} {unit}
+        </span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-primary"
+      />
+    </label>
+  );
+}
+
+/** Gain reduction over time — one polyline per detector. */
+function GainCurve({ dynamics }: { dynamics: VoiceDynamics }) {
+  const series = [
+    ...dynamics.bands.map((b, i) => ({ ...b, color: EQ_BAND_COLORS[i % EQ_BAND_COLORS.length] })),
+    ...(dynamics.deesser
+      ? [{ ...dynamics.deesser, color: EQ_BAND_COLORS[3] }]
+      : []),
+  ].filter((s) => s.curve.length > 1);
+  if (series.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No gain reduction was applied anywhere — nothing crossed the adaptive
+        thresholds.
+      </p>
+    );
+  }
+  const W = 720;
+  const H = 110;
+  const PAD = 4;
+  const tMax = Math.max(...series.flatMap((s) => s.curve.map((c) => c.t)));
+  const gMax = Math.max(1, ...series.map((s) => s.max_gr_db ?? 0));
+  const x = (t: number) => PAD + (t / tMax) * (W - 2 * PAD);
+  const y = (g: number) => H - PAD - (g / gMax) * (H - 2 * PAD);
+  return (
+    <div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-28 w-full rounded border border-border bg-muted/30"
+        role="img"
+        aria-label="Gain reduction over time"
+      >
+        {[0.25, 0.5, 0.75].map((f) => (
+          <line
+            key={f}
+            x1={PAD}
+            x2={W - PAD}
+            y1={y(f * gMax)}
+            y2={y(f * gMax)}
+            className="stroke-border"
+            strokeDasharray="3 4"
+            strokeWidth={0.5}
+          />
+        ))}
+        {series.map((s) => (
+          <polyline
+            key={s.name}
+            fill="none"
+            stroke={s.color}
+            strokeWidth={1.5}
+            points={s.curve.map((c) => `${x(c.t).toFixed(1)},${y(c.gr_db).toFixed(1)}`).join(" ")}
+          />
+        ))}
+      </svg>
+      <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+        {series.map((s) => (
+          <span key={s.name} className="inline-flex items-center gap-1">
+            <span className="inline-block size-2 rounded-full" style={{ background: s.color }} />
+            {s.name === "deesser" ? "de-esser" : `${Math.round(s.center_hz)} Hz`} · max{" "}
+            {(s.max_gr_db ?? 0).toFixed(1)} dB
+          </span>
+        ))}
+        <span className="ml-auto">0 – {formatTimecode(tMax)} · {gMax.toFixed(0)} dB scale</span>
+      </div>
+    </div>
+  );
+}
+
+function PolishCard({
+  caseId,
+  versionId,
+  manifest,
+  settings,
+}: {
+  caseId: number;
+  versionId: number;
+  manifest: VoiceManifest;
+  settings: DocumentarySettings;
+}) {
+  const eq = manifest.dynamic_eq;
+  const cfg = settings.dynamic_eq;
+  const [enabled, setEnabled] = useState(cfg.enabled);
+  const [strength, setStrength] = useState(cfg.strength);
+  const [maxAtten, setMaxAtten] = useState(
+    Math.max(0, ...cfg.bands.map((b) => b.max_atten_db)),
+  );
+  const [deesserEnabled, setDeesserEnabled] = useState(cfg.deesser.enabled);
+  const [deesserStrength, setDeesserStrength] = useState(cfg.deesser.strength);
+  const [side, setSide] = useState<"original" | "enhanced">("enhanced");
+  const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const resumeAt = useRef(0);
+
+  const { data: dynamics } = useApi(
+    () => nullIfNotFound(api.voiceDynamics(caseId, versionId)),
+    [caseId, versionId],
+    { keepPrevious: true },
+  );
+
+  // Resync the control state when the saved settings change (e.g. after
+  // a PATCH refetch) — render-time reset per
+  // react.dev/learn/you-might-not-need-an-effect.
+  const [prevCfg, setPrevCfg] = useState(cfg);
+  if (cfg !== prevCfg) {
+    setPrevCfg(cfg);
+    setEnabled(cfg.enabled);
+    setStrength(cfg.strength);
+    setMaxAtten(Math.max(0, ...cfg.bands.map((b) => b.max_atten_db)));
+    setDeesserEnabled(cfg.deesser.enabled);
+    setDeesserStrength(cfg.deesser.strength);
+  }
+
+  const applied = !!eq?.applied;
+  const originalUrl = apiFileUrl(
+    `/api/cases/${caseId}/stories/${versionId}/voice/narration_original.mp3`,
+  );
+  const enhancedUrl = apiFileUrl(
+    `/api/cases/${caseId}/stories/${versionId}/voice/narration.mp3`,
+  );
+
+  const switchSide = (next: "original" | "enhanced") => {
+    resumeAt.current = audioRef.current?.currentTime ?? 0;
+    setSide(next);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setActionError(null);
+    try {
+      const r = await api.updateDynamicEq({
+        enabled,
+        strength,
+        max_atten_db: maxAtten,
+        deesser_enabled: deesserEnabled,
+        deesser_strength: deesserStrength,
+      });
+      setNotice(r.note);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const preview = async () => {
+    setPreviewing(true);
+    setActionError(null);
+    try {
+      const r = await api.eqPreview(caseId, versionId, {
+        enabled,
+        strength,
+        max_atten_db: maxAtten,
+        deesser_enabled: deesserEnabled,
+        deesser_strength: deesserStrength,
+        seconds: 60,
+      });
+      setPreviewUrl(apiFileUrl(r.mp3_url));
+      setNotice(
+        `Preview of the first ${r.report.preview_seconds.toFixed(0)} s — ` +
+          `${r.report.active_seconds_reduced.toFixed(1)} s with gain reduction.`,
+      );
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Polish · dynamic EQ</CardTitle>
+        <span className="text-xs text-muted-foreground">
+          cuts harsh bands only while they flare — quiet, natural speech is untouched
+        </span>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {eq?.error && (
+          <InlineAlert tone="warning">
+            Processing failed — the original narration was kept: {eq.error}
+          </InlineAlert>
+        )}
+        {applied ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Metric label="Time reduced" value={`${(eq.active_seconds_reduced ?? 0).toFixed(1)} s`} />
+              {(eq.bands ?? []).map((b) => (
+                <Metric
+                  key={b.name}
+                  label={`${Math.round(b.center_hz)} Hz band`}
+                  value={`−${(b.max_gr_db ?? 0).toFixed(1)} dB`}
+                />
+              ))}
+              {eq.deesser && (
+                <Metric label="De-esser" value={`−${(eq.deesser.max_gr_db ?? 0).toFixed(1)} dB`} />
+              )}
+            </div>
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <div role="group" aria-label="Original or enhanced" className="inline-flex gap-1 rounded-md border border-border p-0.5">
+                  {(["original", "enhanced"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => switchSide(s)}
+                      className={`rounded px-2.5 py-1 text-xs capitalize ${
+                        side === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  A/B comparison — same position when you switch
+                </span>
+              </div>
+              <audio
+                ref={audioRef}
+                controls
+                preload="none"
+                key={side}
+                src={side === "enhanced" ? enhancedUrl : originalUrl}
+                onLoadedMetadata={(e) => {
+                  e.currentTarget.currentTime = resumeAt.current;
+                }}
+                className="w-full"
+              />
+            </div>
+            {dynamics && <GainCurve dynamics={dynamics} />}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {eq?.enabled === false
+              ? "Dynamic EQ is disabled — this narration is the unprocessed original."
+              : "No enhanced version for this narration yet — render the voice stage again to process it."}
+          </p>
+        )}
+
+        <div className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+          <div className="flex items-center gap-4">
+            <Checkbox label="Dynamic EQ enabled" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            <Checkbox label="De-esser" checked={deesserEnabled} onChange={(e) => setDeesserEnabled(e.target.checked)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 sm:col-span-2">
+            <Slider label="Harshness reduction" value={strength} min={0} max={1} step={0.05} unit="×" disabled={!enabled} onChange={setStrength} />
+            <Slider label="Max attenuation" value={maxAtten} min={0} max={12} step={0.5} unit="dB" disabled={!enabled} onChange={setMaxAtten} />
+            <Slider label="De-esser strength" value={deesserStrength} min={0} max={1} step={0.05} unit="×" disabled={!enabled || !deesserEnabled} onChange={setDeesserStrength} />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save settings"}
+          </button>
+          <button
+            type="button"
+            onClick={preview}
+            disabled={previewing || !enabled}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+          >
+            <FlaskConical className="size-3.5" />
+            {previewing ? "Processing 60 s…" : "Preview 60 s"}
+          </button>
+          {notice && <span className="text-[11px] text-muted-foreground">{notice}</span>}
+          {actionError && <span className="text-[11px] text-rose-600 dark:text-rose-400">{actionError}</span>}
+        </div>
+        {previewUrl && (
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">Preview (processed with the controls above)</p>
+            <audio controls preload="none" src={previewUrl} className="w-full" />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

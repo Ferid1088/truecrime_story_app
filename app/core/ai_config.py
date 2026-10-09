@@ -798,6 +798,124 @@ class LoudnessConfig(BaseModel):
     sample_rate: int = Field(default=44100, ge=8000)
 
 
+class DynamicEQBandConfig(BaseModel):
+    """One harshness band: cut it only while it is brighter than this
+    recording's own baseline + threshold_offset — never a static EQ."""
+    name: str
+    center_hz: float = Field(gt=0)
+    bandwidth_hz: float = Field(gt=0)
+    # Detection: band level must exceed baseline + this offset (dB)
+    # before anything is reduced. The baseline is calibrated per file.
+    threshold_offset_db: float = Field(default=12.0, ge=0.0, le=40.0)
+    max_atten_db: float = Field(default=6.0, ge=0.0, le=24.0)
+    # Share of the detected excess that is removed (0.5 = halve it).
+    ratio: float = Field(default=0.5, gt=0.0, le=1.0)
+    # Per-band envelope override; None uses the section defaults.
+    attack_ms: float | None = Field(default=None, gt=0.0, le=500.0)
+    release_ms: float | None = Field(default=None, gt=0.0, le=2000.0)
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class DeEsserConfig(BaseModel):
+    """Independent dynamic de-esser for excessive sibilance."""
+    enabled: bool = True
+    center_hz: float = Field(default=6500.0, gt=0)
+    bandwidth_hz: float = Field(default=4500.0, gt=0)
+    threshold_offset_db: float = Field(default=14.0, ge=0.0, le=40.0)
+    max_atten_db: float = Field(default=8.0, ge=0.0, le=24.0)
+    ratio: float = Field(default=0.5, gt=0.0, le=1.0)
+    attack_ms: float = Field(default=5.0, gt=0.0, le=500.0)
+    release_ms: float = Field(default=60.0, gt=0.0, le=2000.0)
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class DynamicEQLanguageOverride(BaseModel):
+    """Per-language nudges (deltas), not separate presets: the adaptive
+    baseline already accounts for each voice and language."""
+    strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Shift every harsh band's threshold (negative = more sensitive).
+    threshold_offset_delta_db: float | None = Field(default=None, ge=-20, le=20)
+    max_atten_delta_db: float | None = Field(default=None, ge=-24, le=24)
+    deesser_strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    deesser_threshold_offset_delta_db: float | None = Field(
+        default=None, ge=-20, le=20)
+
+
+class DynamicEQConfig(BaseModel):
+    """Post-TTS dynamic EQ + de-esser (app/documentary/dynamic_eq.py)."""
+    enabled: bool = True
+    frame_ms: float = Field(default=20.0, gt=2.0, le=100.0)
+    hop_ms: float = Field(default=5.0, gt=1.0, le=50.0)
+    # Frames below this reference level are silence — never measured.
+    gate_dbfs: float = Field(default=-55.0, ge=-120.0, le=0.0)
+    # Speech-body reference the harsh bands are compared against.
+    reference_band_hz: tuple[float, float] = (300.0, 2500.0)
+    # Adaptive baseline: this percentile of the band-vs-reference excess
+    # over active frames is "this voice's normal".
+    baseline_percentile: float = Field(default=85.0, ge=1.0, le=99.0)
+    # The baseline can never drop below this excess (dB): a voice whose
+    # harsh band is basically silent must not get a hair-trigger
+    # threshold that treats every mild consonant as a defect.
+    baseline_floor_db: float = Field(default=-20.0, ge=-120.0, le=0.0)
+    # …and the adaptive threshold can never rise above this absolute
+    # excess (dB): a sustained resonance severe enough to become its own
+    # baseline is still treated as harsh.
+    threshold_ceiling_db: float = Field(default=10.0, ge=-20.0, le=30.0)
+    attack_ms: float = Field(default=10.0, gt=0.0, le=500.0)
+    release_ms: float = Field(default=120.0, gt=0.0, le=2000.0)
+    # Global harshness-reduction strength (UI): scales every band.
+    strength: float = Field(default=1.0, ge=0.0, le=1.0)
+    bands: list[DynamicEQBandConfig] = Field(default_factory=lambda: [
+        DynamicEQBandConfig(name="harsh_3k", center_hz=3100, bandwidth_hz=1500),
+        DynamicEQBandConfig(name="harsh_4k7", center_hz=4700, bandwidth_hz=1700,
+                            threshold_offset_db=15.0),
+    ])
+    deesser: DeEsserConfig = Field(default_factory=DeEsserConfig)
+    languages: dict[str, DynamicEQLanguageOverride] = {}
+
+    def for_language(self, language: str) -> "DynamicEQConfig":
+        """Effective config for a language: base + its delta overrides."""
+        o = self.languages.get(language or "")
+        if not o:
+            return self
+        update: dict = {}
+        if o.strength is not None:
+            update["strength"] = o.strength
+        if o.threshold_offset_delta_db or o.max_atten_delta_db:
+            update["bands"] = [
+                b.model_copy(update={
+                    "threshold_offset_db": max(
+                        0.0, b.threshold_offset_db
+                        + (o.threshold_offset_delta_db or 0.0)),
+                    "max_atten_db": max(
+                        0.0, min(24.0, b.max_atten_db
+                                 + (o.max_atten_delta_db or 0.0))),
+                })
+                for b in self.bands
+            ]
+        if o.deesser_strength is not None or o.deesser_threshold_offset_delta_db:
+            update["deesser"] = self.deesser.model_copy(update={
+                "strength": (o.deesser_strength
+                             if o.deesser_strength is not None
+                             else self.deesser.strength),
+                "threshold_offset_db": max(
+                    0.0, self.deesser.threshold_offset_db
+                    + (o.deesser_threshold_offset_delta_db or 0.0)),
+            })
+        return self.model_copy(update=update)
+
+    def resolved(self, language: str = "") -> dict:
+        """Plain dict the DSP consumes (language profile applied). The
+        override table itself is dropped so an edit for one language
+        cannot invalidate another language's cached result."""
+        cfg = self.for_language(language)
+        d = cfg.model_dump()
+        d.pop("languages", None)
+        d["deesser"] = cfg.deesser.model_dump()
+        d["bands"] = [b.model_dump() for b in cfg.bands]
+        return d
+
+
 class BlueprintConfig(BaseModel):
     """Editorial blueprint checks (deterministic, after the director)."""
 
@@ -841,6 +959,31 @@ class SpokenConfig(BaseModel):
     # "long" for the listener, and the share of long sentences allowed.
     max_sentence_words: dict[str, int] = {"en": 24, "de": 20, "fa": 24, "ar": 22}
     max_long_sentence_share: float = Field(default=0.12, ge=0.0, le=1.0)
+
+
+class ChannelConfig(BaseModel):
+    """One YouTube channel per language: its name (as the audience sees it)
+    and the folder with its studio shots (data/studio/<lang>/: camera
+    positions 01–06 of the design board and 07_floor_plan; manifest.json
+    holds the shot list)."""
+
+    name: str
+    studio_dir: str | None = None  # repository-relative folder
+
+
+class AvatarConfig(BaseModel):
+    """The on-screen host's avatar. Only the env-var NAMES live here; the
+    key and the avatar id are read from .env."""
+
+    provider: str = "heygen"
+    secret_env: str = "HEYGEN_API_KEY"
+    avatar_id_env: str = "TrueCrime_Avatar_ID_Heygen"
+
+    def configured(self) -> dict[str, bool]:
+        import os
+
+        return {"key_present": bool(os.getenv(self.secret_env)),
+                "avatar_id_present": bool(os.getenv(self.avatar_id_env))}
 
 
 class HostConfig(BaseModel):
@@ -1537,11 +1680,14 @@ class AIConfig(BaseModel):
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     asr_check: ASRCheckConfig = Field(default_factory=ASRCheckConfig)
     loudness: LoudnessConfig = Field(default_factory=LoudnessConfig)
+    dynamic_eq: DynamicEQConfig = Field(default_factory=DynamicEQConfig)
     blueprint: BlueprintConfig = Field(default_factory=BlueprintConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     spoken: SpokenConfig = Field(default_factory=SpokenConfig)
     audio_direction: AudioDirectionConfig = Field(default_factory=AudioDirectionConfig)
     host: HostConfig = Field(default_factory=HostConfig)
+    channels: dict[str, ChannelConfig] = {}
+    avatar: AvatarConfig = Field(default_factory=AvatarConfig)
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
@@ -1807,3 +1953,16 @@ def load_ai_config(path: Path = CONFIG_PATH) -> AIConfig:
 
 
 ai_config = load_ai_config()
+
+
+def save_dynamic_eq(cfg: DynamicEQConfig) -> DynamicEQConfig:
+    """Persist the dynamic_eq section to config/ai_config.json and make
+    it effective immediately (the running process keeps its other
+    sections). Atomic: a crash mid-write can never corrupt the file."""
+    raw = json.loads(CONFIG_PATH.read_text())
+    raw["dynamic_eq"] = cfg.model_dump(mode="json")
+    tmp = CONFIG_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2))
+    tmp.replace(CONFIG_PATH)
+    ai_config.dynamic_eq = cfg
+    return cfg

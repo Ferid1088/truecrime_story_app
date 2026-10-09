@@ -461,12 +461,16 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     name = LANG_NAMES.get(language, language)
     ranges = ", ".join(f"{p} {lo}–{hi} words"
                        for p in POSITIONS for lo, hi in [word_range(p, language, cfg)])
+    channel = ai_config.channels.get(language)
+    brand = (f"\nYou are the host of «{channel.name}», the {name} channel of the brand. "
+             "You may say its name at most once, and only where it sounds natural — "
+             "never as a greeting formula or catchphrase.\n") if channel else ""
     return f"""{persona_prompt(cfg)}
 
 ---
 
 # Your task now: write the host's dialogue in {name} (step 6 of the Procedure)
-
+{brand}
 The host plan is decided. For each segment you receive the plan (purpose,
 dimensions, verified memory, delivery, intent, claims with evidence) and
 the {name} narration the viewer hears right before and right after it.

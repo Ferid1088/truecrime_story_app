@@ -372,3 +372,33 @@ def test_job_stages_include_the_host(monkeypatch):
     assert names.index("host:fa") < names.index("performance:fa")
     monkeypatch.setattr(ai_config.host, "enabled", False)
     assert not any(n.startswith("host") for n in (s["name"] for s in plan_stages(["en"])))
+
+
+def test_every_language_has_its_channel_and_studio():
+    from pathlib import Path
+    from app.documentary.host import writer_system_prompt
+
+    names = {l: c.name for l, c in ai_config.channels.items()}
+    assert names == {"en": "ClueVera", "de": "Fallspur", "fa": "رد خاموش", "ar": "أثر خفي"}
+    assert set(ai_config.documentary.languages) <= set(names)
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "data/studio/manifest.json").read_text(encoding="utf-8"))
+    for lang, c in ai_config.channels.items():
+        assert c.studio_dir == f"data/studio/{lang}"  # one spelling, lowercase
+        shots = sorted(p.name for p in (root / c.studio_dir).glob("*.png"))
+        assert shots == sorted(s["file"] for s in manifest["channels"][lang]["shots"])
+        assert len(shots) == 7 and "02_front_medium.png" in shots
+    assert "«Fallspur»" in writer_system_prompt("de")
+    assert "«رد خاموش»" in writer_system_prompt("fa")
+
+
+def test_settings_show_channels_and_credential_presence_only(client, monkeypatch):
+    monkeypatch.setenv("HEYGEN_API_KEY", "secret-heygen-value")
+    monkeypatch.setenv("TrueCrime_Avatar_ID_Heygen", "avatar-123")
+    monkeypatch.delenv("TrueCrime_ELEVENLABS_API_KEY", raising=False)
+    s = client.get("/api/documentary/settings").json()
+    assert s["channels"]["de"]["name"] == "Fallspur"
+    assert s["credentials"] == {"elevenlabs": False, "avatar": {
+        "provider": "heygen", "key_present": True, "avatar_id_present": True}}
+    body = json.dumps(s)
+    assert "secret-heygen-value" not in body and "avatar-123" not in body

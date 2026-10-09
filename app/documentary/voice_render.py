@@ -488,7 +488,33 @@ class VoiceRenderer:
             A.measure_loudness, final_wav, self.loud.narration_target_lufs,
             self.loud.true_peak_db, self.loud.lra,
         )
-        await asyncio.to_thread(A.encode_mp3, final_wav, final_mp3)
+
+        # --- dynamic EQ / de-esser (post-TTS polish) --------------------
+        # Always fed the ORIGINAL normalized narration; the enhanced
+        # version is a separate file and only becomes the active track
+        # when processing genuinely applied. A failure ships the
+        # original — narration is never lost to a processing error.
+        from app.documentary import dynamic_eq as DEQ
+
+        active_wav = final_wav
+        try:
+            eq_report = await asyncio.to_thread(
+                DEQ.process_into, final_wav, out, language,
+                ai_config.dynamic_eq.resolved(language), sr,
+            )
+        except Exception as e:  # noqa: BLE001 — error recovery, not a crash
+            eq_report = {"enabled": ai_config.dynamic_eq.enabled,
+                         "applied": False, "active": "original",
+                         "error": f"{type(e).__name__}: {e}"[:300]}
+        if eq_report.get("applied"):
+            active_wav = out / "narration_enhanced.wav"
+        else:
+            (out / "narration_original.mp3").unlink(missing_ok=True)
+
+        await asyncio.to_thread(A.encode_mp3, active_wav, final_mp3)
+        if eq_report.get("applied"):
+            await asyncio.to_thread(
+                A.encode_mp3, final_wav, out / "narration_original.mp3")
         raw_mix.unlink(missing_ok=True)
         total = await asyncio.to_thread(A.probe_duration, final_wav)
 
@@ -577,9 +603,14 @@ class VoiceRenderer:
                 "block_median_lufs": median,
             },
             "flags": flags,
+            "dynamic_eq": eq_report,
             "files": {
                 "narration_wav": _rel(final_wav), "narration_mp3": _rel(final_mp3),
                 "manifest": _rel(out / "manifest.json"),
+                **({"narration_enhanced_wav": _rel(out / "narration_enhanced.wav"),
+                    "narration_original_mp3": _rel(out / "narration_original.mp3"),
+                    "dynamics_json": _rel(out / "dynamics.json")}
+                   if eq_report.get("applied") else {}),
             },
             "blocks": qa_blocks,
             "timeline": {

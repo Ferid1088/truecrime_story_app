@@ -6,6 +6,7 @@ Secrets are never exposed."""
 from __future__ import annotations
 
 import json
+import os
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -133,7 +134,74 @@ def documentary_settings():
         "styles": {k: v.model_dump() for k, v in ai_config.voice.styles.items()},
         "render": ai_config.render.model_dump(),
         "rights_profiles": ai_config.rights.allowed_for_render,
+        "dynamic_eq": _dynamic_eq_settings(),
+        "channels": {l: c.model_dump() for l, c in ai_config.channels.items()},
+        # presence only — never the values
+        "credentials": {
+            "elevenlabs": bool(os.getenv(ai_config.voice.elevenlabs.secret_env)),
+            "avatar": {"provider": ai_config.avatar.provider, **ai_config.avatar.configured()},
+        },
     }
+
+
+def _dynamic_eq_settings() -> dict:
+    """Studio-facing view of the dynamic EQ (full detail lives in
+    config/ai_config.json → dynamic_eq)."""
+    d = ai_config.dynamic_eq
+    return {
+        "enabled": d.enabled,
+        "strength": d.strength,
+        "attack_ms": d.attack_ms,
+        "release_ms": d.release_ms,
+        "bands": [{"name": b.name, "center_hz": b.center_hz,
+                   "max_atten_db": b.max_atten_db,
+                   "threshold_offset_db": b.threshold_offset_db}
+                  for b in d.bands],
+        "deesser": {"enabled": d.deesser.enabled, "strength": d.deesser.strength,
+                    "center_hz": d.deesser.center_hz,
+                    "max_atten_db": d.deesser.max_atten_db},
+        "languages": sorted(d.languages),
+    }
+
+
+class DynamicEQPatch(BaseModel):
+    """Studio controls; anything left out keeps its configured value."""
+    enabled: bool | None = None
+    strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_atten_db: float | None = Field(default=None, ge=0.0, le=24.0)
+    deesser_enabled: bool | None = None
+    deesser_strength: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+@router.patch("/api/documentary/settings/dynamic-eq")
+def update_dynamic_eq_settings(payload: DynamicEQPatch):
+    """Update the dynamic EQ (persisted to config/ai_config.json,
+    effective immediately — applies to the next voice render/preview,
+    never retroactively to already-rendered audio)."""
+    from app.core.ai_config import save_dynamic_eq
+
+    cfg = ai_config.dynamic_eq
+    update: dict = {}
+    if payload.enabled is not None:
+        update["enabled"] = payload.enabled
+    if payload.strength is not None:
+        update["strength"] = payload.strength
+    if payload.max_atten_db is not None:
+        update["bands"] = [
+            b.model_copy(update={"max_atten_db": payload.max_atten_db})
+            for b in cfg.bands
+        ]
+    de: dict = {}
+    if payload.deesser_enabled is not None:
+        de["enabled"] = payload.deesser_enabled
+    if payload.deesser_strength is not None:
+        de["strength"] = payload.deesser_strength
+    if de:
+        update["deesser"] = cfg.deesser.model_copy(update=de)
+    cfg = save_dynamic_eq(cfg.model_copy(update=update))
+    return {"dynamic_eq": _dynamic_eq_settings(),
+            "note": "Applies to the next narration render or EQ preview; "
+                    "existing audio is unchanged."}
 
 
 @router.get("/api/cases/{case_id}/documentary")

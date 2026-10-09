@@ -1251,6 +1251,7 @@ export interface DocumentarySettings {
     show_credits: boolean;
   };
   rights_profiles: Record<string, string[]>;
+  dynamic_eq: DynamicEQSettings;
 }
 
 export interface DocumentaryStage {
@@ -1810,6 +1811,81 @@ export interface VoiceManifestBlock {
   pronunciation?: BlockPronunciation | null;
 }
 
+/** Dynamic-EQ report inside the narration manifest (stats only — the
+ * full gain-reduction curve is in dynamics.json via voiceDynamics). */
+export interface DynamicEQBandReport {
+  name: string;
+  kind: "harsh" | "deesser";
+  center_hz: number;
+  baseline_db?: number;
+  threshold_db?: number;
+  max_gr_db?: number;
+  mean_gr_db?: number;
+  active_seconds: number;
+  pct_active?: number;
+}
+
+export interface DynamicEQReport {
+  enabled: boolean;
+  applied: boolean;
+  active?: "original" | "enhanced";
+  cached?: boolean;
+  error?: string;
+  language?: string;
+  active_seconds_reduced?: number;
+  bands?: DynamicEQBandReport[];
+  deesser?: DynamicEQBandReport | null;
+}
+
+/** GET .../voice/dynamics — the full sidecar report with curves+events. */
+export interface VoiceDynamics {
+  engine: string;
+  language: string;
+  duration_seconds: number;
+  active_seconds_reduced: number;
+  bands: (DynamicEQBandReport & {
+    events: { start: number; end: number; max_gr_db: number }[];
+    curve: { t: number; gr_db: number }[];
+  })[];
+  deesser:
+    | (DynamicEQBandReport & {
+        events: { start: number; end: number; max_gr_db: number }[];
+        curve: { t: number; gr_db: number }[];
+      })
+    | null;
+}
+
+export interface DynamicEQSettings {
+  enabled: boolean;
+  strength: number;
+  attack_ms: number;
+  release_ms: number;
+  bands: {
+    name: string;
+    center_hz: number;
+    max_atten_db: number;
+    threshold_offset_db: number;
+  }[];
+  deesser: {
+    enabled: boolean;
+    strength: number;
+    center_hz: number;
+    max_atten_db: number;
+  };
+  languages: string[];
+}
+
+export interface EQPreviewResponse {
+  mp3_url: string;
+  report: {
+    cached: boolean;
+    preview_seconds: number;
+    active_seconds_reduced: number;
+    bands: DynamicEQReport["bands"];
+    deesser: DynamicEQReport["deesser"];
+  };
+}
+
 /** GET /api/cases/{id}/stories/{version}/voice — narration manifest. */
 export interface VoiceManifest {
   case_id: number;
@@ -1837,6 +1913,8 @@ export interface VoiceManifest {
   };
   flags: string[];
   blocks: VoiceManifestBlock[];
+  dynamic_eq?: DynamicEQReport;
+  files?: { narration_original_mp3?: string };
   mix?: {
     music_moments: number;
     beds: number;

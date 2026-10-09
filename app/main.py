@@ -37,6 +37,7 @@ from app.schemas import (
     GenerateStoryRequest,
     ImproveStoryRequest,
     VoiceRenderRequest,
+    DynamicEQPreviewRequest,
     check_target_minutes,
 )
 from app.core.config import settings
@@ -1642,6 +1643,90 @@ def story_voice_audio(case_id: int, version_id: int, db: Session = Depends(get_d
     path = _voice_dir(story) / "narration.mp3"
     if not path.exists():
         raise HTTPException(status_code=404, detail="No narration rendered yet")
+    return FileResponse(path, media_type="audio/mpeg")
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/voice/narration_original.mp3")
+def story_voice_audio_original(case_id: int, version_id: int,
+                               db: Session = Depends(get_db)):
+    """The narration BEFORE dynamic EQ — the A side of the studio's
+    original/enhanced comparison."""
+    story = _story_or_404(db, case_id, version_id)
+    path = _voice_dir(story) / "narration_original.mp3"
+    if not path.exists():
+        raise HTTPException(status_code=404,
+                            detail="No pre-EQ original (enhancement was not applied)")
+    return FileResponse(path, media_type="audio/mpeg")
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/voice/dynamics")
+def story_voice_dynamics(case_id: int, version_id: int,
+                         db: Session = Depends(get_db)):
+    """Gain-reduction report: per-band thresholds, when/where/how much
+    reduction was applied (events) and the GR curve over time."""
+    story = _story_or_404(db, case_id, version_id)
+    path = _voice_dir(story) / "dynamics.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="No dynamic-EQ report yet")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.post("/api/cases/{case_id}/stories/{version_id}/voice/eq-preview")
+def story_voice_eq_preview(case_id: int, version_id: int,
+                           payload: DynamicEQPreviewRequest,
+                           db: Session = Depends(get_db)):
+    """Pre-rendered preview: process the opening of the ORIGINAL
+    narration with the given overrides and return a small mp3 plus the
+    full gain-reduction report. Originals are never touched."""
+    from app.documentary import dynamic_eq as DEQ
+
+    story = _story_or_404(db, case_id, version_id)
+    out = _voice_dir(story)
+    src = out / "narration.wav"
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="No narration rendered yet")
+    language = story.language or "en"
+    cfg = ai_config.dynamic_eq
+    update: dict = {}
+    if payload.enabled is not None:
+        update["enabled"] = payload.enabled
+    if payload.strength is not None:
+        update["strength"] = payload.strength
+    if payload.max_atten_db is not None:
+        update["bands"] = [
+            b.model_copy(update={"max_atten_db": payload.max_atten_db})
+            for b in cfg.bands
+        ]
+    de: dict = {}
+    if payload.deesser_enabled is not None:
+        de["enabled"] = payload.deesser_enabled
+    if payload.deesser_strength is not None:
+        de["strength"] = payload.deesser_strength
+    if de:
+        update["deesser"] = cfg.deesser.model_copy(update=de)
+    cfg = cfg.model_copy(update=update)
+    try:
+        report = DEQ.preview_into(src, out, language, cfg.resolved(language),
+                                  payload.seconds, ai_config.loudness.sample_rate)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500,
+                            detail=f"EQ preview failed: {type(e).__name__}: {e}")
+    return {"mp3_url": f"/api/cases/{case_id}/stories/{version_id}/voice"
+                       f"/preview/{report['mp3']}",
+            "report": report}
+
+
+@app.get("/api/cases/{case_id}/stories/{version_id}/voice/preview/{filename}")
+def story_voice_eq_preview_file(case_id: int, version_id: int, filename: str,
+                                db: Session = Depends(get_db)):
+    import re
+
+    story = _story_or_404(db, case_id, version_id)
+    if not re.fullmatch(r"eq_preview_[0-9a-f]{16}\.mp3", filename):
+        raise HTTPException(status_code=404, detail="Unknown preview")
+    path = _voice_dir(story) / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Preview not found")
     return FileResponse(path, media_type="audio/mpeg")
 
 

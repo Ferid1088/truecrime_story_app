@@ -758,22 +758,22 @@
     },
     "languages": {
       "en": {
-        "voice_id": "ahg8YJc9KBYrw6vdxX60",
+        "voice_id": "UF84IGrTBtegPkgbbrS2",
         "model_id": "eleven_v3",
         "language_code": "en"
       },
       "de": {
-        "voice_id": "Cu4Eelnl4Z2jfrxrEpSr",
+        "voice_id": "02KhC7wycOLwuF6sc5Qu",
         "model_id": "eleven_v3",
         "language_code": "de"
       },
       "fa": {
-        "voice_id": "wf5gkA603aCfUGoOTBun",
+        "voice_id": "I3gMKh0nwZ8NQXKqUg6F",
         "model_id": "eleven_v3",
         "language_code": "fa"
       },
       "ar": {
-        "voice_id": "nGBZQf1mseVvnsC8kKQI",
+        "voice_id": "EFlRMcr2Nd9ah6iW85Z4",
         "model_id": "eleven_v3",
         "language_code": "ar"
       }
@@ -1730,5 +1730,75 @@
     "min_beats_between": 3,
     "pace_factor": 1.08,
     "max_repair_iterations": 2
+  },
+  "channels": {
+    "en": {"name": "ClueVera", "studio_dir": "data/studio/en"},
+    "de": {"name": "Fallspur", "studio_dir": "data/studio/de"},
+    "fa": {"name": "رد خاموش", "studio_dir": "data/studio/fa"},
+    "ar": {"name": "أثر خفي", "studio_dir": "data/studio/ar"}
+  },
+  "avatar": {
+    "provider": "heygen",
+    "secret_env": "HEYGEN_API_KEY",
+    "avatar_id_env": "TrueCrime_Avatar_ID_Heygen"
+  },
+  "dynamic_eq": {
+    "enabled": true,
+    "frame_ms": 20.0,
+    "hop_ms": 5.0,
+    "gate_dbfs": -55.0,
+    "reference_band_hz": [
+      300.0,
+      2500.0
+    ],
+    "baseline_percentile": 85.0,
+    "attack_ms": 10.0,
+    "release_ms": 120.0,
+    "strength": 1.0,
+    "bands": [
+      {
+        "name": "harsh_3k",
+        "center_hz": 3100.0,
+        "bandwidth_hz": 1500.0,
+        "threshold_offset_db": 12.0,
+        "max_atten_db": 6.0,
+        "ratio": 0.5
+      },
+      {
+        "name": "harsh_4k7",
+        "center_hz": 4700.0,
+        "bandwidth_hz": 1700.0,
+        "threshold_offset_db": 15.0,
+        "max_atten_db": 6.0,
+        "ratio": 0.5
+      }
+    ],
+    "deesser": {
+      "enabled": true,
+      "center_hz": 6500.0,
+      "bandwidth_hz": 4500.0,
+      "threshold_offset_db": 14.0,
+      "max_atten_db": 8.0,
+      "ratio": 0.5,
+      "attack_ms": 5.0,
+      "release_ms": 60.0,
+      "strength": 1.0
+    },
+    "languages": {
+      "en": {},
+      "de": {
+        "threshold_offset_delta_db": 0.5,
+        "deesser_threshold_offset_delta_db": 1.0
+      },
+      "ar": {
+        "deesser_threshold_offset_delta_db": 0.5
+      },
+      "fa": {
+        "threshold_offset_delta_db": 0.5,
+        "deesser_threshold_offset_delta_db": 0.5
+      }
+    },
+    "baseline_floor_db": -20.0,
+    "threshold_ceiling_db": 10.0
   }
 }

@@ -40,8 +40,8 @@ def _res(role):
 
 
 def test_all_languages_use_v3_with_the_new_voices():
-    want = {"en": "ahg8YJc9KBYrw6vdxX60", "de": "Cu4Eelnl4Z2jfrxrEpSr",
-            "fa": "wf5gkA603aCfUGoOTBun", "ar": "nGBZQf1mseVvnsC8kKQI"}
+    want = {"en": "UF84IGrTBtegPkgbbrS2", "de": "02KhC7wycOLwuF6sc5Qu",
+            "fa": "I3gMKh0nwZ8NQXKqUg6F", "ar": "EFlRMcr2Nd9ah6iW85Z4"}
     for lang, voice in want.items():
         cfg = ai_config.voice.for_language(lang)
         assert cfg.voice_id == voice and cfg.model_id == "eleven_v3"
