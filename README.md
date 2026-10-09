@@ -725,7 +725,7 @@ channel's logo (`app/documentary/intros.py`; `channels.<lang>.logo` and
 finds the logo), Fallspur — *trail_stamp* (a red evidence trail runs into
 the folder, the logo lands like a stamp), رد خاموش — *moonrise* (the red
 moon, the path drawing down, the calligraphy right to left; a deep
-classical guitar), أثر خفي — *sand* (sand blows away right to left, the
+classical guitar on its bass strings only — deep, no high tones), أثر خفي — *sand* (sand blows away right to left, the
 red trace glows; oud-like notes). Pictures are drawn with numpy/OpenCV and
 the sound is synthesized — no samples, no costs. The intro is rendered
 once per channel and size into `chapters.intro_dir/<lang>/` and reused;

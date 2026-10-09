@@ -12,9 +12,9 @@ chosen by the producer from previews:
                a stamp; a cold light passes over it.
   moonrise     رد خاموش (fa) — the red moon glows in the dark, the winding
                path draws itself down from it, the calligraphy appears
-               right to left; a deep classical (nylon-string) guitar in a low
-               register (E minor arpeggio, a deep chord) over a low drone, a
-               low hit.
+               right to left; a classical (nylon-string) guitar on its three
+               bass strings only — a slow, dark E-minor line and a deep chord —
+               over a low drone, a low hit.
   sand         أثر خفي (ar) — fine sand covers the logo and blows away right
                to left, the red trace glows last; wind, oud-like notes
                (maqam Hijaz), a low hit.
@@ -66,7 +66,7 @@ CONCEPTS = {
     "sand": Concept("sand", 6.0, 620),
 }
 # the producer's choice (10 Oct): ClueVera B, Fallspur A, Persian moonrise
-# with a deep classical guitar, Arabic B
+# on a classical guitar's bass strings, Arabic B
 DEFAULT_CONCEPT = {"en": "flashlight", "de": "trail_stamp", "fa": "moonrise", "ar": "sand"}
 DEFAULT_LOGO = {"en": "data/logos/Logo_English.png", "de": "data/logos/Logo_German.png",
                 "fa": "data/logos/Logo_Persian.png", "ar": "data/logos/Logo_Arabic.png"}
@@ -254,7 +254,7 @@ class Sound:
             j = k % N
             y[k] = buf[j]
             buf[j] = 0.9975 * 0.5 * (buf[j] + buf[(k + 1) % N])
-        y = self.band(y, lo=60, hi=2200)
+        y = self.band(self.band(y, lo=50, hi=1300), hi=1300)  # bass strings: deep, no edge
         # body: the low resonance of the guitar's box
         t = np.arange(n) / self.sr
         body = self.band(y, lo=90, hi=260) * 0.6
@@ -534,14 +534,15 @@ class IntroMaker:
         # a deep classical (nylon-string) guitar, low register, E minor: the
         # low E when the moon appears, a slow dark arpeggio while the path
         # draws itself, a deep chord under the calligraphy, a low hit
-        snd.drone((41.2, 61.7), (0.2, 0.8), 0.28)
-        notes = [(0.3, 82.41, 0.42), (0.95, 123.47, 0.32), (1.45, 164.81, 0.3),
-                 (1.95, 196.00, 0.28), (2.45, 185.00, 0.26), (2.95, 164.81, 0.26),
-                 (3.75, 82.41, 0.42), (3.79, 123.47, 0.32), (3.83, 164.81, 0.3),
-                 (3.87, 196.00, 0.26)]
-        bus = sum(snd.classical(at, f, 3.6, g) for at, f, g in notes)
-        snd.add(snd.reverb(bus, 2.4, 0.32), 0, 1.0)
-        snd.boom(3.75, f0=80, f1=34, length=2.4, gain=0.6)
+        snd.drone((41.2, 61.7), (0.2, 0.8), 0.24)
+        # only the guitar's three bass strings (E2, A2, D3): a slow, dark
+        # E-minor line with the thumb, then a deep chord — the sound stays low
+        notes = [(0.3, 82.41, 0.46), (0.95, 98.00, 0.38), (1.45, 110.00, 0.38),
+                 (1.95, 123.47, 0.36), (2.45, 110.00, 0.34), (2.95, 98.00, 0.34),
+                 (3.75, 82.41, 0.48), (3.80, 123.47, 0.36), (3.85, 164.81, 0.3)]
+        bus = sum(snd.classical(at, f, 3.8, g) for at, f, g in notes)
+        snd.add(snd.reverb(bus, 2.4, 0.3), 0, 1.0)
+        snd.boom(3.75, f0=75, f1=32, length=2.4, gain=0.55)
         return dur, fr, snd
 
     def arch(self):
