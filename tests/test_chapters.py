@@ -347,6 +347,28 @@ def test_the_renderer_draws_the_cards():
     f1 = fm.shot_frame({"kind": "timeline", "start": 10, "end": 15, "timeline": tl}, 13.0)
     assert ch.shape == (H, W, 3) and ch.max() > 200          # text on the dark ground
     assert not np.array_equal(f0, f1)                         # the marker moves
-    # right to left: the current (latest) date sits on the LEFT for Persian
+    # time runs left to right in Persian too: the latest date is on the RIGHT
     red = np.argwhere((f1[..., 0] > 180) & (f1[..., 1] < 80))
-    assert len(red) and red[:, 1].mean() < W / 2
+    assert len(red) and red[:, 1].mean() > W / 2
+
+
+def test_each_timeline_label_appears_once():
+    from app.documentary.production.script import timeline_layout
+
+    window = [{"id": "T1", "date": "1997-06-01"}, {"id": "T2", "date": "1998-03-10"},
+              {"id": "T3", "date": "1998-03-12"}, {"id": "T4", "date": "2003-01-01"}]
+    xs, labels = timeline_layout(window, "fa")
+    assert [lb["text"] for lb in labels] == ["۱۹۹۷", "۱۹۹۸", "۲۰۰۳"]   # 1998 once
+    assert xs["T1"] < xs["T2"] < xs["T3"] < xs["T4"]                  # left to right
+    # the two 1998 events sit close together, under one label
+    assert xs["T3"] - xs["T2"] < 0.1 and labels[1]["ids"] == ["T2", "T3"]
+    assert abs(labels[1]["x"] - (xs["T2"] + xs["T3"]) / 2) < 1e-6
+    # all in one year: day and month per tick, never the same label twice
+    xs, labels = timeline_layout(window[1:3], "de")
+    assert [lb["text"] for lb in labels] == ["10. März", "12. März"]
+    xs, labels = timeline_layout([{"id": "A", "date": "1998-03-12"},
+                                  {"id": "B", "date": "1998-03-12"}], "en")
+    assert [lb["text"] for lb in labels] == ["12 Mar"] and labels[0]["ids"] == ["A", "B"]
+    tl = timeline_card(CARDS, "B04", "T003", "T002", "en")
+    assert [lb["text"] for lb in tl["labels"]] == ["10 Mar", "12 Mar", "2 Apr"]
+    assert [lb["current"] for lb in tl["labels"]] == [False, False, True]

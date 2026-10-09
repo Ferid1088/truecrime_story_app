@@ -695,15 +695,87 @@ def _ordinal(date: str) -> float:
         return float(_date(y, 7, 1).toordinal())
 
 
+_SHORT_MONTHS = {
+    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "de": ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.",
+           "Nov.", "Dez."],
+}
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def _num(n: int, language: str) -> str:
+    return str(n).translate(_FA_DIGITS) if language == "fa" else str(n)
+
+
+def _short_date(p: tuple, language: str) -> str:
+    """'10 Mar' / '10. März' / '۱۰ مارس' — a tick label inside one year."""
+    from app.documentary.visuals.generated import MONTHS
+
+    _, m, d = p
+    if not m:
+        return ""
+    month = (_SHORT_MONTHS.get(language) or MONTHS.get(language) or MONTHS["en"])[m - 1]
+    if not d:
+        return month
+    day = _num(d, language) + ("." if language == "de" else "")
+    return f"{day} {month}"
+
+
+def _spread(values: list[float], lo: float = 0.0, hi: float = 1.0) -> list[float]:
+    """Half time scale, half order: close dates stay apart, far ones far."""
+    m = len(values)
+    if m == 1:
+        return [(lo + hi) / 2]
+    span = (max(values) - min(values)) or 1.0
+    return [lo + (hi - lo) * (0.5 * (v - min(values)) / span + 0.5 * i / (m - 1))
+            for i, v in enumerate(values)]
+
+
+def timeline_layout(window: list[dict], language: str) -> tuple[dict[str, float], list[dict]]:
+    """Positions (0..1, time runs left to right in every language) and the
+    labels under the line. Several years: each year is labelled ONCE,
+    under its group of ticks (the events of one year sit close together).
+    All in one year: each tick gets its day and month (never the same
+    label twice)."""
+    from app.documentary.chapters import parse_date_text
+
+    dates = [parse_date_text(e["date"]) or (0, None, None) for e in window]
+    years = sorted({d[0] for d in dates})
+    xs: dict[str, float] = {}
+    labels: list[dict] = []
+    if len(years) == 1:
+        for e, x in zip(window, _spread([_ordinal(e["date"]) for e in window]), strict=True):
+            xs[e["id"]] = x
+        groups: dict[str, list[str]] = {}
+        for e, d in zip(window, dates, strict=True):
+            groups.setdefault(_short_date(d, language) or _num(d[0], language), []).append(e["id"])
+        for text, ids in groups.items():
+            labels.append({"text": text, "x": sum(xs[i] for i in ids) / len(ids), "ids": ids})
+        return xs, labels
+    gaps = [b - a for a, b in zip(_spread([float(y) for y in years]),
+                                  _spread([float(y) for y in years])[1:], strict=False)]
+    width = min(0.08, 0.45 * min(gaps)) if gaps else 0.08
+    anchors = dict(zip(years, _spread([float(y) for y in years], width / 2, 1 - width / 2),
+                       strict=True))
+    for y in years:
+        group = [e for e, d in zip(window, dates, strict=True) if d[0] == y]
+        m = len(group)
+        for i, e in enumerate(group):
+            xs[e["id"]] = anchors[y] + ((i - (m - 1) / 2) * width / (m - 1) if m > 1 else 0.0)
+        labels.append({"text": _num(y, language), "x": anchors[y],
+                       "ids": [e["id"] for e in group]})
+    return xs, labels
+
+
 def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
-                  previous: str | None = None) -> dict | None:
+                  previous: str | None = None, language: str = "en") -> dict | None:
     """The running timeline at this beat, moving to `event_id`: only the
     events the story has told by this beat (never a later one), at most
-    chapters.max_timeline_events around the current one. Positions x are
-    0..1 along the line (half time scale, half order, so close dates stay
-    apart); the marker slides from the previous card's date (or the
-    previous event) to the current one. None when the event is not told
-    yet or unknown — the caller shows the date over the picture instead."""
+    chapters.max_timeline_events around the current one, laid out by
+    timeline_layout (left to right, each label once); the marker slides
+    from the previous card's date (or the previous event) to the current
+    one. None when the event is not told yet or unknown — the caller
+    shows the date over the picture instead."""
     cards = cards or {}
     order = cards.get("beat_order") or []
     pos = {b: i for i, b in enumerate(order)}
@@ -719,19 +791,16 @@ def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
     k = told.index(cur)
     lo = max(0, min(k - n // 2, len(told) - n))
     window = told[lo:lo + n]
-    ords = [_ordinal(e["date"]) for e in window]
-    span = (max(ords) - min(ords)) or 1.0
-    m = len(window)
-    xs = {e["id"]: (0.5 if m == 1 else
-                    0.5 * (o - min(ords)) / span + 0.5 * (i / (m - 1)))
-          for i, (e, o) in enumerate(zip(window, ords, strict=True))}
+    xs, labels = timeline_layout(window, language)
     i = window.index(cur)
     prev = next((e for e in window if e["id"] == previous and e["id"] != cur["id"]), None) \
         or (window[i - 1] if i > 0 else None)
     return {"event": cur["id"], "date": cur.get("date_text") or cur["date"],
             "label": cur.get("label"),
-            "events": [{"id": e["id"], "x": round(xs[e["id"]], 4), "year": e.get("year"),
+            "events": [{"id": e["id"], "x": round(xs[e["id"]], 4),
                         "current": e["id"] == cur["id"]} for e in window],
+            "labels": [{"text": lb["text"], "x": round(lb["x"], 4),
+                        "current": cur["id"] in lb["ids"]} for lb in labels],
             "from_x": round(xs[prev["id"]], 4) if prev else 0.0,
             "to_x": round(xs[cur["id"]], 4)}
 
@@ -923,7 +992,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             text_key = f"{s.get('overlay', {}).get('kind', 'x')}|{s.get('overlay', {}).get('text_en', '')}"
             timeline = None
             if cmd == "SHOW_TIMELINE":
-                timeline = timeline_card(cards, span["beat_id"], s.get("event"), last_event)
+                timeline = timeline_card(cards, span["beat_id"], s.get("event"), last_event,
+                                         language)
                 if timeline is None:
                     cmd = "SHOW_DATE"  # the date over the current picture instead
             if cmd == "SHOW_DATE":

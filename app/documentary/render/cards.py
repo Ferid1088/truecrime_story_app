@@ -7,7 +7,8 @@ decided (and approved) before render.
   title    — the film's title after the cold open
   timeline — the running case timeline: the dates the viewer knows as
              ticks on a line, the marker sliding to the current date, the
-             date and what happened above it (right-to-left for fa/ar)
+             date and what happened above it (time runs left to right in
+             every language; each year labelled once)
 
 Cards sit on a near-black ground with a soft vignette and move very
 slightly (a slow 3 % push), so a held card never looks frozen.
@@ -109,7 +110,6 @@ class TimelineCard:
 
     def __init__(self, shot: dict, language: str, W: int, H: int):
         self.W, self.H = W, H
-        self.rtl = language in RTL
         tl = shot.get("timeline") or {}
         s = self.s = H / 1080
         self.y = int(H * 0.64)
@@ -124,20 +124,31 @@ class TimelineCard:
         d.line((self.x0, self.y, self.x1, self.y), fill=DIM, width=lw)
         r = int(7 * s)
         yf = font(language, "sans", "regular", int(26 * s))
-        drawn: list[tuple[float, float]] = []
-        # the current year first (it always shows), then the others where they fit
-        for e in sorted(self.events, key=lambda e: not e.get("current")):
-            x = self._px(float(e["x"]))
+        for e in self.events:
             if not e.get("current"):
+                x = self._px(float(e["x"]))
                 d.ellipse((x - r, self.y - r, x + r, self.y + r), fill=MUTED)
-            year = e.get("year")
-            if year:
-                w = text_width(str(year), yf, language)
-                a, b = x - w / 2 - 8 * s, x + w / 2 + 8 * s
-                if e.get("current") or not any(a < q and b > p for p, q in drawn):
-                    d.text((x - w / 2, self.y + int(26 * s)), str(year), font=yf,
-                           fill=INK if e.get("current") else MUTED, **_kw(language))
-                    drawn.append((a, b))
+        # each label once (a year under its group of ticks, or day and
+        # month inside one year); the current one first, others where they fit
+        labels = tl.get("labels")
+        if labels is None:  # (scripts composed before labels existed)
+            seen: dict[str, dict] = {}
+            for e in self.events:
+                if e.get("year"):
+                    seen.setdefault(str(e["year"]), {"text": str(e["year"]), "x": e["x"],
+                                                     "current": False})
+                    seen[str(e["year"])]["current"] |= bool(e.get("current"))
+            labels = list(seen.values())
+        drawn: list[tuple[float, float]] = []
+        for lb in sorted(labels, key=lambda lb: not lb.get("current")):
+            x = self._px(float(lb["x"]))
+            text = str(lb["text"])
+            w = text_width(text, yf, language)
+            a, b = x - w / 2 - 8 * s, x + w / 2 + 8 * s
+            if lb.get("current") or not any(a < q and b > p for p, q in drawn):
+                d.text((x - w / 2, self.y + int(26 * s)), text, font=yf,
+                       fill=INK if lb.get("current") else MUTED, **_kw(language))
+                drawn.append((a, b))
         self.base = np.asarray(img).copy()
         # the date and what happened, centred above the line
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -158,7 +169,7 @@ class TimelineCard:
         self.text_rgb, self.text_a = arr[..., :3], arr[..., 3:] / 255.0
 
     def _px(self, x: float) -> int:
-        x = 1.0 - x if self.rtl else x
+        # time runs left to right in every language (also Persian/Arabic)
         return int(self.x0 + (self.x1 - self.x0) * max(0.0, min(1.0, x)))
 
     def frame(self, since: float, p: float) -> np.ndarray:
@@ -166,7 +177,7 @@ class TimelineCard:
         out = self.base.copy()
         m = _ease(since / self.move)
         x = int(self.from_x + (self.to_x - self.from_x) * m)
-        start = self.x1 if self.rtl else self.x0
+        start = self.x0
         cv2.line(out, (start, self.y), (x, self.y), (200, 196, 190), max(2, int(3 * s)),
                  cv2.LINE_AA)
         cv2.line(out, (x, self.y - int(46 * s)), (x, self.y - int(14 * s)), RED,
