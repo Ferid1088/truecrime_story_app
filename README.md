@@ -698,9 +698,10 @@ config `chapters`, stage **chapters** after the spoken versions).
   full-frame card whose marker slides from the last date to this one, with
   the date and what happened; only dates the viewer already knows are on
   it (at most `max_timeline_events`). Time runs left to right in every
-  language (also Persian and Arabic). Each label appears once: over
-  several years each year is labelled once under its group of ticks;
-  inside one year each tick gets its day and month. An event that
+  language (also Persian and Arabic). Every point carries its label right
+  under it and there is no point without one: over several years one
+  point per year (the year), inside one year one point per day (day and
+  month); the red ball is the current date. An event that
   is not told yet never gets a card — the date goes over the picture.
 - **Texts are approved.** Role `chapter_writer` writes the film title, a
   title per chapter and a short label per told event, natively in every

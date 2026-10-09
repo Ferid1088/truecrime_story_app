@@ -732,40 +732,27 @@ def _spread(values: list[float], lo: float = 0.0, hi: float = 1.0) -> list[float
 
 
 def timeline_layout(window: list[dict], language: str) -> tuple[dict[str, float], list[dict]]:
-    """Positions (0..1, time runs left to right in every language) and the
-    labels under the line. Several years: each year is labelled ONCE,
-    directly under a point of that year (its first; timeline_card moves it
-    under the current point) — the events of one year sit close together.
-    All in one year: each tick gets its day and month (never the same
-    label twice)."""
+    """The points on the line and their labels — every point carries its
+    label right under it, no point without one. Several years: ONE point
+    per year (labelled with the year). All in one year: one point per day
+    (labelled day and month). Time runs left to right in every language;
+    positions are half time scale, half order. Returns (x of every event
+    = the x of its point, points [{text, x, ids}])."""
     from app.documentary.chapters import parse_date_text
 
     dates = [parse_date_text(e["date"]) or (0, None, None) for e in window]
-    years = sorted({d[0] for d in dates})
-    xs: dict[str, float] = {}
-    labels: list[dict] = []
-    if len(years) == 1:
-        for e, x in zip(window, _spread([_ordinal(e["date"]) for e in window]), strict=True):
-            xs[e["id"]] = x
-        groups: dict[str, list[str]] = {}
-        for e, d in zip(window, dates, strict=True):
-            groups.setdefault(_short_date(d, language) or _num(d[0], language), []).append(e["id"])
-        for text, ids in groups.items():
-            labels.append({"text": text, "x": sum(xs[i] for i in ids) / len(ids), "ids": ids})
-        return xs, labels
-    gaps = [b - a for a, b in zip(_spread([float(y) for y in years]),
-                                  _spread([float(y) for y in years])[1:], strict=False)]
-    width = min(0.08, 0.45 * min(gaps)) if gaps else 0.08
-    anchors = dict(zip(years, _spread([float(y) for y in years], width / 2, 1 - width / 2),
-                       strict=True))
-    for y in years:
-        group = [e for e, d in zip(window, dates, strict=True) if d[0] == y]
-        m = len(group)
-        for i, e in enumerate(group):
-            xs[e["id"]] = anchors[y] + ((i - (m - 1) / 2) * width / (m - 1) if m > 1 else 0.0)
-        labels.append({"text": _num(y, language), "x": xs[group[0]["id"]],
-                       "ids": [e["id"] for e in group]})
-    return xs, labels
+    one_year = len({d[0] for d in dates}) == 1
+    groups: dict[str, dict] = {}
+    for e, d in zip(window, dates, strict=True):
+        key = (_short_date(d, language) or _num(d[0], language)) if one_year \
+            else _num(d[0], language)
+        g = groups.setdefault(key, {"text": key, "ids": [], "at": _ordinal(e["date"])})
+        g["ids"].append(e["id"])
+    points = list(groups.values())
+    for g, x in zip(points, _spread([g["at"] for g in points]), strict=True):
+        g["x"] = x
+    xs = {i: g["x"] for g in points for i in g["ids"]}
+    return xs, [{"text": g["text"], "x": g["x"], "ids": g["ids"]} for g in points]
 
 
 def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
@@ -773,7 +760,8 @@ def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
     """The running timeline at this beat, moving to `event_id`: only the
     events the story has told by this beat (never a later one), at most
     chapters.max_timeline_events around the current one, laid out by
-    timeline_layout (left to right, each label once); the marker slides
+    timeline_layout (left to right, one labelled point per year or day);
+    the marker slides
     from the previous card's date (or the previous event) to the current
     one. None when the event is not told yet or unknown — the caller
     shows the date over the picture instead."""
@@ -795,19 +783,18 @@ def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
     k = told.index(cur)
     lo = max(0, min(k - n // 2, len(told) - n))
     window = told[lo:lo + n]
-    xs, labels = timeline_layout(window, language)
-    for lb in labels:  # a year's label sits right under the current ball when it has it
-        if cur["id"] in lb["ids"] and len(lb["ids"]) > 1:
-            lb["x"] = xs[cur["id"]]
+    xs, points = timeline_layout(window, language)
     i = window.index(cur)
     prev = next((e for e in window if e["id"] == previous and e["id"] != cur["id"]), None) \
         or (window[i - 1] if i > 0 else None)
     return {"event": cur["id"], "date": cur.get("date_text") or cur["date"],
             "label": cur.get("label"),
-            "events": [{"id": e["id"], "x": round(xs[e["id"]], 4),
-                        "current": e["id"] == cur["id"]} for e in window],
-            "labels": [{"text": lb["text"], "x": round(lb["x"], 4),
-                        "current": cur["id"] in lb["ids"]} for lb in labels],
+            # one ball per point (the current event's where it is), its label under it
+            "events": [{"id": cur["id"] if cur["id"] in pt["ids"] else pt["ids"][0],
+                        "x": round(pt["x"], 4), "current": cur["id"] in pt["ids"]}
+                       for pt in points],
+            "labels": [{"text": pt["text"], "x": round(pt["x"], 4),
+                        "current": cur["id"] in pt["ids"]} for pt in points],
             "from_x": round(xs[prev["id"]], 4) if prev else 0.0,
             "to_x": round(xs[cur["id"]], 4)}
 

@@ -357,29 +357,27 @@ def test_each_timeline_label_appears_once():
 
     window = [{"id": "T1", "date": "1997-06-01"}, {"id": "T2", "date": "1998-03-10"},
               {"id": "T3", "date": "1998-03-12"}, {"id": "T4", "date": "2003-01-01"}]
-    xs, labels = timeline_layout(window, "fa")
-    assert [lb["text"] for lb in labels] == ["۱۹۹۷", "۱۹۹۸", "۲۰۰۳"]   # 1998 once
-    assert xs["T1"] < xs["T2"] < xs["T3"] < xs["T4"]                  # left to right
-    # the two 1998 events sit close together, under one label
-    assert xs["T3"] - xs["T2"] < 0.1 and labels[1]["ids"] == ["T2", "T3"]
-    # every label sits directly under a point
-    assert all(any(abs(lb["x"] - x) < 1e-9 for x in xs.values()) for lb in labels)
-    assert labels[1]["x"] == xs["T2"]
-    cards = {"beat_order": ["B1"], "events": [
-        {**w, "first_beat": "B1", "date_text": w["date"]} for w in window]}
-    tl = timeline_card(cards, "B1", "T3", None, "en")
-    y98 = next(lb for lb in tl["labels"] if lb["text"] == "1998")
-    ball = next(e["x"] for e in tl["events"] if e["current"])
-    assert y98["current"] and y98["x"] == ball                    # under the red ball
-    # moving to T2 in the beat that also tells T3 and T4 (later dates): not yet shown
-    tl = timeline_card(cards, "B1", "T2", None, "en")
-    assert [e["id"] for e in tl["events"]] == ["T1", "T2"]
-    # all in one year: day and month per tick, never the same label twice
-    xs, labels = timeline_layout(window[1:3], "de")
-    assert [lb["text"] for lb in labels] == ["10. März", "12. März"]
-    xs, labels = timeline_layout([{"id": "A", "date": "1998-03-12"},
+    xs, points = timeline_layout(window, "fa")
+    # one point per year, each with its label right under it — 1998 once
+    assert [p["text"] for p in points] == ["۱۹۹۷", "۱۹۹۸", "۲۰۰۳"]
+    assert points[1]["ids"] == ["T2", "T3"] and xs["T2"] == xs["T3"] == points[1]["x"]
+    assert xs["T1"] < xs["T2"] < xs["T4"]                             # left to right
+    # all in one year: one point per day, day and month under it
+    xs, points = timeline_layout(window[1:3], "de")
+    assert [p["text"] for p in points] == ["10. März", "12. März"]
+    xs, points = timeline_layout([{"id": "A", "date": "1998-03-12"},
                                   {"id": "B", "date": "1998-03-12"}], "en")
-    assert [lb["text"] for lb in labels] == ["12 Mar"] and labels[0]["ids"] == ["A", "B"]
+    assert [p["text"] for p in points] == ["12 Mar"] and points[0]["ids"] == ["A", "B"]
     tl = timeline_card(CARDS, "B04", "T003", "T002", "en")
     assert [lb["text"] for lb in tl["labels"]] == ["10 Mar", "12 Mar", "2 Apr"]
     assert [lb["current"] for lb in tl["labels"]] == [False, False, True]
+    # no ball without a label: as many balls as labels, at the same places
+    cards = {"beat_order": ["B1", "B2"], "events": [
+        {**w, "first_beat": "B1", "date_text": w["date"]} for w in window]}
+    tl = timeline_card(cards, "B2", "T3", None, "en")
+    assert [(e["x"], e["current"]) for e in tl["events"]] == \
+        [(lb["x"], lb["current"]) for lb in tl["labels"]]
+    assert next(e["id"] for e in tl["events"] if e["current"]) == "T3"
+    # moving to T2 in the beat that also tells later dates: those are not shown yet
+    tl = timeline_card({**cards, "beat_order": ["B1"]}, "B1", "T2", None, "en")
+    assert [lb["text"] for lb in tl["labels"]] == ["1997", "1998"]
