@@ -800,73 +800,102 @@ def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
 
 
 def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict],
-                         overlays: list[dict]) -> list[dict]:
-    """The film title (after a cold open) and each chapter's card at the
-    END of the gap before the chapter (a chapter_break in the audio plan):
-    the first picture of the new chapter comes chapters.lead_out_seconds
-    before its first word. Pictures under a card are cut back (a clip
-    split by a card plays on after it); text over a card is dropped.
-    Returns what could not be placed (gap too short) — reported."""
+                         overlays: list[dict]) -> tuple[list[dict], dict | None]:
+    """The channel intro and the film title (after a cold open) and each
+    chapter's card at the END of the gap before the chapter (a
+    chapter_break in the audio plan): the first picture of the new chapter
+    comes chapters.lead_out_seconds before its first word. Pictures under
+    a card are cut back (a clip split by a card plays on after it); text
+    over a card is dropped. When a gap is too short, the film title goes
+    first, then the chapter card, the intro last.
+
+    Returns (what could not be placed — reported, where the intro plays:
+    {"mode": "gap", "start", "seconds"} | {"mode": "prepend", "seconds"}
+    (before the first word, when the film has no cold open) | None)."""
     cfg = ai_config.chapters
     cards = cards or {}
     chapters = cards.get("chapters") or []
-    if not chapters or not spans:
-        return []
+    intro_s = cards.get("intro_seconds")
+    intro = None
+    if not spans:
+        return [], ({"mode": "prepend", "seconds": intro_s} if intro_s else None)
     by = {sp["beat_id"]: sp for sp in spans}
     ids = [sp["beat_id"] for sp in spans]
     order = cards.get("beat_order") or ids
+
+    def chapter_item(ch):
+        return {"kind": "chapter", "command": "CHAPTER_CARD", "chapter": ch["number"],
+                "card": {"label": ch["label"], "title": ch.get("title")}, "drop": 1}
+
     skipped: list[dict] = []
-    todo: list[tuple[float, float, list[dict], dict]] = []
+    todo: list[tuple[float, float, list[dict], str, int | None]] = []
     for ch in chapters:
         first = ch["first_beat"]
         if first not in by:
             continue
         k = ids.index(first)
-        items = [{"kind": "chapter", "command": "CHAPTER_CARD", "chapter": ch["number"],
-                  "card": {"label": ch["label"], "title": ch.get("title")}}]
         if k == 0:
             continue  # the film starts with this chapter: no gap before it
         prev = ids[k - 1]
         if order.index(prev) != order.index(first) - 1:
             continue  # (a pilot film: the beat before is not in it)
-        gap_from, gap_to = by[prev]["end"], by[first]["start"]
-        todo.append((gap_from, gap_to, items, ch))
-    if cards.get("cold_open") and len(ids) > 1 and order and ids[0] == order[0] \
-            and chapters[0]["first_beat"] == ids[0]:
+        todo.append((by[prev]["end"], by[first]["start"], [chapter_item(ch)], first,
+                     ch["number"]))
+    cold = (cards.get("cold_open") and len(ids) > 1 and order and ids[0] == order[0])
+    if cold:
         items = []
+        if intro_s:
+            items.append({"kind": "intro", "command": "CHANNEL_INTRO", "fixed": intro_s,
+                          "drop": 2})
         if cards.get("film_title"):
             items.append({"kind": "title", "command": "TITLE_CARD",
-                          "card": {"title": cards["film_title"]}})
-        ch = chapters[0]
-        items.append({"kind": "chapter", "command": "CHAPTER_CARD", "chapter": ch["number"],
-                      "card": {"label": ch["label"], "title": ch.get("title")}})
-        todo.append((by[ids[0]]["end"], by[ids[1]]["start"], items, ch))
+                          "card": {"title": cards["film_title"]}, "drop": 0})
+        if chapters and chapters[0]["first_beat"] == ids[0]:
+            items.append(chapter_item(chapters[0]))
+        if items:
+            todo.append((by[ids[0]]["end"], by[ids[1]]["start"], items, ids[1],
+                         chapters[0]["number"] if chapters else None))
     placed: list[tuple[float, float]] = []
-    for gap_from, gap_to, items, ch in sorted(todo, key=lambda x: x[0]):
+    for gap_from, gap_to, items, beat, number in sorted(todo, key=lambda x: x[0]):
         end = gap_to - cfg.lead_out_seconds
         room = end - gap_from - 0.5
-        while items and room / len(items) < cfg.min_card_seconds:
-            items = items[1:] if len(items) > 1 else []   # the film title goes first
+
+        def need(its):
+            return sum(it.get("fixed") or cfg.min_card_seconds for it in its)
+
+        while items and need(items) > room:
+            items = [it for it in items if it is not min(items, key=lambda x: x["drop"])]
         if not items:
-            skipped.append({"chapter": ch["number"], "at": round(gap_from, 2),
+            skipped.append({"chapter": number, "at": round(gap_from, 2),
                             "why": f"gap of {gap_to - gap_from:.1f}s is too short for a card"})
             continue
-        length = min(cfg.card_seconds, room / len(items))
-        t = end - length * len(items)
+        fixed = sum(it.get("fixed") or 0 for it in items)
+        flex = [it for it in items if not it.get("fixed")]
+        length = min(cfg.card_seconds, (room - fixed) / len(flex)) if flex else 0.0
+        t = end - fixed - length * len(flex)
         for item in items:
-            card = {**item, "beat_id": ch["first_beat"], "start": round(t, 3),
-                    "end": round(t + length, 3), "motion": "NONE", "speed": 1.0,
-                    "transition_in": "FADE_BLACK",
-                    "why": "chapter card in the chapter break" if item["kind"] == "chapter"
-                    else "the film's title after the cold open"}
+            dur = item.get("fixed") or length
+            card = {k: v for k, v in item.items() if k not in ("fixed", "drop")}
+            card.update({"beat_id": beat, "start": round(t, 3), "end": round(t + dur, 3),
+                         "motion": "NONE", "speed": 1.0,
+                         # the intro brings its own fade from black
+                         "transition_in": "NONE" if item["kind"] == "intro" else "FADE_BLACK",
+                         "why": {"chapter": "chapter card in the chapter break",
+                                 "title": "the film's title after the cold open",
+                                 "intro": "the channel intro after the cold open"}[item["kind"]]})
+            if item["kind"] == "intro":
+                card["intro"] = {"seconds": dur}
+                intro = {"mode": "gap", "start": card["start"], "seconds": dur}
             _carve(shots, card)
             placed.append((card["start"], card["end"]))
-            t += length
+            t += dur
     if placed:
         overlays[:] = [o for o in overlays
-                       if o["kind"] not in ("date", "place", "quote")
+                       if o["kind"] not in ("date", "place", "quote", "status")
                        or not any(o["start"] < b and o["end"] > a for a, b in placed)]
-    return skipped
+    if intro_s and intro is None:
+        intro = {"mode": "prepend", "seconds": intro_s}
+    return skipped, intro
 
 
 def _carve(shots: list[dict], card: dict) -> None:
@@ -1181,7 +1210,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     shots = _cap_black(shots, plan, assets, order, guard, att.max_black_seconds,
                        starts, tracker, named_sents)
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
-    cards_left_out = insert_chapter_cards(final, cards, spans, overlays)
+    cards_left_out, intro = insert_chapter_cards(final, cards, spans, overlays)
     for n, sh in enumerate(final):
         sh["index"] = n
         if n == 0:
@@ -1229,6 +1258,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         "firewall": guard.as_json(),
         # chapter / title cards that found no room (the gap was too short)
         "cards_left_out": cards_left_out,
+        # the channel intro: in the cold open's break, or before the first word
+        "intro": intro,
     }
 
 
@@ -1304,7 +1335,10 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     from app.documentary.chapters import cards_for, latest_chapter_plan
 
+    from app.documentary.intros import intro_seconds
+
     cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)
+    cards["intro_seconds"] = intro_seconds(language)
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
                      cards=cards,
                      arrest_beat=SP.arrest_beat(blueprint),

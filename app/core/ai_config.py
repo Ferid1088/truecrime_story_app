@@ -991,6 +991,10 @@ class ChannelConfig(BaseModel):
     # Env var NAMES for this channel's avatar (default: the avatar section's).
     avatar_id_env: str | None = None
     avatar_key_env: str | None = None
+    # The channel intro: its logo (repository-relative) and its concept
+    # (app/documentary/intros.CONCEPTS); defaults per language there.
+    logo: str | None = None
+    intro_concept: str | None = None
 
     def profile_id(self, language: str) -> str:
         return self.studio_profile or f"STUDIO_{language.upper()}"
@@ -1269,6 +1273,13 @@ class ChaptersConfig(BaseModel):
     max_labelled_events: int = Field(default=24, ge=1, le=80)
     # the marker slides to the new date in this time
     timeline_move_seconds: float = Field(default=1.2, ge=0.2, le=4.0)
+    # The channel intro (app/documentary/intros.py): rendered once per
+    # channel into intro_dir/<lang>/ and the same in every film — after
+    # the cold open (in its chapter break), else before the first word.
+    intro_enabled: bool = True
+    intro_dir: str = "data/intros"
+    # the film's sound under the intro (the intro has its own)
+    intro_duck_db: float = Field(default=-18.0, le=0.0)
 
 
 class VisualAuditConfig(BaseModel):

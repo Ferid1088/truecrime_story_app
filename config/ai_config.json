@@ -1795,22 +1795,30 @@
     "en": {
       "name": "ClueVera",
       "studio_dir": "data/studio/en",
-      "studio_profile": "STUDIO_EN"
+      "studio_profile": "STUDIO_EN",
+      "logo": "data/logos/Logo_English.png",
+      "intro_concept": "flashlight"
     },
     "de": {
       "name": "Fallspur",
       "studio_dir": "data/studio/de",
-      "studio_profile": "STUDIO_DE"
+      "studio_profile": "STUDIO_DE",
+      "logo": "data/logos/Logo_German.png",
+      "intro_concept": "trail_stamp"
     },
     "fa": {
       "name": "رد خاموش",
       "studio_dir": "data/studio/fa",
-      "studio_profile": "STUDIO_FA"
+      "studio_profile": "STUDIO_FA",
+      "logo": "data/logos/Logo_Persian.png",
+      "intro_concept": "moonrise"
     },
     "ar": {
       "name": "أثر خفي",
       "studio_dir": "data/studio/ar",
-      "studio_profile": "STUDIO_AR"
+      "studio_profile": "STUDIO_AR",
+      "logo": "data/logos/Logo_Arabic.png",
+      "intro_concept": "sand"
     }
   },
   "avatar": {
@@ -1915,6 +1923,9 @@
     "max_label_chars": 48,
     "max_timeline_events": 9,
     "max_labelled_events": 24,
-    "timeline_move_seconds": 1.2
+    "timeline_move_seconds": 1.2,
+    "intro_enabled": true,
+    "intro_dir": "data/intros",
+    "intro_duck_db": -18.0
   }
 }

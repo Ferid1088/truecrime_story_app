@@ -717,6 +717,27 @@ config `chapters`, stage **chapters** after the spoken versions).
 - See them in the **Blueprint** tab (Chapters & timeline) and on the
   production timeline; `GET /api/cases/{id}/documentary/chapters`.
 
+### Channel intros
+
+Every film of a channel opens with the same 5–7 s intro made from the
+channel's logo (`app/documentary/intros.py`; `channels.<lang>.logo` and
+`intro_concept`): ClueVera — *flashlight* (a beam searches the dark and
+finds the logo), Fallspur — *trail_stamp* (a red evidence trail runs into
+the folder, the logo lands like a stamp), رد خاموش — *moonrise* (the red
+moon, the path drawing down, the calligraphy right to left; a deep
+classical guitar), أثر خفي — *sand* (sand blows away right to left, the
+red trace glows; oud-like notes). Pictures are drawn with numpy/OpenCV and
+the sound is synthesized — no samples, no costs. The intro is rendered
+once per channel and size into `chapters.intro_dir/<lang>/` and reused;
+it is made again only when the logo, the concept, the size or the intro
+code changes (fingerprint).
+
+It plays after the cold open — in its chapter break, before the film's
+title and chapter 1 (when the break is short the title goes first, then the
+chapter card, the intro last) — with the film's sound ducked under it
+(`chapters.intro_duck_db`). A film without a cold open gets the intro
+before its first word (pictures, sound and subtitles move by its length).
+
 ### Pronunciation check (Persian)
 
 Persian script leaves short vowels unwritten: «ملک» is melk (property),

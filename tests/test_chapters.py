@@ -264,7 +264,7 @@ def test_cards_sit_at_the_end_of_the_chapter_break():
              _shot(59.0, 100.0, "B03")]
     overlays = [{"kind": "date", "text": "1998", "start": 50.0, "end": 55.0},
                 {"kind": "date", "text": "1998", "start": 30.0, "end": 33.0}]
-    left = insert_chapter_cards(shots, CARDS, spans, overlays)
+    left, _ = insert_chapter_cards(shots, CARDS, spans, overlays)
     lead = ai_config.chapters.lead_out_seconds
     kinds = [(s["kind"], s["start"], s["end"]) for s in shots if s["kind"] in ("title", "chapter")]
     # cold open: title + chapter 1 before B02's first word; chapter 2 before B03's
@@ -284,7 +284,7 @@ def test_cards_sit_at_the_end_of_the_chapter_break():
     spans2 = [{"beat_id": "B02", "start": 0.0, "end": 10.0},
               {"beat_id": "B03", "start": 11.5, "end": 30.0}]
     shots2 = [_shot(0, 30.0, "B02")]
-    left = insert_chapter_cards(shots2, short, spans2, [])
+    left, _ = insert_chapter_cards(shots2, short, spans2, [])
     assert left and "too short" in left[0]["why"] and len(shots2) == 1
 
 

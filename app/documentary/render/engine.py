@@ -142,8 +142,9 @@ class ClipReader:
     frame held past the end. A missing or unreadable file yields None
     (the caller shows black) — never an exception mid-render."""
 
-    def __init__(self, path: str, W: int, H: int, shot_end: float):
+    def __init__(self, path: str, W: int, H: int, shot_end: float, raw: bool = False):
         self.W, self.H, self.shot_end = W, H, shot_end
+        self.ungraded = raw  # (the channel intro is shown exactly as made)
         src = storage.resolve(path)
         self.cap = cv2.VideoCapture(str(src)) if src is not None and Path(src).exists() else None
         if self.cap is not None and not self.cap.isOpened():
@@ -179,8 +180,11 @@ class ClipReader:
         if self.raw is None:
             return None
         if self.graded_pos != self.pos:
-            self.graded = grade_frame(self._fill(self.raw),
-                                      _vignette(self.W, self.H, MARGIN * 0.97, 3), bgr=True)
+            if self.ungraded:
+                self.graded = cv2.cvtColor(self._fill(self.raw), cv2.COLOR_BGR2RGB)
+            else:
+                self.graded = grade_frame(self._fill(self.raw),
+                                          _vignette(self.W, self.H, MARGIN * 0.97, 3), bgr=True)
             self.graded_pos = self.pos
         return self.graded
 
@@ -276,9 +280,23 @@ class FrameMaker:
         self._parallax: dict = {}
         self._clips: dict[tuple[str, float], ClipReader] = {}
         self._cards: dict = {}
+        self.intro: dict | None = None  # {video, audio, seconds} when the film has one
+
+    def intro_frame(self, at: float) -> np.ndarray:
+        """The channel intro's frame `at` seconds in (black without one)."""
+        if not self.intro:
+            return self.black
+        reader = self._clips.get(("intro", 0.0))
+        if reader is None:
+            reader = self._clips[("intro", 0.0)] = ClipReader(
+                self.intro["video"], self.W, self.H, 1e9, raw=True)
+        frame = reader.frame_at(max(at, 0.0))
+        return self.black if frame is None else frame
 
     def shot_frame(self, shot: dict, t: float) -> np.ndarray:
         kind = shot.get("kind")
+        if kind == "intro":
+            return self.intro_frame(t - float(shot["start"]))
         if kind in CARD_KINDS:
             return self._card_frame(shot, t)
         if kind == "black" or not shot.get("path"):
@@ -440,6 +458,38 @@ class Overlays:
         return frame if out is None else out
 
 
+def _channel_intro(language: str, W: int, H: int, fps: int) -> dict | None:
+    """The channel's intro at the film's size (made on first use) — a film
+    without it still renders."""
+    try:
+        from app.documentary.intros import ensure_intro
+
+        return ensure_intro(language, W, H, fps)
+    except Exception as e:  # noqa: BLE001 — the film goes on without its intro
+        import logging
+
+        logging.getLogger(__name__).warning("channel intro for %s unavailable: %s", language, e)
+        return None
+
+
+def _intro_audio_graph(mode: str | None, start: float, seconds: float) -> str:
+    """ffmpeg filter graph: the film's sound + the intro's own sound. In
+    the cold open's break the film's sound (the chapter-break music) is
+    ducked under the intro, with short ramps; before the first word the
+    film's sound simply starts after the intro."""
+    if mode == "prepend":
+        ms = int(round(seconds * 1000))
+        return (f"[1:a]adelay={ms}|{ms}[d];[3:a]anull[i];"
+                "[d][i]amix=inputs=2:normalize=0:duration=longest:dropout_transition=0[a]")
+    g = 10 ** (ai_config.chapters.intro_duck_db / 20)
+    a, b = start - 0.3, start + seconds + 0.3
+    ms = int(round(start * 1000))
+    duck = (f"volume='1-{1 - g:.4f}*clip((t-{a:.3f})/0.3,0,1)*clip(({b:.3f}-t)/0.3,0,1)'"
+            ":eval=frame")
+    return (f"[1:a]{duck}[d];[3:a]adelay={ms}|{ms}[i];"
+            "[d][i]amix=inputs=2:normalize=0:duration=first:dropout_transition=0[a]")
+
+
 def _transition_seconds(shot: dict) -> float:
     lo, hi = ai_config.motion.crossfade_seconds
     if shot.get("transition_in") == "FADE_BLACK":
@@ -483,9 +533,17 @@ class VideoRenderer:
         if audio is None or not audio.exists():
             raise RenderError("documentary audio is missing; render the voice first")
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        srt = write_srt([s for s in script.get("subtitles") or [] if s["start"] < duration],
-                        out_path.with_suffix(".srt"))
         lang = script.get("language", "und")
+        maker = FrameMaker(script, W, H)
+        # the channel intro: in the cold open's break ("gap") or before the
+        # first word ("prepend": everything after it moves by its length)
+        placed = script.get("intro") or None
+        intro = _channel_intro(lang, W, H, fps) if placed else None
+        maker.intro = intro
+        pre = float(intro["seconds"]) if intro and placed.get("mode") == "prepend" else 0.0
+        srt = write_srt([{**s, "start": s["start"] + pre, "end": s["end"] + pre}
+                         for s in script.get("subtitles") or [] if s["start"] < duration],
+                        out_path.with_suffix(".srt"))
         iso3 = {"en": "eng", "de": "ger", "fa": "per", "ar": "ara"}.get(lang, "und")
         cfg = ai_config.render
         # written next to the target and renamed when ffmpeg succeeded: a
@@ -495,20 +553,30 @@ class VideoRenderer:
             "ffmpeg", "-y", "-v", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
             "-i", str(audio), "-i", str(srt),
-            "-map", "0:v", "-map", "1:a", "-map", "2:s",
+        ]
+        if intro:
+            cmd += ["-i", str(intro["audio"]), "-filter_complex",
+                    _intro_audio_graph(placed.get("mode"), float(placed.get("start") or 0.0),
+                                       float(intro["seconds"])),
+                    "-map", "0:v", "-map", "[a]", "-map", "2:s"]
+        else:
+            cmd += ["-map", "0:v", "-map", "1:a", "-map", "2:s"]
+        cmd += [
             "-c:v", "libx264", "-preset", cfg.preset, "-crf", str(cfg.crf),
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-            "-c:s", "mov_text", f"-metadata:s:s:0", f"language={iso3}",
-            "-t", f"{duration:.3f}", "-movflags", "+faststart", str(part),
+            "-c:s", "mov_text", "-metadata:s:s:0", f"language={iso3}",
+            "-t", f"{duration + pre:.3f}", "-movflags", "+faststart", str(part),
         ]
-        maker = FrameMaker(script, W, H)
         overlays = Overlays(script, W, H, cfg.burn_subtitles)
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        total = int(math.ceil(duration * fps))
+        total = int(math.ceil((duration + pre) * fps))
         idx = 0
         try:
             for f in range(total):
-                t = f / fps
+                if f / fps < pre:
+                    proc.stdin.write(np.ascontiguousarray(maker.intro_frame(f / fps)).tobytes())
+                    continue
+                t = f / fps - pre
                 while idx + 1 < len(shots) and shots[idx + 1]["start"] <= t:
                     idx += 1
                 shot = shots[idx]
@@ -553,5 +621,7 @@ class VideoRenderer:
             maker.release_clips()
             _canvas.cache_clear()
         return {"path": storage.rel(out_path), "srt": storage.rel(srt),
-                "duration": round(duration, 3), "width": W, "height": H, "fps": fps,
-                "frames": total, "shots": len(shots)}
+                "duration": round(duration + pre, 3), "width": W, "height": H, "fps": fps,
+                "frames": total, "shots": len(shots),
+                "intro": ({"mode": placed.get("mode"), "seconds": intro["seconds"],
+                           "concept": intro.get("concept")} if intro else None)}
