@@ -93,9 +93,6 @@ def latest_spoken(db: Session, master: StoryVersion, language: str,
         struct = json.loads(v.narrative_structure or "{}")
         if blueprint_id is not None and struct.get("blueprint_id") != blueprint_id:
             continue
-        # versions written in Finglish (an earlier experiment) are not reused
-        if struct.get("speech_script", "native") != "native":
-            continue
         return v
     return None
 

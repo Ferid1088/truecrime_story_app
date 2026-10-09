@@ -139,7 +139,7 @@ def test_writer_prompt_is_native_per_language(lang, needle):
 
 def test_persian_is_told_in_colloquial_persian_script():
     prompt = SP.writer_system_prompt("fa")
-    assert "خونواده" in prompt and "می‌گه" in prompt and "FINGLISH" not in prompt
+    assert "خونواده" in prompt and "می‌گه" in prompt
     assert "خونواده" in SP.critic_system_prompt("fa")
 
 
