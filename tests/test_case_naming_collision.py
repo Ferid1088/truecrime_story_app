@@ -55,11 +55,14 @@ def test_own_family_is_not_a_collision_but_own_research_title_is(db_session):
     assert C.check_lexical("Der leere Hof", "de", me.id, corpus).exact
 
 
-def test_corpus_rebuilds_when_titles_change(db_session):
+def test_corpus_rebuilds_when_titles_change(db_session, request):
     me = _case(db_session, "Cache subject")
     assert not C.check_lexical("Rebuilt Title Zed", "en", me.id, get_corpus(db_session)).rejected
-    db_session.add(DiscoveryCandidate(title="Rebuilt Title Zed", query="q", rationale="r", fingerprint="fp-rebuilt"))
+    row = DiscoveryCandidate(title="Rebuilt Title Zed", query="q", rationale="r",
+                             fingerprint="fp-rebuilt")
+    db_session.add(row)
     db_session.commit()
+    request.addfinalizer(lambda: (db_session.delete(row), db_session.commit()))
     assert C.check_lexical("Rebuilt Title Zed", "en", me.id, get_corpus(db_session)).exact
 
 
