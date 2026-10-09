@@ -83,13 +83,18 @@ Everything in `Master_Task_Case_Lifecycle.MD` §1 applies, plus:
 
 ## 4. Milestones
 
-| M | Content | Loops |
-|---|---|---|
-| **M1** | channels + public status labels, `case_uid`, `EpisodeIdentity`, `YoutubeEpisodeTitleBuilder`, episode number private, status provenance view | 2, 7 |
-| M2 | `TitleCollisionCorpus` (exact + near + bge-m3), `CaseTitleCandidate`, `CaseNamingAgent`, `CaseTitleCritic`, `TitleFamily`, safety gates, human override, immutability | 3–6 |
-| M3 | UI: Case Naming, Episode Identity | — |
-| M4 | `ThumbnailBrief`, composer, critic, scorecard, thumbnail UI | 8–11 |
-| M5 | regression, live validation on one researched case, final report | 12 |
+| M | Content | Loops | State |
+|---|---|---|---|
+| **M1** | public status labels, `case_uid`, `EpisodeIdentity`, YouTube title builder, episode number private, status provenance | 2, 7 | done |
+| M2 | collision corpus (exact + near + bge-m3), `CaseTitleCandidate`, naming agent + critics, title family, safety gates, human override, immutability | 3–6 | done (backend, scripted-LLM tests) |
+| M3 | UI: Case Naming + Episode Identity (`Naming` tab) | — | done |
+| M4 | `ThumbnailBrief`, host registry, selection gates, composer, critic, scorecard, `Thumbnail` tab | 8–11 | done (synthetic images) |
+| M5 | regression; live validation on one researched case (`scripts/case_naming_report.py`) | 12 | regression done; live run needs API keys + approved host images |
+
+Open: real Fereidoun cut-outs (`data/host/manifest.json`), calibration of the
+bge-m3 `semantic_threshold` on real titles, quality tuning of the prompts on a
+live case, and a full RevealGraph / EpistemicContracts (the naming layer derives
+a minimal view from the blueprint and the evidence strength).
 
 Each milestone ends with a green full test suite and a commit.
 
