@@ -48,6 +48,7 @@ import asyncio
 import bisect
 import hashlib
 import json
+import os
 import shutil
 import weakref
 from pathlib import Path
@@ -60,6 +61,7 @@ from app.core.ai_config import MusicCue, ai_config
 from app.db.base import SessionLocal
 from app.db.models import MusicTrack, MusicUsage, StoryVersion
 from app.documentary import audio as A
+from app.documentary import storage
 from app.documentary.audio_director import normalize_mood
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -171,16 +173,26 @@ class MusicLibrary:
         return self.dir / name
 
     async def _generate(self, prompt: str, seconds: float, loop: bool, path: Path) -> int:
+        """Paid generation, saved before it is processed: the provider's
+        mp3 is kept (written atomically), so a failed or interrupted
+        normalization is redone from it without paying again."""
         self.dir.mkdir(parents=True, exist_ok=True)
-        audio, cost = await self.provider.generate(
-            prompt, seconds, loop, self.cfg.prompt_influence)
         raw = path.with_suffix(".mp3")
-        raw.write_bytes(audio)
-        await asyncio.to_thread(
-            A.normalize_loudness, raw, path, self.cfg.reference_lufs,
-            ai_config.loudness.true_peak_db, ai_config.loudness.lra,
-            ai_config.loudness.sample_rate, 2,
-        )
+        cost = 0
+        if not raw.exists() or raw.stat().st_size == 0:
+            audio, cost = await self.provider.generate(
+                prompt, seconds, loop, self.cfg.prompt_influence)
+            storage.write_atomic(raw, audio)
+        tmp = path.with_name(path.stem + ".part" + path.suffix)
+        try:
+            await asyncio.to_thread(
+                A.normalize_loudness, raw, tmp, self.cfg.reference_lufs,
+                ai_config.loudness.true_peak_db, ai_config.loudness.lra,
+                ai_config.loudness.sample_rate, 2,
+            )
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
         return int(cost or 0)
 
     async def ensure_track(self, db: Session, track: MusicTrack) -> tuple[Path, int | None]:

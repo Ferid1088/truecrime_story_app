@@ -1181,9 +1181,26 @@ export type DocumentaryJobStatus =
   /** Finished, but at least one language failed (see `result.errors`). */
   | "partial"
   | "failed"
-  | "cancelled";
-/** "blocked": never ran because its language failed earlier. */
-export type DocumentaryStageStatus = "pending" | "running" | "done" | "skipped" | "failed" | "blocked";
+  | "cancelled"
+  /** The app restarted while the job ran: saved stages are kept, Resume continues. */
+  | "interrupted";
+/** "blocked": never ran because its language failed earlier.
+ * "degraded": finished without part of its work (reason in detail.degraded). */
+export type DocumentaryStageStatus =
+  | "pending"
+  | "running"
+  | "done"
+  | "skipped"
+  | "failed"
+  | "blocked"
+  | "degraded";
+
+export interface DocumentaryStageError {
+  at: string;
+  attempt: number | null;
+  type: string;
+  message: string;
+}
 
 export interface FilmMinutesRange {
   min: number;
@@ -1263,6 +1280,12 @@ export interface DocumentaryStage {
   status: DocumentaryStageStatus;
   /** Stage result (object) or the failure message (string). */
   detail: unknown;
+  /** How often the stage was started (resumes and retries included). */
+  attempts?: number;
+  started_at?: string;
+  finished_at?: string;
+  /** The last failures (newest last); kept when a later attempt succeeds. */
+  errors?: DocumentaryStageError[];
 }
 
 export interface DocumentaryJob {
@@ -1293,6 +1316,8 @@ export interface DocumentaryJob {
   /** `errors`: failure per language of a "partial" job; `renders`: the film per language. */
   result: {
     errors?: Record<string, string>;
+    /** Stages that finished without part of their work, with the reason. */
+    degraded?: Record<string, string>;
     renders?: Record<string, JobRender>;
     [key: string]: unknown;
   };

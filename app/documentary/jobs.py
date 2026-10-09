@@ -43,6 +43,7 @@ shorter than documentary.min_film_minutes.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import traceback
@@ -187,7 +188,7 @@ class DocumentaryPipeline:
     def _save(self):
         self.job.stages_json = json.dumps(self.stages, ensure_ascii=False, default=str)
         self.job.result_json = json.dumps(self.result, ensure_ascii=False, default=str)
-        done = sum(1 for s in self.stages if s["status"] in ("done", "skipped"))
+        done = sum(1 for s in self.stages if s["status"] in ("done", "skipped", "degraded"))
         self.job.progress = done / max(len(self.stages), 1)
         self.job.stage = (", ".join(self.running) or None) if self.running else None
         if self.job.stage and len(self.job.stage) > 60:
@@ -208,11 +209,20 @@ class DocumentaryPipeline:
         return st
 
     async def _stage(self, name: str, fn):
+        """Run one stage once: its result is saved on the job before the
+        next stage starts. Every attempt is counted and timed, every
+        failure kept (type + message) — a retry does not erase the last
+        one. A result marked {"degraded": reason} is kept and shown as
+        degraded (the film went on without that part; the reason is on
+        the stage and in the job result) — a new run redoes it."""
         st = self._entry(name)
-        if st["status"] in ("done", "skipped"):
+        if st["status"] in ("done", "skipped", "degraded"):
             return st.get("detail")
         self._check_cancel()
         st["status"] = "running"
+        st["attempts"] = int(st.get("attempts") or 0) + 1
+        st["started_at"] = utc_now().isoformat()
+        st.pop("finished_at", None)
         self.running.append(name)
         self._save()
         try:
@@ -220,14 +230,25 @@ class DocumentaryPipeline:
         except Exception as e:
             st["status"] = "failed"
             st["detail"] = str(e)[:500]
+            st["error_type"] = type(e).__name__
+            st["finished_at"] = utc_now().isoformat()
+            st["errors"] = (st.get("errors") or [])[-4:] + [
+                {"at": st["finished_at"], "attempt": st["attempts"],
+                 "type": type(e).__name__, "message": str(e)[:300]}]
             if name in self.running:
                 self.running.remove(name)
             if not self.db.is_active:
                 self.db.rollback()
             self._save()
             raise
-        st["status"] = "skipped" if isinstance(detail, dict) and detail.get("skipped") else "done"
+        degraded = isinstance(detail, dict) and detail.get("degraded")
+        st["status"] = ("skipped" if isinstance(detail, dict) and detail.get("skipped")
+                        else "degraded" if degraded else "done")
         st["detail"] = detail
+        st["finished_at"] = utc_now().isoformat()
+        st.pop("error_type", None)
+        if degraded:
+            self.result.setdefault("degraded", {})[name] = str(degraded)[:300]
         if name in self.running:
             self.running.remove(name)
         self._save()
@@ -282,7 +303,10 @@ class DocumentaryPipeline:
             if row:
                 return {"audio_plan_id": row.id, "reused": True}
             row = await AudioDirector().create(db, case, bp_row)
-            return {"audio_plan_id": row.id, "status": row.status}
+            out = {"audio_plan_id": row.id, "status": row.status}
+            if row.status == "invalid":
+                out["degraded"] = "audio plan invalid — the film runs without music/sound direction"
+            return out
 
         await self._stage("audio_plan", audio_plan)
         ap_row = latest_audio_plan(db, bp_row.id)
@@ -397,8 +421,12 @@ class DocumentaryPipeline:
                 async def visual_check():
                     if planned:
                         return {"skipped": True}
-                    return await verify_candidates(db, case, bp, requirements, focus_beats,
-                                                   job.render_profile)
+                    out = await verify_candidates(db, case, bp, requirements, focus_beats,
+                                                  job.render_profile)
+                    if out.get("errors"):
+                        out["degraded"] = (f"{out['errors']} vision checks failed — "
+                                           "those candidates stay unverified")
+                    return out
 
                 await self._stage("visual_check", visual_check)
 
@@ -425,9 +453,12 @@ class DocumentaryPipeline:
                                 "reason": "visual plan exists (refresh_visuals to redo)"}
                     from app.documentary.visuals.gaps import fill_visual_gaps
 
-                    return await fill_visual_gaps(db, case, db.get(VisualPlan, vp_row.id),
-                                                  bp_row, ap_row, profile=job.render_profile,
-                                                  beat_ids=focus_beats)
+                    out = await fill_visual_gaps(db, case, db.get(VisualPlan, vp_row.id),
+                                                 bp_row, ap_row, profile=job.render_profile,
+                                                 beat_ids=focus_beats)
+                    if out.get("error"):
+                        out["degraded"] = "production search failed — " + out["error"]
+                    return out
 
                 await self._stage("visual_gaps", visual_gaps)
                 visual_state["row"] = db.get(VisualPlan, vp_row.id)
@@ -455,9 +486,16 @@ class DocumentaryPipeline:
                     db, case, version, spoken_blueprint(db, version) or bp,
                     beat_ids=focus_beats)
                 data = json.loads(row.performance_json or "{}")
-                return {"voice_performance_id": row.id, "status": row.status,
-                        "incident_beat": data.get("incident_beat"),
-                        "stats": data.get("stats")}
+                out = {"voice_performance_id": row.id, "status": row.status,
+                       "incident_beat": data.get("incident_beat"),
+                       "stats": data.get("stats")}
+                # "partial" alone is normal for a pilot (only its beats are
+                # directed); direction ERRORS mean lines were left plain
+                errs = json.loads(row.validation_json or "{}").get("errors") or []
+                if errs:
+                    out["degraded"] = (f"voice performance: {len(errs)} direction errors — "
+                                       "those lines are read plainly")
+                return out
 
             async def host():
                 from app.documentary.host import HostDirector, latest_host_segments
@@ -537,13 +575,24 @@ class DocumentaryPipeline:
                 from app.documentary.render.engine import VideoRenderer
 
                 script = json.loads(ps.script_json)
+                script_sha = hashlib.sha256(ps.script_json.encode("utf-8")).hexdigest()
                 out = storage.renders_dir(case.id, lang) / f"{job.mode}_v{version.id}_{ps.version}.mp4"
-                async with slot("render"):
-                    info = await asyncio.to_thread(VideoRenderer().render, script, out,
-                                                   pilot_seconds if pilot else None)
-                ps.render_json = json.dumps(info)
-                ps.status = "rendered"
-                db.commit()
+                prev = json.loads(ps.render_json or "null") if ps.status == "rendered" else None
+                if (prev and prev.get("path") == storage.rel(out)
+                        and prev.get("script_sha256") == script_sha
+                        and out.exists() and out.stat().st_size > 0):
+                    # rendered before the process stopped: the film is
+                    # complete (it is only renamed into place when ffmpeg
+                    # finished), so only the registration is redone
+                    info = {**prev, "reused": True}
+                else:
+                    async with slot("render"):
+                        info = await asyncio.to_thread(VideoRenderer().render, script, out,
+                                                       pilot_seconds if pilot else None)
+                    info["script_sha256"] = script_sha
+                    ps.render_json = json.dumps(info)
+                    ps.status = "rendered"
+                    db.commit()
                 # the channel's memory: a Video with status, opening and
                 # YouTube metadata (UNSOLVED / follow-up titles)
                 from app.lifecycle.videos import register_render
@@ -634,6 +683,9 @@ async def research_case(db: Session, case: Case, check_cancel,
     if job.status != "completed":
         raise RuntimeError(f"Research job {job.id} {job.status}: {job.error or ''}"[:400])
     facts = db.query(Fact).filter(Fact.case_id == case.id).count()
+    if not facts:
+        raise RuntimeError(f"Research job {job.id} completed but no facts were saved for "
+                           "the case — check the research job before writing a story.")
     return {"research_job_id": job.id, "facts": facts,
             "sources": job.sources_accepted}
 

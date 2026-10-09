@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -17,7 +16,6 @@ from app.db.models import HostScene, HostSegments
 from app.documentary import storage
 from app.documentary import studio as ST
 from app.documentary.host_scenes import plan_host_scenes, run_scene, scene_dict
-from app.utils import utc_now
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -169,17 +167,3 @@ def host_scene_voice(scene_id: int, db: Session = Depends(get_db)):
     if p is None or not p.exists():
         raise HTTPException(status_code=404, detail="No voice for this scene yet")
     return FileResponse(p, media_type="audio/mpeg")
-
-
-def recover_host_scenes(db: Session, older_than_minutes: int = 0) -> int:
-    """At startup: a scene marked running by a process that is gone is not
-    running — clear the flag (its saved steps stay; a run continues)."""
-    cutoff = utc_now() - timedelta(minutes=older_than_minutes)
-    n = 0
-    for s in db.query(HostScene).filter(HostScene.running_since.isnot(None)).all():
-        if s.running_since <= cutoff:
-            s.running_since = None
-            n += 1
-    if n:
-        db.commit()
-    return n

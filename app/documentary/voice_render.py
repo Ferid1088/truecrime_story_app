@@ -22,14 +22,18 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import statistics
 from pathlib import Path
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
 from app.documentary import audio as A
+from app.documentary import storage
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -234,12 +238,23 @@ class VoiceRenderer:
             other = next(iter(sorted(blocks_dir.glob(f"*__{key}.json"))), None)
             if other is not None and other.with_suffix(".mp3").exists():
                 raw, meta_path = other.with_suffix(".mp3"), other
-        cache_hit = raw.exists() and meta_path.exists()
-        if cache_hit:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        else:
+        meta = None
+        if raw.exists() and meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                if not isinstance((meta.get("alignment") or {}).get("characters"), list):
+                    raise ValueError("sidecar without alignment")
+            except (ValueError, AttributeError, OSError):
+                log.warning("voice take %s: unreadable sidecar, paying the take again",
+                            meta_path.name)
+                meta = None
+                raw, meta_path = blocks_dir / f"{stem}.mp3", blocks_dir / f"{stem}.json"
+        cache_hit = meta is not None
+        if not cache_hit:
             res = await self.provider.synthesize(req)
-            raw.write_bytes(res.audio)
+            # the audio first, the sidecar last: a take counts as saved
+            # only when both exist, and neither is ever half written
+            storage.write_atomic(raw, res.audio)
             meta = {
                 "block_id": block["block_id"], "cache_key": key,
                 "text": req.text, "voice_id": res.voice_id,
@@ -252,9 +267,7 @@ class VoiceRenderer:
                     "starts": res.char_starts, "ends": res.char_ends,
                 },
             }
-            meta_path.write_text(
-                json.dumps(meta, ensure_ascii=False), encoding="utf-8"
-            )
+            storage.write_atomic(meta_path, json.dumps(meta, ensure_ascii=False))
 
         al = meta["alignment"]
         words = words_from_alignment(al["characters"], al["starts"], al["ends"])
@@ -620,7 +633,6 @@ class VoiceRenderer:
                 "sentences": sentences_global,
             },
         }
-        (out / "manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        storage.write_atomic(out / "manifest.json",
+                             json.dumps(manifest, ensure_ascii=False, indent=2))
         return manifest

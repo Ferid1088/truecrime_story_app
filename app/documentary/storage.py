@@ -10,6 +10,7 @@ data/cases/<case_id>/
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from app.core.ai_config import ai_config
@@ -72,3 +73,16 @@ def resolve(path: str | None) -> Path | None:
         return None
     p = Path(path)
     return p if p.is_absolute() else ROOT / p
+
+
+def write_atomic(path: Path, data: bytes | str) -> Path:
+    """Write next to the target and rename: a crash leaves the old file
+    or the new one, never half of one (paid takes, sidecars, manifests)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".part")
+    if isinstance(data, str):
+        tmp.write_text(data, encoding="utf-8")
+    else:
+        tmp.write_bytes(data)
+    os.replace(tmp, path)
+    return path

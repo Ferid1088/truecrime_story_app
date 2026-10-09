@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -297,10 +298,22 @@ _ensure_columns()
 
 @asynccontextmanager
 async def _lifespan(_app):
-    """The unsolved-case monitor runs about twice a week in this process
-    (TRUECRIME_DISABLE_SCHEDULER=1 keeps it off)."""
+    """At startup, work left "running" by the previous process is marked
+    interrupted (resumable, nothing deleted). The unsolved-case monitor
+    runs about twice a week in this process (TRUECRIME_DISABLE_SCHEDULER=1
+    keeps it off)."""
+    from app.documentary.recovery import recover_after_restart
     from app.lifecycle import scheduler
 
+    from app.db.base import SessionLocal
+
+    db = SessionLocal()
+    try:
+        recover_after_restart(db)
+    except Exception as e:  # never block the app from starting
+        logging.getLogger(__name__).error("startup recovery failed: %s", e)
+    finally:
+        db.close()
     scheduler.start()
     try:
         yield

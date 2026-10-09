@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { Ban, Check, CircleDashed, Loader2, SkipForward, X } from "lucide-react";
+import { AlertTriangle, Ban, Check, CircleDashed, Loader2, SkipForward, X } from "lucide-react";
 import type {
   DocumentaryJob,
   DocumentaryJobStatus,
@@ -49,7 +49,8 @@ export function isJobActive(job: DocumentaryJob | null | undefined): boolean {
 }
 
 export function finishedStages(job: DocumentaryJob): number {
-  return job.stages.filter((s) => s.status === "done" || s.status === "skipped").length;
+  return job.stages.filter((s) => s.status === "done" || s.status === "skipped" || s.status === "degraded")
+    .length;
 }
 
 /** Stage names currently running — several at once, since stages run in parallel. */
@@ -69,7 +70,7 @@ export function jobActivity(job: DocumentaryJob): string {
 /** Progress bar colour by job status (running jobs keep the primary colour). */
 export function jobProgressTone(status: DocumentaryJobStatus): string | undefined {
   if (status === "failed") return "bg-rose-500";
-  if (status === "partial") return "bg-amber-500";
+  if (status === "partial" || status === "interrupted") return "bg-amber-500";
   if (status === "completed") return "bg-emerald-500";
   return undefined;
 }
@@ -108,6 +109,7 @@ const JOB_STATUS: Record<DocumentaryJobStatus, { label: string; variant: Variant
   partial: { label: "Partial", variant: "warning" },
   failed: { label: "Failed", variant: "danger" },
   cancelled: { label: "Cancelled", variant: "outline" },
+  interrupted: { label: "Interrupted", variant: "warning" },
 };
 
 export function JobStatusBadge({ status }: { status: DocumentaryJobStatus }) {
@@ -122,6 +124,7 @@ const STAGE_STATUS_TEXT: Record<DocumentaryStageStatus, string> = {
   skipped: "Skipped",
   failed: "Failed",
   blocked: "Blocked — its language failed earlier",
+  degraded: "Done with a gap — see the reason",
 };
 
 export function StageIcon({ status }: { status: DocumentaryStageStatus }) {
@@ -136,6 +139,8 @@ export function StageIcon({ status }: { status: DocumentaryStageStatus }) {
       <SkipForward className="size-4 text-muted-foreground" aria-hidden />
     ) : status === "blocked" ? (
       <Ban className="size-4 text-rose-400/80" aria-hidden />
+    ) : status === "degraded" ? (
+      <AlertTriangle className="size-4 text-amber-500" aria-hidden />
     ) : (
       <CircleDashed className="size-4 text-muted-foreground" aria-hidden />
     );

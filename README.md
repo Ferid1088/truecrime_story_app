@@ -545,6 +545,28 @@ background (mp4). `TrueCrime_Avatar_ID_Heygen` may name the avatar (a
 group of looks) or one look; the look actually used is stored on the
 scene.
 
+### Saved steps, retries and restarts
+
+Every step's result is saved before the next step starts, so a failed or
+interrupted step is retried without redoing (or paying for) the ones
+before it.
+
+- **Documentary jobs**: each stage stores its status, `attempts`,
+  `started_at`/`finished_at` and the last failures (`errors`: time, type,
+  message). A stage that finished without part of its work (an invalid
+  audio plan, vision checks that errored, a failed production search,
+  voice-direction errors) is `degraded`: the reason is on the stage and in
+  `result.degraded`, and a new run redoes it.
+- **Restart**: at startup, jobs left `running` or `queued` become
+  `interrupted` (their running stage goes back to `pending`, with an
+  "Interrupted" error entry); a monitor run or video-research job left
+  running is marked failed; host scenes lose their running flag. Resume an
+  interrupted job from the Run tab: saved stages are skipped.
+- **Files**: paid voice takes and their sidecars, audio manifests, music
+  (the provider's mp3 is kept before normalizing) and rendered films are
+  written to a `.part` file and renamed when complete. A render whose film
+  already exists for the same script is not rendered again.
+
 ### Pronunciation check (Persian)
 
 Persian script leaves short vowels unwritten: «ملک» is melk (property),

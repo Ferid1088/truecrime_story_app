@@ -7,6 +7,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.documentary import storage
 from app.documentary.music import DocumentaryMixer
 from app.documentary.voice_render import VoiceRenderer
 
@@ -32,7 +33,6 @@ async def render_documentary_audio(
         extra = {"db": db} if db is not None else {}
         manifest["mix"] = await (mixer or DocumentaryMixer()).mix(manifest, plan, out, **extra)
         manifest["audio_notes"] = plan.get("audio_notes")
-        (out / "manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8")
+        storage.write_atomic(out / "manifest.json",
+                             json.dumps(manifest, ensure_ascii=False, indent=2, default=str))
     return manifest

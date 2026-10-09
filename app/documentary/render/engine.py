@@ -19,6 +19,7 @@ documentary audio, so archive sound can never reach the film.
 from __future__ import annotations
 
 import math
+import os
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -456,6 +457,9 @@ class VideoRenderer:
         lang = script.get("language", "und")
         iso3 = {"en": "eng", "de": "ger", "fa": "per", "ar": "ara"}.get(lang, "und")
         cfg = ai_config.render
+        # written next to the target and renamed when ffmpeg succeeded: a
+        # crash never leaves a half film under the final name
+        part = out_path.with_name(out_path.stem + ".part" + out_path.suffix)
         cmd = [
             "ffmpeg", "-y", "-v", "error",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
@@ -464,7 +468,7 @@ class VideoRenderer:
             "-c:v", "libx264", "-preset", cfg.preset, "-crf", str(cfg.crf),
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
             "-c:s", "mov_text", f"-metadata:s:s:0", f"language={iso3}",
-            "-t", f"{duration:.3f}", "-movflags", "+faststart", str(out_path),
+            "-t", f"{duration:.3f}", "-movflags", "+faststart", str(part),
         ]
         maker = FrameMaker(script, W, H)
         overlays = Overlays(script, W, H, cfg.burn_subtitles)
@@ -503,9 +507,17 @@ class VideoRenderer:
             err = proc.stderr.read().decode(errors="replace")
             if proc.wait() != 0:
                 raise RenderError(f"ffmpeg failed: {err[-400:]}")
+            os.replace(part, out_path)
         except BrokenPipeError as e:
             err = proc.stderr.read().decode(errors="replace")
+            part.unlink(missing_ok=True)
             raise RenderError(f"ffmpeg stopped: {err[-400:]}") from e
+        except BaseException:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            part.unlink(missing_ok=True)
+            raise
         finally:
             maker.release_clips()
             _canvas.cache_clear()

@@ -477,9 +477,13 @@ def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
     job = db.get(DocumentaryJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.status not in ("failed", "cancelled", "partial"):
-        raise HTTPException(status_code=409,
-                            detail="Only failed, partial or cancelled jobs resume.")
+    if job.status not in ("failed", "cancelled", "partial", "interrupted"):
+        raise HTTPException(status_code=409, detail=(
+            "Only failed, partial, interrupted or cancelled jobs resume."))
+    # finished stages keep their saved results and are skipped — degraded
+    # ones too (later stages already built on them; a new run redoes
+    # them); failed, interrupted and blocked ones run again, their
+    # attempt and error history stays on the stage
     stages = json.loads(job.stages_json)
     for s in stages:
         if s["status"] in ("failed", "running", "blocked"):
