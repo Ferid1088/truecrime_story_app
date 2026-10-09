@@ -381,13 +381,16 @@ def test_every_language_has_its_channel_and_studio():
     names = {l: c.name for l, c in ai_config.channels.items()}
     assert names == {"en": "ClueVera", "de": "Fallspur", "fa": "رد خاموش", "ar": "أثر خفي"}
     assert set(ai_config.documentary.languages) <= set(names)
+    from app.documentary.studio import load_registry
+
     root = Path(__file__).resolve().parents[1]
-    manifest = json.loads((root / "data/studio/manifest.json").read_text(encoding="utf-8"))
+    reg = load_registry()
     for lang, c in ai_config.channels.items():
         assert c.studio_dir == f"data/studio/{lang}"  # one spelling, lowercase
         shots = sorted(p.name for p in (root / c.studio_dir).glob("*.png"))
-        assert shots == sorted(s["file"] for s in manifest["channels"][lang]["shots"])
-        assert len(shots) == 7 and "02_front_medium.png" in shots
+        # the studio folder holds exactly the registered pictures: one master
+        assert shots == sorted(a.file for a in reg.assets_of(lang))
+        assert shots == ["01_overview_wide.png"]
     assert "«Fallspur»" in writer_system_prompt("de")
     assert "«رد خاموش»" in writer_system_prompt("fa")
 

@@ -82,7 +82,10 @@ def test_framing_presets_reference_valid_approved_assets_of_the_channel():
             a = REG.asset(pr.asset_id)
             assert a is not None and a.language == lang and a.approved_for_host, name
             up = ST.background_upscale(a, pr)
-            assert up <= ai_config.studio.max_background_upscale, (lang, name, up)
+            if up > ai_config.studio.max_background_upscale:
+                # allowed until the 4K masters come — but never silently
+                warns = ST.validate_language(lang, REG, check_files=False)["warnings"]
+                assert any(f"{name}: background enlarged" in w for w in warns), (lang, name, up)
 
 
 def test_the_real_registry_validates_with_warnings_only():
@@ -147,7 +150,7 @@ def test_a_channel_never_resolves_another_channels_studio(tmp_path):
     assert any("not a en asset" in e for e in ST.validate_language("en", reg)["errors"])
     # and the settings endpoint refuses it
     with pytest.raises(ST.StudioError):
-        ST.update_profile("en", primary_background="STUDIO_DE_02_FRONT_MEDIUM")
+        ST.update_profile("en", primary_background="STUDIO_DE_01_OVERVIEW_WIDE")
 
 
 # ---------------------------------------------------------------------------
@@ -196,13 +199,17 @@ def test_studios_api_shows_channels_without_paths(client):
     body = json.dumps(d)
     assert "data/studio" not in body and "/Users/" not in body
     en = langs["en"]
-    assert en["profile"]["primary_background"] == "STUDIO_EN_02_FRONT_MEDIUM"
-    assert len(en["assets"]) == 7 and en["validation"]["ok"]
-    assert {a["shot"] for a in en["assets"]} >= {"front_medium", "overview_wide", "floor_plan"}
-    r = client.patch("/api/studios/en", json={"primary_background": "STUDIO_DE_02_FRONT_MEDIUM"})
+    # one master per channel; medium and close are cuts of it
+    assert en["profile"]["primary_background"] == "STUDIO_EN_01_OVERVIEW_WIDE"
+    assert len(en["assets"]) == 1 and en["validation"]["ok"]
+    assert {p["asset_id"] for p in en["profile"]["presets"].values()} == {
+        "STUDIO_EN_01_OVERVIEW_WIDE"}
+    zones = en["assets"][0]["safe_zones"]
+    assert zones["host_standing"] and zones["head_standing"] and zones["logo"]
+    r = client.patch("/api/studios/en", json={"primary_background": "STUDIO_DE_01_OVERVIEW_WIDE"})
     assert r.status_code == 422
     if _images_present():
-        img = client.get("/api/studios/assets/STUDIO_EN_02_FRONT_MEDIUM/image")
+        img = client.get("/api/studios/assets/STUDIO_EN_01_OVERVIEW_WIDE/image")
         assert img.status_code == 200 and img.headers["content-type"] == "image/jpeg"
     assert client.get("/api/studios/assets/NOPE/image").status_code == 404
 
@@ -213,17 +220,24 @@ def test_studio_profile_edit_persists_and_is_validated(client, tmp_path, monkeyp
     reg_copy = tmp_path / "studio_registry.json"
     shutil.copy(ST.registry_path(), reg_copy)
     monkeypatch.setattr(ai_config.studio, "registry_path", str(reg_copy))
+    # a second German picture that is not for the host (a design board)
+    reg = ST.load_registry(reg_copy)
+    master = reg.asset("STUDIO_DE_01_OVERVIEW_WIDE")
+    reg.assets.append(master.model_copy(update={
+        "id": "STUDIO_DE_99_BOARD", "shot": "floor_plan", "asset_type": "design_board",
+        "approved_for_host": False, "approved_for_avatar": False}))
+    ST.save_registry(reg, reg_copy)
     r = client.patch("/api/studios/de", json={"confirm": True,
-                                              "presets": {"HOST_WIDE": "STUDIO_DE_02_FRONT_MEDIUM"}})
+                                              "presets": {"HOST_WIDE": "STUDIO_DE_01_OVERVIEW_WIDE"}})
     assert r.status_code == 200, r.text
     reg = ST.load_registry(reg_copy)
     assert reg.profiles["de"].review["confirmed"] is True
-    assert reg.profiles["de"].presets["HOST_WIDE"].asset_id == "STUDIO_DE_02_FRONT_MEDIUM"
+    assert reg.profiles["de"].presets["HOST_WIDE"].asset_id == "STUDIO_DE_01_OVERVIEW_WIDE"
     # a picture not approved for the host is refused
-    r = client.patch("/api/studios/de", json={"presets": {"HOST_MEDIUM": "STUDIO_DE_07_FLOOR_PLAN"}})
+    r = client.patch("/api/studios/de", json={"presets": {"HOST_MEDIUM": "STUDIO_DE_99_BOARD"}})
     assert r.status_code == 422 and "not approved" in r.json()["detail"]
     assert ST.load_registry(reg_copy).profiles["de"].presets["HOST_MEDIUM"].asset_id == \
-        "STUDIO_DE_02_FRONT_MEDIUM"
+        "STUDIO_DE_01_OVERVIEW_WIDE"
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +336,7 @@ def test_host_scenes_are_planned_with_the_channel_studio(db_session, tmp_path, m
     assert [s.host_segment_id for s in scenes] == ["S1", "S2"]   # no text → no scene
     s1, s2 = scenes
     assert s1.channel == "Fallspur" and s1.studio_profile_id == "STUDIO_DE"
-    assert s1.framing_preset == "HOST_MEDIUM" and s1.studio_asset_id == "STUDIO_DE_02_FRONT_MEDIUM"
+    assert s1.framing_preset == "HOST_MEDIUM" and s1.studio_asset_id == "STUDIO_DE_01_OVERVIEW_WIDE"
     assert s2.framing_preset == "HOST_CLOSE"
     assert s1.voice_id == "02KhC7wycOLwuF6sc5Qu" and len(s1.text_sha256) == 64
     assert s1.status == "planned" and json.loads(s1.history_json)[0]["step"] == "plan"

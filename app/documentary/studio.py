@@ -68,10 +68,12 @@ class Zone(BaseModel):
 
 
 class SafeZones(BaseModel):
-    host: Zone | None = None          # where the host's body may be
-    head: Zone | None = None          # where the head should land
+    host: Zone | None = None          # where the host's body may be (seated, in the armchair)
+    head: Zone | None = None          # where the head should land (seated)
     logo: Zone | None = None          # the channel logo — never covered
     lower_third: Zone | None = None   # name/title cards
+    host_standing: Zone | None = None  # where the host stands, full body
+    head_standing: Zone | None = None  # where the standing host's head lands
 
 
 class StudioAsset(BaseModel):
@@ -343,6 +345,11 @@ def validate_language(language: str, reg: StudioRegistry | None = None,
             errors.append(f"{a.id}: head safe zone lies outside the host safe zone")
         if sz.head and sz.logo and sz.head.overlaps(sz.logo):
             warnings.append(f"{a.id}: the host's head would cover the logo")
+        if sz.host_standing and sz.head_standing and not sz.host_standing.contains(
+                sz.head_standing):
+            errors.append(f"{a.id}: standing head zone lies outside the standing host zone")
+        if sz.head_standing and sz.logo and sz.head_standing.overlaps(sz.logo):
+            warnings.append(f"{a.id}: the standing host's head would cover the logo")
     for name in PRESETS:
         pr = prof.presets.get(name)
         if pr is None:

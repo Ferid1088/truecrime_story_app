@@ -25,9 +25,15 @@ const PRESET_LABELS: Record<string, string> = {
   HOST_WIDE: "Wide",
 };
 
-const ZONE_STYLES: { key: "host" | "head" | "logo" | "lower_third"; label: string; cls: string }[] = [
-  { key: "host", label: "Host", cls: "border-emerald-400 bg-emerald-400/10" },
+const ZONE_STYLES: {
+  key: "host" | "head" | "logo" | "lower_third" | "host_standing" | "head_standing";
+  label: string;
+  cls: string;
+}[] = [
+  { key: "host", label: "Seated", cls: "border-emerald-400 bg-emerald-400/10" },
   { key: "head", label: "Head", cls: "border-amber-300 bg-amber-300/15" },
+  { key: "host_standing", label: "Standing", cls: "border-violet-400 bg-violet-400/10" },
+  { key: "head_standing", label: "Head (standing)", cls: "border-amber-300 border-dashed bg-amber-300/10" },
   { key: "logo", label: "Logo", cls: "border-rose-500 bg-rose-500/15" },
   { key: "lower_third", label: "Lower third", cls: "border-sky-400 bg-sky-400/15" },
 ];

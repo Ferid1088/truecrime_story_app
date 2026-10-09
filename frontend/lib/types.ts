@@ -2072,7 +2072,14 @@ export interface StudioAssetView {
   lighting_style: string | null;
   studio_style: string | null;
   notes: string | null;
-  safe_zones: { host?: StudioZone; head?: StudioZone; logo?: StudioZone; lower_third?: StudioZone };
+  safe_zones: {
+    host?: StudioZone;
+    head?: StudioZone;
+    logo?: StudioZone;
+    lower_third?: StudioZone;
+    host_standing?: StudioZone;
+    head_standing?: StudioZone;
+  };
   file_present: boolean;
   image_url: string;
 }
