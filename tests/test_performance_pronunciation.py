@@ -470,7 +470,7 @@ def test_job_stages_include_performance_and_from_zero():
     from app.documentary.jobs import plan_stages
 
     names = [s["name"] for s in plan_stages(["en", "fa"], from_zero=True)]
-    assert names[:4] == ["research", "master_story", "blueprint", "audio_plan"]
+    assert names[:5] == ["research", "master_story", "master_approval", "blueprint", "audio_plan"]
     assert names.index("performance:fa") < names.index("voice:fa") < names.index("render:fa")
 
 

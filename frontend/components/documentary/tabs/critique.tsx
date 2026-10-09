@@ -1,7 +1,7 @@
 "use client";
 
-import { humanize, langLabel } from "@/lib/format";
-import type { CriticReport, CritiqueIssue, CritiqueReport } from "@/lib/types";
+import { formatTimecode, humanize, langLabel } from "@/lib/format";
+import type { CriticReport, CritiqueIssue, CritiqueReport, VisualAuditReport } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -71,9 +71,59 @@ export function CritiqueTab({ settings, overview, language, onLanguageChange }: 
           description="The critique stage runs right after the production script of this language is composed."
         />
       ) : (
-        <CritiqueView critique={critique} />
+        <>
+          {entry.production.audit && <AuditView audit={entry.production.audit} />}
+          <CritiqueView critique={critique} />
+        </>
       )}
     </div>
+  );
+}
+
+/** The gate before render: every picture/clip approved for its words. */
+function AuditView({ audit }: { audit: VisualAuditReport }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Picture audit</CardTitle>
+        <Badge variant={audit.left_out.length ? "warning" : "success"}>
+          {audit.approved} approved{audit.left_out.length ? ` · ${audit.left_out.length} left out` : ""}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-xs text-muted-foreground">
+          Every photo and clip was checked against the exact words spoken over it. Rejected ones were replaced (up to{" "}
+          {audit.max_redos}×, each replacement checked again); what stayed rejected was left out.
+          {audit.symbolic.length > 0 && ` ${audit.symbolic.length} shown with the "symbolic image" label.`}
+        </p>
+        {audit.replaced.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs font-medium">Replaced</p>
+            <ul className="space-y-1 text-xs">
+              {audit.replaced.map((r, i) => (
+                <li key={i}>
+                  <span className="tabular-nums text-muted-foreground">{formatTimecode(r.at)}</span> {r.from} → {r.to}
+                  {r.why[0] && <span className="text-muted-foreground"> — {r.why[0]}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {audit.left_out.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs font-medium">Left out (no approved picture)</p>
+            <ul className="space-y-1 text-xs">
+              {audit.left_out.map((r, i) => (
+                <li key={i}>
+                  <span className="tabular-nums text-muted-foreground">{formatTimecode(r.at)}</span> {r.done}
+                  {r.why[0] && <span className="text-muted-foreground"> — {r.why[0]}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -6,6 +6,7 @@ Secrets are never exposed."""
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Literal
 
@@ -25,6 +26,7 @@ from app.documentary.audio_director import audio_plan_dict, latest_audio_plan
 from app.documentary.blueprint import blueprint_dict, latest_blueprint
 from app.documentary.visuals import rights as R
 
+log = logging.getLogger(__name__)
 router = APIRouter(tags=["documentary"])
 
 
@@ -94,6 +96,7 @@ def production_dict(ps: ProductionScript, full: bool = True) -> dict:
         "version": ps.version, "mode": ps.mode, "status": ps.status,
         "duration_seconds": ps.duration_seconds,
         "critique": _loads(ps.critique_json, None),
+        "audit": _loads(ps.audit_json, None),
         "render": _loads(ps.render_json, None),
         "video_url": f"/api/documentary/production/{ps.id}/video.mp4" if ps.render_json else None,
         "subtitles_url": f"/api/documentary/production/{ps.id}/subtitles.srt" if ps.render_json else None,
@@ -564,28 +567,91 @@ def visual_file(asset_id: int, thumb: int = 0, db: Session = Depends(get_db)):
     path = storage.resolve(a.thumbnail_path if thumb else a.local_path)
     if path is None or not path.exists():
         raise HTTPException(status_code=404, detail="File missing")
-    return FileResponse(path, media_type="image/jpeg")
+    video = not thumb and a.asset_type == "video" and path.suffix.lower() == ".mp4"
+    return FileResponse(path, media_type="video/mp4" if video else "image/jpeg")
 
 
 @router.post("/api/cases/{case_id}/visuals/upload")
 async def upload_visual(case_id: int, file: UploadFile = File(...),
                         title: str | None = Form(None), caption: str | None = Form(None),
                         role: str = Form("evidence"), rights: str = Form("owned"),
+                        start: float = Form(0.0),
                         db: Session = Depends(get_db)):
+    """A photo or a video supplied by the production. Either starts
+    unverified and is vision-checked right away (in the background):
+    nothing uploaded goes on screen unchecked. A video is stored muted,
+    at most footage.upload_max_seconds from `start`."""
+    import asyncio
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from app.documentary.visuals import footage as FT
     from app.documentary.visuals.images import ImageError
     from app.documentary.visuals.research import add_uploaded_image
 
     case = _case(db, case_id)
-    data = await file.read()
-    if len(data) > ai_config.visual_search.max_download_mb * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="File too large")
-    try:
-        a = add_uploaded_image(db, case, data, file.filename or "upload", title, caption,
-                               role if role in ("evidence", "context", "illustration") else "evidence",
-                               rights)
-    except ImageError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    role = role if role in ("evidence", "context", "illustration") else "evidence"
+    name = file.filename or "upload"
+    if FT.is_video_upload(name, file.content_type):
+        cap = int(ai_config.footage.max_download_mb * 1024 * 1024)
+        base = storage.case_dir(case.id)
+        base.mkdir(parents=True, exist_ok=True)
+        tmpdir = Path(tempfile.mkdtemp(prefix=".upload_", dir=base))
+        src = tmpdir / ("source" + (Path(name).suffix.lower() or ".mp4"))
+        try:
+            n = 0
+            with open(src, "wb") as fh:  # noqa: ASYNC230 — chunked, size-capped
+                while chunk := await file.read(1024 * 1024):
+                    n += len(chunk)
+                    if n > cap:
+                        raise HTTPException(status_code=413, detail="Video too large")
+                    fh.write(chunk)
+            try:
+                a = await asyncio.to_thread(FT.add_uploaded_video, db, case, src, name,
+                                            title, caption, role, rights, start)
+            except FT.FootageError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+    else:
+        data = await file.read()
+        if len(data) > ai_config.visual_search.max_download_mb * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large")
+        try:
+            a = add_uploaded_image(db, case, data, name, title, caption, role, rights)
+        except ImageError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    _verify_later(case.id, a.id)
     return asset_dict(a)
+
+
+def _verify_later(case_id: int, asset_id: int) -> None:
+    """Vision-check an uploaded asset in the background (entities from
+    the case's latest visual plan, so the director can match it)."""
+    import asyncio
+
+    async def run():
+        from app.db.base import SessionLocal
+
+        bg = SessionLocal()
+        try:
+            case, a = bg.get(Case, case_id), bg.get(VisualAsset, asset_id)
+            if case is None or a is None:
+                return
+            vp = (bg.query(VisualPlan).filter(VisualPlan.case_id == case_id)
+                  .order_by(VisualPlan.id.desc()).first())
+            ents = (_loads(vp.requirements_json, {}) if vp else {}).get("entities") or []
+            await J.verify_assets(bg, case, [a], ents)
+        except Exception as e:  # noqa: BLE001 — the asset stays unverified (audited later)
+            log.warning("upload %s: verification failed: %s", asset_id, e)
+        finally:
+            bg.close()
+
+    try:
+        asyncio.get_running_loop().create_task(run())
+    except RuntimeError:  # no loop (tests calling the function directly)
+        pass
 
 
 # ---------------------------------------------------------------------------

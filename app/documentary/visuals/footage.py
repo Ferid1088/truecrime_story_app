@@ -483,6 +483,130 @@ def extract_keyframe(clip: Path, at: float, out: Path) -> Path:
     raise FootageError("no keyframe could be extracted")
 
 
+SHEET_POINTS = (0.12, 0.5, 0.88)
+
+
+def sheet_path(case_id: int, code: str) -> Path:
+    return storage.thumbs_dir(case_id) / f"{code}.sheet.jpg"
+
+
+def frame_sheet(clip: Path, start: float, end: float, out: Path) -> Path:
+    """Three frames of the clip — near its start, middle and end — side by
+    side in one JPEG: what the verifier and the auditor judge a clip by
+    (one frame cannot tell what a clip shows a few seconds later)."""
+    from PIL import Image
+
+    length = max(end - start, 0.0)
+    frames = []
+    try:
+        for k, f in enumerate(SHEET_POINTS):
+            tmp = out.with_name(f"{out.stem}.{k}.jpg")
+            extract_keyframe(clip, start + length * f, tmp)
+            img = IM.open_image(tmp.read_bytes()).convert("RGB")
+            tmp.unlink(missing_ok=True)
+            h = 360
+            frames.append(img.resize((max(1, int(img.width * h / img.height)), h)))
+    finally:
+        for k in range(len(SHEET_POINTS)):
+            out.with_name(f"{out.stem}.{k}.jpg").unlink(missing_ok=True)
+    gap = 8
+    sheet = Image.new("RGB", (sum(f.width for f in frames) + gap * (len(frames) - 1),
+                              frames[0].height), (0, 0, 0))
+    x = 0
+    for f in frames:
+        sheet.paste(f, (x, 0))
+        x += f.width + gap
+    out.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out, "JPEG", quality=85)
+    return out
+
+
+def clip_sheet(asset: VisualAsset) -> Path | None:
+    """The asset's three-frame sheet (made once, then reused)."""
+    if asset.asset_type != "video":
+        return None
+    out = sheet_path(asset.case_id, asset.asset_code)
+    if out.exists():
+        return out
+    clip = storage.resolve(asset.local_path)
+    if clip is None or not clip.exists():
+        return None
+    start = float(asset.clip_start or 0.0)
+    end = float(asset.clip_end if asset.clip_end is not None
+                else (asset.duration_seconds or start))
+    return frame_sheet(clip, start, end, out)
+
+
+VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".ogv", ".mpg", ".mpeg"}
+
+
+def is_video_upload(filename: str | None, content_type: str | None) -> bool:
+    ctype = (content_type or "").split(";")[0].strip().lower()
+    return ctype.startswith("video/") or Path(filename or "").suffix.lower() in VIDEO_SUFFIXES
+
+
+def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
+                       title: str | None = None, caption: str | None = None,
+                       asset_role: str = "evidence", rights_status: str = "owned",
+                       start: float = 0.0) -> VisualAsset:
+    """A video supplied by the production (rights asserted by the
+    uploader): stored like found footage — muted H.264, at most
+    footage.upload_max_seconds from `start` — with a keyframe and a
+    start/middle/end sheet. It starts unverified: the verifier and the
+    placement auditor check it like any other clip."""
+    cfg = ai_config.footage
+    info = probe_video(src)
+    if info is None or not info["has_video"]:
+        raise FootageRejected("not a readable video")
+    duration = info["duration"] or 0.0
+    if duration <= 0.5:
+        raise FootageRejected("the video has no length")
+    start = max(0.0, min(float(start or 0.0), max(duration - 1.0, 0.0)))
+    length = min(duration - start, cfg.upload_max_seconds)
+    code = next_asset_code(db)
+    vdir = storage.visuals_dir(case.id, "video")
+    out, key = vdir / f"{code}.mp4", vdir / f".{code}.key.jpg"
+    keep = False
+    try:
+        make_clip(src, out, start, length)
+        clip = probe_video(out)
+        if clip is None or not clip["has_video"] or clip["has_audio"]:
+            raise FootageError("ffmpeg clip unusable")
+        clip_len = round(clip["duration"] or length, 3)
+        extract_keyframe(out, clip_len / 2, key)
+        img = IM.open_image(key.read_bytes())
+        thumb = IM.save_thumbnail(img, storage.thumbs_dir(case.id) / f"{code}.jpg")
+        frame_sheet(out, 0.0, clip_len, sheet_path(case.id, code))
+        role = asset_role if asset_role in ("evidence", "context", "illustration") else "evidence"
+        tier = T.provisional_tier("upload", role)
+        asset = VisualAsset(
+            case_id=case.id, asset_code=code, asset_type="video",
+            title=(title or filename)[:500], caption=caption, provider="upload",
+            rights_status=rights_status if rights_status in R.RIGHTS else "owned",
+            rights_reason="uploaded by the production", asset_role=role,
+            local_path=storage.rel(out), thumbnail_path=storage.rel(thumb),
+            width=clip["width"], height=clip["height"], phash=IM.dhash(img),
+            sha256=IM.sha256_file(out), duration_seconds=clip_len,
+            has_original_audio=False, clip_start=0.0, clip_end=clip_len,
+            verification_status="unverified", relevance_tier=tier,
+            case_relevance=T.tier_label(tier), found_during="upload",
+            spec_json=json.dumps({"uploaded_name": filename,
+                                  "source_window": [round(start, 3), round(start + length, 3)],
+                                  "source_duration": round(duration, 3),
+                                  "source_had_audio": info["has_audio"]}),
+        )
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+        keep = True
+        return asset
+    finally:
+        key.unlink(missing_ok=True)
+        if not keep:
+            out.unlink(missing_ok=True)
+            sheet_path(case.id, code).unlink(missing_ok=True)
+
+
 # ---------------------------------------------------------------------------
 # agent
 # ---------------------------------------------------------------------------
@@ -604,6 +728,7 @@ class FootageAgent:
             if any(IM.hamming(ph, h) <= DEDUPE_HAMMING for h in hashes):
                 return "duplicates"
             thumb = IM.save_thumbnail(img, storage.thumbs_dir(case.id) / f"{code}.jpg")
+            await asyncio.to_thread(frame_sheet, out, 0.0, clip_len, sheet_path(case.id, code))
             tier, why = T.provisional_why(c.provider, "context", c.entity_type, c.query_kind)
             asset = VisualAsset(
                 case_id=case.id, asset_code=code, asset_type="video",
@@ -636,3 +761,4 @@ class FootageAgent:
             key.unlink(missing_ok=True)
             if not keep:
                 out.unlink(missing_ok=True)
+                sheet_path(case.id, code).unlink(missing_ok=True)

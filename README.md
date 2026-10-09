@@ -567,6 +567,48 @@ before it.
   written to a `.part` file and renamed when complete. A render whose film
   already exists for the same script is not rendered again.
 
+### Approval gates and the picture auditor
+
+Nothing goes into a film without "approved" from its auditor. A rejected
+result is made again with the auditor's reasons and judged again, at most
+`documentary.max_redos` (2) times; if it is still rejected it is left out
+and reported (the job never waits for a person).
+
+- **Master story** (`master_approval` stage): its critics must have passed
+  it; otherwise it is revised with exactly the failed checks. Still
+  failing: the job stops (there is no film without an approved story).
+- **Blueprint / visual needs**: an invalid result is made again.
+- **Spoken versions**: a version its meaning/style checks rejected is
+  made again; still rejected → that language is left out of the film.
+- **Host**: segments the host critic rejected get no host scene.
+- **Narration**: blocks that still fail the listening check after the
+  retakes are reported (stage "degraded").
+- **Pictures and clips** (`visual_audit:<lang>`, right before render):
+  each photo/clip must be verified and approved by the visual auditor
+  (role `visual_auditor`, a vision model independent of the visual
+  director), which sees the exact narration sentences. It rejects a wrong
+  or more general kind of thing (a pet for "the police dog"), a face that
+  is not clearly the named person, and sentimental/funny/stock looks.
+  Rejected → the next unused verified clip or photo (a clip first) is
+  tried and audited again; still nothing → the previous picture holds or
+  the next comes early (audited for the extra words), else a short black
+  pause. "Symbolic" approvals carry the "symbolic image" label. Verdicts
+  are stored per picture file + exact sentences (`visual_audits`), so the
+  other languages reuse them. The report is on the production script
+  (`audit_json`, Critique tab).
+- **Verifier**: stand-ins must be the same specific kind and always carry
+  the label; a clash of tone rejects; clips are judged by start, middle
+  and end frames; uploads are checked like found pictures.
+
+### Your own photos and videos
+
+Visual Library → *Upload photo or video*. A video is stored muted (H.264,
+at most `footage.upload_max_seconds` = 60 s from the chosen start) with a
+keyframe and a start/middle/end sheet. Every upload starts unverified and
+is vision-checked in the background; the picture auditor checks it again
+for the words it would appear under. Clips rank before photos of the same
+tier (`visual_direction.video_bonus`), and the no-repeat rule covers both.
+
 ### Pronunciation check (Persian)
 
 Persian script leaves short vowels unwritten: «ملک» is melk (property),

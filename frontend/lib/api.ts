@@ -472,6 +472,7 @@ export const api = {
     if (upload.caption.trim()) form.set("caption", upload.caption.trim());
     form.set("role", upload.role);
     form.set("rights", upload.rights);
+    if (upload.start && upload.start > 0) form.set("start", String(upload.start));
     // Empty headers drop the JSON content type: the browser sets the
     // multipart boundary itself.
     return request<VisualAsset>(`/api/cases/${caseId}/visuals/upload`, {

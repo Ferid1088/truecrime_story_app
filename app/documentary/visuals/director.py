@@ -261,6 +261,8 @@ def rank_candidates(req: dict, entity: dict, assets: list[VisualAsset],
         q = a.quality_score if a.quality_score is not None else 0.5
         prio = {"high": 1.0, "medium": 0.85, "low": 0.7}.get(req.get("priority"), 0.85)
         score = es * (0.5 + 0.5 * ver) * (0.6 + 0.4 * q) * prio * tier_weight(a)
+        if a.asset_type == "video":  # real moving pictures of the case first
+            score *= ai_config.visual_direction.video_bonus
         scored.append((round(score, 4), a))
     scored.sort(key=lambda x: (-x[0], x[1].id or 0))
     return scored
@@ -308,14 +310,14 @@ def place_key(place: str | None) -> str:
 def _fallback_shot(beat_req: dict, has_current: bool, options: list[VisualAsset] | None = None,
                    prefer: set[str] | None = None) -> dict:
     """Part 25 hierarchy when no fitting shot exists: an unused verified
-    candidate (lowest tier; in the opening the kind its strategy wants),
-    then the document or date card, then holding the current picture,
-    then black. A map is never the default: maps are chosen where
-    geography matters, not to fill."""
+    candidate (lowest tier; in the opening the kind its strategy wants;
+    within a tier a real clip before a photo), then the document or date
+    card, then holding the current picture, then black. A map is never
+    the default: maps are chosen where geography matters, not to fill."""
     if options:
         a = sorted(options, key=lambda x: ((x.entity_type or "") not in (prefer or set()),
-                                           asset_tier(x), -(x.quality_score or 0.5),
-                                           x.id or 0))[0]
+                                           asset_tier(x), x.asset_type != "video",
+                                           -(x.quality_score or 0.5), x.id or 0))[0]
         cmd = "SHOW_CLIP" if a.asset_type == "video" else (
             "ATMOSPHERIC_BROLL" if a.asset_role == "illustration" else "NEW_IMAGE")
         shot = {"command": cmd, "asset_id": a.asset_code, "share": 1.0,

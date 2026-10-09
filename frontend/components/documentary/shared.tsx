@@ -91,6 +91,7 @@ const STAGE_LABELS: Record<string, string> = {
   voice: "Narration & music mix",
   production: "Production script",
   critique: "Critique & fixes",
+  visual_audit: "Picture audit",
   render: "Render",
 };
 

@@ -11,8 +11,9 @@ and the relevance tier (visuals/tiers.py): what the image shows decides
 how close to the case it really is, starting from what the search
 claimed when it was found.
 
-Footage is judged by its keyframe (the clip's thumbnail): one still of
-the stored window, so the same vision check and the same rules apply.
+Footage is judged by three frames of the stored window — near its start,
+middle and end, side by side in one picture — so what the clip shows a
+few seconds later is checked too, by the same rules.
 """
 
 from __future__ import annotations
@@ -33,8 +34,9 @@ from app.services.tracking import stamp_run, track_run
 VERIFIER_SYSTEM = """
 You verify images for a factual true-crime documentary. Look at the
 IMAGE ITSELF. The caption, page title and search query are claims to
-check, not facts. For a video clip you see one keyframe of it: judge the
-clip by that frame. Be strict: a wrong face or a wrong building shown as
+check, not facts. For a video clip you see three frames of it side by
+side (start, middle, end, left to right): judge the whole clip — every
+frame must fit. Be strict: a wrong face or a wrong building shown as
 "the" person or place is a serious error.
 
 Decide:
@@ -44,10 +46,18 @@ Decide:
 - matches_claim: yes|stand_in|no|unclear — does the image show what it
   is claimed to show (the entity it was found for / its caption)?
   stand_in: not the case's own thing, but an honest picture of the SAME
-  KIND of thing the search describes (a dog of the same breed, a police
-  K9 team, a garage side door, the town's main street) — usable only as
-  a labelled illustration. Never stand_in for a person: a different
-  face is "no".
+  SPECIFIC KIND of thing the search describes — usable only as a
+  labelled illustration. The specific kind matters: a police dog only
+  by a working police/K9 dog (harness, police vest, handler, search
+  work) — never a pet or a family dog; a police car only by a police
+  car; a search party only by people searching; a remote forest track
+  only by a forest track, not a park. A more general or a different
+  kind is "no". Never stand_in for a person: a different face is "no".
+- tone_ok: false when the picture's look clashes with a serious crime
+  documentary — sentimental, cute, funny, playful, staged stock or
+  advertising photos (smiling models, pets posing, holiday snaps) —
+  even if the subject is right. Such pictures make the film look
+  ridiculous and must not be used.
 - identity_evidence: why you think so (caption text, visible signs,
   context) — "unclear" when a person cannot be identified.
 - role: evidence (genuine case material: the actual people, the actual
@@ -69,7 +79,7 @@ Decide:
 
 Return JSON only:
 {"depicts": "...", "subject_type": "person", "matches_claim": "yes",
- "identity_evidence": "...", "role": "evidence", "period_ok": "yes",
+ "tone_ok": true, "identity_evidence": "...", "role": "evidence", "period_ok": "yes",
  "entities": [], "reveals": [], "quality": 0.7, "watermark": false,
  "graphic_or_sensitive": false, "confidence": 0.8}
 """
@@ -86,6 +96,8 @@ def decide(v: dict) -> tuple[str, float, str | None]:
         return "rejected", conf, "watermark"
     if v.get("graphic_or_sensitive"):
         return "rejected", conf, "graphic_or_sensitive"
+    if v.get("tone_ok") is False:
+        return "rejected", conf, "tone"
     if v.get("matches_claim") == "no" or v.get("period_ok") == "no":
         return "rejected", conf, "does_not_match"
     if conf < cfg.reject_below_confidence:
@@ -103,17 +115,13 @@ def decide(v: dict) -> tuple[str, float, str | None]:
     return "needs_review", conf, "uncertain"
 
 
-def image_for_check(asset: VisualAsset):
-    """The still the verifier looks at: the thumbnail (for footage the
-    keyframe of the stored window). A clip without one gets its keyframe
-    extracted now — a video file is never sent as an image."""
+def _keyframe_thumb(asset: VisualAsset):
+    """The clip's keyframe thumbnail (made now if missing)."""
+    from app.documentary.visuals.footage import extract_keyframe
+
     thumb = storage.resolve(asset.thumbnail_path)
     if thumb is not None and thumb.exists():
         return thumb
-    if asset.asset_type != "video":
-        return storage.resolve(asset.local_path)
-    from app.documentary.visuals.footage import extract_keyframe
-
     clip = storage.resolve(asset.local_path)
     out = storage.thumbs_dir(asset.case_id) / f"{asset.asset_code}.jpg"
     length = asset.duration_seconds or ((asset.clip_end or 0) - (asset.clip_start or 0))
@@ -123,6 +131,26 @@ def image_for_check(asset: VisualAsset):
     frame.unlink(missing_ok=True)
     asset.thumbnail_path = storage.rel(out)
     return out
+
+
+def image_for_check(asset: VisualAsset):
+    """The still the verifier looks at: the thumbnail; for footage the
+    start/middle/end sheet of the stored window (made now if missing;
+    the keyframe only when no sheet can be made) — a video file is never
+    sent as an image."""
+    if asset.asset_type != "video":
+        thumb = storage.resolve(asset.thumbnail_path)
+        if thumb is not None and thumb.exists():
+            return thumb
+        return storage.resolve(asset.local_path)
+    from app.documentary.visuals.footage import FootageError, clip_sheet
+
+    thumb = _keyframe_thumb(asset)  # the library's thumbnail stays the keyframe
+    try:
+        sheet = clip_sheet(asset)
+    except (FootageError, OSError, IM.ImageError):
+        sheet = None
+    return sheet if sheet is not None else thumb
 
 
 class VisualVerificationAgent:
@@ -138,7 +166,8 @@ class VisualVerificationAgent:
         provisional = previous.get("provisional_tier") or asset.relevance_tier
         payload = {
             "case": case.canonical_title,
-            "media": "video keyframe" if asset.asset_type == "video" else "image",
+            "media": ("video: start, middle and end frames, left to right"
+                      if asset.asset_type == "video" else "image"),
             "found_for": asset.found_for,
             "claimed_entities": claimed,
             "title": asset.title, "caption": asset.caption,
@@ -172,8 +201,10 @@ class VisualVerificationAgent:
             asset.subject_type = str(v["subject_type"])[:20]
         if v.get("role") in ("evidence", "context", "illustration"):
             asset.asset_role = v["role"]
-        if v.get("matches_claim") == "stand_in" and asset.asset_role == "evidence":
-            asset.asset_role = "illustration"  # a stand-in is never case material
+        if v.get("matches_claim") == "stand_in":
+            # a stand-in is never case material, and always shown with the
+            # "symbolic image" label (the label follows role illustration)
+            asset.asset_role = "illustration"
         ents = [e for e in v.get("entities") or [] if e in known_ents]
         if ents:
             asset.entities_json = json.dumps(sorted(set(ents) | set(claimed)), ensure_ascii=False)

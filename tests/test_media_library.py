@@ -563,7 +563,13 @@ def test_video_assets_are_verified_through_their_keyframe(db_session, media_env,
     db_session.commit()
     asyncio.run(VisualVerificationAgent().verify(db_session, case, a, [], []))
     assert seen["images"][0].startswith("data:image/jpeg;base64,")
-    assert seen["payload"]["media"] == "video keyframe"
+    # judged by start, middle and end frames side by side (one picture)
+    assert seen["payload"]["media"].startswith("video: start, middle and end frames")
+    from PIL import Image
+    import base64, io
+
+    sheet = Image.open(io.BytesIO(base64.b64decode(seen["images"][0].split(",", 1)[1])))
+    assert sheet.width > 2.5 * sheet.height
     assert Path(a.thumbnail_path).suffix == ".jpg"
     assert a.verification_status == "verified"
     assert (a.relevance_tier, a.case_relevance) == (1, "exact_case")

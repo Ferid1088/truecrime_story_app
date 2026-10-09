@@ -712,7 +712,31 @@ class ProductionScript(Base):
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     script_json: Mapped[str] = mapped_column(Text, default="{}")
     critique_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # the visual auditor's report: every picture/clip on screen approved
+    # for the words spoken over it (what was replaced or left out, and why)
+    audit_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     render_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class VisualAudit(Base):
+    """One verdict of the visual auditor: may this picture/clip be shown
+    while these words are spoken? Keyed by the asset (code + file hash)
+    and the exact English sentences, so every language reuses it and a
+    changed picture or changed words are audited again."""
+
+    __tablename__ = "visual_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(Integer, index=True)
+    asset_code: Mapped[str] = mapped_column(String(20), index=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    sentences_json: Mapped[str] = mapped_column(Text, default="[]")
+    verdict: Mapped[str] = mapped_column(String(20))            # approved | rejected
+    shown_as: Mapped[str | None] = mapped_column(String(20), nullable=True)  # evidence|context|symbolic
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    detail_json: Mapped[str] = mapped_column(Text, default="{}")
+    model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 

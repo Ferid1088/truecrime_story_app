@@ -90,7 +90,7 @@ export function VisualLibraryTab({ caseId, overview, refreshKey }: DocumentaryTa
           )}
         </div>
         <Button size="sm" onClick={() => setUploading(true)}>
-          <ImageUp className="size-3.5" /> Upload image
+          <ImageUp className="size-3.5" /> Upload photo or video
         </Button>
       </div>
 
@@ -498,7 +498,9 @@ function UploadDialog({
   const [caption, setCaption] = useState("");
   const [role, setRole] = useState<AssetRole>("evidence");
   const [rights, setRights] = useState("owned");
+  const [start, setStart] = useState("");
   const [busy, setBusy] = useState(false);
+  const isVideo = !!file && (file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv|avi|mpe?g|ogv)$/i.test(file.name));
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -507,10 +509,18 @@ function UploadDialog({
     setBusy(true);
     setError(null);
     try {
-      const asset = await api.uploadVisual(caseId, { file, title, caption, role, rights });
+      const asset = await api.uploadVisual(caseId, {
+        file,
+        title,
+        caption,
+        role,
+        rights,
+        start: isVideo ? Number(start) || 0 : undefined,
+      });
       setFile(null);
       setTitle("");
       setCaption("");
+      setStart("");
       onUploaded(asset);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -523,23 +533,39 @@ function UploadDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Upload image"
-      description="Add your own photo or scan to the case's visual library."
+      title="Upload photo or video"
+      description="Add your own photo, scan or video clip. Videos are stored without sound (max. 60 s). Everything is checked by the picture auditor before it can appear in a film."
     >
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label htmlFor={`${ids}-file`} className="mb-1 block text-xs font-medium text-muted-foreground">
-            Image file
+            Photo or video file
           </label>
           <Input
             id={`${ids}-file`}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             required
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="h-auto py-1.5 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:text-foreground"
           />
         </div>
+        {isVideo && (
+          <div>
+            <label htmlFor={`${ids}-start`} className="mb-1 block text-xs font-medium text-muted-foreground">
+              Start at second (optional)
+            </label>
+            <Input
+              id={`${ids}-start`}
+              type="number"
+              min={0}
+              step={0.5}
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              placeholder="0 — the 60 seconds from here are kept"
+            />
+          </div>
+        )}
         <div>
           <label htmlFor={`${ids}-title`} className="mb-1 block text-xs font-medium text-muted-foreground">
             Title (optional)

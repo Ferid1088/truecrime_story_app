@@ -109,10 +109,11 @@ def _fail(scene: HostScene, step: str, err: Exception, db: Session) -> None:
 
 
 def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
-    """One scene per written segment, with the channel's own studio and the
-    framing for its position. Idempotent: a scene that exists for this
-    segments row is kept (its text is frozen); nothing is planned for a
-    segment without dialogue."""
+    """One scene per written segment the host critic approved, with the
+    channel's own studio and the framing for its position. Idempotent: a
+    scene that exists for this segments row is kept (its text is frozen);
+    nothing is planned for a segment without dialogue or one that did not
+    pass its check."""
     version = db.get(StoryVersion, seg_row.story_version_id)
     language = seg_row.language or (version.language if version else "en")
     cp = ST.channel_profile(language)
@@ -126,6 +127,8 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
         text = (seg.get("avatar_dialogue") or "").strip()
         if not sid or not text:
             continue
+        if (seg.get("quality") or {}).get("pass") is False:
+            continue  # not approved by the host critic: no scene (left out)
         if sid in existing:
             out.append(existing[sid])
             continue

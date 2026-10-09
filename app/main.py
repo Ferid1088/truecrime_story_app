@@ -288,8 +288,9 @@ def _ensure_columns():
                 conn.execute(text("DROP TABLE documentary_jobs_old"))
         # Case lifecycle + media library columns: added from the models
         # (new nullable / defaulted columns only).
-        from app.db.models import DiscoveryCandidate as _DC, HostScene as _HS, VisualAsset as _VA
-        for model in (Case, _DC, _VA, _HS):
+        from app.db.models import (DiscoveryCandidate as _DC, HostScene as _HS,
+                                   ProductionScript as _PS, VisualAsset as _VA)
+        for model in (Case, _DC, _VA, _HS, _PS):
             _add_model_columns(conn, model)
         conn.commit()
 

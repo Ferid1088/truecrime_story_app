@@ -76,6 +76,32 @@ def _still_usable(a: VisualAsset) -> bool:
     return a.verification_status != "rejected" and R.allowed(a.rights_status)
 
 
+def _clip_length(a: VisualAsset) -> float:
+    lo = float(a.clip_start or 0.0)
+    hi = a.clip_end if a.clip_end is not None else a.duration_seconds
+    return float(hi) - lo if hi is not None else 0.0
+
+
+def _fits(a: VisualAsset | None, seconds: float) -> bool:
+    """A photo fits any segment; a clip only one it can fill (it plays once)."""
+    return a is not None and (a.asset_type != "video" or _clip_length(a) >= seconds - 0.5)
+
+
+def _video_first(assets: dict[str, VisualAsset]):
+    """tracker.pick preference: a real clip before a photo of the same tier."""
+    return lambda c: 0 if (assets.get(c) is not None and assets[c].asset_type == "video") else 1
+
+
+def _media(a: VisualAsset) -> dict:
+    """Shot fields of a fill: a photo (moves) or a clip (plays as it is)."""
+    info = _asset_info(a)
+    if a.asset_type == "video":
+        info.update(_clip_info(a))
+    else:
+        info.update({"kind": "image", "command": "NEW_IMAGE"})
+    return info
+
+
 def _asset_info(a: VisualAsset) -> dict:
     spec = json.loads(a.spec_json or "{}")
     ver = json.loads(a.verification_json or "{}") if a.verification_json else {}
@@ -308,11 +334,11 @@ def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
             cut = round(sh["start"] + max_black, 3)
         bi = order.index(sh["beat_id"]) if sh["beat_id"] in order else len(order)
         earned = [c for b in order[:bi + 1] for c in cands.get(b, [])]
-        earned += [x.get("asset_id") for x in out if x.get("kind") == "image"]
+        earned += [x.get("asset_id") for x in out if x.get("kind") in ("image", "video")]
         pool: list[VisualAsset] = []
         for code in dict.fromkeys(earned):  # keep order, no duplicates
             a = assets.get(code or "")
-            if (a is None or not _still_usable(a) or a.asset_type != "photo"
+            if (a is None or not _still_usable(a) or a.asset_type not in ("photo", "video")
                     or fw.blocks(sh["beat_id"], a)):
                 continue
             pool.append(a)
@@ -347,11 +373,13 @@ def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
             # not one of the last pictures — else at least not the one
             # right before
             names = named_between(sentences or [], t, end)
-            codes = [a.asset_code for a in pool]
+            codes = [a.asset_code for a in pool if _fits(a, end - t)]
             choice = tracker.pick(codes, t, end, names,
-                                  avoid={x.get("asset_id") for x in out[-3:]})
+                                  avoid={x.get("asset_id") for x in out[-3:]},
+                                  prefer=_video_first(assets))
             if choice is None and out:
-                choice = tracker.pick(codes, t, end, names, avoid={out[-1].get("asset_id")})
+                choice = tracker.pick(codes, t, end, names, avoid={out[-1].get("asset_id")},
+                                      prefer=_video_first(assets))
             if choice is None:
                 prev = out[-1] if out else None
                 if prev is not None and prev.get("black_filled") and prev["end"] >= t - 0.01:
@@ -364,12 +392,12 @@ def _cap_black(shots: list[dict], plan: dict, assets: dict[str, VisualAsset],
                 tracker.add(pick.asset_code, t, end)
                 out.append({**{k2: v for k2, v in _base(sh).items()
                                if k2 not in ("kind", "command", "motion")},
-                            "start": round(t, 3), "end": end, "command": "NEW_IMAGE",
-                            "kind": "image", "motion": moves[len(out) % 4],
+                            "start": round(t, 3), "end": end,
+                            "motion": moves[len(out) % 4],
                             "transition_in": "CROSSFADE", "black_filled": True,
                             "fill_reason": (f"black pause capped at {max_black:g}s: "
                                             f"{choice['reason']}"),
-                            **_repeat_fields(choice), **_asset_info(pick)})
+                            **_repeat_fields(choice), **_media(pick)})
             t = end
     # merge consecutive pieces of one black pause / one fill
     merged: list[dict] = []
@@ -394,11 +422,11 @@ def _earned_pool(beat_id: str, out: list[dict], plan: dict, assets: dict[str, Vi
     cands = plan.get("candidates") or {}
     bi = order.index(beat_id) if beat_id in order else len(order)
     earned = [c for b in order[:bi + 1] for c in cands.get(b, [])]
-    earned += [x.get("asset_id") for x in out if x.get("kind") == "image"]
+    earned += [x.get("asset_id") for x in out if x.get("kind") in ("image", "video")]
     pool = []
     for code in dict.fromkeys(earned):
         a = assets.get(code or "")
-        if (a is None or not _still_usable(a) or a.asset_type != "photo"
+        if (a is None or not _still_usable(a) or a.asset_type not in ("photo", "video")
                 or fw.blocks(beat_id, a)):
             continue
         pool.append(a)
@@ -485,18 +513,22 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
             last_seg = k == len(bounds) - 2
             if last_seg and nxt:
                 recent.add(nxt)
-            allowed = [c for c in options if not fw.blocks(beat, assets.get(c))]
+            allowed = [c for c in options if not fw.blocks(beat, assets.get(c))
+                       and (c not in assets or _fits(assets[c], seg_end - t))]
             choice = tracker.pick(allowed, t, seg_end, named_between(sentences or [], t, seg_end),
-                                  avoid=recent)
+                                  avoid=recent, prefer=_video_first(assets))
             base = {**_base(first), "start": round(t, 3), "end": seg_end, "beat_id": beat,
                     "motion": moves[len(final) % len(moves)], "transition_in": "CROSSFADE"}
             if choice is not None:
                 c = choice["asset_id"]
-                info = _asset_info(assets[c]) if c in assets else dict(alts.get(c) or {})
+                info = (_media(assets[c]) if c in assets
+                        else {**dict(alts.get(c) or {}), "kind": "image", "command": "NEW_IMAGE"})
                 if is_map:  # a picture after the map: none of the map's fields
                     base = {k2: v for k2, v in base.items()
                             if k2 not in ("map_paths", "place", "marker", "held")}
-                seg = {**base, **info, "kind": "image", "command": "NEW_IMAGE",
+                if info.get("kind") == "video":
+                    base.pop("motion", None)
+                seg = {**base, **info,
                        "fill_reason": (f"{'map' if is_map else 'long hold'} varied: "
                                        f"{choice['reason']}"),
                        **_repeat_fields(choice)}

@@ -475,6 +475,13 @@ class PipelineGen:
                 self._res(role)
         if role.endswith("_critic"):
             return {"score": 80, "problems": [], "summary": "fine"}, self._res(role)
+        if role == "visual_auditor":
+            data = json.loads(user)
+            assert images and data["narration_while_on_screen"]
+            self.audited = getattr(self, "audited", 0) + 1
+            return {"verdict": "approved", "as": "evidence", "fits_words": 0.9,
+                    "specific_kind_ok": True, "tone_ok": True, "person_ok": True,
+                    "depicts": "the farmhouse", "reasons": []}, self._res(role)
         raise AssertionError(f"unexpected role {role}")
 
 
@@ -494,7 +501,8 @@ def documentary_env(tmp_path, monkeypatch):
     gen.research_calls = []
     for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
                 "visuals.verification", "visuals.director", "visuals.generated",
-                "production.critics", "voice_performance", "pronunciation", "host"):
+                "production.critics", "voice_performance", "pronunciation", "host",
+                "visuals.auditor"):
         monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts
@@ -561,6 +569,11 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         place = next(o for o in script["overlays"] if o["kind"] == "place")
         assert place["text"] == ("Nannup" if lang == "en" else "Nannup (de)")
         assert json.loads(ps.critique_json)["score"] == 80
+        audit = json.loads(ps.audit_json)
+        assert audit["status"] == "approved" and audit["approved"] >= 1
+        assert all(sh["audit"]["verdict"] == "approved"
+                   for sh in script["shots"] if sh.get("kind") == "image")
+        assert stages[f"visual_audit:{lang}"]["status"] == "done"
         # every render is remembered as a Video with status + YouTube title
         from app.db.models import Video
 
@@ -645,7 +658,8 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert r.status_code == 200, r.text
     job = r.json()
     assert job["languages"] == ["en"] and launched == [job["id"]]
-    assert job["stages"][0] == {"name": "blueprint", "status": "pending", "detail": None}
+    assert job["stages"][0] == {"name": "master_approval", "status": "pending", "detail": None}
+    assert job["stages"][1]["name"] == "blueprint"
     again = client.post(f"/api/cases/{case.id}/documentary/jobs", json={"mode": "pilot"})
     assert again.status_code == 409
     assert client.post(f"/api/documentary/jobs/{job['id']}/cancel").json()["status"] == "cancelling"

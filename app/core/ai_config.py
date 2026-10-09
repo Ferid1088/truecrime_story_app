@@ -100,6 +100,9 @@ REQUIRED_ROLES = {
     "visual_planner",
     "visual_verifier",
     "visual_director",
+    # Strict gate before render: is THIS picture/clip right for THESE
+    # words (exact kind, tone, honesty)? Independent of the director.
+    "visual_auditor",
     "overlay_localizer",
     # Documentary critics (independent of the visual director).
     "automation_feel_critic",
@@ -109,7 +112,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier"}
+VISION_ROLES = {"visual_verifier", "visual_auditor"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
@@ -1172,6 +1175,10 @@ class DocumentaryConfig(BaseModel):
     """Film-level rules shared by every stage."""
 
     languages: list[str] = ["en", "de", "fa", "ar"]
+    # Approval gates: a result its auditor rejects is made again with the
+    # reasons (and judged again) at most this many times; then it is left
+    # out (a language, a host scene, a picture) or the job stops.
+    max_redos: int = Field(default=2, ge=0, le=5)
     # Every finished documentary runs 45–120 minutes. Pilots are short
     # renders (pilot_seconds) of a full-length story, never short stories.
     min_film_minutes: float = Field(default=45.0, gt=0)
@@ -1205,6 +1212,18 @@ class VisualSearchConfig(BaseModel):
         "gettyimages.", "shutterstock.", "alamy.", "istockphoto.",
         "dreamstime.", "depositphotos.", "123rf.", "stock.adobe.",
     ]
+
+
+class VisualAuditConfig(BaseModel):
+    """The visual auditor (gate before render): every photo and clip on
+    screen must be verified AND approved for the words spoken over it.
+    A rejected one is replaced (and the replacement audited again) up to
+    max_redos times; then the moment is held, carded or left dark."""
+
+    enabled: bool = True
+    max_redos: int = Field(default=2, ge=0, le=5)
+    # what the auditor needs to approve (0–1): fit to the words
+    min_fit: float = Field(default=0.7, ge=0.0, le=1.0)
 
 
 class VisualVerificationConfig(BaseModel):
@@ -1624,6 +1643,9 @@ class VisualDirectionConfig(BaseModel):
     max_person_appearances: int = Field(default=1, ge=1)
     max_evidence_appearances: int = Field(default=1, ge=1)
     min_repeat_gap_seconds: float = Field(default=45.0, ge=0.0)
+    # A verified clip of the same need outranks a photo by this factor
+    # (and within a tier a fill takes a clip before a photo).
+    video_bonus: float = Field(default=1.15, ge=1.0, le=2.0)
     # Picture changes (seconds) — snapped to sentence starts.
     cut_pattern: list[float] = [7.0, 9.0, 6.0, 8.5, 5.5, 8.0]
     min_cut_seconds: float = Field(default=4.0, gt=0)
@@ -1656,6 +1678,9 @@ class FootageConfig(BaseModel):
     # Stored window of a clip and its quality floor.
     clip_seconds: float = Field(default=24.0, gt=1)
     min_height: int = Field(default=360, ge=120)
+    # An uploaded video keeps up to this many seconds (from its start or
+    # the chosen start) — muted like every clip.
+    upload_max_seconds: float = Field(default=60.0, gt=1)
 
 
 class ConcurrencyConfig(BaseModel):
@@ -1733,6 +1758,7 @@ class AIConfig(BaseModel):
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
+    visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)

@@ -1611,6 +1611,16 @@ export interface ProductionScriptData {
   credits?: string[];
 }
 
+export interface VisualAuditReport {
+  status: string;
+  audited: number;
+  approved: number;
+  max_redos: number;
+  replaced: { at: number; from: string; to: string; why: string[] }[];
+  left_out: { at: number; rejected: string[]; why: string[]; done: string; sentences: string[] }[];
+  symbolic: string[];
+}
+
 export interface ProductionSummary {
   id: number;
   story_version_id: number;
@@ -1620,6 +1630,8 @@ export interface ProductionSummary {
   status: string;
   duration_seconds: number | null;
   critique: CritiqueReport | null;
+  /** The picture auditor's report (gate before render). */
+  audit?: VisualAuditReport | null;
   render: RenderInfo | null;
   /** Relative API paths — prefix with API_BASE. */
   video_url: string | null;
@@ -1741,6 +1753,8 @@ export interface VisualUpload {
   caption: string;
   role: AssetRole;
   rights: string;
+  /** Video only: second of the file where the kept part starts (max. 60 s are kept). */
+  start?: number;
 }
 
 /** GET /api/documentary/music — one track of the library with its usage (`track_catalogue`). */

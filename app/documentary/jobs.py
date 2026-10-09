@@ -78,6 +78,45 @@ class LanguageFailed(Exception):
     pass
 
 
+class SpokenRejected(RuntimeError):
+    """A spoken version its checkers did not approve after the redos."""
+
+
+MASTER_ROLES = {"director": "master_story_director", "writer": "master_writer",
+                "rewriter": "master_rewriter", "critic": "master_engagement_critic",
+                "final_editor": "master_final_editor"}
+
+
+async def approve_master(db: Session, case: Case, v: StoryVersion,
+                         max_redos: int | None = None) -> tuple[StoryVersion, list[dict]]:
+    """The master story's approval gate: its critics and quality gates
+    must have passed (status "ready"). A master marked needs_revision is
+    revised with exactly the reasons it failed — the revision is a new
+    version, judged again by the same critics — at most max_redos times.
+    Returns (approved version, the rejected attempts). Raises when it is
+    still not approved: there is no film without an approved story."""
+    from app.agents.story import StoryPipeline
+
+    limit = ai_config.documentary.max_redos if max_redos is None else max_redos
+    history: list[dict] = []
+    while v.status == "needs_revision":
+        notes = json.loads(v.critic_notes or "{}")
+        gates = notes.get("quality_gates") or {}
+        failures = gates.get("failures") or []
+        history.append({"version_id": v.id, "failures": failures})
+        if len(history) > limit:
+            raise RuntimeError(
+                f"Master story not approved after {limit} revision(s): "
+                + (", ".join(map(str, failures)) or "quality gates failed"))
+        instruction = (
+            "Revise the story so that it passes these failed quality checks, and change "
+            "nothing else: " + json.dumps(failures, ensure_ascii=False)
+            + (". Critic notes: " + str(notes.get("summary") or notes.get("notes"))[:1500]
+               if notes.get("summary") or notes.get("notes") else ""))
+        v = await StoryPipeline(roles=MASTER_ROLES).improve(db, case, v, instruction)
+    return v, history
+
+
 # ---------------------------------------------------------------------------
 # helpers shared with the API
 # ---------------------------------------------------------------------------
@@ -159,14 +198,14 @@ def job_dict(job: DocumentaryJob) -> dict:
 def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
     host = ai_config.host.enabled
     names = (["research", "master_story"] if from_zero else []) + [
-        "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
+        "master_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
         ["host_plan"] if host else []) + [
         "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan",
         "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
             f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
-            f"render:{l}"]
+            f"visual_audit:{l}", f"render:{l}"]
     return [{"name": n, "status": "pending", "detail": None} for n in names]
 
 
@@ -279,6 +318,20 @@ class DocumentaryPipeline:
                 db.commit()
         if not job.master_version_id:
             raise RuntimeError("No master story for this job.")
+
+        async def master_approval():
+            # nothing goes into production unapproved: a master its own
+            # critics did not pass is revised with their reasons (each
+            # revision judged again), at most max_redos times
+            v, history = await approve_master(db, case, db.get(StoryVersion,
+                                                               job.master_version_id))
+            if v.id != job.master_version_id:
+                job.master_version_id = v.id
+                db.commit()
+            return {"master_version_id": v.id, "verdict": "approved",
+                    "redos": len(history), "history": history}
+
+        await self._stage("master_approval", master_approval)
         master = db.get(StoryVersion, job.master_version_id)
 
         async def blueprint():
@@ -287,11 +340,18 @@ class DocumentaryPipeline:
                     not row.story_text_hash or row.story_text_hash == master.text_hash):
                 state["bp"] = row
                 return {"blueprint_id": row.id, "reused": True}
-            row = await NarrativeDirector().create(db, case, master)
+            # an invalid blueprint is made again (validated each time)
+            tries = []
+            for _ in range(ai_config.documentary.max_redos + 1):
+                row = await NarrativeDirector().create(db, case, master)
+                tries.append(row.status)
+                if row.status != "invalid":
+                    break
             if row.status == "invalid":
-                raise RuntimeError("The editorial blueprint is invalid; see the Blueprint tab.")
+                raise RuntimeError(f"The editorial blueprint stayed invalid after {len(tries)} "
+                                   "attempts; see the Blueprint tab.")
             state["bp"] = row
-            return {"blueprint_id": row.id, "status": row.status}
+            return {"blueprint_id": row.id, "status": row.status, "attempts": len(tries)}
 
         await self._stage("blueprint", blueprint)
         state.setdefault("bp", latest_blueprint(db, master.id))
@@ -323,8 +383,21 @@ class DocumentaryPipeline:
                 v = latest_spoken(db, master, lang, bp_row.id)
                 if v is None:
                     v = await SpokenNarrator().create(db, case, master, lang)
+                # approved = its meaning/style checks passed; else made
+                # again (and judged again), at most max_redos times — still
+                # not approved: this language is left out of the film
+                history = []
+                while v.status == "needs_revision":
+                    gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
+                    history.append({"version_id": v.id, "failures": gates.get("failures", [])})
+                    if len(history) > ai_config.documentary.max_redos:
+                        raise SpokenRejected(
+                            f"spoken version not approved after {len(history) - 1} redo(s): "
+                            + ", ".join(gates.get("failures", [])))
+                    v = await SpokenNarrator().create(db, case, master, lang)
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
-                return {"version_id": v.id, "status": v.status,
+                return {"version_id": v.id, "status": v.status, "verdict": "approved",
+                        "redos": len(history), "rejected_before": history,
                         "failures": gates.get("failures", [])}
 
             try:
@@ -342,10 +415,14 @@ class DocumentaryPipeline:
             from app.documentary.visuals.planner import VisualPlanner
 
             row = latest_visual_plan(db, bp_row.id)
-            if row is None:
+            tries = 0
+            while row is None or row.status == "invalid":
+                if tries > ai_config.documentary.max_redos:
+                    raise RuntimeError(f"Visual needs stayed invalid after {tries} attempts.")
                 row = await VisualPlanner().create(db, case, bp_row)
+                tries += 1
             state["vp"] = row
-            return {"visual_plan_id": row.id, "status": row.status}
+            return {"visual_plan_id": row.id, "status": row.status, "attempts": tries}
 
         async def host_plan():
             from app.documentary.host import HostDirector, latest_host_plan
@@ -517,10 +594,15 @@ class DocumentaryPipeline:
                     scene_error = None
                 except StudioError as e:
                     scenes, scene_error = [], str(e)
+                # segments the host critic did not approve (after its
+                # rewrites) get no scene: left out of the film
+                left_out = rep.get("failed_segments") or []
                 return {"host_segments_id": row.id, "status": row.status,
                         "seconds": rep.get("host_seconds"),
-                        "needs_review": rep.get("failed_segments"),
+                        "left_out_segments": left_out,
                         "host_scene_ids": scenes,
+                        **({"degraded": f"host segment(s) not approved, left out: "
+                                        f"{', '.join(left_out)}"} if left_out else {}),
                         **({"studio_error": scene_error} if scene_error else {})}
 
             await self._optional(f"host:{lang}", host)
@@ -535,11 +617,20 @@ class DocumentaryPipeline:
                     plan, case_id=case.id, story_version_id=version.id,
                     max_seconds=pilot_seconds if pilot else None)
                 holder["m"] = m
-                return {"seconds": m.get("duration_seconds"),
-                        "characters_paid": m.get("characters_paid"),
-                        "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
-                        "audio_tags": plan.get("audio_tags"),
-                        "flags": m.get("flags")}
+                out = {"seconds": m.get("duration_seconds"),
+                       "characters_paid": m.get("characters_paid"),
+                       "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
+                       "audio_tags": plan.get("audio_tags"),
+                       "flags": m.get("flags")}
+                # the listening check (speech-to-text, pronunciation) is the
+                # narration's auditor: takes it still rejects after the
+                # retakes are reported, never silently kept
+                failed = [f for f in m.get("flags") or []
+                          if f.endswith((":asr_check_failed", ":pronunciation_unresolved"))]
+                if failed:
+                    out["degraded"] = (f"{len(failed)} narration block(s) failed the listening "
+                                       "check after retakes: " + ", ".join(failed[:6]))
+                return out
 
             await self._stage(f"voice:{lang}", voice)
             manifest = holder.get("m") or _load_manifest(case.id, version)
@@ -570,6 +661,19 @@ class DocumentaryPipeline:
                         "issues": len(rep["deterministic"]["issues"])}
 
             await self._stage(f"critique:{lang}", critique)
+
+            async def visual_audit():
+                # the gate before render: every picture and clip on screen
+                # verified and approved for the words spoken over it
+                # (rejected ones replaced and audited again, else left out)
+                from app.documentary.visuals.auditor import audit_script, audit_summary
+
+                if not ai_config.visual_audit.enabled:
+                    return {"skipped": True, "reason": "visual_audit disabled"}
+                db.refresh(ps)
+                return audit_summary(await audit_script(db, ps))
+
+            await self._stage(f"visual_audit:{lang}", visual_audit)
 
             async def render():
                 from app.documentary.render.engine import VideoRenderer
@@ -724,10 +828,7 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
     if status in ("incomplete_evidence", "failed", "insufficient_research"):
         raise RuntimeError(
             f"Master story blocked ({status}): {report['master_readiness'].get('reason')}")
-    roles = {"director": "master_story_director", "writer": "master_writer",
-             "rewriter": "master_rewriter", "critic": "master_engagement_critic",
-             "final_editor": "master_final_editor"}
-    story = await StoryPipeline(roles=roles).run(
+    story = await StoryPipeline(roles=MASTER_ROLES).run(
         db=db, case=case, target_minutes=minutes, language=canonical,
         tone=defaults.tone, iterations=defaults.iterations, kind="master",
         words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up)
