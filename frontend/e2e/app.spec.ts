@@ -135,6 +135,7 @@ test.describe("Case workspace", () => {
     await mockApi(page);
     await page.goto("/cases/1");
     for (const tab of [
+      "Naming",
       "Sources",
       "Corpus Search",
       "Facts",
@@ -149,6 +150,21 @@ test.describe("Case workspace", () => {
       await page.getByRole("button", { name: tab, exact: true }).click();
       await expect(page.locator(".animate-pulse")).toHaveCount(0, { timeout: 10_000 });
     }
+  });
+
+  test("naming tab shows candidates, collision status and the localized YouTube title", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/cases/1");
+    await page.getByRole("button", { name: "Naming", exact: true }).click();
+    await expect(page.getByText("The Lantern Of Keeper Point").first()).toBeVisible();
+    await expect(page.getByTestId("youtube-title-en")).toHaveText(
+      "The Lantern Of Keeper Point (Unsolved) | ClueVera",
+    );
+    await expect(page.getByText("not verified against the open internet")).toBeVisible();
+    await expect(page.getByText("recommended").first()).toBeVisible();
+    await expect(page.locator('[dir="rtl"]').first()).toBeVisible();
+    // the internal sequence stays secondary, never in the public title
+    await expect(page.getByTestId("youtube-title-en")).not.toContainText("273");
   });
 
   test("corpus search returns hybrid hits with scores", async ({ page }) => {

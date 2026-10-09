@@ -374,6 +374,39 @@ export const fixtures = {
   ],
 };
 
+
+const namingCandidate = (id: number, language: string, title: string, rank: number, extra: Record<string, unknown> = {}) => ({
+  id, case_id: 1, language, title, status: "candidate", rejection_reason: null, origin: "generated",
+  collision_status: "clear", collision_with: null, near_collision_score: 41, semantic_collision_score: 0.31,
+  memorability: 0.72, curiosity: 0.7, specificity: 0.81, brevity: 1, sensationalism_risk: 0.1,
+  spoiler_risk: 0.1, epistemic_risk: 0.1, native_quality: 0.9, rank, recommended: rank === 1,
+  angle: "lamp", reason: "ok", ...extra,
+});
+const namingLang = (language: string, titles: string[], ytitle: string | null) => ({
+  candidates: titles.map((t, i) => namingCandidate(10 * (i + 1) + language.length, language, t, i + 1)),
+  rejected: [],
+  target: 7,
+  short_by: Math.max(7 - titles.length, 0),
+  identity: ytitle
+    ? { id: 1, case_uid: "CASE_8f21c7", episode_sequence: 273, channel_id: "cluevera", language,
+        editorial_title: titles[0], resolution_status: "UNSOLVED", resolution_label: "Unsolved",
+        youtube_title: ytitle, title_family_id: "TF_1", thumbnail_status_label: "Unsolved",
+        published: false, published_title: null, title_version: 1 }
+    : null,
+});
+export const namingFixture = {
+  case_id: 1, case_uid: "CASE_8f21c7", title_family_id: "TF_1",
+  editorial_concept: "a lamp that was left burning", externally_verified: false,
+  provenance: { case_resolution_status: "UNSOLVED", public_status: "unsolved", resolution_confidence: 0.97, needs_review: false },
+  corpus: { case_title: 3, source_title: 12 },
+  languages: {
+    en: namingLang("en", ["The Lantern Of Keeper Point", "Seven Doors Harbor"], "The Lantern Of Keeper Point (Unsolved) | ClueVera"),
+    de: namingLang("de", ["Die Laterne von Keeper Point"], null),
+    fa: namingLang("fa", ["فانوس سلله"], null),
+    ar: namingLang("ar", ["فانوس سيله"], null),
+  },
+};
+
 function json(route: import("@playwright/test").Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
@@ -439,6 +472,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
           },
         ],
       });
+    if (path === "/api/cases/1/naming" && method === "GET") return json(route, namingFixture);
     if (path === "/api/cases/1/facts") return json(route, fixtures.facts);
     if (path === "/api/cases/1/timeline") return json(route, fixtures.timeline);
     if (path === "/api/cases/1/contradictions") return json(route, fixtures.contradictions);

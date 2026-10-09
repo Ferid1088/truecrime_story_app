@@ -2237,3 +2237,74 @@ export interface HostScene {
   created_at: string;
   updated_at: string;
 }
+
+// --- Case naming + episode identity -----------------------------------------
+
+export type NamingLanguage = "en" | "de" | "fa" | "ar";
+
+export interface TitleCandidate {
+  id: number;
+  case_id: number;
+  language: NamingLanguage;
+  title: string;
+  status: "candidate" | "selected" | "rejected";
+  rejection_reason: string | null;
+  origin: "generated" | "manual";
+  collision_status: "clear" | "near" | "exact";
+  collision_with: string | null;
+  near_collision_score: number | null;
+  semantic_collision_score: number | null;
+  memorability: number | null;
+  curiosity: number | null;
+  specificity: number | null;
+  brevity: number | null;
+  sensationalism_risk: number | null;
+  spoiler_risk: number | null;
+  epistemic_risk: number | null;
+  native_quality: number | null;
+  rank: number | null;
+  recommended: boolean;
+  angle: string | null;
+  reason: string | null;
+}
+
+export interface EpisodeIdentity {
+  id: number;
+  case_uid: string | null;
+  episode_sequence: number | null;
+  channel_id: string;
+  language: NamingLanguage;
+  editorial_title: string | null;
+  resolution_status: string | null;
+  resolution_label: string | null;
+  youtube_title: string | null;
+  title_family_id: string | null;
+  thumbnail_status_label: string | null;
+  published: boolean;
+  published_title: string | null;
+  title_version: number;
+}
+
+export interface NamingLanguageState {
+  candidates: TitleCandidate[];
+  rejected: TitleCandidate[];
+  target: number;
+  short_by: number;
+  identity: EpisodeIdentity | null;
+}
+
+export interface CaseNaming {
+  case_id: number;
+  case_uid: string | null;
+  title_family_id: string | null;
+  editorial_concept: string | null;
+  externally_verified: boolean;
+  provenance: {
+    case_resolution_status: string;
+    public_status: "solved" | "unsolved" | null;
+    resolution_confidence: number | null;
+    needs_review: boolean;
+  };
+  corpus: Record<string, number>;
+  languages: Record<NamingLanguage, NamingLanguageState>;
+}

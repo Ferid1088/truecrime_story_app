@@ -1,4 +1,8 @@
 import type {
+  CaseNaming,
+  EpisodeIdentity,
+  NamingLanguage,
+  TitleCandidate,
   AgentRun,
   ApimasterStatus,
   ApproveFollowUpPayload,
@@ -230,6 +234,15 @@ export const api = {
   caseStatusChecks: (caseId: number) =>
     request<StatusCheck[]>(`/api/cases/${caseId}/status-checks`),
   caseAudit: (caseId: number) => request<CaseAudit>(`/api/cases/${caseId}/audit`),
+
+  // Case naming + episode identity
+  caseNaming: (caseId: number) => request<CaseNaming>(`/api/cases/${caseId}/naming`),
+  generateNaming: (caseId: number, languages?: NamingLanguage[]) =>
+    post<unknown>(`/api/cases/${caseId}/naming/generate`, { languages: languages ?? null }),
+  manualTitle: (caseId: number, language: NamingLanguage, title: string) =>
+    post<TitleCandidate>(`/api/cases/${caseId}/naming/manual`, { language, title }),
+  approveTitle: (caseId: number, candidateId: number, revise = false) =>
+    post<EpisodeIdentity>(`/api/cases/${caseId}/naming/${candidateId}/approve`, { revise }),
 
   monitorStatus: () => request<MonitorStatus>("/api/monitor"),
   /** Starts a monitor run in the background (202); follow it via `monitorStatus`. */
