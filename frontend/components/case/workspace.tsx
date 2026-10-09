@@ -27,11 +27,13 @@ import { StatusTab } from "./tabs/status";
 import { FilmsTab } from "./tabs/films";
 import { AuditTab } from "./tabs/audit";
 import { NamingTab } from "./tabs/naming";
+import { ThumbnailTab } from "./tabs/thumbnail";
 
 const TABS = [
   "Overview",
   "Status",
   "Naming",
+  "Thumbnail",
   "Films",
   "Sources",
   "Corpus Search",
@@ -223,6 +225,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       {tab === "Overview" && <OverviewTab caseData={caseData} />}
       {tab === "Status" && <StatusTab caseData={caseData} onChanged={refetch} />}
       {tab === "Naming" && <NamingTab caseId={caseId} />}
+      {tab === "Thumbnail" && <ThumbnailTab caseId={caseId} />}
       {tab === "Films" && <FilmsTab caseId={caseId} />}
       {tab === "Sources" && <SourcesTab caseId={caseId} refreshKey={researchTick} />}
       {tab === "Corpus Search" && <CorpusSearchTab caseId={caseId} />}

@@ -407,6 +407,25 @@ export const namingFixture = {
   },
 };
 
+export const thumbnailFixture = {
+  id: 1, case_id: 1, language: "en", version: 1, status: "draft",
+  brief: { channel: "ClueVera", resolution_label: "Unsolved", thumbnail_text: "",
+    host: { person: "Fereidoun", side: "left", size: "large", pose: "calm_right", outfit_id: "OUTFIT_TC_03" },
+    case_visuals: [{ asset_id: 7, kind: "victim", role: "primary" }] },
+  critic: { verdict: "needs_review", vision_checked: false, failures: [], checks: [],
+    scorecard: { host_visibility: 0.9, case_visual_clarity: 0.8, brand_consistency: 0.8, cleanliness: 1,
+      curiosity: null, authenticity: null, readability: 1, crowding: 0, spoiler_risk: 0,
+      misleading_risk: 0, automation_feel: null } },
+  outfit_id: "OUTFIT_TC_03", status_label: "Unsolved", image_url: "/api/thumbnails/1/image",
+};
+export const thumbnailOptionsFixture = {
+  outfit_id: "OUTFIT_TC_03", host_error: null,
+  host_poses: [{ id: "HOST_TC_03_l", pose: "calm_left", facing: "left" }, { id: "HOST_TC_03_r", pose: "calm_right", facing: "right" }],
+  usable: [{ asset_id: 7, code: "VIS_007", kind: "victim", title: "Portrait", rights: "public_domain", tier: 2, thumb: "/api/visuals/7/file?thumb=1" }],
+  rejected: [{ asset_id: 8, code: "VIS_008", kind: "place", title: "Harbor", rights: "unknown", tier: 3, thumb: "/api/visuals/8/file?thumb=1", reason: "rights: unknown (needs editorial approval)" }],
+};
+const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
 function json(route: import("@playwright/test").Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
@@ -472,6 +491,10 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
           },
         ],
       });
+    if (path === "/api/cases/1/thumbnails/options") return json(route, thumbnailOptionsFixture);
+    if (path === "/api/cases/1/thumbnails" && method === "GET") return json(route, [thumbnailFixture]);
+    if (path === "/api/thumbnails/1/image") return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
+    if (path.startsWith("/api/visuals/")) return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
     if (path === "/api/cases/1/naming" && method === "GET") return json(route, namingFixture);
     if (path === "/api/cases/1/facts") return json(route, fixtures.facts);
     if (path === "/api/cases/1/timeline") return json(route, fixtures.timeline);

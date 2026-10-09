@@ -136,6 +136,7 @@ test.describe("Case workspace", () => {
     await page.goto("/cases/1");
     for (const tab of [
       "Naming",
+      "Thumbnail",
       "Sources",
       "Corpus Search",
       "Facts",
@@ -165,6 +166,19 @@ test.describe("Case workspace", () => {
     await expect(page.locator('[dir="rtl"]').first()).toBeVisible();
     // the internal sequence stays secondary, never in the public title
     await expect(page.getByTestId("youtube-title-en")).not.toContainText("273");
+  });
+
+  test("thumbnail tab shows the preview, badge, scorecard and why pictures were refused", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/cases/1");
+    await page.getByRole("button", { name: "Thumbnail", exact: true }).click();
+    await expect(page.getByTestId("thumbnail-preview")).toBeVisible();
+    await expect(page.getByText("badge: Unsolved")).toBeVisible();
+    await expect(page.getByText("host outfit: OUTFIT_TC_03")).toBeVisible();
+    await expect(page.getByTestId("scorecard").getByText("Automation feel (risk)")).toBeVisible();
+    await page.getByText("1 pictures not usable").click();
+    await expect(page.getByText("needs editorial approval")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeEnabled();
   });
 
   test("corpus search returns hybrid hits with scores", async ({ page }) => {

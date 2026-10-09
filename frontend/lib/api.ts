@@ -1,4 +1,6 @@
 import type {
+  ThumbnailOptions,
+  ThumbnailRecord,
   CaseNaming,
   EpisodeIdentity,
   NamingLanguage,
@@ -243,6 +245,25 @@ export const api = {
     post<TitleCandidate>(`/api/cases/${caseId}/naming/manual`, { language, title }),
   approveTitle: (caseId: number, candidateId: number, revise = false) =>
     post<EpisodeIdentity>(`/api/cases/${caseId}/naming/${candidateId}/approve`, { revise }),
+
+  // Thumbnails
+  thumbnails: (caseId: number, language: NamingLanguage) =>
+    request<ThumbnailRecord[]>(`/api/cases/${caseId}/thumbnails${query({ language })}`),
+  thumbnailOptions: (caseId: number, language: NamingLanguage) =>
+    request<ThumbnailOptions>(`/api/cases/${caseId}/thumbnails/options${query({ language })}`),
+  composeThumbnail: (
+    caseId: number,
+    payload: {
+      language: NamingLanguage;
+      side?: "left" | "right";
+      pose?: string;
+      size?: "large" | "xl";
+      primary_asset_id?: number;
+      text?: string;
+    },
+  ) => post<ThumbnailRecord>(`/api/cases/${caseId}/thumbnails`, payload),
+  decideThumbnail: (id: number, approve: boolean, override = false) =>
+    post<ThumbnailRecord>(`/api/thumbnails/${id}/decision`, { approve, override }),
 
   monitorStatus: () => request<MonitorStatus>("/api/monitor"),
   /** Starts a monitor run in the background (202); follow it via `monitorStatus`. */

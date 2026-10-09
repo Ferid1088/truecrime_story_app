@@ -2308,3 +2308,68 @@ export interface CaseNaming {
   corpus: Record<string, number>;
   languages: Record<NamingLanguage, NamingLanguageState>;
 }
+
+// --- Thumbnails -------------------------------------------------------------
+
+export interface ThumbnailScorecard {
+  host_visibility: number | null;
+  case_visual_clarity: number | null;
+  brand_consistency: number | null;
+  cleanliness: number | null;
+  curiosity: number | null;
+  authenticity: number | null;
+  readability: number | null;
+  /** Risks: 0 is best. */
+  crowding: number | null;
+  spoiler_risk: number | null;
+  misleading_risk: number | null;
+  automation_feel: number | null;
+}
+
+export interface ThumbnailCritic {
+  verdict: "pass" | "needs_review" | "fail";
+  vision_checked: boolean;
+  failures: string[];
+  problems?: string[];
+  reason?: string;
+  checks: { name: string; ok: boolean; detail: string }[];
+  scorecard: ThumbnailScorecard;
+}
+
+export interface ThumbnailRecord {
+  id: number;
+  case_id: number;
+  language: NamingLanguage;
+  version: number;
+  status: "draft" | "approved" | "rejected" | "superseded";
+  brief: {
+    channel: string;
+    resolution_label: string;
+    thumbnail_text: string;
+    host: { person: string; side: "left" | "right"; size: string; pose: string; outfit_id: string };
+    case_visuals: { asset_id: number; kind: string; role: string }[];
+  };
+  critic: ThumbnailCritic;
+  outfit_id: string | null;
+  status_label: string | null;
+  image_url: string;
+}
+
+export interface ThumbnailAssetOption {
+  asset_id: number;
+  code: string;
+  kind: string;
+  title: string | null;
+  rights: string;
+  tier: number | null;
+  thumb: string;
+  reason?: string;
+}
+
+export interface ThumbnailOptions {
+  outfit_id: string | null;
+  host_poses: { id: string; pose: string; facing: string }[];
+  host_error: string | null;
+  usable: ThumbnailAssetOption[];
+  rejected: ThumbnailAssetOption[];
+}
