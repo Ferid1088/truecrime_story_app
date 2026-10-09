@@ -362,7 +362,18 @@ def test_each_timeline_label_appears_once():
     assert xs["T1"] < xs["T2"] < xs["T3"] < xs["T4"]                  # left to right
     # the two 1998 events sit close together, under one label
     assert xs["T3"] - xs["T2"] < 0.1 and labels[1]["ids"] == ["T2", "T3"]
-    assert abs(labels[1]["x"] - (xs["T2"] + xs["T3"]) / 2) < 1e-6
+    # every label sits directly under a point
+    assert all(any(abs(lb["x"] - x) < 1e-9 for x in xs.values()) for lb in labels)
+    assert labels[1]["x"] == xs["T2"]
+    cards = {"beat_order": ["B1"], "events": [
+        {**w, "first_beat": "B1", "date_text": w["date"]} for w in window]}
+    tl = timeline_card(cards, "B1", "T3", None, "en")
+    y98 = next(lb for lb in tl["labels"] if lb["text"] == "1998")
+    ball = next(e["x"] for e in tl["events"] if e["current"])
+    assert y98["current"] and y98["x"] == ball                    # under the red ball
+    # moving to T2 in the beat that also tells T3 and T4 (later dates): not yet shown
+    tl = timeline_card(cards, "B1", "T2", None, "en")
+    assert [e["id"] for e in tl["events"]] == ["T1", "T2"]
     # all in one year: day and month per tick, never the same label twice
     xs, labels = timeline_layout(window[1:3], "de")
     assert [lb["text"] for lb in labels] == ["10. März", "12. März"]

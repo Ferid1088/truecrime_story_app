@@ -734,7 +734,8 @@ def _spread(values: list[float], lo: float = 0.0, hi: float = 1.0) -> list[float
 def timeline_layout(window: list[dict], language: str) -> tuple[dict[str, float], list[dict]]:
     """Positions (0..1, time runs left to right in every language) and the
     labels under the line. Several years: each year is labelled ONCE,
-    under its group of ticks (the events of one year sit close together).
+    directly under a point of that year (its first; timeline_card moves it
+    under the current point) — the events of one year sit close together.
     All in one year: each tick gets its day and month (never the same
     label twice)."""
     from app.documentary.chapters import parse_date_text
@@ -762,7 +763,7 @@ def timeline_layout(window: list[dict], language: str) -> tuple[dict[str, float]
         m = len(group)
         for i, e in enumerate(group):
             xs[e["id"]] = anchors[y] + ((i - (m - 1) / 2) * width / (m - 1) if m > 1 else 0.0)
-        labels.append({"text": _num(y, language), "x": anchors[y],
+        labels.append({"text": _num(y, language), "x": xs[group[0]["id"]],
                        "ids": [e["id"] for e in group]})
     return xs, labels
 
@@ -787,11 +788,17 @@ def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
     cur = next((e for e in told if e["id"] == event_id), None)
     if cur is None:
         return None
+    # what this same beat tells only later (a later date) is not shown yet
+    told = [e for e in told if pos[e["first_beat"]] < pos[beat_id]
+            or e["id"] == cur["id"] or e["date"] <= cur["date"]]
     n = ai_config.chapters.max_timeline_events
     k = told.index(cur)
     lo = max(0, min(k - n // 2, len(told) - n))
     window = told[lo:lo + n]
     xs, labels = timeline_layout(window, language)
+    for lb in labels:  # a year's label sits right under the current ball when it has it
+        if cur["id"] in lb["ids"] and len(lb["ids"]) > 1:
+            lb["x"] = xs[cur["id"]]
     i = window.index(cur)
     prev = next((e for e in window if e["id"] == previous and e["id"] != cur["id"]), None) \
         or (window[i - 1] if i > 0 else None)
