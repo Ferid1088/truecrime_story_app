@@ -71,37 +71,70 @@ def test_no_new_prompt_text_in_code():
     assert not new, f"prompt text in code (move it to prompts/): {sorted(new)}"
 
 
-def test_ready_agents_have_prompt_role_and_class():
+def test_every_agent_is_defined_routed_and_has_its_prompt():
+    from app.core.ai_config import REQUIRED_ROLES
+
     routing = ai_config.generation_provider().routing
-    for spec in registry._SPECS.values():
-        if spec.status != "ready":
+    for name, d in ai_config.agents.items():
+        assert d.role in REQUIRED_ROLES and d.role in routing, f"{name}: role {d.role} not routed"
+        if d.prompt:
+            assert d.prompt in prompts.available(), f"{name}: prompt {d.prompt} missing"
+    for name in registry.CLASSES:
+        agent = registry.get_agent(name, gen=object())
+        assert isinstance(agent, Agent) and agent.name == name and name in ai_config.agents
+
+
+def test_agent_names_in_code_are_defined_and_every_agent_is_used():
+    used = set()
+    for f in APP.rglob("*.py"):
+        used |= set(re.findall(r'run_agent\(\s*"([\w.]+)"', f.read_text(encoding="utf-8")))
+        used |= set(re.findall(r'^\s*name = "([\w.]+)"', f.read_text(encoding="utf-8"), re.M)
+                    if f.parent.name == "agents" else [])
+    dynamic = {n for n, d in ai_config.agents.items() if d.prompt is None and n == d.role}
+    assert used <= set(ai_config.agents), sorted(used - set(ai_config.agents))
+    unused = set(ai_config.agents) - used - dynamic
+    assert not unused, f"defined but never run: {sorted(unused)}"
+
+
+def test_every_model_call_goes_through_run_agent():
+    """Stages never call the provider with a role themselves."""
+    offenders = []
+    for f in APP.rglob("*.py"):
+        if f.parts[-3:-1] == ("providers", "generation") or f.name == "runner.py":
             continue
-        agent = registry.get_agent(spec.name, gen=object())
-        assert isinstance(agent, Agent) and agent.name == spec.name
-        assert spec.role in routing, f"{spec.role} is not routed in models.json"
-        assert f"agents/{spec.name}" in prompts.available()
+        if re.search(r"\.generate_(structured|text)\(", f.read_text(encoding="utf-8")):
+            offenders.append(str(f.relative_to(ROOT)))
+    assert not offenders, offenders
 
 
-def test_legacy_agents_say_so():
-    with pytest.raises(registry.AgentError, match="legacy"):
-        registry.get_agent("story_director")
-    with pytest.raises(registry.AgentError, match="unknown"):
-        registry.get_agent("nope")
-
-
-def test_agent_ask_uses_its_prompt_role_and_no_model_name():
-    from app.agents.naming import NativeTitleCritic
+def test_run_agent_uses_definition_and_role_override():
     import asyncio
+    from app.agents.runner import run_agent
 
     seen = {}
 
     class Gen:
         async def generate_structured(self, role, system, user, images=None):
             seen.update(role=role, system=system, user=user)
-            return {"scores": [{"title": "x", "native_quality": 0.9}]}, None
+            return {"ok": 1}, "res"
 
-    out = asyncio.run(NativeTitleCritic(Gen()).run(language="de", titles=["x"]))
-    assert out and seen["role"] == "native_title_critic" and "German" in seen["system"]
+        async def generate_text(self, role, system, user, images=None):
+            seen.update(role=role, system=system)
+            return "text-res"
+
+    d, _ = asyncio.run(run_agent("story.consistency", Gen(), "u", system="SYS"))
+    assert seen["role"] == "consistency_checker" and seen["system"] == "SYS" and d == {"ok": 1}
+    asyncio.run(run_agent("story.final_edit", Gen(), "u", system="S2", role="master_final_editor"))
+    assert seen["role"] == "master_final_editor"
+    out = asyncio.run(run_agent("localization.final_edit", Gen(), "u", language="German", marker_instruction=""))
+    assert out == "text-res" and "German" in seen["system"]
+
+
+def test_unknown_agent_and_class_less_agent_say_so():
+    with pytest.raises(registry.AgentError, match="unknown"):
+        registry.get_agent("nope")
+    with pytest.raises(registry.AgentError, match="run_agent"):
+        registry.get_agent("story.consistency")
 
 
 def test_config_layers_are_disjoint_and_complete():
@@ -120,7 +153,6 @@ def test_config_layers_are_disjoint_and_complete():
 
 def test_agents_endpoint(client):
     rows = client.get("/api/agents").json()
-    ready = {r["name"] for r in rows if r["status"] == "ready"}
-    assert {"case_naming_agent", "case_title_critic", "native_title_critic", "thumbnail_critic",
-            "case_status_verifier"} <= ready
-    assert all(r["model_alias"] for r in rows if r["status"] == "ready")
+    ready = {r["name"] for r in rows}
+    assert {"case_naming_agent", "story.consistency", "visuals.audit", "documentary.blueprint"} <= ready
+    assert all(r["model_alias"] for r in rows)

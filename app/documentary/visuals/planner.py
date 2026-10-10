@@ -26,6 +26,8 @@ Visual Director, the gap check and the repetition control all ask it
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -340,8 +342,7 @@ class VisualPlanner:
         payload = _planner_input(case, blueprint, pack, sources)
         with track_run(db, case.id, "Visual Planner",
                        input_summary=f"blueprint={blueprint_row.id}") as run:
-            raw, res = await self.gen.generate_structured(
-                "visual_planner", PLANNER_SYSTEM, json.dumps(payload, ensure_ascii=False))
+            raw, res = await run_agent("visuals.plan", self.gen, json.dumps(payload, ensure_ascii=False), system=PLANNER_SYSTEM)
             stamp_run(run, res, "visual_planner")
         reqs, report = validate_requirements(raw, blueprint, pack, sources)
         count = db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_row.id).count()

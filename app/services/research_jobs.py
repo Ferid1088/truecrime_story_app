@@ -1,3 +1,4 @@
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
 import time
@@ -576,7 +577,7 @@ async def _normalize_sources(db: Session, case_id: int) -> int:
         db, case_id, "Evidence Normalizer",
         input_summary=f"sources={len(pending)}",
     ) as run:
-        data, res = await gen.generate_structured("evidence_normalizer", system, user)
+        data, res = await run_agent("evidence.normalize_sources", gen, user, system=system)
         stamp_run(run, res, "evidence_normalizer")
         by_id = {s.id: s for s in pending}
         done = 0

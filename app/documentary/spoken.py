@@ -29,6 +29,8 @@ lines up beat by beat in every language.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -281,15 +283,14 @@ class SpokenNarrator:
         if task:
             user = f"{task}\n\nINPUT:\n{user}"
         with track_run(db, case_id, label, input_summary=label) as run:
-            res = await self.gen.generate_text(role, system, user)
+            res = await run_agent(role, self.gen, user, system=system)
             stamp_run(run, res, role)
             run.output_summary = f"words={len(res.text.split())}"
         return res
 
     async def _json(self, db, case_id, label, role, system, payload: dict):
         with track_run(db, case_id, label, input_summary=label) as run:
-            data, res = await self.gen.generate_structured(
-                role, system, json.dumps(payload, ensure_ascii=False))
+            data, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
             stamp_run(run, res, role)
         return data if isinstance(data, dict) else {}, res
 

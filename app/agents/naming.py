@@ -10,8 +10,6 @@ LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "A
 
 class CaseNamingAgent(Agent):
     name = "case_naming_agent"
-    role = "case_naming_agent"
-    description = "Proposes native episode-title candidates for one language."
 
     async def run(self, *, language: str, count: int, case: dict, family_concept: str | None,
                   avoid: list[str], other_language_titles: dict) -> dict:
@@ -26,8 +24,6 @@ class CaseNamingAgent(Agent):
 
 class CaseTitleCritic(Agent):
     name = "case_title_critic"
-    role = "case_title_critic"
-    description = "Scores titles for this case."
 
     async def run(self, *, language: str, case: dict, titles: list[str]) -> list[dict]:
         data = await self.ask({"language": language, "case": case, "titles": titles})
@@ -36,8 +32,6 @@ class CaseTitleCritic(Agent):
 
 class NativeTitleCritic(Agent):
     name = "native_title_critic"
-    role = "native_title_critic"
-    description = "Native-speaker check of titles."
 
     async def run(self, *, language: str, titles: list[str]) -> list[dict]:
         data = await self.ask({"titles": titles}, language=LANG_NAMES.get(language, language))

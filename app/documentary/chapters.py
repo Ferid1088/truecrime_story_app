@@ -28,6 +28,8 @@ formatted per language (generated.format_date).
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -280,8 +282,7 @@ class ChapterWriter:
             payload["fix"] = fix
         with track_run(db, case.id, "Chapter Writer",
                        input_summary=f"{len(fix) if fix else 'all'} items") as run:
-            raw, res = await self.gen.generate_structured(
-                "chapter_writer", system, json.dumps(payload, ensure_ascii=False))
+            raw, res = await run_agent("documentary.chapters.write", self.gen, json.dumps(payload, ensure_ascii=False), system=system)
             stamp_run(run, res, "chapter_writer")
         return self._parse(raw)
 
@@ -291,8 +292,7 @@ class ChapterWriter:
         payload["texts"] = texts
         with track_run(db, case.id, "Chapter Auditor",
                        input_summary=f"{len(texts)} items") as run:
-            raw, res = await self.gen.generate_structured(
-                "chapter_auditor", AUDITOR_SYSTEM, json.dumps(payload, ensure_ascii=False))
+            raw, res = await run_agent("documentary.chapters.audit", self.gen, json.dumps(payload, ensure_ascii=False), system=AUDITOR_SYSTEM)
             stamp_run(run, res, "chapter_auditor")
         out = {}
         verdicts = raw.get("verdicts") if isinstance(raw, dict) else None

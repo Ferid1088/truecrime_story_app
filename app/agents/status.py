@@ -8,8 +8,6 @@ from app.lifecycle.status import normalize_status
 
 class CaseStatusVerifier(Agent):
     name = "case_status_verifier"
-    role = "case_status_verifier"
-    description = "Solved/unsolved from the provided documents only."
 
     async def run(self, *, case: dict, documents: list[dict]) -> dict:
         data = await self.ask({"case": case, "documents": documents[:24]})

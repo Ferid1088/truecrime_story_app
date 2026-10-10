@@ -20,6 +20,8 @@ Everything is ordinal (low/medium/high) or an enum — no fake-precise
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -141,9 +143,7 @@ def director_system_prompt(cfg: BlueprintConfig | None = None) -> str:
 
 
 async def _call_director(gen, system: str, payload: dict):
-    return await gen.generate_structured(
-        "narrative_director", system, json.dumps(payload, ensure_ascii=False)
-    )
+    return await run_agent("documentary.blueprint", gen, json.dumps(payload, ensure_ascii=False), system=system)
 
 
 # ---------------------------------------------------------------------------

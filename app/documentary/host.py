@@ -27,6 +27,8 @@ film, stock phrases and repetition of recent episodes.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -557,8 +559,7 @@ class HostDirector:
     async def _json(self, db, case_id: int, label: str, role: str, system: str,
                     payload: dict) -> tuple[dict, object]:
         with track_run(db, case_id, label, input_summary=label) as run:
-            raw, res = await self.gen.generate_structured(
-                role, system, json.dumps(payload, ensure_ascii=False))
+            raw, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
             stamp_run(run, res, role)
         return raw, res
 

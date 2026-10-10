@@ -1,3 +1,4 @@
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import copy
 import hashlib
@@ -662,7 +663,7 @@ class StoryDirector:
             ensure_ascii=False,
             default=str,
         )
-        data, res = await self.gen.generate_structured(role, system, user)
+        data, res = await run_agent("story.design", self.gen, user, system=system, role=role)
         return data, res
 
 
@@ -745,7 +746,7 @@ class WriterAgent:
             },
             ensure_ascii=False,
         )
-        res = await self.gen.generate_text(role, system, user)
+        res = await run_agent("story.write", self.gen, user, system=system, role=role)
         return res.text, res
 
     async def write_act(
@@ -783,7 +784,7 @@ class WriterAgent:
             },
             ensure_ascii=False,
         )
-        res = await self.gen.generate_text(role, system, user)
+        res = await run_agent("story.write_act", self.gen, user, system=system, role=role)
         return res.text, res
 
 
@@ -799,35 +800,27 @@ class EngagementCritic:
         marked_story: str | None = None,
     ) -> tuple[dict, GenerationResult]:
         system = prompt("agents/story/critique")
-        data, res = await self.gen.generate_structured(
-            role,
-            system,
-            json.dumps(
+        data, res = await run_agent("story.critique", self.gen, json.dumps(
                 {
                     "target_minutes": target_minutes,
                     "story": marked_story or story,
                 },
                 ensure_ascii=False,
-            ),
-        )
+            ), system=system, role=role)
         return data, res
 
     async def critique_section(
         self, section_title: str, section_text: str, position: str
     ) -> tuple[dict, GenerationResult]:
         system = prompt("agents/story/critique_section")
-        data, res = await self.gen.generate_structured(
-            "section_critic",
-            system,
-            json.dumps(
+        data, res = await run_agent("story.critique_section", self.gen, json.dumps(
                 {
                     "position": position,
                     "section": section_title,
                     "text": section_text,
                 },
                 ensure_ascii=False,
-            ),
-        )
+            ), system=system)
         return data, res
 
 
@@ -1361,7 +1354,7 @@ class StoryPipeline:
                 db, case.id, "Writer",
                 input_summary=f"improve v{story_version.version}: {instruction[:150]}",
             ) as run:
-                story_res = await self.gen.generate_text(self.roles["rewriter"], system, user)
+                story_res = await run_agent("story.improve", self.gen, user, system=system, role=self.roles["rewriter"])
                 story = story_res.text
                 stamp_run(run, story_res, self.roles["rewriter"])
                 run.output_summary = f"words={len(story.split())}"
@@ -1581,9 +1574,7 @@ class StoryPipeline:
                 db, case.id, "Writer",
                 input_summary=f"length fit: {section_id}",
             ) as run:
-                res = await self.gen.generate_text(
-                    self.roles["rewriter"], system, user
-                )
+                res = await run_agent("story.fit_section_length", self.gen, user, system=system, role=self.roles["rewriter"])
                 stamp_run(run, res, self.roles["rewriter"])
                 run.output_summary = f"words={len(res.text.split())}"
             if res.text.strip():
@@ -1696,9 +1687,7 @@ class StoryPipeline:
                     db, case.id, "Writer",
                     input_summary=f"span repair: {section['id']}",
                 ) as run:
-                    res = await self.gen.generate_text(
-                        self.roles["rewriter"], system, user
-                    )
+                    res = await run_agent("story.repair_spans", self.gen, user, system=system, role=self.roles["rewriter"])
                     stamp_run(run, res, self.roles["rewriter"])
                     run.output_summary = f"words={len(res.text.split())}"
             except Exception:
@@ -1865,9 +1854,7 @@ class StoryPipeline:
                     db, case.id, "Writer",
                     input_summary=f"targeted edit: {section['id']}",
                 ) as run:
-                    res = await self.gen.generate_text(
-                        self.roles["rewriter"], system, user
-                    )
+                    res = await run_agent("story.apply_revision_ops", self.gen, user, system=system, role=self.roles["rewriter"])
                     stamp_run(run, res, self.roles["rewriter"])
                     run.output_summary = f"words={len(res.text.split())}"
             except Exception:
@@ -2045,9 +2032,7 @@ class StoryPipeline:
         with track_run(
             db, case.id, "Grounding Validator", input_summary=f"words={len(text.split())}"
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "grounding_validator", system, user
-            )
+            data, res = await run_agent("story.grounding", self.gen, user, system=system)
             stamp_run(run, res, "grounding_validator", text_hash=text_hash(text))
             run.output_summary = (
                 f"score={data.get('grounding_score')} "
@@ -2076,9 +2061,7 @@ class StoryPipeline:
         with track_run(
             db, case.id, "Consistency Checker", input_summary=f"words={len(text.split())}"
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "consistency_checker", system, user
-            )
+            data, res = await run_agent("story.consistency", self.gen, user, system=system)
             stamp_run(run, res, "consistency_checker", text_hash=text_hash(text))
             viol = data.get("violations") or []
             high = sum(1 for v in viol if v.get("severity") == "high")
@@ -2138,9 +2121,7 @@ class StoryPipeline:
                 input_summary=f"targeted section rewrite: {orig['id']}",
             ) as run:
                 try:
-                    res = await self.gen.generate_text(
-                        self.roles["rewriter"], system, user
-                    )
+                    res = await run_agent("story.section_pass", self.gen, user, system=system, role=self.roles["rewriter"])
                 except Exception:
                     # A failed rewrite must not kill the run — keep the
                     # original section text.
@@ -2171,7 +2152,7 @@ class StoryPipeline:
             {"language": language, "story": story}, ensure_ascii=False
         )
         with track_run(db, case.id, "Final Editor") as run:
-            res = await self.gen.generate_text(self.roles["final_editor"], system, user)
+            res = await run_agent("story.final_edit", self.gen, user, system=system, role=self.roles["final_editor"])
             stamp_run(run, res, self.roles["final_editor"], text_hash=text_hash(res.text))
             run.output_summary = f"words={len(res.text.split())}"
         return res.text, res

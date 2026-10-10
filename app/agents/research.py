@@ -1,3 +1,4 @@
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
 from sqlalchemy.orm import Session
@@ -116,7 +117,7 @@ class ResearchAgent:
             db, case.id, "Fact Extractor",
             input_summary=f"case={case.id} sources={len(sources)}",
         ) as run:
-            data, res = await self.gen.generate_structured("fact_extractor", system, user)
+            data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
             stamp_run(run, res, "fact_extractor")
             facts = data.get("facts", [])
             run.output_summary = f"facts={len(facts)}"
@@ -185,7 +186,7 @@ class ResearchAgent:
             db, case.id, "Timeline Builder",
             input_summary=f"claims={len(fact_rows)}",
         ) as run:
-            data, res = await self.gen.generate_structured("timeline_builder", system, user)
+            data, res = await run_agent("research.build_timeline", self.gen, user, system=system)
             stamp_run(run, res, "timeline_builder")
             dated = 0
             by_id = {f.id: f for f in fact_rows}
@@ -233,9 +234,7 @@ class ResearchAgent:
             db, case.id, "Contradiction Analyzer",
             input_summary=f"facts={len(fact_rows)} hints={len(hints)}",
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "contradiction_analyzer", system, user
-            )
+            data, res = await run_agent("research.analyze_contradictions", self.gen, user, system=system)
             stamp_run(run, res, "contradiction_analyzer")
             contradictions = data.get("contradictions", [])
             run.output_summary = f"contradictions={len(contradictions)}"

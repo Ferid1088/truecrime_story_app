@@ -17,6 +17,8 @@ cut by the clock instead.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import asyncio
@@ -134,9 +136,7 @@ class VideoSegmenter:
             }
             with track_run(db, case.id, "Video Segmenter",
                            input_summary=f"{source.asset_code} {a:.0f}-{b:.0f}s") as run:
-                data, res = await self.gen.generate_structured(
-                    "video_segmenter", system, json.dumps(payload, ensure_ascii=False),
-                    images=["data:image/jpeg;base64," + base64.b64encode(f).decode()
+                data, res = await run_agent("visuals.segment_video", self.gen, json.dumps(payload, ensure_ascii=False), system=system, images=["data:image/jpeg;base64," + base64.b64encode(f).decode()
                             for _, f in kept])
                 stamp_run(run, res, "video_segmenter")
             raw = (data or {}).get("pieces") if isinstance(data, dict) else None

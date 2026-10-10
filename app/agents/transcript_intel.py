@@ -11,6 +11,7 @@ reported_quote / creator_narration / uncertain), and creator narration is
 never promoted into approved evidence quotes downstream.
 """
 
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
 
@@ -122,9 +123,7 @@ class TranscriptIntelligenceAgent:
                 f"{chunk['end_seconds']:.0f}s"
             ),
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "transcript_intelligence_extractor", system, user
-            )
+            data, res = await run_agent("transcripts.extract_claims", self.gen, user, system=system)
             stamp_run(run, res, "transcript_intelligence_extractor")
 
             seg_ids = chunk["segment_ids"]

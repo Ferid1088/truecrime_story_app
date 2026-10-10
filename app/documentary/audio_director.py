@@ -35,6 +35,8 @@ mix stores with each placement (MusicUsage).
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -401,8 +403,7 @@ class AudioDirector:
         with track_run(db, case.id, "Audio Director",
                        input_summary=f"blueprint={blueprint_row.id} "
                                      f"beats={len(payload['beats'])}") as run:
-            raw, res = await self.gen.generate_structured(
-                "audio_director", system, json.dumps(payload, ensure_ascii=False))
+            raw, res = await run_agent("documentary.audio_plan", self.gen, json.dumps(payload, ensure_ascii=False), system=system)
             stamp_run(run, res, "audio_director")
         plan, report = validate_audio_plan(raw, blueprint)
         repairs = 0
@@ -410,11 +411,9 @@ class AudioDirector:
             repairs += 1
             with track_run(db, case.id, "Audio Director",
                            input_summary=f"repair {repairs}") as run:
-                raw, res = await self.gen.generate_structured(
-                    "audio_director", system,
-                    json.dumps({**payload, "previous_plan": raw,
+                raw, res = await run_agent("documentary.audio_plan_repair", self.gen, json.dumps({**payload, "previous_plan": raw,
                                 "errors_to_fix": report["errors"]},
-                               ensure_ascii=False))
+                               ensure_ascii=False), system=system)
                 stamp_run(run, res, "audio_director")
             plan, report = validate_audio_plan(raw, blueprint)
         report["repair_iterations"] = repairs

@@ -10,8 +10,6 @@ from app.agents.base import Agent
 
 class ThumbnailCritic(Agent):
     name = "thumbnail_critic"
-    role = "thumbnail_critic"
-    description = "Professional documentary thumbnail or AI collage?"
 
     async def run(self, *, image_path: Path, language: str, episode_title: str,
                   status_label: str) -> dict | None:

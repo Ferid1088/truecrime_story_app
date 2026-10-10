@@ -6,6 +6,8 @@ provider's role system — no model IDs here.
 """
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -73,8 +75,7 @@ class ResearchQueryPlanner:
             },
         }, ensure_ascii=False)
         try:
-            data, res = await self.gen.generate_structured(
-                "research_query_planner", _PLANNER_SYSTEM, user)
+            data, res = await run_agent("research_engine.plan_queries", self.gen, user, system=_PLANNER_SYSTEM)
             _acc(self.tel, res)
         except Exception as e:  # noqa: BLE001
             log.warning("query planning failed for %s: %s", target_language, e)
@@ -169,8 +170,7 @@ class ResultReranker:
                 "reason": "short"}]},
         }, ensure_ascii=False)
         try:
-            data, res = await self.gen.generate_structured(
-                "result_reranker", _RERANK_SYSTEM, user)
+            data, res = await run_agent("research_engine.rerank", self.gen, user, system=_RERANK_SYSTEM)
             _acc(self.tel, res)
         except Exception as e:  # noqa: BLE001
             log.warning("rerank failed: %s", e)
@@ -223,8 +223,7 @@ class GapAnalyzer:
             },
         }, ensure_ascii=False)
         try:
-            data, res = await self.gen.generate_structured(
-                "research_evaluator", _GAP_SYSTEM, user)
+            data, res = await run_agent("research_engine.analyze_gaps", self.gen, user, system=_GAP_SYSTEM)
             _acc(self.tel, res)
             return data or {}
         except Exception as e:  # noqa: BLE001
@@ -258,8 +257,7 @@ class ResearchAssembler:
             },
         }, ensure_ascii=False)
         try:
-            data, res = await self.gen.generate_structured(
-                "research_assembler", _SUMMARY_SYSTEM, user)
+            data, res = await run_agent("research_engine.summarize", self.gen, user, system=_SUMMARY_SYSTEM)
             _acc(self.tel, res)
             return data or {}
         except Exception as e:  # noqa: BLE001

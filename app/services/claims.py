@@ -10,6 +10,7 @@ the same clusters are likely derivative — they must not inflate an
 evidence item's independent-source-family count.
 """
 
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
 
@@ -195,7 +196,7 @@ async def _semantic_merge(db, case, singles, clusters, add_to) -> list[Transcrip
         db, case.id, "Claim Clusterer",
         input_summary=f"claims={len(singles)}",
     ) as run:
-        data, res = await gen.generate_structured("claim_clusterer", system, user)
+        data, res = await run_agent("claims.merge", gen, user, system=system)
         stamp_run(run, res, "claim_clusterer")
     grouped: set[int] = set()
     for g in (data or {}).get("groups") or []:
@@ -348,7 +349,7 @@ async def verify_clusters(db: Session, case: Case) -> dict:
         db, case.id, "Evidence Verifier",
         input_summary=f"clusters={len(clusters)}",
     ) as run:
-        data, res = await gen.generate_structured("evidence_verifier", system, user)
+        data, res = await run_agent("claims.verify", gen, user, system=system)
         stamp_run(run, res, "evidence_verifier")
         by_id = {c.id: c for c in clusters}
         min_fams = ai_config.claim_clustering.min_independent_families_for_verified

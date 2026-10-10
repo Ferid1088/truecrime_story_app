@@ -9,6 +9,7 @@ instead of degrading silently mid-pipeline.
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -24,10 +25,11 @@ load_dotenv()
 # models in models.json):
 #   connections.json   where the services are: endpoints, secret env names, search, avatar
 #   models.json        which model does which role: aliases, routing, per-role settings
+#   agents.json        the agents: name -> model role, prompt file, output kind
 #   parameters/*.json  how each area behaves: story, research, audio, documentary,
 #                      visuals, lifecycle, identity
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
-CONFIG_FILES = ("connections.json", "models.json")
+CONFIG_FILES = ("connections.json", "models.json", "agents.json")
 PARAMETER_DIR = "parameters"
 
 # Every role the pipeline uses must have a routed model alias AND
@@ -1903,11 +1905,23 @@ class ConcurrencyConfig(BaseModel):
     languages: int = Field(default=4, ge=1, le=8)
 
 
+class AgentDef(BaseModel):
+    """One agent: which model role it uses, which prompt file it loads and
+    what it returns. No model name, no prompt text."""
+
+    role: str
+    prompt: str | None = None      # prompts/<prompt>.md; None = the stage builds the prompt
+    output: Literal["json", "text"] = "json"
+    description: str = ""
+    used_by: str = ""
+
+
 class AIConfig(BaseModel):
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
     generation_providers: dict[str, GenerationProviderSection]
     generation: dict[str, GenerationSettings]
+    agents: dict[str, AgentDef] = Field(default_factory=dict)
     story: StoryConfig
     story_quality: StoryQualityConfig = Field(default_factory=lambda: StoryQualityConfig(
         minimum_grounding_score=0.85,

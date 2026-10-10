@@ -27,6 +27,8 @@ Subtitles and the Whisper check use the text without the added harakat.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -416,11 +418,9 @@ class PronunciationEditor:
             payload["passages"][-1]["sentences"].append({"i": it["i"], "text": it["text"]})
         with track_run(db, case_id, f"Pronunciation Key ({language})",
                        input_summary=f"{len(chunk)} sentences") as run:
-            data, res = await self.gen.generate_structured(
-                "pronunciation_editor", EDITOR_SYSTEM,
-                "TASK: list the words of every sentence that a voice could misread, "
+            data, res = await run_agent("documentary.pronunciation", self.gen, "TASK: list the words of every sentence that a voice could misread, "
                 "with the reading the meaning needs. Return JSON only.\n\nINPUT:\n"
-                + json.dumps(payload, ensure_ascii=False))
+                + json.dumps(payload, ensure_ascii=False), system=EDITOR_SYSTEM)
             stamp_run(run, res, "pronunciation_editor")
         out: dict[int, list] = {}
         if isinstance(data, dict):

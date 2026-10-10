@@ -1,3 +1,4 @@
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
 import re
@@ -337,7 +338,7 @@ Output only the story text.
             },
             ensure_ascii=False,
         )
-        res = await self.gen.generate_text("localization_writer", system, user)
+        res = await run_agent("localization.write", self.gen, user, system=system)
         return res.text, res
 
     async def _write_per_section(
@@ -380,9 +381,7 @@ Output only the story text.
                 db, case.id, "Localization Writer",
                 input_summary=f"lang={language} act={s['id']} (per-act)",
             ) as run:
-                res = await self.gen.generate_text(
-                    "localization_writer", system, user
-                )
+                res = await run_agent("localization.write_section", self.gen, user, system=system)
                 stamp_run(run, res, "localization_writer")
                 run.output_summary = f"words={len(res.text.split())}"
             out.append(
@@ -409,11 +408,8 @@ Output only the story text.
             db, case.id, "Native Language Critic",
             input_summary=f"lang={language}",
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "native_language_critic", system,
-                json.dumps({"language": language, "story": text},
-                           ensure_ascii=False),
-            )
+            data, res = await run_agent("localization.native_critic", self.gen, json.dumps({"language": language, "story": text},
+                           ensure_ascii=False), system=system)
             stamp_run(run, res, "native_language_critic")
             run.output_summary = (
                 f"native={data.get('overall_native_quality', 0)}"
@@ -434,9 +430,7 @@ Output only the story text.
             db, case.id, "Semantic Consistency Checker",
             input_summary=f"lang={language}",
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "semantic_consistency_checker", system,
-                json.dumps(
+            data, res = await run_agent("localization.semantic_check", self.gen, json.dumps(
                     {
                         "master": master_text,
                         "localized": localized_text,
@@ -444,8 +438,7 @@ Output only the story text.
                         "target_language": language,
                     },
                     ensure_ascii=False,
-                ),
-            )
+                ), system=system)
             stamp_run(run, res, "semantic_consistency_checker")
             run.output_summary = (
                 f"score={data.get('semantic_consistency_score', 0)}"
@@ -462,11 +455,8 @@ Output only the story text.
             db, case.id, "Localized Grounding Validator",
             input_summary=f"lang={language}",
         ) as run:
-            data, res = await self.gen.generate_structured(
-                "localized_grounding_validator", system,
-                json.dumps({"story": text, "evidence": pack},
-                           ensure_ascii=False),
-            )
+            data, res = await run_agent("localization.grounding", self.gen, json.dumps({"story": text, "evidence": pack},
+                           ensure_ascii=False), system=system)
             stamp_run(run, res, "localized_grounding_validator")
             run.output_summary = (
                 f"score={data.get('grounding_score', 0)}"
@@ -501,7 +491,7 @@ Output only the story text.
             },
             ensure_ascii=False,
         )
-        res = await self.gen.generate_text("localization_writer", system, user)
+        res = await run_agent("localization.repair", self.gen, user, system=system)
         return res.text, res
 
     async def _final_edit(
@@ -514,9 +504,7 @@ Output only the story text.
             input_summary=f"lang={language}",
         ) as run:
             try:
-                res = await self.gen.generate_text(
-                    "localized_final_editor", system, text
-                )
+                res = await run_agent("localization.final_edit", self.gen, text, system=system)
             except Exception as e:
                 run.error = str(e)[:300]
                 run.status = "failed"

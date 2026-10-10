@@ -35,6 +35,8 @@ seeing while this sentence is being spoken?"
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import hashlib
@@ -1047,8 +1049,7 @@ class VisualDirector:
         }
         with track_run(db, case.id, "Visual Director",
                        input_summary=f"beats {part[0]['id']}–{part[-1]['id']}") as run:
-            raw, res = await self.gen.generate_structured(
-                "visual_director", DIRECTOR_SYSTEM, json.dumps(payload, ensure_ascii=False))
+            raw, res = await run_agent("visuals.direct", self.gen, json.dumps(payload, ensure_ascii=False), system=DIRECTOR_SYSTEM)
             stamp_run(run, res, "visual_director")
         beats = [b for b in (raw or {}).get("beats") or [] if isinstance(b, dict)]
         return beats, getattr(res, "model", None)

@@ -9,6 +9,8 @@ the run replays deterministically in the query inspector.
 """
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import logging
@@ -644,8 +646,7 @@ class ResearchOrchestrator:
             }]},
         }, ensure_ascii=False)
         try:
-            data, _ = await self.gen.generate_structured(
-                "case_discovery_agent", system, user)
+            data, _ = await run_agent("research_engine.discover_cases", self.gen, user, system=system)
         except Exception as e:  # noqa: BLE001
             log.warning("candidate extraction failed: %s", e)
             return []

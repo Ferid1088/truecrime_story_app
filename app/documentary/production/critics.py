@@ -30,6 +30,8 @@ Each language is judged on its own; scores are never inherited.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -497,8 +499,7 @@ class DocumentaryCritics:
                                           focus=CRITIC_FOCUS[name])
             with track_run(db, row.case_id, f"Documentary Critic: {name} ({row.language})",
                            input_summary=f"production_script={row.id}") as run:
-                data, res = await self.gen.generate_structured(
-                    role, system, json.dumps({"cut": cut}, ensure_ascii=False))
+                data, res = await run_agent("documentary.critic", self.gen, json.dumps({"cut": cut}, ensure_ascii=False), system=system, role=role)
                 stamp_run(run, res, role)
             data = data if isinstance(data, dict) else {}
             return name, {

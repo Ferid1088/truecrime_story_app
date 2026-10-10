@@ -868,17 +868,19 @@ Design: `docs/Master_Task_Case_Naming_Identity.MD`.
 ```
 config/connections.json   where services are: endpoints, secret env NAMES, search engine, avatar
 config/models.json        which model does which role: aliases, routing, per-role settings
+config/agents.json        every agent: name -> model role, prompt file, output (json/text)
 config/parameters/*.json  how each area behaves (story, research, audio, documentary,
                           visuals, lifecycle, identity) — thresholds, limits, channels
-prompts/                  every prompt as a text file (prompts/agents/<agent>.md, ...)
-app/core/prompts.py       prompt("agents/case_title_critic") — cached, editable without code
-app/agents/               one module per agent (base.Agent, registry, naming, status, thumbnail ...)
-app/agents/registry.py    get_agent(name) / invoke(name, **inputs) / catalog()  (GET /api/agents)
+prompts/                  every prompt as a text file (str.format placeholders, named)
+app/core/prompts.py       prompt("agents/story/design") — cached, editable without code
+app/agents/runner.py      run_agent("story.consistency", gen, user, ...) — the one place a stage
+                          becomes a model call (cost ledger / retries / tracing hook in here)
+app/agents/registry.py    catalog() (GET /api/agents), get_agent()/invoke() for class agents
+app/agents/naming.py ...  agents with a class of their own (typed run, validated output)
 ```
 
-An agent names its model *role* and its prompt file; the model comes from
-`config/models.json`, never from code. Agents run only when a service invokes
-them. Older stage classes are listed as `legacy` in the registry and move to
-`app/agents/` one at a time; `tests/test_architecture.py` fails if new prompt text
-appears in code (the remaining inline prompts are tracked in `prompts/INLINE_DEBT.txt`
-and may only shrink).
+A stage never names a model and never contains prompt text: it calls
+`run_agent(<agent name>, ...)`; the agent definition names the role, the
+role is routed to a model in `models.json`. `tests/test_architecture.py` fails when
+prompt-like text appears in code, when a stage calls the provider directly, when
+an agent name is undefined or unused, or when an agent's role/prompt is missing.

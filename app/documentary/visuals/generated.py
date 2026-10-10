@@ -6,6 +6,8 @@ names, labels) is localized per language at production time.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -338,12 +340,9 @@ async def localize_texts(db: Session, case_id: int, items: dict[str, str],
         gen = get_generation_provider()
         with track_run(db, case_id, f"Overlay Localizer ({language})",
                        input_summary=f"{len(todo)} texts") as run:
-            data, res = await gen.generate_structured(
-                "overlay_localizer",
-                LOCALIZER_SYSTEM.format(name=LANG_NAMES.get(language, language)),
-                json.dumps({"language": language, "texts": todo,
+            data, res = await run_agent("visuals.localize_overlays", gen, json.dumps({"language": language, "texts": todo,
                             "narration_excerpt": narration_excerpt[:3000]},
-                           ensure_ascii=False))
+                           ensure_ascii=False), system=LOCALIZER_SYSTEM.format(name=LANG_NAMES.get(language, language)))
             stamp_run(run, res, "overlay_localizer")
         texts = (data or {}).get("texts") or {}
         for k, v in todo.items():

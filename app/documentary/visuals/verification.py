@@ -18,6 +18,8 @@ few seconds later is checked too, by the same rules.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -134,9 +136,7 @@ class VisualVerificationAgent:
         }
         with track_run(db, case.id, "Visual Verifier",
                        input_summary=asset.asset_code) as run:
-            v, res = await self.gen.generate_structured(
-                "visual_verifier", VERIFIER_SYSTEM,
-                json.dumps(payload, ensure_ascii=False), images=[IM.data_url(thumb)])
+            v, res = await run_agent("visuals.verify", self.gen, json.dumps(payload, ensure_ascii=False), system=VERIFIER_SYSTEM, images=[IM.data_url(thumb)])
             stamp_run(run, res, "visual_verifier")
         v = v if isinstance(v, dict) else {}
         status, conf, reason = decide(v)

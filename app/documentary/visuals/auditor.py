@@ -33,6 +33,8 @@ are audited again.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import hashlib
@@ -174,9 +176,7 @@ class VisualAuditor:
             },
         }
         with track_run(db, case.id, "Visual Auditor", input_summary=asset.asset_code) as run:
-            v, res = await self.gen.generate_structured(
-                "visual_auditor", AUDITOR_SYSTEM, json.dumps(payload, ensure_ascii=False),
-                images=[IM.data_url(thumb)])
+            v, res = await run_agent("visuals.audit", self.gen, json.dumps(payload, ensure_ascii=False), system=AUDITOR_SYSTEM, images=[IM.data_url(thumb)])
             stamp_run(run, res, "visual_auditor")
         return self._store(db, case, asset, key, sentences, v, res)
 

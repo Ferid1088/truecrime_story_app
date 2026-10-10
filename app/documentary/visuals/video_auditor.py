@@ -19,6 +19,8 @@ frames_per_second, at most max_frames — and two jobs:
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import base64
@@ -195,9 +197,7 @@ class VideoAuditor:
         }
         with track_run(db, case.id, "Video Auditor (piece)",
                        input_summary=asset.asset_code) as run:
-            v, res = await self.gen.generate_structured(
-                "video_auditor", DESCRIBE_SYSTEM, json.dumps(payload, ensure_ascii=False),
-                images=_urls(images))
+            v, res = await run_agent("visuals.describe_piece", self.gen, json.dumps(payload, ensure_ascii=False), system=DESCRIBE_SYSTEM, images=_urls(images))
             stamp_run(run, res, "video_auditor")
         return (v if isinstance(v, dict) else {}), res, len(frames)
 
@@ -279,9 +279,7 @@ class VideoAuditor:
         }
         with track_run(db, case.id, "Video Auditor (placement)",
                        input_summary=asset.asset_code) as run:
-            v, res = await self.gen.generate_structured(
-                "video_auditor", PLACEMENT_SYSTEM, json.dumps(payload, ensure_ascii=False),
-                images=_urls(frames))
+            v, res = await run_agent("visuals.audit_piece", self.gen, json.dumps(payload, ensure_ascii=False), system=PLACEMENT_SYSTEM, images=_urls(frames))
             stamp_run(run, res, "video_auditor")
         v = v if isinstance(v, dict) else {}
         if v.get("every_frame_ok") is False and v.get("verdict") == "approved":

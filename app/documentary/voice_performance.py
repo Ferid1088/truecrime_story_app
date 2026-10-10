@@ -33,6 +33,8 @@ stability) per block: config voice_performance.level_styles.
 
 from __future__ import annotations
 
+from app.agents.runner import run_agent
+
 from app.core.prompts import prompt
 
 import json
@@ -358,9 +360,7 @@ class VoicePerformanceDirector:
             })
         with track_run(db, case_id, f"Voice Arc ({language})",
                        input_summary=f"{len(beats)} beats") as run:
-            data, res = await self.gen.generate_structured(
-                "voice_performance_director", ARC_SYSTEM,
-                json.dumps(payload, ensure_ascii=False))
+            data, res = await run_agent("documentary.voice_arc", self.gen, json.dumps(payload, ensure_ascii=False), system=ARC_SYSTEM)
             stamp_run(run, res, "voice_performance_director")
         return (data if isinstance(data, dict) else {}), res
 
@@ -377,10 +377,8 @@ class VoicePerformanceDirector:
             payload["beats"][-1]["sentences"].append({"i": r["i"], "text": r["speech"]})
         with track_run(db, case_id, f"Voice Performance ({language})",
                        input_summary=f"{len(chunk)} sentences") as run:
-            data, res = await self.gen.generate_structured(
-                "voice_performance_director", director_system(language, self.cfg),
-                "TASK: direct every sentence below; the words never change. "
-                "Return JSON only.\n\nINPUT:\n" + json.dumps(payload, ensure_ascii=False))
+            data, res = await run_agent("documentary.voice_directing", self.gen, "TASK: direct every sentence below; the words never change. "
+                "Return JSON only.\n\nINPUT:\n" + json.dumps(payload, ensure_ascii=False), system=director_system(language, self.cfg))
             stamp_run(run, res, "voice_performance_director")
         out: dict[int, dict] = {}
         if isinstance(data, dict):

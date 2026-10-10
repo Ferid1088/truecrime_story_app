@@ -6,6 +6,7 @@ rewriting. Original text + timestamps are always preserved; canonical
 English is stored *alongside* in canonical_text_en.
 """
 
+from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import hashlib
 import json
@@ -231,9 +232,7 @@ async def normalize_transcript(db: Session, video: VideoSource) -> int:
             db, video.case_id, "Transcript Normalizer",
             input_summary=f"video={video.id} segments={len(segs)}",
         ) as run:
-            data, res = await gen.generate_structured(
-                "transcript_normalizer", system, user
-            )
+            data, res = await run_agent("transcripts.normalize", gen, user, system=system)
             stamp_run(run, res, "transcript_normalizer")
             by_id = {s.id: s for s in segs}
             done = 0
