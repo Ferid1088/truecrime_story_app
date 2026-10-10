@@ -93,7 +93,7 @@ def fingerprint(path: Path) -> dict:
     }
 
 
-def diff(expected: dict, actual: dict, allow: set[str]) -> list[str]:
+def diff(expected: dict, actual: dict, allow: set[str], check_schema: bool = True) -> list[str]:
     problems: list[str] = []
     if actual["integrity_check"] != "ok":
         problems.append(f"integrity_check is {actual['integrity_check']!r}, expected 'ok'")
@@ -113,7 +113,7 @@ def diff(expected: dict, actual: dict, allow: set[str]) -> list[str]:
                 problems.append(f"{name}: row count {e['rows']} -> {a['rows']}")
             elif e["sha256"] != a["sha256"]:
                 problems.append(f"{name}: same row count ({a['rows']}) but contents differ")
-    if not allow and expected["schema_sha256"] != actual["schema_sha256"]:
+    if check_schema and not allow and expected["schema_sha256"] != actual["schema_sha256"]:
         problems.append("schema differs from the baseline")
     return problems
 
@@ -128,6 +128,76 @@ def _report(problems: list[str], label: str) -> int:
     return 0
 
 
+def schema_dump(path: Path) -> dict:
+    """Structure only (no row data): columns, indexes and foreign keys per table, read-only."""
+    con = _open_readonly(path)
+    try:
+        out: dict = {}
+        for table in _table_names(con):
+            q = '"' + table.replace('"', '""') + '"'
+            cols = {}
+            for _cid, name, ctype, notnull, default, pk in con.execute(f"PRAGMA table_info({q})"):
+                cols[name] = {"type": (ctype or "").upper(), "notnull": bool(notnull),
+                              "default": default, "pk": int(pk)}
+            idx = {}
+            for row in con.execute(f"PRAGMA index_list({q})").fetchall():
+                iname, unique, origin = row[1], bool(row[2]), row[3]
+                if origin == "pk":
+                    continue
+                icols = [r[2] for r in con.execute(f'PRAGMA index_info("{iname}")')]
+                idx[iname if origin == "c" else "|".join(icols)] = {"unique": unique, "columns": icols}
+            fks = sorted(
+                (r[3], r[2], r[4]) for r in con.execute(f"PRAGMA foreign_key_list({q})")
+            )
+            out[table] = {"columns": cols, "indexes": idx, "foreign_keys": [list(f) for f in fks]}
+        return out
+    finally:
+        con.close()
+
+
+def schema_diff(a: dict, b: dict, label_a: str = "A", label_b: str = "B") -> list[str]:
+    """Differences between two schema dumps; column ORDER is ignored (ALTER ADD appends)."""
+    problems: list[str] = []
+    for t in sorted(set(a) | set(b)):
+        if t not in b:
+            problems.append(f"table only in {label_a}: {t}")
+            continue
+        if t not in a:
+            problems.append(f"table only in {label_b}: {t}")
+            continue
+        ca, cb = a[t]["columns"], b[t]["columns"]
+        for c in sorted(set(ca) | set(cb)):
+            if c not in cb:
+                problems.append(f"{t}.{c}: only in {label_a}")
+            elif c not in ca:
+                problems.append(f"{t}.{c}: only in {label_b}")
+            elif ca[c] != cb[c]:
+                problems.append(f"{t}.{c}: {label_a}={ca[c]} {label_b}={cb[c]}")
+        ia, ib = a[t]["indexes"], b[t]["indexes"]
+        for i in sorted(set(ia) | set(ib)):
+            if i not in ib:
+                problems.append(f"{t} index only in {label_a}: {i}")
+            elif i not in ia:
+                problems.append(f"{t} index only in {label_b}: {i}")
+            elif ia[i] != ib[i]:
+                problems.append(f"{t} index {i} differs: {ia[i]} vs {ib[i]}")
+        if a[t]["foreign_keys"] != b[t]["foreign_keys"]:
+            problems.append(f"{t}: foreign keys differ")
+    return problems
+
+
+def cmd_schema(args) -> int:
+    Path(args.out).write_text(json.dumps(schema_dump(Path(args.db)), indent=2, sort_keys=True), encoding="utf-8")
+    print(f"schema written: {args.out}")
+    return 0
+
+
+def cmd_schema_diff(args) -> int:
+    a = json.loads(Path(args.a).read_text(encoding="utf-8"))
+    b = json.loads(Path(args.b).read_text(encoding="utf-8"))
+    return _report(schema_diff(a, b, "A", "B"), f"schema diff {args.a} vs {args.b}")
+
+
 def cmd_baseline(args) -> int:
     fp = fingerprint(Path(args.db))
     Path(args.out).write_text(json.dumps(fp, indent=2, sort_keys=True), encoding="utf-8")
@@ -140,7 +210,7 @@ def cmd_baseline(args) -> int:
 def cmd_compare(args) -> int:
     expected = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
     actual = fingerprint(Path(args.db))
-    return _report(diff(expected, actual, set(args.allow or [])), f"compare {args.db}")
+    return _report(diff(expected, actual, set(args.allow or []), check_schema=not args.data_only), f"compare {args.db}")
 
 
 def _sha256_file(path: Path) -> str:
@@ -208,10 +278,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("out")
     p.set_defaults(func=cmd_baseline)
 
+    p = sub.add_parser("schema", help="dump table structure (no row data) to JSON")
+    p.add_argument("db")
+    p.add_argument("out")
+    p.set_defaults(func=cmd_schema)
+
+    p = sub.add_parser("schema-diff", help="compare two schema dumps (column order ignored)")
+    p.add_argument("a")
+    p.add_argument("b")
+    p.set_defaults(func=cmd_schema_diff)
+
     p = sub.add_parser("compare", help="compare a database with a saved baseline")
     p.add_argument("baseline")
     p.add_argument("db")
     p.add_argument("--allow", action="append", help="table that is allowed to differ (repeatable)")
+    p.add_argument("--data-only", action="store_true", help="skip the schema comparison (for steps that change structure on purpose)")
     p.set_defaults(func=cmd_compare)
 
     p = sub.add_parser("backup", help="consistent online backup to a new file, verified after writing")

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test-base";
 import { mockApi } from "./fixtures";
 
 test("Performance compares concept types and shows honest attribution", async ({ page }) => {

@@ -196,3 +196,56 @@ def test_backup_leaves_no_temp_directories_behind(db, tmp_path):
     before = set(Path(tempfile.gettempdir()).glob("tc-backup-*"))
     db_tools.main(["backup", str(db), str(tmp_path / "ok.db")])
     assert set(Path(tempfile.gettempdir()).glob("tc-backup-*")) == before
+
+
+def test_schema_dump_has_structure_but_no_row_data(db, tmp_path):
+    out = tmp_path / "s.json"
+    assert db_tools.main(["schema", str(db), str(out)]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "Der Fall" not in text
+    data = json.loads(text)
+    assert set(data) == {"cases", "facts", "empty_table"}
+    assert data["cases"]["columns"]["title"]["type"] == "TEXT" and data["cases"]["columns"]["id"]["pk"] == 1
+    assert data["facts"]["foreign_keys"] == [["case_id", "cases", "id"]]
+    assert "ix_facts_case" in data["facts"]["indexes"]
+
+
+def test_schema_diff_ignores_column_order_but_catches_real_differences(tmp_path):
+    a = _make_db(tmp_path / "a.db")
+    b = tmp_path / "b.db"
+    con = sqlite3.connect(b)
+    con.executescript(
+        """
+        CREATE TABLE cases (id INTEGER PRIMARY KEY, note TEXT, payload BLOB, score REAL, title TEXT);
+        CREATE TABLE facts (id INTEGER PRIMARY KEY, case_id INTEGER REFERENCES cases(id), claim TEXT);
+        CREATE INDEX ix_facts_case ON facts(case_id);
+        CREATE TABLE empty_table (id INTEGER PRIMARY KEY);
+        """
+    )
+    con.commit()
+    con.close()
+    da, dbb = db_tools.schema_dump(a), db_tools.schema_dump(b)
+    assert db_tools.schema_diff(da, dbb) == []
+    con = sqlite3.connect(b)
+    con.execute("ALTER TABLE cases ADD COLUMN extra TEXT")
+    con.execute("DROP INDEX ix_facts_case")
+    con.commit()
+    con.close()
+    problems = db_tools.schema_diff(da, db_tools.schema_dump(b))
+    assert any("cases.extra" in p for p in problems) and any("ix_facts_case" in p for p in problems)
+
+
+def test_data_only_compare_accepts_a_structure_change_but_not_a_data_change(db, tmp_path):
+    base = tmp_path / "b.json"
+    db_tools.main(["baseline", str(db), str(base)])
+    con = sqlite3.connect(db)
+    con.execute("CREATE INDEX ix_cases_title ON cases(title)")
+    con.commit()
+    con.close()
+    assert db_tools.main(["compare", str(base), str(db)]) == 1
+    assert db_tools.main(["compare", str(base), str(db), "--data-only"]) == 0
+    con = sqlite3.connect(db)
+    con.execute("UPDATE cases SET score=7 WHERE id=1")
+    con.commit()
+    con.close()
+    assert db_tools.main(["compare", str(base), str(db), "--data-only"]) == 1

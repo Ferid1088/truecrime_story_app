@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test-base";
 import { mockApi, fixtures } from "./fixtures";
 
 const jobBody = (

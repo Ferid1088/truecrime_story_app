@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text,
                         UniqueConstraint,
-                        event, select)
+                        Index, event, select)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.types import UTCDateTime
@@ -10,6 +10,8 @@ from app.utils import new_case_uid, utc_now
 
 class Case(Base):
     __tablename__ = "cases"
+    # One public identity per case (was created ad hoc at runtime by identity/titles.py).
+    __table_args__ = (Index("ux_cases_case_uid", "case_uid", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     canonical_title: Mapped[str] = mapped_column(String(500), index=True)
