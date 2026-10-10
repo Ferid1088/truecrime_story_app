@@ -47,3 +47,50 @@ def _bypass_provider_preflight(monkeypatch):
     monkeypatch.setattr(
         "app.main._generation_provider_status", _authorized
     )
+
+
+# --- tests that need optional packages: skipped (not failed) when missing ------
+import importlib.util  # noqa: E402
+
+_NEEDS = {
+    "cv2": [
+        "test_chapters.py::test_the_renderer_draws_the_cards",
+        "test_media_library.py::test_clip_frames_follow_the_shot_time_and_hold_at_the_end",
+        "test_media_library.py::test_render_plays_clips_muted_under_the_script_audio",
+        "test_traceability.py::test_an_interrupted_render_leaves_no_film_under_the_final_name",
+        "test_visual_direction.py::test_pipeline_runs_the_gap_stage_and_records_usage",
+        "test_visual_production.py::test_render_engine_produces_mp4_with_audio_and_subtitles",
+        "test_visual_production.py::test_one_button_pipeline_pilot_end_to_end",
+        "test_visual_production.py::test_a_failing_language_does_not_stop_the_others",
+        "test_intros.py",
+    ],
+    "whisper_normalizer": [
+        "test_voice_render.py::test_normalization_keeps_numbers_apart_across_commas",
+    ],
+}
+
+
+def pytest_ignore_collect(collection_path, config):
+    """test_intros imports cv2 at module level: skip the module, not the run."""
+    if collection_path.name == "test_intros.py" and importlib.util.find_spec("cv2") is None:
+        return True
+    return None
+
+
+def pytest_collection_modifyitems(config, items):
+    for dep, ids in _NEEDS.items():
+        if importlib.util.find_spec(dep) is not None:
+            continue
+        mark = pytest.mark.skip(reason=f"optional package '{dep}' is not installed")
+        for item in items:
+            if any(item.nodeid.endswith(i) for i in ids):
+                item.add_marker(mark)
+
+
+@pytest.fixture(autouse=True)
+def _no_title_drafting_in_pipeline_tests(monkeypatch):
+    """Pipeline tests use scripted model answers; the naming stage (many
+    model calls) has its own tests."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.case_naming, "generate_in_pipeline", False)

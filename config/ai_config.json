@@ -1197,7 +1197,9 @@
       "fa": 116,
       "ar": 104
     },
-    "storage_dir": "data/cases"
+    "storage_dir": "data/cases",
+    "video_research": true,
+    "max_tts_characters_per_job": 0
   },
   "visual_search": {
     "providers": [
@@ -2102,7 +2104,8 @@
         "مذنب",
         "وحش"
       ]
-    }
+    },
+    "generate_in_pipeline": true
   },
   "thumbnail": {
     "width": 1280,

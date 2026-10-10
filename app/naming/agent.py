@@ -379,3 +379,15 @@ def approve_candidate(db: Session, case: Case, candidate_id: int, *, revise: boo
     ident.title_approved = True
     db.commit()
     return ident
+
+
+def default_embedder():
+    """The existing embedding client (bge-class model via the generation
+    provider), or None when it is not configured — lexical checks still run."""
+    try:
+        from app.providers import get_research_provider
+
+        emb = getattr(get_research_provider(), "embedder", None)
+        return emb if emb is not None and emb.is_configured() else None
+    except Exception:  # noqa: BLE001
+        return None

@@ -144,7 +144,8 @@ def test_recovery_marks_everything_left_running(db_session):
     assert done.status == "completed"
     assert run.status == "failed" and run.finished_at is not None
     assert video.status == "failed"
-    assert web.status == "running"          # remote job: polled again, not lost
+    # the engine runs inside this process: its jobs cannot survive a restart
+    assert web.status == "failed" and "interrupted" in (web.error or "").lower()
     assert scene.running_since is None and scene.status == "voice_ready"
     assert json.loads(scene.history_json)[-1]["outcome"] == "interrupted"
 

@@ -57,6 +57,9 @@ def _pick_master(db: Session, case_id: int, version_id: int | None) -> StoryVers
         v = db.get(StoryVersion, version_id)
         if not v or v.case_id != case_id:
             raise HTTPException(status_code=404, detail="Story version not found")
+        if v.kind != "master" or (v.language or "en") != ai_config.multilingual.canonical_language:
+            raise HTTPException(status_code=409,
+                                detail="A film starts from the English master story.")
         return v
     masters = [m for m in _masters(db, case_id) if (m.language or "en") == "en"]
     if not masters:

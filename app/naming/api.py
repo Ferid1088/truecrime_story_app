@@ -31,14 +31,7 @@ def _gen():
 
 
 def _embedder():
-    """The existing embedding-model client, or None (lexical checks still run)."""
-    try:
-        from app.providers import get_research_provider
-
-        emb = getattr(get_research_provider(), "embedder", None)
-        return emb if emb is not None and emb.is_configured() else None
-    except Exception:  # noqa: BLE001
-        return None
+    return A.default_embedder()
 
 
 def _case(db: Session, case_id: int) -> Case:

@@ -367,10 +367,15 @@ def test_host_api(client, db_session, monkeypatch):
 def test_job_stages_include_the_host(monkeypatch):
     from app.documentary.jobs import plan_stages
 
+    monkeypatch.setattr(ai_config.avatar, "enabled", True)
     names = [s["name"] for s in plan_stages(["en", "fa"])]
     assert names.index("spoken:fa") < names.index("host_plan") < names.index("visual_needs")
     assert names.index("host:fa") < names.index("performance:fa")
     monkeypatch.setattr(ai_config.host, "enabled", False)
+    assert not any(n.startswith("host") for n in (s["name"] for s in plan_stages(["en"])))
+    # no avatar -> nobody renders the host -> no model calls spent on it
+    monkeypatch.setattr(ai_config.host, "enabled", True)
+    monkeypatch.setattr(ai_config.avatar, "enabled", False)
     assert not any(n.startswith("host") for n in (s["name"] for s in plan_stages(["en"])))
 
 

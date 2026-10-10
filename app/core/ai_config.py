@@ -1212,6 +1212,12 @@ class DocumentaryConfig(BaseModel):
     min_film_minutes: float = Field(default=45.0, gt=0)
     max_film_minutes: float = Field(default=120.0, gt=0)
     pilot_seconds: float = Field(default=180.0, gt=0)
+    # After the web research, a from-zero film also reads the case's YouTube
+    # transcripts (extra claims, deeper evidence) unless the case already has them.
+    video_research: bool = True
+    # Ceiling of paid narration characters per documentary job (all languages
+    # together); 0 = no ceiling. A language that would exceed it is not voiced.
+    max_tts_characters_per_job: int = Field(default=0, ge=0)
     # Measured speed of the rendered narration per language (words per
     # minute), used to estimate film length before anything is rendered.
     speech_wpm: dict[str, int] = {"en": 150, "de": 128, "fa": 116, "ar": 104}
@@ -1674,6 +1680,9 @@ class CaseNamingConfig(BaseModel):
     checks read stored data only — no search backend is ever called."""
 
     candidates_per_language: int = Field(default=7, ge=1)
+    # the documentary job drafts the title candidates (an editor approves one;
+    # a film cannot be marked published without an approved title)
+    generate_in_pipeline: bool = True
     max_rounds: int = Field(default=4, ge=1)
     max_words: int = Field(default=6, ge=2)
     preferred_words: tuple[int, int] = (2, 5)

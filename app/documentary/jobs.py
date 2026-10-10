@@ -190,12 +190,25 @@ def job_dict(job: DocumentaryJob) -> dict:
     }
 
 
+def tts_budget_left(paid: dict[str, int], cap: int) -> bool:
+    """False when the job's paid narration characters reached the ceiling."""
+    return not cap or sum(int(v or 0) for v in paid.values()) < cap
+
+
+def host_active() -> bool:
+    """The host stages (director, writer, critic per language) only run when
+    the host can appear: its avatar videos are enabled. Planning a host
+    nobody renders costs model calls and changes nothing in the film."""
+    return bool(ai_config.host.enabled and ai_config.avatar.enabled)
+
+
 def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
-    host = ai_config.host.enabled
+    host = host_active()
     names = (["research", "master_story"] if from_zero else []) + [
         "master_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
         ["host_plan"] if host else []) + (
-        ["chapters"] if ai_config.chapters.enabled else []) + [
+        ["chapters"] if ai_config.chapters.enabled else []) + (
+        ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
         "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan",
         "visual_gaps"]
     for l in languages:
@@ -423,7 +436,7 @@ class DocumentaryPipeline:
         async def host_plan():
             from app.documentary.host import HostDirector, latest_host_plan
 
-            if not ai_config.host.enabled:
+            if not host_active():
                 return {"skipped": True, "reason": "host disabled"}
             row = latest_host_plan(db, bp_row.id)
             if row is None:
@@ -440,7 +453,7 @@ class DocumentaryPipeline:
                              + [self._stage("visual_needs", visual_needs),
                                 self._optional("host_plan", host_plan)],
                              shared_from=len(langs), shared_count=1)
-        if "host_plan" not in state and ai_config.host.enabled:
+        if "host_plan" not in state and host_active():
             from app.documentary.host import latest_host_plan
 
             state["host_plan"] = latest_host_plan(db, bp_row.id)
@@ -476,6 +489,27 @@ class DocumentaryPipeline:
             return out
 
         await self._optional("chapters", chapters)
+
+        async def naming():
+            # title candidates per language (stored data only, no search); a
+            # person approves one in the Naming tab
+            if not ai_config.case_naming.generate_in_pipeline:
+                return {"skipped": True, "reason": "disabled"}
+            from app.naming.agent import default_embedder, generate_case_titles
+            from app.providers.generation import get_generation_provider
+
+            res = await generate_case_titles(db, case, get_generation_provider(),
+                                             default_embedder(), list(ok_langs))
+            short = {l: r["short_by"] for l, r in res["languages"].items() if r["short_by"]}
+            out = {"title_family_id": res["title_family_id"],
+                   "eligible": {l: r["eligible"] for l, r in res["languages"].items()},
+                   "approve_in": "Naming tab"}
+            if short:
+                out["degraded"] = f"fewer than {ai_config.case_naming.candidates_per_language} " \
+                                  f"title candidates: {short}"
+            return out
+
+        await self._optional("naming", naming)
 
         async def film_length():
             est = {l: estimate_film_minutes(v, ap) for l, v in spoken.items()}
@@ -636,11 +670,17 @@ class DocumentaryPipeline:
             async def voice():
                 from app.documentary.production.audio import render_documentary_audio
 
+                paid = self.result.setdefault("tts_characters", {})
+                if not tts_budget_left(paid, ai_config.documentary.max_tts_characters_per_job):
+                    raise LanguageFailed(
+                        "narration budget reached "
+                        f"({ai_config.documentary.max_tts_characters_per_job} characters)")
                 plan = performance_for_version(db, version)
                 m = await render_documentary_audio(
                     plan, case_id=case.id, story_version_id=version.id,
                     max_seconds=pilot_seconds if pilot else None)
                 holder["m"] = m
+                paid[lang] = int(m.get("characters_paid") or 0)
                 out = {"seconds": m.get("duration_seconds"),
                        "characters_paid": m.get("characters_paid"),
                        "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
@@ -789,7 +829,8 @@ async def research_case(db: Session, case: Case, check_cancel,
     follow_up = doc_job is not None and doc_job.production_type == "follow_up"
     facts = db.query(Fact).filter(Fact.case_id == case.id).count()
     if facts and not follow_up:
-        return {"skipped": True, "reason": f"case already has {facts} facts"}
+        return {"skipped": True, "reason": f"case already has {facts} facts",
+                "video_research": await _video_research(db, case)}
     job = (db.query(ResearchJob).filter(ResearchJob.case_id == case.id,
                                         ResearchJob.job_type == "research",
                                         ResearchJob.status.in_(("queued", "running")))
@@ -814,8 +855,36 @@ async def research_case(db: Session, case: Case, check_cancel,
     if not facts:
         raise RuntimeError(f"Research job {job.id} completed but no facts were saved for "
                            "the case — check the research job before writing a story.")
-    return {"research_job_id": job.id, "facts": facts,
-            "sources": job.sources_accepted}
+    vr = await _video_research(db, case)
+    out = {"research_job_id": job.id, "facts": facts, "sources": job.sources_accepted,
+           "video_research": vr}
+    if vr.get("error"):
+        out["degraded"] = "video research failed — the story uses the web evidence only"
+    return out
+
+
+async def _video_research(db: Session, case: Case) -> dict:
+    """The transcript layer (captions -> claims -> promoted facts): part of
+    a from-zero film, never fatal — the film goes on with the web evidence."""
+    if not ai_config.documentary.video_research:
+        return {"skipped": True, "reason": "disabled"}
+    from app.db.models import Source
+    from app.services import research_jobs
+    from app.services.video_research import run_video_research
+
+    have = db.query(Source).filter(Source.case_id == case.id,
+                                   Source.source_type == "youtube_video").count()
+    if have:
+        return {"skipped": True, "reason": f"case already has {have} video sources"}
+    try:
+        job = research_jobs.create_job(db, job_type="video_research", case_id=case.id,
+                                       input_data={"case_title": case.canonical_title})
+        out = await run_video_research(db, case, job)
+        return {"job_id": job.id, "status": job.status, **{k: v for k, v in (out or {}).items()
+                                                           if isinstance(v, (int, float, str))}}
+    except Exception as e:  # noqa: BLE001
+        log.warning("video research for case %s failed: %s", case.id, e)
+        return {"error": f"{type(e).__name__}: {e}"[:300]}
 
 
 async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
