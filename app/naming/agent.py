@@ -14,7 +14,6 @@ is ever called."""
 
 from __future__ import annotations
 
-from app.core.prompts import prompt
 
 import json
 import secrets
@@ -22,6 +21,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
+from app.agents.naming import CaseNamingAgent, CaseTitleCritic, NativeTitleCritic
 from app.core.ai_config import ai_config
 from app.db.models import Case, CaseTitleCandidate
 from app.identity.titles import clean_title, sync_identity
@@ -31,14 +31,10 @@ from app.naming.corpus import get_corpus
 from app.naming.gates import brevity_score, run_gates
 from app.naming.normalize import norm_title
 
-LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
 ORDER = ("en", "de", "fa", "ar")
 
-NAMING_SYSTEM = prompt("naming/agent/naming_system")
 
-CRITIC_SYSTEM = prompt("naming/agent/critic_system")
 
-NATIVE_SYSTEM = prompt("naming/agent/native_system")
 
 
 @dataclass
@@ -94,17 +90,12 @@ async def _critics(gen, ctx: dict, language: str, survivors: list[Verdict]) -> N
     brief = {k: ctx.get(k) for k in (
         "canonical_case_name", "location", "central_question", "human_core", "key_facts",
         "hold_back", "claim_limits", "resolution_status")}
-    data, _ = await gen.generate_structured(
-        "case_title_critic", CRITIC_SYSTEM,
-        json.dumps({"language": language, "case": brief, "titles": titles}, ensure_ascii=False))
-    got = {norm_title(s.get("title")): s for s in (data or {}).get("scores", []) if isinstance(s, dict)}
+    scores = await CaseTitleCritic(gen).run(language=language, case=brief, titles=titles)
+    got = {norm_title(s.get("title")): s for s in scores}
     native = {}
     if language != "en":
-        ndata, _ = await gen.generate_structured(
-            "native_title_critic", NATIVE_SYSTEM.format(language=LANG_NAMES.get(language, language)),
-            json.dumps({"titles": titles}, ensure_ascii=False))
-        native = {norm_title(s.get("title")): s for s in (ndata or {}).get("scores", [])
-                  if isinstance(s, dict)}
+        native = {norm_title(s.get("title")): s
+                  for s in await NativeTitleCritic(gen).run(language=language, titles=titles)}
     for v in survivors:
         s = got.get(norm_title(v.title))
         if s is None:
@@ -258,16 +249,13 @@ async def fill_language(db: Session, case: Case, language: str, ctx: dict, gen, 
         corpus = get_corpus(db)
         avoid += [e.text for e in corpus.entries if e.kind in ("episode_title", "video_title")
                   and e.case_id != case.id][:60]
-        payload = {"language": LANG_NAMES.get(language, language), "count": need + cfg.extra_per_round,
-                   "case": {k: v for k, v in ctx.items() if k not in ("reveal_terms",
-                                                                      "existing_research_titles")},
-                   "family_concept": concept, "avoid": avoid[:120],
-                   "other_language_titles": _others(db, case.id, language)}
-        data, _ = await gen.generate_structured(
-            "case_naming_agent", NAMING_SYSTEM, json.dumps(payload, ensure_ascii=False))
-        data = data if isinstance(data, dict) else {}
-        concept = concept or (str(data.get("editorial_concept") or "").strip()[:300] or None)
-        cands = [c for c in data.get("candidates", []) if isinstance(c, dict) and c.get("title")]
+        proposal = await CaseNamingAgent(gen).run(
+            language=language, count=need + cfg.extra_per_round,
+            case={k: v for k, v in ctx.items() if k not in ("reveal_terms", "existing_research_titles")},
+            family_concept=concept, avoid=avoid[:120],
+            other_language_titles=_others(db, case.id, language))
+        concept = concept or proposal["editorial_concept"]
+        cands = proposal["candidates"]
         angles = {c["title"]: c.get("angle") for c in cands}
         verdicts = await evaluate_titles(db, case, language, [c["title"] for c in cands], ctx, gen,
                                          embedder, angles)

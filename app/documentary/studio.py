@@ -3,7 +3,7 @@ camera angles exist, where the host may sit, and the framing presets the
 host scenes use.
 
 Source of truth:
-  * config/ai_config.json → channels.<lang>: channel name, studio folder,
+  * config/ (connections.json, models.json, parameters/) → channels.<lang>: channel name, studio folder,
     studio profile id, avatar env names (the voice stays in
     voice.languages — one place per fact);
   * config/studio_registry.json: every studio image (deterministic id,

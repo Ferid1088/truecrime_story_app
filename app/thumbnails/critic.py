@@ -11,10 +11,7 @@ Scorecard values are 0-1; for the fields marked RISK, 0 is best."""
 
 from __future__ import annotations
 
-from app.core.prompts import prompt
 
-import base64
-import json
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +22,6 @@ from app.thumbnails.brief import validate_brief
 
 RISK = ("crowding", "spoiler_risk", "misleading_risk", "automation_feel")
 
-VISION_SYSTEM = prompt("thumbnails/critic/vision_system")
 
 
 def _overlap(a, b) -> float:
@@ -98,14 +94,11 @@ def deterministic(brief: dict, layout: dict, image_path: Path) -> dict:
 async def vision(gen, image_path: Path, brief: dict) -> dict | None:
     if gen is None:
         return None
-    data = base64.b64encode(image_path.read_bytes()).decode()
-    user = json.dumps({"language": brief["language"], "episode_title": brief["episode_title"],
-                       "status_label": brief["resolution_label"],
-                       "host": "Fereidoun, the channel's recurring host (same outfit as the video)"},
-                      ensure_ascii=False)
-    out, _ = await gen.generate_structured(
-        "thumbnail_critic", VISION_SYSTEM, user, images=[f"data:image/jpeg;base64,{data}"])
-    return out if isinstance(out, dict) else None
+    from app.agents.thumbnail import ThumbnailCritic
+
+    return await ThumbnailCritic(gen).run(
+        image_path=image_path, language=brief["language"], episode_title=brief["episode_title"],
+        status_label=brief["resolution_label"])
 
 
 def _f(v):

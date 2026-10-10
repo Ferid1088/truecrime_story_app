@@ -584,6 +584,14 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/agents")
+def list_agents():
+    """The agent directory: name, model role and alias, prompt file, status."""
+    from app.agents.registry import catalog
+
+    return catalog()
+
+
 @app.get("/api/settings/status")
 def settings_status(db: Session = Depends(get_db)):
     db_ok = True

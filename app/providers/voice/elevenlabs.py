@@ -6,7 +6,7 @@ between blocks uses previous_text / next_text (the neighbouring
 sentences), so separately rendered blocks sound like one performance.
 
 Only the secret lives in .env (config: voice.elevenlabs.secret_env);
-voice ids, model ids and settings live in config/ai_config.json.
+voice ids, model ids and settings live in config/ (connections.json, models.json, parameters/).
 """
 
 from __future__ import annotations

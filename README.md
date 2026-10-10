@@ -39,7 +39,7 @@ Final Story Text
 
 Research is first-party: SearXNG for search, our own fetcher/extractor/ranker
 (`app/research_engine/`), LLMs only plan queries and judge content (via
-`config/ai_config.json` roles). `TRUECRIME_SEARXNG_URL` must be set; without it
+the `config/` layers roles). `TRUECRIME_SEARXNG_URL` must be set; without it
 discovery and research answer `503` (there is no fallback path).
 
 - `POST /api/topics/discover` and `POST /api/cases/{id}/research` return
@@ -90,13 +90,13 @@ Backend tests: `pytest tests/`
 
 OpenRouter is the generation/reasoning provider. Only the secret lives in
 `.env`; every model and generation parameter lives in
-`config/ai_config.json` — swapping a model means editing that one file.
+the `config/` layers — swapping a model means editing that one file.
 
 ```env
 TrueCrime_OPENROUTER_API_KEY=...
 ```
 
-`config/ai_config.json` defines three model aliases:
+the `config/` layers defines three model aliases:
 
 - `cheap` — `openai/gpt-5.6-luna`
   (structured extraction: facts, timeline, contradictions)
@@ -153,7 +153,7 @@ Setup: `TrueCrime_ELEVENLABS_API_KEY` in `.env` (the key needs the
 text-to-speech permission), `ffmpeg` installed, and
 `pip install -r requirements-documentary.txt` for the speech-to-text
 check. Voice ids, model ids, styles, pauses and loudness live in
-`config/ai_config.json` (`voice`, `asr_check`, `loudness`).
+the `config/` layers (`voice`, `asr_check`, `loudness`).
 
 - `POST /api/cases/{case_id}/stories/{version_id}/voice/render`
   `{"max_seconds": 180}` renders the opening (whole blocks) — omit it
@@ -473,7 +473,7 @@ performance stage. A failed host stage is recorded under
 One YouTube channel per language, each with its own studio (never shared):
 ClueVera (en), Fallspur (de), أثر خفي (ar), رد خاموش (fa).
 
-- **Where things live.** `config/ai_config.json → channels` holds the channel
+- **Where things live.** `config/ (connections.json, models.json, parameters/) → channels` holds the channel
   name, the studio folder and the studio profile id. The voice stays in
   `voice.languages`, and the avatar env var names stay in `avatar`. Each fact
   lives in one place; `studio.channel_profile(lang)` assembles them.
@@ -798,7 +798,7 @@ into the narrator's performance:
 
 ### Parallel work
 
-Two levels (limits in `config/ai_config.json` → `concurrency`):
+Two levels (limits in the `config/` layers → `concurrency`):
 
 - **Inside one documentary**: the spoken versions of all languages and
   the visual needs run together; then the visual chain (research →
@@ -862,3 +862,23 @@ Design: `docs/Master_Task_Case_Naming_Identity.MD`.
   0–4 word text deterministically. The critic reports a scorecard and a human
   approves. UI: case → **Thumbnail**.
 - **Live check** — `python -m scripts.case_naming_report <case_id> [--thumbnail de]`.
+
+## Structure: config, prompts, agents
+
+```
+config/connections.json   where services are: endpoints, secret env NAMES, search engine, avatar
+config/models.json        which model does which role: aliases, routing, per-role settings
+config/parameters/*.json  how each area behaves (story, research, audio, documentary,
+                          visuals, lifecycle, identity) — thresholds, limits, channels
+prompts/                  every prompt as a text file (prompts/agents/<agent>.md, ...)
+app/core/prompts.py       prompt("agents/case_title_critic") — cached, editable without code
+app/agents/               one module per agent (base.Agent, registry, naming, status, thumbnail ...)
+app/agents/registry.py    get_agent(name) / invoke(name, **inputs) / catalog()  (GET /api/agents)
+```
+
+An agent names its model *role* and its prompt file; the model comes from
+`config/models.json`, never from code. Agents run only when a service invokes
+them. Older stage classes are listed as `legacy` in the registry and move to
+`app/agents/` one at a time; `tests/test_architecture.py` fails if new prompt text
+appears in code (the remaining inline prompts are tracked in `prompts/INLINE_DEBT.txt`
+and may only shrink).

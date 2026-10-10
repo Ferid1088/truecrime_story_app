@@ -172,7 +172,7 @@ def documentary_settings():
 
 def _dynamic_eq_settings() -> dict:
     """Studio-facing view of the dynamic EQ (full detail lives in
-    config/ai_config.json → dynamic_eq)."""
+    config/ (connections.json, models.json, parameters/) → dynamic_eq)."""
     d = ai_config.dynamic_eq
     return {
         "enabled": d.enabled,
@@ -201,7 +201,7 @@ class DynamicEQPatch(BaseModel):
 
 @router.patch("/api/documentary/settings/dynamic-eq")
 def update_dynamic_eq_settings(payload: DynamicEQPatch):
-    """Update the dynamic EQ (persisted to config/ai_config.json,
+    """Update the dynamic EQ (persisted to config/ (connections.json, models.json, parameters/),
     effective immediately — applies to the next voice render/preview,
     never retroactively to already-rendered audio)."""
     from app.core.ai_config import save_dynamic_eq

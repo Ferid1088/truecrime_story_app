@@ -17,7 +17,6 @@ or an official one. A single weak article never solves a case.
 
 from __future__ import annotations
 
-from app.core.prompts import prompt
 
 import json
 import logging
@@ -174,23 +173,13 @@ def gate_solved(verdict: dict, min_confidence: float, min_sources: int) -> tuple
 # status verifier (LLM role case_status_verifier)
 # ---------------------------------------------------------------------------
 
-VERIFIER_SYSTEM = prompt("lifecycle/selection/verifier_system")
 
 
 async def verify_status(gen, case: dict, documents: list[dict]) -> dict:
     """case: {title, people, location}; documents: [{url, title, text}]."""
-    user = json.dumps({"case": case, "documents": documents[:24]}, ensure_ascii=False)
-    data, _ = await gen.generate_structured("case_status_verifier", VERIFIER_SYSTEM, user)
-    data = data if isinstance(data, dict) else {}
-    data["status"] = normalize_status(data.get("status"))
-    try:
-        data["confidence"] = max(0.0, min(1.0, float(data.get("confidence") or 0)))
-    except (TypeError, ValueError):
-        data["confidence"] = 0.0
-    known = {d.get("url") for d in documents}
-    # a cited URL must be one of the documents the verifier was shown
-    data["supporting_urls"] = [u for u in data.get("supporting_urls") or [] if u in known]
-    return data
+    from app.agents.status import CaseStatusVerifier
+
+    return await CaseStatusVerifier(gen).run(case=case, documents=documents)
 
 
 def _mentions(raw: dict, text: str) -> bool:

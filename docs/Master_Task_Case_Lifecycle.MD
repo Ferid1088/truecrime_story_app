@@ -27,9 +27,9 @@ Every automated decision stores the reason it was made.
 2. Keep providers behind the existing abstractions:
    - search: `get_research_provider().registry` (SearXNG);
    - LLMs: `get_generation_provider()` with a role, routed in
-     `config/ai_config.json`;
+     the `config/` layers;
    - voice and sound: `app/providers/voice`.
-3. Every threshold lives in `config/ai_config.json`. Never hard-code a
+3. Every threshold lives in the `config/` layers. Never hard-code a
    model ID.
 4. Schema changes follow the existing pattern: `create_all` for new tables,
    guarded `ALTER TABLE` in `_ensure_columns` for new columns.

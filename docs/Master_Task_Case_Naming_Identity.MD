@@ -32,7 +32,7 @@ Everything in `Master_Task_Case_Lifecycle.MD` §1 applies, plus:
    episode-number and rights checks are code. LLM scores (memorability,
    curiosity, native quality, automation feel) only rank candidates that
    passed the gates.
-3. **Models via routing** in `config/ai_config.json`; thresholds, channel
+3. **Models via routing** in the `config/` layers; thresholds, channel
    names, status labels and counts are configuration, defined once.
 4. **Honest claims.** Uniqueness means "unique in our database and in the
    research already collected", never "unique on the internet". The UI

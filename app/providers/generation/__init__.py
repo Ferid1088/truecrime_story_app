@@ -8,7 +8,7 @@ from app.providers.generation.base import (
 from app.providers.generation.openrouter import OpenRouterGenerationProvider
 
 # Central generation-provider registry (Part 3): the active provider is
-# selected by providers.generation in config/ai_config.json — agents ask
+# selected by providers.generation in config/ (connections.json, models.json, parameters/) — agents ask
 # for a ROLE, never a provider or model.
 _PROVIDERS: dict[str, type[GenerationProvider]] = {
     "apimaster": APIMasterGenerationProvider,
