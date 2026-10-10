@@ -58,8 +58,9 @@ from app.db.models import (
     Case, DocumentaryJob, Fact, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
 )
 from app.documentary import storage
-from app.documentary.audio_director import AudioDirector, latest_audio_plan
-from app.documentary.blueprint import NarrativeDirector, latest_blueprint
+from app.agents.stages import get_stage_agent
+from app.documentary.audio_director import latest_audio_plan
+from app.documentary.blueprint import latest_blueprint
 from app.documentary.performance import performance_for_version
 from app.utils import utc_now
 
@@ -261,7 +262,7 @@ class DocumentaryPipeline(StageRunner):
             # an invalid blueprint is made again (validated each time)
             tries = []
             for _ in range(ai_config.documentary.max_redos + 1):
-                row = await NarrativeDirector().create(db, case, master)
+                row = await get_stage_agent("blueprint").create(db, case, master)
                 tries.append(row.status)
                 if row.status != "invalid":
                     break
@@ -280,7 +281,7 @@ class DocumentaryPipeline(StageRunner):
             row = latest_audio_plan(db, bp_row.id)
             if row:
                 return {"audio_plan_id": row.id, "reused": True}
-            row = await AudioDirector().create(db, case, bp_row)
+            row = await get_stage_agent("audio_plan").create(db, case, bp_row)
             out = {"audio_plan_id": row.id, "status": row.status}
             if row.status == "invalid":
                 out["degraded"] = "audio plan invalid — the film runs without music/sound direction"
@@ -296,11 +297,10 @@ class DocumentaryPipeline(StageRunner):
 
         async def spoken_branch(lang: str):
             async def make_spoken():
-                from app.documentary.spoken import SpokenNarrator
 
                 v = latest_spoken(db, master, lang, bp_row.id)
                 if v is None:
-                    v = await SpokenNarrator().create(db, case, master, lang)
+                    v = await get_stage_agent("spoken").create(db, case, master, lang)
                 # approved = its meaning/style checks passed; else made
                 # again (and judged again), at most max_redos times — still
                 # not approved: this language is left out of the film
@@ -312,7 +312,7 @@ class DocumentaryPipeline(StageRunner):
                         raise SpokenRejected(
                             f"spoken version not approved after {len(history) - 1} redo(s): "
                             + ", ".join(gates.get("failures", [])))
-                    v = await SpokenNarrator().create(db, case, master, lang)
+                    v = await get_stage_agent("spoken").create(db, case, master, lang)
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
                 return {"version_id": v.id, "status": v.status, "verdict": "approved",
                         "redos": len(history), "rejected_before": history,
@@ -330,26 +330,25 @@ class DocumentaryPipeline(StageRunner):
                 db, master, lang, bp_row.id)
 
         async def visual_needs():
-            from app.documentary.visuals.planner import VisualPlanner
 
             row = latest_visual_plan(db, bp_row.id)
             tries = 0
             while row is None or row.status == "invalid":
                 if tries > ai_config.documentary.max_redos:
                     raise RuntimeError(f"Visual needs stayed invalid after {tries} attempts.")
-                row = await VisualPlanner().create(db, case, bp_row)
+                row = await get_stage_agent("visual_planner").create(db, case, bp_row)
                 tries += 1
             state["vp"] = row
             return {"visual_plan_id": row.id, "status": row.status, "attempts": tries}
 
         async def host_plan():
-            from app.documentary.host import HostDirector, latest_host_plan
+            from app.documentary.host import latest_host_plan
 
             if not host_active():
                 return {"skipped": True, "reason": "host disabled"}
             row = latest_host_plan(db, bp_row.id)
             if row is None:
-                row = await HostDirector().create_plan(db, case, bp_row, master)
+                row = await get_stage_agent("host").create_plan(db, case, bp_row, master)
             state["host_plan"] = row
             plan = json.loads(row.plan_json or "{}")
             return {"host_plan_id": row.id, "status": row.status,
@@ -374,14 +373,14 @@ class DocumentaryPipeline(StageRunner):
         async def chapters():
             # chapter titles, the film title and the timeline labels, in
             # every language, each approved by the chapter auditor
-            from app.documentary.chapters import ChapterWriter, latest_chapter_plan, plan_covers
+            from app.documentary.chapters import latest_chapter_plan, plan_covers
 
             if not ai_config.chapters.enabled:
                 return {"skipped": True, "reason": "chapters disabled"}
             row = latest_chapter_plan(db, bp_row.id)
             reused = plan_covers(row, ok_langs) and row.status != "no_texts"
             if not reused:
-                row = await ChapterWriter().create(db, case, bp_row, master, ok_langs, spoken)
+                row = await get_stage_agent("chapters").create(db, case, bp_row, master, ok_langs, spoken)
             plan = json.loads(row.plan_json or "{}")
             audit = json.loads(row.audit_json or "{}")
             left = [f"{x['key']} ({', '.join(x['languages'])}): {x.get('reason') or ''}"[:160]
@@ -454,10 +453,9 @@ class DocumentaryPipeline(StageRunner):
                         return {"skipped": True,
                                 "reason": "visual plan exists (refresh_visuals to redo)"}
                     from app.documentary.visuals.planner import research_queries
-                    from app.documentary.visuals.research import VisualResearchAgent
 
                     queries = research_queries(requirements, focus_beats)
-                    stats = await VisualResearchAgent().run(db, case, queries)
+                    stats = await get_stage_agent("visual_research").run(db, case, queries)
                     return {"queries": len(queries), **stats}
 
                 await self._stage("visual_research", visual_research)
@@ -475,12 +473,11 @@ class DocumentaryPipeline(StageRunner):
                 await self._stage("visual_check", visual_check)
 
                 async def visual_plan():
-                    from app.documentary.visuals.director import VisualDirector
                     from app.documentary.visuals.generated import materialize
 
                     row = db.get(VisualPlan, vp_row.id)
                     if row.status != "planned" or job.refresh_visuals:
-                        await VisualDirector().create(db, case, row, bp_row, ap_row,
+                        await get_stage_agent("visual_director").create(db, case, row, bp_row, ap_row,
                                                       profile=job.render_profile)
                     stats = await materialize(db, case, row)
                     report = json.loads(row.validation_json or "{}").get("plan", {})
@@ -520,13 +517,12 @@ class DocumentaryPipeline(StageRunner):
             version = spoken[lang]
 
             async def performance():
-                from app.documentary.voice_performance import VoicePerformanceDirector
 
                 lang_cfg = ai_config.voice.languages.get(lang)
                 if not ai_config.voice_performance.enabled or not lang_cfg or (
                         lang_cfg.model_id not in ai_config.voice.elevenlabs.audio_tag_models):
                     return {"skipped": True, "reason": "voice model without audio tags"}
-                row = await VoicePerformanceDirector().create(
+                row = await get_stage_agent("voice_performance").create(
                     db, case, version, spoken_blueprint(db, version) or bp,
                     beat_ids=focus_beats)
                 data = json.loads(row.performance_json or "{}")
@@ -542,14 +538,14 @@ class DocumentaryPipeline(StageRunner):
                 return out
 
             async def host():
-                from app.documentary.host import HostDirector, latest_host_segments
+                from app.documentary.host import latest_host_segments
 
                 plan_row = state.get("host_plan")
                 if plan_row is None or plan_row.status == "invalid":
                     return {"skipped": True, "reason": "no usable host plan"}
                 row = latest_host_segments(db, version.id)
                 if row is None or row.host_plan_id != plan_row.id:
-                    row = await HostDirector().write(db, case, version, plan_row)
+                    row = await get_stage_agent("host").write(db, case, version, plan_row)
                 rep = json.loads(row.validation_json or "{}")
                 # the scenes (channel studio + framing, text frozen) are
                 # planned now; voice and avatar run per scene on request

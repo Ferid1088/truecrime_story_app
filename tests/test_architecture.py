@@ -156,3 +156,11 @@ def test_agents_endpoint(client):
     ready = {r["name"] for r in rows}
     assert {"case_naming_agent", "story.consistency", "visuals.audit", "documentary.blueprint"} <= ready
     assert all(r["model_alias"] for r in rows)
+
+
+def test_stage_agents_resolve_without_building():
+    from app.agents.stages import STAGE_AGENTS, stage_agent_class
+
+    for name in STAGE_AGENTS:
+        cls = stage_agent_class(name)
+        assert isinstance(cls, type), name
