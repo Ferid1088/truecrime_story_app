@@ -69,7 +69,7 @@ def _provider_patch(provider):
 
 
 def test_research_status_unconfigured(client):
-    with patch("app.main.get_research_provider", return_value=FakeProvider(configured=False)):
+    with patch("app.api.deps.get_research_provider", return_value=FakeProvider(configured=False)):
         r = client.get("/api/integrations/research/status")
     assert r.status_code == 200
     body = r.json()
@@ -78,13 +78,13 @@ def test_research_status_unconfigured(client):
 
 
 def test_research_status_configured_reachable(client):
-    with patch("app.main.get_research_provider", return_value=FakeProvider(health=True)):
+    with patch("app.api.deps.get_research_provider", return_value=FakeProvider(health=True)):
         r = client.get("/api/integrations/research/status")
         assert r.json() == {"provider": "truecrime", "configured": True, "reachable": True}
 
 
 def test_research_status_configured_unreachable(client):
-    with patch("app.main.get_research_provider", return_value=FakeProvider(health=False)):
+    with patch("app.api.deps.get_research_provider", return_value=FakeProvider(health=False)):
         r = client.get("/api/integrations/research/status")
         assert r.json() == {"provider": "truecrime", "configured": True, "reachable": False}
 
@@ -116,7 +116,7 @@ def test_discovery_returns_job_and_completes(client, db_session):
             external_id="s1", status="completed", result=result
         )
     )
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post(
             "/api/topics/discover",
             json={"count": 2, "languages": ["en"], "theme": "cold case"},
@@ -147,7 +147,7 @@ def test_discovery_fails_cleanly_when_unconfigured(client):
     """With the search engine unconfigured, discovery and research answer
     503 — there is no unchecked fallback path."""
     provider = FakeProvider(configured=False)
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post("/api/topics/discover", json={"count": 3, "languages": ["en"]})
         assert r.status_code == 503 and "not configured" in r.json()["detail"]
         case_id = client.post("/api/cases", json={"canonical_title": "No Engine Case",
@@ -200,7 +200,7 @@ def test_research_job_ingests_sources(client, db_session):
     provider = FakeProvider(
         poll_job=ProviderJob(external_id="s2", status="completed", result=result)
     )
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post(f"/api/cases/{case_id}/research")
         assert r.status_code == 200
         job_id = r.json()["job_id"]
@@ -232,7 +232,7 @@ def test_research_job_failed_provider(client, db_session):
     provider = FakeProvider(
         poll_job=ProviderJob(external_id="s3", status="failed", error="research job failed upstream.")
     )
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post(f"/api/cases/{case_id}/research")
         job_id = r.json()["job_id"]
         r = client.get(f"/api/research-jobs/{job_id}")
@@ -251,7 +251,7 @@ def test_research_job_poll_error_marks_failed(client):
             raise ProviderError("rate_limited", "search backend rate limited (429).")
 
     provider = BrokenProvider()
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post(f"/api/cases/{case_id}/research")
         job_id = r.json()["job_id"]
         r = client.get(f"/api/research-jobs/{job_id}")
@@ -263,7 +263,7 @@ def test_research_job_poll_error_marks_failed(client):
 def test_list_research_jobs_for_case(client):
     case_id = _make_case(client)
     provider = FakeProvider()
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         client.post(f"/api/cases/{case_id}/research")
         client.post(f"/api/cases/{case_id}/research")
         rows = client.get(f"/api/research-jobs?case_id={case_id}").json()

@@ -384,7 +384,7 @@ def test_voice_render_api(client, db_session, workdir, monkeypatch):
         "__init__": lambda self: VoiceRenderer.__init__(
             self, provider=FakeTTS(), asr=FakeASR())
     })
-    import app.main as main_mod
+    import app.api.stories as main_mod
     monkeypatch.setattr(main_mod, "VoiceRenderer", fake)
     monkeypatch.setattr("app.documentary.production.audio.VoiceRenderer", fake)
     base = f"/api/cases/{case.id}/stories/{story.id}/voice"

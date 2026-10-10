@@ -410,7 +410,7 @@ def test_followup_endpoint_blocks_when_no_gaps(client, db_session):
 
 def test_followup_builds_targeted_objective(client, db_session, monkeypatch):
     """A gap plan produces a targeted research request, not broad reruns."""
-    import app.main as main_mod
+    import app.api.deps as main_mod
 
     case = _mk_case(db_session)
     _mk_source(db_session, case, content_status="summary_only")
@@ -562,11 +562,11 @@ def test_claim_first_skips_llm_when_clean(db_session, monkeypatch):
 
 def _real_preflight(monkeypatch, provider):
     """Undo the autouse stub and test the real preflight against a fake."""
-    import app.main as main_mod
+    import app.api.deps as main_mod
 
     monkeypatch.undo()
     monkeypatch.setattr(main_mod, "get_generation_provider", lambda: provider)
-    return main_mod._require_generation_authorized
+    return main_mod.require_generation_authorized
 
 
 class _QuotaProvider:

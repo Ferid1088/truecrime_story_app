@@ -42,10 +42,10 @@ def _bypass_provider_preflight(monkeypatch):
                 "status": "ok"}
 
     monkeypatch.setattr(
-        "app.main._require_generation_authorized", _ok
+        "app.api.deps.require_generation_authorized", _ok
     )
     monkeypatch.setattr(
-        "app.main._generation_provider_status", _authorized
+        "app.api.deps.generation_provider_status", _authorized
     )
 
 
