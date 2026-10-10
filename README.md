@@ -877,6 +877,8 @@ app/agents/runner.py      run_agent("story.consistency", gen, user, ...) — the
                           becomes a model call (cost ledger / retries / tracing hook in here)
 app/agents/registry.py    catalog() (GET /api/agents), get_agent()/invoke() for class agents
 app/agents/naming.py ...  agents with a class of their own (typed run, validated output)
+app/documentary/pipeline/  StageRunner (per-stage attempts, timing, errors, cancel, resume) + job errors;
+                          DocumentaryPipeline in documentary/jobs.py only decides the stage order
 ```
 
 A stage never names a model and never contains prompt text: it calls
