@@ -21,7 +21,9 @@ async def _lifespan(_app):
 
     db = SessionLocal()
     try:
-        recover_after_restart(db)
+        from app.core.config import settings
+
+        recover_after_restart(db, include_documentary_jobs=settings.job_runner != "external")
     except Exception as e:  # never block the app from starting
         logging.getLogger(__name__).error("startup recovery failed: %s", e)
     finally:

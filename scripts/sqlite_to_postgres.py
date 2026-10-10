@@ -58,13 +58,23 @@ def _norm(value):
     return value
 
 
-def table_fingerprint(engine: Engine, table) -> tuple[int, str]:
+def _source_columns(src: Engine, table) -> list:
+    """Columns of `table` that the SQLite file actually has. A file from before the newest
+    migrations lacks the newest columns; those get their defaults in Postgres."""
+    from sqlalchemy import inspect
+
+    have = {c["name"] for c in inspect(src).get_columns(table.name)}
+    return [c for c in table.c if c.name in have]
+
+
+def table_fingerprint(engine: Engine, table, columns=None) -> tuple[int, str]:
+    columns = list(columns) if columns is not None else list(table.c)
     pk = [c for c in table.primary_key.columns]
-    order = pk or [table.c[next(iter(table.c.keys()))]]
+    order = pk or [columns[0]]
     digest, count = hashlib.sha256(), 0
     with engine.connect() as conn:
-        for row in conn.execute(select(table).order_by(*order)).mappings():
-            digest.update(json.dumps([_norm(row[c.name]) for c in table.c], ensure_ascii=False,
+        for row in conn.execute(select(*columns).order_by(*order)).mappings():
+            digest.update(json.dumps([_norm(row[c.name]) for c in columns], ensure_ascii=False,
                                      separators=(",", ":")).encode("utf-8"))
             digest.update(b"\n")
             count += 1
@@ -83,7 +93,7 @@ def preflight(src: Engine, tables) -> list[str]:
     problems: list[str] = []
     with src.connect() as conn:
         for table in tables:
-            for col in table.c:
+            for col in _source_columns(src, table):
                 if isinstance(col.type, String) and getattr(col.type, "length", None):
                     n = col.type.length
                     rows = conn.exec_driver_sql(
@@ -117,8 +127,9 @@ def copy_database(sqlite_path: Path, pg_url: str, log=print) -> int:
     with dst.begin() as dconn:
         for table in tables:
             self_fks = _self_fk_columns(table)
+            cols = _source_columns(src, table)
             with src.connect() as sconn:
-                rows = [dict(r) for r in sconn.execute(select(table)).mappings()]
+                rows = [dict(r) for r in sconn.execute(select(*cols)).mappings()]
             deferred: list[tuple[dict, dict]] = []
             if self_fks and rows:
                 # a row may point at a row inserted later: insert with the pointer empty, then set it
@@ -147,7 +158,8 @@ def copy_database(sqlite_path: Path, pg_url: str, log=print) -> int:
     problems = []
     total = 0
     for table in tables:
-        a, b = table_fingerprint(src, table), table_fingerprint(dst, table)
+        cols = _source_columns(src, table)
+        a, b = table_fingerprint(src, table, cols), table_fingerprint(dst, table, cols)
         total += a[0]
         if a[0] != b[0]:
             problems.append(f"{table.name}: row count {a[0]} -> {b[0]}")

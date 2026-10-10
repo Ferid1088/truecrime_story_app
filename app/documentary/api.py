@@ -513,6 +513,9 @@ async def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
             s["status"] = "pending"
     job.stages_json = json.dumps(stages)
     job.status = "queued"
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.auto_resumes = 0
     db.commit()
     J.launch(job.id)
     return J.job_dict(job)

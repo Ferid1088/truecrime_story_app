@@ -30,31 +30,82 @@ def _interrupt_stages(stages: list[dict], at: str) -> int:
     return n
 
 
-def recover_after_restart(db: Session) -> dict:
+def interrupt_job(job: DocumentaryJob, at, reason: str = INTERRUPTED) -> None:
+    """Mark a job whose process is gone: running stages go back to pending (every saved
+    result stays), the job itself becomes "interrupted" (or "cancelled" if it was being cancelled)."""
+    try:
+        stages = json.loads(job.stages_json or "[]")
+    except ValueError:
+        stages = []
+    _interrupt_stages(stages, at.isoformat())
+    job.stages_json = json.dumps(stages)
+    if job.status == "cancelling":
+        job.status = "cancelled"
+        job.completed_at = at
+    else:
+        job.status = "interrupted"
+        job.error = (f"{reason} during {job.stage}" if job.stage else reason)[:1000]
+    job.stage = None
+    job.updated_at = at
+
+
+def requeue_job(job: DocumentaryJob, at, *, count_attempt: bool) -> None:
+    """Put an interrupted job back in the queue; finished stages are skipped when it runs again."""
+    job.status = "queued"
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.completed_at = None
+    job.updated_at = at
+    if count_attempt:
+        job.auto_resumes = (job.auto_resumes or 0) + 1
+
+
+def reap_stale_jobs(db: Session, *, lease_seconds: float, max_auto_resumes: int, now=None) -> dict:
+    """External-worker mode: find jobs whose worker stopped reporting (crash, power loss) and either
+    queue them again (up to max_auto_resumes times) or leave them "interrupted" for a manual resume."""
+    from datetime import timedelta
+
+    now = now or utc_now()
+    cutoff = now - timedelta(seconds=lease_seconds)
+    report = {"requeued": [], "interrupted": []}
+    held = db.query(DocumentaryJob).filter(
+        DocumentaryJob.status.in_(("running", "cancelling")) | (
+            (DocumentaryJob.status == "queued") & DocumentaryJob.worker_id.isnot(None))).all()
+    for job in held:
+        beat = job.heartbeat_at or job.updated_at
+        if beat is not None and beat.tzinfo is None:
+            from datetime import timezone
+
+            beat = beat.replace(tzinfo=timezone.utc)
+        if beat is not None and beat > cutoff:
+            continue  # its worker is alive
+        was_cancelling = job.status == "cancelling"
+        interrupt_job(job, now, "its worker stopped responding")
+        if job.status == "interrupted" and not was_cancelling and (job.auto_resumes or 0) < max_auto_resumes:
+            requeue_job(job, now, count_attempt=True)
+            report["requeued"].append(job.id)
+        else:
+            job.worker_id = None
+            report["interrupted"].append(job.id)
+    db.commit()
+    if report["requeued"] or report["interrupted"]:
+        log.warning("stale jobs: %s", report)
+    return report
+
+
+def recover_after_restart(db: Session, *, include_documentary_jobs: bool = True) -> dict:
     """Run once when the app starts (single process: anything marked
-    running belongs to a process that is gone)."""
+    running belongs to a process that is gone). With an external worker the documentary
+    jobs belong to the worker, which is still alive: they are left alone here."""
     at = utc_now()
     report = {"documentary_jobs": [], "monitor_runs": [], "research_jobs": [],
               "host_scenes": 0}
 
-    for job in db.query(DocumentaryJob).filter(
-            DocumentaryJob.status.in_(("queued", "running", "cancelling"))).all():
-        try:
-            stages = json.loads(job.stages_json or "[]")
-        except ValueError:
-            stages = []
-        _interrupt_stages(stages, at.isoformat())
-        job.stages_json = json.dumps(stages)
-        if job.status == "cancelling":
-            job.status = "cancelled"
-            job.completed_at = at
-        else:
-            job.status = "interrupted"
-            job.error = (f"{INTERRUPTED} during {job.stage}" if job.stage
-                         else INTERRUPTED)[:1000]
-        job.stage = None
-        job.updated_at = at
-        report["documentary_jobs"].append(job.id)
+    if include_documentary_jobs:
+        for job in db.query(DocumentaryJob).filter(
+                DocumentaryJob.status.in_(("queued", "running", "cancelling"))).all():
+            interrupt_job(job, at)
+            report["documentary_jobs"].append(job.id)
 
     for run in db.query(MonitorRun).filter(MonitorRun.status == "running").all():
         run.status = "failed"

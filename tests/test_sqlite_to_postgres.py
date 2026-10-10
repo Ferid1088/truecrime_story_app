@@ -163,3 +163,16 @@ def test_a_failure_halfway_leaves_the_target_empty(sqlite_db, pg_url, monkeypatc
         copier.copy_database(sqlite_db, pg_url, log=lambda *_: None)
     monkeypatch.undo()
     assert _count(pg_url, "cases") == 0 and _count(pg_url, "facts") == 0
+
+
+def test_a_file_from_before_the_newest_migrations_copies_with_defaults(sqlite_db, pg_url):
+    """The real database may still lack the newest columns when it is copied."""
+    import sqlite3
+
+    con = sqlite3.connect(sqlite_db)
+    for col in ("worker_id", "heartbeat_at", "auto_resumes"):
+        con.execute(f"ALTER TABLE documentary_jobs DROP COLUMN {col}")
+    con.commit()
+    con.close()
+    assert copier.copy_database(sqlite_db, pg_url, log=lambda *_: None) == 0
+    assert _count(pg_url, "cases") == 3

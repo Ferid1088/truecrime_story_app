@@ -1197,6 +1197,11 @@ class DocumentaryJob(Base):
     # original | follow_up (an update video about a case covered before)
     production_type: Mapped[str] = mapped_column(String(20), default="original")
     follow_up_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Worker bookkeeping (external job runner): who holds the job, when it last reported
+    # in, and how often it was queued again automatically after its worker died.
+    worker_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    auto_resumes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 # ---------------------------------------------------------------------------
