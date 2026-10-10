@@ -4,6 +4,9 @@ export type CaseStatus =
   | "researched"
   | "writing"
   | "story_ready"
+  | "producing"
+  | "rendered"
+  | "published"
   | "completed"
   | "rejected"
   | "archived";

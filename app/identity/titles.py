@@ -117,12 +117,19 @@ def ensure_case_uid(db: Session, case: Case) -> str:
 
 
 def backfill_case_uids(db: Session) -> int:
+    from sqlalchemy import text
+
     n = 0
     for case in db.query(Case).filter((Case.case_uid.is_(None)) | (Case.case_uid == "")).all():
         ensure_case_uid(db, case)
         n += 1
     if n:
         db.commit()
+    try:        # unique from now on (NULLs may repeat); skipped if old data collides
+        db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_cases_case_uid ON cases(case_uid)"))
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
     return n
 
 
@@ -153,6 +160,7 @@ def sync_identity(db: Session, case: Case, language: str, *, title: str | None =
                 raise TitleLocked("published title — create an explicit title revision")
             ident.title_version = (ident.title_version or 1) + 1
         ident.editorial_title = clean_title(title)
+        ident.title_approved = False   # a changed title needs a new approval
     if ident.published and not revise:
         # a published identity is frozen: status, label and title stay
         db.flush()
@@ -168,6 +176,14 @@ def sync_identity(db: Session, case: Case, language: str, *, title: str | None =
         ident.youtube_title = None
     db.flush()
     return ident
+
+
+def approved_title(db: Session, case_id: int, language: str) -> str | None:
+    """The editor-approved public title (published title once published)."""
+    ident = get_identity(db, case_id, language)
+    if ident is None or not ident.title_approved:
+        return None
+    return (ident.published_title if ident.published else None) or ident.editorial_title
 
 
 def mark_published(db: Session, ident: EpisodeIdentity) -> EpisodeIdentity:

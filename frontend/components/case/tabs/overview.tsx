@@ -17,7 +17,7 @@ function stageState(done: boolean, active: boolean, failed = false): StageState 
 }
 
 export function OverviewTab({ caseData }: { caseData: CaseDetail }) {
-  const researched = ["researched", "writing", "story_ready", "completed"].includes(caseData.status);
+  const researched = ["researched", "writing", "story_ready", "producing", "rendered", "published", "completed"].includes(caseData.status);
   const hasStory = caseData.story_versions > 0;
 
   const stages: { label: string; state: StageState }[] = [
@@ -43,7 +43,7 @@ export function OverviewTab({ caseData }: { caseData: CaseDetail }) {
     },
     {
       label: "Final Story",
-      state: stageState(caseData.status === "completed" || caseData.status === "story_ready", false),
+      state: stageState(["completed", "story_ready", "producing", "rendered", "published"].includes(caseData.status), false),
     },
   ];
 

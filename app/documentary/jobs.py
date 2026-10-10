@@ -51,7 +51,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.agents.story import stored_sections
+from app.agents.story import MASTER_ROLES, stored_sections
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, slot
 from app.db.models import (
@@ -80,11 +80,6 @@ class LanguageFailed(Exception):
 
 class SpokenRejected(RuntimeError):
     """A spoken version its checkers did not approve after the redos."""
-
-
-MASTER_ROLES = {"director": "master_story_director", "writer": "master_writer",
-                "rewriter": "master_rewriter", "critic": "master_engagement_critic",
-                "final_editor": "master_final_editor"}
 
 
 async def approve_master(db: Session, case: Case, v: StoryVersion,
@@ -970,6 +965,18 @@ def new_batch_id() -> str:
     return "b" + uuid.uuid4().hex[:12]
 
 
+_FIXED_CASE_STATES = ("archived", "rejected", "published")
+
+
+def _set_case_state(db: Session, case_id: int, state: str) -> None:
+    """The case's workflow state follows production: producing while a
+    film is made, rendered when one exists, story_ready after a failure."""
+    case = db.get(Case, case_id)
+    if case is not None and case.status not in _FIXED_CASE_STATES:
+        case.status = state
+        db.commit()
+
+
 async def run_job(job_id: int, session_factory=None):
     """Runs one documentary. Waits in "queued" until one of the
     concurrency.jobs slots is free (several documentaries in parallel)."""
@@ -988,18 +995,23 @@ async def run_job(job_id: int, session_factory=None):
             job.status = "running"
             job.error = None
             db.commit()
+            _set_case_state(db, job.case_id, "producing")
             pipeline = DocumentaryPipeline(db, job)
             try:
                 result = await pipeline.run()
                 job.status = "partial" if (result or {}).get("errors") else "completed"
+                _set_case_state(db, job.case_id,
+                                "rendered" if (result or {}).get("renders") else "story_ready")
                 if job.status == "partial":
                     job.error = "; ".join(f"{l}: {e}" for l, e in result["errors"].items())[:1000]
             except JobCancelled:
                 job.status = "cancelled"
+                _set_case_state(db, job.case_id, "story_ready")
             except Exception as e:  # recorded on the job, visible in the UI
                 log.error("documentary job %s failed: %s", job_id, traceback.format_exc())
                 db.rollback()
                 job = db.get(DocumentaryJob, job_id)
+                _set_case_state(db, job.case_id, "story_ready")
                 job.status = "failed"
                 job.error = f"{type(e).__name__}: {e}"[:1000]
             job.stage = None

@@ -1339,6 +1339,11 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
 
     cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)
     cards["intro_seconds"] = intro_seconds(language)
+    from app.identity.titles import approved_title
+
+    approved = approved_title(db, version.case_id, language)
+    if approved and (cards.get("film_title") is not None or cards.get("cold_open")):
+        cards["film_title"] = approved      # one title: the editor-approved one
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
                      cards=cards,
                      arrest_beat=SP.arrest_beat(blueprint),

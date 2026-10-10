@@ -1781,19 +1781,14 @@ class ThumbnailConfig(BaseModel):
 
 
 class YouTubeMetadataConfig(BaseModel):
-    """Deterministic title rules: an unsolved case and a follow-up are
-    recognisable from the title alone, in every language."""
+    """Update-video title templates (the public title shape of originals
+    lives in `video_identity`)."""
 
-    max_title_chars: int = Field(default=100, ge=20)
     titles: dict[str, dict[str, str]] = Field(default_factory=lambda: {
-        "en": {"original": "{title}", "unsolved": "UNSOLVED: {title}",
-               "follow_up": "SOLVED: The {name} Case — What Happened After Our Original Video"},
-        "de": {"original": "{title}", "unsolved": "UNGEKLÄRT: {title}",
-               "follow_up": "GELÖST: Der Fall {name} – was nach unserem ersten Video geschah"},
-        "fa": {"original": "{title}", "unsolved": "حل‌نشده: {title}",
-               "follow_up": "حل شد: پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"},
-        "ar": {"original": "{title}", "unsolved": "لم تُحل: {title}",
-               "follow_up": "حُلّت: قضية {name} — ماذا حدث بعد حلقتنا الأولى"},
+        "en": {"follow_up": "The {name} Case — What Happened After Our Original Video"},
+        "de": {"follow_up": "Der Fall {name} – was nach unserem ersten Video geschah"},
+        "fa": {"follow_up": "پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"},
+        "ar": {"follow_up": "قضية {name} — ماذا حدث بعد حلقتنا الأولى"},
     })
     # On-screen status card (unsolved films, follow-ups).
     status_labels: dict[str, dict[str, str]] = Field(default_factory=lambda: {

@@ -461,8 +461,8 @@ def test_follow_up_intro_and_title(db_session):
     already = ctx["intro"] + "\n\nShe left home on a Friday."
     assert F.ensure_intro(already, ctx) == (already, False)
     title, rule = V.youtube_title(case, "en", "anything", production_type="follow_up")
-    assert rule == "follow_up" and title.startswith("SOLVED: The Lena Sommer Case")
-    assert "Original Video" in title
+    assert rule == "follow_up" and title.startswith("The Lena Sommer Case")
+    assert title.endswith("(Solved) | ClueVera") and "Original Video" in title
 
 
 def test_story_director_gets_status_openings_and_follow_up(db_session):

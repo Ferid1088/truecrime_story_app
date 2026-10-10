@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.story import build_evidence_pack
 from app.db.models import (Case, Contradiction, EditorialBlueprint, Fact, Source)
+from app.documentary.visuals.spoilers import late_reveals
 from app.identity.titles import public_status, resolution_provenance
 from app.naming.normalize import norm_title
 
@@ -64,10 +65,8 @@ def build_context(db: Session, case: Case, *, opening_beats: int = 2) -> dict:
                  *json.loads(case.aliases_json or "[]"), *json.loads(case.people_json or "[]")]:
         public_names |= _terms(str(name))
     opening_text = " ".join([bp.get("central_question") or "", case.summary or ""])
-    opening_ids: set[str] = set()
-    late_ids: set[str] = set()
-    for i, b in enumerate(beats):
-        (opening_ids if i < opening_beats else late_ids).update(b.get("reveals") or [])
+    opening_ids = {r for b in beats[:opening_beats] for r in b.get("reveals") or []}
+    late_ids = late_reveals(bp, opening_beats)
     opening_terms = _terms(opening_text) | public_names
     for fid in opening_ids:
         opening_terms |= _terms(by_id.get(fid, {}).get("claim", ""))

@@ -88,6 +88,18 @@ def reveal_blocks(blueprint: dict | None) -> dict[str, list[str]]:
     return out
 
 
+def late_reveals(blueprint: dict | None, opening_beats: int = 2) -> set[str]:
+    """Evidence ids the story withholds after its first `opening_beats`
+    beats — what a title or thumbnail must not give away. Same rule as
+    the picture firewall (`blocked_at`)."""
+    from app.documentary.visuals.director import blocked_at
+
+    beats = (blueprint or {}).get("beats") or []
+    if opening_beats < 1 or len(beats) < opening_beats:
+        return set()
+    return blocked_at(blueprint, beats[opening_beats - 1]["id"])
+
+
 def story_point(blueprint: dict | None, beat_id: str | None, recent: int = 6) -> dict:
     """Where the story is at a beat, for the auditors and the director:
     what the viewer has been told (the last few beats) and what the story

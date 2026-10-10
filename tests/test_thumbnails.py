@@ -170,7 +170,7 @@ def test_spoiler_custody_and_graphic_visuals_rejected(env, db_session):
     db_session.add(sv)
     db_session.flush()
     bp = {"beats": [{"id": "B1", "reveals": ["F001"]}, {"id": "B2", "reveals": []},
-                    {"id": "B3", "reveals": ["F009"]}]}
+                    {"id": "B3", "purpose": "reveal", "reveals": ["F009"]}]}
     db_session.add(EditorialBlueprint(case_id=case.id, story_version_id=sv.id, status="valid",
                                       blueprint_json=json.dumps(bp)))
     db_session.commit()

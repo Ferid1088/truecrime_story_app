@@ -1685,27 +1685,18 @@
     ]
   },
   "youtube_metadata": {
-    "max_title_chars": 100,
     "titles": {
       "en": {
-        "original": "{title}",
-        "unsolved": "UNSOLVED: {title}",
-        "follow_up": "SOLVED: The {name} Case — What Happened After Our Original Video"
+        "follow_up": "The {name} Case — What Happened After Our Original Video"
       },
       "de": {
-        "original": "{title}",
-        "unsolved": "UNGEKLÄRT: {title}",
-        "follow_up": "GELÖST: Der Fall {name} – was nach unserem ersten Video geschah"
+        "follow_up": "Der Fall {name} – was nach unserem ersten Video geschah"
       },
       "fa": {
-        "original": "{title}",
-        "unsolved": "حل‌نشده: {title}",
-        "follow_up": "حل شد: پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"
+        "follow_up": "پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"
       },
       "ar": {
-        "original": "{title}",
-        "unsolved": "لم تُحل: {title}",
-        "follow_up": "حُلّت: قضية {name} — ماذا حدث بعد حلقتنا الأولى"
+        "follow_up": "قضية {name} — ماذا حدث بعد حلقتنا الأولى"
       }
     },
     "status_labels": {

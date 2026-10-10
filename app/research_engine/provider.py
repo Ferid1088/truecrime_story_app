@@ -15,6 +15,7 @@ import os
 import uuid
 from typing import Any, Awaitable, Callable
 
+from app.core.tasks import spawn
 from app.core.ai_config import ai_config
 from app.providers.base import ProviderError, ProviderJob, ResearchProvider
 from app.providers.generation import get_generation_provider
@@ -193,7 +194,7 @@ class TrueCrimeSearchProvider(ResearchProvider):
                     error={"kind": kind, "message": str(e)[:500]},
                     stage="failed")
 
-        asyncio.get_event_loop().create_task(_run())
+        spawn(_run(), name=f"research:{external_id}")
         return external_id
 
     async def start_case_research(

@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, Float, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy import (Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
+                        event, select)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.types import UTCDateTime
@@ -13,8 +14,7 @@ class Case(Base):
     canonical_title: Mapped[str] = mapped_column(String(500), index=True)
     slug: Mapped[str] = mapped_column(String(500), unique=True, index=True)
     # Stable technical identity, independent of any public title.
-    case_uid: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True,
-                                                 default=new_case_uid)
+    case_uid: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(50), default="new")
     language: Mapped[str] = mapped_column(String(20), default="fa")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -41,6 +41,19 @@ class Case(Base):
     facts = relationship("Fact", back_populates="case", cascade="all, delete-orphan")
     contradictions = relationship("Contradiction", back_populates="case", cascade="all, delete-orphan")
     stories = relationship("StoryVersion", back_populates="case", cascade="all, delete-orphan")
+
+
+@event.listens_for(Case, "before_insert")
+def _assign_case_uid(_mapper, connection, case) -> None:
+    """Every new case gets a case_uid that no other case has (retry on the
+    rare collision of the 6-hex id)."""
+    uid = case.case_uid or new_case_uid()
+    for _ in range(50):
+        taken = connection.execute(select(Case.id).where(Case.case_uid == uid)).first()
+        if not taken:
+            break
+        uid = new_case_uid()
+    case.case_uid = uid
 
 
 class Source(Base):
@@ -931,6 +944,8 @@ class Video(Base):
     job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     language: Mapped[str] = mapped_column(String(10), default="en")
     mode: Mapped[str] = mapped_column(String(10), default="full")
+    # preview | publish — the rights profile the film was rendered with
+    render_profile: Mapped[str] = mapped_column(String(10), default="preview")
     # original | follow_up
     production_type: Mapped[str] = mapped_column(String(20), default="original")
     original_video_id: Mapped[int | None] = mapped_column(
@@ -1204,6 +1219,9 @@ class EpisodeIdentity(Base):
     thumbnail_status_label: Mapped[str | None] = mapped_column(String(60), nullable=True)
     host_outfit_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
     host_reference_asset: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # an editor approved this title (naming flow); a title copied from the
+    # story's own draft is not approved
+    title_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     published: Mapped[bool] = mapped_column(Boolean, default=False)
     published_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

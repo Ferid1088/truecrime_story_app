@@ -129,6 +129,8 @@ class PublishRequest(BaseModel):
     published_at: datetime | None = None
     youtube_url: str | None = Field(default=None, max_length=500)
     episode_number: int | None = Field(default=None, ge=1)
+    # publish although the checks fail (an explicit editor decision)
+    force: bool = False
 
 
 @router.post("/api/films/{video_id}/publish")
@@ -136,6 +138,10 @@ def publish_film(video_id: int, payload: PublishRequest, db: Session = Depends(g
     v = db.get(Video, video_id)
     if not v:
         raise HTTPException(status_code=404, detail="Video not found")
+    blockers = [] if (v.state == "published" or payload.force) else V.publish_blockers(db, v)
+    if blockers:
+        raise HTTPException(status_code=409, detail={
+            "message": "Not publishable: " + "; ".join(blockers), "blockers": blockers})
     V.publish(db, v, published_at=payload.published_at, youtube_url=payload.youtube_url,
               episode_number=payload.episode_number)
     return get_film(video_id, db)

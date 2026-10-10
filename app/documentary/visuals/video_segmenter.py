@@ -17,6 +17,7 @@ cut by the clock instead.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import subprocess
@@ -146,7 +147,7 @@ class VideoSegmenter:
         found: list[dict] = []
         for a, b in windows(duration, cuts, cfg.segment_window_seconds):
             times = _frame_times(a, b, cfg.segment_fps)
-            frames = self._grab(proxy, times, cfg.segment_frame_width)
+            frames = await asyncio.to_thread(self._grab, proxy, times, cfg.segment_frame_width)
             kept = [(t, f) for t, f in zip(times, frames, strict=False) if f]
             if not kept:
                 continue

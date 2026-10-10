@@ -630,6 +630,15 @@ def _evidence_usage(sections: list[dict], pack: dict) -> dict:
     }
 
 
+# Roles of the English master story (director, writer, rewriter, critics) —
+# one definition for the API and the documentary pipeline.
+MASTER_ROLES = {
+    "director": "master_story_director", "writer": "master_writer",
+    "rewriter": "master_rewriter", "critic": "master_engagement_critic",
+    "final_editor": "master_final_editor",
+}
+
+
 class StoryDirector:
     def __init__(self):
         self.gen = get_generation_provider()

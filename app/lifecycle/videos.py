@@ -5,8 +5,8 @@ updated when it is published or archived. It keeps the case's status at
 production and at publication, the opening strategy, and — for an update
 video — the original video it follows up. YouTube titles are rule-based
 so the status is visible in the title itself:
-  UNSOLVED: <title>
-  SOLVED: The <case> Case — What Happened After Our Original Video
+  <Title> (<Status>) | <Channel>
+  update video: The <case> Case — What Happened After Our Original Video (Solved) | <Channel>
 """
 
 from __future__ import annotations
@@ -58,26 +58,17 @@ def film_title(db: Session, case: Case, ps: ProductionScript | None) -> str:
 
 def youtube_title(case: Case, language: str, title: str, *, production_type: str = "original",
                   status: str | None = None) -> tuple[str, str]:
-    """(title, rule). A follow-up says SOLVED/updated; an unsolved film
-    says UNSOLVED — in the title itself, whatever the language."""
-    tpl = _templates(language)
+    """(title, rule): `[Title] ([Localized status]) | [Channel]`, no episode
+    number. An update video is by definition SOLVED. A case that is neither
+    SOLVED nor UNSOLVED has no public title: ("", "needs_status")."""
     status = status or case.resolution_status
-    if production_type != "follow_up" and public_status(status):
-        # [Editorial Title] ([Localized Status]) | [Channel] — no episode number
-        return build_youtube_title(title, status, language), "identity"
+    rule = "identity"
     if production_type == "follow_up":
-        rule, text = "follow_up", tpl["follow_up"].format(name=case_name(case), title=title)
-    elif status == UNSOLVED:
-        rule, text = "unsolved", tpl["unsolved"].format(title=title, name=case_name(case))
-    else:
-        rule, text = "original", tpl["original"].format(title=title, name=case_name(case))
-    limit = ai_config.youtube_metadata.max_title_chars
-    if len(text) > limit:
-        # keep the status prefix, shorten the rest
-        prefix, sep, rest = text.partition(": ")
-        text = (prefix + sep + rest[: max(limit - len(prefix) - len(sep) - 1, 10)].rstrip() + "…"
-                if sep and rule != "original" else text[: limit - 1].rstrip() + "…")
-    return text, rule
+        tpl = _templates(language)
+        title, status, rule = tpl["follow_up"].format(name=case_name(case), title=title), SOLVED, "follow_up"
+    if not public_status(status):
+        return "", "needs_status"
+    return build_youtube_title(title, status, language), rule
 
 
 def youtube_metadata(db: Session, case: Case, video: Video) -> dict:
@@ -130,7 +121,7 @@ def _sync_episode_identity(db: Session, case: Case, video: Video) -> None:
 def apply_metadata(db: Session, case: Case, video: Video) -> None:
     _sync_episode_identity(db, case, video)
     meta = youtube_metadata(db, case, video)
-    video.youtube_title = meta["title"][:200]
+    video.youtube_title = (meta["title"] or None) and meta["title"][:200]
     video.youtube_description = meta["description"]
     video.youtube_tags_json = json.dumps(meta["tags"], ensure_ascii=False)
     md = json.loads(video.metadata_json or "{}")
@@ -149,6 +140,7 @@ def register_render(db: Session, job: DocumentaryJob, ps: ProductionScript, info
     video.job_id = job.id if job else None
     video.language = ps.language
     video.mode = ps.mode
+    video.render_profile = (job.render_profile if job else None) or "preview"
     video.production_type = (job.production_type if job else None) or "original"
     video.title = film_title(db, case, ps)
     video.status_at_production = case.resolution_status or "UNKNOWN"
@@ -176,6 +168,26 @@ def next_episode(db: Session, language: str) -> int:
     return int(top or 0) + 1
 
 
+def publish_blockers(db: Session, video: Video) -> list[str]:
+    """Why this film must not be marked published (empty = fine). A pilot
+    cut or a preview render (it may hold pictures that still need an
+    editorial decision) is not a publishable film, and the public title
+    must have been approved by an editor."""
+    out: list[str] = []
+    if video.mode != "full":
+        out.append(f"this is a {video.mode} cut, not the full film")
+    if (video.render_profile or "preview") != "publish":
+        out.append("rendered with the preview profile — render again with the publish profile")
+    case = db.get(Case, video.case_id)
+    if video.production_type != "follow_up":
+        if not public_status(case.resolution_status):
+            out.append("the case is neither SOLVED nor UNSOLVED (no public status)")
+        ident = get_identity(db, video.case_id, video.language)
+        if ident is None or not ident.title_approved:
+            out.append("no approved episode title (Naming tab)")
+    return out
+
+
 def publish(db: Session, video: Video, *, published_at: datetime | None = None,
             youtube_url: str | None = None, episode_number: int | None = None) -> Video:
     """Mark a video published: the case status at publication is frozen
@@ -193,6 +205,8 @@ def publish(db: Session, video: Video, *, published_at: datetime | None = None,
         db.refresh(video)
         return video
     video.state = "published"
+    if case.status not in ("archived", "rejected"):
+        case.status = "published"
     video.published_at = published_at or utc_now()
     video.status_at_publication = case.resolution_status or "UNKNOWN"
     apply_metadata(db, case, video)

@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.tasks import spawn
 from app.db.base import get_db
 from app.db.models import (
     Case, DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
@@ -692,7 +693,7 @@ def _verify_later(case_id: int, asset_id: int) -> None:
             bg.close()
 
     try:
-        asyncio.get_running_loop().create_task(run())
+        spawn(run(), name="upload_verification")
     except RuntimeError:  # no loop (tests calling the function directly)
         pass
 

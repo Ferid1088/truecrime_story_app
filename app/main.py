@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
 
+from app.core.tasks import spawn
 from app.db.base import Base, engine, get_db
 from app.db.models import (
     Case,
@@ -47,6 +48,7 @@ from app.utils import slugify, utc_now
 from app.agents.topic_discovery import TopicDiscoveryAgent
 from app.agents.research import ResearchAgent
 from app.agents.story import (
+    MASTER_ROLES,
     StoryPipeline,
     current_evidence_fingerprint,
     estimate_narrative_capacity,
@@ -288,9 +290,10 @@ def _ensure_columns():
                 conn.execute(text("DROP TABLE documentary_jobs_old"))
         # Case lifecycle + media library columns: added from the models
         # (new nullable / defaulted columns only).
-        from app.db.models import (DiscoveryCandidate as _DC, HostScene as _HS,
-                                   ProductionScript as _PS, VisualAsset as _VA)
-        for model in (Case, _DC, _VA, _HS, _PS):
+        from app.db.models import (DiscoveryCandidate as _DC, EpisodeIdentity as _EI,
+                                   HostScene as _HS, ProductionScript as _PS,
+                                   VisualAsset as _VA, Video as _VD)
+        for model in (Case, _DC, _VA, _HS, _PS, _VD, _EI):
             _add_model_columns(conn, model)
         conn.commit()
 
@@ -760,7 +763,8 @@ def dashboard(db: Session = Depends(get_db)):
     return {
         "stats": {
             "total_cases": len(cases),
-            "cases_researched": count_status("researched", "writing", "story_ready", "completed"),
+            "cases_researched": count_status("researched", "writing", "story_ready", "producing", "rendered",
+                                             "published", "completed"),
             "stories_completed": db.query(StoryVersion).count(),
             "cases_waiting": count_status("new"),
             "sources_collected": db.query(Source).count(),
@@ -2088,7 +2092,7 @@ async def start_video_research(case_id: int, db: Session = Depends(get_db)):
         finally:
             bg.close()
 
-    asyncio.create_task(_run(job.id))
+    spawn(_run(job.id), name=f"video_research:{job.id}")
     return {"job_id": job.id, "status": "queued"}
 
 
@@ -2307,15 +2311,6 @@ def source_chunks(case_id: int, source_id: int, db: Session = Depends(get_db)):
 # Master story + localizations
 # ---------------------------------------------------------------------------
 
-_MASTER_ROLES = {
-    "director": "master_story_director",
-    "writer": "master_writer",
-    "rewriter": "master_rewriter",
-    "critic": "master_engagement_critic",
-    "final_editor": "master_final_editor",
-}
-
-
 def _best_master(db: Session, case_id: int) -> StoryVersion | None:
     return (
         db.query(StoryVersion)
@@ -2407,7 +2402,7 @@ async def generate_master_story(
         )
 
     try:
-        story = await StoryPipeline(roles=_MASTER_ROLES).run(
+        story = await StoryPipeline(roles=MASTER_ROLES).run(
             db=db,
             case=case,
             target_minutes=payload.target_minutes,

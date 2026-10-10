@@ -28,6 +28,9 @@ const FILTERS: { value: string; label: string }[] = [
   { value: "researching", label: "Researching" },
   { value: "researched", label: "Research Complete" },
   { value: "writing", label: "Writing" },
+  { value: "producing", label: "Producing" },
+  { value: "rendered", label: "Film Rendered" },
+  { value: "published", label: "Published" },
   { value: "completed", label: "Completed" },
   { value: "rejected", label: "Rejected" },
 ];

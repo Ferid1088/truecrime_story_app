@@ -20,6 +20,7 @@ frames_per_second, at most max_frames — and two jobs:
 from __future__ import annotations
 
 import base64
+import asyncio
 import json
 
 from sqlalchemy.orm import Session
@@ -239,9 +240,9 @@ class VideoAuditor:
 
     async def _check_once(self, db: Session, case: Case, asset: VisualAsset,
                           entities: list[dict], facts: list[dict]):
-        frames = self._frames(asset)
+        frames = await asyncio.to_thread(self._frames, asset)
         times = _piece_times(asset, len(frames))
-        context = self._context(asset)
+        context = await asyncio.to_thread(self._context, asset)
         images = ([context[0]] if context[0] else []) + list(frames) + (
             [context[1]] if context[1] else [])
         labels = ((["context before"] if context[0] else [])
@@ -333,7 +334,7 @@ class VideoAuditor:
         """The raw verdict for one piece under these words at this point
         of the story (the caller decides and stores it — same rules as the
         picture auditor)."""
-        frames = self._frames(asset)
+        frames = await asyncio.to_thread(self._frames, asset)
         payload = {
             "case": case.canonical_title,
             "case_status": getattr(case, "resolution_status", None) or "UNKNOWN",

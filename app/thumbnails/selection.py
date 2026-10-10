@@ -16,7 +16,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, EditorialBlueprint, VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import rights as R
-from app.documentary.visuals.spoilers import revealed_by, shows_custody
+from app.documentary.visuals.spoilers import late_reveals, revealed_by, shows_custody
 
 IMAGE_TYPES = {"photo", "image"}
 
@@ -32,9 +32,8 @@ def late_reveal_ids(db: Session, case_id: int) -> set[str]:
     row = (db.query(EditorialBlueprint)
            .filter(EditorialBlueprint.case_id == case_id, EditorialBlueprint.status != "invalid")
            .order_by(EditorialBlueprint.id.desc()).first())
-    beats = _json(row.blueprint_json, {}).get("beats", []) if row else []
-    n = ai_config.thumbnail.opening_beats
-    return {str(r) for b in beats[n:] for r in (b.get("reveals") or [])}
+    return late_reveals(_json(row.blueprint_json, {}) if row else {},
+                        ai_config.thumbnail.opening_beats)
 
 
 def asset_kind(a: VisualAsset) -> str:

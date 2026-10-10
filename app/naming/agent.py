@@ -376,5 +376,6 @@ def approve_candidate(db: Session, case: Case, candidate_id: int, *, revise: boo
     cand.status = "selected"
     ident = sync_identity(db, case, cand.language, title=cand.title, revise=revise)
     ident.title_family_id = cand.title_family_id
+    ident.title_approved = True
     db.commit()
     return ident

@@ -178,7 +178,7 @@ def test_context_hides_nothing_public_and_holds_back_late_reveals(db_session):
     db_session.add(sv)
     db_session.flush()
     bp = {"beats": [{"id": "B01", "reveals": ["F001"]}, {"id": "B02", "reveals": []},
-                    {"id": "B03", "reveals": ["F002"]}]}
+                    {"id": "B03", "purpose": "reveal", "reveals": ["F002"]}]}
     db_session.add(EditorialBlueprint(case_id=case.id, story_version_id=sv.id, status="valid",
                                       blueprint_json=json.dumps(bp),
                                       central_question="What happened to Rita?"))

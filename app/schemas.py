@@ -42,7 +42,7 @@ class CreateCaseRequest(BaseModel):
 class UpdateCaseRequest(BaseModel):
     status: Literal[
         "new", "researching", "researched", "writing", "story_ready",
-        "completed", "rejected", "archived",
+        "producing", "rendered", "published", "completed", "rejected", "archived",
     ] | None = None
     canonical_title: str | None = None
     summary: str | None = None
