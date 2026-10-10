@@ -108,12 +108,6 @@ def canonicalize_url(url: str) -> str | None:
     ).replace("https://", "", 1)
 
 
-def normalize_for_display(url: str) -> str:
-    """Cleaned URL safe to store/show (https, tracking stripped)."""
-    canon = canonicalize_url(url)
-    return f"https://{canon}" if canon else (url or "").strip()
-
-
 def domain_of(url: str) -> str:
     try:
         host = (urlsplit(url).hostname or "").lower()

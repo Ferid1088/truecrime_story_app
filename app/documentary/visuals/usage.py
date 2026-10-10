@@ -124,10 +124,6 @@ class UsageTracker:
 
     # -- construction --------------------------------------------------------
     @classmethod
-    def for_assets(cls, assets: dict) -> "UsageTracker":
-        return cls({code: asset_facts(a) for code, a in assets.items()})
-
-    @classmethod
     def from_shots(cls, shots: list[dict], facts: dict[str, dict] | None = None,
                    skip: Iterable[int] = ()) -> "UsageTracker":
         """A tracker that knows every picture of these shots (all of the

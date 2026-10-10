@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -76,12 +76,6 @@ class CorpusIndex:
             except Exception:  # noqa: BLE001 - degrade to BM25-only
                 self._matrix = None
 
-    def add_embedding(self, chunk_pos: int, vec: np.ndarray):
-        if self._matrix is None:
-            self._matrix = np.zeros((len(self.chunks), vec.shape[0]),
-                                    dtype=np.float32)
-        self._matrix[chunk_pos] = vec
-
     async def search(self, query: str, limit: int = 10,
                      language: str | None = None) -> list[IndexHit]:
         if not self.chunks:
@@ -120,14 +114,6 @@ class CorpusIndex:
             if len(hits) >= limit:
                 break
         return hits
-
-    def max_similarity(self, vec: np.ndarray) -> float:
-        """Highest dense cosine of `vec` to any indexed chunk — used by
-        the novelty engine (Part 25)."""
-        if self._matrix is None or self._matrix.size == 0 or vec.size == 0:
-            return 0.0
-        return float(cosine_matrix(vec.reshape(1, -1), self._matrix).max())
-
 
 class _IndexCache:
     def __init__(self):

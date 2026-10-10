@@ -88,6 +88,3 @@ class SourceFamilyDetector:
                 False, best_entry["family"], 0.35,
                 f"same_account:{best:.2f}")
         return FamilyDecision(False, None, 0.9)
-
-    def family_key(self, publisher: str | None, title_norm: str) -> str:
-        return f"{(publisher or '').strip().lower()}|{title_norm[:80]}".strip("|")

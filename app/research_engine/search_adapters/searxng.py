@@ -6,7 +6,7 @@ import os
 
 import httpx
 
-from app.research_engine.search import SearchBackend, SearchError, SearchResult
+from app.research_engine.search import SearchError, SearchResult
 from app.research_engine.urlnorm import canonicalize_url, domain_of
 
 log = logging.getLogger(__name__)

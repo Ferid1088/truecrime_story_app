@@ -49,7 +49,6 @@ from app.agents.story import (
     MASTER_ROLES,
     StoryPipeline,
     current_evidence_fingerprint,
-    estimate_narrative_capacity,
     research_gap_plan,
     stored_evidence_fingerprint,
     structure_without_text,
@@ -931,7 +930,7 @@ async def corpus_search(
     """Hybrid corpus search (Part 49): BM25 + dense-embedding cosine fused
     over this case's downloaded research chunks. Multilingual — a Persian
     query matches English evidence semantically via the embedding model."""
-    case = _get_case_or_404(db, case_id)
+    _get_case_or_404(db, case_id)
     q = (q or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="q is required")
@@ -1770,7 +1769,7 @@ def research_languages(case_id: int, db: Session = Depends(get_db)):
     _get_case_or_404(db, case_id)
     sources = db.query(Source).filter(Source.case_id == case_id).all()
     facts = db.query(Fact).filter(Fact.case_id == case_id).all()
-    src_by_id = {s.id: s for s in sources}
+    {s.id: s for s in sources}
 
     queries: dict[str, list[str]] = {}
     lang_stats: dict[str, dict] = {}
@@ -2041,7 +2040,6 @@ async def start_video_research(case_id: int, db: Session = Depends(get_db)):
     Runs in the background (video discovery + transcript acquisition can
     take far longer than a request timeout); the returned job is polled
     via /api/research-jobs/{job_id} like any other research job."""
-    import asyncio
 
     from app.db.base import SessionLocal
     from app.services.video_research import run_video_research

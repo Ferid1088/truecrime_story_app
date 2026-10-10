@@ -14,7 +14,7 @@ import io
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 from app.core.ai_config import ai_config
 from app.documentary import storage

@@ -12,7 +12,6 @@ sequence — a story that replays one creator's exact structure trips the
 gate even when every sentence is differently worded.
 """
 
-import json
 import re
 
 from sqlalchemy.orm import Session

@@ -1,7 +1,7 @@
 import json
 import time
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from rapidfuzz import fuzz
 from sqlalchemy.orm import Session

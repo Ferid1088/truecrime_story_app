@@ -111,10 +111,4 @@ def build_context(db: Session, case: Case, *, opening_beats: int = 2) -> dict:
     }
 
 
-def context_signature(ctx: dict) -> str:
-    import hashlib
-
-    return hashlib.sha1(json.dumps(ctx, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
-
-
 _WORD = re.compile(r"\w+", re.U)

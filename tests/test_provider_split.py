@@ -76,8 +76,6 @@ def test_specific_role_ownership():
         gen.models["research_intelligence"]
     assert ai_config.model_for("case_discovery_agent") == \
         gen.models["research_intelligence"]
-    assert ai_config.model_for("youtube_discovery_agent") == \
-        gen.models["research_intelligence"]
 
 
 def test_role_sets_are_disjoint_and_complete():

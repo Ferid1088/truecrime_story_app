@@ -15,7 +15,6 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.core.ai_config import ai_config
 from app.db.models import (
     Case,
     NarrativeInsight,
@@ -38,21 +37,6 @@ _INSIGHT_TYPES = (
     "reveal_candidate|frequently_emphasized_detail|commonly_omitted_detail|"
     "viewer_context|narrative_transition_topic"
 )
-
-
-def _claim_nv(claim_type: str) -> str | None:
-    """Map claim_type onto the Fact.narrative_value vocabulary used by the
-    capacity estimator and evidence pack."""
-    return {
-        "human_detail": "human_detail",
-        "scene_detail": "scene_detail",
-        "investigation_detail": "investigation_detail",
-        "physical_evidence": "physical_evidence",
-        "legal": "legal",
-        "historical_context": "historical_context",
-        "quote": "quote",
-        "timeline_event": "timeline",
-    }.get(claim_type)
 
 
 class TranscriptIntelligenceAgent:

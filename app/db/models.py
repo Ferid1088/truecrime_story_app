@@ -779,27 +779,6 @@ class VisualAudit(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
-class OriginalMediaSegment(Base):
-    """A selected piece of real footage/audio (interview, news clip) that
-    may play with its own sound, with its language handling."""
-
-    __tablename__ = "original_media_segments"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
-    asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
-    beat_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    source_start: Mapped[float] = mapped_column(Float, default=0.0)
-    source_end: Mapped[float] = mapped_column(Float, default=0.0)
-    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
-    story_use: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # per target language: original_with_subtitles | voiceover | skip
-    translation_strategy_json: Mapped[str] = mapped_column(Text, default="{}")
-    selected: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
-
-
 class VoicePerformance(Base):
     """How the narrator performs one spoken version: the tension arc
     (levels 0–3 per beat and sentence) and per sentence the text sent to

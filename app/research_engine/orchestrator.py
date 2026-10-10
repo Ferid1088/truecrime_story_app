@@ -9,11 +9,10 @@ the run replays deterministically in the query inspector.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from app.core.ai_config import ai_config
 from app.research_engine.dedupe import SourceFamilyDetector
@@ -210,7 +209,6 @@ class ResearchOrchestrator:
         }
         prev_queries: list[str] = []
         low_novelty_streak = 0
-        fetched = 0
 
         for round_i in range(self.cfg.max_rounds_per_language):
             if time.monotonic() - started > self.cfg.max_duration_s:
@@ -742,21 +740,6 @@ def _telemetry() -> dict:
         "embedding_tokens": 0, "models_used": [],
         "engine": "truecrime_search_engine",
     }
-
-
-def _acc_llm(tel: dict, usage) -> None:
-    if not usage:
-        return
-    tel["calls"] += 1
-    tel["input_tokens"] += int(getattr(usage, "input_tokens", 0) or 0)
-    tel["output_tokens"] += int(getattr(usage, "output_tokens", 0) or 0)
-    cost = getattr(usage, "cost_usd", None)
-    if cost:
-        tel["aux_cost_usd"] += float(cost)
-        tel["cost_usd"] += float(cost)
-    model = getattr(usage, "model", None)
-    if model and model not in tel["models_used"]:
-        tel["models_used"].append(model)
 
 
 def _ingest_canonical(r) -> str:

@@ -120,20 +120,3 @@ def needs_llm_rerank(r: RankedResult, band: tuple[float, float]) -> bool:
     hundreds of trivial results (Part 24)."""
     return band[0] <= r.score <= band[1] and not r.rejected
 
-
-def novelty_from_similarity(max_cosine: float, high: float = 0.85,
-                            low: float = 0.5) -> float:
-    """Map max cosine-to-corpus onto a 0..1 novelty score."""
-    if max_cosine >= high:
-        return 0.0
-    if max_cosine <= low:
-        return 1.0
-    return (high - max_cosine) / (high - low)
-
-
-def diminishing_round_score(new_unique: int, cost: float,
-                            llm_tokens: int) -> float:
-    """ResearchRoundValue numerator — unique evidence gained per unit
-    spend (Part 43)."""
-    spend = cost + llm_tokens * 1e-6
-    return new_unique / max(spend, 1e-6)

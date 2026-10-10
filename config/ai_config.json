@@ -79,19 +79,12 @@
         "transcript_normalizer": "cheap",
         "transcript_intelligence_extractor": "cheap",
         "claim_clusterer": "cheap",
-        "source_dependence_analyzer": "cheap",
         "evidence_verifier": "cheap",
-        "narrative_research_synthesizer": "cheap",
-        "source_similarity_critic": "premium",
-        "structure_originality_critic": "premium",
-        "research_verifier": "cheap",
-        "research_normalizer": "cheap",
         "research_query_planner": "research_intelligence",
         "result_reranker": "research_intelligence",
         "research_evaluator": "cheap",
         "research_assembler": "cheap",
         "case_discovery_agent": "research_intelligence",
-        "youtube_discovery_agent": "research_intelligence",
         "narrative_director": "writer",
         "spoken_writer": "premium",
         "spoken_meaning_checker": "writer",
@@ -119,7 +112,6 @@
         "case_naming_agent": "writer",
         "case_title_critic": "premium",
         "native_title_critic": "premium",
-        "thumbnail_brief_agent": "cheap",
         "thumbnail_critic": "premium"
       },
       "fallbacks": {
@@ -244,25 +236,9 @@
       "temperature": 0.0,
       "max_tokens": 8000
     },
-    "source_dependence_analyzer": {
-      "temperature": 0.0,
-      "max_tokens": 6000
-    },
     "evidence_verifier": {
       "temperature": 0.0,
       "max_tokens": 8000
-    },
-    "narrative_research_synthesizer": {
-      "temperature": 0.2,
-      "max_tokens": 8000
-    },
-    "source_similarity_critic": {
-      "temperature": 0.0,
-      "max_tokens": 8000
-    },
-    "structure_originality_critic": {
-      "temperature": 0.0,
-      "max_tokens": 6000
     },
     "research_query_planner": {
       "temperature": 0.3,
@@ -282,18 +258,6 @@
     },
     "case_discovery_agent": {
       "temperature": 0.3,
-      "max_tokens": 8000
-    },
-    "youtube_discovery_agent": {
-      "temperature": 0.1,
-      "max_tokens": 6000
-    },
-    "research_verifier": {
-      "temperature": 0.0,
-      "max_tokens": 6000
-    },
-    "research_normalizer": {
-      "temperature": 0.0,
       "max_tokens": 8000
     },
     "narrative_director": {
@@ -404,10 +368,6 @@
       "temperature": 0.0,
       "max_tokens": 4000
     },
-    "thumbnail_brief_agent": {
-      "temperature": 0.4,
-      "max_tokens": 1500
-    },
     "thumbnail_critic": {
       "temperature": 0.0,
       "max_tokens": 3000
@@ -441,7 +401,6 @@
     "dense_weight": 0.45
   },
   "story": {
-    "default_language": "fa",
     "default_target_minutes": 50,
     "min_target_minutes": 45,
     "max_target_minutes": 120,
@@ -450,8 +409,7 @@
     "maximum_length_ratio": 1.15,
     "max_rewrite_iterations": 3,
     "max_length_repair_iterations": 2,
-    "engagement_threshold": 85,
-    "similarity_threshold": 0.45
+    "engagement_threshold": 85
   },
   "story_quality": {
     "minimum_grounding_score": 0.85,
@@ -472,14 +430,7 @@
     "max_revision_cycles": 2,
     "minimum_engagement_improvement": 5,
     "min_act_budget_share": 0.08,
-    "max_span_repairs_per_pass": 12,
-    "narrative_value_hints": {
-      "scene": 1.6,
-      "human": 1.4,
-      "investigation": 1.2,
-      "turning_point": 1.8,
-      "context": 0.6
-    }
+    "max_span_repairs_per_pass": 12
   },
   "cost_control": {
     "max_master_tokens_per_case": 1500000,
@@ -513,7 +464,6 @@
     "target_tokens": 900,
     "min_tokens": 200,
     "max_tokens": 1400,
-    "overlap_sentences": 1,
     "max_chunks_per_source_for_extraction": 4
   },
   "evidence_strength": {
@@ -524,11 +474,7 @@
       "tertiary": 0.35,
       "weak": 0.15,
       "disputed": 0.2
-    },
-    "preferred_for_scene": [
-      "primary",
-      "strong_secondary"
-    ]
+    }
   },
   "follow_up_research": {
     "max_rounds": 1,
@@ -577,20 +523,13 @@
   },
   "research": {
     "provider": "truecrime",
-    "default_candidate_count": 5,
-    "max_sources_per_case": 40,
-    "minimum_independent_sources": 3,
     "dedupe_similarity_threshold": 85,
     "job_timeout_minutes": 45,
     "max_search_calls_per_language": 6,
     "max_fetch_calls_per_language": 5,
-    "max_research_cost_per_case": 1.5,
     "max_followup_rounds": 2,
     "minimum_result_novelty": 0.15,
-    "min_fetch_score": 0.45,
     "default_profile": "DEEP_CASE_RESEARCH",
-    "minimum_language_budget_share": 0.1,
-    "adaptive_redistribution": true,
     "min_accept_score": 0.2
   },
   "research_profiles": {
@@ -654,7 +593,6 @@
     ],
     "max_results_per_language": 8,
     "max_videos_per_language": 4,
-    "min_duration_seconds": 300,
     "discovery_provider": "auto"
   },
   "transcript_ingestion": {
@@ -681,9 +619,7 @@
       "quotes": 0.1,
       "contradictions": 0.1,
       "independence": 0.05
-    },
-    "high_value_threshold": 0.5,
-    "skip_process_threshold": 0.15
+    }
   },
   "claim_clustering": {
     "near_duplicate_threshold": 88,
@@ -725,9 +661,7 @@
       "grounding_validator",
       "consistency_checker",
       "semantic_consistency_checker",
-      "localized_grounding_validator",
-      "source_similarity_critic",
-      "structure_originality_critic"
+      "localized_grounding_validator"
     ],
     "groups": [
       {
@@ -1275,11 +1209,6 @@
     "attribution": "© OpenStreetMap contributors",
     "geocoder_url": "https://nominatim.openstreetmap.org/search",
     "tile_size": 256,
-    "zoom_levels": [
-      4,
-      7,
-      11
-    ],
     "darken": 0.55
   },
   "attention": {
@@ -1306,8 +1235,7 @@
     "preset": "veryfast",
     "burn_subtitles": false,
     "subtitle_max_chars": 42,
-    "subtitle_max_seconds": 6.0,
-    "show_credits": true
+    "subtitle_max_seconds": 6.0
   },
   "documentary_critics": {
     "critics": [
@@ -1442,7 +1370,6 @@
       "UNKNOWN": 0.35,
       "UNSOLVED": 0.2
     },
-    "include_unsolved_default": false,
     "solved_min_confidence": 0.7,
     "verify_top_n": 8,
     "discovery_time_range": "year",
@@ -1991,7 +1918,6 @@
       "candidate",
       "discovery_title"
     ],
-    "bm25_prefilter": 40,
     "extra_per_round": 4,
     "max_chars": 60,
     "reject_questions": true,

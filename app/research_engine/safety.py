@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
-from urllib.parse import urlsplit, urljoin
+from urllib.parse import urlsplit
 
 _MAX_REDIRECTS = 5
 
@@ -77,10 +77,3 @@ def validate_url(url: str, resolve_dns: bool = True) -> str:
             raise UnsafeURLError("private_ip")
     return u
 
-
-def resolve_redirect(base: str, location: str, hop: int) -> str:
-    """Resolve one redirect hop with validation (no javascript:/data:)."""
-    if hop >= _MAX_REDIRECTS:
-        raise UnsafeURLError("too_many_redirects")
-    target = urljoin(base, location.strip())
-    return validate_url(target)

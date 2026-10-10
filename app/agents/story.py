@@ -2383,7 +2383,6 @@ Return JSON only:
     ) -> tuple[list[dict], list[dict]]:
         """Critique each section; targeted rewrite for the weakest ones."""
         q = ai_config.story_quality
-        marker = q.section_marker_prefix
         scores: list[dict] = []
         for i, s in enumerate(sections):
             with track_run(

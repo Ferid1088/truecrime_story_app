@@ -30,11 +30,8 @@ REQUIRED_ROLES = {
     # LLM roles only plan and analyze retrieved content (search-engine
     # architecture: search is not an LLM task).
     "case_discovery_agent",
-    "youtube_discovery_agent",
-    "research_verifier",
     "research_query_planner",
     "result_reranker",
-    "research_normalizer",
     "fact_extractor",
     "timeline_builder",
     "contradiction_analyzer",
@@ -62,13 +59,7 @@ REQUIRED_ROLES = {
     "transcript_normalizer",
     "transcript_intelligence_extractor",
     "claim_clusterer",
-    "source_dependence_analyzer",
     "evidence_verifier",
-    "narrative_research_synthesizer",
-    "source_similarity_critic",
-    "structure_originality_critic",
-    # Research-engine internals: result scoring + final assembly use
-    # role-routed generation too — no model IDs hardcoded anywhere.
     "research_evaluator",
     "research_assembler",
     # Documentary engine: editorial blueprint (beats, reveals, intents).
@@ -127,7 +118,6 @@ REQUIRED_ROLES = {
     "case_title_critic",
     "native_title_critic",
     # Thumbnails: optional 0-4 word text, and the vision critic.
-    "thumbnail_brief_agent",
     "thumbnail_critic",
 }
 
@@ -337,7 +327,6 @@ class GenerationSettings(BaseModel):
 
 
 class StoryConfig(BaseModel):
-    default_language: str
     default_target_minutes: int = Field(ge=1, le=120)
     # Allowed request range for story length. A low minimum enables short
     # pilot segments (e.g. a 3–5 minute documentary test) without code
@@ -350,7 +339,6 @@ class StoryConfig(BaseModel):
     max_rewrite_iterations: int = Field(ge=1, le=10)
     max_length_repair_iterations: int = Field(ge=0, le=5)
     engagement_threshold: float = Field(ge=0, le=100)
-    similarity_threshold: float = Field(ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _validate(self):
@@ -431,7 +419,6 @@ class MasterGenerationConfig(BaseModel):
     minimum_engagement_improvement: float = Field(ge=0.0, le=50.0)
     min_act_budget_share: float = Field(gt=0.0, le=0.5)
     max_span_repairs_per_pass: int = Field(ge=1, le=50)
-    narrative_value_hints: dict[str, float] = {}
 
 
 class CostControlConfig(BaseModel):
@@ -466,13 +453,11 @@ class SourceChunkingConfig(BaseModel):
     target_tokens: int = Field(gt=0)
     min_tokens: int = Field(gt=0)
     max_tokens: int = Field(gt=0)
-    overlap_sentences: int = Field(ge=0, le=5)
     max_chunks_per_source_for_extraction: int = Field(ge=1, le=20)
 
 
 class EvidenceStrengthConfig(BaseModel):
     weights: dict[str, float] = {}
-    preferred_for_scene: list[str] = []
 
 
 class FollowUpResearchConfig(BaseModel):
@@ -491,26 +476,12 @@ class ResearchConfig(BaseModel):
     Hard call-count caps always apply; the cost cap is enforced on
     provider-reported spend only — never estimated."""
     provider: str
-    default_candidate_count: int = Field(ge=1, le=20)
-    max_sources_per_case: int = Field(ge=1)
-    minimum_independent_sources: int = Field(ge=1)
     dedupe_similarity_threshold: int = Field(ge=50, le=100)
     job_timeout_minutes: int = Field(ge=1)
     max_search_calls_per_language: int = Field(ge=1, default=6)
     max_fetch_calls_per_language: int = Field(ge=0, default=5)
-    max_research_cost_per_case: float = Field(gt=0.0, default=1.5)
     max_followup_rounds: int = Field(ge=0, default=2)
     minimum_result_novelty: float = Field(ge=0.0, le=1.0, default=0.15)
-    min_fetch_score: float = Field(ge=0.0, le=1.0, default=0.45)
-    # Fairness: each language gets a reserved minimum share of the case
-    # budget; whatever it doesn't use is redistributed adaptively
-    # (Part 2 — no hardcoded equal cost).
-    minimum_language_budget_share: float = Field(
-        ge=0.0, le=0.5, default=0.10
-    )
-    adaptive_redistribution: bool = True
-    # Below this evaluator relevance a result is rejected outright —
-    # a search result is not automatically a Source (Part 14).
     min_accept_score: float = Field(ge=0.0, le=1.0, default=0.2)
     default_profile: str = "DEEP_CASE_RESEARCH"
 
@@ -533,7 +504,6 @@ class YouTubeResearchConfig(BaseModel):
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_results_per_language: int = Field(ge=1, le=50)
     max_videos_per_language: int = Field(ge=1, le=50)
-    min_duration_seconds: int = Field(ge=0)
     discovery_provider: str = "auto"  # auto | youtube_api | engine
 
 
@@ -590,8 +560,6 @@ class TranscriptChunkingConfig(BaseModel):
 
 class TranscriptValueConfig(BaseModel):
     weights: dict[str, float] = {}
-    high_value_threshold: float = Field(ge=0.0, le=1.0)
-    skip_process_threshold: float = Field(ge=0.0, le=1.0)
 
 
 class ClaimClusteringConfig(BaseModel):
@@ -1358,7 +1326,6 @@ class MapsConfig(BaseModel):
     geocoder_url: str = "https://nominatim.openstreetmap.org/search"
     tile_size: int = 256
     # Zoom steps of an orientation sequence (wide -> close).
-    zoom_levels: list[int] = [4, 7, 11]
     darken: float = Field(default=0.55, ge=0.0, le=1.0)
 
 
@@ -1409,7 +1376,6 @@ class RenderConfig(BaseModel):
     burn_subtitles: bool = False
     subtitle_max_chars: int = Field(default=42, ge=10)
     subtitle_max_seconds: float = Field(default=6.0, gt=0)
-    show_credits: bool = True
 
 
 class DocumentaryCriticsConfig(BaseModel):
@@ -1551,9 +1517,6 @@ class CaseSelectionConfig(BaseModel):
     undated_recency: float = Field(default=0.15, ge=0.0, le=1.0)
     status_weights: dict[str, float] = Field(default_factory=lambda: {
         "SOLVED": 1.0, "STATUS_UNDER_REVIEW": 0.35, "UNKNOWN": 0.35, "UNSOLVED": 0.2})
-    include_unsolved_default: bool = False
-    # The status verifier must reach this confidence before a suggestion
-    # is labelled SOLVED (otherwise STATUS_UNDER_REVIEW / UNKNOWN).
     solved_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     # Best candidates checked by the status verifier (search + LLM).
     verify_top_n: int = Field(default=8, ge=0)
@@ -1696,7 +1659,6 @@ class CaseNamingConfig(BaseModel):
     # corpus kinds the semantic check compares against
     semantic_kinds: list[str] = ["case_title", "episode_title", "video_title", "candidate",
                                  "discovery_title"]
-    bm25_prefilter: int = Field(default=40, ge=1)
     extra_per_round: int = Field(default=4, ge=0)
     max_chars: int = Field(default=60, ge=10)
     reject_questions: bool = True
@@ -2203,14 +2165,6 @@ class AIConfig(BaseModel):
         except KeyError:
             raise KeyError(f"No generation settings for role: {role!r}") from None
 
-    def capabilities_for(self, role: str) -> ModelCapabilities:
-        """Declared capabilities for the model routed to a role —
-        the research layer consults this before attaching server tools.
-        Undeclared models default to all-none (safe: no tools sent)."""
-        return self.capabilities_of(
-            self.model_for(role), role=role
-        )
-
     def capabilities_of(
         self, model: str, *, role: str | None = None
     ) -> ModelCapabilities:
@@ -2226,12 +2180,6 @@ class AIConfig(BaseModel):
                 else self.generation_provider()
             )
         return section.capabilities.get(model) or ModelCapabilities()
-
-    def research_profile(
-        self, name: str | None = None
-    ) -> ResearchProfileConfig | None:
-        """Named research strategy (Part 28); None when not configured."""
-        return self.research_profiles.get(name or self.research.default_profile)
 
     def language_quality_for(self, language: str) -> LanguageQualityConfig | None:
         return self.language_quality.get(language)

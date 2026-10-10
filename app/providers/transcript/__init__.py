@@ -1,5 +1,3 @@
-from app.core.ai_config import ai_config
-from app.core.config import settings
 from app.providers.transcript.base import TranscriptProvider, TranscriptResult
 
 

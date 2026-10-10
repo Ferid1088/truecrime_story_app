@@ -9,7 +9,6 @@ id, poll() reports progress, ingestion happens in research_jobs.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import uuid
@@ -17,7 +16,7 @@ from typing import Any, Awaitable, Callable
 
 from app.core.tasks import spawn
 from app.core.ai_config import ai_config
-from app.providers.base import ProviderError, ProviderJob, ResearchProvider
+from app.providers.base import ProviderJob, ResearchProvider
 from app.providers.generation import get_generation_provider
 from app.research_engine.embeddings import EmbeddingClient
 from app.research_engine.fetch_cache import FetchCache

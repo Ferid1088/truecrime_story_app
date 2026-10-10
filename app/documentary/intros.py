@@ -276,22 +276,11 @@ class Sound:
         y = np.fft.irfft(np.fft.rfft(x, L) * np.fft.rfft(ir, L), L)[: len(x)]
         return x * (1 - wet) + y * wet * 1.8
 
-    def tremolo(self, x: np.ndarray, rate=4.2, depth=0.25) -> np.ndarray:
-        t = np.arange(len(x)) / self.sr
-        return x * (1 - depth + depth * np.sin(2 * math.pi * rate * t))
-
     def wind(self, gain=0.12):
         t = self.t()
         x = self.band(self.rng.normal(0, 1, len(t)), 200, 900)
         mod = 0.6 + 0.4 * np.sin(2 * math.pi * 0.23 * t) * np.sin(2 * math.pi * 0.11 * t + 1)
         self.add(x * mod * np.interp(t, [0, 0.8, self.dur - 0.8, self.dur], [0, 1, 1, 0]), 0, gain)
-
-    def frame_drum(self, at, gain=0.6):
-        """A deep frame-drum hit (daf colour): low thump + skin noise."""
-        self.boom(at, f0=95, f1=60, length=1.2, gain=gain)
-        n = int(0.25 * self.sr)
-        skin = self.band(self.rng.normal(0, 1, n), 300, 1800) * np.exp(-np.linspace(0, 9, n))
-        self.add(skin, at, 0.25 * gain)
 
     def stereo(self) -> np.ndarray:
         x = self.mix / (np.max(np.abs(self.mix)) + 1e-9) * 0.89

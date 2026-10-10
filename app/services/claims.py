@@ -549,7 +549,7 @@ def score_videos(db: Session, case: Case) -> dict:
             if len(cluster_sizes.get(c.cluster_id or -c.id) or {0}) == 1
         ]
         v.novel_information_ratio = round(len(unique) / len(vclaims), 3)
-        types = {c.claim_type for c in vclaims}
+        {c.claim_type for c in vclaims}
         w = cfg.weights
         raw = (
             w.get("unique_claims", 0) * min(1.0, len(unique) / 10)

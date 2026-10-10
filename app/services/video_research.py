@@ -12,7 +12,6 @@ max transcripts per case, minimum novel-information ratio, and a
 consecutive-low-value cutoff.
 """
 
-import json
 import re
 
 from sqlalchemy.orm import Session

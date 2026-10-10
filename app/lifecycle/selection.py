@@ -270,11 +270,6 @@ def _claimed(raw: dict) -> str:
     return normalize_status(raw.get("resolution_status") or raw.get("status"))
 
 
-def _newest(raw: dict) -> date | None:
-    return newest_date(raw.get("latest_development_date"), raw.get("incident_date"),
-                       raw.get("approximate_date"))
-
-
 def _recency(raw: dict) -> tuple[float, str]:
     incident = parse_date(raw.get("incident_date")) or parse_date(raw.get("approximate_date"))
     return case_recency(incident, parse_date(raw.get("latest_development_date")))

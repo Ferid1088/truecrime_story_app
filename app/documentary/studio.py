@@ -285,14 +285,6 @@ def resolve(language: str, reg: StudioRegistry | None = None) -> dict:
             "presets": {k: (v, resolved[k]) for k, v in prof.presets.items()}}
 
 
-def preset_for(language: str, preset: str, reg: StudioRegistry | None = None
-               ) -> tuple[FramingPreset, StudioAsset]:
-    r = resolve(language, reg)
-    if preset not in r["presets"]:
-        raise StudioError(f"{r['studio_profile_id']} has no preset {preset}")
-    return r["presets"][preset]
-
-
 # ---------------------------------------------------------------------------
 # validation
 # ---------------------------------------------------------------------------

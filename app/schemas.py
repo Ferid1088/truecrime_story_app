@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
 
@@ -13,12 +13,6 @@ class TopicDiscoveryRequest(BaseModel):
     avoid_existing: bool = True
     # The standard pipeline suggests SOLVED cases; set to also get UNSOLVED.
     include_unsolved: bool = False
-
-
-class TopicCandidate(BaseModel):
-    title: str
-    rationale: str
-    suggested_queries: list[str]
 
 
 ResolutionStatus = Literal["SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW"]

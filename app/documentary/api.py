@@ -669,7 +669,6 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
 def _verify_later(case_id: int, asset_id: int) -> None:
     """Vision-check an uploaded asset in the background (entities from
     the case's latest visual plan, so the director can match it)."""
-    import asyncio
 
     async def run():
         from app.db.base import SessionLocal
