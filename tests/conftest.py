@@ -1,7 +1,19 @@
 import os
 import tempfile
 
-os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mktemp(suffix='.db')}"
+_PG_URL = os.environ.get("TC_TEST_DATABASE_URL")
+if _PG_URL:
+    # Run the suite on Postgres: start every run from an empty schema (the tests share one database).
+    import sqlalchemy as _sa
+
+    _eng = _sa.create_engine(_PG_URL, isolation_level="AUTOCOMMIT")
+    with _eng.connect() as _c:
+        _c.execute(_sa.text("DROP SCHEMA public CASCADE"))
+        _c.execute(_sa.text("CREATE SCHEMA public"))
+    _eng.dispose()
+    os.environ["DATABASE_URL"] = _PG_URL
+else:
+    os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mktemp(suffix='.db')}"
 # the in-app monitor scheduler never starts inside tests
 os.environ["TRUECRIME_DISABLE_SCHEDULER"] = "1"
 

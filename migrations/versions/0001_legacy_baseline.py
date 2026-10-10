@@ -17,16 +17,19 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-_SQL = Path(__file__).resolve().parent.parent / "legacy_schema.sql"
+_DIR = Path(__file__).resolve().parent.parent
 
 
-def _statements() -> list[str]:
-    lines = [ln for ln in _SQL.read_text(encoding="utf-8").splitlines() if not ln.startswith("--")]
+def _statements(name: str) -> list[str]:
+    lines = [ln for ln in (_DIR / name).read_text(encoding="utf-8").splitlines() if not ln.startswith("--")]
     return [s.strip() for s in "\n".join(lines).split(";\n") if s.strip().rstrip(";")]
 
 
 def upgrade() -> None:
-    for stmt in _statements():
+    # SQLite: the exact production structure. Postgres has no legacy: it starts from the
+    # structure the models describe at 0002 (migrations/postgres_schema.sql), so 0002 is a no-op there.
+    name = "legacy_schema.sql" if op.get_bind().dialect.name == "sqlite" else "postgres_schema.sql"
+    for stmt in _statements(name):
         op.execute(stmt.rstrip(";"))
 
 

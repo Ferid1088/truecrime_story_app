@@ -71,7 +71,9 @@ def _script(db, case, shots, candidates=None, sentences=None):
     plan = {"beats": [{"beat_id": "B01", "sentences": [
         {"n": 0, "at": 0.0, "text": SENT_HOUSE, "entities": ["the_house"]},
         {"n": 1, "at": 0.5, "text": SENT_DOG, "entities": ["police_dog"]}]}]}
-    vp = VisualPlan(case_id=case.id, blueprint_id=-1, plan_json=json.dumps(plan),
+    from tests.factories import make_blueprint
+    bp = make_blueprint(db, case)
+    vp = VisualPlan(case_id=case.id, blueprint_id=bp.id, plan_json=json.dumps(plan),
                     requirements_json=json.dumps({"entities": []}), status="planned")
     db.add(vp)
     db.commit()
@@ -81,7 +83,7 @@ def _script(db, case, shots, candidates=None, sentences=None):
                   {"beat_id": "B01", "n": 0, "start": 0.0, "end": 10.0, "entities": ["the_house"]},
                   {"beat_id": "B01", "n": 1, "start": 10.0, "end": 20.0,
                    "entities": ["police_dog"]}]}
-    row = ProductionScript(case_id=case.id, story_version_id=1, language="en",
+    row = ProductionScript(case_id=case.id, story_version_id=bp.story_version_id, language="en",
                            visual_plan_id=vp.id, script_json=json.dumps(script))
     db.add(row)
     db.commit()

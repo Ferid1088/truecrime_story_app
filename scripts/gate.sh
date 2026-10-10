@@ -11,6 +11,8 @@
 #   TC_BASELINE=baseline.json TC_DB=truecrime.db
 #                                    also check data parity against a saved baseline
 #   PW_CONFIG=playwright.config.ts   Playwright config to use
+#   TC_TEST_DATABASE_URL=postgresql+psycopg://user@host/db
+#                                    also run the Python suite on Postgres (the database is wiped!)
 #
 # A failed check does not stop the run: the summary lists every failure, and the
 # exit code is non-zero if any check failed. Fix, then run the WHOLE gate again.
@@ -40,7 +42,10 @@ check() {  # check "label" command...
 in_frontend() { ( cd frontend && "$@" ); }
 
 if [ "$run_backend" = 1 ]; then
-  check "Python test suite" "$PYTHON" -m pytest -q -p no:cacheprovider
+  check "Python test suite" env -u TC_TEST_DATABASE_URL "$PYTHON" -m pytest -q -p no:cacheprovider
+  if [ -n "${TC_TEST_DATABASE_URL:-}" ]; then
+    check "Python test suite on Postgres" "$PYTHON" -m pytest -q -p no:cacheprovider
+  fi
   check "Secret scan (tracked files)" "$PYTHON" scripts/secret_scan.py
   if [ -n "${TC_BASELINE:-}" ] && [ -n "${TC_DB:-}" ]; then
     check "Data parity vs baseline" "$PYTHON" scripts/db_tools.py compare "$TC_BASELINE" "$TC_DB"

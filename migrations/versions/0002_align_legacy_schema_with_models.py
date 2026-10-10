@@ -18,6 +18,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if op.get_bind().dialect.name != "sqlite":
+        return  # Postgres starts from the already-aligned structure (see 0001)
     with op.batch_alter_table('agent_runs', schema=None) as batch_op:
         batch_op.alter_column('fallback_used',
                existing_type=sa.BOOLEAN(),

@@ -821,7 +821,7 @@ class EpistemicClaim(Base):
     evidence_refs_json: Mapped[str] = mapped_column(Text, default="[]")
     review_status: Mapped[str] = mapped_column(String(20), default="proposed", index=True)
     reviewer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    origin: Mapped[str] = mapped_column(String(20), default="extracted")
+    origin: Mapped[str] = mapped_column(String(40), default="extracted")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 

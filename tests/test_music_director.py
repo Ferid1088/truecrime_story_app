@@ -428,6 +428,8 @@ def test_usage_why_falls_back_to_the_stored_audio_plan(db_session, library):
     lib, _ = library
     case = _case(db_session)
     bp_id = 910501
+    from tests.factories import make_blueprint
+    make_blueprint(db_session, case, id=bp_id)
     db_session.add(AudioPlan(case_id=case.id, blueprint_id=bp_id, version=1, status="valid",
                              plan_json=json.dumps({"beats": [
                                  {"beat_id": "B02", "why": "a change of place",

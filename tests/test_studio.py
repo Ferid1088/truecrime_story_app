@@ -265,7 +265,9 @@ def _segments(db, lang="de"):
             {"segment_id": "S2", "position": "mid", "beat_id": "B03",
              "avatar_dialogue": "Und hier wird es seltsam.", "estimated_seconds": 2.5},
             {"segment_id": "S3", "position": "final", "beat_id": None, "avatar_dialogue": ""}]
-    row = HostSegments(case_id=case.id, story_version_id=v.id, host_plan_id=0, language=lang,
+    from tests.factories import make_host_plan, make_blueprint
+    plan = make_host_plan(db, case, make_blueprint(db, case, story_version=v))
+    row = HostSegments(case_id=case.id, story_version_id=v.id, host_plan_id=plan.id, language=lang,
                        segments_json=json.dumps(segs, ensure_ascii=False), status="valid")
     db.add(row)
     db.commit()
