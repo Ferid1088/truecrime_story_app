@@ -1,0 +1,1 @@
+TASK: tell the script below ({beats} beat(s)) as spoken {name} narration, exactly as your instructions say. Output ONLY the narration under its marker lines — no comments to me, no notes, no headings, no list of changes. 'if_mentioned_keep_uncertain' lists claims that must stay uncertain IF this part of the script mentions them; never add them otherwise.

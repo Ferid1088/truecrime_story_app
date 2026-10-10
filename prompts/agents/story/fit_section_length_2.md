@@ -1,0 +1,1 @@
+This act is {words} words; its budget is ~{target_words}. Expand it using ONLY evidence supplied below that the act has not yet used — deepen scenes, transitions and investigation detail. Never pad or repeat.

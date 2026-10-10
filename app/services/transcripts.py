@@ -6,6 +6,7 @@ rewriting. Original text + timestamps are always preserved; canonical
 English is stored *alongside* in canonical_text_en.
 """
 
+from app.core.prompts import prompt
 import hashlib
 import json
 import re
@@ -212,10 +213,7 @@ async def normalize_transcript(db: Session, video: VideoSource) -> int:
         if not segs:
             continue
         system = (
-            "You normalize foreign-language transcript excerpts into "
-            "canonical English for evidence analysis. Translate each item "
-            "faithfully — preserve names, numbers, dates, uncertainty. "
-            "No commentary, no omissions. Return JSON only."
+            prompt("services/transcripts/normalize_transcript")
         )
         user = json.dumps(
             {

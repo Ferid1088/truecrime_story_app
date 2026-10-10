@@ -477,10 +477,7 @@ def _mark_sections(sections: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 _MARKER_INSTRUCTION = (
-    "Lines of the form [[ACT:<id>]] are structural markers. Keep every "
-    "marker line exactly as given, on its own line, in the same order, "
-    "and keep each passage under its own marker. Never add, rename, "
-    "merge or drop markers."
+    prompt("agents/story/marker_instruction")
 )
 
 
@@ -818,24 +815,7 @@ class EngagementCritic:
     async def critique_section(
         self, section_title: str, section_text: str, position: str
     ) -> tuple[dict, GenerationResult]:
-        system = """
-You are a ruthless documentary editor reviewing ONE section of a
-long-form true-crime episode. Judge whether this section keeps a viewer
-watching: information density, pacing, curiosity, any drop-off risk.
-
-Return JSON only:
-{
-  "section": "<echoed title>",
-  "hook": 0-100,
-  "pacing": 0-100,
-  "curiosity": 0-100,
-  "repetition": 0-100,
-  "information_density": 0-100,
-  "score": 0-100,
-  "drop_off_risk": "low|medium|high",
-  "problems": ["..."]
-}
-"""
+        system = prompt("agents/story/critique_section")
         data, res = await self.gen.generate_structured(
             "section_critic",
             system,
@@ -1359,18 +1339,7 @@ class StoryPipeline:
             {"id": "full", "text": story_version.story_text or ""}
         ]
         structured = is_structured(prev_sections)
-        system = f"""
-You are revising a long-form true-crime script.
-Apply the requested editorial improvement while preserving factual accuracy.
-Do not invent quotes, dialogue, evidence, motives, or scenes.
-Do not add citations, URLs, headings, or source notes.
-LENGTH CONTRACT: the source is {orig_words} words — output
-{int(orig_words * (1 - tol))}–{int(orig_words * (1 + tol))} words.
-Cut redundant material only where duplicated, and expand with grounded
-detail when removing text would shrink the piece below the contract.
-{_MARKER_INSTRUCTION if structured else ""}
-Output only the rewritten story.
-"""
+        system = prompt("agents/story/improve").format(orig_words=orig_words, v0=int(orig_words * (1 - tol)), v1=int(orig_words * (1 + tol)), v2=_MARKER_INSTRUCTION if structured else "")
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -1588,10 +1557,7 @@ Output only the rewritten story.
                 break
             if words < lo:
                 instruction = (
-                    f"This act is {words} words; its budget is ~{target_words}. "
-                    "Expand it using ONLY evidence supplied below that the act "
-                    "has not yet used — deepen scenes, transitions and "
-                    "investigation detail. Never pad or repeat."
+                    prompt("agents/story/fit_section_length_2").format(words=words, target_words=target_words)
                 )
             else:
                 instruction = (
@@ -1599,12 +1565,7 @@ Output only the rewritten story.
                     "Condense by removing repetition and low-value exposition "
                     "while keeping every evidence-backed fact."
                 )
-            system = f"""
-You are a senior documentary editor repairing ONE act's length.
-{instruction}
-Use only details in the supplied evidence pack. Preserve facts,
-uncertainty language and voice. Output only the act text.
-"""
+            system = prompt("agents/story/fit_section_length").format(instruction=instruction)
             user = json.dumps(
                 {
                     "case": case.canonical_title,
@@ -1711,19 +1672,7 @@ uncertainty language and voice. Output only the act text.
                 for f in (pack.get(key) or [])
                 if f.get("id") in near_ids
             ]
-            system = f"""
-You are a documentary fact editor repairing ONE paragraph.
-The flagged claim below is not supported by the evidence pack.
-
-Repair rules:
-- Replace the unsupported specifics with the vaguer supported form from
-  the supplied evidence (or delete just the unsupported fragment).
-- Preserve the paragraph's purpose, narrative tension and all supported
-  material. Do not summarize the paragraph.
-- LENGTH CONTRACT: output {orig_words}±{int(orig_words * tol)} words.
-- Narrate disputed items with uncertainty language.
-Output only the repaired paragraph.
-"""
+            system = prompt("agents/story/repair_section_spans").format(orig_words=orig_words, v0=int(orig_words * tol))
             user = json.dumps(
                 {
                     "paragraph": para,
@@ -2114,19 +2063,7 @@ Output only the repaired paragraph.
         self, db: Session, case: Case, text: str, pack: dict
     ) -> dict:
         """Catch rhetorical/metaphorical statements contradicting known facts."""
-        system = """
-You are a continuity editor for a documentary. Check the story against
-the supplied canonical facts, timeline and contradictions. Look for:
-- absolute claims contradicting the timeline
-- metaphorical statements implying false facts ("extinguished forever"
-  when the lamp was relit)
-- wrong names, wrong attribution, wrong chronology
-- disputed or uncertain claims narrated as established fact
-
-Return JSON only:
-{"violations": [{"type": "chronology|attribution|metaphor|certainty|other",
-  "severity": "low|medium|high", "detail": "...", "location": "..."}]}
-"""
+        system = prompt("agents/story/consistency_check")
         user = json.dumps(
             {
                 "facts": pack["facts"],
@@ -2186,15 +2123,7 @@ Return JSON only:
         for i, s in weak[: q.max_section_rewrites]:
             orig = sections[i]
             orig_words = len(orig["text"].split())
-            system = f"""
-You are revising ONE section of a documentary script. Apply the editor
-feedback while preserving all evidence-backed facts and matching the
-surrounding narration's voice.
-LENGTH CONTRACT: output {orig_words}±{int(orig_words * tol)} words —
-expand with unused evidence or deepen existing detail, do not compress.
-Use only details in the evidence pack. Output only this section's text —
-no markers, no headings, no commentary.
-"""
+            system = prompt("agents/story/section_pass").format(orig_words=orig_words, v0=int(orig_words * tol))
             user = json.dumps(
                 {
                     "section_id": orig["id"],
@@ -2237,16 +2166,7 @@ no markers, no headings, no commentary.
         """Last-pass copyedit through the premium final_editor role.
         With marked=True the story carries [[ACT:id]] lines that must
         survive the edit."""
-        system = f"""
-You are the final editor of a documentary script.
-Polish the story in its existing language ({language}) without rewriting it.
-Remove awkward phrasing, repetition and meta-commentary; improve transitions
-and clarity; remove any leftover model artifacts, markdown headings or
-separator lines. Preserve all verified facts, uncertainty, tone, structure
-and approximate length. Do not add or remove substantive content.
-{_MARKER_INSTRUCTION if marked else ""}
-Output only the story text.
-"""
+        system = prompt("agents/story/final_edit").format(language=language, v0=_MARKER_INSTRUCTION if marked else "")
         user = json.dumps(
             {"language": language, "story": story}, ensure_ascii=False
         )

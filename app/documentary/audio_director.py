@@ -119,11 +119,7 @@ def director_system_prompt(cfg: AudioDirectionConfig | None = None) -> str:
     moods = " | ".join(cfg.moods)
     if cfg.beds_under_narration:
         bed_rule = (
-            "A bed under the narration is allowed only where it truly helps:\n"
-            f"   bed: none | {moods}, bed_level: very_low | low. Music under\n"
-            "   words must never compete with them. Leave dense information and\n"
-            "   quotations clean (none). Keep one bed running across several\n"
-            "   consecutive beats instead of switching every beat.")
+            prompt("documentary/audio_director/director_system_prompt_2").format(moods=moods))
     else:
         bed_rule = (
             'always "none". While the narrator speaks there is NO music —\n'

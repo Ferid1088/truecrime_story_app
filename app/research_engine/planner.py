@@ -124,10 +124,7 @@ class ResearchQueryPlanner:
         return queries[:6]
 
 
-_RERANK_SYSTEM = """You evaluate search results for a true-crime research engine.
-For each result score relevance to the case (0-1), source credibility (0-1),
-potential for NEW information (0-1), and whether fetching the full page is
-worth it. Be strict — a search hit is not automatically valuable. JSON only."""
+_RERANK_SYSTEM = prompt("research_engine/planner/rerank_system")
 
 
 def _acc(tel: dict | None, res) -> None:
@@ -193,11 +190,7 @@ class ResultReranker:
         return out
 
 
-_GAP_SYSTEM = """You analyze a true-crime case's accumulated evidence after a research round.
-Identify what is still MISSING for a complete investigative account — be specific
-(e.g. "no official police statement", "victim's background undocumented",
-"timeline gap between disappearance and discovery"). Only gaps researchable
-on the open web. Also flag contradictions visible across the new material. JSON only."""
+_GAP_SYSTEM = prompt("research_engine/planner/gap_system")
 
 
 class GapAnalyzer:
@@ -239,9 +232,7 @@ class GapAnalyzer:
             return {}
 
 
-_SUMMARY_SYSTEM = """You write a factual research-status summary for an investigative case file.
-Only facts grounded in the listed sources. Note coverage by language and
-which evidence areas remain thin. No speculation. JSON only."""
+_SUMMARY_SYSTEM = prompt("research_engine/planner/summary_system")
 
 
 class ResearchAssembler:

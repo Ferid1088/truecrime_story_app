@@ -1,0 +1,1 @@
+Lines of the form [[ACT:<id>]] are structural markers. Keep every marker line exactly as given, on its own line, in the same order, and keep each passage under its own marker. Never add, rename, merge or drop markers.

@@ -407,9 +407,7 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     ranges = ", ".join(f"{p} {lo}–{hi} words"
                        for p in POSITIONS for lo, hi in [word_range(p, language, cfg)])
     channel = ai_config.channels.get(language)
-    brand = (f"\nYou are the host of «{channel.name}», the {name} channel of the brand. "
-             "You may say its name at most once, and only where it sounds natural — "
-             "never as a greeting formula or catchphrase.\n") if channel else ""
+    brand = (prompt("documentary/host/writer_system_prompt_2").format(v0=channel.name, name=name)) if channel else ""
     return prompt("documentary/host/writer_system_prompt").format(v0=persona_prompt(cfg), name=name, brand=brand, ranges=ranges)
 
 

@@ -1,0 +1,1 @@
+ATTENTION. Is the viewer ever overloaded (reading + dense narration + new picture at once)? Too many cuts? Too little change for too long? Does each picture support the words instead of competing with them?

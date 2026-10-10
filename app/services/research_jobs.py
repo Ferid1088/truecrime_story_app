@@ -1,3 +1,4 @@
+from app.core.prompts import prompt
 import json
 import time
 import re
@@ -559,10 +560,7 @@ async def _normalize_sources(db: Session, case_id: int) -> int:
         return 0
     gen = get_generation_provider()
     system = (
-        "You normalize research-source summaries into canonical English "
-        "evidence. Translate faithfully: preserve names, numbers, dates, "
-        "legal status and uncertainty markers exactly. No embellishment, "
-        "no interpretation, no omissions of material caveats. Return JSON only."
+        prompt("services/research_jobs/normalize_sources")
     )
     user = json.dumps(
         {

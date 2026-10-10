@@ -360,12 +360,7 @@ Output only the story text.
         for i, s in enumerate(master_sections):
             share = len(s["text"].split()) / master_words
             target = max(1, int(target_total * share))
-            system = f"""{self._writer_rules(language)}
-You are localizing ONE act of a longer story. Continue naturally from
-the previous act's ending; do not summarize other acts.
-Length: aim for about {target} words.
-Output only this act's text.
-"""
+            system = prompt("agents/localization/write_per_section").format(v0=self._writer_rules(language), target=target)
             nxt = master_sections[i + 1]["text"] if i + 1 < len(master_sections) else ""
             user = json.dumps(
                 {
@@ -462,19 +457,7 @@ Output only this act's text.
     ) -> dict:
         """Defense in depth: the localized story must not introduce
         factual detail absent from the canonical evidence pack."""
-        system = """
-You are a grounding validator. Compare the localized story (any language)
-against the canonical English evidence pack. A claim is supported if it
-is semantically contained in the evidence, regardless of language.
-
-Return JSON only:
-{
-  "supported_claims": [{"claim": "...", "evidence_id": "F001"}],
-  "unsupported_claims": [{"claim": "...", "severity": "fatal|minor"}],
-  "uncertainty_errors": [{"claim": "...", "evidence_id": "F001"}],
-  "grounding_score": 0.0-1.0
-}
-"""
+        system = prompt("agents/localization/localized_grounding")
         with track_run(
             db, case.id, "Localized Grounding Validator",
             input_summary=f"lang={language}",
@@ -503,14 +486,7 @@ Return JSON only:
         language: str,
         marked: bool = False,
     ) -> tuple[str, object]:
-        system = f"""
-You are an excellent native {language} true-crime storyteller revising
-your own localized narration. Fix ONLY the reported problems. All
-factual invariants still apply: no fact changes, no new facts, no
-removed facts, uncertainty stays intact.
-{_MARKER_INSTRUCTION if marked else ""}
-Output only the story text.
-"""
+        system = prompt("agents/localization/repair").format(language=language, v0=_MARKER_INSTRUCTION if marked else "")
         user = json.dumps(
             {
                 "current_text": text,
@@ -532,15 +508,7 @@ Output only the story text.
         self, db: Session, case: Case, text: str, language: str,
         marked: bool = False,
     ) -> tuple[str | None, object]:
-        system = f"""
-You are a native {language} line editor doing a final polish pass on a
-localized true-crime narration. Improve phrasing, transitions, clarity
-and rhythm ONLY. You must NOT: add facts, remove facts, invent dialogue,
-turn uncertain claims into facts, shorten the story materially, add
-citations, or change meaning.
-{_MARKER_INSTRUCTION if marked else ""}
-Output only the story text.
-"""
+        system = prompt("agents/localization/final_edit").format(language=language, v0=_MARKER_INSTRUCTION if marked else "")
         with track_run(
             db, case.id, "Localized Final Editor",
             input_summary=f"lang={language}",

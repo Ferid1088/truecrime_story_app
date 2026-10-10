@@ -27,23 +27,38 @@ def test_every_prompt_referenced_in_code_exists():
     assert not missing, missing
 
 
+_KEYS = ("you are", "json", "return", "task", "output", "do not", "never", "must", "narrat",
+         "write ", "update research", "targeted follow-up")
+
+
+def _is_prompt(text: str) -> bool:
+    low = text.lower()
+    return (len(text) >= 200 and any(k in low for k in _KEYS) and "provider calls=" not in low
+            and not low.lstrip().startswith(("select ", "create ", "alter ")))
+
+
 def inline_texts() -> set[str]:
-    """Long text constants and f-strings that are not docstrings: prompts still in code."""
+    """Long instruction-like text constants and f-strings that are not docstrings:
+    prompts still in code."""
     found = set()
     for f in APP.rglob("*.py"):
+        if f.name == "prompts.py":
+            continue
         src = f.read_text(encoding="utf-8")
         tree = ast.parse(src)
         docs = {id(n.body[0].value) for n in ast.walk(tree)
                 if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
                 and n.body and isinstance(n.body[0], ast.Expr)
                 and isinstance(n.body[0].value, ast.Constant)}
+        parent = {c: n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
         for n in ast.walk(tree):
             text = None
-            if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs:
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs \
+                    and not isinstance(parent.get(n), (ast.JoinedStr, ast.FormattedValue)):
                 text = n.value
             elif isinstance(n, ast.JoinedStr):
-                text = ast.get_source_segment(src, n) or ""
-            if text and len(text) > 600 and "role" not in f.name:
+                text = "".join(v.value for v in n.values if isinstance(v, ast.Constant))
+            if text and _is_prompt(text):
                 found.add(f"{f.relative_to(ROOT)}:{re.sub(r'[^A-Za-z]+', '_', text.strip()[:32])}")
     return found
 

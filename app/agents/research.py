@@ -166,15 +166,7 @@ class ResearchAgent:
         """Refine event_date assignments — approximate dates allowed, never invented."""
         if not fact_rows:
             return
-        system = """
-You are building a documentary timeline from extracted claims.
-For each claim, return the best-supported date from the source material.
-Use YYYY-MM-DD, YYYY-MM or YYYY. If the timing is approximate, keep the
-coarser form rather than inventing a day. If no source supports a date,
-return null. Never guess.
-
-Return JSON only.
-"""
+        system = prompt("agents/research/build_timeline")
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -217,17 +209,7 @@ Return JSON only.
         sources: list[Source],
         hints: list,
     ) -> list[dict]:
-        system = """
-You are a contradiction analyst for an investigative newsroom.
-Identify claims where sources or extracted facts genuinely conflict —
-different dates, different actors, mutually exclusive accounts.
-"research_hints" are leads found during internet research: corroborate each
-against the supplied facts/sources before including it; drop hints that the
-material does not actually support. Do not promote a hint just because it
-sounds interesting.
-
-Return JSON only.
-"""
+        system = prompt("agents/research/analyze_contradictions")
         user = json.dumps(
             {
                 "case": case.canonical_title,

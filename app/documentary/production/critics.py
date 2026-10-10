@@ -74,9 +74,7 @@ CRITIC_FOCUS = {
         "camera move again and again, text cards that pop up on schedule, music "
         "that always enters the same way)."),
     "attention": (
-        "ATTENTION. Is the viewer ever overloaded (reading + dense narration + "
-        "new picture at once)? Too many cuts? Too little change for too long? "
-        "Does each picture support the words instead of competing with them?"),
+        prompt("documentary/production/critics/critic_focus_attention")),
     "visual_accuracy": (
         "VISUAL ACCURACY. Could any picture mislead: a wrong person or place, a "
         "context/illustration picture that looks like case evidence, a picture "

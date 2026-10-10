@@ -258,15 +258,8 @@ def has_meta_text(text: str) -> bool:
 def _task_line(language: str, beats: int, repair: bool = False) -> str:
     name = LANG_NAMES.get(language, language)
     if repair:
-        return (f"TASK: revise the {beats} spoken {name} beat(s) below exactly as your "
-                "instructions say. Output ONLY those beats, each under its marker "
-                "line — no comments, notes, headings or list of changes.")
-    return (f"TASK: tell the script below ({beats} beat(s)) as spoken {name} "
-            "narration, exactly as your instructions say. Output ONLY the "
-            "narration under its marker lines — no comments to me, no notes, no "
-            "headings, no list of changes. 'if_mentioned_keep_uncertain' lists "
-            "claims that must stay uncertain IF this part of the script mentions "
-            "them; never add them otherwise.")
+        return (prompt("documentary/spoken/task_line_2").format(beats=beats, name=name))
+    return (prompt("documentary/spoken/task_line").format(beats=beats, name=name))
 
 
 def _meaning_ok(entry: dict) -> bool:
@@ -446,16 +439,7 @@ class SpokenNarrator:
     async def _repair_chunk(self, db, case_id, language, source, spoken, checks,
                             uncertain, targets) -> dict[str, str]:
         src = {s["id"]: s["text"] for s in source}
-        system = writer_system_prompt(language) + """
-You are now revising ONLY the beats given. For each beat you get its
-source script, your current spoken version and the problems found:
-fact problems (restore lost facts, remove added ones, fix changed
-values or certainty), style problems from a native editor (follow the
-spoken suggestions), sentences that are too long for the ear (split
-them into short spoken sentences) and stiff written phrases (say them
-the way people talk). Fix exactly those problems and keep everything
-else. Return only these beats, each under its marker line.
-"""
+        system = writer_system_prompt(language) + prompt("documentary/spoken/repair_chunk")
         payload = {
             "language": language,
             "if_mentioned_keep_uncertain": uncertain,

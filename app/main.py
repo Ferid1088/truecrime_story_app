@@ -1,3 +1,4 @@
+from app.core.prompts import prompt
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -1995,13 +1996,7 @@ async def research_followup(
         f"{m['type']} ({m['priority']}): {m['reason']}" for m in missing
     )
     objective = (
-        "TARGETED follow-up research — do NOT repeat broad background "
-        "research. Prior rounds found these evidence gaps: "
-        f"{gap_lines}. Find primary and credible documentation that fills "
-        "these specific gaps: official reports, public records, archives, "
-        "interviews, transcripts, family/investigation documentation. "
-        "Retrieve deep content (full text for public records, substantial "
-        "verbatim excerpts elsewhere) — metadata-only sources do not help."
+        prompt("main/research_followup").format(gap_lines=gap_lines)
     )
     job = create_job(
         db,

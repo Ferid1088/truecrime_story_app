@@ -1,0 +1,1 @@
+You deduplicate factual claims extracted from multiple videos (possibly different languages) about the same case. Group claims that assert the SAME underlying fact — paraphrases and translations count. Do NOT group merely related or complementary claims. Return JSON only.

@@ -10,6 +10,7 @@ the same clusters are likely derivative — they must not inflate an
 evidence item's independent-source-family count.
 """
 
+from app.core.prompts import prompt
 import json
 
 from rapidfuzz import fuzz
@@ -176,11 +177,7 @@ async def _semantic_merge(db, case, singles, clusters, add_to) -> list[Transcrip
     the model does not group remains a singleton cluster."""
     gen = get_generation_provider()
     system = (
-        "You deduplicate factual claims extracted from multiple videos "
-        "(possibly different languages) about the same case. Group claims "
-        "that assert the SAME underlying fact — paraphrases and "
-        "translations count. Do NOT group merely related or complementary "
-        "claims. Return JSON only."
+        prompt("services/claims/semantic_merge")
     )
     user = json.dumps(
         {
@@ -313,13 +310,7 @@ async def verify_clusters(db: Session, case: Case) -> dict:
     gen = get_generation_provider()
 
     system = (
-        "You verify transcript-derived claims against the case's established "
-        "evidence. For each cluster, return verification_status: "
-        "supported | strongly_supported | contradicted | disputed | "
-        "unverified. 'strongly_supported' requires corroboration by "
-        "independent established evidence, not repetition across videos. "
-        "Optionally set supporting_fact_ids (ids of supplied facts that "
-        "corroborate) and supporting_source_ids. Return JSON only."
+        prompt("services/claims/verify_clusters")
     )
     user = json.dumps(
         {

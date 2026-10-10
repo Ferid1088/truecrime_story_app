@@ -11,6 +11,8 @@ points to the original video.
 
 from __future__ import annotations
 
+from app.core.prompts import prompt
+
 import json
 
 from sqlalchemy.orm import Session
@@ -94,13 +96,7 @@ async def start_update_research(db: Session, case: Case, follow_up_id: int | Non
         original = db.get(Video, fu.original_video_id)
         since = (original.published_at or original.created_at) if original else None
     objective = (
-        "UPDATE research — the case was covered before while UNSOLVED and has since been "
-        f"solved{f' (reported: {fu.development})' if fu and fu.development else ''}. Do NOT "
-        "repeat the background. Find what happened "
-        f"{'since ' + since.date().isoformat() if since else 'recently'}: arrest, charges, "
-        "trial, verdict, confession, identification of the perpetrator, official statements "
-        "of police, prosecutors and courts, and what this explains about the open questions "
-        "of the earlier coverage. Primary and credible sources with full text.")
+        prompt("lifecycle/followups/start_update_research").format(v0=f' (reported: {fu.development})' if fu and fu.development else '', v1='since ' + since.date().isoformat() if since else 'recently'))
     provider = get_research_provider()
     job = create_job(db, job_type="research", case_id=case.id, input_data={
         "case_title": case.canonical_title, "language": case.language,
