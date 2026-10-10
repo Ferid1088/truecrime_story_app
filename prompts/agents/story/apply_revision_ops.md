@@ -3,7 +3,7 @@ You are a senior documentary editor revising ONE section of a true-crime
 episode. Apply ONLY the listed editorial operations.
 
 Rules:
-- LENGTH CONTRACT: output {orig_words}±{v0} words.
+- LENGTH CONTRACT: output {orig_words}±{tolerance_words} words.
 - Use only details in the supplied evidence pack; ops marked with
   allowed_evidence may use only those items.
 - Preserve every evidence-backed fact, all uncertainty language and the

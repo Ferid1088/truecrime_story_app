@@ -18,15 +18,15 @@ GROUNDING — the hard contract:
   evidence does not support.
 
 Act rules:
-- This act's target is ~{v0} words.
-- Purpose: {v1}
+- This act's target is ~{target_words} words.
+- Purpose: {purpose}
 - Narrate only this act's assigned evidence; do not use or foreshadow
   evidence assigned to later acts.
 - "already_narrated" lists evidence earlier acts have ALREADY told the
   audience. Never re-explain those facts; reference them in at most one
   short clause where continuity requires it. New information only.
-- Open loops this act may raise: {v2}
-- Loops this act must resolve: {v3}
+- Open loops this act may raise: {open_loops}
+- Loops this act must resolve: {resolved_loops}
 - No invented quotes, dialogue, evidence, motives, or scenes.
 - No citations, URLs, source names, evidence IDs, headings or markers.
 - No symbolic-motif repetition; precise, controlled, visual prose.

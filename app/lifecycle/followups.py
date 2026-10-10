@@ -96,7 +96,7 @@ async def start_update_research(db: Session, case: Case, follow_up_id: int | Non
         original = db.get(Video, fu.original_video_id)
         since = (original.published_at or original.created_at) if original else None
     objective = (
-        prompt("lifecycle/followups/start_update_research").format(v0=f' (reported: {fu.development})' if fu and fu.development else '', v1='since ' + since.date().isoformat() if since else 'recently'))
+        prompt("lifecycle/followups/start_update_research").format(development_note=f' (reported: {fu.development})' if fu and fu.development else '', since_when='since ' + since.date().isoformat() if since else 'recently'))
     provider = get_research_provider()
     job = create_job(db, job_type="research", case_id=case.id, input_data={
         "case_title": case.canonical_title, "language": case.language,

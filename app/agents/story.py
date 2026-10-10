@@ -768,7 +768,7 @@ class WriterAgent:
         """
         act_pack = build_act_pack(pack, act.get("evidence_ids"))
 
-        system = prompt("agents/story/write_act").format(language=language, tone=tone, v0=act.get('target_words'), v1=act.get('purpose', ''), v2=act.get('open_loops') or [], v3=act.get('resolved_loops') or [])
+        system = prompt("agents/story/write_act").format(language=language, tone=tone, target_words=act.get('target_words'), purpose=act.get('purpose', ''), open_loops=act.get('open_loops') or [], resolved_loops=act.get('resolved_loops') or [])
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -1339,7 +1339,7 @@ class StoryPipeline:
             {"id": "full", "text": story_version.story_text or ""}
         ]
         structured = is_structured(prev_sections)
-        system = prompt("agents/story/improve").format(orig_words=orig_words, v0=int(orig_words * (1 - tol)), v1=int(orig_words * (1 + tol)), v2=_MARKER_INSTRUCTION if structured else "")
+        system = prompt("agents/story/improve").format(orig_words=orig_words, min_words=int(orig_words * (1 - tol)), max_words=int(orig_words * (1 + tol)), marker_instruction=_MARKER_INSTRUCTION if structured else "")
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -1672,7 +1672,7 @@ class StoryPipeline:
                 for f in (pack.get(key) or [])
                 if f.get("id") in near_ids
             ]
-            system = prompt("agents/story/repair_section_spans").format(orig_words=orig_words, v0=int(orig_words * tol))
+            system = prompt("agents/story/repair_section_spans").format(orig_words=orig_words, tolerance_words=int(orig_words * tol))
             user = json.dumps(
                 {
                     "paragraph": para,
@@ -1848,7 +1848,7 @@ class StoryPipeline:
             next_head = " ".join(
                 sections[i + 1]["text"].split()[:40]
             ) if i + 1 < len(sections) else ""
-            system = prompt("agents/story/apply_revision_ops").format(orig_words=orig_words, v0=int(orig_words * tol))
+            system = prompt("agents/story/apply_revision_ops").format(orig_words=orig_words, tolerance_words=int(orig_words * tol))
             user = json.dumps(
                 {
                     "section_id": section["id"],
@@ -2123,7 +2123,7 @@ class StoryPipeline:
         for i, s in weak[: q.max_section_rewrites]:
             orig = sections[i]
             orig_words = len(orig["text"].split())
-            system = prompt("agents/story/section_pass").format(orig_words=orig_words, v0=int(orig_words * tol))
+            system = prompt("agents/story/section_pass").format(orig_words=orig_words, tolerance_words=int(orig_words * tol))
             user = json.dumps(
                 {
                     "section_id": orig["id"],
@@ -2166,7 +2166,7 @@ class StoryPipeline:
         """Last-pass copyedit through the premium final_editor role.
         With marked=True the story carries [[ACT:id]] lines that must
         survive the edit."""
-        system = prompt("agents/story/final_edit").format(language=language, v0=_MARKER_INSTRUCTION if marked else "")
+        system = prompt("agents/story/final_edit").format(language=language, marker_instruction=_MARKER_INSTRUCTION if marked else "")
         user = json.dumps(
             {"language": language, "story": story}, ensure_ascii=False
         )

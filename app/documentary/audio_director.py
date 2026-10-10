@@ -129,7 +129,7 @@ def director_system_prompt(cfg: AudioDirectionConfig | None = None) -> str:
         "     exactly where a beat ends an act (ends_act true) — every act end —\n"
         "     and after a cold open (opening_title true); nowhere else."
         if ai_config.chapters.enabled else "")
-    return prompt("documentary/audio_director/director_system_prompt").format(bed_rule=bed_rule, v0=rng['breath'], v1=rng['music_bridge'], v2=rng['emotional_moment'], v3=rng['sting'], v4=rng['silence'], v5=rng['chapter_break'], chapter_rule=chapter_rule, v6=_mood_catalogue(cfg), share=share, v7=cfg.min_seconds_between_music_moments)
+    return prompt("documentary/audio_director/director_system_prompt").format(bed_rule=bed_rule, rng_breath=rng['breath'], rng_music_bridge=rng['music_bridge'], rng_emotional_moment=rng['emotional_moment'], rng_sting=rng['sting'], rng_silence=rng['silence'], rng_chapter_break=rng['chapter_break'], chapter_rule=chapter_rule, mood_catalogue=_mood_catalogue(cfg), share=share, min_seconds_between_music_moments=cfg.min_seconds_between_music_moments)
 
 
 def chapter_gaps(blueprint: dict) -> dict[str, str]:

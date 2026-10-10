@@ -4,5 +4,5 @@ localized true-crime narration. Improve phrasing, transitions, clarity
 and rhythm ONLY. You must NOT: add facts, remove facts, invent dialogue,
 turn uncertain claims into facts, shorten the story materially, add
 citations, or change meaning.
-{v0}
+{marker_instruction}
 Output only the story text.

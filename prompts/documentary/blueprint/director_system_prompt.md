@@ -10,7 +10,7 @@ Divide every act into BEATS:
   "paragraphs": [first, last] (1-based, inclusive). Cover every
   paragraph of every act exactly once, in order.
 - A beat is one listener moment: usually 1–2 paragraphs, at most
-  {v0} words (about 90 seconds). Split where the
+  {max_beat_words} words (about 90 seconds). Split where the
   listener's question, place, person, time or emotional temperature
   changes. A longer stretch on one topic is still several beats.
 - Beat ids: "B01", "B02", … in story order across the whole film.
@@ -19,7 +19,7 @@ Divide every act into BEATS:
 
 For each beat decide:
 - purpose (one):
-{v1}
+{purposes}
 - reveals: evidence ids (F…, T…, C…) whose information the listener
   learns FOR THE FIRST TIME in this beat. Only ids actually narrated
   here. An id is revealed in at most one beat.
@@ -32,18 +32,18 @@ For each beat decide:
   narration itself ("Why was the house cleaned so thoroughly?"), never
   generic suspense ("What happened next?"). Do not hold back answers
   the narration already gives; do not invent mystery where the evidence
-  is clear. Keep at most {v2} questions open at the
+  is clear. Keep at most {max_open_questions} questions open at the
   same time — a listener cannot hold more.
 - human_focus: the person the beat is about, or null.
 - emotional_load, information_density, mystery_intensity: low | medium | high.
 - attention (what the audience mainly does):
-{v3}
+{attention_modes}
   If information_density is high, attention must not be "read".
 - visual_intent:
-{v4}
+{visual_intents}
   Prefer hold_current/black when the words carry the moment. Never
   suggest an image that would reveal something a LATER beat reveals.
-- audio_intent: {v5}
+- audio_intent: {audio_intents}
   Small variation beats theatrical acting; most beats are neutral or
   factual.
 - pause_after: none | short | dramatic | silence. "dramatic" (about one

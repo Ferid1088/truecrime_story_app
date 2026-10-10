@@ -360,7 +360,7 @@ Output only the story text.
         for i, s in enumerate(master_sections):
             share = len(s["text"].split()) / master_words
             target = max(1, int(target_total * share))
-            system = prompt("agents/localization/write_per_section").format(v0=self._writer_rules(language), target=target)
+            system = prompt("agents/localization/write_per_section").format(writer_rules=self._writer_rules(language), target=target)
             nxt = master_sections[i + 1]["text"] if i + 1 < len(master_sections) else ""
             user = json.dumps(
                 {
@@ -486,7 +486,7 @@ Output only the story text.
         language: str,
         marked: bool = False,
     ) -> tuple[str, object]:
-        system = prompt("agents/localization/repair").format(language=language, v0=_MARKER_INSTRUCTION if marked else "")
+        system = prompt("agents/localization/repair").format(language=language, marker_instruction=_MARKER_INSTRUCTION if marked else "")
         user = json.dumps(
             {
                 "current_text": text,
@@ -508,7 +508,7 @@ Output only the story text.
         self, db: Session, case: Case, text: str, language: str,
         marked: bool = False,
     ) -> tuple[str | None, object]:
-        system = prompt("agents/localization/final_edit").format(language=language, v0=_MARKER_INSTRUCTION if marked else "")
+        system = prompt("agents/localization/final_edit").format(language=language, marker_instruction=_MARKER_INSTRUCTION if marked else "")
         with track_run(
             db, case.id, "Localized Final Editor",
             input_summary=f"lang={language}",

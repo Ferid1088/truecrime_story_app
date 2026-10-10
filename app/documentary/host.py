@@ -209,7 +209,7 @@ def _evidence_items(pack: dict) -> list[dict]:
 def director_system_prompt(cfg: HostConfig | None = None) -> str:
     cfg = cfg or ai_config.host
     sec = {k: f"{v[0]:g}–{v[1]:g} s" for k, v in cfg.seconds.items()}
-    return prompt("documentary/host/director_system_prompt").format(v0=persona_prompt(cfg), v1=sec['opening'], v2=sec['mid'], v3=cfg.max_mid_segments, v4=cfg.min_beats_between, v5=sec['final'], v6=int(cfg.max_total_seconds), v7=" | ".join(CLAIM_KINDS), v8=" | ".join(MEMORY_KINDS), v9=" | ".join(DIMENSIONS))
+    return prompt("documentary/host/director_system_prompt").format(persona_prompt=persona_prompt(cfg), sec_opening=sec['opening'], sec_mid=sec['mid'], max_mid_segments=cfg.max_mid_segments, min_beats_between=cfg.min_beats_between, sec_final=sec['final'], max_total_seconds=int(cfg.max_total_seconds), claim_kinds=" | ".join(CLAIM_KINDS), memory_kinds=" | ".join(MEMORY_KINDS), personality_dimensions=" | ".join(DIMENSIONS))
 
 
 def director_input(case: Case, blueprint: dict, texts: dict[str, str], pack: dict,
@@ -407,8 +407,8 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     ranges = ", ".join(f"{p} {lo}–{hi} words"
                        for p in POSITIONS for lo, hi in [word_range(p, language, cfg)])
     channel = ai_config.channels.get(language)
-    brand = (prompt("documentary/host/writer_system_prompt_2").format(v0=channel.name, name=name)) if channel else ""
-    return prompt("documentary/host/writer_system_prompt").format(v0=persona_prompt(cfg), name=name, brand=brand, ranges=ranges)
+    brand = (prompt("documentary/host/writer_system_prompt_2").format(name_2=channel.name, name=name)) if channel else ""
+    return prompt("documentary/host/writer_system_prompt").format(persona_prompt=persona_prompt(cfg), name=name, brand=brand, ranges=ranges)
 
 
 def writer_input(plan: dict, texts: dict[str, str], beat_ids: list[str], language: str,

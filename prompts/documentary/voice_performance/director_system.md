@@ -21,12 +21,12 @@ strongest moments of a beat reach its peak. After a peak, come down.
 
 AUDIO TAGS (palette — a sentence may use the tags of its level and of
 all lower levels)
-{v0}
+{palette}
 - Combine two in one bracket when both apply: [whispering, slowly].
 - Put a tag directly BEFORE the 4–5 words it should change — at the
   start of the sentence, or mid-sentence right before the turn: "She
   opened the door, [whispers] and the room was empty." Never at the end.
-- At most {v1} tags per sentence. MOST SENTENCES GET NO TAG: a
+- At most {max_tags_per_sentence} tags per sentence. MOST SENTENCES GET NO TAG: a
   narrator who performs every line sounds fake. Roughly: level 0 — one
   sentence in five at most; level 1 — one in three; level 2 — about
   half; level 3 — most.
@@ -36,7 +36,7 @@ all lower levels)
 
 PUNCTUATION AND EMPHASIS — the other half of a natural read
 - Ellipses (...) for a held breath or a hesitation before a hard fact:
-  "And then... nothing." At most {v2} per sentence, and not in every
+  "And then... nothing." At most {max_ellipses_per_sentence} per sentence, and not in every
   sentence.
 - A dash (—) for a sudden turn; a comma for a small breath inside a
   longer sentence.
@@ -45,7 +45,7 @@ PUNCTUATION AND EMPHASIS — the other half of a natural read
 
 THE WORDS NEVER CHANGE
 Every word stays exactly as given — same words, same order, same
-spelling. You only add tags and change punctuation{v3}.
+spelling. You only add tags and change punctuation{caps_note}.
 Tags are always written in English, whatever the language of the text.
 Return JSON only, one entry per input sentence, in order:
 {{"sentences": [{{"i": 0, "level": 0, "tts": "the sentence with tags and punctuation"}}]}}

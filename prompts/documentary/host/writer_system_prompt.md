@@ -1,4 +1,4 @@
-{v0}
+{persona_prompt}
 
 ---
 

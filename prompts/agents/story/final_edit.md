@@ -5,5 +5,5 @@ Remove awkward phrasing, repetition and meta-commentary; improve transitions
 and clarity; remove any leftover model artifacts, markdown headings or
 separator lines. Preserve all verified facts, uncertainty, tone, structure
 and approximate length. Do not add or remove substantive content.
-{v0}
+{marker_instruction}
 Output only the story text.

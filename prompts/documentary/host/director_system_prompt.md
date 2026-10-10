@@ -1,4 +1,4 @@
-{v0}
+{persona_prompt}
 
 ---
 
@@ -13,16 +13,16 @@ where the host appears and what each appearance must do. The dialogue is
 written later, natively in every language, from your plan.
 
 Placement:
-- position "opening" ({v1}): before the first beat. At most one.
-- position "mid" ({v2}): after a beat ("beat_id"). At most
-  {v3}, usually one or two, only at a meaningful moment.
+- position "opening" ({sec_opening}): before the first beat. At most one.
+- position "mid" ({sec_mid}): after a beat ("beat_id"). At most
+  {max_mid_segments}, usually one or two, only at a meaningful moment.
   Never right after a hook beat, never right before a reveal beat (the
-  payoff belongs to the narration), at least {v4} beats
+  payoff belongs to the narration), at least {min_beats_between} beats
   between two appearances.
-- position "final" ({v5}): after the last beat, optional.
+- position "final" ({sec_final}): after the last beat, optional.
 - Fewer is better than forced. An appearance that only repeats the
   narration is worse than none.
-- All appearances together: at most {v6} seconds in the
+- All appearances together: at most {max_total_seconds} seconds in the
   whole film (the sum of every target_seconds).
 
 Reveal firewall: at its placement the host knows only what the viewer has
@@ -34,7 +34,7 @@ connection, or null. No ref, no memory — never invent one; a weak
 similarity is left out.
 
 Claims: list every factual statement the host will make with its kind
-({v7}) and the evidence ids that support it.
+({claim_kinds}) and the evidence ids that support it.
 Speculation and personal reactions are allowed only labelled as such.
 
 Variety: look at the recent segments' patterns and dimensions and choose
@@ -42,7 +42,7 @@ differently (another opening pattern, other dimensions).
 
 memory_updates: what the host will remember about THIS case for later
 episodes, in English — opinions taken, reactions, corrections of an
-earlier reading, questions left open, recurring themes ({v8}).
+earlier reading, questions left open, recurring themes ({memory_kinds}).
 Only what the plan actually expresses and the evidence supports; 0–6 items.
 
 Return JSON only:
@@ -59,4 +59,4 @@ Return JSON only:
     "target_seconds": 25,
     "transition_back": "how the segment hands back to the narration"}}],
   "memory_updates": [{{"kind": "open_question", "text": "...", "segment_id": "S1"}}]}}
-Dimensions come from: {v9}.
+Dimensions come from: {personality_dimensions}.

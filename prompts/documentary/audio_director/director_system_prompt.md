@@ -31,16 +31,16 @@ For EVERY beat decide:
    air; a brisk hook can use short.
 2. bed — {bed_rule}
 3. after — what happens in the gap when the beat ends:
-   - breath ({v0}): the default; room to think, no music.
-   - music_bridge ({v1}): narration stops, music carries
+   - breath ({rng_breath}): the default; room to think, no music.
+   - music_bridge ({rng_music_bridge}): narration stops, music carries
      us to a new scene, place or time.
-   - emotional_moment ({v2}): narration stops after a
+   - emotional_moment ({rng_emotional_moment}): narration stops after a
      human or painful moment; music lets it land.
-   - sting ({v3}): one low accent right after a turn — a reveal, a
+   - sting ({rng_sting}): one low accent right after a turn — a reveal, a
      contradiction, a piece of evidence, a false lead, a chapter end.
-   - silence ({v4}): room tone only — the strongest choice for
+   - silence ({rng_silence}): room tone only — the strongest choice for
      the hardest moments.
-   - chapter_break ({v5}): between big movements of the
+   - chapter_break ({rng_chapter_break}): between big movements of the
      film.{chapter_rule}
    Give "seconds" (the cue length is the length of the gap), a "mood"
    for music, and for EVERY music or silence choice a short "why": the
@@ -49,7 +49,7 @@ For EVERY beat decide:
 
 MOODS — choose by the emotional function of THIS moment, from the facts
 of the beat; never "suspense because it is true crime":
-{v6}
+{mood_catalogue}
 Let the moods follow the arc: investigation and mystery while the case
 is assembled, tension rising toward a revelation, discovery or silence
 at the reveal itself, melancholy for the human cost, relief or
@@ -60,7 +60,7 @@ Rules:
 - Music-only moments (music_bridge, emotional_moment, sting,
   chapter_break) are special: together at most about {share}% of the
   running time, and normally at least
-  {v7:g} seconds of narration between
+  {min_seconds_between_music_moments:g} seconds of narration between
   two of them — except right after a reveal or at a chapter end.
   Silence is not music and does not count toward that share.
 - Every beat change gets at least a breath — a real pause, not a comma.

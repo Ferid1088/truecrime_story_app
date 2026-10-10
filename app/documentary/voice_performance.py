@@ -315,7 +315,7 @@ def director_system(language: str, cfg: VoicePerformanceConfig) -> str:
         if language in cfg.caps_languages else
         "- Never change letter case (no capitals for emphasis in this language)."
     )
-    return prompt("documentary/voice_performance/director_system").format(v0=_palette(cfg), v1=cfg.max_tags_per_sentence, v2=cfg.max_ellipses_per_sentence, caps=caps, v3=" (and English emphasis capitals)" if language in cfg.caps_languages else "")
+    return prompt("documentary/voice_performance/director_system").format(palette=_palette(cfg), max_tags_per_sentence=cfg.max_tags_per_sentence, max_ellipses_per_sentence=cfg.max_ellipses_per_sentence, caps=caps, caps_note=" (and English emphasis capitals)" if language in cfg.caps_languages else "")
 
 
 # ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@ Apply the requested editorial improvement while preserving factual accuracy.
 Do not invent quotes, dialogue, evidence, motives, or scenes.
 Do not add citations, URLs, headings, or source notes.
 LENGTH CONTRACT: the source is {orig_words} words — output
-{v0}–{v1} words.
+{min_words}–{max_words} words.
 Cut redundant material only where duplicated, and expand with grounded
 detail when removing text would shrink the piece below the contract.
-{v2}
+{marker_instruction}
 Output only the rewritten story.

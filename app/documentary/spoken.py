@@ -216,7 +216,7 @@ def writer_system_prompt(language: str, source_language: str = "en") -> str:
     style = STYLE_GUIDES.get(language, STYLE_GUIDES["en"])
     connectors = CONNECTORS.get(language, CONNECTORS["en"])
 
-    return prompt("documentary/spoken/writer_system_prompt").format(name=name, source_note=source_note, limit=limit, connectors=connectors, style=style, v0=_examples_block(language), _MARKER_INSTRUCTION=_MARKER_INSTRUCTION)
+    return prompt("documentary/spoken/writer_system_prompt").format(name=name, source_note=source_note, limit=limit, connectors=connectors, style=style, examples_block=_examples_block(language), _MARKER_INSTRUCTION=_MARKER_INSTRUCTION)
 
 
 MEANING_SYSTEM = prompt("documentary/spoken/meaning_system")

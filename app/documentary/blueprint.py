@@ -137,7 +137,7 @@ def _enum_doc(name: str, items) -> str:
 
 def director_system_prompt(cfg: BlueprintConfig | None = None) -> str:
     cfg = cfg or ai_config.blueprint
-    return prompt("documentary/blueprint/director_system_prompt").format(v0=cfg.max_beat_words, v1=_enum_doc("", PURPOSES), v2=cfg.max_open_questions, v3=_enum_doc("", ATTENTION), v4=_enum_doc("", VISUAL_INTENTS), v5=" | ".join(_audio_intents()))
+    return prompt("documentary/blueprint/director_system_prompt").format(max_beat_words=cfg.max_beat_words, purposes=_enum_doc("", PURPOSES), max_open_questions=cfg.max_open_questions, attention_modes=_enum_doc("", ATTENTION), visual_intents=_enum_doc("", VISUAL_INTENTS), audio_intents=" | ".join(_audio_intents()))
 
 
 async def _call_director(gen, system: str, payload: dict):

@@ -33,7 +33,7 @@ STYLE
 {style}
 
 EXAMPLES (style only — never reuse their content)
-{v0}
+{examples_block}
 FACTS (non-negotiable)
 - Keep every fact, name, date, number, place and the meaning of every
   quotation. Never add facts, scenes, sounds, smells, weather, thoughts,
