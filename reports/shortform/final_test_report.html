@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Short-Form Engine Test Report</title>
+<style>body{font:16px system-ui;max-width:760px;margin:40px auto;line-height:1.5}code{background:#eee;padding:2px 4px}li{margin:8px 0}</style>
+<h1>Short-Form Engine Test Report</h1>
+<p><strong>Status: B</strong> Works, with provider and subtitle-render gaps remaining.</p>
+<ul>
+<li>Backend cumulative verification: 52 passed three times; long-form visual regression: 101 passed.</li>
+<li>Playwright: 27 passed twice.</li>
+<li>Frontend lint and production build: passed; one pre-existing unused-variable warning remains.</li>
+<li>Pilot artifact: 1080x1920, 8 seconds, MP4 + cover + timed SRT + manifest.</li>
+</ul>
+<h2>Remaining gaps</h2>
+<ul>
+<li>Install/use libass for burned timed subtitles in the final video.</li>
+<li>Run real ElevenLabs voice generation and social-provider integrations.</li>
+<li>Finish persistent phase 7-13 tabs and provider-backed voice/social runs.</li>
+</ul>
+</html>

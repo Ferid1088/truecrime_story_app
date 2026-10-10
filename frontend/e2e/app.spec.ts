@@ -109,6 +109,43 @@ test.describe("Discover", () => {
   });
 });
 
+test.describe("Short-Form settings", () => {
+  test("defaults, edit, invalid input, reset, persistence, RTL option", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/short-form");
+    await expect(page.getByRole("heading", { name: "Short-Form" })).toBeVisible();
+    const youtubeCount = page.getByRole("spinbutton", { name: "YouTube Short count" });
+    await expect(youtubeCount).toHaveValue("5");
+    await expect(page.getByText("14 candidates")).toBeVisible();
+
+    await page.getByRole("button", { name: "Increase YouTube Short count" }).click();
+    await expect(page.getByText("Unsaved changes")).toBeVisible();
+    await expect(page.getByText(/capacity ~8/i)).toBeVisible();
+
+    await youtubeCount.fill("21");
+    await expect(page.getByText(/count must be 0–20/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /save/i })).toBeDisabled();
+
+    await page.getByRole("button", { name: "Reset YouTube Short" }).click();
+    await expect(youtubeCount).toHaveValue("5");
+
+    await page.getByLabel("Language").selectOption("all");
+    await page.getByRole("button", { name: "Increase Instagram Reel count" }).click();
+    await page.getByRole("button", { name: /save/i }).click();
+    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("episode_override")).not.toBeVisible();
+  });
+
+  test("pilot review supports editing and approval", async ({ page }) => {
+    await page.goto("/short-form/review");
+    await expect(page.getByRole("heading", { name: "Review EN YouTube Short" })).toBeVisible();
+    await page.getByLabel("Caption").fill("Updated pilot caption");
+    await page.getByLabel("CTA").fill("Open the full story.");
+    await page.getByRole("button", { name: /approve/i }).click();
+    await expect(page.getByText("Approved")).toBeVisible();
+  });
+});
+
 test.describe("Cases", () => {
   test("list renders and case opens", async ({ page }) => {
     await mockApi(page);

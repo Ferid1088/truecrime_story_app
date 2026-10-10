@@ -207,6 +207,9 @@ export interface AddSourcePayload {
 
 export const api = {
   dashboard: () => request<DashboardResponse>("/api/dashboard"),
+  shortFormSettings: () => request<unknown>("/api/short-form/settings"),
+  updateShortFormSettings: (payload: unknown) =>
+    patch<unknown>("/api/short-form/settings", payload),
 
   discover: (payload: DiscoveryRequest) =>
     post<JobStartResponse>("/api/topics/discover", payload),

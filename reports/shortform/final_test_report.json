@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-10-10",
+  "status": "B",
+  "backend": {"cumulative_runs": [52, 52, 52], "long_form_regression": "101 passed", "warnings": 1},
+  "frontend": {"playwright_runs": [27, 27], "lint": "pass_with_existing_warning", "build": "pass"},
+  "artifact": {"video": "1080x1920", "duration_seconds": 8, "package": ["short.mp4", "cover.png", "subtitles.srt", "manifest.json"]},
+  "phase_logs": ["phase_0_loop_log.md", "phase_1_loop_log.md", "phase_2_loop_log.md", "phase_3_loop_log.md", "phase_3A_loop_log.md", "phase_4_loop_log.md", "phase_5_14_loop_log.md"],
+  "gaps": [
+    "The installed FFmpeg lacks libass, so timed subtitles ship as SRT and static subtitle proof is burned into the cover preview.",
+    "Voice generation and social APIs remain provider-backed; ExportPackagePublisher is the verified offline implementation.",
+    "Persistent approved/variant/plan/metric UI tabs are not complete; provider-backed voice and social API runs remain external."
+  ]
+}

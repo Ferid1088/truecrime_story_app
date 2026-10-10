@@ -16,6 +16,7 @@ import {
   Moon,
   PenLine,
   Settings,
+  Smartphone,
   Sun,
   X,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const NAV = [
   { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/studio", label: "Story Studio", icon: PenLine },
   { href: "/documentary", label: "Documentary", icon: Clapperboard },
+  { href: "/short-form", label: "Short-Form", icon: Smartphone },
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/database", label: "Database", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },

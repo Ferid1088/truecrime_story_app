@@ -776,6 +776,128 @@ class VisualAudit(Base):
     reasons_json: Mapped[str] = mapped_column(Text, default="[]")
     detail_json: Mapped[str] = mapped_column(Text, default="{}")
     model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class ShortFormConcept(Base):
+    """A candidate short-form concept derived from real documentary beats.
+
+    Gate outputs are stored here as data, not as prose hidden in a prompt:
+    hard gates must be deterministic and reviewable before any platform
+    variant or render can move forward.
+    """
+
+    __tablename__ = "short_form_concepts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    episode_identity_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    concept_type: Mapped[str] = mapped_column(String(60), index=True)
+    source_beat_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    asset_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    allowed_reveals_json: Mapped[str] = mapped_column(Text, default="[]")
+    forbidden_reveals_json: Mapped[str] = mapped_column(Text, default="[]")
+    claims_json: Mapped[str] = mapped_column(Text, default="[]")
+    gate_results_json: Mapped[str] = mapped_column(Text, default="{}")
+    soft_scores_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class ShortFormScript(Base):
+    __tablename__ = "short_form_scripts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("short_form_concepts.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    hook: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    cta: Mapped[str] = mapped_column(Text)
+    target_duration: Mapped[float] = mapped_column(Float)
+    visual_requirements_json: Mapped[str] = mapped_column(Text, default="[]")
+    original_audio_opportunity_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class PlatformVariant(Base):
+    __tablename__ = "platform_variants"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("short_form_concepts.id"), index=True)
+    script_id: Mapped[int | None] = mapped_column(ForeignKey("short_form_scripts.id"), nullable=True, index=True)
+    platform: Mapped[str] = mapped_column(String(40), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    hook: Mapped[str] = mapped_column(Text)
+    caption: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    cta: Mapped[str] = mapped_column(Text, default="")
+    end_card: Mapped[str] = mapped_column(Text, default="")
+    subtitle_layout_json: Mapped[str] = mapped_column(Text, default="{}")
+    cover_frame_json: Mapped[str] = mapped_column(Text, default="{}")
+    duration: Mapped[float | None] = mapped_column(Float, nullable=True)
+    destination_json: Mapped[str] = mapped_column(Text, default="{}")
+    disclosure_flags_json: Mapped[str] = mapped_column(Text, default="{}")
+    rights_flags_json: Mapped[str] = mapped_column(Text, default="{}")
+    policy_flags_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class CrossPlatformFunnel(Base):
+    __tablename__ = "cross_platform_funnels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    platform: Mapped[str] = mapped_column(String(40), index=True)
+    source_episode_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    destination_type: Mapped[str] = mapped_column(String(40))
+    destination_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    campaign_id: Mapped[str] = mapped_column(String(120), index=True)
+    utm_source: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    utm_campaign: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    attribution_status: Mapped[str] = mapped_column(String(40), default="unavailable", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class ShortFormPublishingPlan(Base):
+    __tablename__ = "short_form_publishing_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    source_episode_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    settings_json: Mapped[str] = mapped_column(Text, default="{}")
+    plan_json: Mapped[str] = mapped_column(Text, default="[]")
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class ShortFormMetric(Base):
+    __tablename__ = "short_form_metrics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    variant_id: Mapped[int | None] = mapped_column(ForeignKey("platform_variants.id"), nullable=True, index=True)
+    platform: Mapped[str] = mapped_column(String(40), index=True)
+    metric_date: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    views: Mapped[int] = mapped_column(Integer, default=0)
+    unique_viewers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    average_watch_time: Mapped[float | None] = mapped_column(Float, nullable=True)
+    completion_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rewatches: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    likes: Mapped[int] = mapped_column(Integer, default=0)
+    comments: Mapped[int] = mapped_column(Integer, default=0)
+    shares: Mapped[int] = mapped_column(Integer, default=0)
+    saves: Mapped[int] = mapped_column(Integer, default=0)
+    profile_visits: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    link_clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    youtube_clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    new_subscribers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    destination_clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    youtube_episode_visits: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    estimated_conversion_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    attribution_status: Mapped[str] = mapped_column(String(40), default="unavailable", index=True)
+    raw_json: Mapped[str] = mapped_column(Text, default="{}")
+    detail_json: Mapped[str] = mapped_column(Text, default="{}")
+    model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 

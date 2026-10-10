@@ -356,6 +356,18 @@ export const fixtures = {
     agent_runs: { count: 2, items: [] },
     discovery_history: { count: 0, items: [] },
   },
+  shortFormSettings: {
+    candidate_multiplier: 1.75,
+    publish_target: 8,
+    hard_max_seconds: 60,
+    candidate_count: 14,
+    distribution: {
+      youtube_short: { enabled: true, count: 5, min_seconds: 20, target_seconds: 35, max_seconds: 60 },
+      instagram_reel: { enabled: true, count: 6, min_seconds: 20, target_seconds: 30, max_seconds: 45 },
+      facebook_reel: { enabled: true, count: 5, min_seconds: 25, target_seconds: 35, max_seconds: 60 },
+      tiktok_video: { enabled: true, count: 8, min_seconds: 15, target_seconds: 28, max_seconds: 45 },
+    },
+  },
   discoveryHistory: [] as unknown[],
   timeline: [
     {
@@ -527,6 +539,17 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/topics/discover" && method === "POST")
       return json(route, { job_id: 77, status: "queued" });
     if (path === "/api/settings/status") return json(route, fixtures.settings);
+    if (path === "/api/short-form/settings" && method === "GET")
+      return json(route, fixtures.shortFormSettings);
+    if (path === "/api/short-form/settings" && method === "PATCH") {
+      const body = JSON.parse(route.request().postData() || "{}");
+      return json(route, {
+        ...fixtures.shortFormSettings,
+        distribution: body.distribution,
+        language_mode: body.language_mode,
+        level: "episode_override",
+      });
+    }
     if (path === "/api/integrations/research/status") return json(route, fixtures.researchStatus);
     if (path === "/api/integrations/openrouter/status") return json(route, fixtures.openrouterStatus);
     if (path === "/api/db/overview") return json(route, fixtures.dbOverview);

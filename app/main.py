@@ -12,12 +12,8 @@ init_schema()
 
 
 @asynccontextmanager
-
 async def _lifespan(_app):
-    """At startup, work left "running" by the previous process is marked
-    interrupted (resumable, nothing deleted). The unsolved-case monitor
-    runs about twice a week in this process (TRUECRIME_DISABLE_SCHEDULER=1
-    keeps it off)."""
+    """Recover interrupted work on startup and run the lifecycle scheduler."""
     from app.documentary.recovery import recover_after_restart
     from app.lifecycle import scheduler
 
@@ -36,11 +32,12 @@ async def _lifespan(_app):
     finally:
         scheduler.stop()
 
+
 app = FastAPI(
     lifespan=_lifespan,
     title="TrueCrime Story Studio",
     version="1.0.0",
-    description="Research → Facts → Contradictions → Story Direction → Writing → Critique",
+    description="Research -> Facts -> Contradictions -> Story Direction -> Writing -> Critique",
 )
 
 from app.api import cases, discovery, masters, research, stories, system  # noqa: E402
@@ -48,12 +45,24 @@ from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
 from app.naming.api import router as naming_router  # noqa: E402
+from app.shortform.api import router as shortform_router  # noqa: E402
 from app.thumbnails.api import router as thumbnail_router  # noqa: E402
 
-# the stage routers first (same precedence as before the split), then the case-level API
-for _router in (documentary_router, lifecycle_router, naming_router, thumbnail_router, studio_router,
-                system.router, discovery.router, cases.router, research.router, stories.router,
-                masters.router):
+# The stage routers first (same precedence as before the split), then the case-level API.
+for _router in (
+    documentary_router,
+    lifecycle_router,
+    naming_router,
+    thumbnail_router,
+    studio_router,
+    shortform_router,
+    system.router,
+    discovery.router,
+    cases.router,
+    research.router,
+    stories.router,
+    masters.router,
+):
     app.include_router(_router)
 
 app.add_middleware(

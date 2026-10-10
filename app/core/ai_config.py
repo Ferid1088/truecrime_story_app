@@ -1916,6 +1916,84 @@ class AgentDef(BaseModel):
     used_by: str = ""
 
 
+class ShortFormPlatformConfig(BaseModel):
+    enabled: bool = True
+    count: int = Field(ge=0, le=20)
+    min_seconds: int = Field(ge=1, le=60)
+    target_seconds: int = Field(ge=1, le=60)
+    max_seconds: int = Field(ge=1, le=60)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if not (self.min_seconds <= self.target_seconds <= self.max_seconds):
+            raise ValueError(
+                "short_form platform length requires "
+                "min_seconds <= target_seconds <= max_seconds"
+            )
+        return self
+
+
+class ShortFormDynamicCountConfig(BaseModel):
+    weak: tuple[int, int] = (4, 5)
+    normal: tuple[int, int] = (6, 8)
+    strong: tuple[int, int] = (9, 12)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        for label, bounds in self.model_dump().items():
+            lo, hi = bounds
+            if lo < 0 or hi < lo:
+                raise ValueError(f"short_form.dynamic_count.{label} is invalid")
+        return self
+
+
+class ShortFormConfig(BaseModel):
+    candidate_multiplier: float = Field(default=1.75, gt=0.0, le=10.0)
+    publish_target: int = Field(default=8, ge=0, le=20)
+    distribution: dict[str, ShortFormPlatformConfig] = Field(default_factory=lambda: {
+        "youtube_short": ShortFormPlatformConfig(
+            enabled=True, count=5, min_seconds=20, target_seconds=35, max_seconds=60
+        ),
+        "instagram_reel": ShortFormPlatformConfig(
+            enabled=True, count=6, min_seconds=20, target_seconds=30, max_seconds=45
+        ),
+        "facebook_reel": ShortFormPlatformConfig(
+            enabled=True, count=5, min_seconds=25, target_seconds=35, max_seconds=60
+        ),
+        "tiktok_video": ShortFormPlatformConfig(
+            enabled=True, count=8, min_seconds=15, target_seconds=28, max_seconds=45
+        ),
+    })
+    hard_max_seconds: int = Field(default=60, ge=1, le=60)
+    dynamic_count: ShortFormDynamicCountConfig = Field(
+        default_factory=ShortFormDynamicCountConfig
+    )
+    release_window_days: tuple[int, int] = (10, 14)
+    learning_min_published_shorts: int = Field(default=30, ge=1)
+    learning_min_episodes: int = Field(default=5, ge=1)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        enabled = [p for p in self.distribution.values() if p.enabled]
+        if not enabled:
+            raise ValueError("short_form requires at least one enabled platform")
+        for name, platform in self.distribution.items():
+            if platform.max_seconds > self.hard_max_seconds:
+                raise ValueError(
+                    f"short_form.distribution.{name}.max_seconds exceeds hard_max_seconds"
+                )
+        lo, hi = self.release_window_days
+        if lo <= 0 or hi < lo:
+            raise ValueError("short_form.release_window_days must be positive ascending bounds")
+        return self
+
+    def candidate_count(self) -> int:
+        max_count = max(
+            p.count for p in self.distribution.values() if p.enabled
+        )
+        return round(max_count * self.candidate_multiplier)
+
+
 class AIConfig(BaseModel):
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
@@ -1984,6 +2062,7 @@ class AIConfig(BaseModel):
     voice_performance: VoicePerformanceConfig = Field(default_factory=VoicePerformanceConfig)
     pronunciation: PronunciationConfig = Field(default_factory=PronunciationConfig)
     concurrency: ConcurrencyConfig = Field(default_factory=ConcurrencyConfig)
+    short_form: ShortFormConfig = Field(default_factory=ShortFormConfig)
     documentary_critics: DocumentaryCriticsConfig = Field(
         default_factory=DocumentaryCriticsConfig)
     case_selection: CaseSelectionConfig = Field(default_factory=CaseSelectionConfig)

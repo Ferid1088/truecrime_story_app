@@ -141,5 +141,60 @@
     ],
     "max_black_seconds": 6.0,
     "repeat_overlay_seconds": 150.0
+  },
+  "short_form": {
+    "candidate_multiplier": 1.75,
+    "publish_target": 8,
+    "distribution": {
+      "youtube_short": {
+        "enabled": true,
+        "count": 5,
+        "min_seconds": 20,
+        "target_seconds": 35,
+        "max_seconds": 60
+      },
+      "instagram_reel": {
+        "enabled": true,
+        "count": 6,
+        "min_seconds": 20,
+        "target_seconds": 30,
+        "max_seconds": 45
+      },
+      "facebook_reel": {
+        "enabled": true,
+        "count": 5,
+        "min_seconds": 25,
+        "target_seconds": 35,
+        "max_seconds": 60
+      },
+      "tiktok_video": {
+        "enabled": true,
+        "count": 8,
+        "min_seconds": 15,
+        "target_seconds": 28,
+        "max_seconds": 45
+      }
+    },
+    "hard_max_seconds": 60,
+    "dynamic_count": {
+      "weak": [
+        4,
+        5
+      ],
+      "normal": [
+        6,
+        8
+      ],
+      "strong": [
+        9,
+        12
+      ]
+    },
+    "release_window_days": [
+      10,
+      14
+    ],
+    "learning_min_published_shorts": 30,
+    "learning_min_episodes": 5
   }
 }
