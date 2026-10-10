@@ -509,6 +509,7 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path / "audio"))
     monkeypatch.setattr(ai_config.music_library, "dir", str(tmp_path / "lib"))
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(ai_config.avatar, "enabled", True)  # the host stages only run then
     monkeypatch.setattr(ai_config.render, "width", 320)
     monkeypatch.setattr(ai_config.render, "height", 180)
     gen = PipelineGen()
@@ -563,6 +564,8 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
     from app.documentary import jobs as J
 
     case, master = _story(db_session)
+    case.resolution_status = "UNSOLVED"  # no public title without a solved/unsolved status
+    db_session.commit()
     job = J.create_job(db_session, case, master, ["en", "de"], "pilot", 80.0, "preview")
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
@@ -607,6 +610,7 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
         assert video.production_script_id == ps.id and video.language == lang
         assert video.status_at_production == case.resolution_status
         assert video.youtube_title and r["youtube_title"] == video.youtube_title
+        assert ("(Unsolved)" in video.youtube_title) if lang == "en" else video.youtube_title
     ch = stages["chapters"]["detail"]
     assert ch["status"] == "approved" and ch["chapters"] >= 1 and ch["left_out"] == []
     assert "film_title" in documentary_env.cards_audited
