@@ -1,0 +1,53 @@
+{
+  "act_ids": [
+    "a1",
+    "a2",
+    "a3"
+  ],
+  "act_words_positive": true,
+  "call_sequence": [
+    "json:story_director",
+    "text:writer",
+    "text:writer",
+    "text:writer",
+    "json:section_critic",
+    "json:section_critic",
+    "json:section_critic",
+    "json:consistency_checker",
+    "json:engagement_critic",
+    "text:final_editor",
+    "json:engagement_critic"
+  ],
+  "calls": {
+    "json:consistency_checker": 1,
+    "json:engagement_critic": 2,
+    "json:section_critic": 3,
+    "json:story_director": 1,
+    "text:final_editor": 1,
+    "text:writer": 3
+  },
+  "story_has_text": true,
+  "structure_keys": [
+    "acts",
+    "budget_exhausted",
+    "case_status",
+    "central_question",
+    "evidence_coverage",
+    "evidence_fingerprint",
+    "evidence_usage",
+    "follow_up",
+    "opening_reason",
+    "opening_strategy",
+    "sections",
+    "structure_lost_at",
+    "structured",
+    "title"
+  ],
+  "unused_evidence_ids": [
+    "F003"
+  ],
+  "used_evidence_ids": [
+    "F001",
+    "F002"
+  ]
+}

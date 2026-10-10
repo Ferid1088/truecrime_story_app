@@ -1,0 +1,63 @@
+name: CI
+
+# The same checks as scripts/gate.sh, run on every push to main and every pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: System packages (ffmpeg for the audio and video tests)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Python dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install "Pillow>=10.3" "opencv-python-headless>=4.9" "faster-whisper>=1.1,<2" "whisper-normalizer>=0.1.12"
+      - name: Secret scan (tracked files)
+        run: python scripts/secret_scan.py
+      - name: Python tests
+        run: python -m pytest -q -p no:cacheprovider
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npx eslint .
+      - run: npx next build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/app.spec.ts --reporter=list
+      - name: Keep Playwright traces from a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: frontend/test-results
+          retention-days: 7
