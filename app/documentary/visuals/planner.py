@@ -26,11 +26,9 @@ Visual Director, the gap check and the repetition control all ask it
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
 
 from app.core.prompts import prompt
 
-import json
 import re
 import unicodedata
 from collections import Counter
@@ -40,10 +38,8 @@ from sqlalchemy.orm import Session
 from app.agents.story import build_evidence_pack
 from app.core.ai_config import ai_config
 from app.db.models import (
-    Case, Contradiction, EditorialBlueprint, Fact, Source, VisualPlan,
+    Case, Contradiction, Fact, Source,
 )
-from app.providers.generation import get_generation_provider
-from app.services.tracking import stamp_run, track_run
 
 ENTITY_TYPES = {"person", "place", "building", "vehicle", "object", "document",
                 "organization", "event"}
@@ -331,29 +327,10 @@ def _evidence(db: Session, case_id: int):
     return build_evidence_pack(facts, contras, sources), sources
 
 
-class VisualPlanner:
-    def __init__(self):
-        self.gen = get_generation_provider()
+def __getattr__(name: str):
+    # the agent class lives in app/agents/visual_planner.py (imported when first asked for)
+    if name == "VisualPlanner":
+        from app.agents.visual_planner import VisualPlanner
 
-    async def create(self, db: Session, case: Case,
-                     blueprint_row: EditorialBlueprint) -> VisualPlan:
-        blueprint = json.loads(blueprint_row.blueprint_json or "{}")
-        pack, sources = _evidence(db, case.id)
-        payload = _planner_input(case, blueprint, pack, sources)
-        with track_run(db, case.id, "Visual Planner",
-                       input_summary=f"blueprint={blueprint_row.id}") as run:
-            raw, res = await run_agent("visuals.plan", self.gen, json.dumps(payload, ensure_ascii=False), system=PLANNER_SYSTEM)
-            stamp_run(run, res, "visual_planner")
-        reqs, report = validate_requirements(raw, blueprint, pack, sources)
-        count = db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_row.id).count()
-        row = VisualPlan(
-            case_id=case.id, blueprint_id=blueprint_row.id, version=count + 1,
-            status="requirements" if report["status"] != "invalid" else "invalid",
-            requirements_json=json.dumps(reqs, ensure_ascii=False),
-            validation_json=json.dumps({"requirements": report}, ensure_ascii=False),
-            generation_model=getattr(res, "model", None),
-        )
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-        return row
+        return VisualPlanner
+    raise AttributeError(name)

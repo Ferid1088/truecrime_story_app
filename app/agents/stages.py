@@ -17,20 +17,20 @@ from app.agents.base import AgentError
 
 # stage name -> (module, class)
 STAGE_AGENTS: dict[str, tuple[str, str]] = {
-    "blueprint": ("app.documentary.blueprint", "NarrativeDirector"),
-    "audio_plan": ("app.documentary.audio_director", "AudioDirector"),
-    "spoken": ("app.documentary.spoken", "SpokenNarrator"),
-    "chapters": ("app.documentary.chapters", "ChapterWriter"),
-    "host": ("app.documentary.host", "HostDirector"),
-    "voice_performance": ("app.documentary.voice_performance", "VoicePerformanceDirector"),
-    "visual_planner": ("app.documentary.visuals.planner", "VisualPlanner"),
-    "visual_research": ("app.documentary.visuals.research", "VisualResearchAgent"),
-    "visual_verification": ("app.documentary.visuals.verification", "VisualVerificationAgent"),
-    "visual_director": ("app.documentary.visuals.director", "VisualDirector"),
-    "visual_auditor": ("app.documentary.visuals.auditor", "VisualAuditor"),
-    "video_auditor": ("app.documentary.visuals.video_auditor", "VideoAuditor"),
-    "footage": ("app.documentary.visuals.footage", "FootageAgent"),
-    "critics": ("app.documentary.production.critics", "DocumentaryCritics"),
+    "blueprint": ("app.agents.blueprint", "NarrativeDirector"),
+    "audio_plan": ("app.agents.audio_plan", "AudioDirector"),
+    "spoken": ("app.agents.spoken", "SpokenNarrator"),
+    "chapters": ("app.agents.chapters", "ChapterWriter"),
+    "host": ("app.agents.host", "HostDirector"),
+    "voice_performance": ("app.agents.voice_performance", "VoicePerformanceDirector"),
+    "visual_planner": ("app.agents.visual_planner", "VisualPlanner"),
+    "visual_research": ("app.agents.visual_research", "VisualResearchAgent"),
+    "visual_verification": ("app.agents.visual_verification", "VisualVerificationAgent"),
+    "visual_director": ("app.agents.visual_director", "VisualDirector"),
+    "visual_auditor": ("app.agents.visual_auditor", "VisualAuditor"),
+    "video_auditor": ("app.agents.video_auditor", "VideoAuditor"),
+    "footage": ("app.agents.footage", "FootageAgent"),
+    "critics": ("app.agents.critics", "DocumentaryCritics"),
 }
 
 

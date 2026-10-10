@@ -567,7 +567,7 @@ def test_video_assets_are_verified_frame_by_frame(db_session, media_env, monkeyp
                      "graphic_or_sensitive": False, "confidence": 0.9},
                     GenerationResult(text="{}", model="m/vision", provider="fake"))
 
-    monkeypatch.setattr("app.documentary.visuals.verification.get_generation_provider", Gen)
+    monkeypatch.setattr("app.agents.visual_verification.get_generation_provider", Gen)
     case = _case(db_session)
     clip = _video(tmp_path / "clip.mp4", audio=False)
     tier = T.provisional_tier("internet_archive", "context", "event", "exact")

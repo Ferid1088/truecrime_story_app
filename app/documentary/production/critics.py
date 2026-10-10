@@ -30,7 +30,6 @@ Each language is judged on its own; scores are never inherited.
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
 
 from app.core.prompts import prompt
 
@@ -45,10 +44,8 @@ from app.db.models import ProductionScript, VisualAsset
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.usage import (
-    PICTURE_KINDS, UsageTracker, annotate, asset_facts, named_between, record_media_usage,
+    PICTURE_KINDS, UsageTracker, asset_facts, named_between,
 )
-from app.providers.generation import get_generation_provider
-from app.services.tracking import stamp_run, track_run
 
 # Cross-film variety: how many earlier films (other cases, same language)
 # a production is compared with, how many aspects must repeat for the
@@ -474,63 +471,10 @@ def apply_fixes(script: dict, problems: list[dict],
     return done
 
 
-class DocumentaryCritics:
-    def __init__(self):
-        self.gen = get_generation_provider()
+def __getattr__(name: str):
+    # the agent class lives in app/agents/critics.py (imported when first asked for)
+    if name == "DocumentaryCritics":
+        from app.agents.critics import DocumentaryCritics
 
-    async def review(self, db: Session, row: ProductionScript,
-                     manifest_words: list[dict] | None = None, apply: bool = True) -> dict:
-        from app.documentary.spoken import LANG_NAMES
-
-        script = json.loads(row.script_json or "{}")
-        if not manifest_words:  # caption chunks are precise enough for review
-            manifest_words = [{"word": s["text"], "start": s["start"], "end": s["end"]}
-                              for s in script.get("subtitles") or []]
-        assets = {a.asset_code: a for a in db.query(VisualAsset).filter(
-            VisualAsset.case_id == row.case_id).all()}
-        previous = previous_productions(db, row)
-        report = {"deterministic": deterministic_checks(script, assets, previous),
-                  "critics": {}, "fixes": [],
-                  "compared_with": [{"production_script_id": p["id"], "case_id": p["case_id"]}
-                                    for p in previous]}
-        cut = describe_cut(script, assets, manifest_words)
-        async def critic(name: str, role: str):
-            system = CRITIC_SYSTEM.format(language=LANG_NAMES.get(row.language, row.language),
-                                          focus=CRITIC_FOCUS[name])
-            with track_run(db, row.case_id, f"Documentary Critic: {name} ({row.language})",
-                           input_summary=f"production_script={row.id}") as run:
-                data, res = await run_agent("documentary.critic", self.gen, json.dumps({"cut": cut}, ensure_ascii=False), system=system, role=role)
-                stamp_run(run, res, role)
-            data = data if isinstance(data, dict) else {}
-            return name, {
-                "score": data.get("score"), "summary": data.get("summary"),
-                "problems": [p for p in data.get("problems") or [] if isinstance(p, dict)][:8],
-                "model": getattr(res, "model", None),
-            }
-
-        from app.core.concurrency import gather_limited
-
-        named = [(n, CRITIC_ROLES[n]) for n in ai_config.documentary_critics.critics
-                 if CRITIC_ROLES.get(n)]
-        # the critics are independent: all at once
-        for name, entry in await gather_limited(None, [critic(n, r) for n, r in named]):
-            report["critics"][name] = entry
-        if apply and ai_config.documentary_critics.max_fix_iterations:
-            problems = [p for c in report["critics"].values() for p in c["problems"]]
-            problems += [i for i in report["deterministic"]["issues"] if i.get("fix")]
-            report["fixes"] = apply_fixes(script, problems, assets)
-            if report["fixes"]:
-                # appearance numbers and justifications follow the fixed cut
-                annotate(script.get("shots") or [],
-                         {c: asset_facts(a) for c, a in assets.items()},
-                         script.get("sentence_entities"))
-                report["after_fixes"] = deterministic_checks(script, assets, previous)
-                row.script_json = json.dumps(script, ensure_ascii=False)
-                record_media_usage(db, row, script)
-        scores = [c["score"] for c in report["critics"].values()
-                  if isinstance(c.get("score"), (int, float))]
-        report["score"] = round(sum(scores) / len(scores), 1) if scores else None
-        row.critique_json = json.dumps(report, ensure_ascii=False)
-        row.status = "reviewed"
-        db.commit()
-        return report
+        return DocumentaryCritics
+    raise AttributeError(name)

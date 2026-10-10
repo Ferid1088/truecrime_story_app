@@ -236,35 +236,35 @@
       "prompt": null,
       "output": "json",
       "description": "Beats, reveals and intents.",
-      "used_by": "app/documentary/blueprint.py"
+      "used_by": "app/agents/blueprint.py"
     },
     "documentary.audio_plan": {
       "role": "audio_director",
       "prompt": null,
       "output": "json",
       "description": "Music, silence, breaths.",
-      "used_by": "app/documentary/audio_director.py"
+      "used_by": "app/agents/audio_plan.py"
     },
     "documentary.audio_plan_repair": {
       "role": "audio_director",
       "prompt": null,
       "output": "json",
       "description": "Repair an invalid audio plan.",
-      "used_by": "app/documentary/audio_director.py"
+      "used_by": "app/agents/audio_plan.py"
     },
     "documentary.chapters.write": {
       "role": "chapter_writer",
       "prompt": null,
       "output": "json",
       "description": "Chapter and title-card texts.",
-      "used_by": "app/documentary/chapters.py"
+      "used_by": "app/agents/chapters.py"
     },
     "documentary.chapters.audit": {
       "role": "chapter_auditor",
       "prompt": "documentary/chapters/auditor_system",
       "output": "json",
       "description": "Approve or reject card texts.",
-      "used_by": "app/documentary/chapters.py"
+      "used_by": "app/agents/chapters.py"
     },
     "documentary.pronunciation": {
       "role": "pronunciation_editor",
@@ -278,42 +278,42 @@
       "prompt": "documentary/voice_performance/arc_system",
       "output": "json",
       "description": "Tension arc per beat.",
-      "used_by": "app/documentary/voice_performance.py"
+      "used_by": "app/agents/voice_performance.py"
     },
     "documentary.voice_directing": {
       "role": "voice_performance_director",
       "prompt": null,
       "output": "json",
       "description": "Audio tags per sentence.",
-      "used_by": "app/documentary/voice_performance.py"
+      "used_by": "app/agents/voice_performance.py"
     },
     "visuals.plan": {
       "role": "visual_planner",
       "prompt": "documentary/visuals/planner/planner_system",
       "output": "json",
       "description": "What each beat needs to show.",
-      "used_by": "app/documentary/visuals/planner.py"
+      "used_by": "app/agents/visual_planner.py"
     },
     "visuals.direct": {
       "role": "visual_director",
       "prompt": "documentary/visuals/director/director_system",
       "output": "json",
       "description": "Shots per sentence.",
-      "used_by": "app/documentary/visuals/director.py"
+      "used_by": "app/agents/visual_director.py"
     },
     "visuals.verify": {
       "role": "visual_verifier",
       "prompt": "documentary/visuals/verification/verifier_system",
       "output": "json",
       "description": "Does the picture show what is claimed?",
-      "used_by": "app/documentary/visuals/verification.py"
+      "used_by": "app/agents/visual_verification.py"
     },
     "visuals.audit": {
       "role": "visual_auditor",
       "prompt": "documentary/visuals/auditor/auditor_system",
       "output": "json",
       "description": "May this picture be shown with these words?",
-      "used_by": "app/documentary/visuals/auditor.py"
+      "used_by": "app/agents/visual_auditor.py"
     },
     "visuals.localize_overlays": {
       "role": "overlay_localizer",
@@ -327,14 +327,14 @@
       "prompt": "documentary/visuals/video_auditor/describe_system",
       "output": "json",
       "description": "Check a video piece's cut and description.",
-      "used_by": "app/documentary/visuals/video_auditor.py"
+      "used_by": "app/agents/video_auditor.py"
     },
     "visuals.audit_piece": {
       "role": "video_auditor",
       "prompt": "documentary/visuals/video_auditor/placement_system",
       "output": "json",
       "description": "May this piece be shown here?",
-      "used_by": "app/documentary/visuals/video_auditor.py"
+      "used_by": "app/agents/video_auditor.py"
     },
     "visuals.segment_video": {
       "role": "video_segmenter",
@@ -348,7 +348,7 @@
       "prompt": null,
       "output": "json",
       "description": "Critic of the production script (focus per critic).",
-      "used_by": "app/documentary/production/critics.py"
+      "used_by": "app/agents/critics.py"
     },
     "case_naming_agent": {
       "role": "case_naming_agent",
@@ -425,42 +425,42 @@
       "prompt": null,
       "output": "json",
       "description": "Host plan.",
-      "used_by": "app/documentary/host.py"
+      "used_by": "app/agents/host.py"
     },
     "host_writer": {
       "role": "host_writer",
       "prompt": null,
       "output": "json",
       "description": "Host dialogue.",
-      "used_by": "app/documentary/host.py"
+      "used_by": "app/agents/host.py"
     },
     "host_critic": {
       "role": "host_critic",
       "prompt": null,
       "output": "json",
       "description": "Host critic.",
-      "used_by": "app/documentary/host.py"
+      "used_by": "app/agents/host.py"
     },
     "spoken_writer": {
       "role": "spoken_writer",
       "prompt": null,
       "output": "text",
       "description": "Spoken version.",
-      "used_by": "app/documentary/spoken.py"
+      "used_by": "app/agents/spoken.py"
     },
     "spoken_meaning_checker": {
       "role": "spoken_meaning_checker",
       "prompt": null,
       "output": "json",
       "description": "Same facts and meaning?",
-      "used_by": "app/documentary/spoken.py"
+      "used_by": "app/agents/spoken.py"
     },
     "spoken_style_critic": {
       "role": "spoken_style_critic",
       "prompt": null,
       "output": "json",
       "description": "Told or read?",
-      "used_by": "app/documentary/spoken.py"
+      "used_by": "app/agents/spoken.py"
     }
   }
 }

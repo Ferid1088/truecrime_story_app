@@ -513,11 +513,13 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.render, "height", 180)
     gen = PipelineGen()
     gen.research_calls = []
-    for mod in ("blueprint", "audio_director", "spoken", "visuals.planner",
-                "visuals.verification", "visuals.director", "visuals.generated",
-                "production.critics", "voice_performance", "pronunciation", "host",
-                "visuals.auditor", "chapters"):
-        monkeypatch.setattr(f"app.documentary.{mod}.get_generation_provider", lambda: gen)
+    for mod in ("app.agents.blueprint", "app.agents.audio_plan", "app.agents.spoken",
+                "app.agents.visual_planner", "app.agents.visual_verification",
+                "app.agents.visual_director", "app.documentary.visuals.generated",
+                "app.agents.critics", "app.agents.voice_performance",
+                "app.documentary.pronunciation", "app.agents.host",
+                "app.agents.visual_auditor", "app.agents.chapters"):
+        monkeypatch.setattr(f"{mod}.get_generation_provider", lambda: gen, raising=False)
     tts = FakeTTS()
     gen.tts = tts
     monkeypatch.setattr("app.documentary.production.audio.VoiceRenderer",
@@ -550,7 +552,7 @@ def documentary_env(tmp_path, monkeypatch):
         _jpg(Path(out), (W // 4, H // 4), (30, 40, 50))
         return {"path": str(out), "marker": [W // 8, H // 8]}
 
-    monkeypatch.setattr("app.documentary.visuals.research.VisualResearchAgent.run", fake_research)
+    monkeypatch.setattr("app.agents.visual_research.VisualResearchAgent.run", fake_research)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.geocode", fake_geocode)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.render_map", fake_map)
     return gen

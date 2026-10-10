@@ -236,7 +236,7 @@ def _with_blueprint(db, monkeypatch):
 
 def _narrate(db, monkeypatch, gen, language="en", case_v=None):
     case, v = case_v or _with_blueprint(db, monkeypatch)
-    monkeypatch.setattr("app.documentary.spoken.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: gen)
     return case, v, asyncio.run(SP.SpokenNarrator().create(db, case, v, language))
 
 
@@ -284,7 +284,7 @@ def test_lost_content_fails_the_duration_gate(db_session, monkeypatch):
 def test_spoken_needs_a_blueprint_and_a_configured_language(db_session, monkeypatch):
     case, v = _story(db_session)
     gen = SpokenGen()
-    monkeypatch.setattr("app.documentary.spoken.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: gen)
     with pytest.raises(RuntimeError, match="blueprint"):
         asyncio.run(SP.SpokenNarrator().create(db_session, case, v, "en"))
     with pytest.raises(ValueError, match="not configured"):
@@ -390,7 +390,7 @@ def _good_plan():
 def test_audio_director_repairs_an_empty_plan(db_session, monkeypatch):
     case, v = _with_blueprint(db_session, monkeypatch)
     gen = PlanGen([{}, _good_plan()])
-    monkeypatch.setattr("app.documentary.audio_director.get_generation_provider",
+    monkeypatch.setattr("app.agents.audio_plan.get_generation_provider",
                         lambda: gen)
     row = asyncio.run(AudioDirector().create(
         db_session, case, latest_blueprint(db_session, v.id)))
@@ -573,14 +573,14 @@ def test_spoken_and_audio_plan_api(client, db_session, monkeypatch):
     _director(monkeypatch, [_no_contradiction(_good())])
     assert client.post(base + "/blueprint").status_code == 200
     gen = PlanGen([_good_plan()])
-    monkeypatch.setattr("app.documentary.audio_director.get_generation_provider",
+    monkeypatch.setattr("app.agents.audio_plan.get_generation_provider",
                         lambda: gen)
     r = client.post(base + "/audio-plan")
     assert r.status_code == 200, r.text
     plan_id = r.json()["id"]
     assert client.get(base + "/audio-plan").json()["id"] == plan_id
 
-    monkeypatch.setattr("app.documentary.spoken.get_generation_provider",
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider",
                         lambda: SpokenGen())
     r = client.post(base + "/spoken?language=en")
     assert r.status_code == 200, r.text

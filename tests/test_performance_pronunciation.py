@@ -259,7 +259,7 @@ class PerformanceGen:
 def _spoken_en(db, monkeypatch):
     gen = SpokenGen()
     case, master = _with_blueprint(db, monkeypatch)
-    monkeypatch.setattr("app.documentary.spoken.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.spoken.get_generation_provider", lambda: gen)
     sv = asyncio.run(SP.SpokenNarrator().create(db, case, master, "en"))
     return case, master, sv
 
@@ -267,7 +267,7 @@ def _spoken_en(db, monkeypatch):
 def test_director_builds_the_arc_and_validates_every_sentence(db_session, monkeypatch):
     case, master, sv = _spoken_en(db_session, monkeypatch)
     gen = PerformanceGen(change_words_for={4})
-    monkeypatch.setattr("app.documentary.voice_performance.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.voice_performance.get_generation_provider", lambda: gen)
     bp = SP.spoken_blueprint(db_session, sv)
     row = asyncio.run(VP.VoicePerformanceDirector().create(
         db_session, case, sv, bp, beat_ids=["B01", "B02"]))
@@ -307,7 +307,7 @@ def test_directed_blocks_carry_tags_display_and_level_styles(db_session, monkeyp
 
     case, master, sv = _spoken_en(db_session, monkeypatch)
     gen = PerformanceGen()
-    monkeypatch.setattr("app.documentary.voice_performance.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.voice_performance.get_generation_provider", lambda: gen)
     bp = SP.spoken_blueprint(db_session, sv)
     asyncio.run(VP.VoicePerformanceDirector().create(db_session, case, sv, bp))
 
@@ -318,7 +318,7 @@ def test_directed_blocks_carry_tags_display_and_level_styles(db_session, monkeyp
         async def generate_structured(self, role, system, user):
             return _good_plan(), _res(role)
 
-    monkeypatch.setattr("app.documentary.audio_director.get_generation_provider", PlanGen)
+    monkeypatch.setattr("app.agents.audio_plan.get_generation_provider", PlanGen)
     from app.documentary.blueprint import latest_blueprint
     asyncio.run(AudioDirector().create(db_session, case, latest_blueprint(db_session, master.id)))
     script = performance_for_version(db_session, sv)

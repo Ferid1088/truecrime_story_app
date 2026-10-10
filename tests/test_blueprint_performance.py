@@ -184,7 +184,7 @@ def _story(db, sections=SECTIONS, fingerprint=None):
 
 def _director(monkeypatch, outputs):
     gen = DirectorGen(outputs)
-    monkeypatch.setattr("app.documentary.blueprint.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.blueprint.get_generation_provider", lambda: gen)
     return NarrativeDirector(), gen
 
 

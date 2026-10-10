@@ -156,7 +156,7 @@ def _db_asset(db, case, code, reveals="[]"):
 
 def test_the_auditor_judges_each_picture_at_its_point_in_the_story(db_session, monkeypatch):
     monkeypatch.setattr(AU, "_picture", lambda a: b"jpg")
-    monkeypatch.setattr(AU.IM, "data_url", lambda b: "data:image/jpeg;base64,eA==")
+    monkeypatch.setattr("app.documentary.visuals.images.data_url", lambda b: "data:image/jpeg;base64,eA==")
     case = _case(db_session)
     arrest = _db_asset(db_session, case, "ARREST")
     tagged = _db_asset(db_session, case, "TAGGED", reveals='["F002"]')

@@ -233,7 +233,7 @@ def test_host_director_plans_remembers_and_writes(db_session, monkeypatch):
     good = plan_raw()
     good["segments"][1]["memory_reference"] = f"M{mem.id}"
     gen = HostGen(plans=[bad, good], fail_once={"S2"})
-    monkeypatch.setattr("app.documentary.host.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
 
     plan_row = asyncio.run(HostDirector().create_plan(db_session, case, bp, master))
     report = json.loads(plan_row.validation_json)
@@ -283,7 +283,7 @@ def test_unfixable_segment_needs_review(db_session, monkeypatch):
     case, master = _story(db_session)
     bp = _with_blueprint(db_session, case, master)
     gen = HostGen()
-    monkeypatch.setattr("app.documentary.host.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
     plan_row = asyncio.run(HostDirector().create_plan(db_session, case, bp, master))
 
     async def stock_writer(role, system, user, images=None):
@@ -314,7 +314,7 @@ def test_host_api(client, db_session, monkeypatch):
     from app.db.models import StoryVersion
 
     gen = HostGen()
-    monkeypatch.setattr("app.documentary.host.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
     case, master = _story(db_session)
     assert client.post(f"/api/cases/{case.id}/documentary/host-plan").status_code == 409
     bp = _with_blueprint(db_session, case, master)

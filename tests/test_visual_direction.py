@@ -584,7 +584,7 @@ def test_variety_check_runs_in_review_against_other_cases(db_session, monkeypatc
         async def generate_structured(self, role, system, user, images=None):
             return {"score": 75, "problems": [], "summary": "ok"}, _res(role)
 
-    monkeypatch.setattr("app.documentary.production.critics.get_generation_provider",
+    monkeypatch.setattr("app.agents.critics.get_generation_provider",
                         lambda: Critics())
     other_case, other_master = _story(db_session)
     old = ProductionScript(case_id=other_case.id, story_version_id=other_master.id,
@@ -780,8 +780,8 @@ def test_weak_sentences_become_searches_and_the_found_pictures_are_used(
         db_session, tmp_path, monkeypatch):
     names = {e["key"]: e["name"] for e in ENTITIES}
     gen = SearchGen(names, ask_for={"st_marys_church"})
-    monkeypatch.setattr("app.documentary.visuals.director.get_generation_provider", lambda: gen)
-    monkeypatch.setattr("app.documentary.visuals.verification.get_generation_provider",
+    monkeypatch.setattr("app.agents.visual_director.get_generation_provider", lambda: gen)
+    monkeypatch.setattr("app.agents.visual_verification.get_generation_provider",
                         lambda: gen)
     case, bp_row, plan_row = _h_setup(db_session, tmp_path, monkeypatch)
     asyncio.run(VisualDirector().create(db_session, case, plan_row, bp_row, None))
