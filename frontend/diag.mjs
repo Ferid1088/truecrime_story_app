@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-const EXE = process.env.HOME + '/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell';
+const EXE = process.env.PW_CHROMIUM_EXE || undefined; // set PW_CHROMIUM_EXE to use a specific browser binary
 const browser = await chromium.launch({ executablePath: EXE });
 const page = await browser.newPage();
 const logs = [];

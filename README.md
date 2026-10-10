@@ -35,36 +35,22 @@ Similarity Critic
 Final Story Text
 ```
 
-## External research provider (OpenRouter)
+## Research (TrueCrime Search Engine)
 
-OpenRouter is the single gateway for all web research — search, source
-fetch, multilingual queries and YouTube discovery run through its
-server tools (`openrouter:web_search`, `openrouter:web_fetch`). Devin
-was removed from active workflows; historical ResearchJob rows with
-provider="devin" remain readable data.
+Research is first-party: SearXNG for search, our own fetcher/extractor/ranker
+(`app/research_engine/`), LLMs only plan queries and judge content (via
+`config/ai_config.json` roles). `TRUECRIME_SEARXNG_URL` must be set; without it
+discovery and research answer `503` (there is no fallback path).
 
-```text
-app/providers/base.py    ResearchProvider interface + ProviderJob
-app/providers/research_openrouter.py   OpenRouterResearchProvider
-  (iterative loop: query plan → web_search → evaluate → web_fetch →
-   refine → stop on low marginal value)
-app/services/research_jobs.py   persistent ResearchJob lifecycle + ingestion
-```
-
-- `TrueCrime_OPENROUTER_API_KEY` in `.env` (backend-only; never sent to
-  the frontend, logged, or stored in DB rows) — the only active AI secret.
-- `GET /api/integrations/research/status` → `{provider, configured, reachable}`.
 - `POST /api/topics/discover` and `POST /api/cases/{id}/research` return
-  `{job_id, status}`; poll `GET /api/research-jobs/{job_id}` (or
-  `GET /api/research-jobs?case_id=`).
-- On completion, sources are stored as `Source` rows (provider metadata:
-  `research_provider`, `external_reference`, `published_at`, `retrieved_at`,
-  `summary`, `status`). `possible_facts`/`possible_contradictions` stay in the
-  job result — unverified claims never enter the Fact layer directly; the
-  Research Agent's extraction stage remains the fact path.
-- If the key is absent the app falls back to the legacy LLM discovery /
-  research path; provider failures return
-  `503 "Research provider unavailable"` and leave stored data intact.
+  `{job_id, status}`; poll `GET /api/research-jobs/{job_id}`. The poll that sees
+  a finished engine result ingests it (sources, facts); the job is "completed"
+  only after that. Jobs live in this process: after a restart they are marked
+  failed ("interrupted"), not resumed.
+- A from-zero film also runs the YouTube transcript research
+  (`documentary.video_research`) after the web research.
+- Unverified claims never enter the Fact layer directly; the fact-extraction
+  stage is the only path.
 
 ## نکته مهم
 

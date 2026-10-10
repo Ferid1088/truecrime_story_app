@@ -33,3 +33,6 @@ tc_transfer/
 
 # studio previews (generated from data/studio, keyed by image hash)
 data/studio_thumbs/
+
+# regenerable caches
+data/embedding_cache/
