@@ -1,0 +1,295 @@
+{
+  "case_selection": {
+    "recency_half_life_days": 365.0,
+    "incident_weight": 0.6,
+    "undated_recency": 0.15,
+    "status_weights": {
+      "SOLVED": 1.0,
+      "STATUS_UNDER_REVIEW": 0.35,
+      "UNKNOWN": 0.35,
+      "UNSOLVED": 0.2
+    },
+    "solved_min_confidence": 0.7,
+    "verify_top_n": 8,
+    "discovery_time_range": "year",
+    "seed_queries": {
+      "en": [
+        "murder trial verdict convicted {year}",
+        "found guilty of murder sentenced {year}",
+        "charged with murder after disappearance {year}",
+        "cold case solved arrest DNA {year}",
+        "killer sentenced life in prison {last_year}"
+      ],
+      "de": [
+        "Mordprozess Urteil lebenslange Haft {year}",
+        "wegen Mordes verurteilt {year}",
+        "Cold Case aufgeklärt Festnahme {year}",
+        "Vermisste tot aufgefunden Täter verurteilt"
+      ],
+      "fa": [
+        "دادگاه قاتل محکوم شد {year}",
+        "پرونده قتل حل شد دستگیری"
+      ],
+      "ar": [
+        "الحكم على قاتل في قضية {year}",
+        "القبض على قاتل بعد اختفاء"
+      ]
+    },
+    "title_threshold": 88,
+    "person_threshold": 90,
+    "date_window_years": 2,
+    "generic_url_hosts": [
+      "google.",
+      "bing.",
+      "duckduckgo.",
+      "youtube.com/results",
+      "facebook.com",
+      "twitter.com",
+      "x.com",
+      "instagram.com"
+    ]
+  },
+  "case_monitor": {
+    "enabled": true,
+    "autostart": true,
+    "interval_hours": 84.0,
+    "poll_minutes": 30.0,
+    "statuses": [
+      "UNSOLVED",
+      "STATUS_UNDER_REVIEW"
+    ],
+    "fast_queries_per_case": 2,
+    "fast_results_per_query": 8,
+    "first_check_time_range": "year",
+    "signal_terms": {
+      "en": {
+        "arrest": [
+          "arrested",
+          "arrest of",
+          "taken into custody",
+          "detained a"
+        ],
+        "suspect_identified": [
+          "suspect identified",
+          "identified as the suspect",
+          "named as a suspect",
+          "suspect has been named"
+        ],
+        "remains_identified": [
+          "remains identified",
+          "remains were identified",
+          "body was identified",
+          "identified the remains"
+        ],
+        "charges": [
+          "charged with",
+          "charges filed",
+          "indicted",
+          "faces charges"
+        ],
+        "confession": [
+          "confessed",
+          "confession",
+          "pleaded guilty",
+          "admitted killing"
+        ],
+        "conviction": [
+          "convicted",
+          "found guilty",
+          "guilty verdict",
+          "sentenced to"
+        ],
+        "official_update": [
+          "police said",
+          "police announced",
+          "prosecutors said",
+          "press conference",
+          "police statement"
+        ],
+        "case_closed": [
+          "case closed",
+          "case solved",
+          "solved the case",
+          "cold case solved"
+        ],
+        "forensic": [
+          "dna match",
+          "dna breakthrough",
+          "genetic genealogy",
+          "forensic breakthrough",
+          "new dna"
+        ],
+        "disappearance_resolved": [
+          "found alive",
+          "found dead",
+          "body found",
+          "remains found"
+        ]
+      },
+      "de": {
+        "arrest": [
+          "festgenommen",
+          "verhaftet",
+          "festnahme",
+          "untersuchungshaft"
+        ],
+        "suspect_identified": [
+          "tatverdächtig",
+          "mutmaßliche täter",
+          "mutmaßlicher täter"
+        ],
+        "remains_identified": [
+          "leiche identifiziert",
+          "überreste identifiziert",
+          "identität geklärt"
+        ],
+        "charges": [
+          "anklage erhoben",
+          "angeklagt"
+        ],
+        "confession": [
+          "gestanden",
+          "geständnis"
+        ],
+        "conviction": [
+          "verurteilt",
+          "schuldig gesprochen",
+          "urteil gefallen"
+        ],
+        "official_update": [
+          "polizei teilte mit",
+          "staatsanwaltschaft teilte mit",
+          "pressekonferenz"
+        ],
+        "case_closed": [
+          "fall gelöst",
+          "fall geklärt",
+          "aufgeklärt"
+        ],
+        "forensic": [
+          "dna-treffer",
+          "dna-spur",
+          "dna-analyse"
+        ],
+        "disappearance_resolved": [
+          "tot aufgefunden",
+          "lebend gefunden",
+          "leiche gefunden"
+        ]
+      },
+      "fa": {
+        "arrest": [
+          "دستگیر شد",
+          "بازداشت شد",
+          "دستگیری"
+        ],
+        "conviction": [
+          "محکوم شد",
+          "حکم صادر شد",
+          "به اعدام محکوم"
+        ],
+        "confession": [
+          "اعتراف کرد",
+          "اعتراف"
+        ],
+        "charges": [
+          "کیفرخواست",
+          "متهم شد"
+        ],
+        "case_closed": [
+          "پرونده حل شد",
+          "معما حل شد"
+        ],
+        "disappearance_resolved": [
+          "جسد پیدا شد",
+          "پیدا شد"
+        ]
+      },
+      "ar": {
+        "arrest": [
+          "القبض على",
+          "اعتقال",
+          "توقيف"
+        ],
+        "conviction": [
+          "أدين",
+          "حكم على",
+          "الحكم بالإعدام"
+        ],
+        "confession": [
+          "اعترف",
+          "اعتراف"
+        ],
+        "charges": [
+          "وجهت إليه تهمة",
+          "اتهام"
+        ],
+        "case_closed": [
+          "حل لغز",
+          "إغلاق القضية"
+        ],
+        "disappearance_resolved": [
+          "العثور على جثة",
+          "العثور عليها"
+        ]
+      }
+    },
+    "deep_max_pages": 6,
+    "deep_extra_queries": 2,
+    "solved_min_confidence": 0.8,
+    "min_independent_sources": 2,
+    "official_source_patterns": [
+      "polizei",
+      "police",
+      ".gov",
+      "staatsanwaltschaft",
+      "justiz",
+      "gericht",
+      "court",
+      "prosecutor",
+      "justice.",
+      "bka.de",
+      "fbi.gov"
+    ]
+  },
+  "youtube_metadata": {
+    "titles": {
+      "en": {
+        "follow_up": "The {name} Case — What Happened After Our Original Video"
+      },
+      "de": {
+        "follow_up": "Der Fall {name} – was nach unserem ersten Video geschah"
+      },
+      "fa": {
+        "follow_up": "پرونده‌ی {name} — بعد از ویدیوی قبلی ما چه شد"
+      },
+      "ar": {
+        "follow_up": "قضية {name} — ماذا حدث بعد حلقتنا الأولى"
+      }
+    },
+    "status_labels": {
+      "en": {
+        "UNSOLVED": "UNSOLVED CASE",
+        "follow_up": "CASE NOW SOLVED"
+      },
+      "de": {
+        "UNSOLVED": "UNGEKLÄRTER FALL",
+        "follow_up": "FALL INZWISCHEN GELÖST"
+      },
+      "fa": {
+        "UNSOLVED": "پرونده‌ی حل‌نشده",
+        "follow_up": "این پرونده حل شده است"
+      },
+      "ar": {
+        "UNSOLVED": "قضية لم تُحل",
+        "follow_up": "القضية حُلّت"
+      }
+    },
+    "status_card_seconds": [
+      1.5,
+      7.5
+    ],
+    "status_card_end_seconds": 12.0,
+    "follow_up_intro": "We first told this story{episode}, \"{original_title}\"{published}, when the investigation was still unresolved. The case has now been solved. Today we return to it to explain what happened."
+  }
+}

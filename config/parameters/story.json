@@ -1,0 +1,254 @@
+{
+  "story": {
+    "default_target_minutes": 50,
+    "min_target_minutes": 45,
+    "max_target_minutes": 120,
+    "words_per_minute": 135,
+    "minimum_length_ratio": 0.85,
+    "maximum_length_ratio": 1.15,
+    "max_rewrite_iterations": 3,
+    "max_length_repair_iterations": 2,
+    "engagement_threshold": 85
+  },
+  "story_quality": {
+    "minimum_grounding_score": 0.85,
+    "max_unsupported_claims": 2,
+    "max_grounding_repair_iterations": 2,
+    "section_engagement_threshold": 55,
+    "max_section_rewrites": 2,
+    "consistency_max_high_severity": 0,
+    "disputed_confidence_threshold": 0.7,
+    "strip_markdown_artifacts": true,
+    "section_marker_prefix": "[[ACT:"
+  },
+  "master_generation": {
+    "section_based_generation": true,
+    "section_word_tolerance": 0.25,
+    "rewrite_length_tolerance": 0.15,
+    "max_sections_per_revision_cycle": 2,
+    "max_revision_cycles": 2,
+    "minimum_engagement_improvement": 5,
+    "min_act_budget_share": 0.08,
+    "max_span_repairs_per_pass": 12
+  },
+  "cost_control": {
+    "max_master_tokens_per_case": 1500000,
+    "max_master_cost_usd": 1.5
+  },
+  "research_depth": {
+    "minutes_per_fulltext_source": 2.5,
+    "minutes_per_partial_source": 1.2,
+    "minutes_per_summary_source": 0.35,
+    "minutes_per_metadata_source": 0.0,
+    "minutes_per_evidence_item": 0.15,
+    "minutes_per_human_detail": 0.5,
+    "minutes_per_scene_detail": 0.5,
+    "minutes_per_investigation_detail": 0.4,
+    "minutes_per_quote": 0.3,
+    "minutes_per_timeline_event": 0.25,
+    "minutes_per_contradiction": 1.0,
+    "minutes_per_independent_family": 0.4,
+    "max_evidence_item_minutes": 18.0,
+    "minimum_capacity_ratio": 0.75,
+    "source_readiness_min_ratio": 0.5,
+    "min_retrieved_sources": 1,
+    "weak_area_minimums": {
+      "human_details": 3,
+      "scene_details": 3,
+      "approved_quotes": 1,
+      "investigation_details": 2
+    }
+  },
+  "source_chunking": {
+    "target_tokens": 900,
+    "min_tokens": 200,
+    "max_tokens": 1400,
+    "max_chunks_per_source_for_extraction": 4
+  },
+  "evidence_strength": {
+    "weights": {
+      "primary": 1.0,
+      "strong_secondary": 0.8,
+      "secondary": 0.6,
+      "tertiary": 0.35,
+      "weak": 0.15,
+      "disputed": 0.2
+    }
+  },
+  "multilingual": {
+    "research_languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "canonical_language": "en",
+    "localization_languages": [
+      "de",
+      "fa",
+      "ar"
+    ]
+  },
+  "localization": {
+    "require_master_ready": true,
+    "words_per_minute": {
+      "en": 150,
+      "de": 140,
+      "fa": 135,
+      "ar": 130
+    },
+    "minimum_native_quality_score": 75,
+    "minimum_semantic_consistency_score": 90,
+    "minimum_factual_consistency_score": 0.9,
+    "minimum_engagement_score": 80,
+    "max_localization_repair_iterations": 1,
+    "minimum_duration_ratio": 0.8,
+    "maximum_duration_ratio": 1.25,
+    "require_current_evidence": true
+  },
+  "language_quality": {
+    "fa": {
+      "minimum_target_script_ratio": 0.9,
+      "max_foreign_token_ratio": 0.03
+    },
+    "ar": {
+      "minimum_target_script_ratio": 0.9,
+      "max_foreign_token_ratio": 0.03
+    }
+  },
+  "similarity": {
+    "ngram_size": 8,
+    "max_ngram_overlap_ratio": 0.02,
+    "max_longest_sequence_ratio": 0.05,
+    "structure_overlap_threshold": 0.7
+  },
+  "review_independence": {
+    "enabled": true,
+    "author_roles": [
+      "story_director",
+      "writer",
+      "rewriter",
+      "master_story_director",
+      "master_writer",
+      "master_rewriter",
+      "localization_writer"
+    ],
+    "reviewer_roles": [
+      "engagement_critic",
+      "section_critic",
+      "master_engagement_critic",
+      "native_language_critic",
+      "localized_engagement_critic",
+      "grounding_validator",
+      "consistency_checker",
+      "semantic_consistency_checker",
+      "localized_grounding_validator"
+    ],
+    "groups": [
+      {
+        "name": "spoken_adaptation",
+        "authors": [
+          "spoken_writer"
+        ],
+        "reviewers": [
+          "spoken_meaning_checker",
+          "spoken_style_critic"
+        ],
+        "strict": true
+      },
+      {
+        "name": "documentary_production",
+        "authors": [
+          "visual_director"
+        ],
+        "reviewers": [
+          "automation_feel_critic",
+          "attention_critic",
+          "visual_accuracy_critic",
+          "production_critic",
+          "visual_auditor",
+          "video_auditor"
+        ],
+        "strict": true
+      },
+      {
+        "name": "documentary_host",
+        "authors": [
+          "host_director",
+          "host_writer"
+        ],
+        "reviewers": [
+          "host_critic"
+        ],
+        "strict": true
+      },
+      {
+        "name": "video_pieces",
+        "authors": [
+          "video_segmenter"
+        ],
+        "reviewers": [
+          "video_auditor"
+        ],
+        "strict": true
+      },
+      {
+        "name": "documentary_cards",
+        "authors": [
+          "chapter_writer"
+        ],
+        "reviewers": [
+          "chapter_auditor"
+        ],
+        "strict": true
+      }
+    ],
+    "reviewer_fallbacks": {
+      "premium": [
+        "cheap"
+      ],
+      "cheap": [
+        "premium"
+      ],
+      "writer": [
+        "cheap"
+      ]
+    }
+  },
+  "spoken": {
+    "languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "min_duration_ratio": 0.85,
+    "max_duration_ratio": 1.3,
+    "max_repair_iterations": 2,
+    "min_storyteller_share": 0.7,
+    "max_sentence_words": {
+      "en": 24,
+      "de": 20,
+      "fa": 24,
+      "ar": 22
+    },
+    "max_long_sentence_share": 0.12
+  },
+  "opening": {
+    "strategies": {
+      "critical_moment": "start inside the decisive moment of the case, then step back",
+      "mysterious_statement": "start with a documented statement that does not add up",
+      "victim_introduction": "start with the person at the centre, their life just before",
+      "evidence_discovery": "start with the moment a piece of evidence was found",
+      "emergency_call": "start with the call or report that set everything in motion",
+      "important_location": "start at the place that holds the story",
+      "contradiction": "start with two facts that cannot both be true",
+      "last_sighting": "start with the last time the person was seen",
+      "courtroom_outcome": "start with the verdict, then ask how it came to this",
+      "unanswered_question": "start with the question the case still leaves open",
+      "timeline_anomaly": "start with a gap or impossibility in the timeline"
+    },
+    "follow_up_strategy": "previous_coverage",
+    "avoid_recent": 3
+  }
+}

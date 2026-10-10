@@ -14,6 +14,8 @@ is ever called."""
 
 from __future__ import annotations
 
+from app.core.prompts import prompt
+
 import json
 import secrets
 from dataclasses import dataclass, field
@@ -32,48 +34,11 @@ from app.naming.normalize import norm_title
 LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
 ORDER = ("en", "de", "fa", "ar")
 
-NAMING_SYSTEM = """You are the title editor of a documentary true-crime channel.
-Write NATIVE episode titles in the requested language for ONE case. Never
-translate another language's title: write what a native editor would write.
+NAMING_SYSTEM = prompt("naming/agent/naming_system")
 
-A good title is: specific to THIS case (anchored in its place, relationship,
-object, contradiction, action or unresolved image), short (2-5 words, never
-more than 6), memorable, curiosity-inducing, sober and documentary.
+CRITIC_SYSTEM = prompt("naming/agent/critic_system")
 
-Forbidden: generic titles (The Dark Secret, The Final Night, Hidden Truth,
-The Mystery, The Last Day), ALL CAPS, exclamation marks, question titles,
-shock/blood/fear words, episode numbers, the bare case name, and anything
-that reveals what the story withholds (see hold_back).
-Never state guilt or killing as fact unless claim_limits.may_state_guilt is
-true; do not accuse a real person. Prefer wording that stays true if the
-facts are uncertain.
-
-Use only the facts in the context. Do not reuse any title in "avoid".
-
-Return JSON only:
-{"editorial_concept": "one language-neutral English sentence naming the
-   idea of the title family (shared by all languages)",
- "anchors": ["the distinctive things you anchored on"],
- "candidates": [{"title": "...", "angle": "which anchor", "why": "one line"}]}"""
-
-CRITIC_SYSTEM = """You are a strict documentary title critic. Score each title
-for THIS case, using only the context. Scores 0.0-1.0 (risks: 0 is best).
-specificity: could this title belong to any other case? (1 = only this case)
-memorability, curiosity (real intrigue, not clickbait), documentary_tone,
-sensationalism_risk (shock, fear, blood, cheap cliffhanger),
-spoiler_risk (reveals anything in hold_back or a late reveal),
-epistemic_risk (turns uncertain information into fact, accuses a person,
-implies guilt, death or a relationship that is not established).
-Return JSON only: {"scores": [{"title": "...", "specificity": 0, "memorability": 0,
- "curiosity": 0, "documentary_tone": 0, "sensationalism_risk": 0,
- "spoiler_risk": 0, "epistemic_risk": 0, "reason": "one line"}]}"""
-
-NATIVE_SYSTEM = """You are a native-speaker editor of {language}. Judge each title:
-does it read as a title ORIGINALLY written in {language} (natural word choice,
-rhythm, idiom), not a translation? Persian must use proper Persian spelling
-and half-spaces; no transliteration. Return JSON only:
-{{"scores": [{{"title": "...", "native_quality": 0.0, "literal_translation": false,
- "reason": "one line"}}]}} (native_quality 0.0-1.0)."""
+NATIVE_SYSTEM = prompt("naming/agent/native_system")
 
 
 @dataclass

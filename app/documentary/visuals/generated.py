@@ -6,6 +6,8 @@ names, labels) is localized per language at production time.
 
 from __future__ import annotations
 
+from app.core.prompts import prompt
+
 import json
 import re
 
@@ -313,15 +315,7 @@ LABELS = {
     "translated_quote": {"en": "", "de": "Übersetzung", "fa": "ترجمه", "ar": "ترجمة"},
 }
 
-LOCALIZER_SYSTEM = """
-You localize short on-screen texts of a documentary into {name}.
-- Place names: the spelling a {name} documentary uses; if the narration
-  excerpt contains the name, use exactly that spelling.
-- Quotes: a faithful translation of the real words (no paraphrase, no
-  added meaning); keep it short.
-- Keep it as short as the original. No quotation marks (added later).
-Return JSON only: {{"texts": {{"<id>": "<localized text>"}}}}
-"""
+LOCALIZER_SYSTEM = prompt("documentary/visuals/generated/localizer_system")
 
 
 async def localize_texts(db: Session, case_id: int, items: dict[str, str],

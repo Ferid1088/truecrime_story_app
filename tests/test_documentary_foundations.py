@@ -438,10 +438,9 @@ def test_localization_endpoint_rejects_out_of_range_minutes(client, db_session):
 
 
 def _raw_config():
-    from app.core.ai_config import CONFIG_PATH
+    from app.core.ai_config import load_raw_config
 
-    with open(CONFIG_PATH, encoding="utf-8") as fh:
-        return json.load(fh)
+    return load_raw_config()
 
 
 def test_reviewer_fallbacks_skip_author_models():

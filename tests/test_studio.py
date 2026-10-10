@@ -173,7 +173,9 @@ def test_voice_and_channel_mapping_stay_consistent():
 
 
 def test_historical_settings_still_load():
-    raw = json.loads(Path("config/ai_config.json").read_text(encoding="utf-8"))
+    from app.core.ai_config import load_raw_config
+
+    raw = load_raw_config()
     # the first channel config (a design board image) and no studio section
     raw["channels"] = {"en": {"name": "ClueVera", "studio_design": "data/Studio/ClueVera.png"},
                        "de": {"name": "Fallspur", "studio_dir": "data/studio/de"}}

@@ -1,0 +1,59 @@
+{
+  "providers": {
+    "research": "truecrime",
+    "generation": "apimaster"
+  },
+  "research_providers": {
+    "truecrime": {
+      "enabled": true,
+      "type": "search_engine",
+      "role": "internet_research"
+    }
+  },
+  "generation_providers": {
+    "apimaster": {
+      "enabled": true,
+      "base_url": "https://apimaster.ai/v1",
+      "secret_env": "TrueCrime_APIMASTER_API_KEY"
+    }
+  },
+  "search_engine": {
+    "searxng_url_env": "TRUECRIME_SEARXNG_URL",
+    "searxng_url": "http://localhost:8085",
+    "request_timeout_s": 25,
+    "max_results_per_query": 10,
+    "max_queries_per_language": 6,
+    "max_rounds_per_language": 3,
+    "max_fetches_per_language": 10,
+    "consecutive_low_novelty_stop": 2,
+    "max_duration_s": 900,
+    "min_accept_score": 0.2,
+    "fetch_quality_floor": 0.15,
+    "rerank_band_low": 0.35,
+    "rerank_band_high": 0.6,
+    "max_rerank_candidates": 10,
+    "enable_llm_rerank": true,
+    "enable_gap_analysis": true,
+    "min_full_text_chars": 1200,
+    "fetch_timeout_s": 30,
+    "fetch_max_bytes": 8000000,
+    "fetch_cache_max_age_s": 604800,
+    "fetch_resolve_dns": true,
+    "min_delay_per_domain_s": 1.0,
+    "max_fetch_concurrency": 4,
+    "bm25_weight": 0.55,
+    "dense_weight": 0.45
+  },
+  "avatar": {
+    "provider": "heygen",
+    "secret_env": "HEYGEN_API_KEY",
+    "avatar_id_env": "TrueCrime_Avatar_ID_Heygen",
+    "enabled": false,
+    "base_url": "https://api.heygen.com",
+    "output_format": "webm",
+    "resolution": "1080p",
+    "request_timeout_s": 120.0,
+    "poll_interval_s": 10.0,
+    "max_poll_minutes": 20.0
+  }
+}

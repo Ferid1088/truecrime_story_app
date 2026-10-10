@@ -30,9 +30,9 @@ from app.providers.generation.openrouter import OpenRouterGenerationProvider
 def _raw_config() -> dict:
     from pathlib import Path
 
-    return json.loads(
-        (Path(__file__).resolve().parents[1] / "config" / "ai_config.json").read_text()
-    )
+    from app.core.ai_config import load_raw_config
+
+    return load_raw_config()
 
 
 # ---------------------------------------------------------------------------

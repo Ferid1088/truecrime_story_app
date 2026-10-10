@@ -1,4 +1,4 @@
-"""Central, typed loader for config/ai_config.json.
+"""Central, typed loader for the layered configuration in config/.
 
 Every non-secret AI parameter lives in that one file — agents request
 models and generation settings by logical role and never hardcode
@@ -19,7 +19,16 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # process that imports this module, whichever import order runs first.
 load_dotenv()
 
-CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "ai_config.json"
+# Layers (each file holds whole top-level sections; a section may be split
+# over layers, e.g. generation_providers = connection in connections.json +
+# models in models.json):
+#   connections.json   where the services are: endpoints, secret env names, search, avatar
+#   models.json        which model does which role: aliases, routing, per-role settings
+#   parameters/*.json  how each area behaves: story, research, audio, documentary,
+#                      visuals, lifecycle, identity
+CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+CONFIG_FILES = ("connections.json", "models.json")
+PARAMETER_DIR = "parameters"
 
 # Every role the pipeline uses must have a routed model alias AND
 # per-role generation settings in the config file. Research-side roles
@@ -2191,27 +2200,55 @@ class AIConfig(BaseModel):
         )
 
 
-def load_ai_config(path: Path = CONFIG_PATH) -> AIConfig:
-    try:
-        raw = json.loads(path.read_text())
-    except FileNotFoundError:
-        raise RuntimeError(f"AI config file not found: {path}") from None
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"AI config file is not valid JSON: {e}") from e
-    return AIConfig.model_validate(raw)
+def config_files(config_dir: Path = CONFIG_DIR) -> list[Path]:
+    return [config_dir / f for f in CONFIG_FILES] + sorted((config_dir / PARAMETER_DIR).glob("*.json"))
+
+
+def _merge(into: dict, add: dict, where: str, source: Path) -> None:
+    for key, value in add.items():
+        if key not in into:
+            into[key] = value
+        elif isinstance(into[key], dict) and isinstance(value, dict):
+            _merge(into[key], value, f"{where}{key}.", source)
+        else:
+            raise RuntimeError(f"config key {where}{key} is defined twice (again in {source.name})")
+
+
+def load_raw_config(config_dir: Path = CONFIG_DIR) -> dict:
+    """All layers merged into one dict. A key may be split over files only
+    at dict level; defining the same value twice is an error."""
+    raw: dict = {}
+    for f in config_files(config_dir):
+        try:
+            part = json.loads(f.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raise RuntimeError(f"AI config file not found: {f}") from None
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"AI config file {f.name} is not valid JSON: {e}") from e
+        _merge(raw, part, "", f)
+    return raw
+
+
+def load_ai_config(config_dir: Path = CONFIG_DIR) -> AIConfig:
+    return AIConfig.model_validate(load_raw_config(config_dir))
 
 
 ai_config = load_ai_config()
 
 
 def save_dynamic_eq(cfg: DynamicEQConfig) -> DynamicEQConfig:
-    """Persist the dynamic_eq section to config/ai_config.json and make
-    it effective immediately (the running process keeps its other
+    """Persist the dynamic_eq section into the layer file that holds it and
+    make it effective immediately (the running process keeps its other
     sections). Atomic: a crash mid-write can never corrupt the file."""
-    raw = json.loads(CONFIG_PATH.read_text())
-    raw["dynamic_eq"] = cfg.model_dump(mode="json")
-    tmp = CONFIG_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2))
-    tmp.replace(CONFIG_PATH)
+    for f in config_files(CONFIG_DIR):
+        raw = json.loads(f.read_text(encoding="utf-8"))
+        if "dynamic_eq" in raw:
+            raw["dynamic_eq"] = cfg.model_dump(mode="json")
+            tmp = f.with_suffix(".tmp")
+            tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            tmp.replace(f)
+            break
+    else:
+        raise RuntimeError("no config file holds the dynamic_eq section")
     ai_config.dynamic_eq = cfg
     return cfg

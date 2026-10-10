@@ -1,0 +1,362 @@
+{
+  "generation_providers": {
+    "apimaster": {
+      "models": {
+        "cheap": "gpt-5.6-luna",
+        "research_intelligence": "gpt-5.6-luna",
+        "writer": "gemini-3.8-flash",
+        "premium": "claude-sonnet-5-5",
+        "embedding": "bge-m3"
+      },
+      "capabilities": {
+        "gpt-5.6-luna": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": true
+        },
+        "gemini-3.8-flash": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": true
+        },
+        "claude-sonnet-5-5": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": true
+        },
+        "bge-m3": {
+          "structured_output": false,
+          "tool_calling": false,
+          "web_search": "none",
+          "web_fetch": "none"
+        }
+      },
+      "routing": {
+        "fact_extractor": "cheap",
+        "timeline_builder": "cheap",
+        "contradiction_analyzer": "cheap",
+        "discovery": "cheap",
+        "story_director": "writer",
+        "writer": "writer",
+        "rewriter": "writer",
+        "engagement_critic": "premium",
+        "final_editor": "premium",
+        "section_critic": "premium",
+        "grounding_validator": "cheap",
+        "consistency_checker": "cheap",
+        "evidence_normalizer": "cheap",
+        "semantic_consistency_checker": "cheap",
+        "localized_grounding_validator": "cheap",
+        "master_story_director": "writer",
+        "master_writer": "writer",
+        "master_rewriter": "writer",
+        "localization_writer": "writer",
+        "master_engagement_critic": "premium",
+        "master_final_editor": "premium",
+        "native_language_critic": "premium",
+        "localized_engagement_critic": "premium",
+        "localized_final_editor": "premium",
+        "transcript_normalizer": "cheap",
+        "transcript_intelligence_extractor": "cheap",
+        "claim_clusterer": "cheap",
+        "evidence_verifier": "cheap",
+        "research_query_planner": "research_intelligence",
+        "result_reranker": "research_intelligence",
+        "research_evaluator": "cheap",
+        "research_assembler": "cheap",
+        "case_discovery_agent": "research_intelligence",
+        "narrative_director": "writer",
+        "spoken_writer": "premium",
+        "spoken_meaning_checker": "writer",
+        "spoken_style_critic": "writer",
+        "audio_director": "premium",
+        "visual_planner": "writer",
+        "visual_verifier": "writer",
+        "visual_director": "premium",
+        "overlay_localizer": "writer",
+        "automation_feel_critic": "writer",
+        "attention_critic": "writer",
+        "visual_accuracy_critic": "writer",
+        "production_critic": "writer",
+        "voice_performance_director": "premium",
+        "pronunciation_editor": "premium",
+        "case_status_verifier": "premium",
+        "host_director": "premium",
+        "host_writer": "premium",
+        "host_critic": "writer",
+        "visual_auditor": "writer",
+        "video_auditor": "writer",
+        "video_segmenter": "premium",
+        "chapter_writer": "premium",
+        "chapter_auditor": "writer",
+        "case_naming_agent": "writer",
+        "case_title_critic": "premium",
+        "native_title_critic": "premium",
+        "thumbnail_critic": "premium"
+      },
+      "fallbacks": {
+        "cheap": [
+          "writer"
+        ],
+        "writer": [
+          "premium"
+        ],
+        "premium": [
+          "writer"
+        ]
+      }
+    }
+  },
+  "generation": {
+    "fact_extractor": {
+      "temperature": 0.1,
+      "max_tokens": 6000
+    },
+    "timeline_builder": {
+      "temperature": 0.1,
+      "max_tokens": 5000
+    },
+    "contradiction_analyzer": {
+      "temperature": 0.1,
+      "max_tokens": 5000
+    },
+    "discovery": {
+      "temperature": 0.7,
+      "max_tokens": 8000
+    },
+    "story_director": {
+      "temperature": 0.5,
+      "max_tokens": 6000
+    },
+    "writer": {
+      "temperature": 0.7,
+      "max_tokens": 20000
+    },
+    "engagement_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "rewriter": {
+      "temperature": 0.65,
+      "max_tokens": 20000
+    },
+    "final_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "section_critic": {
+      "temperature": 0.2,
+      "max_tokens": 4000
+    },
+    "grounding_validator": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "consistency_checker": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "evidence_normalizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "semantic_consistency_checker": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "localized_grounding_validator": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "master_story_director": {
+      "temperature": 0.5,
+      "max_tokens": 16000
+    },
+    "master_writer": {
+      "temperature": 0.7,
+      "max_tokens": 20000
+    },
+    "master_rewriter": {
+      "temperature": 0.65,
+      "max_tokens": 20000
+    },
+    "localization_writer": {
+      "temperature": 0.6,
+      "max_tokens": 20000
+    },
+    "master_engagement_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "master_final_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "native_language_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "localized_engagement_critic": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "localized_final_editor": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "transcript_normalizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "transcript_intelligence_extractor": {
+      "temperature": 0.1,
+      "max_tokens": 8000
+    },
+    "claim_clusterer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "evidence_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "research_query_planner": {
+      "temperature": 0.3,
+      "max_tokens": 3000
+    },
+    "result_reranker": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "research_evaluator": {
+      "temperature": 0.0,
+      "max_tokens": 5000
+    },
+    "research_assembler": {
+      "temperature": 0.2,
+      "max_tokens": 8000
+    },
+    "case_discovery_agent": {
+      "temperature": 0.3,
+      "max_tokens": 8000
+    },
+    "narrative_director": {
+      "temperature": 0.3,
+      "max_tokens": 32000
+    },
+    "spoken_writer": {
+      "temperature": 0.7,
+      "max_tokens": 32000
+    },
+    "spoken_meaning_checker": {
+      "temperature": 0.0,
+      "max_tokens": 16000
+    },
+    "spoken_style_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "audio_director": {
+      "temperature": 0.3,
+      "max_tokens": 16000
+    },
+    "visual_planner": {
+      "temperature": 0.3,
+      "max_tokens": 32000
+    },
+    "visual_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 4000
+    },
+    "visual_director": {
+      "temperature": 0.4,
+      "max_tokens": 32000
+    },
+    "overlay_localizer": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "automation_feel_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "attention_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "visual_accuracy_critic": {
+      "temperature": 0.1,
+      "max_tokens": 12000
+    },
+    "production_critic": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "voice_performance_director": {
+      "temperature": 0.5,
+      "max_tokens": 32000
+    },
+    "pronunciation_editor": {
+      "temperature": 0.0,
+      "max_tokens": 16000
+    },
+    "case_status_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "host_director": {
+      "temperature": 0.5,
+      "max_tokens": 12000
+    },
+    "host_writer": {
+      "temperature": 0.7,
+      "max_tokens": 12000
+    },
+    "host_critic": {
+      "temperature": 0.1,
+      "max_tokens": 12000
+    },
+    "visual_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "video_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "video_segmenter": {
+      "temperature": 0.1,
+      "max_tokens": 6000
+    },
+    "chapter_writer": {
+      "temperature": 0.4,
+      "max_tokens": 12000
+    },
+    "chapter_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 8000
+    },
+    "case_naming_agent": {
+      "temperature": 0.9,
+      "max_tokens": 6000
+    },
+    "case_title_critic": {
+      "temperature": 0.0,
+      "max_tokens": 6000
+    },
+    "native_title_critic": {
+      "temperature": 0.0,
+      "max_tokens": 4000
+    },
+    "thumbnail_critic": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    }
+  }
+}

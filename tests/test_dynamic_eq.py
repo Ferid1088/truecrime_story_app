@@ -267,16 +267,17 @@ def test_unknown_language_gets_the_base_profile():
 def test_save_dynamic_eq_persists_and_updates(tmp_path, monkeypatch):
     import app.core.ai_config as mod
 
-    src = Path(mod.CONFIG_PATH).read_text()
-    fake = tmp_path / "ai_config.json"
-    fake.write_text(src)
-    monkeypatch.setattr(mod, "CONFIG_PATH", fake)
+    import shutil
+
+    fake = tmp_path / "config"
+    shutil.copytree(mod.CONFIG_DIR, fake)
+    monkeypatch.setattr(mod, "CONFIG_DIR", fake)
     old = ai_config.dynamic_eq.strength
     try:
         cfg = ai_config.dynamic_eq.model_copy(update={"strength": 0.5})
         mod.save_dynamic_eq(cfg)
         assert ai_config.dynamic_eq.strength == 0.5
-        assert json.loads(fake.read_text())["dynamic_eq"]["strength"] == 0.5
+        assert mod.load_raw_config(fake)["dynamic_eq"]["strength"] == 0.5
     finally:
         mod.save_dynamic_eq(ai_config.dynamic_eq.model_copy(
             update={"strength": old}))

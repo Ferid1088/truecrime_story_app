@@ -19,6 +19,8 @@ frames_per_second, at most max_frames — and two jobs:
 
 from __future__ import annotations
 
+from app.core.prompts import prompt
+
 import base64
 import asyncio
 import json
@@ -33,79 +35,9 @@ from app.documentary.visuals.verification import decide as verify_decide
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
-DESCRIBE_SYSTEM = """
-You audit one VIDEO piece for a serious, factual true-crime documentary.
-You get its frames IN ORDER with their timestamps (seconds in the whole
-video). If given, the first frame is from just BEFORE the piece and the
-last from just AFTER it (marked "context") — they show where the cut is.
-A piece was cut and named by someone else; check THEIR work strictly.
+DESCRIBE_SYSTEM = prompt("documentary/visuals/video_auditor/describe_system")
 
-1. The cut. Does the piece start where a meaningful moment starts and end
-   where it ends? Wrong: a movement cut in half, a flash of another scene
-   in its first or last second, starting or ending on black/a title, two
-   unrelated situations in one piece. If wrong, give better start/end
-   (seconds of the whole video, within "may_move_to").
-2. The name and description. Do they say exactly what is VISIBLE — no
-   invented identities, places or facts, nothing that is not there? If
-   not, write the correct ones (name max 60 chars; description one or
-   two neutral sentences: who/what, where, when, camera, mood).
-3. The content, every frame: burned-in captions/logos/watermarks, gore,
-   wrong period, sentimental/funny/stock/advertising tone, and whether it
-   shows what it is claimed to show (matches_claim: stand_in only for the
-   SAME SPECIFIC kind — a police dog only by a working police dog, never
-   for a person).
-
-Return JSON only:
-{"cut_ok": true, "suggested_start": null, "suggested_end": null,
- "description_ok": true, "name": "...", "description": "...",
- "subject_type": "person|place|building|vehicle|object|document|map|landscape|event|other",
- "matches_claim": "yes|stand_in|no|unclear",
- "role": "evidence|context|illustration",
- "entities": [], "reveals": [], "period_ok": "yes|no|unclear",
- "text_or_logo_in_any_frame": false,
- "graphic_or_sensitive_in_any_frame": false,
- "tone_ok": true, "quality": 0.7, "confidence": 0.8,
- "problem_frames": [], "reasons": []}
-"""
-
-PLACEMENT_SYSTEM = """
-You are the strict video auditor of a serious, factual true-crime
-documentary. You see the frames of ONE video piece IN ORDER (first to
-last) and the narration sentences spoken while it plays. Decide whether
-playing exactly this piece during exactly these words is right. Every
-frame counts. When in doubt, reject.
-
-Reject when: any frame shows something the words are not about, or a
-different / more general kind of thing (a pet for "the police dog", a
-city for "the forest track"); a person appears while the words talk
-about a named person and it is not clearly that person; the piece cuts
-to an unrelated scene; text, captions or logos appear in any frame; the
-look clashes with the seriousness (sentimental, funny, stock, advert);
-it contradicts the words (night vs day, season, place, period, number of
-people); gore or injuries in any frame.
-
-STORY ORDER — reject when the piece gives away what the story has not
-told yet. "story" says what the viewer has been told so far
-(told_so_far) and what the film reveals only LATER (told_later): no
-frame may show or suggest anything of told_later (an arrest, a suspect
-presented as the culprit, a body or a find, a court, the outcome, the
-answer to an open question) — however well it fits the words. When the
-case is UNSOLVED, nothing may suggest a solution. spoiler_free: false
-when any frame does.
-
-No narration (an empty list) means a pause in the film: judge only story
-order, tone and content, and give fits_words 1.0.
-
-Approve with "as": "evidence" (the case's own footage), "context" (the
-real place / real related event), "symbolic" (an accurate, serious
-depiction of exactly the kind of thing named — it will be labelled).
-
-Return JSON only:
-{"verdict": "approved", "as": "context", "fits_words": 0.9,
- "specific_kind_ok": true, "tone_ok": true, "person_ok": true,
- "spoiler_free": true, "every_frame_ok": true, "problem_frames": [],
- "reasons": ["..."]}
-"""
+PLACEMENT_SYSTEM = prompt("documentary/visuals/video_auditor/placement_system")
 
 
 def _urls(frames: list[bytes]) -> list[str]:

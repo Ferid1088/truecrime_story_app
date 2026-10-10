@@ -1,0 +1,276 @@
+{
+  "channels": {
+    "en": {
+      "name": "ClueVera",
+      "studio_dir": "data/studio/en",
+      "studio_profile": "STUDIO_EN",
+      "logo": "data/logos/Logo_English.png",
+      "intro_concept": "flashlight"
+    },
+    "de": {
+      "name": "Fallspur",
+      "studio_dir": "data/studio/de",
+      "studio_profile": "STUDIO_DE",
+      "logo": "data/logos/Logo_German.png",
+      "intro_concept": "trail_stamp"
+    },
+    "fa": {
+      "name": "رد خاموش",
+      "studio_dir": "data/studio/fa",
+      "studio_profile": "STUDIO_FA",
+      "logo": "data/logos/Logo_Persian.png",
+      "intro_concept": "moonrise"
+    },
+    "ar": {
+      "name": "أثر خفي",
+      "studio_dir": "data/studio/ar",
+      "studio_profile": "STUDIO_AR",
+      "logo": "data/logos/Logo_Arabic.png",
+      "intro_concept": "sand"
+    }
+  },
+  "video_identity": {
+    "status_labels": {
+      "en": {
+        "solved": "Solved",
+        "unsolved": "Unsolved"
+      },
+      "de": {
+        "solved": "Gelöst",
+        "unsolved": "Ungelöst"
+      },
+      "fa": {
+        "solved": "حل‌شده",
+        "unsolved": "حل‌نشده"
+      },
+      "ar": {
+        "solved": "محلولة",
+        "unsolved": "غير محلولة"
+      }
+    },
+    "title_format": "{title} ({status}){channel_suffix}",
+    "channel_separator": " | ",
+    "include_channel_suffix": true,
+    "include_episode_number": false,
+    "max_title_chars": 100
+  },
+  "case_naming": {
+    "candidates_per_language": 7,
+    "max_rounds": 4,
+    "max_words": 6,
+    "preferred_words": [
+      2,
+      5
+    ],
+    "near_token_threshold": 88.0,
+    "near_char_threshold": 90.0,
+    "semantic_threshold": 0.82,
+    "semantic_enabled": true,
+    "semantic_max_entries": 3000,
+    "semantic_kinds": [
+      "case_title",
+      "episode_title",
+      "video_title",
+      "candidate",
+      "discovery_title"
+    ],
+    "extra_per_round": 4,
+    "max_chars": 60,
+    "reject_questions": true,
+    "min_native_quality": 0.7,
+    "min_specificity": 0.4,
+    "max_spoiler_risk": 0.5,
+    "max_epistemic_risk": 0.4,
+    "max_sensationalism_risk": 0.5,
+    "weights": {
+      "memorability": 0.25,
+      "curiosity": 0.25,
+      "specificity": 0.25,
+      "brevity": 0.1,
+      "documentary_tone": 0.15
+    },
+    "generic_phrases": {
+      "en": [
+        "the dark secret",
+        "the final night",
+        "hidden truth",
+        "the hidden truth",
+        "vanished without trace",
+        "vanished without a trace",
+        "the mystery",
+        "the last day",
+        "the last night",
+        "the missing",
+        "dark secrets",
+        "cold case",
+        "unsolved mystery",
+        "the disappearance",
+        "the murder",
+        "a mother s fear"
+      ],
+      "de": [
+        "das dunkle geheimnis",
+        "die letzte nacht",
+        "die wahrheit",
+        "die verborgene wahrheit",
+        "spurlos verschwunden",
+        "das ratsel",
+        "der letzte tag",
+        "dunkle geheimnisse",
+        "ungeloster fall",
+        "der fall",
+        "das verschwinden"
+      ],
+      "fa": [
+        "راز تاریک",
+        "شب آخر",
+        "حقیقت پنهان",
+        "بدون ردپا",
+        "معما",
+        "روز آخر",
+        "ناپدید شدن",
+        "پرونده مرموز",
+        "راز پنهان"
+      ],
+      "ar": [
+        "السر المظلم",
+        "الليلة الاخيرة",
+        "الحقيقة الخفية",
+        "اختفاء بلا اثر",
+        "اللغز",
+        "اليوم الاخير",
+        "اختفاء غامض",
+        "سر دفين"
+      ]
+    },
+    "accusation_terms": {
+      "en": [
+        "kill",
+        "murder",
+        "slain",
+        "slay",
+        "guilty",
+        "culprit",
+        "butcher",
+        "strangl",
+        "monster",
+        "psychopath",
+        "executioner"
+      ],
+      "de": [
+        "morder",
+        "mord",
+        "getotet",
+        "ermordet",
+        "tater",
+        "schuldig",
+        "killer",
+        "monster",
+        "henker"
+      ],
+      "fa": [
+        "قاتل",
+        "کشت",
+        "جنایتکار",
+        "مقصر",
+        "گناهکار",
+        "مجرم",
+        "هیولا"
+      ],
+      "ar": [
+        "قاتل",
+        "قتل",
+        "قتلة",
+        "مجرم",
+        "جاني",
+        "مذنب",
+        "وحش"
+      ]
+    },
+    "generate_in_pipeline": true
+  },
+  "thumbnail": {
+    "width": 1280,
+    "height": 720,
+    "max_file_bytes": 2000000,
+    "host_manifest": "data/host/manifest.json",
+    "default_outfit_id": null,
+    "max_case_images": 2,
+    "max_text_words": 4,
+    "min_image_px": [
+      480,
+      320
+    ],
+    "min_verification_confidence": 0.6,
+    "rights_profile": "publish",
+    "allow_editorial_override": true,
+    "host_height": 0.94,
+    "host_height_xl": 1.0,
+    "image_width": 0.46,
+    "margin": 0.045,
+    "badge_height": 0.075,
+    "badge_max_area": 0.06,
+    "badge_min_height_px": 40,
+    "accent": {
+      "en": "#d9a441",
+      "de": "#6fa8dc",
+      "fa": "#d9694f",
+      "ar": "#58a582"
+    },
+    "background": "#101114",
+    "style": "minimal_documentary",
+    "forbidden": [
+      "red_arrows",
+      "circles",
+      "fake_blood",
+      "flames",
+      "crowded_collage",
+      "invented_crime_scene",
+      "misleading_relationship",
+      "spoiler_asset",
+      "extreme_glow",
+      "multiple_fonts"
+    ],
+    "subject_priority": {
+      "victim": 0,
+      "person": 1,
+      "suspect": 2,
+      "object": 3,
+      "vehicle": 3,
+      "place": 4,
+      "building": 4,
+      "landscape": 4,
+      "document": 5
+    },
+    "max_elements": 5,
+    "min_contrast": 4.5,
+    "max_automation_feel": 0.5,
+    "max_spoiler_risk": 0.4,
+    "max_misleading_risk": 0.4,
+    "min_scores": {
+      "host_visibility": 0.6,
+      "case_visual_clarity": 0.6,
+      "brand_consistency": 0.6,
+      "cleanliness": 0.6,
+      "authenticity": 0.5,
+      "readability": 0.6
+    },
+    "storage_dir": "data/thumbnails",
+    "graphic_terms": [
+      "blood",
+      "corpse",
+      "dead body",
+      "body bag",
+      "crime scene tape",
+      "gore",
+      "wound",
+      "mutilat",
+      "autopsy",
+      "naked",
+      "nude"
+    ],
+    "opening_beats": 2,
+    "min_host_height": 0.8,
+    "min_host_width": 0.15
+  }
+}

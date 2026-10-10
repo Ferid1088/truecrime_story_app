@@ -1,0 +1,509 @@
+{
+  "voice_blocks": {
+    "min_seconds": 30,
+    "target_seconds": 60,
+    "max_seconds": 90,
+    "sentence_break_penalty": 0.35,
+    "short_block_penalty": 4.0,
+    "context_chars": 300
+  },
+  "voice": {
+    "provider": "elevenlabs",
+    "elevenlabs": {
+      "secret_env": "TrueCrime_ELEVENLABS_API_KEY",
+      "base_url": "https://api.elevenlabs.io",
+      "output_format": "mp3_44100_128",
+      "request_timeout_s": 120,
+      "max_retries": 2,
+      "no_context_models": [
+        "eleven_v3"
+      ],
+      "language_code_models": [
+        "eleven_v3",
+        "eleven_turbo_v2_5",
+        "eleven_flash_v2_5"
+      ],
+      "audio_tag_models": [
+        "eleven_v3"
+      ]
+    },
+    "languages": {
+      "en": {
+        "voice_id": "UF84IGrTBtegPkgbbrS2",
+        "model_id": "eleven_v3",
+        "language_code": "en"
+      },
+      "de": {
+        "voice_id": "02KhC7wycOLwuF6sc5Qu",
+        "model_id": "eleven_v3",
+        "language_code": "de"
+      },
+      "fa": {
+        "voice_id": "I3gMKh0nwZ8NQXKqUg6F",
+        "model_id": "eleven_v3",
+        "language_code": "fa"
+      },
+      "ar": {
+        "voice_id": "EFlRMcr2Nd9ah6iW85Z4",
+        "model_id": "eleven_v3",
+        "language_code": "ar"
+      }
+    },
+    "default_style": "neutral_documentary",
+    "styles": {
+      "neutral_documentary": {
+        "stability": 0.45,
+        "similarity_boost": 0.75,
+        "style": 0.05,
+        "use_speaker_boost": true,
+        "speed": 0.9
+      },
+      "factual": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.05,
+        "use_speaker_boost": true,
+        "speed": 0.92
+      },
+      "controlled_tension": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.1,
+        "use_speaker_boost": true,
+        "speed": 0.88
+      },
+      "reveal": {
+        "stability": 0.55,
+        "similarity_boost": 0.75,
+        "style": 0.1,
+        "use_speaker_boost": true,
+        "speed": 0.86
+      },
+      "reflective": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.1,
+        "use_speaker_boost": true,
+        "speed": 0.87
+      },
+      "v3_neutral": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 0.94
+      },
+      "v3_unease": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 0.91
+      },
+      "v3_tension": {
+        "stability": 0.45,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 0.88
+      },
+      "v3_climax": {
+        "stability": 0.4,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true,
+        "speed": 0.84
+      }
+    },
+    "seed": 1,
+    "lead_pad_ms": 60,
+    "tail_pad_ms": 150,
+    "between_blocks_ms": 200,
+    "between_sections_ms": 1400,
+    "work_dir": "data/cases"
+  },
+  "asr_check": {
+    "enabled": true,
+    "provider": "faster_whisper",
+    "model": "small",
+    "compute_type": "int8",
+    "max_word_error_rate": 0.08,
+    "max_missing_run": 3,
+    "max_extra_run": 3,
+    "spelling_variant_similarity": 80,
+    "auto_retakes": 1,
+    "languages": {
+      "fa": {
+        "model": "large-v3-turbo",
+        "max_word_error_rate": 0.2,
+        "max_missing_run": 4,
+        "spelling_variant_similarity": 70
+      }
+    }
+  },
+  "loudness": {
+    "narration_target_lufs": -16.0,
+    "true_peak_db": -1.5,
+    "lra": 11,
+    "max_block_deviation_lu": 2.0,
+    "sample_rate": 44100
+  },
+  "performance": {
+    "style_for_intent": {
+      "neutral": "neutral_documentary",
+      "factual": "factual",
+      "investigative": "factual",
+      "controlled_tension": "controlled_tension",
+      "urgent_but_controlled": "controlled_tension",
+      "reveal": "reveal",
+      "reflective": "reflective",
+      "emotional_restraint": "reflective"
+    },
+    "pause_ms": {
+      "none": 0,
+      "short": 350,
+      "dramatic": 1400,
+      "silence": 2800
+    },
+    "pause_jitter": 0.15,
+    "max_long_pause_share": 0.2,
+    "protected_purposes": [
+      "reveal",
+      "chapter_end"
+    ]
+  },
+  "audio_direction": {
+    "transitions": {
+      "breath": [
+        1.0,
+        1.8
+      ],
+      "music_bridge": [
+        8.0,
+        16.0
+      ],
+      "emotional_moment": [
+        9.0,
+        18.0
+      ],
+      "sting": [
+        2.0,
+        4.0
+      ],
+      "silence": [
+        2.0,
+        4.0
+      ],
+      "chapter_break": [
+        12.0,
+        22.0
+      ]
+    },
+    "paragraph_breath_ms": {
+      "short": 600,
+      "normal": 850,
+      "long": 1150
+    },
+    "max_music_only_share": 0.2,
+    "min_seconds_between_music_moments": 75,
+    "bed_levels_db": {
+      "very_low": -24.0,
+      "low": -20.0
+    },
+    "moment_level_db": -7,
+    "sting_level_db": -5,
+    "room_tone_level_db": -34,
+    "max_repair_iterations": 1,
+    "music_lead_seconds": 2.0,
+    "music_tail_seconds": 3.0,
+    "beds_under_narration": false,
+    "music_start_after_word_seconds": 0.25,
+    "music_end_before_word_seconds": 0.4,
+    "moods": [
+      "suspense",
+      "investigation",
+      "mystery",
+      "melancholy",
+      "danger",
+      "discovery",
+      "tension",
+      "relief",
+      "resolution",
+      "uncertainty"
+    ]
+  },
+  "music_library": {
+    "provider": "elevenlabs_sound",
+    "dir": "data/music_library",
+    "prompt_influence": 0.45,
+    "reference_lufs": -16,
+    "cues": [
+      {
+        "id": "bed_mystery",
+        "kind": "bed",
+        "mood": "mystery",
+        "seconds": 20,
+        "loop": true,
+        "prompt": "seamless loop, dark ambient mystery underscore for a true crime documentary, low sustained cello drone, sparse distant felt piano notes, soft airy synth pad, slow and patient, no percussion, no vocals"
+      },
+      {
+        "id": "bed_tension",
+        "kind": "bed",
+        "mood": "tension",
+        "seconds": 20,
+        "loop": true,
+        "prompt": "seamless loop, tense documentary underscore, slow low synth pulse like a distant heartbeat, dark sustained strings, restrained and quiet, no drums, no vocals"
+      },
+      {
+        "id": "bed_emotional",
+        "kind": "bed",
+        "mood": "emotional",
+        "seconds": 20,
+        "loop": true,
+        "prompt": "seamless loop, gentle sad documentary underscore, soft solo piano over a warm low string pad, slow, intimate and restrained, no vocals"
+      },
+      {
+        "id": "bed_reflective",
+        "kind": "bed",
+        "mood": "reflective",
+        "seconds": 20,
+        "loop": true,
+        "prompt": "seamless loop, calm reflective ambient pad, warm low strings and soft piano, spacious and slow, no percussion, no vocals"
+      },
+      {
+        "id": "bridge_mystery",
+        "kind": "bridge",
+        "mood": "mystery",
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, cinematic mystery interlude for a true crime documentary, a low cello swell with a few soft piano notes, slowly evolving, no vocals"
+      },
+      {
+        "id": "bridge_tension",
+        "kind": "bridge",
+        "mood": "tension",
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, tense documentary interlude, low synth pulse slowly building with dark strings, slowly evolving, no drums, no vocals"
+      },
+      {
+        "id": "bridge_emotional",
+        "kind": "bridge",
+        "mood": "emotional",
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, emotional documentary interlude, a soft piano melody with warm strings swelling gently, sad and respectful, no vocals"
+      },
+      {
+        "id": "bridge_reflective",
+        "kind": "bridge",
+        "mood": "reflective",
+        "seconds": 22,
+        "loop": true,
+        "prompt": "seamless loop, calm reflective interlude, warm ambient pad with a few soft piano notes, slowly evolving, no vocals"
+      },
+      {
+        "id": "sting_reveal",
+        "kind": "sting",
+        "mood": "tension",
+        "seconds": 4,
+        "loop": false,
+        "prompt": "single deep cinematic low impact with a long dark reverb tail, documentary reveal sting, no vocals"
+      },
+      {
+        "id": "room_tone",
+        "kind": "room_tone",
+        "mood": "neutral",
+        "seconds": 20,
+        "loop": true,
+        "prompt": "seamless loop, very quiet room tone, soft air, faint distant hum, no voices, no music"
+      }
+    ],
+    "reuse_after_videos": 10,
+    "max_variants_per_mood": 6,
+    "mood_prompts": {
+      "suspense": "slow suspenseful documentary underscore, held low notes, a quiet pulse",
+      "investigation": "measured investigative documentary underscore, steady soft pulse, curious",
+      "mystery": "dark ambient mystery underscore, sparse notes, patient and unresolved",
+      "melancholy": "melancholic documentary underscore, slow and intimate, gentle sadness",
+      "danger": "ominous documentary underscore, low rumble, uneasy dissonance, restrained",
+      "discovery": "documentary underscore for a discovery, rising soft swell, clarity",
+      "tension": "tense documentary underscore, low pulse like a distant heartbeat",
+      "relief": "warm documentary underscore, release of tension, calm resolution",
+      "resolution": "documentary closing underscore, settled harmony, quiet dignity",
+      "uncertainty": "uncertain documentary underscore, unresolved suspended chords, airy",
+      "neutral": "quiet room tone, faint air, no music"
+    },
+    "variant_styles": [
+      "low cello and felt piano",
+      "warm synth pad and distant piano",
+      "string quartet harmonics",
+      "muted electric guitar swells and soft drone",
+      "solo piano with long reverb",
+      "low brass and soft timpani rolls",
+      "glass harmonica textures and sub bass",
+      "bowed vibraphone and low strings"
+    ]
+  },
+  "voice_performance": {
+    "enabled": true,
+    "sentences_per_call": 70,
+    "level_styles": {
+      "0": "v3_neutral",
+      "1": "v3_unease",
+      "2": "v3_tension",
+      "3": "v3_climax"
+    },
+    "level_tags": {
+      "0": [
+        "pause",
+        "thoughtful",
+        "calm"
+      ],
+      "1": [
+        "softly",
+        "quietly",
+        "slowly",
+        "slow",
+        "sighs",
+        "drawn out",
+        "hesitant",
+        "serious",
+        "concerned",
+        "distant"
+      ],
+      "2": [
+        "low",
+        "tense",
+        "uneasy",
+        "anxious",
+        "somber",
+        "ominous",
+        "measured",
+        "deliberate"
+      ],
+      "3": [
+        "whispers",
+        "whispering",
+        "hushed",
+        "barely audible",
+        "breathless",
+        "gasps",
+        "fearful"
+      ]
+    },
+    "forbidden_tags": [
+      "laughs",
+      "laughing",
+      "giggles",
+      "chuckles",
+      "crying",
+      "sobbing",
+      "shouts",
+      "shouting",
+      "loudly",
+      "yelling",
+      "excited",
+      "playful",
+      "amazed",
+      "proud",
+      "optimistic",
+      "mad",
+      "aggressive",
+      "bitter",
+      "sarcastic",
+      "stammers",
+      "singing",
+      "accent"
+    ],
+    "max_tags_per_sentence": 2,
+    "max_tagged_share": {
+      "0": 0.2,
+      "1": 0.4,
+      "2": 0.55,
+      "3": 0.85
+    },
+    "max_climax_share": 0.12,
+    "caps_languages": [
+      "en"
+    ],
+    "max_ellipses_per_sentence": 2,
+    "breath_per_level": 0.15
+  },
+  "pronunciation": {
+    "enabled": true,
+    "languages": [
+      "fa"
+    ],
+    "phoneme_model": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "max_rounds": 3,
+    "pad_seconds": 0.12,
+    "max_vowel_distance": 0.6,
+    "fix_order": [
+      "vowelled",
+      "full",
+      "respell",
+      "synonym"
+    ],
+    "sentences_per_call": 60
+  },
+  "dynamic_eq": {
+    "enabled": true,
+    "frame_ms": 20.0,
+    "hop_ms": 5.0,
+    "gate_dbfs": -55.0,
+    "reference_band_hz": [
+      300.0,
+      2500.0
+    ],
+    "baseline_percentile": 85.0,
+    "attack_ms": 10.0,
+    "release_ms": 120.0,
+    "strength": 1.0,
+    "bands": [
+      {
+        "name": "harsh_3k",
+        "center_hz": 3100.0,
+        "bandwidth_hz": 1500.0,
+        "threshold_offset_db": 12.0,
+        "max_atten_db": 6.0,
+        "ratio": 0.5
+      },
+      {
+        "name": "harsh_4k7",
+        "center_hz": 4700.0,
+        "bandwidth_hz": 1700.0,
+        "threshold_offset_db": 15.0,
+        "max_atten_db": 6.0,
+        "ratio": 0.5
+      }
+    ],
+    "deesser": {
+      "enabled": true,
+      "center_hz": 6500.0,
+      "bandwidth_hz": 4500.0,
+      "threshold_offset_db": 14.0,
+      "max_atten_db": 8.0,
+      "ratio": 0.5,
+      "attack_ms": 5.0,
+      "release_ms": 60.0,
+      "strength": 1.0
+    },
+    "languages": {
+      "en": {},
+      "de": {
+        "threshold_offset_delta_db": 0.5,
+        "deesser_threshold_offset_delta_db": 1.0
+      },
+      "ar": {
+        "deesser_threshold_offset_delta_db": 0.5
+      },
+      "fa": {
+        "threshold_offset_delta_db": 0.5,
+        "deesser_threshold_offset_delta_db": 0.5
+      }
+    },
+    "baseline_floor_db": -20.0,
+    "threshold_ceiling_db": 10.0
+  }
+}

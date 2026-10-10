@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from app.agents.story import _parse_sections, stored_sections
-from app.core.ai_config import CONFIG_PATH, AIConfig, ai_config
+from app.core.ai_config import AIConfig, ai_config, load_raw_config
 from app.documentary import spoken as SP
 from app.documentary.audio_director import (
     AudioDirector, director_system_prompt, validate_audio_plan,
@@ -34,7 +34,7 @@ needs_ffmpeg = pytest.mark.skipif(
 
 
 def _raw() -> dict:
-    return json.loads(Path(CONFIG_PATH).read_text(encoding="utf-8"))
+    return load_raw_config()
 
 
 def _routing(raw):

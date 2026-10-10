@@ -17,9 +17,9 @@ from app.providers.generation.apimaster import APIMasterGenerationProvider
 
 
 def _raw_config() -> dict:
-    return json.loads(
-        (Path(__file__).resolve().parents[1] / "config" / "ai_config.json").read_text()
-    )
+    from app.core.ai_config import load_raw_config
+
+    return load_raw_config()
 
 
 # ---------------------------------------------------------------------------

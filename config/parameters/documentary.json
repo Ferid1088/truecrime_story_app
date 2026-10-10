@@ -1,0 +1,145 @@
+{
+  "blueprint": {
+    "max_open_questions": 3,
+    "max_unanswered_questions": 2,
+    "max_dense_run": 3,
+    "max_beat_words": 230,
+    "max_repair_iterations": 1,
+    "revise_on_warnings": [
+      "too_many_open_questions",
+      "beat_too_long",
+      "hook_not_at_act_start",
+      "chapter_end_not_at_act_end",
+      "many_unanswered_questions",
+      "dense_run_without_recovery"
+    ],
+    "max_revision_iterations": 1
+  },
+  "documentary": {
+    "languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "min_film_minutes": 45,
+    "max_film_minutes": 120,
+    "pilot_seconds": 180,
+    "speech_wpm": {
+      "en": 150,
+      "de": 128,
+      "fa": 116,
+      "ar": 104
+    },
+    "storage_dir": "data/cases",
+    "video_research": true,
+    "max_tts_characters_per_job": 0
+  },
+  "documentary_critics": {
+    "critics": [
+      "automation_feel",
+      "attention",
+      "visual_accuracy",
+      "production"
+    ],
+    "max_fix_iterations": 1,
+    "max_asset_reuse": 3
+  },
+  "concurrency": {
+    "llm": 10,
+    "vision": 4,
+    "elevenlabs_tts": 4,
+    "elevenlabs_sound": 2,
+    "asr": 1,
+    "render": 2,
+    "downloads": 4,
+    "jobs": 2,
+    "languages": 4
+  },
+  "host": {
+    "enabled": true,
+    "max_mid_segments": 2,
+    "max_total_share": 0.08,
+    "min_beats_between": 3,
+    "pace_factor": 1.08,
+    "max_repair_iterations": 2
+  },
+  "studio": {
+    "registry_path": "config/studio_registry.json",
+    "thumbs_dir": "data/studio_thumbs",
+    "thumb_width": 640,
+    "max_background_upscale": 1.6,
+    "framing_by_position": {
+      "opening": "HOST_MEDIUM",
+      "mid": "HOST_CLOSE",
+      "final": "HOST_WIDE"
+    }
+  },
+  "chapters": {
+    "enabled": true,
+    "title_card": true,
+    "card_seconds": 4.5,
+    "min_card_seconds": 3.0,
+    "lead_out_seconds": 0.4,
+    "max_title_chars": 48,
+    "max_label_chars": 48,
+    "max_timeline_events": 9,
+    "max_labelled_events": 24,
+    "timeline_move_seconds": 1.2,
+    "intro_enabled": true,
+    "intro_dir": "data/intros",
+    "intro_duck_db": -18.0
+  },
+  "visual_audit": {
+    "enabled": true,
+    "max_redos": 2,
+    "min_fit": 0.7
+  },
+  "video_audit": {
+    "frames_per_second": 1.0,
+    "max_frames": 20,
+    "frame_width": 384
+  },
+  "render": {
+    "profile": "preview",
+    "width": 1920,
+    "height": 1080,
+    "fps": 25,
+    "crf": 20,
+    "preset": "veryfast",
+    "burn_subtitles": false,
+    "subtitle_max_chars": 42,
+    "subtitle_max_seconds": 6.0
+  },
+  "motion": {
+    "push_scale": 1.07,
+    "pan_fraction": 0.05,
+    "emotional_slowdown": 0.6,
+    "parallax_enabled": true,
+    "parallax_shift_fraction": 0.012,
+    "min_hold_seconds": 5.0,
+    "max_still_seconds": 16.0,
+    "max_hold_seconds": 20.0,
+    "max_map_seconds": 12.0,
+    "crossfade_seconds": [
+      0.7,
+      1.4
+    ],
+    "max_same_motion_run": 2
+  },
+  "attention": {
+    "max_overlay_words": 14,
+    "max_read_items_per_beat": 1,
+    "max_changes_per_minute": 12,
+    "min_changes_per_minute": 1,
+    "firewall_purposes": [
+      "reveal",
+      "contradiction",
+      "evidence",
+      "false_lead",
+      "chapter_end"
+    ],
+    "max_black_seconds": 6.0,
+    "repeat_overlay_seconds": 150.0
+  }
+}

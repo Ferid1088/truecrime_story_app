@@ -1,0 +1,120 @@
+{
+  "visual_search": {
+    "providers": [
+      "source_pages",
+      "wikimedia",
+      "searxng_images"
+    ],
+    "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
+    "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
+    "max_queries": 30,
+    "max_candidates_per_query": 5,
+    "max_source_pages": 25,
+    "max_assets": 120,
+    "min_width": 600,
+    "max_download_mb": 15,
+    "request_timeout_s": 25,
+    "blocked_domains": [
+      "gettyimages.",
+      "shutterstock.",
+      "alamy.",
+      "istockphoto.",
+      "dreamstime.",
+      "depositphotos.",
+      "123rf.",
+      "stock.adobe."
+    ],
+    "min_request_interval_s": 1.0
+  },
+  "visual_verification": {
+    "per_requirement": 5,
+    "verified_min_confidence": 0.7,
+    "reject_below_confidence": 0.35,
+    "thumbnail_px": 768
+  },
+  "rights": {
+    "allowed_for_render": {
+      "preview": [
+        "owned",
+        "licensed",
+        "public_domain",
+        "creative_commons",
+        "editorial_review_required"
+      ],
+      "publish": [
+        "owned",
+        "licensed",
+        "public_domain",
+        "creative_commons"
+      ]
+    },
+    "attribution_required": [
+      "creative_commons"
+    ]
+  },
+  "maps": {
+    "tile_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "attribution": "© OpenStreetMap contributors",
+    "geocoder_url": "https://nominatim.openstreetmap.org/search",
+    "tile_size": 256,
+    "darken": 0.55
+  },
+  "visual_direction": {
+    "tier_weights": {
+      "1": 1.0,
+      "2": 0.92,
+      "3": 0.78,
+      "4": 0.55,
+      "5": 0.3
+    },
+    "max_generic_appearances": 1,
+    "max_context_appearances": 1,
+    "max_person_appearances": 1,
+    "max_evidence_appearances": 1,
+    "min_repeat_gap_seconds": 45.0,
+    "cut_pattern": [
+      7.0,
+      9.0,
+      6.0,
+      8.5,
+      5.5,
+      8.0
+    ],
+    "min_cut_seconds": 4.0,
+    "seconds_per_shot": 7.0,
+    "max_shots_per_beat": 14,
+    "first_map_not_before_seconds": 20.0,
+    "production_search": true,
+    "max_search_requests": 12,
+    "queries_per_request": 3,
+    "weak_tier": 3
+  },
+  "footage": {
+    "enabled": true,
+    "providers": [
+      "wikimedia_video",
+      "internet_archive"
+    ],
+    "internet_archive_api": "https://archive.org/advancedsearch.php",
+    "max_queries": 8,
+    "max_clips_per_case": 12,
+    "max_candidates_per_query": 3,
+    "max_download_mb": 250.0,
+    "max_source_seconds": 1800.0,
+    "clip_seconds": 24.0,
+    "min_height": 360,
+    "upload_max_seconds": 600.0,
+    "pieces": true,
+    "max_keep_seconds": 600.0,
+    "proxy_height": 720,
+    "piece_min_seconds": 4.0,
+    "piece_max_seconds": 20.0,
+    "piece_overlap_seconds": 2.0,
+    "max_pieces_per_source": 12,
+    "scene_threshold": 0.32,
+    "segment_window_seconds": 90.0,
+    "segment_fps": 0.5,
+    "segment_frame_width": 256,
+    "snap_seconds": 0.6
+  }
+}
