@@ -112,6 +112,10 @@ def verified_why(asset, verification: dict | None,
         if role == "context":
             return 4, "verifier: stand-in of the same kind from the case's region/period"
         return 5, "verifier: stand-in illustration (labelled on screen)"
+    if matches == "composite":
+        if role == "evidence":
+            return 2, "verified: composite image of multiple exact case entities"
+        return 2, "verified: composite image of multiple exact entities"
     if role == "illustration":
         return 5, "verifier: illustration (atmosphere only)"
     if matches == "no":

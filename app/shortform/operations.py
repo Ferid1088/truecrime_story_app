@@ -51,6 +51,25 @@ class ExportPackagePublisher:
         return "exported"
 
 
+PUBLISHABLE_STATUSES = {"scheduled", "publishing", "published"}
+
+
+def transition_publish_status(
+    current: str,
+    target: str,
+    *,
+    human_approved: bool = False,
+) -> str:
+    """Guard every outward-facing status transition behind human approval."""
+    if target not in {"draft", "review", "approved", *PUBLISHABLE_STATUSES}:
+        raise ValueError(f"unknown publishing status: {target}")
+    if target in PUBLISHABLE_STATUSES and not human_approved:
+        raise PermissionError("human approval is required before scheduling or publishing")
+    if target in PUBLISHABLE_STATUSES and current != "approved":
+        raise PermissionError("only an approved export can be scheduled or published")
+    return target
+
+
 def resolve_voice_ids(languages: tuple[str, ...] = ("en", "de", "fa", "ar")) -> dict[str, str]:
     return {language: ai_config.voice.for_language(language).voice_id for language in languages}
 
@@ -81,16 +100,25 @@ def derive_variants(concept_id: str, language: str, cta: str,
 def build_publish_plan(start: date, counts: dict[str, int], days: int = 14) -> list[PublishSlot]:
     if days < 10 or days > 14:
         raise ValueError("publishing window must be 10 to 14 days")
-    remaining = dict(counts)
-    slots = []
-    for day in range(1, days + 1):
-        for platform in sorted(remaining):
-            if remaining[platform] and day not in {3, 5, 7, 9, 11, 13}:
-                slots.append(PublishSlot(day=day, platform=platform))
+    if any(count < 0 for count in counts.values()):
+        raise ValueError("publish counts cannot be negative")
+    total = sum(counts.values())
+    if not total:
+        return []
+    # Interleave platforms before spreading the queue. This keeps one
+    # platform from monopolizing the opening days and lets the configured
+    # totals fit a 10-14 day plan without dumping everything on day one.
+    remaining = dict(sorted(counts.items()))
+    queue: list[str] = []
+    while any(remaining.values()):
+        for platform in remaining:
+            if remaining[platform]:
+                queue.append(platform)
                 remaining[platform] -= 1
-                break
-    if any(remaining.values()):
-        raise ValueError(f"publishing plan shortfall: {remaining}")
+    slots = []
+    for index, platform in enumerate(queue):
+        day = 1 + (index * days // total)
+        slots.append(PublishSlot(day=day, platform=platform))
     return slots
 
 

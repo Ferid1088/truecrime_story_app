@@ -44,6 +44,10 @@ def decide(v: dict) -> tuple[str, float, str | None]:
         return "rejected", conf, "graphic_or_sensitive"
     if v.get("tone_ok") is False:
         return "rejected", conf, "tone"
+    if v.get("matches_claim") == "composite":
+        if conf >= cfg.verified_min_confidence:
+            return "verified", conf, "composite_match"
+        return "needs_review", conf, "composite_uncertain"
     if v.get("matches_claim") == "no" or v.get("period_ok") == "no":
         return "rejected", conf, "does_not_match"
     if conf < cfg.reject_below_confidence:
@@ -59,6 +63,17 @@ def decide(v: dict) -> tuple[str, float, str | None]:
     if v.get("matches_claim") == "yes" and conf >= cfg.verified_min_confidence:
         return "verified", conf, None
     return "needs_review", conf, "uncertain"
+
+
+def normalize_composite_match(verdict: dict, known_entity_keys: set[str]) -> dict:
+    """Preserve a valid multi-entity depiction as a composite match."""
+    out = dict(verdict)
+    entities = [e for e in out.get("entities") or [] if e in known_entity_keys]
+    if (out.get("matches_claim") == "no" and len(set(entities)) >= 2
+            and out.get("period_ok") != "no"):
+        out["matches_claim"] = "composite"
+        out["composite_entities"] = sorted(set(entities))
+    return out
 
 
 def _keyframe_thumb(asset: VisualAsset):

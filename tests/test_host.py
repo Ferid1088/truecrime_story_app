@@ -213,7 +213,9 @@ def _with_blueprint(db, case, master, status="valid"):
     return row
 
 
-def test_host_director_plans_remembers_and_writes(db_session, monkeypatch):
+def test_host_director_plans_remembers_and_writes(
+    db_session, isolated_host_history, monkeypatch
+):
     from test_blueprint_performance import _story
     from app.db.models import HostMemory
     from app.documentary.host import HostDirector, recent_segments

@@ -184,6 +184,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             ],
             **self.extra_body,
         }
+        if gen.seed is not None:
+            body["seed"] = gen.seed
         try:
             async with httpx.AsyncClient(timeout=300) as client:
                 r = await client.post(

@@ -53,6 +53,13 @@ def _ensure_columns():
         }.items():
             if col not in cols:
                 conn.execute(text(ddl))
+        # Stable case identity was added to the ORM after the original
+        # SQLite database was created. Keep this migration deliberately
+        # narrow: it adds only the missing nullable column and its index.
+        case_cols = {c["name"] for c in inspect(conn).get_columns("cases")}
+        if "case_uid" not in case_cols:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN case_uid VARCHAR(20)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cases_case_uid ON cases(case_uid)"))
         story_cols = {c["name"] for c in inspect(conn).get_columns("story_versions")}
         if "language" not in story_cols:
             conn.execute(text("ALTER TABLE story_versions ADD COLUMN language VARCHAR(20) DEFAULT 'fa'"))
@@ -215,7 +222,8 @@ def _ensure_columns():
         from app.db.models import (DiscoveryCandidate as _DC, EpisodeIdentity as _EI,
                                    HostScene as _HS, ProductionScript as _PS,
                                    VisualAsset as _VA, Video as _VD)
-        for model in (Case, _DC, _VA, _HS, _PS, _VD, _EI):
+        from app.db.models import EpistemicClaim as _EC
+        for model in (Case, _DC, _VA, _HS, _PS, _VD, _EI, _EC):
             _add_model_columns(conn, model)
         conn.commit()
 

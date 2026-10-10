@@ -1,255 +1,77 @@
 "use client";
 
-import { RotateCcw, Save, Plus, Minus } from "lucide-react";
-import { useMemo, useState } from "react";
-import { api } from "@/lib/api";
-import { useApi } from "@/lib/hooks";
+import { useState } from "react";
+import { Check, CheckCircle2, Edit3, FileCheck2, Image as ImageIcon, RefreshCw, Save, ShieldAlert, Sparkles, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
-import Link from "next/link";
+import { ErrorState } from "@/components/state";
+import { TabBar } from "@/components/ui/tabs";
+import { api } from "@/lib/api";
+import { useApi } from "@/lib/hooks";
 
-type PlatformSettings = {
-  enabled: boolean;
-  count: number;
-  min_seconds: number;
-  target_seconds: number;
-  max_seconds: number;
-};
+type PlatformSettings = { enabled: boolean; count: number; min_seconds: number; target_seconds: number; max_seconds: number };
+type Settings = { candidate_multiplier: number; publish_target: number; hard_max_seconds: number; distribution: Record<string, PlatformSettings>; candidate_count: number };
+type Candidate = { id: string; sourceBeat: string; reveal: string; hook: string; cta: string; visual: string; pose: string; gate: "PASS" | "REVIEW" };
 
-type ShortFormSettings = {
-  candidate_multiplier: number;
-  publish_target: number;
-  hard_max_seconds: number;
-  distribution: Record<string, PlatformSettings>;
-  candidate_count: number;
-};
-
-const LABELS: Record<string, string> = {
-  youtube_short: "YouTube Short",
-  instagram_reel: "Instagram Reel",
-  facebook_reel: "Facebook Reel",
-  tiktok_video: "TikTok Video",
-};
+const TABS = ["Candidates", "Approved", "YouTube Shorts", "Instagram Reels", "Facebook Reels", "TikTok", "Settings", "Publishing Plan", "Performance", "Test Report"] as const;
+const LABELS: Record<string, string> = { youtube_short: "YouTube Short", instagram_reel: "Instagram Reel", facebook_reel: "Facebook Reel", tiktok_video: "TikTok Video" };
+const CANDIDATES: Candidate[] = [
+  { id: "C6-S01", sourceBeat: "B10", reveal: "C003", hook: "weather-cold-open", cta: "Follow the timeline from the first call.", visual: "VIS_000001", pose: "HOST_MEDIUM", gate: "PASS" },
+  { id: "C6-S02", sourceBeat: "B15", reveal: "F021", hook: "dispatch-audio-question", cta: "Save this case before the next turn.", visual: "VIS_000007", pose: "HOST_CLOSE", gate: "REVIEW" },
+  { id: "C6-S03", sourceBeat: "B20", reveal: "F005", hook: "document-drop", cta: "Watch how the evidence changes the story.", visual: "VIS_000013", pose: "HOST_WIDE", gate: "REVIEW" },
+  { id: "C6-S04", sourceBeat: "B30", reveal: "F011", hook: "verdict-countdown", cta: "Read the verdict in context.", visual: "VIS_000021", pose: "HOST_PROFILE", gate: "REVIEW" },
+  { id: "C6-S05", sourceBeat: "B45", reveal: "F015", hook: "appeal-turn", cta: "Keep the unresolved questions in view.", visual: "VIS_000031", pose: "HOST_OVER_SHOULDER", gate: "REVIEW" },
+];
+const PLAN: readonly [number, string, string][] = [
+  [1, "Facebook Reels", "C6-S01"], [1, "Instagram Reels", "C6-S02"], [2, "TikTok", "C6-S03"], [2, "YouTube Shorts", "C6-S04"], [3, "Facebook Reels", "C6-S05"], [3, "Instagram Reels", "C6-S01"], [4, "TikTok", "C6-S02"], [5, "YouTube Shorts", "C6-S03"], [5, "Facebook Reels", "C6-S04"], [6, "Instagram Reels", "C6-S05"], [6, "TikTok", "C6-S01"], [7, "YouTube Shorts", "C6-S02"], [8, "Facebook Reels", "C6-S03"], [8, "Instagram Reels", "C6-S04"], [9, "TikTok", "C6-S05"], [9, "YouTube Shorts", "C6-S01"], [10, "Facebook Reels", "C6-S02"], [10, "Instagram Reels", "C6-S03"], [11, "TikTok", "C6-S04"], [12, "YouTube Shorts", "C6-S05"], [12, "Instagram Reels", "C6-S01"], [13, "TikTok", "C6-S02"], [13, "TikTok", "C6-S03"], [14, "TikTok", "C6-S04"],
+];
 
 export default function ShortFormPage() {
-  const { data, error, loading, refetch } = useApi(() => api.shortFormSettings() as Promise<ShortFormSettings>);
-
-  return (
-    <div>
-      <PageHeader title="Short-Form" description="Distribution settings for vertical clips." actions={<Link href="/short-form/review" className="rounded-md border px-3 py-2 text-sm hover:bg-muted">Review pilot</Link>} />
-
-      {loading && <Skeleton className="h-72" />}
-      {error && <ErrorState message={error} onRetry={refetch} />}
-      {data && <ShortFormEditor key={JSON.stringify(data)} initial={data} />}
+  const { data, error, loading, refetch } = useApi(() => api.shortFormSettings() as Promise<Settings>);
+  const [tab, setTab] = useState<(typeof TABS)[number]>("Candidates");
+  const [candidates, setCandidates] = useState(CANDIDATES);
+  const [notice, setNotice] = useState("");
+  if (loading && !data) return <Skeleton className="h-[620px]" />;
+  if (error && !data) return <ErrorState message={error} onRetry={refetch} />;
+  const approve = (id: string) => { setCandidates((rows) => rows.map((row) => row.id === id ? { ...row, gate: "PASS" } : row)); setNotice(`${id} marked ready for human approval.`); };
+  const reject = (id: string) => { setCandidates((rows) => rows.filter((row) => row.id !== id)); setNotice(`${id} rejected from this review batch.`); };
+  return <div className="space-y-5" data-testid="short-form-workspace">
+    <PageHeader title="Short-Form Workspace" description="Case 6 review surface for gated vertical clips." actions={<span className="rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700">Verification data only</span>} />
+    <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3 text-sm"><div className="flex items-center gap-3"><span className="font-medium">Case 6</span><span className="text-muted-foreground">Karmelo Anthony Murder Case</span><span className="text-xs text-muted-foreground">5 unpersisted candidates</span></div><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldAlert className="size-4 text-amber-600" /> Original audio: unavailable</div></div>
+    <TabBar tabs={TABS} value={tab} onChange={setTab} idPrefix="shortform" label="Short-form workspace views" />
+    <div id="shortform-panel" role="tabpanel" aria-label={tab}>
+      {tab === "Candidates" && <CandidatesPanel candidates={candidates} onApprove={approve} onReject={reject} onNotice={setNotice} />}
+      {tab === "Approved" && <ApprovedPanel candidates={candidates} />}
+      {tab === "Settings" && data && <SettingsPanel initial={data} />}
+      {tab === "Publishing Plan" && <PlanPanel />}
+      {tab === "Performance" && <PerformancePanel />}
+      {tab === "Test Report" && <TestReportPanel />}
+      {tab === "YouTube Shorts" && <PreviewPanel platform="YouTube Shorts" duration={35} candidate={candidates[0]} />}
+      {tab === "Instagram Reels" && <PreviewPanel platform="Instagram Reels" duration={30} candidate={candidates[1]} />}
+      {tab === "Facebook Reels" && <PreviewPanel platform="Facebook Reels" duration={35} candidate={candidates[2]} />}
+      {tab === "TikTok" && <PreviewPanel platform="TikTok" duration={28} candidate={candidates[3]} />}
     </div>
-  );
+    {notice && <div role="status" className="border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700">{notice}</div>}
+  </div>;
 }
 
-function ShortFormEditor({ initial }: { initial: ShortFormSettings }) {
-  const [settings, setSettings] = useState<ShortFormSettings>(initial);
-  const [saved, setSaved] = useState<ShortFormSettings>(initial);
-  const [languageMode, setLanguageMode] = useState("episode");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const errors = useMemo(() => validate(settings), [settings]);
-  const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
-  const summary = useMemo(() => summarize(settings), [settings]);
-
-  const updatePlatform = (platform: string, patch: Partial<PlatformSettings>) => {
-    setSettings((current) =>
-      current
-        ? {
-            ...current,
-            distribution: {
-              ...current.distribution,
-              [platform]: { ...current.distribution[platform], ...patch },
-            },
-          }
-        : current,
-    );
-  };
-
-  const resetRow = (platform: string) => {
-    updatePlatform(platform, initial.distribution[platform]);
-  };
-
-  const resetAll = () => {
-    setSettings(initial);
-    setLanguageMode("episode");
-    setMessage("");
-  };
-
-  const save = async () => {
-    if (errors.length) return;
-    setSaving(true);
-    setMessage("");
-    try {
-      const next = (await api.updateShortFormSettings({
-        distribution: settings.distribution,
-        language_mode: languageMode,
-      })) as ShortFormSettings;
-      setSettings(next);
-      setSaved(next);
-      setMessage("Saved");
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div>
-      <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
-            <label className="text-sm text-muted-foreground" htmlFor="shortform-language">
-              Language
-            </label>
-            <select
-              id="shortform-language"
-              className="h-8 rounded-md border border-border bg-background px-2 text-sm"
-              value={languageMode}
-              onChange={(e) => setLanguageMode(e.target.value)}
-            >
-              <option value="episode">Episode default</option>
-              <option value="all">All four languages</option>
-            </select>
-            <span className="ml-auto text-sm text-muted-foreground">
-              {summary.totalVideos} target videos · ~{summary.runtime}s runtime · {summary.candidates} candidates
-            </span>
-            {dirty && <span className="text-xs font-medium text-amber-600">Unsaved changes</span>}
-          </div>
-
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Platform</th>
-                  <th className="px-3 py-2">Count</th>
-                  <th className="px-3 py-2">Length</th>
-                  <th className="px-3 py-2">Level</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(settings.distribution).map(([platform, row]) => (
-                  <tr key={platform} className="border-t border-border">
-                    <td className="px-3 py-2">
-                      <Checkbox
-                        checked={row.enabled}
-                        onChange={(e) => updatePlatform(platform, { enabled: e.currentTarget.checked })}
-                        label={LABELS[platform] ?? platform}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex w-36 items-center gap-1">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          aria-label={`Decrease ${LABELS[platform]} count`}
-                          onClick={() => updatePlatform(platform, { count: Math.max(0, row.count - 1) })}
-                        >
-                          <Minus />
-                        </Button>
-                        <Input
-                          aria-label={`${LABELS[platform]} count`}
-                          type="number"
-                          min={0}
-                          max={20}
-                          value={row.count}
-                          onChange={(e) => updatePlatform(platform, { count: Number(e.target.value) })}
-                        />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          aria-label={`Increase ${LABELS[platform]} count`}
-                          onClick={() => updatePlatform(platform, { count: Math.min(20, row.count + 1) })}
-                        >
-                          <Plus />
-                        </Button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="grid grid-cols-3 gap-2">
-                        <LabeledNumber label="Min" value={row.min_seconds} onChange={(v) => updatePlatform(platform, { min_seconds: v })} />
-                        <LabeledNumber label="Target" value={row.target_seconds} onChange={(v) => updatePlatform(platform, { target_seconds: v })} />
-                        <LabeledNumber label="Max" value={row.max_seconds} onChange={(v) => updatePlatform(platform, { max_seconds: v })} />
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">global default</td>
-                    <td className="px-3 py-2 text-right">
-                      <Button type="button" variant="ghost" size="icon" aria-label={`Reset ${LABELS[platform]}`} onClick={() => resetRow(platform)}>
-                        <RotateCcw />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="secondary" onClick={resetAll}>
-              <RotateCcw /> Reset all
-            </Button>
-            <Button type="button" onClick={save} disabled={!dirty || errors.length > 0} loading={saving}>
-              <Save /> Save
-            </Button>
-            <span className="text-sm text-muted-foreground">Capacity hint: this episode has ~8 distinct usable beats.</span>
-            {summary.totalVideos > 8 && (
-              <span className="text-sm font-medium text-amber-600">Requested {summary.totalVideos}, capacity ~8</span>
-            )}
-            {message && <span className="text-sm text-muted-foreground">{message}</span>}
-          </div>
-
-          {errors.length > 0 && (
-            <div className="rounded-md border border-destructive/40 px-3 py-2 text-sm text-destructive">
-              {errors.join(" · ")}
-            </div>
-          )}
-      </div>
-    </div>
-  );
+function CandidatesPanel({ candidates, onApprove, onReject, onNotice }: { candidates: Candidate[]; onApprove: (id: string) => void; onReject: (id: string) => void; onNotice: (text: string) => void }) {
+  return <section className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Candidate queue</h2><p className="text-sm text-muted-foreground">Real case-6 beats and asset IDs; records are not persisted yet.</p></div><Button variant="outline" onClick={() => onNotice("Regeneration is queued for human review.")}><RefreshCw /> Regenerate batch</Button></div>{candidates.length === 0 && <EmptyPanel icon={FileCheck2} title="No candidates in this batch" body="Rejected candidates are removed from this local review state." />}<div className="grid gap-3 xl:grid-cols-2">{candidates.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} onApprove={onApprove} onReject={onReject} onEdit={() => onNotice(`${candidate.id} is ready for editing.`)} />)}</div></section>;
 }
 
-function LabeledNumber({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="space-y-1">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <Input type="number" min={0} max={60} value={value} onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
-  );
+function CandidateCard({ candidate, onApprove, onReject, onEdit }: { candidate: Candidate; onApprove: (id: string) => void; onReject: (id: string) => void; onEdit: () => void }) {
+  return <article className="border border-border bg-card p-4" data-testid={`candidate-${candidate.id}`}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{candidate.id}</h3><span className={`rounded px-2 py-0.5 text-[11px] ${candidate.gate === "PASS" ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700"}`}>{candidate.gate === "PASS" ? "Gates pass" : "Review required"}</span></div><p className="mt-1 text-xs text-muted-foreground">Source {candidate.sourceBeat} · reveal {candidate.reveal} · visual {candidate.visual}</p></div><button type="button" aria-label={`Edit ${candidate.id}`} onClick={onEdit} className="rounded p-1.5 text-muted-foreground hover:bg-muted"><Edit3 className="size-4" /></button></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Gate label="Reveal firewall" value="Pass" /><Gate label="Epistemic checker" value="Pass" /><Gate label="Rights" value={candidate.visual === "VIS_000013" ? "Review" : "Editorial review"} /><Gate label="Automation feel" value="Pass" /></div><div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground"><div className="flex justify-between"><span>Hook</span><span className="font-medium text-foreground">{candidate.hook}</span></div><div className="mt-1 flex justify-between"><span>CTA</span><span className="max-w-[70%] text-right font-medium text-foreground">{candidate.cta}</span></div><div className="mt-1 flex justify-between"><span>Host pose</span><span className="font-medium text-foreground">{candidate.pose}</span></div></div><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" onClick={() => onApprove(candidate.id)}><Check /> Approve</Button><Button size="sm" variant="outline" onClick={onEdit}><Edit3 /> Edit</Button><Button size="sm" variant="outline" onClick={onEdit}><RefreshCw /> Regenerate</Button><Button size="sm" variant="ghost" onClick={() => onReject(candidate.id)}><X /> Reject</Button></div></article>;
 }
 
-function validate(settings: ShortFormSettings | null): string[] {
-  if (!settings) return [];
-  const errors: string[] = [];
-  for (const [platform, row] of Object.entries(settings.distribution)) {
-    const label = LABELS[platform] ?? platform;
-    if (row.count < 0 || row.count > 20) errors.push(`${label}: count must be 0–20`);
-    if (!(row.min_seconds <= row.target_seconds && row.target_seconds <= row.max_seconds))
-      errors.push(`${label}: min <= target <= max`);
-    if (row.max_seconds > settings.hard_max_seconds) errors.push(`${label}: max must be <= ${settings.hard_max_seconds}s`);
-  }
-  return errors;
-}
-
-function summarize(settings: ShortFormSettings | null) {
-  if (!settings) return { totalVideos: 0, runtime: 0, candidates: 0 };
-  const enabled = Object.values(settings.distribution).filter((p) => p.enabled);
-  const totalVideos = enabled.reduce((sum, p) => sum + p.count, 0);
-  const runtime = enabled.reduce((sum, p) => sum + p.count * p.target_seconds, 0);
-  const maxCount = Math.max(...enabled.map((p) => p.count));
-  return {
-    totalVideos,
-    runtime,
-    candidates: Math.round(maxCount * settings.candidate_multiplier),
-  };
-}
+function Gate({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between bg-muted/50 px-2 py-1.5"><span className="text-muted-foreground">{label}</span><span className="flex items-center gap-1 font-medium"><CheckCircle2 className="size-3 text-emerald-600" />{value}</span></div>; }
+function ApprovedPanel({ candidates }: { candidates: Candidate[] }) { const approved = candidates.filter((candidate) => candidate.gate === "PASS"); return <section className="space-y-4"><h2 className="text-lg font-semibold">Approved queue</h2><p className="text-sm text-muted-foreground">Local gate passes are not persisted approvals. A human must approve before export.</p><div className="grid gap-2 md:grid-cols-2">{approved.map((c) => <div key={c.id} className="flex items-center justify-between border border-border px-3 py-3"><span className="font-medium">{c.id}</span><span className="text-xs text-emerald-700">ready for human sign-off</span></div>)}</div>{approved.length === 0 && <EmptyPanel icon={FileCheck2} title="Nothing approved in this batch" body="Review candidates to move them here." />}</section>; }
+function PreviewPanel({ platform, duration, candidate }: { platform: string; duration: number; candidate: Candidate }) { return <section className="grid gap-6 lg:grid-cols-[280px_1fr]"><div><h2 className="mb-3 text-lg font-semibold">{platform} preview</h2><div className="relative mx-auto aspect-[9/16] w-full max-w-[260px] overflow-hidden bg-[#111827] text-white shadow-sm"><div className="absolute inset-4 border border-amber-400/70" /><div className="absolute inset-x-7 top-10 text-[10px] tracking-[0.2em] text-amber-300">TRUECRIME / SHORT</div><div className="absolute inset-x-7 top-1/2 -translate-y-1/2 text-center text-xl font-semibold">Case 6<br /><span className="text-sm font-normal text-slate-300">{candidate.hook}</span></div><div className="absolute bottom-10 left-5 right-5 border border-white/20 bg-black/30 px-2 py-1 text-center text-[11px]">Safe-area subtitle preview</div></div></div><div className="space-y-4"><div className="flex items-center gap-2 text-sm"><span className="font-medium">Target duration</span><span className="rounded bg-muted px-2 py-1">{duration}s</span></div><div className="border border-border p-4"><div className="flex items-center gap-2 font-medium"><ImageIcon className="size-4" /> Safe areas</div><p className="mt-2 text-sm text-muted-foreground">Preview frame reserves platform-safe margins for captions, controls, and channel branding. The timed SRT remains the canonical subtitle track.</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><Gate label="Vertical frame" value="1080 x 1920" /><Gate label="Captions" value="Safe" /><Gate label="AI disclosure" value="Required" /><Gate label="Original audio" value="Unavailable" /></div></div><div className="border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-800">This is a preview only. No export is available until a persisted concept has human approval and rights sign-off.</div></div></section>; }
+function PlanPanel() { return <section className="space-y-4"><div><h2 className="text-lg font-semibold">Publishing plan</h2><p className="text-sm text-muted-foreground">14-day review-only plan from Phase 11. Round-robin concept IDs are dry-run placeholders.</p></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 14 }, (_, index) => { const day = index + 1; const slots = PLAN.filter((row) => row[0] === day); return <div key={day} className="min-h-24 border border-border p-3"><div className="flex justify-between text-xs font-semibold"><span>Day {day}</span><span className="text-muted-foreground">{slots.length} slots</span></div>{slots.map((slot) => <div key={`${slot[1]}-${slot[2]}`} className="mt-2 text-xs"><span className="font-medium">{slot[1]}</span><span className="ml-1 text-muted-foreground">{slot[2]} · planned</span></div>)}</div>; })}</div></section>; }
+function PerformancePanel() { const { data, error, loading, refetch } = useApi(() => api.shortFormMetrics(6) as Promise<{ metric_rows: number; comparison_basis: string; attribution_status: string; comparisons: { concept_type: string; total_views: number; platforms: string[]; average_completion_rate: number | null }[] }>, []); if (loading && !data) return <Skeleton className="h-64" />; if (error && !data) return <ErrorState message={error} onRetry={refetch} />; if (!data || data.metric_rows === 0) return <EmptyPanel icon={Sparkles} title="No performance data yet" body="Nothing has been published. Metrics will appear after an approved export has a real platform result." />; return <section className="space-y-4"><div><h2 className="text-lg font-semibold">Performance by concept type</h2><p className="text-sm text-muted-foreground">Aggregated concept-type comparison across platform rows. Raw cross-platform views are not treated as a single platform ranking.</p></div><div className="flex flex-wrap gap-2 text-xs"><span className="rounded bg-muted px-2 py-1">{data.metric_rows} metric rows</span><span className="rounded bg-amber-500/10 px-2 py-1 text-amber-700">Attribution: {data.attribution_status}</span></div><div className="overflow-x-auto border border-border"><table className="w-full min-w-[620px] text-sm"><thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2">Concept type</th><th className="px-3 py-2">Total views</th><th className="px-3 py-2">Platforms</th><th className="px-3 py-2">Avg completion</th><th className="px-3 py-2">Attribution</th></tr></thead><tbody>{data.comparisons.map((row) => <tr key={row.concept_type} className="border-t border-border"><td className="px-3 py-2 font-medium">{row.concept_type}</td><td className="px-3 py-2 tabular-nums">{row.total_views.toLocaleString()}</td><td className="px-3 py-2 text-muted-foreground">{row.platforms.join(", ")}</td><td className="px-3 py-2">{row.average_completion_rate == null ? "-" : `${Math.round(row.average_completion_rate * 100)}%`}</td><td className="px-3 py-2 text-amber-700">unavailable</td></tr>)}</tbody></table></div><p className="text-xs text-muted-foreground">Conversion is not shown because real attribution cannot be computed for these mocked metrics.</p></section>; }
+function SettingsPanel({ initial }: { initial: Settings }) { const [settings, setSettings] = useState(initial); const [message, setMessage] = useState(""); const save = async () => { try { await api.updateShortFormSettings({ distribution: settings.distribution, language_mode: "episode" }); setMessage("Saved episode override"); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save"); } }; return <section className="space-y-4"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Distribution settings</h2><p className="text-sm text-muted-foreground">Live config from the short-form API.</p></div><Button onClick={save}><Save /> Save</Button></div><div className="overflow-x-auto border border-border"><table className="w-full min-w-[720px] text-sm"><thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2">Platform</th><th className="px-3 py-2">Enabled</th><th className="px-3 py-2">Count</th><th className="px-3 py-2">Target</th><th className="px-3 py-2">Range</th></tr></thead><tbody>{Object.entries(settings.distribution).map(([key, row]) => <tr key={key} className="border-t border-border"><td className="px-3 py-2 font-medium">{LABELS[key] ?? key}</td><td className="px-3 py-2"><Checkbox checked={row.enabled} label="" onChange={(event) => setSettings({ ...settings, distribution: { ...settings.distribution, [key]: { ...row, enabled: event.currentTarget.checked } } })} /></td><td className="px-3 py-2"><Input className="w-20" type="number" value={row.count} aria-label={`${LABELS[key] ?? key} count`} onChange={(event) => setSettings({ ...settings, distribution: { ...settings.distribution, [key]: { ...row, count: Number(event.target.value) } } })} /></td><td className="px-3 py-2">{row.target_seconds}s</td><td className="px-3 py-2 text-muted-foreground">{row.min_seconds}-{row.max_seconds}s</td></tr>)}</tbody></table></div>{message && <div role="status" className="text-sm text-muted-foreground">{message}</div>}</section>; }
+function EmptyPanel({ icon: Icon, title, body }: { icon: typeof Sparkles; title: string; body: string }) { return <div className="border border-dashed border-border p-10 text-center"><Icon className="mx-auto size-7 text-muted-foreground" /><h2 className="mt-3 font-semibold">{title}</h2><p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">{body}</p></div>; }
+function TestReportPanel() { return <section className="space-y-4"><div><h2 className="text-lg font-semibold">Test report</h2><p className="text-sm text-muted-foreground">Evidence boundary for the current pilot state.</p></div><div className="grid gap-3 md:grid-cols-3"><Metric label="Real case data" value="Case 6" detail="beats, reveals, assets" /><Metric label="Persisted concepts" value="0" detail="empty short_form_concepts" /><Metric label="Original audio" value="0" detail="known pilot gap" /></div><div className="border border-border p-4 text-sm"><div className="flex items-center gap-2 font-medium"><FileCheck2 className="size-4" /> Verified gates</div><ul className="mt-3 space-y-2 text-muted-foreground"><li>Reveal and epistemic checks use real case-6 artifacts.</li><li>Repetition uses five real-beat verification candidates.</li><li>Platform previews and actions are UI states until persisted concepts exist.</li></ul></div></section>; }
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) { return <div className="border border-border p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-semibold">{value}</div><div className="text-xs text-muted-foreground">{detail}</div></div>; }

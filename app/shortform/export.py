@@ -91,22 +91,40 @@ def _write_srt(path: Path, cues: list[SubtitleCue]) -> None:
     ) + "\n", encoding="utf-8")
 
 
-def build_export_package(output_dir: Path, *, language: str = "en",
-                         title: str = "The night the signal stopped") -> dict:
+def build_export_package(
+    output_dir: Path,
+    *,
+    language: str = "en",
+    title: str = "The night the signal stopped",
+    narration: list[str] | None = None,
+    duration_seconds: float = 8,
+    rights_status: str = "cleared",
+    rights_source: str = "synthetic pilot background",
+    rights_human_signoff: bool = False,
+) -> dict:
     """Build a small, inspectable, watchable pilot package offline."""
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is required for short-form export")
+    if duration_seconds <= 0 or duration_seconds > 60:
+        raise ValueError("duration_seconds must be between 0 and 60")
     output_dir.mkdir(parents=True, exist_ok=True)
+    default_narration = [
+        "The last signal came after midnight.",
+        "What happened next is still disputed.",
+        "Watch the full evidence-led story.",
+    ]
+    words = narration or default_narration
+    if not words or any(not str(text).strip() for text in words):
+        raise ValueError("narration must contain non-empty text")
+    words = [str(text).strip()[:42] for text in words]
+    step = duration_seconds / len(words)
     cues = [
-        SubtitleCue(0.2, 2.1, "The last signal came after midnight." if language == "en" else
-                    ("آخرین سیگنال بعد از نیمه شب آمد." if language == "fa" else
-                     "وصلت الإشارة الأخيرة بعد منتصف الليل.")),
-        SubtitleCue(2.2, 4.8, "What happened next is still disputed." if language == "en" else
-                    ("آنچه بعد از آن رخ داد هنوز محل اختلاف است." if language == "fa" else
-                     "ما حدث بعد ذلك لا يزال موضع خلاف.")),
-        SubtitleCue(4.9, 7.7, "Watch the full evidence-led story." if language == "en" else
-                    ("روایت کامل مبتنی بر شواهد را ببینید." if language == "fa" else
-                     "شاهدوا القصة الكاملة المبنية على الأدلة.")),
+        SubtitleCue(
+            max(0.1, index * step + 0.1),
+            min(duration_seconds - 0.1, (index + 1) * step - 0.1),
+            str(text).strip(),
+        )
+        for index, text in enumerate(words)
     ]
     layout = subtitle_layout(language, cues)
     cover = output_dir / "cover.png"
@@ -119,7 +137,7 @@ def build_export_package(output_dir: Path, *, language: str = "en",
     subprocess.run([
         "ffmpeg", "-y", "-v", "error", "-loop", "1", "-i", str(cover),
         "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-        "-t", "8", "-r", "30",
+        "-t", str(duration_seconds), "-r", "30",
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(video),
     ], check=True)
     manifest = {
@@ -129,13 +147,16 @@ def build_export_package(output_dir: Path, *, language: str = "en",
         "subtitles": subtitles.name,
         "width": WIDTH,
         "height": HEIGHT,
-        "duration_seconds": 8,
+        "duration_seconds": duration_seconds,
         "language": language,
         "subtitle_layout": layout,
         "subtitle_render_mode": "static_preview_plus_timed_srt",
         "disclosure": {"required": True, "label": "AI-assisted narration",
                         "platforms": ["youtube", "tiktok", "meta"]},
-        "rights": {"status": "cleared", "source": "synthetic pilot background"},
+        "rights": {"status": rights_status, "source": rights_source,
+                    "human_signoff": rights_human_signoff},
+        "audio": {"status": "synthetic_silence", "original_media_segments": 0,
+                   "narrator_audio": "unavailable"},
         "review": {"status": "pending", "caption": title,
                    "cta": "Watch the full evidence-led story.",
                    "destination": "episode://pilot"},

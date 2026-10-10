@@ -110,30 +110,17 @@ test.describe("Discover", () => {
 });
 
 test.describe("Short-Form settings", () => {
-  test("defaults, edit, invalid input, reset, persistence, RTL option", async ({ page }) => {
+  test("opens settings, edits a platform count, and saves the episode override", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
     await expect(page.getByRole("heading", { name: "Short-Form" })).toBeVisible();
+    await page.getByRole("tab", { name: "Settings", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Distribution settings" })).toBeVisible();
     const youtubeCount = page.getByRole("spinbutton", { name: "YouTube Short count" });
     await expect(youtubeCount).toHaveValue("5");
-    await expect(page.getByText("14 candidates")).toBeVisible();
-
-    await page.getByRole("button", { name: "Increase YouTube Short count" }).click();
-    await expect(page.getByText("Unsaved changes")).toBeVisible();
-    await expect(page.getByText(/capacity ~8/i)).toBeVisible();
-
-    await youtubeCount.fill("21");
-    await expect(page.getByText(/count must be 0–20/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /save/i })).toBeDisabled();
-
-    await page.getByRole("button", { name: "Reset YouTube Short" }).click();
-    await expect(youtubeCount).toHaveValue("5");
-
-    await page.getByLabel("Language").selectOption("all");
-    await page.getByRole("button", { name: "Increase Instagram Reel count" }).click();
+    await youtubeCount.fill("6");
     await page.getByRole("button", { name: /save/i }).click();
-    await expect(page.getByText("Saved")).toBeVisible();
-    await expect(page.getByText("episode_override")).not.toBeVisible();
+    await expect(page.getByText("Saved episode override")).toBeVisible();
   });
 
   test("pilot review supports editing and approval", async ({ page }) => {

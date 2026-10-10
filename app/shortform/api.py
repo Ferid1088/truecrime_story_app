@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_db
 from app.db.models import EditorialBlueprint
+from app.shortform.metrics import concept_type_comparison
 from app.core.ai_config import ShortFormPlatformConfig
 from app.shortform.director import ShortFormDirectorAgent, candidate_table
 
@@ -26,6 +27,11 @@ def short_form_settings():
     return ai_config.short_form.model_dump(mode="json") | {
         "candidate_count": ai_config.short_form.candidate_count()
     }
+
+
+@router.get("/api/short-form/metrics")
+def short_form_metrics(case_id: int = 6, db: Session = Depends(get_db)):
+    return concept_type_comparison(db, case_id)
 
 
 @router.patch("/api/short-form/settings")

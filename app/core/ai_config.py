@@ -335,6 +335,7 @@ class GenerationProviderSection(BaseModel):
 class GenerationSettings(BaseModel):
     temperature: float = Field(ge=0.0, le=2.0)
     max_tokens: int = Field(ge=1, le=262144)
+    seed: int | None = None
 
 
 class StoryConfig(BaseModel):

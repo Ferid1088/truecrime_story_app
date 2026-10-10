@@ -150,6 +150,23 @@ def test_verifier_rejects_wrong_tone_and_labels_every_stand_in():
     assert "tone_ok" in VER.VERIFIER_SYSTEM
 
 
+def test_composite_known_entities_are_not_binary_rejected_like_wrong_person():
+    known = {"karmelo_anthony", "austin_metcalf"}
+    composite = VER.normalize_composite_match({
+        "matches_claim": "no", "period_ok": "yes", "tone_ok": True,
+        "entities": ["karmelo_anthony", "austin_metcalf"], "confidence": 0.95,
+    }, known)
+    assert composite["matches_claim"] == "composite"
+    assert VER.decide(composite) == ("verified", 0.95, "composite_match")
+
+    wrong_person = VER.normalize_composite_match({
+        "matches_claim": "no", "period_ok": "no", "tone_ok": True,
+        "entities": [], "confidence": 1.0,
+    }, known)
+    assert wrong_person["matches_claim"] == "no"
+    assert VER.decide(wrong_person) == ("rejected", 1.0, "does_not_match")
+
+
 def test_shot_sentences_are_the_english_plan_sentences():
     texts = {("B01", 0): SENT_HOUSE, ("B01", 1): SENT_DOG}
     spans = [{"beat_id": "B01", "n": 0, "start": 0.0, "end": 10.0},

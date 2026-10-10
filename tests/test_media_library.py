@@ -251,6 +251,38 @@ def _research_web():
     ])
 
 
+def test_source_page_unrelated_image_is_not_persisted(db_session, media_env, monkeypatch):
+    from app.documentary.visuals.research import VisualResearchAgent
+
+    monkeypatch.setattr(ai_config.visual_search, "providers", ["source_pages"])
+    monkeypatch.setattr(ai_config.footage, "enabled", False)
+    case = _case(db_session)
+    case.people_json = json.dumps(["Karmelo Anthony"])
+    db_session.add(Source(
+        case_id=case.id, title="Karmelo Anthony trial", url="https://news.example/story",
+        source_type="news", publisher="Report 24", reliability_score=0.55,
+    ))
+    db_session.commit()
+    page = ('<html><head><meta property="og:title" content="Karmelo Anthony trial">'
+            '</head><body><img src="/images/unmasked.png" width="800"></body></html>')
+    web = FakeWeb([
+        (_host("news.example", "/story"), lambda r: httpx.Response(
+            200, text=page, headers={"content-type": "text/html"})),
+        (_host("news.example", "/images/unmasked.png"), lambda r: httpx.Response(
+            200, content=_jpeg(99), headers={"content-type": "image/png"})),
+    ])
+
+    async def go():
+        async with web.client() as client:
+            return await VisualResearchAgent(client).run(db_session, case, [])
+
+    stats = asyncio.run(go())
+    assert stats["candidates"] == 1
+    assert stats["relevance_rejected"] == 1
+    assert stats["added"] == 0
+    assert db_session.query(VisualAsset).filter_by(case_id=case.id).count() == 0
+
+
 def test_research_stores_library_fields_and_context_queries_skip_source_pages(
         db_session, media_env, monkeypatch):
     from app.documentary.visuals.research import VisualResearchAgent
@@ -275,6 +307,10 @@ def test_research_stores_library_fields_and_context_queries_skip_source_pages(
 
     stats = asyncio.run(go(queries))
     assert stats["added"] == 4, stats
+    from app.shortform.assets import UnverifiedVisualAssetsError, require_verified_case_assets
+
+    with pytest.raises(UnverifiedVisualAssetsError, match="unverified visual assets"):
+        require_verified_case_assets(db_session, case.id)
     assets = {a.provider + ":" + (a.found_for or ""): a for a in
               db_session.query(VisualAsset).filter_by(case_id=case.id).all()}
     scene = next(a for k, a in assets.items() if k.startswith("source_page"))

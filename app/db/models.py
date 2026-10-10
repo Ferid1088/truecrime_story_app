@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import (Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
+from sqlalchemy import (Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text,
+                        UniqueConstraint,
                         event, select)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -41,6 +42,15 @@ class Case(Base):
     facts = relationship("Fact", back_populates="case", cascade="all, delete-orphan")
     contradictions = relationship("Contradiction", back_populates="case", cascade="all, delete-orphan")
     stories = relationship("StoryVersion", back_populates="case", cascade="all, delete-orphan")
+    original_media_segments = relationship(
+        "OriginalMediaSegment", back_populates="case", cascade="all, delete-orphan"
+    )
+    reveal_graphs = relationship(
+        "RevealGraph", back_populates="case", cascade="all, delete-orphan"
+    )
+    epistemic_contract_sets = relationship(
+        "EpistemicContractSet", back_populates="case", cascade="all, delete-orphan"
+    )
 
 
 @event.listens_for(Case, "before_insert")
@@ -593,6 +603,229 @@ class EditorialBlueprint(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class OriginalMediaSegment(Base):
+    """A selected time window from a case's original media asset.
+
+    This maps the pre-existing table exactly. It is intentionally separate
+    from VisualAsset: one asset may have multiple transcript/story windows.
+    """
+
+    __tablename__ = "original_media_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
+    beat_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    source_start: Mapped[float] = mapped_column(Float)
+    source_end: Mapped[float] = mapped_column(Float)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    story_use: Mapped[str | None] = mapped_column(Text, nullable=True)
+    translation_strategy_json: Mapped[str] = mapped_column(Text)
+    selected: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+    case = relationship("Case", back_populates="original_media_segments")
+    asset = relationship("VisualAsset", back_populates="original_media_segments")
+
+
+class RevealGraph(Base):
+    """One persisted reveal dependency graph for an EditorialBlueprint."""
+
+    __tablename__ = "reveal_graphs"
+    __table_args__ = (
+        UniqueConstraint("case_id", "blueprint_id", "version", name="uq_reveal_graph_version"),
+        CheckConstraint("status IN ('draft', 'validated', 'invalid')", name="ck_reveal_graph_status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(ForeignKey("editorial_blueprints.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+    case = relationship("Case", back_populates="reveal_graphs")
+    blueprint = relationship("EditorialBlueprint")
+    nodes = relationship("RevealNode", back_populates="graph", cascade="all, delete-orphan")
+    edges = relationship("RevealEdge", back_populates="graph", cascade="all, delete-orphan")
+    exposures = relationship("RevealExposure", back_populates="graph", cascade="all, delete-orphan")
+    asset_links = relationship("RevealAssetLink", back_populates="graph", cascade="all, delete-orphan")
+
+
+class RevealNode(Base):
+    """A stable, queryable reveal in a graph."""
+
+    __tablename__ = "reveal_nodes"
+    __table_args__ = (UniqueConstraint("graph_id", "node_key", name="uq_reveal_node_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    node_key: Mapped[str] = mapped_column(String(120))
+    label: Mapped[str] = mapped_column(String(500))
+    category: Mapped[str] = mapped_column(String(60), index=True)
+    first_revealed_beat_id: Mapped[str] = mapped_column(String(20))
+    first_revealed_order: Mapped[int] = mapped_column(Integer)
+    first_revealed_at_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    graph = relationship("RevealGraph", back_populates="nodes")
+    prerequisite_edges = relationship(
+        "RevealEdge", foreign_keys="RevealEdge.dependent_node_id",
+        back_populates="dependent_node", cascade="all, delete-orphan"
+    )
+    dependent_edges = relationship(
+        "RevealEdge", foreign_keys="RevealEdge.prerequisite_node_id",
+        back_populates="prerequisite_node", cascade="all, delete-orphan"
+    )
+    exposures = relationship("RevealExposure", back_populates="node", cascade="all, delete-orphan")
+    asset_links = relationship("RevealAssetLink", back_populates="node", cascade="all, delete-orphan")
+
+
+class RevealEdge(Base):
+    """A directed prerequisite -> dependent relationship."""
+
+    __tablename__ = "reveal_edges"
+    __table_args__ = (
+        UniqueConstraint("graph_id", "prerequisite_node_id", "dependent_node_id",
+                         name="uq_reveal_edge"),
+        CheckConstraint("prerequisite_node_id != dependent_node_id", name="ck_reveal_no_self_edge"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    prerequisite_node_id: Mapped[int] = mapped_column(ForeignKey("reveal_nodes.id"), index=True)
+    dependent_node_id: Mapped[int] = mapped_column(ForeignKey("reveal_nodes.id"), index=True)
+
+    graph = relationship("RevealGraph", back_populates="edges")
+    prerequisite_node = relationship(
+        "RevealNode", foreign_keys=[prerequisite_node_id], back_populates="dependent_edges"
+    )
+    dependent_node = relationship(
+        "RevealNode", foreign_keys=[dependent_node_id], back_populates="prerequisite_edges"
+    )
+
+
+class RevealExposure(Base):
+    """A node's exposure or deliberate withholding in one blueprint beat."""
+
+    __tablename__ = "reveal_exposures"
+    __table_args__ = (
+        UniqueConstraint("graph_id", "beat_id", "node_id", name="uq_reveal_exposure"),
+        CheckConstraint("exposure_type IN ('exposed', 'withheld')", name="ck_reveal_exposure_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    beat_id: Mapped[str] = mapped_column(String(20), index=True)
+    node_id: Mapped[int] = mapped_column(ForeignKey("reveal_nodes.id"), index=True)
+    exposure_type: Mapped[str] = mapped_column(String(20))
+    source_field: Mapped[str] = mapped_column(String(30), default="manual")
+
+    graph = relationship("RevealGraph", back_populates="exposures")
+    node = relationship("RevealNode", back_populates="exposures")
+
+
+class RevealAssetLink(Base):
+    """A visual or original-media artifact that can expose a reveal."""
+
+    __tablename__ = "reveal_asset_links"
+    __table_args__ = (
+        CheckConstraint(
+            "visual_asset_id IS NOT NULL OR original_media_segment_id IS NOT NULL",
+            name="ck_reveal_asset_target",
+        ),
+        CheckConstraint("asset_kind IN ('visual', 'audio')", name="ck_reveal_asset_kind"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    node_id: Mapped[int] = mapped_column(ForeignKey("reveal_nodes.id"), index=True)
+    visual_asset_id: Mapped[int | None] = mapped_column(
+        ForeignKey("visual_assets.id"), nullable=True, index=True
+    )
+    original_media_segment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("original_media_segments.id"), nullable=True, index=True
+    )
+    asset_kind: Mapped[str] = mapped_column(String(20), default="visual")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    graph = relationship("RevealGraph", back_populates="asset_links")
+    node = relationship("RevealNode", back_populates="asset_links")
+    visual_asset = relationship("VisualAsset")
+    original_media_segment = relationship("OriginalMediaSegment")
+
+
+class EpistemicContractSet(Base):
+    """A versioned, reviewable claim ledger for one long-form script."""
+
+    __tablename__ = "epistemic_contract_sets"
+    __table_args__ = (
+        UniqueConstraint("case_id", "story_version_id", "version", name="uq_epistemic_contract_set"),
+        CheckConstraint("status IN ('draft', 'in_review', 'approved', 'invalid')",
+                        name="ck_epistemic_contract_set_status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(ForeignKey("editorial_blueprints.id"), index=True)
+    story_version_id: Mapped[int] = mapped_column(ForeignKey("story_versions.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    coverage_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+    case = relationship("Case", back_populates="epistemic_contract_sets")
+    blueprint = relationship("EditorialBlueprint")
+    story_version = relationship("StoryVersion")
+    claims = relationship("EpistemicClaim", back_populates="contract_set", cascade="all, delete-orphan")
+
+
+class EpistemicClaim(Base):
+    """One factual script assertion and its editorial modality contract."""
+
+    __tablename__ = "epistemic_claims"
+    __table_args__ = (
+        UniqueConstraint("contract_set_id", "claim_key", name="uq_epistemic_claim_key"),
+        CheckConstraint(
+            "modality IN ('ESTABLISHED', 'BELIEVED_BY_INVESTIGATORS', 'ALLEGED', "
+            "'ABSENCE_OF_EVIDENCE', 'DISPUTED')",
+            name="ck_epistemic_claim_modality",
+        ),
+        CheckConstraint(
+            "review_status IN ('proposed', 'approved', 'rejected')",
+            name="ck_epistemic_claim_review_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contract_set_id: Mapped[int] = mapped_column(ForeignKey("epistemic_contract_sets.id"), index=True)
+    claim_key: Mapped[str] = mapped_column(String(120))
+    claim_text: Mapped[str] = mapped_column(Text)
+    source_sentence_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    span_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    span_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    beat_id: Mapped[str] = mapped_column(String(20), index=True)
+    modality: Mapped[str] = mapped_column(String(40), index=True)
+    assertion_role: Mapped[str] = mapped_column(String(40), default="NARRATOR_ASSERTION", index=True)
+    speaker: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    parent_claim_key: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    source_refs_json: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_refs_json: Mapped[str] = mapped_column(Text, default="[]")
+    review_status: Mapped[str] = mapped_column(String(20), default="proposed", index=True)
+    reviewer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origin: Mapped[str] = mapped_column(String(20), default="extracted")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+    contract_set = relationship("EpistemicContractSet", back_populates="claims")
+
+
 class ChapterPlan(Base):
     """On-screen cards of one blueprint, for all its languages: the film
     title, a title per chapter (= act of the master story) and a short
@@ -708,6 +941,9 @@ class VisualAsset(Base):
     # Footage: the usable window of the (muted) clip, seconds.
     clip_start: Mapped[float | None] = mapped_column(Float, nullable=True)
     clip_end: Mapped[float | None] = mapped_column(Float, nullable=True)
+    original_media_segments = relationship(
+        "OriginalMediaSegment", back_populates="asset", cascade="all, delete-orphan"
+    )
 
 
 class VisualPlan(Base):

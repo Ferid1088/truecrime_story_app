@@ -33,3 +33,21 @@ def test_long_subtitle_is_rejected_before_render():
         assert "42" in str(exc)
     else:
         raise AssertionError("long subtitle was accepted")
+
+
+def test_export_manifest_preserves_review_required_rights(tmp_path):
+    manifest = build_export_package(
+        tmp_path,
+        title="Case detail",
+        narration=["Case detail", "Review rights first", "No publishing"],
+        duration_seconds=20,
+        rights_status="editorial_review_required",
+        rights_source="visual_asset:VIS_000002",
+        rights_human_signoff=False,
+    )
+    assert manifest["rights"] == {
+        "status": "editorial_review_required",
+        "source": "visual_asset:VIS_000002",
+        "human_signoff": False,
+    }
+    assert manifest["duration_seconds"] == 20

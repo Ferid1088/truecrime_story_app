@@ -171,7 +171,6 @@ mark(`Master quality gates inspected (status=${masterStatus})`);
 // ------------------------------------------------------------------
 let localizationStatus = "skipped — master not ready";
 if (masterStatus === "ready") {
-  const persianRow = page.locator("div", { hasText: "Persian" }).filter({ hasText: "Persian" }).last();
   const genBtn = page.getByRole("button", { name: "Generate", exact: true }).nth(1); // de, fa, ar order → nth(1)=fa
   const enabled = await genBtn.isEnabled().catch(() => false);
   log("localization", `Persian Generate enabled=${enabled}`);

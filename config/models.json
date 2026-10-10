@@ -160,7 +160,8 @@
     },
     "consistency_checker": {
       "temperature": 0.0,
-      "max_tokens": 6000
+      "max_tokens": 6000,
+      "seed": 17
     },
     "evidence_normalizer": {
       "temperature": 0.0,

@@ -1,0 +1,85 @@
+{
+  "schema": "short-form-export-v1",
+  "video": "short.mp4",
+  "cover": "cover.png",
+  "subtitles": "subtitles.srt",
+  "width": 1080,
+  "height": 1920,
+  "duration_seconds": 28.0,
+  "language": "en",
+  "subtitle_layout": {
+    "language": "en",
+    "direction": "ltr",
+    "font": "/System/Library/Fonts/SFNS.ttf",
+    "safe_area": {
+      "left": 96,
+      "right": 984,
+      "top": 180,
+      "bottom": 1590
+    },
+    "cues": [
+      {
+        "start": 0.1,
+        "end": 9.233333333333334,
+        "text": "Two teenagers from different high schools"
+      },
+      {
+        "start": 9.433333333333334,
+        "end": 18.566666666666666,
+        "text": "The case record keeps the claim's modality"
+      },
+      {
+        "start": 18.76666666666667,
+        "end": 27.9,
+        "text": "Watch the evidence-led case in full, chapt"
+      }
+    ]
+  },
+  "subtitle_render_mode": "static_preview_plus_timed_srt",
+  "disclosure": {
+    "required": true,
+    "label": "AI-assisted narration",
+    "platforms": [
+      "youtube",
+      "tiktok",
+      "meta"
+    ]
+  },
+  "rights": {
+    "status": "editorial_review_required",
+    "source": "visual_asset:VIS_000009",
+    "human_signoff": true
+  },
+  "audio": {
+    "status": "synthetic_silence",
+    "original_media_segments": 0,
+    "narrator_audio": "unavailable"
+  },
+  "review": {
+    "status": "pending",
+    "caption": "Two teenagers from different high schools cross paths under a team tent, ending with a fatal...",
+    "cta": "Watch the full evidence-led story.",
+    "destination": "episode://pilot"
+  },
+  "case_id": 6,
+  "concept_id": "SFC_e16008286e",
+  "platform": "tiktok_video",
+  "campaign_id": "SFC_e16008286e-tiktok_video-en",
+  "rights_review": [
+    {
+      "asset_id": "VIS_000009",
+      "rights_status": "editorial_review_required",
+      "verification_status": "verified",
+      "platform_claim_risk": "low",
+      "reveals": [],
+      "human_signoff": true
+    }
+  ],
+  "source_beat_ids": [
+    "B07"
+  ],
+  "gate_status": "passed",
+  "publication_status": "exported_only",
+  "pilot_run_id": "live_pilot_case6_v1-20261010T184324Z",
+  "pilot_generated_at": "2026-10-10T18:43:24.545472+00:00"
+}

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import EditorialBlueprint, ShortFormConcept, VisualAsset
+from app.shortform.assets import UNSELECTABLE_VERIFICATION_STATUSES
 
 
 CONCEPT_TYPES = [
@@ -64,7 +65,12 @@ class ShortFormDirectorAgent:
         for idx in range(self.candidate_count):
             beat = beats[idx % len(beats)]
             concept_type = choose_concept_type(beat, idx)
-            asset_ids = beat.asset_ids or _best_asset_ids(asset_map, beat, limit=2)
+            asset_ids = [
+                asset_id for asset_id in beat.asset_ids
+                if asset_id not in asset_map
+                or asset_map[asset_id].get("verification_status")
+                not in UNSELECTABLE_VERIFICATION_STATUSES
+            ] or _best_asset_ids(asset_map, beat, limit=2)
             hook = make_hook(beat, concept_type)
             out.append({
                 "id": stable_candidate_id(beat.id, concept_type, idx),
@@ -206,6 +212,7 @@ def _asset_map(assets: list[VisualAsset] | list[dict]) -> dict[str, dict]:
                 "asset_code": asset.asset_code,
                 "asset_role": asset.asset_role,
                 "asset_type": asset.asset_type,
+                "verification_status": asset.verification_status,
                 "reveals": json.loads(asset.reveals_json or "[]"),
             }
     return out
@@ -216,6 +223,8 @@ def _best_asset_ids(asset_map: dict[str, dict], beat: BeatMaterial, *, limit: in
         return []
     scored = []
     for asset_id, asset in asset_map.items():
+        if asset.get("verification_status") in UNSELECTABLE_VERIFICATION_STATUSES:
+            continue
         role = asset.get("asset_role", "")
         asset_type = asset.get("asset_type", "")
         score = 0
@@ -228,4 +237,3 @@ def _best_asset_ids(asset_map: dict[str, dict], beat: BeatMaterial, *, limit: in
         scored.append((score, asset_id))
     scored.sort(reverse=True)
     return [asset_id for _, asset_id in scored[:limit]]
-

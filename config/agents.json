@@ -175,6 +175,13 @@
       "description": "Internal consistency and certainty.",
       "used_by": "app/agents/story.py"
     },
+    "story.compression_semantics": {
+      "role": "semantic_consistency_checker",
+      "prompt": "agents/story/compression_semantics",
+      "output": "json",
+      "description": "Classify attribution preserved through compression.",
+      "used_by": "app/longform/compression.py"
+    },
     "story.final_edit": {
       "role": "final_editor",
       "prompt": "agents/story/final_edit",

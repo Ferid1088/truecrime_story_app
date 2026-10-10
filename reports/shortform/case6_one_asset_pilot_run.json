@@ -1,0 +1,232 @@
+{
+  "case_id": 6,
+  "pilot_tag": "live_pilot_case6_v1",
+  "generated": 14,
+  "passed_all_platform_gates": 0,
+  "approved": 0,
+  "persisted_rows": 0,
+  "existing_rows": 14,
+  "blocked_candidates": [
+    {
+      "concept_id": "SFC_24490de4b6",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000002 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000002 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_fa959038f4",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000004 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000004 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_530ffafaa6",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000005 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000005 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_df8c5d67dd",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000007 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000007 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_df042147c8",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000008 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000008 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_f8f88cb2ce",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000009 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000009 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_e16008286e",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000010 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000010 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_485198b54d",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000011 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000011 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_25b8d84469",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000014 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000014 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_62b4cd3c2c",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000015 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000015 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_032fdb7a8d",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000016 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000016 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_8ab7ce60e1",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000017 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000017 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_758384f8da",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000001 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000001 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    },
+    {
+      "concept_id": "SFC_bc947f0289",
+      "platform_reasons": {
+        "instagram_reel": {
+          "RightsChecker": [
+            "VIS_000018 needs instagram_reel rights sign-off"
+          ]
+        },
+        "tiktok_video": {
+          "RightsChecker": [
+            "VIS_000018 needs tiktok_video rights sign-off"
+          ]
+        }
+      }
+    }
+  ],
+  "status_counts": {},
+  "packages": [],
+  "package_counts": {},
+  "published": false,
+  "repetition_gate": {
+    "passed": false,
+    "reasons": [
+      "only 0 candidates passed all platform gates"
+    ]
+  },
+  "pilot_status": "blocked_no_eligible_candidates"
+}

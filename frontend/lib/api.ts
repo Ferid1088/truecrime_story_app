@@ -208,6 +208,7 @@ export interface AddSourcePayload {
 export const api = {
   dashboard: () => request<DashboardResponse>("/api/dashboard"),
   shortFormSettings: () => request<unknown>("/api/short-form/settings"),
+  shortFormMetrics: (caseId = 6) => request<unknown>(`/api/short-form/metrics?case_id=${caseId}`),
   updateShortFormSettings: (payload: unknown) =>
     patch<unknown>("/api/short-form/settings", payload),
 

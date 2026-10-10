@@ -22,6 +22,7 @@ from app.documentary.visuals.research import (
     footage_queries,
     next_asset_code,
     query_kind,
+    source_candidate_has_relevance,
 )
 
 
@@ -44,7 +45,7 @@ class VisualResearchAgent:
         Returns a summary; assets are committed as they arrive."""
         client = self._client or self._new_client()
         stats = {"candidates": 0, "added": 0, "duplicates": 0, "rejected": 0,
-                 "errors": 0, "by_provider": {}}
+                 "errors": 0, "relevance_rejected": 0, "by_provider": {}}
         try:
             existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
             hashes = [a.phash for a in existing if a.phash and a.asset_type != "video"]
@@ -92,6 +93,10 @@ class VisualResearchAgent:
                     progress(i / max(len(candidates), 1), f"{c.provider}: {c.title or c.url}"[:120])
                 if c.url in urls:
                     stats["duplicates"] += 1
+                    continue
+                if c.query_kind == "source" and not source_candidate_has_relevance(c, case):
+                    stats["rejected"] += 1
+                    stats["relevance_rejected"] += 1
                     continue
                 urls.add(c.url)
                 status, reason = R.classify(c.provider, c.license, c.url, c.page_url)

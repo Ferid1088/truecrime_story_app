@@ -17,6 +17,7 @@ from app.documentary.visuals.verification import (
     VERIFIER_SYSTEM,
     decide,
     image_for_check,
+    normalize_composite_match,
 )
 
 
@@ -53,8 +54,9 @@ class VisualVerificationAgent:
             v, res = await run_agent("visuals.verify", self.gen, json.dumps(payload, ensure_ascii=False), system=VERIFIER_SYSTEM, images=[IM.data_url(thumb)])
             stamp_run(run, res, "visual_verifier")
         v = v if isinstance(v, dict) else {}
-        status, conf, reason = decide(v)
         known_ents = {e["key"] for e in entities}
+        v = normalize_composite_match(v, known_ents)
+        status, conf, reason = decide(v)
         known_facts = {f["id"] for f in facts}
         tier, tier_reason = T.verified_why(asset, v, provisional)
         asset.verification_status = status

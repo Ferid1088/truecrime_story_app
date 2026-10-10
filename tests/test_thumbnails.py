@@ -315,6 +315,8 @@ def test_vision_critic_flags_automation_feel_and_blocks_approval(env, db_session
 
 
 def test_api_flow(env, client, db_session, monkeypatch):
+    # This API test uses synthetic pixels; keep live vision scoring out of it.
+    monkeypatch.setattr("app.thumbnails.api._gen", lambda: None)
     make_hosts(env)
     case = make_case(db_session, "Thumb api", title="Der verschwundene Kreis")
     asset = make_asset(db_session, case)
@@ -328,7 +330,7 @@ def test_api_flow(env, client, db_session, monkeypatch):
     assert t["brief"]["host"]["side"] == "right" and t["status"] == "draft"
     assert client.get(t["image_url"]).headers["content-type"] == "image/jpeg"
     d = client.post(f"/api/thumbnails/{t['id']}/decision", json={"approve": True}).json()
-    assert d["status"] == "approved"
+    assert d.get("status") == "approved", d
     assert len(client.get(f"/api/cases/{case.id}/thumbnails").json()) == 1
     bad = client.post(f"/api/cases/{case.id}/thumbnails", json={"language": "fa"})
     assert bad.status_code == 422

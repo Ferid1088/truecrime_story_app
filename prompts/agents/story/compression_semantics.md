@@ -1,0 +1,3 @@
+#! Classify whether a compressed rewrite preserves or strengthens the source claim modality.
+
+Classify whether the rewritten sentence directly asserts the underlying factual proposition or attributes it to a person or source. Return only JSON with boolean direct_assertion, boolean attribution_present, number confidence from 0 to 1, and short rationale. Attribution includes any reported speech, personal account, narrative, testimony, distancing, or dialogue framing, even if it does not use standard hedge words. A sentence can mention a person's words while still asserting the fact; classify the underlying proposition, not merely whether a speaker is named.

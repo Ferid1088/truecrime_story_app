@@ -1,0 +1,2259 @@
+{
+  "case_id": 6,
+  "case_title": "The Karmelo Anthony Murder Case",
+  "force": true,
+  "known_entity_count": 13,
+  "assets_requested": 32,
+  "verify_assets_result": {
+    "checked": 32,
+    "verified": 23,
+    "rejected": 9
+  },
+  "assets": [
+    {
+      "asset_code": "VIS_000001",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A gray folding pocket knife with a blackened blade resting on a slatted metal surface.",
+      "entities": [
+        "utility_knife"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A gray folding pocket knife with a blackened blade resting on a slatted metal surface.",
+        "subject_type": "object",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official trial evidence photograph released by the court and reported by Courthouse News Service depicting the knife used in the Austin Metcalf stabbing.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "utility_knife"
+        ],
+        "reveals": [
+          "F005",
+          "F021"
+        ],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000002",
+      "verification_status": "verified",
+      "verification_confidence": 0.9,
+      "depicts": "A wooden judge's gavel resting on a sound block on a courtroom bench.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "stand_in",
+      "verification_payload": {
+        "depicts": "A wooden judge's gavel resting on a sound block on a courtroom bench.",
+        "subject_type": "object",
+        "matches_claim": "stand_in",
+        "tone_ok": true,
+        "identity_evidence": "Generic stock photograph of a courtroom gavel used as an editorial illustration.",
+        "role": "illustration",
+        "period_ok": "yes",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "stand_in",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 5,
+        "tier_reason": "verifier: stand-in illustration (labelled on screen)"
+      }
+    },
+    {
+      "asset_code": "VIS_000003",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "A supporter wearing a purple T-shirt featuring photographic portraits of Karmelo Anthony, holding car keys and a small notebook.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A supporter wearing a purple T-shirt featuring photographic portraits of Karmelo Anthony, holding car keys and a small notebook.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The T-shirt displays photos of Karmelo Anthony worn by a family member or supporter during trial coverage in news reporting.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object (not case material)"
+      }
+    },
+    {
+      "asset_code": "VIS_000004",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A booking photograph of Karmelo Anthony set against a blurred broadcast graphic background of a stadium running track and bleachers.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A booking photograph of Karmelo Anthony set against a blurred broadcast graphic background of a stadium running track and bleachers.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official mugshot of Karmelo Anthony released by Collin County authorities following his arrest in 2025, widely circulated in news reporting.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000005",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Mugshot of Karmelo Anthony against a white cinderblock wall, flanked by blurred background images of Kuykendall Stadium track and bleachers.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Mugshot of Karmelo Anthony against a white cinderblock wall, flanked by blurred background images of Kuykendall Stadium track and bleachers.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official booking photograph of defendant Karmelo Anthony published by local news reporting on the Frisco case.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000006",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "Body-camera footage showing a police officer arresting Karmelo Anthony outdoors by a railing, with an inset mugshot of Anthony and a graphic red arrow.",
+      "entities": [
+        "body_camera_recording",
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "Body-camera footage showing a police officer arresting Karmelo Anthony outdoors by a railing, with an inset mugshot of Anthony and a graphic red arrow.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The inset shows Karmelo Anthony's official booking mugshot, matching news reports and trial evidence of his arrest following the Frisco track meet stabbing.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "body_camera_recording",
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.65,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000007",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Composite graphic showing a booking photograph of Karmelo Anthony on the left, an overhead view of the stadium crime scene with the Memorial High School team tent in the middle, and Austin Metcalf in his football uniform on the right.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf",
+        "memorial_team_tent",
+        "kuykendall_stadium"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Composite graphic showing a booking photograph of Karmelo Anthony on the left, an overhead view of the stadium crime scene with the Memorial High School team tent in the middle, and Austin Metcalf in his football uniform on the right.",
+        "subject_type": "other",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Widely published news collage identifying Karmelo Anthony (left), the Frisco Memorial High School track meet crime scene tent (center), and victim Austin Metcalf in his Frisco Memorial football uniform (right).",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf",
+          "memorial_team_tent",
+          "kuykendall_stadium"
+        ],
+        "reveals": [
+          "F001",
+          "F002",
+          "F003"
+        ],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000008",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Booking photograph of Karmelo Anthony wearing a sleeveless safety garment in custody.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Booking photograph of Karmelo Anthony wearing a sleeveless safety garment in custody.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official mugshot of Karmelo Anthony released by law enforcement and news media following his arrest in Collin County.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000009",
+      "verification_status": "verified",
+      "verification_confidence": 0.9,
+      "depicts": "A woman holds a 'JUSTICE SILENCED' sign during a protest outside court proceedings in the Karmelo Anthony case.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A woman holds a 'JUSTICE SILENCED' sign during a protest outside court proceedings in the Karmelo Anthony case.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Houston Public Media news photograph documenting community protests surrounding the Karmelo Anthony trial.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    {
+      "asset_code": "VIS_000010",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Side-by-side portraits of Karmelo Anthony in a police mugshot and Austin Metcalf in a school portrait.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Side-by-side portraits of Karmelo Anthony in a police mugshot and Austin Metcalf in a school portrait.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Widely published case portraits showing defendant Karmelo Anthony (left) and victim Austin Metcalf (right).",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000011",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A booking photograph of Karmelo Anthony wearing a detention safety vest.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A booking photograph of Karmelo Anthony wearing a detention safety vest.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official Collin County jail mugshot of Karmelo Anthony widely published following his arrest.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000012",
+      "verification_status": "rejected",
+      "verification_confidence": 1.0,
+      "depicts": "Book cover of 'Corona Unmasked' by Karina Reiss and Sucharit Bhakdi.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "tone",
+      "verification_payload": {
+        "depicts": "Book cover of 'Corona Unmasked' by Karina Reiss and Sucharit Bhakdi.",
+        "subject_type": "object",
+        "matches_claim": "no",
+        "tone_ok": false,
+        "identity_evidence": "The image clearly shows the title 'Corona Unmasked' and authors Dr. Karina Reiss and Dr. Sucharit Bhakdi, completely unrelated to the case.",
+        "role": "illustration",
+        "period_ok": "no",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.6,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 1.0,
+        "reason": "tone",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 5,
+        "tier_reason": "verifier: illustration (atmosphere only)"
+      }
+    },
+    {
+      "asset_code": "VIS_000013",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Police booking mugshot of Karmelo Anthony against a tiled wall.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Police booking mugshot of Karmelo Anthony against a tiled wall.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official booking photograph of Karmelo Anthony released by law enforcement following his arrest.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000014",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Courtroom sketch showing Karmelo Anthony and defense counsel watching stadium surveillance video on a monitor before Judge John Roach Jr. and the jury during his murder trial.",
+      "entities": [
+        "john_roach_jr",
+        "karmelo_anthony",
+        "stadium_surveillance_footage"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Courtroom sketch showing Karmelo Anthony and defense counsel watching stadium surveillance video on a monitor before Judge John Roach Jr. and the jury during his murder trial.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Associated Press courtroom sketch by Pat Lopez from June 4, 2026, documenting the Karmelo Anthony trial in McKinney, Texas.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "john_roach_jr",
+          "karmelo_anthony",
+          "stadium_surveillance_footage"
+        ],
+        "reveals": [
+          "F007"
+        ],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000015",
+      "verification_status": "verified",
+      "verification_confidence": 0.98,
+      "depicts": "Booking photograph of Karmelo Anthony against a painted cinder block wall.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Booking photograph of Karmelo Anthony against a painted cinder block wall.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official mugshot released by Collin County authorities following the arrest and trial of Karmelo Anthony.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.98,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000016",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Karmelo Anthony wearing a grey suit walking outside the courthouse accompanied by defense counsel.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Karmelo Anthony wearing a grey suit walking outside the courthouse accompanied by defense counsel.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Confirmed news coverage photograph of Karmelo Anthony arriving at the Collin County Courthouse during his murder trial.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000017",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "An aerial view of the bleachers and running track at Kuykendall Stadium, showing police investigators working around the yellow Memorial High School Warriors team tent cordoned off with crime scene tape.",
+      "entities": [
+        "kuykendall_stadium",
+        "memorial_team_tent"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "An aerial view of the bleachers and running track at Kuykendall Stadium, showing police investigators working around the yellow Memorial High School Warriors team tent cordoned off with crime scene tape.",
+        "subject_type": "place",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The yellow tent is clearly branded with Memorial High School's 'M Warriors' emblem and slogan ('WIN THE BATTLE'), adjacent to a Liberty Redhawks tent, with police officers investigating the cordoned-off bleachers.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "kuykendall_stadium",
+          "memorial_team_tent"
+        ],
+        "reveals": [
+          "F001",
+          "F003"
+        ],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000018",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Portrait of Austin Metcalf wearing a blue suit and tie against a stone wall.",
+      "entities": [
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Portrait of Austin Metcalf wearing a blue suit and tie against a stone wall.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Widely published family photograph of victim Austin Metcalf credited to Meghan Metcalf in news reports covering the trial.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000019",
+      "verification_status": "verified",
+      "verification_confidence": 0.98,
+      "depicts": "The exterior of the Collin County Courthouse with a Collin County Sheriff patrol truck parked in the foreground.",
+      "entities": [
+        "collin_county_courthouse"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "The exterior of the Collin County Courthouse with a Collin County Sheriff patrol truck parked in the foreground.",
+        "subject_type": "building",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The building facade clearly reads 'COLLIN COUNTY COURTHOUSE' with Collin County Sheriff vehicle in front.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "collin_county_courthouse"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.98,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    {
+      "asset_code": "VIS_000020",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A side-by-side comparison showing Karmelo Anthony in a mugshot on the left and Austin Metcalf on the right.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A side-by-side comparison showing Karmelo Anthony in a mugshot on the left and Austin Metcalf on the right.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Widely published news split photo pairing Karmelo Anthony's booking mugshot with victim Austin Metcalf's portrait.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf"
+        ],
+        "reveals": [
+          "F002"
+        ],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000021",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A courtroom sketch by Pat Lopez depicting the prosecutor's opening argument at the defense table and Judge John Roach Jr. on the bench during Karmelo Anthony's trial.",
+      "entities": [
+        "john_roach_jr",
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A courtroom sketch by Pat Lopez depicting the prosecutor's opening argument at the defense table and Judge John Roach Jr. on the bench during Karmelo Anthony's trial.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Courtroom sketch labeled 'D.A. OPENING ARGUMENT DEFENSE TABLE June 4 2026' published by CBS News covering Karmelo Anthony's murder trial, showing Judge Roach presiding.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "john_roach_jr",
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000022",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "Courtroom sketch showing defendant Karmelo Anthony and his attorneys watching stadium surveillance footage on a screen during his trial.",
+      "entities": [
+        "karmelo_anthony",
+        "stadium_surveillance_footage"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "Courtroom sketch showing defendant Karmelo Anthony and his attorneys watching stadium surveillance footage on a screen during his trial.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Courtroom sketch by Pat Lopez from the CBS News trial coverage showing Karmelo Anthony and defense team reviewing surveillance evidence in court.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "stadium_surveillance_footage"
+        ],
+        "reveals": [
+          "F007"
+        ],
+        "quality": 0.75,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000023",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "Courtroom sketch depicting Karmelo Anthony seated at the defense table alongside his attorneys as surveillance footage plays on a screen before the judge.",
+      "entities": [
+        "karmelo_anthony",
+        "john_roach_jr"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "Courtroom sketch depicting Karmelo Anthony seated at the defense table alongside his attorneys as surveillance footage plays on a screen before the judge.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Courtroom sketch from the Karmelo Anthony murder trial, showing Anthony at the defense table and Judge John Roach Jr. presiding, published by ABC30 News.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "john_roach_jr"
+        ],
+        "reveals": [
+          "F011"
+        ],
+        "quality": 0.65,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000024",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "A news anchor reporting on set with a photograph of Karmelo Anthony and the graphic 'Murder Conviction Appeal' displayed on the screen behind her.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A news anchor reporting on set with a photograph of Karmelo Anthony and the graphic 'Murder Conviction Appeal' displayed on the screen behind her.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The news broadcast graphic explicitly addresses the murder conviction appeal, featuring Karmelo Anthony's mugshot behind the anchor.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [
+          "F011"
+        ],
+        "quality": 0.65,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    {
+      "asset_code": "VIS_000025",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "Karmelo Anthony walking behind another man in a suit outside a courthouse following trial proceedings.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "Karmelo Anthony walking behind another man in a suit outside a courthouse following trial proceedings.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "ABC News Live report graphic identifying Karmelo Anthony during trial coverage, matching his known appearance at trial.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.55,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000026",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Side-by-side portraits showing a booking photograph of Karmelo Anthony on the left and a school portrait of Austin Metcalf on the right.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "composite_match",
+      "verification_payload": {
+        "depicts": "Side-by-side portraits showing a booking photograph of Karmelo Anthony on the left and a school portrait of Austin Metcalf on the right.",
+        "subject_type": "person",
+        "matches_claim": "composite",
+        "tone_ok": true,
+        "identity_evidence": "Widely published news photographs: Collin County mugshot of Karmelo Anthony alongside the school photo of victim Austin Metcalf.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "composite_entities": [
+          "austin_metcalf",
+          "karmelo_anthony"
+        ],
+        "reason": "composite_match",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 2,
+        "tier_reason": "verified: composite image of multiple exact case entities"
+      }
+    },
+    {
+      "asset_code": "VIS_000027",
+      "verification_status": "rejected",
+      "verification_confidence": 1.0,
+      "depicts": "Mugshot of professional basketball player Carmelo Anthony following a 2008 DUI arrest.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "does_not_match",
+      "verification_payload": {
+        "depicts": "Mugshot of professional basketball player Carmelo Anthony following a 2008 DUI arrest.",
+        "subject_type": "person",
+        "matches_claim": "no",
+        "tone_ok": true,
+        "identity_evidence": "The photograph depicts former NBA player Carmelo Anthony from his well-known 2008 Denver arrest, not high school student Karmelo Anthony from the 2025 Frisco murder case.",
+        "role": "illustration",
+        "period_ok": "no",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.7,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 1.0,
+        "reason": "does_not_match",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 5,
+        "tier_reason": "verifier: illustration (atmosphere only)"
+      }
+    },
+    {
+      "asset_code": "VIS_000028",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "A courtroom sketch depicting Karmelo Anthony and his defense attorney seated at the defense table while a witness testifies before a monitor.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "does_not_match",
+      "verification_payload": {
+        "depicts": "A courtroom sketch depicting Karmelo Anthony and his defense attorney seated at the defense table while a witness testifies before a monitor.",
+        "subject_type": "event",
+        "matches_claim": "no",
+        "tone_ok": true,
+        "identity_evidence": "Fox 4 News courtroom sketch from the Karmelo Anthony murder trial, showing Anthony from behind seated next to counsel during witness testimony.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "does_not_match",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 4,
+        "tier_reason": "verifier: not the claimed subject (context at best)"
+      }
+    },
+    {
+      "asset_code": "VIS_000029",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A police officer escorts a detained person in a gray hooded sweatshirt, viewed from an arresting officer's body camera.",
+      "entities": [
+        "body_camera_recording",
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A police officer escorts a detained person in a gray hooded sweatshirt, viewed from an arresting officer's body camera.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Frame from the released Frisco Police body-camera footage depicting the arrest of Karmelo Anthony outside Kuykendall Stadium.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "body_camera_recording",
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.7,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    {
+      "asset_code": "VIS_000030",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Karmelo Anthony sitting in the back of a police cruiser wearing a grey Essentials hoodie, recorded on police camera following his arrest.",
+      "entities": [
+        "karmelo_anthony",
+        "body_camera_recording"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Karmelo Anthony sitting in the back of a police cruiser wearing a grey Essentials hoodie, recorded on police camera following his arrest.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Frame from officially released police footage of Karmelo Anthony detained after the Frisco track meet stabbing.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "body_camera_recording"
+        ],
+        "reveals": [
+          "F008"
+        ],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    {
+      "asset_code": "VIS_000031",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "The parking lot and grandstands of David Kuykendall Stadium under a blue sky in Frisco, Texas.",
+      "entities": [
+        "kuykendall_stadium"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "The parking lot and grandstands of David Kuykendall Stadium under a blue sky in Frisco, Texas.",
+        "subject_type": "building",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The press box structure is labeled with the stadium name and the architectural features match David Kuykendall Stadium in Frisco, Texas.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "kuykendall_stadium"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 3,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    {
+      "asset_code": "VIS_000032",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Aerial view of Kuykendall Stadium with running track, football field, and grandstands in Frisco, Texas.",
+      "entities": [
+        "kuykendall_stadium"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Aerial view of Kuykendall Stadium with running track, football field, and grandstands in Frisco, Texas.",
+        "subject_type": "building",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Matches the facility profile of Kuykendall Stadium published by the Frisco convention and visitors bureau (Visit Frisco).",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "kuykendall_stadium"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 3,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    }
+  ],
+  "preexisting_results": {
+    "VIS_000001": {
+      "asset_code": "VIS_000001",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A partially unfolded gray utility knife with a clip and seatbelt cutter resting on a textured metal surface.",
+      "entities": [
+        "utility_knife"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A partially unfolded gray utility knife with a clip and seatbelt cutter resting on a textured metal surface.",
+        "subject_type": "object",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official evidence photograph released by the court following the murder trial of Karmelo Anthony, depicting the weapon involved in the stabbing.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "utility_knife"
+        ],
+        "reveals": [
+          "F005"
+        ],
+        "quality": 0.7,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000002": {
+      "asset_code": "VIS_000002",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "A wooden judge's gavel and sound block resting on a courtroom desk.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "tone",
+      "verification_payload": {
+        "depicts": "A wooden judge's gavel and sound block resting on a courtroom desk.",
+        "subject_type": "object",
+        "matches_claim": "stand_in",
+        "tone_ok": false,
+        "identity_evidence": "Generic stock photograph of a gavel, not from the actual Collin County courtroom or proceedings.",
+        "role": "illustration",
+        "period_ok": "yes",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.7,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "tone",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 5,
+        "tier_reason": "verifier: stand-in illustration (labelled on screen)"
+      }
+    },
+    "VIS_000003": {
+      "asset_code": "VIS_000003",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "A supporter wearing a purple T-shirt printed with photos of Karmelo Anthony, holding a phone, keys, and a notebook outside court.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A supporter wearing a purple T-shirt printed with photos of Karmelo Anthony, holding a phone, keys, and a notebook outside court.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The graphic on the supporter's shirt shows portraits of Karmelo Anthony; image published by The Guardian reporting on Karmelo Anthony's trial proceedings.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object (not case material)"
+      }
+    },
+    "VIS_000004": {
+      "asset_code": "VIS_000004",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A composite image featuring a mugshot of Karmelo Anthony over a background of stadium bleachers and a track.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A composite image featuring a mugshot of Karmelo Anthony over a background of stadium bleachers and a track.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official mugshot of Karmelo Anthony following his arrest in Collin County, Texas, matched to reporting from FOX 4 News.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000005": {
+      "asset_code": "VIS_000005",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Mugshot of Karmelo Anthony against a white cinderblock wall, flanked by blurred graphics of stadium bleachers.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Mugshot of Karmelo Anthony against a white cinderblock wall, flanked by blurred graphics of stadium bleachers.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official mugshot of Karmelo Anthony published by FOX 4 News following his arrest in Collin County, Texas.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000006": {
+      "asset_code": "VIS_000006",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "A news composite image showing an officer arresting a suspect outdoors on body-camera footage, alongside an inset mugshot of Karmelo Anthony and a large red arrow.",
+      "entities": [
+        "karmelo_anthony",
+        "body_camera_recording"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A news composite image showing an officer arresting a suspect outdoors on body-camera footage, alongside an inset mugshot of Karmelo Anthony and a large red arrow.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": false,
+        "identity_evidence": "Inset mugshot shows Karmelo Anthony, and the bodycam capture shows his apprehension following the stabbing as published by FOX 4 News.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "body_camera_recording"
+        ],
+        "reveals": [],
+        "quality": 0.5,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000007": {
+      "asset_code": "VIS_000007",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A news graphic composite showing Karmelo Anthony's mugshot, Austin Metcalf celebrating in his Memorial High School football uniform, and the crime scene bleachers with the team tent.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf",
+        "memorial_team_tent",
+        "kuykendall_stadium"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A news graphic composite showing Karmelo Anthony's mugshot, Austin Metcalf celebrating in his Memorial High School football uniform, and the crime scene bleachers with the team tent.",
+        "subject_type": "other",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "FOX 4 News broadcast composite featuring identified case figures Karmelo Anthony and Austin Metcalf alongside the crime scene at Kuykendall Stadium.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf",
+          "memorial_team_tent",
+          "kuykendall_stadium"
+        ],
+        "reveals": [
+          "F001",
+          "F002",
+          "F003"
+        ],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    "VIS_000008": {
+      "asset_code": "VIS_000008",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Mugshot and custody photograph of Karmelo Anthony wearing a sleeveless detention smock.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Mugshot and custody photograph of Karmelo Anthony wearing a sleeveless detention smock.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official booking photograph of Karmelo Anthony published by Collin County authorities and reported widely in news coverage of the trial.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000009": {
+      "asset_code": "VIS_000009",
+      "verification_status": "verified",
+      "verification_confidence": 0.85,
+      "depicts": "A woman holding a protest sign that reads 'JUSTICE SILENCED: SPEAK UP, STAND UP, FIGHT BACK' during a demonstration related to the case.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A woman holding a protest sign that reads 'JUSTICE SILENCED: SPEAK UP, STAND UP, FIGHT BACK' during a demonstration related to the case.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Published by Houston Public Media accompanying an article regarding the trial and aftermath of the Karmelo Anthony murder case, depicting community demonstrations outside court proceedings.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.85,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    "VIS_000010": {
+      "asset_code": "VIS_000010",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Side-by-side portraits showing Karmelo Anthony in a police booking mugshot on the left and victim Austin Metcalf in a school portrait on the right.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Side-by-side portraits showing Karmelo Anthony in a police booking mugshot on the left and victim Austin Metcalf in a school portrait on the right.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Widely published case imagery showing the mugshot of Karmelo Anthony alongside the high school portrait of victim Austin Metcalf.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000011": {
+      "asset_code": "VIS_000011",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Booking photograph of Karmelo Anthony wearing a sleeveless detention smock.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Booking photograph of Karmelo Anthony wearing a sleeveless detention smock.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Widely published booking mugshot of Karmelo Anthony from Collin County Jail following his arrest.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000012": {
+      "asset_code": "VIS_000012",
+      "verification_status": "rejected",
+      "verification_confidence": 1.0,
+      "depicts": "Book cover for 'Corona Unmasked' by Karina Reiss and Sucharit Bhakdi.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "tone",
+      "verification_payload": {
+        "depicts": "Book cover for 'Corona Unmasked' by Karina Reiss and Sucharit Bhakdi.",
+        "subject_type": "object",
+        "matches_claim": "no",
+        "tone_ok": false,
+        "identity_evidence": "The image is a promotional book cover about COVID-19, completely unrelated to the Karmelo Anthony case.",
+        "role": "illustration",
+        "period_ok": "no",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.5,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 1.0,
+        "reason": "tone",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 5,
+        "tier_reason": "verifier: illustration (atmosphere only)"
+      }
+    },
+    "VIS_000013": {
+      "asset_code": "VIS_000013",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Booking photograph of Karmelo Anthony against a tiled wall.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Booking photograph of Karmelo Anthony against a tiled wall.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Matches the widely published police mugshot of Karmelo Anthony following his April 2025 arrest in Collin County, Texas.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000014": {
+      "asset_code": "VIS_000014",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A courtroom sketch depicting Karmelo Anthony seated between his defense counsel while viewing stadium surveillance footage on a monitor before the presiding judge and jury.",
+      "entities": [
+        "karmelo_anthony",
+        "john_roach_jr",
+        "stadium_surveillance_footage"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A courtroom sketch depicting Karmelo Anthony seated between his defense counsel while viewing stadium surveillance footage on a monitor before the presiding judge and jury.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official courtroom sketch by Pat Lopez (AP) from the trial of Karmelo Anthony in McKinney, Texas, depicting the defendant, Judge John Roach Jr., and surveillance footage being played.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "john_roach_jr",
+          "stadium_surveillance_footage"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000015": {
+      "asset_code": "VIS_000015",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Booking photograph of Karmelo Anthony against a cinderblock wall.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Booking photograph of Karmelo Anthony against a cinderblock wall.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official Collin County Jail booking photograph of Karmelo Anthony published by news agencies following his arrest.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000016": {
+      "asset_code": "VIS_000016",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Karmelo Anthony in a light grey suit walking with others outside the courthouse during trial proceedings.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Karmelo Anthony in a light grey suit walking with others outside the courthouse during trial proceedings.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Matches confirmed news coverage and trial photographs of defendant Karmelo Anthony outside the Collin County Courthouse.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.65,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000017": {
+      "asset_code": "VIS_000017",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Aerial view of Kuykendall Stadium bleachers showing police officers investigating around the Memorial High School Warriors team tent following the stabbing.",
+      "entities": [
+        "kuykendall_stadium",
+        "memorial_team_tent"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Aerial view of Kuykendall Stadium bleachers showing police officers investigating around the Memorial High School Warriors team tent following the stabbing.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The tent displays 'WARRIORS M' (Memorial High School) and another tent shows 'LIBERTY REDHAWKS' in the bleachers next to the track, matching the Frisco ISD track meet venue where the incident occurred.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "kuykendall_stadium",
+          "memorial_team_tent"
+        ],
+        "reveals": [
+          "F001",
+          "F003"
+        ],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000018": {
+      "asset_code": "VIS_000018",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Portrait of Austin Metcalf wearing a blue suit and patterned tie in front of a stone wall.",
+      "entities": [
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Portrait of Austin Metcalf wearing a blue suit and patterned tie in front of a stone wall.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Confirmed photo of victim Austin Metcalf published in NBC News coverage of the case.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000019": {
+      "asset_code": "VIS_000019",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "The exterior of the Collin County Courthouse in Texas with a Collin County Sheriff vehicle parked outside.",
+      "entities": [
+        "collin_county_courthouse"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "The exterior of the Collin County Courthouse in Texas with a Collin County Sheriff vehicle parked outside.",
+        "subject_type": "building",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Lettering on the building reads 'COLLIN COUNTY COURTHOUSE', matching the entity and location of Anthony's trial.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "collin_county_courthouse"
+        ],
+        "reveals": [],
+        "quality": 0.85,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    "VIS_000020": {
+      "asset_code": "VIS_000020",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Side-by-side portraits of Karmelo Anthony on the left and victim Austin Metcalf on the right.",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Side-by-side portraits of Karmelo Anthony on the left and victim Austin Metcalf on the right.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "CBS News Texas caption identifies Karmelo Anthony (left) and Austin Metcalf (right); Anthony is shown in a police booking photograph.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000021": {
+      "asset_code": "VIS_000021",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A courtroom sketch depicting opening arguments during Karmelo Anthony's murder trial on June 4, 2026.",
+      "entities": [
+        "karmelo_anthony",
+        "john_roach_jr"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A courtroom sketch depicting opening arguments during Karmelo Anthony's murder trial on June 4, 2026.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Handwritten notation at the bottom reads 'D.A. OPENING ARGUEMENT DEFENSE TABLE June 4 2026', showing the defense table, prosecutor, and judge.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "john_roach_jr"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000022": {
+      "asset_code": "VIS_000022",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "A courtroom sketch showing Karmelo Anthony and his defense attorney seated in court while watching video evidence displayed on a monitor.",
+      "entities": [
+        "karmelo_anthony",
+        "stadium_surveillance_footage"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A courtroom sketch showing Karmelo Anthony and his defense attorney seated in court while watching video evidence displayed on a monitor.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Courtroom sketch by Pat Lopez published by CBS News Texas covering the Karmelo Anthony murder trial, showing the defense table viewing the stadium surveillance video.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "stadium_surveillance_footage"
+        ],
+        "reveals": [
+          "F007"
+        ],
+        "quality": 0.75,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000023": {
+      "asset_code": "VIS_000023",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "A courtroom sketch depicting Karmelo Anthony and his defense counsel seated before Judge John Roach Jr. while watching video evidence on a screen, with news graphics and text below.",
+      "entities": [
+        "karmelo_anthony",
+        "john_roach_jr"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A courtroom sketch depicting Karmelo Anthony and his defense counsel seated before Judge John Roach Jr. while watching video evidence on a screen, with news graphics and text below.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The courtroom sketch depicts the trial of Karmelo Anthony, showing the track meet footage played on the monitor, with headline text referencing the conviction and motion for a new trial.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "john_roach_jr"
+        ],
+        "reveals": [],
+        "quality": 0.5,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000024": {
+      "asset_code": "VIS_000024",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "A television news anchor sits at a studio desk in front of a screen displaying a photo of Karmelo Anthony and the headline 'MURDER CONVICTION APPEAL'.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "A television news anchor sits at a studio desk in front of a screen displaying a photo of Karmelo Anthony and the headline 'MURDER CONVICTION APPEAL'.",
+        "subject_type": "event",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "The news graphic on screen displays 'MURDER CONVICTION APPEAL' next to Karmelo Anthony's mugshot, broadcast on Fox 4 Good Day.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    "VIS_000025": {
+      "asset_code": "VIS_000025",
+      "verification_status": "rejected",
+      "verification_confidence": 0.9,
+      "depicts": "Karmelo Anthony walking behind an associate or legal team member outside a courtroom during an ABC News broadcast.",
+      "entities": [
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "watermark",
+      "verification_payload": {
+        "depicts": "Karmelo Anthony walking behind an associate or legal team member outside a courtroom during an ABC News broadcast.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "ABC News Live broadcast graphics specifically identify the subject as Karmelo Anthony, showing him at his trial in June 2026.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.45,
+        "watermark": true,
+        "graphic_or_sensitive": false,
+        "confidence": 0.9,
+        "reason": "watermark",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 1,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000026": {
+      "asset_code": "VIS_000026",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "Side-by-side portraits of Karmelo Anthony (mugshot, left) and Austin Metcalf (school portrait, right).",
+      "entities": [
+        "karmelo_anthony",
+        "austin_metcalf"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "does_not_match",
+      "verification_payload": {
+        "depicts": "Side-by-side portraits of Karmelo Anthony (mugshot, left) and Austin Metcalf (school portrait, right).",
+        "subject_type": "person",
+        "matches_claim": "no",
+        "tone_ok": true,
+        "identity_evidence": "Widely published news photo pairing Karmelo Anthony's Collin County booking photo with Austin Metcalf's school portrait.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "austin_metcalf"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "does_not_match",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 4,
+        "tier_reason": "verifier: not the claimed subject (context at best)"
+      }
+    },
+    "VIS_000027": {
+      "asset_code": "VIS_000027",
+      "verification_status": "rejected",
+      "verification_confidence": 1.0,
+      "depicts": "Mugshot of professional basketball player Carmelo Anthony from a 2008 arrest.",
+      "entities": [],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "does_not_match",
+      "verification_payload": {
+        "depicts": "Mugshot of professional basketball player Carmelo Anthony from a 2008 arrest.",
+        "subject_type": "person",
+        "matches_claim": "no",
+        "tone_ok": true,
+        "identity_evidence": "The image is the widely publicized 2008 DUI mugshot of NBA star Carmelo Anthony, not the high-school student Karmelo Anthony involved in the 2025 stabbing case.",
+        "role": "evidence",
+        "period_ok": "no",
+        "entities": [],
+        "reveals": [],
+        "quality": 0.7,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 1.0,
+        "reason": "does_not_match",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 5,
+        "tier_reason": "verifier: not the claimed subject, wrong period"
+      }
+    },
+    "VIS_000028": {
+      "asset_code": "VIS_000028",
+      "verification_status": "rejected",
+      "verification_confidence": 0.95,
+      "depicts": "Courtroom sketch depicting Officer Eduardo Cortez testifying on the witness stand while video footage of Karmelo Anthony in an Essentials hoodie is shown on a screen.",
+      "entities": [
+        "karmelo_anthony",
+        "eduardo_cortez"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": "does_not_match",
+      "verification_payload": {
+        "depicts": "Courtroom sketch depicting Officer Eduardo Cortez testifying on the witness stand while video footage of Karmelo Anthony in an Essentials hoodie is shown on a screen.",
+        "subject_type": "event",
+        "matches_claim": "no",
+        "tone_ok": true,
+        "identity_evidence": "Courtroom sketch from Fox 4 News trial reporting showing Officer Eduardo Cortez on the stand with footage of Karmelo Anthony displayed.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "eduardo_cortez"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": "does_not_match",
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 4,
+        "tier_reason": "verifier: not the claimed subject (context at best)"
+      }
+    },
+    "VIS_000029": {
+      "asset_code": "VIS_000029",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "A still from police body-camera footage showing Karmelo Anthony in a grey hoodie being escorted by police officers after his arrest.",
+      "entities": [
+        "body_camera_recording",
+        "karmelo_anthony"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "A still from police body-camera footage showing Karmelo Anthony in a grey hoodie being escorted by police officers after his arrest.",
+        "subject_type": "document",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official body-worn camera footage released during the trial of Karmelo Anthony showing his arrest in Frisco, Texas.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "body_camera_recording",
+          "karmelo_anthony"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 1,
+        "tier_reason": "verified: genuine case material"
+      }
+    },
+    "VIS_000030": {
+      "asset_code": "VIS_000030",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "Karmelo Anthony wearing a grey hoodie while seated in the back of a police cruiser following his arrest.",
+      "entities": [
+        "karmelo_anthony",
+        "body_camera_recording"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "Karmelo Anthony wearing a grey hoodie while seated in the back of a police cruiser following his arrest.",
+        "subject_type": "person",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Frame from released police in-car / body camera footage showing Karmelo Anthony detained after the Kuykendall Stadium stabbing.",
+        "role": "evidence",
+        "period_ok": "yes",
+        "entities": [
+          "karmelo_anthony",
+          "body_camera_recording"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 2,
+        "tier": 2,
+        "tier_reason": "verified: the exact person/object of the case"
+      }
+    },
+    "VIS_000031": {
+      "asset_code": "VIS_000031",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "An exterior view of David Kuykendall Stadium and its parking lot under a blue sky.",
+      "entities": [
+        "kuykendall_stadium"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "An exterior view of David Kuykendall Stadium and its parking lot under a blue sky.",
+        "subject_type": "building",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Signage on the stadium press box structure reads 'DAVID KUYKENDALL STADIUM'.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "kuykendall_stadium"
+        ],
+        "reveals": [],
+        "quality": 0.8,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 3,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    },
+    "VIS_000032": {
+      "asset_code": "VIS_000032",
+      "verification_status": "verified",
+      "verification_confidence": 0.95,
+      "depicts": "An aerial view of Kuykendall Stadium in Frisco, Texas, showing the football field, running track, grandstands, and adjacent baseball field.",
+      "entities": [
+        "kuykendall_stadium"
+      ],
+      "rejected_unknown_entities": [],
+      "identity_mismatch_signal": false,
+      "reason": null,
+      "verification_payload": {
+        "depicts": "An aerial view of Kuykendall Stadium in Frisco, Texas, showing the football field, running track, grandstands, and adjacent baseball field.",
+        "subject_type": "building",
+        "matches_claim": "yes",
+        "tone_ok": true,
+        "identity_evidence": "Official Visit Frisco tourism page image of Kuykendall Stadium, matching Frisco ISD's athletic stadium complex layout.",
+        "role": "context",
+        "period_ok": "yes",
+        "entities": [
+          "kuykendall_stadium"
+        ],
+        "reveals": [],
+        "quality": 0.75,
+        "watermark": false,
+        "graphic_or_sensitive": false,
+        "confidence": 0.95,
+        "reason": null,
+        "model": "gemini-3.8-flash",
+        "provisional_tier": 3,
+        "tier": 3,
+        "tier_reason": "verified: the exact place/building/area"
+      }
+    }
+  }
+}

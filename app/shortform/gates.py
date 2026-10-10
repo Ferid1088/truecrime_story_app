@@ -112,11 +112,15 @@ def epistemic_checker(claims: list[ClaimUse]) -> GateResult:
 def rights_checker(assets: list[AssetUse], platform: str) -> GateResult:
     reasons: list[str] = []
     offending: list[str] = []
+    platform_warnings: list[str] = []
     for asset in assets:
         stricter = platform in {"instagram_reel", "tiktok_video"}
         if asset.rights_status == "unknown":
             offending.append(asset.asset_id)
-            reasons.append(f"{asset.asset_id} has unknown rights")
+            warning = (f"{asset.asset_id}: platform warning - rights are unknown; "
+                       "explicit human sign-off is required")
+            reasons.append(warning)
+            platform_warnings.append(warning)
         if asset.platform_claim_risk == "high" and not asset.human_signoff:
             offending.append(asset.asset_id)
             reasons.append(f"{asset.asset_id} has high platform claim risk")
@@ -129,7 +133,7 @@ def rights_checker(assets: list[AssetUse], platform: str) -> GateResult:
         passed=not offending,
         reasons=reasons,
         offending_ids=sorted(set(offending)),
-        metadata={"platform": platform},
+        metadata={"platform": platform, "platform_warnings": platform_warnings},
     )
 
 
@@ -210,4 +214,3 @@ def _modality(value: Modality | str) -> Modality:
     if isinstance(value, Modality):
         return value
     return Modality(value)
-

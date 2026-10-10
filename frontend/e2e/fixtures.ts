@@ -368,6 +368,15 @@ export const fixtures = {
       tiktok_video: { enabled: true, count: 8, min_seconds: 15, target_seconds: 28, max_seconds: 45 },
     },
   },
+  shortFormMetrics: {
+    metric_rows: 15,
+    comparison_basis: "concept_type",
+    attribution_status: "unavailable",
+    comparisons: [
+      { concept_type: "verdict-countdown", total_views: 5210, platforms: ["instagram_reel", "tiktok_video", "youtube_short"], average_completion_rate: 0.62 },
+      { concept_type: "dispatch-audio-question", total_views: 3260, platforms: ["instagram_reel", "tiktok_video", "youtube_short"], average_completion_rate: 0.51 },
+    ],
+  },
   discoveryHistory: [] as unknown[],
   timeline: [
     {
@@ -550,6 +559,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
         level: "episode_override",
       });
     }
+    if (path === "/api/short-form/metrics" && method === "GET") return json(route, fixtures.shortFormMetrics);
     if (path === "/api/integrations/research/status") return json(route, fixtures.researchStatus);
     if (path === "/api/integrations/openrouter/status") return json(route, fixtures.openrouterStatus);
     if (path === "/api/db/overview") return json(route, fixtures.dbOverview);

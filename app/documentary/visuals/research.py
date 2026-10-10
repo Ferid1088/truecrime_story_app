@@ -27,6 +27,7 @@ is searched for the queries flagged `footage` (else the top entities).
 from __future__ import annotations
 
 import html
+import json
 import logging
 import os
 import re
@@ -63,6 +64,26 @@ class Candidate:
     entity_key: str | None = None
     entity_type: str | None = None
     query_kind: str | None = None   # source | exact | context
+
+
+def source_candidate_has_relevance(candidate: Candidate, case: Case) -> bool:
+    """Require an image-level case signal for source-page candidates."""
+    try:
+        expected_values = (json.loads(case.people_json or "[]")
+                           + json.loads(case.aliases_json or "[]"))
+    except (TypeError, json.JSONDecodeError):
+        expected_values = []
+    expected = {
+        token.lower() for value in expected_values
+        for token in re.findall(r"[\w'-]+", str(value)) if len(token) >= 4
+    }
+    if not expected:
+        return True
+    image_text = " ".join(filter(None, [
+        candidate.caption,
+        urlparse(candidate.url).path,
+    ])).lower()
+    return any(token in image_text for token in expected)
 
 
 def _strip_html(text: str | None) -> str:

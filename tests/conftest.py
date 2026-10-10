@@ -26,6 +26,22 @@ def db_session():
         db.close()
 
 
+@pytest.fixture
+def isolated_host_history(db_session):
+    """Give host integration tests a clean cross-case history.
+
+    The test database is intentionally shared for speed, while host
+    anti-repetition deliberately reads other cases' persisted segments.
+    Clear that boundary explicitly; the test creates its own archive rows.
+    """
+    from app.db.models import HostMemory, HostSegments
+
+    db_session.query(HostSegments).delete(synchronize_session=False)
+    db_session.query(HostMemory).delete(synchronize_session=False)
+    db_session.commit()
+    return db_session
+
+
 @pytest.fixture(autouse=True)
 def _bypass_provider_preflight(monkeypatch):
     """The OpenRouter authorization preflight is a live-network probe —

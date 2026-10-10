@@ -109,10 +109,11 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def data_url(path: Path) -> str:
+def data_url(path: Path | bytes) -> str:
     import base64
 
-    return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode()
+    data = path if isinstance(path, bytes) else path.read_bytes()
+    return "data:image/jpeg;base64," + base64.b64encode(data).decode()
 
 
 def face_boxes(img: Image.Image) -> list[tuple[int, int, int, int]]:
