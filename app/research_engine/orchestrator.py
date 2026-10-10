@@ -9,6 +9,8 @@ the run replays deterministically in the query inspector.
 """
 from __future__ import annotations
 
+from app.core.prompts import prompt
+
 import logging
 import re
 import time
@@ -618,18 +620,7 @@ class ResearchOrchestrator:
                                   theme) -> list[dict]:
         if not self.gen or not found:
             return []
-        system = """You identify real true-crime cases in raw search results.
-A candidate is a SPECIFIC named case (a murder, disappearance, killing,
-missing-persons investigation) — not a channel, genre page or listicle topic.
-Extract only cases explicitly supported by the provided results.
-Prefer RECENT cases whose resolution is reported (arrest, charges, verdict,
-conviction, confession). For each case say what the results report about
-its resolution — never guess: UNKNOWN when they do not say.
-resolution_status: SOLVED (conviction / accepted confession / official
-closure naming the perpetrator), UNSOLVED (no one charged, open or cold),
-STATUS_UNDER_REVIEW (arrest, suspect named or charges filed, no verdict),
-UNKNOWN. Dates as YYYY-MM-DD, YYYY-MM or YYYY. source_urls: the result
-URLs that are about this case. JSON only."""
+        system = prompt("research_engine/orchestrator/extract_candidates")
         user = __import__("json").dumps({
             "theme": theme,
             "existing_known_cases": existing_titles[:60],

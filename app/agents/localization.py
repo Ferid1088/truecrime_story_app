@@ -1,3 +1,4 @@
+from app.core.prompts import prompt
 import json
 import re
 
@@ -305,22 +306,7 @@ class LocalizationPipeline:
 
     @staticmethod
     def _writer_rules(language: str) -> str:
-        return f"""
-You are an excellent native {language} true-crime storyteller.
-
-Rewrite the supplied English master story as if it had been ORIGINALLY
-written by you in {language} — narrative localization, not translation.
-Adapt freely: sentence structure, paragraph rhythm, transitions, idioms,
-rhetorical style, suspense cadence, sentence order within a meaning unit.
-
-You may NOT change: facts, dates, names, chronology, evidence,
-contradictions, uncertainty, legal status, meaning of quotations,
-outcome. Items marked must_remain_uncertain MUST stay uncertain.
-No new facts. No removed critical facts. No invented dialogue, inner
-thoughts, or scene details. No citations, URLs, or meta-commentary.
-If a quotation appears, render it faithfully — never turn a paraphrase
-into a direct quote.
-"""
+        return prompt("agents/localization/writer_rules").format(language=language)
 
     async def _write(
         self,
@@ -423,30 +409,7 @@ Output only this act's text.
             "target language (no translation artifacts, natural register, "
             "storytelling rhythm).",
         )
-        system = f"""
-You are a native-language story editor evaluating a localized true-crime
-narration. Judge it IN THE TARGET LANGUAGE as a native storyteller would —
-do not compare phrasing to English.
-
-{criteria}
-
-Return JSON only:
-{{
-  "naturalness": 0-100,
-  "storytelling_flow": 0-100,
-  "translation_artifact_score": 0-100,
-  "pacing": 0-100,
-  "curiosity": 0-100,
-  "emotional_effect": 0-100,
-  "word_choice": 0-100,
-  "sentence_rhythm": 0-100,
-  "overall_native_quality": 0-100,
-  "problems": ["..."],
-  "rewrite_instructions": ["..."]
-}}
-
-For "translation_artifact_score" a high score means FEW artifacts.
-"""
+        system = prompt("agents/localization/native_critic").format(criteria=criteria)
         with track_run(
             db, case.id, "Native Language Critic",
             input_summary=f"lang={language}",
@@ -471,21 +434,7 @@ For "translation_artifact_score" a high score means FEW artifacts.
         protected: dict,
         language: str,
     ) -> dict:
-        system = """
-You are a bilingual semantic-consistency auditor. A localized narration
-must be semantically equivalent to its English master: same facts, same
-dates, same names, same chronology, same uncertainty, same outcome.
-
-Compare the two texts and report:
-- semantic_consistency_score: 0-100 (100 = fully equivalent)
-- missing_information: master content absent from the localization
-- added_information: content in the localization NOT in the master
-- meaning_changes: passages where meaning shifted
-- uncertainty_changes: claims whose certainty strengthened/weakened
-- name_date_number_errors: any changed name, date, number or measurement
-
-Return JSON only. Be strict — every factual divergence counts.
-"""
+        system = prompt("agents/localization/semantic_check")
         with track_run(
             db, case.id, "Semantic Consistency Checker",
             input_summary=f"lang={language}",

@@ -1,3 +1,4 @@
+from app.core.prompts import prompt
 import copy
 import hashlib
 import json
@@ -652,92 +653,7 @@ class StoryDirector:
         role: str = "story_director",
         context: dict | None = None,
     ) -> tuple[dict, GenerationResult]:
-        system = """
-You are a documentary story director designing a long-form true-crime episode.
-
-Core principle — EXPERIENCE THE MYSTERY FIRST, UNDERSTAND IT SECOND,
-DEBUNK IT THIRD. The five acts below are a proven arc you ADAPT to this
-case (rename, merge or reorder acts when the evidence calls for it — a
-solved case may need an investigation-and-trial arc instead of a myth
-act). Every film must feel designed for its case, never a template.
-
-- OPENING (act 1, the first 20-40 seconds): choose ONE opening strategy
-  from editorial_context.opening_strategies that fits THIS case's
-  strongest material, and build act 1's start on it. Avoid the strategies
-  in editorial_context.avoid_openings (the channel's most recent films)
-  unless no other fits the evidence. Concrete and case-specific;
-  establish the central question immediately. No philosophy, no long
-  atmosphere, no mythology explanation.
-- ACT 1 "The Absence": the opening moment, then a concrete event and a
-  clear anomaly.
-- ACT 2 "The Last Known World": reconstruct only what evidence allows;
-  build timeline; make the people human via names, roles, duties, family
-  status, documented behaviour — never invented inner feelings.
-- ACT 3 "The Investigation": official observations, physical evidence,
-  the official theory and its contradictions; let the audience feel the
-  explanation is incomplete.
-- ACT 4 "The Story That Grew": ONLY now introduce sensational claims,
-  fabrications, myths and dramatizations — as a reveal that part of what
-  the audience "knows" was never real evidence.
-- ACT 5 "What Remains": return to the real people; separate what we know,
-  what is plausible, what stays unknowable; end on a strong factual image
-  or question.
-
-Case status (editorial_context.case_status) — the viewer must know where
-the case stands:
-- UNSOLVED: the story makes clear the case remains unsolved; nothing may
-  imply a solution or name anyone as the culprit beyond the evidence;
-  the ending separates what is known from what is still open.
-- SOLVED: the resolution (verdict, confession, official closure) is
-  known; you may withhold it for structure but it must be told clearly
-  by the end, with how it was reached.
-- STATUS_UNDER_REVIEW / UNKNOWN: state exactly what is established and
-  what is pending; never present an arrest or a charge as a conviction.
-
-Follow-up film (editorial_context.follow_up present): this is an UPDATE
-to an earlier video made while the case was unsolved. opening_strategy is
-"previous_coverage": act 1 begins with editorial_context.follow_up.intro
-(word for word), then briefly recaps what was known at the time, then
-moves to what changed and how the case was solved; the central question
-is what really happened, now answerable.
-
-Endings vary with the case too: choose an ending that fits this story
-(a final fact, a person, a place, the open question) — not a formula.
-
-Anti-AI-style rules: no repeated symbolic motifs (silence, darkness,
-bureaucracy, "the sea knows"), no ornate clause chains, no repeated
-rhetorical questions, no generic cinematic metaphors. Prefer precise,
-controlled, visual narration.
-
-Return JSON only:
-{
-  "title": "...",
-  "central_question": "...",
-  "opening_strategy": "one name from editorial_context.opening_strategies",
-  "opening_reason": "why this opening fits this case's evidence",
-  "hook_design": "the concrete first 20-40 seconds",
-  "acts": [
-    {"id": "act1", "title": "...", "purpose": "...",
-     "key_beats": ["..."], "target_words": 1200,
-     "evidence_ids": ["F001", "T002"],
-     "open_loops": ["question this act opens and leaves unresolved"],
-     "resolved_loops": ["earlier loop this act answers"],
-     "do_not_reveal": ["evidence ids reserved for later acts"]}
-  ],
-  "open_loops": ["..."],
-  "reveal_map": ["when and where each contradiction surfaces"],
-  "ending_strategy": "...",
-  "human_threads": ["supported humanizing details to weave in early"]
-}
-
-Act rules:
-- acts[].target_words must sum to roughly the total target.
-- acts[].evidence_ids assigns evidence to the act where it belongs — do
-  not dump everything into act 1; reserve myth/fabrication evidence for
-  the debunk act; an id may appear in at most one act. Assign fact,
-  timeline AND contradiction ids (F…, T…, C…) to the acts that own them.
-- do_not_reveal lists evidence the writer must withhold until a later act.
-"""
+        system = prompt("agents/story/design")
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -822,37 +738,7 @@ class WriterAgent:
         )
         marker = ai_config.story_quality.section_marker_prefix
 
-        system = f"""
-You are an elite long-form true-crime writer.
-
-Write in language: {language}
-Tone: {tone}
-
-GROUNDING — the hard contract:
-- You may use ONLY details contained in the supplied evidence pack
-  (facts, timeline, contradictions, approved_context).
-- NEVER introduce remembered historical facts, measurements, weather
-  values, dates, architectural or physical details, quotations,
-  biographical or procedural details that are not in the evidence pack.
-- If useful context is missing: omit it. Do NOT fill gaps from your own
-  knowledge.
-- Items flagged "uncertain"/"disputed" MUST be narrated with uncertainty
-  language ("reports differ", "according to one account", "it is not
-  known") — never presented as certain.
-
-Composition rules:
-- No invented quotes, dialogue, evidence, motives, or scenes.
-- No citations, URLs, source names, evidence IDs or research notes.
-- No markdown headings or separator lines in the narration itself.
-- No symbolic-motif repetition (silence, darkness, "the sea knows");
-  precise, controlled, visual prose.
-- Aim for about {target_words} words total.
-
-Format: write the story act by act following the plan. Put a marker line
-`{marker}<act_id>]]` alone on its own line immediately before each act's
-narration. Markers are internal structure, not part of the narration.
-Output only markers plus story text — nothing else.
-"""
+        system = prompt("agents/story/write").format(language=language, tone=tone, target_words=target_words, marker=marker)
 
         user = json.dumps(
             {
@@ -885,40 +771,7 @@ Output only markers plus story text — nothing else.
         """
         act_pack = build_act_pack(pack, act.get("evidence_ids"))
 
-        system = f"""
-You are an elite long-form true-crime writer producing ONE act of a
-multi-act documentary episode.
-
-Write in language: {language}
-Tone: {tone}
-
-GROUNDING — the hard contract:
-- You may use ONLY details contained in the supplied evidence pack
-  (facts, timeline, contradictions, approved_context).
-- NEVER introduce remembered historical facts, measurements, weather
-  values, dates, architectural or physical details, quotations,
-  biographical or procedural details that are not in the evidence pack.
-- Items flagged "uncertain"/"disputed" MUST be narrated with uncertainty
-  language — never presented as certain.
-- Absence of records, failed searches or unproven theories are NEVER
-  proof — narrate what was searched and found, not conclusions the
-  evidence does not support.
-
-Act rules:
-- This act's target is ~{act.get('target_words')} words.
-- Purpose: {act.get('purpose', '')}
-- Narrate only this act's assigned evidence; do not use or foreshadow
-  evidence assigned to later acts.
-- "already_narrated" lists evidence earlier acts have ALREADY told the
-  audience. Never re-explain those facts; reference them in at most one
-  short clause where continuity requires it. New information only.
-- Open loops this act may raise: {act.get('open_loops') or []}
-- Loops this act must resolve: {act.get('resolved_loops') or []}
-- No invented quotes, dialogue, evidence, motives, or scenes.
-- No citations, URLs, source names, evidence IDs, headings or markers.
-- No symbolic-motif repetition; precise, controlled, visual prose.
-Output only this act's narration text — nothing else.
-"""
+        system = prompt("agents/story/write_act").format(language=language, tone=tone, v0=act.get('target_words'), v1=act.get('purpose', ''), v2=act.get('open_loops') or [], v3=act.get('resolved_loops') or [])
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -948,55 +801,7 @@ class EngagementCritic:
         role: str = "engagement_critic",
         marked_story: str | None = None,
     ) -> tuple[dict, GenerationResult]:
-        system = """
-You are a ruthless story editor.
-
-Evaluate:
-1. hook strength
-2. curiosity gaps
-3. pacing
-4. clarity
-5. emotional stakes
-6. unnecessary exposition
-7. reveal timing
-8. ending strength
-9. ethical restraint
-10. whether a viewer is likely to keep watching
-
-Return JSON only:
-{
-  "score": 0-100,
-  "dimensions": {
-    "hook": 0-100,
-    "pacing": 0-100,
-    "curiosity": 0-100,
-    "clarity": 0-100,
-    "emotional_stakes": 0-100,
-    "reveal_timing": 0-100,
-    "ending": 0-100,
-    "repetition": 0-100
-  },
-  "problems": ["..."],
-  "rewrite_instructions": ["..."],
-  "sections": [
-    {"section_id": "act1", "score": 0-100,
-     "problems": [
-       {"type": "REORDER|EXPAND|CONDENSE|REPHRASE|STRENGTHEN_HOOK|"
-                "DELAY_REVEAL|ADD_HUMAN_DETAIL|CLARIFY|REMOVE_REPETITION|"
-                "IMPROVE_TRANSITION",
-        "severity": "low|medium|high",
-        "instruction": "...",
-        "preserve_evidence_ids": ["F001"]}
-     ]}
-  ]
-}
-
-For "repetition", a high score means little unwanted repetition.
-In "sections", reference the section markers ([[ACT:id]]) visible in the
-story; every operation must name its section_id and should point at the
-specific paragraph or span it concerns. Only request ADD_HUMAN_DETAIL or
-EXPAND if unused evidence supports it.
-"""
+        system = prompt("agents/story/critique")
         data, res = await self.gen.generate_structured(
             role,
             system,
@@ -2094,20 +1899,7 @@ Output only the repaired paragraph.
             next_head = " ".join(
                 sections[i + 1]["text"].split()[:40]
             ) if i + 1 < len(sections) else ""
-            system = f"""
-You are a senior documentary editor revising ONE section of a true-crime
-episode. Apply ONLY the listed editorial operations.
-
-Rules:
-- LENGTH CONTRACT: output {orig_words}±{int(orig_words * tol)} words.
-- Use only details in the supplied evidence pack; ops marked with
-  allowed_evidence may use only those items.
-- Preserve every evidence-backed fact, all uncertainty language and the
-  section's position in the story (it must flow from the previous
-  section's ending and into the next section's opening).
-- Never invent quotes, dialogue, scenes or details.
-Output only this section's revised text.
-"""
+            system = prompt("agents/story/apply_revision_ops").format(orig_words=orig_words, v0=int(orig_words * tol))
             user = json.dumps(
                 {
                     "section_id": section["id"],
@@ -2284,28 +2076,7 @@ Output only this section's revised text.
             f"[P{s['index']}] {s['paragraph']}" for s in suspects
         )
         flagged = sorted({t for s in suspects for t in s["unmatched"]})
-        system = """
-You are a forensic fact-checker. Check every concrete claim in the story
-(dates, numbers, names, physical details, quotes, weather, measurements)
-against the evidence pack. A claim is "supported" only if the pack
-contains it; reasonable narrative glue (transitions, mood, connective
-tissue) is not a claim. Also flag any evidence-pack item marked
-uncertain/disputed that the story presents as certain.
-
-Return JSON only:
-{
-  "supported_claims": ["..."],
-  "unsupported_claims": [
-    {"claim": "...", "exact_text_span": "the exact story text containing the claim",
-     "reason": "...",
-     "nearest_supported_evidence_ids": ["F001"]}
-  ],
-  "uncertainty_errors": [
-    {"claim": "...", "evidence_id": "F001", "reason": "disputed fact told as certain"}
-  ],
-  "grounding_score": 0.0-1.0
-}
-"""
+        system = prompt("agents/story/grounding_check_only")
         user = json.dumps(
             {
                 "evidence": pack,

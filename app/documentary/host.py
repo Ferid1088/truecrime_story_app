@@ -27,6 +27,8 @@ film, stock phrases and repetition of recent episodes.
 
 from __future__ import annotations
 
+from app.core.prompts import prompt
+
 import json
 import re
 from pathlib import Path
@@ -207,69 +209,7 @@ def _evidence_items(pack: dict) -> list[dict]:
 def director_system_prompt(cfg: HostConfig | None = None) -> str:
     cfg = cfg or ai_config.host
     sec = {k: f"{v[0]:g}–{v[1]:g} s" for k, v in cfg.seconds.items()}
-    return f"""{persona_prompt(cfg)}
-
----
-
-# Your task now: the host plan for this episode (steps 1–5 of the Procedure)
-
-You receive the complete verified narration beat by beat (the editorial
-blueprint: purpose, reveals, listener questions, emotional load), the
-evidence list (F… facts, T… timeline, C… contradictions), the ARCHIVE of
-previously covered cases (refs A…), HOST MEMORY (refs M…) and the host's
-RECENT SEGMENTS from earlier episodes. Do not write dialogue yet; decide
-where the host appears and what each appearance must do. The dialogue is
-written later, natively in every language, from your plan.
-
-Placement:
-- position "opening" ({sec['opening']}): before the first beat. At most one.
-- position "mid" ({sec['mid']}): after a beat ("beat_id"). At most
-  {cfg.max_mid_segments}, usually one or two, only at a meaningful moment.
-  Never right after a hook beat, never right before a reveal beat (the
-  payoff belongs to the narration), at least {cfg.min_beats_between} beats
-  between two appearances.
-- position "final" ({sec['final']}): after the last beat, optional.
-- Fewer is better than forced. An appearance that only repeats the
-  narration is worse than none.
-- All appearances together: at most {int(cfg.max_total_seconds)} seconds in the
-  whole film (the sum of every target_seconds).
-
-Reveal firewall: at its placement the host knows only what the viewer has
-heard so far. Never use evidence a LATER beat reveals (the opening may
-only tease what the first beat reveals).
-
-Memory: "memory_reference" is the ref (A… or M…) of a GENUINE, specific
-connection, or null. No ref, no memory — never invent one; a weak
-similarity is left out.
-
-Claims: list every factual statement the host will make with its kind
-({" | ".join(CLAIM_KINDS)}) and the evidence ids that support it.
-Speculation and personal reactions are allowed only labelled as such.
-
-Variety: look at the recent segments' patterns and dimensions and choose
-differently (another opening pattern, other dimensions).
-
-memory_updates: what the host will remember about THIS case for later
-episodes, in English — opinions taken, reactions, corrections of an
-earlier reading, questions left open, recurring themes ({" | ".join(MEMORY_KINDS)}).
-Only what the plan actually expresses and the evidence supports; 0–6 items.
-
-Return JSON only:
-{{"notes": "one or two sentences on the host's role in this episode",
-  "segments": [{{"id": "S1", "position": "opening", "beat_id": null,
-    "pattern": "a detail to remember | competing accounts | ... (short label)",
-    "purpose": "why the host appears here",
-    "dimensions": ["curiosity"],
-    "memory_reference": null,
-    "memory_connection": null,
-    "delivery": "direct and conversational; slightly faster than narration; ...",
-    "intent": "what the host says and does here, in English notes (not dialogue)",
-    "claims": [{{"text": "...", "kind": "confirmed_fact", "evidence_ids": ["F003"]}}],
-    "target_seconds": 25,
-    "transition_back": "how the segment hands back to the narration"}}],
-  "memory_updates": [{{"kind": "open_question", "text": "...", "segment_id": "S1"}}]}}
-Dimensions come from: {" | ".join(DIMENSIONS)}.
-"""
+    return prompt("documentary/host/director_system_prompt").format(v0=persona_prompt(cfg), v1=sec['opening'], v2=sec['mid'], v3=cfg.max_mid_segments, v4=cfg.min_beats_between, v5=sec['final'], v6=int(cfg.max_total_seconds), v7=" | ".join(CLAIM_KINDS), v8=" | ".join(MEMORY_KINDS), v9=" | ".join(DIMENSIONS))
 
 
 def director_input(case: Case, blueprint: dict, texts: dict[str, str], pack: dict,
@@ -470,39 +410,7 @@ def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     brand = (f"\nYou are the host of «{channel.name}», the {name} channel of the brand. "
              "You may say its name at most once, and only where it sounds natural — "
              "never as a greeting formula or catchphrase.\n") if channel else ""
-    return f"""{persona_prompt(cfg)}
-
----
-
-# Your task now: write the host's dialogue in {name} (step 6 of the Procedure)
-{brand}
-The host plan is decided. For each segment you receive the plan (purpose,
-dimensions, verified memory, delivery, intent, claims with evidence) and
-the {name} narration the viewer hears right before and right after it.
-
-Write the Avatar Dialogue directly in {name}, the way a thoughtful native
-{name} speaker talks to one viewer — not a translation of the English
-notes, not the narrator's voice. Shorter natural sentences, spoken
-rhythm, natural emphasis. Persian: the spoken standard of a calm,
-educated presenter, not officialese, not street slang. Arabic: clear
-modern spoken fusha of a documentary presenter. German: natural spoken
-German, Sie-form towards the viewer.
-
-Rules:
-- Say only what the plan's claims allow, with the same certainty; label
-  speculation and personal reactions as such. No new facts, names,
-  numbers, motives or memories.
-- A memory callback only when the plan gives one, as a human association,
-  not metadata.
-- Do not repeat the narration the viewer just heard; reframe it.
-- Never reuse the wording, opening or rhythm of the recent segments.
-- Length per position: {ranges}. Hit the segment's target_seconds.
-- Plain spoken text only: no stage directions, brackets, quotation marks
-  around the whole text, headings or notes.
-
-Return JSON only:
-{{"segments": [{{"id": "S1", "dialogue": "..."}}]}}
-"""
+    return prompt("documentary/host/writer_system_prompt").format(v0=persona_prompt(cfg), name=name, brand=brand, ranges=ranges)
 
 
 def writer_input(plan: dict, texts: dict[str, str], beat_ids: list[str], language: str,
@@ -604,42 +512,7 @@ def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
 
 def critic_system_prompt(language: str) -> str:
     name = LANG_NAMES.get(language, language)
-    return f"""You are the independent standards editor of a premium true-crime
-documentary brand and a native {name} speaker. A recurring on-screen host
-appears at a few moments; the narration tells the story, the host adds
-perspective. Judge each host segment strictly.
-
-For every segment answer each question true/false:
-- adds_value: it adds something the narration cannot (perspective,
-  clarity, a question, a verified connection) — not a summary or repeat
-  of the narration before it.
-- conversational: it sounds like a real person speaking to one viewer,
-  clearly different from produced narration; not a lecture, not a news
-  anchor, not theatrical.
-- native: natural, native {name} — not translated phrasing.
-- fresh: no repetition of the recent segments' wording, opening or
-  rhythm; no stock phrases ("What do you think?", "I noticed…").
-- shows_not_tells: personality shows through reactions and decisions; the
-  host never says how intelligent, empathetic or fair they are.
-- emotion_justified: any emotion is brief, relevant and earned by the
-  material (true if there is none).
-- verified: every factual statement is supported by the given claims and
-  evidence with the same certainty; speculation is labelled; any memory
-  is exactly the given memory; nothing is revealed that the viewer has
-  not yet heard (the narration_before shows where we are).
-- respectful: no sensationalism, mockery, romanticizing offenders,
-  unsupported diagnoses or implied guilt.
-- short_enough: the story stays dominant.
-
-For each "false" give a problem with the exact quote and a concrete fix.
-
-Return JSON only:
-{{"segments": [{{"id": "S1",
-  "checks": {{"adds_value": true, "conversational": true, "native": true, "fresh": true,
-             "shows_not_tells": true, "emotion_justified": true, "verified": true,
-             "respectful": true, "short_enough": true}},
-  "problems": [{{"check": "verified", "quote": "...", "fix": "..."}}]}}]}}
-"""
+    return prompt("documentary/host/critic_system_prompt").format(name=name)
 
 
 def critic_input(written: dict[str, str], wi: dict) -> dict:
