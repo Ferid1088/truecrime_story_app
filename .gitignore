@@ -39,3 +39,8 @@ data/embedding_cache/
 
 # channel intro renders (regenerated from the logo + concept fingerprint)
 data/intros/
+
+# generated/archival media (not source; ~290 MB). Back these up with your normal backups, not git.
+data/outfits/
+data/studio_archive/
+data/intro_previews/
