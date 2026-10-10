@@ -364,7 +364,7 @@ class BatchRequest(BaseModel):
 
 
 @router.post("/api/documentary/batch")
-def start_documentary_batch(payload: BatchRequest, db: Session = Depends(get_db)):
+async def start_documentary_batch(payload: BatchRequest, db: Session = Depends(get_db)):
     """Several documentaries at once: one job per case, run in parallel up
     to concurrency.jobs (the rest wait in "queued")."""
     langs = _check_languages(payload.languages)
@@ -496,7 +496,7 @@ def cancel_documentary_job(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/documentary/jobs/{job_id}/resume")
-def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
+async def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
     job = db.get(DocumentaryJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
