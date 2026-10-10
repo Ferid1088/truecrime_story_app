@@ -36,3 +36,6 @@ data/studio_thumbs/
 
 # regenerable caches
 data/embedding_cache/
+
+# channel intro renders (regenerated from the logo + concept fingerprint)
+data/intros/

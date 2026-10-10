@@ -1,0 +1,1025 @@
+{
+  "_note": "Generated from data/outfits/manifest.json. 'file' paths are relative to this manifest (data/host/), pointing back into data/outfits/<outfit>/. facing is 'front' for every pose except three_quarter_overall, which turns toward camera-left in every outfit (verified by eye on a sample across outfits 1, 2, 5, 8). All assets start approved:false pending human review.",
+  "assets": [
+    {
+      "id": "HOST_01_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_01",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/1/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Rust Overshirt"
+    },
+    {
+      "id": "HOST_01_PORTRAIT_2",
+      "outfit_id": "OUTFIT_01",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/1/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Rust Overshirt"
+    },
+    {
+      "id": "HOST_01_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_01",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/1/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Rust Overshirt"
+    },
+    {
+      "id": "HOST_01_THREE_QUARTER_OVERALL_4",
+      "outfit_id": "OUTFIT_01",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/1/three_quarter_overall_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Rust Overshirt"
+    },
+    {
+      "id": "HOST_01_SITTING_CROSSED_LEGS_5",
+      "outfit_id": "OUTFIT_01",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/1/sitting_crossed_legs_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Rust Overshirt"
+    },
+    {
+      "id": "HOST_01_SITTING_FORWARD_6",
+      "outfit_id": "OUTFIT_01",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/1/sitting_forward_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Rust Overshirt"
+    },
+    {
+      "id": "HOST_02_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_02",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/2/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Suit"
+    },
+    {
+      "id": "HOST_02_SITTING_FORWARD_2",
+      "outfit_id": "OUTFIT_02",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/2/sitting_forward_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Suit"
+    },
+    {
+      "id": "HOST_02_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_02",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/2/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Suit"
+    },
+    {
+      "id": "HOST_02_THREE_QUARTER_OVERALL_4",
+      "outfit_id": "OUTFIT_02",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/2/three_quarter_overall_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Suit"
+    },
+    {
+      "id": "HOST_02_PORTRAIT_5",
+      "outfit_id": "OUTFIT_02",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/2/portrait_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Suit"
+    },
+    {
+      "id": "HOST_02_SITTING_CROSSED_LEGS_6",
+      "outfit_id": "OUTFIT_02",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/2/sitting_crossed_legs_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Suit"
+    },
+    {
+      "id": "HOST_03_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_03",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/3/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Corduroy Three-Piece"
+    },
+    {
+      "id": "HOST_03_FRONT_OVERALL_POCKETS_2",
+      "outfit_id": "OUTFIT_03",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/3/front_overall_pockets_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Corduroy Three-Piece"
+    },
+    {
+      "id": "HOST_03_PORTRAIT_3",
+      "outfit_id": "OUTFIT_03",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/3/portrait_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Corduroy Three-Piece"
+    },
+    {
+      "id": "HOST_03_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_03",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/3/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Corduroy Three-Piece"
+    },
+    {
+      "id": "HOST_03_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_03",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/3/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Corduroy Three-Piece"
+    },
+    {
+      "id": "HOST_03_FRONT_OVERALL_6",
+      "outfit_id": "OUTFIT_03",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/3/front_overall_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Corduroy Three-Piece"
+    },
+    {
+      "id": "HOST_04_PORTRAIT_1",
+      "outfit_id": "OUTFIT_04",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/4/portrait_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Grey Blazer & Jeans"
+    },
+    {
+      "id": "HOST_04_FRONT_OVERALL_POCKETS_2",
+      "outfit_id": "OUTFIT_04",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/4/front_overall_pockets_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Grey Blazer & Jeans"
+    },
+    {
+      "id": "HOST_04_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_04",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/4/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Grey Blazer & Jeans"
+    },
+    {
+      "id": "HOST_04_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_04",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/4/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Grey Blazer & Jeans"
+    },
+    {
+      "id": "HOST_04_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_04",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/4/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Grey Blazer & Jeans"
+    },
+    {
+      "id": "HOST_04_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_04",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/4/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Grey Blazer & Jeans"
+    },
+    {
+      "id": "HOST_05_FRONT_OVERALL_POCKETS_1",
+      "outfit_id": "OUTFIT_05",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/5/front_overall_pockets_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Blazer & Chinos"
+    },
+    {
+      "id": "HOST_05_PORTRAIT_2",
+      "outfit_id": "OUTFIT_05",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/5/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Blazer & Chinos"
+    },
+    {
+      "id": "HOST_05_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_05",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/5/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Blazer & Chinos"
+    },
+    {
+      "id": "HOST_05_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_05",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/5/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Blazer & Chinos"
+    },
+    {
+      "id": "HOST_05_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_05",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/5/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Blazer & Chinos"
+    },
+    {
+      "id": "HOST_05_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_05",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/5/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Blazer & Chinos"
+    },
+    {
+      "id": "HOST_06_FRONT_OVERALL_POCKETS_1",
+      "outfit_id": "OUTFIT_06",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/6/front_overall_pockets_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Quarter-Zip"
+    },
+    {
+      "id": "HOST_06_PORTRAIT_2",
+      "outfit_id": "OUTFIT_06",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/6/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Quarter-Zip"
+    },
+    {
+      "id": "HOST_06_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_06",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/6/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Quarter-Zip"
+    },
+    {
+      "id": "HOST_06_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_06",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/6/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Quarter-Zip"
+    },
+    {
+      "id": "HOST_06_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_06",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/6/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Quarter-Zip"
+    },
+    {
+      "id": "HOST_06_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_06",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/6/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Quarter-Zip"
+    },
+    {
+      "id": "HOST_07_PORTRAIT_1",
+      "outfit_id": "OUTFIT_07",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/7/portrait_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Beige Knit Shoulders"
+    },
+    {
+      "id": "HOST_07_PORTRAIT_CLOSE_2",
+      "outfit_id": "OUTFIT_07",
+      "pose": "portrait_close",
+      "facing": "front",
+      "file": "../outfits/7/portrait_close_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Beige Knit Shoulders"
+    },
+    {
+      "id": "HOST_07_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_07",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/7/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Beige Knit Shoulders"
+    },
+    {
+      "id": "HOST_07_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_07",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/7/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Beige Knit Shoulders"
+    },
+    {
+      "id": "HOST_07_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_07",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/7/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Beige Knit Shoulders"
+    },
+    {
+      "id": "HOST_07_FRONT_OVERALL_6",
+      "outfit_id": "OUTFIT_07",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/7/front_overall_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Beige Knit Shoulders"
+    },
+    {
+      "id": "HOST_08_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_08",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/8/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra (Sunglasses)"
+    },
+    {
+      "id": "HOST_08_PORTRAIT_2",
+      "outfit_id": "OUTFIT_08",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/8/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra (Sunglasses)"
+    },
+    {
+      "id": "HOST_08_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_08",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/8/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra (Sunglasses)"
+    },
+    {
+      "id": "HOST_08_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_08",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/8/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra (Sunglasses)"
+    },
+    {
+      "id": "HOST_08_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_08",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/8/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra (Sunglasses)"
+    },
+    {
+      "id": "HOST_08_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_08",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/8/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra (Sunglasses)"
+    },
+    {
+      "id": "HOST_09_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_09",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/9/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra"
+    },
+    {
+      "id": "HOST_09_PORTRAIT_2",
+      "outfit_id": "OUTFIT_09",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/9/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra"
+    },
+    {
+      "id": "HOST_09_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_09",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/9/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra"
+    },
+    {
+      "id": "HOST_09_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_09",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/9/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra"
+    },
+    {
+      "id": "HOST_09_SITTING_UPRIGHT_5",
+      "outfit_id": "OUTFIT_09",
+      "pose": "sitting_upright",
+      "facing": "front",
+      "file": "../outfits/9/sitting_upright_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra"
+    },
+    {
+      "id": "HOST_09_FRONT_OVERALL_6",
+      "outfit_id": "OUTFIT_09",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/9/front_overall_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Thobe & Ghutra"
+    },
+    {
+      "id": "HOST_10_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_10",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/10/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "White Thobe"
+    },
+    {
+      "id": "HOST_10_PORTRAIT_2",
+      "outfit_id": "OUTFIT_10",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/10/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "White Thobe"
+    },
+    {
+      "id": "HOST_10_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_10",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/10/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "White Thobe"
+    },
+    {
+      "id": "HOST_10_THREE_QUARTER_OVERALL_4",
+      "outfit_id": "OUTFIT_10",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/10/three_quarter_overall_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "White Thobe"
+    },
+    {
+      "id": "HOST_10_SITTING_CROSSED_LEGS_5",
+      "outfit_id": "OUTFIT_10",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/10/sitting_crossed_legs_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "White Thobe"
+    },
+    {
+      "id": "HOST_10_SITTING_FORWARD_6",
+      "outfit_id": "OUTFIT_10",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/10/sitting_forward_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "White Thobe"
+    },
+    {
+      "id": "HOST_11_PORTRAIT_1",
+      "outfit_id": "OUTFIT_11",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/11/portrait_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Polo & Cream Knit"
+    },
+    {
+      "id": "HOST_11_FRONT_OVERALL_POCKETS_2",
+      "outfit_id": "OUTFIT_11",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/11/front_overall_pockets_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Polo & Cream Knit"
+    },
+    {
+      "id": "HOST_11_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_11",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/11/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Polo & Cream Knit"
+    },
+    {
+      "id": "HOST_11_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_11",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/11/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Polo & Cream Knit"
+    },
+    {
+      "id": "HOST_11_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_11",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/11/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Polo & Cream Knit"
+    },
+    {
+      "id": "HOST_11_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_11",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/11/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Polo & Cream Knit"
+    },
+    {
+      "id": "HOST_12_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_12",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/12/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Olive Sweater & Chinos"
+    },
+    {
+      "id": "HOST_12_PORTRAIT_2",
+      "outfit_id": "OUTFIT_12",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/12/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Olive Sweater & Chinos"
+    },
+    {
+      "id": "HOST_12_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_12",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/12/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Olive Sweater & Chinos"
+    },
+    {
+      "id": "HOST_12_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_12",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/12/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Olive Sweater & Chinos"
+    },
+    {
+      "id": "HOST_12_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_12",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/12/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Olive Sweater & Chinos"
+    },
+    {
+      "id": "HOST_12_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_12",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/12/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Olive Sweater & Chinos"
+    },
+    {
+      "id": "HOST_13_THREE_QUARTER_OVERALL_1",
+      "outfit_id": "OUTFIT_13",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/13/three_quarter_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Polo & Beige Trousers"
+    },
+    {
+      "id": "HOST_13_SITTING_FORWARD_2",
+      "outfit_id": "OUTFIT_13",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/13/sitting_forward_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Polo & Beige Trousers"
+    },
+    {
+      "id": "HOST_13_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_13",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/13/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Polo & Beige Trousers"
+    },
+    {
+      "id": "HOST_13_PORTRAIT_4",
+      "outfit_id": "OUTFIT_13",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/13/portrait_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Polo & Beige Trousers"
+    },
+    {
+      "id": "HOST_13_SITTING_CROSSED_LEGS_5",
+      "outfit_id": "OUTFIT_13",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/13/sitting_crossed_legs_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Polo & Beige Trousers"
+    },
+    {
+      "id": "HOST_13_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_13",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/13/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Navy Polo & Beige Trousers"
+    },
+    {
+      "id": "HOST_14_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_14",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/14/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Turtleneck & Navy Jacket"
+    },
+    {
+      "id": "HOST_14_PORTRAIT_2",
+      "outfit_id": "OUTFIT_14",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/14/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Turtleneck & Navy Jacket"
+    },
+    {
+      "id": "HOST_14_FRONT_OVERALL_3",
+      "outfit_id": "OUTFIT_14",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/14/front_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Turtleneck & Navy Jacket"
+    },
+    {
+      "id": "HOST_14_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_14",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/14/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Turtleneck & Navy Jacket"
+    },
+    {
+      "id": "HOST_14_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_14",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/14/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Turtleneck & Navy Jacket"
+    },
+    {
+      "id": "HOST_14_THREE_QUARTER_OVERALL_6",
+      "outfit_id": "OUTFIT_14",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/14/three_quarter_overall_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Turtleneck & Navy Jacket"
+    },
+    {
+      "id": "HOST_15_PORTRAIT_1",
+      "outfit_id": "OUTFIT_15",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/15/portrait_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Casual Navy"
+    },
+    {
+      "id": "HOST_15_FRONT_OVERALL_POCKETS_2",
+      "outfit_id": "OUTFIT_15",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/15/front_overall_pockets_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Casual Navy"
+    },
+    {
+      "id": "HOST_15_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_15",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/15/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Casual Navy"
+    },
+    {
+      "id": "HOST_15_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_15",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/15/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Casual Navy"
+    },
+    {
+      "id": "HOST_15_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_15",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/15/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Casual Navy"
+    },
+    {
+      "id": "HOST_15_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_15",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/15/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Casual Navy"
+    },
+    {
+      "id": "HOST_16_PORTRAIT_1",
+      "outfit_id": "OUTFIT_16",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/16/portrait_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Brown Crewneck Sweater"
+    },
+    {
+      "id": "HOST_16_THREE_QUARTER_OVERALL_2",
+      "outfit_id": "OUTFIT_16",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/16/three_quarter_overall_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Brown Crewneck Sweater"
+    },
+    {
+      "id": "HOST_16_FRONT_OVERALL_POCKETS_3",
+      "outfit_id": "OUTFIT_16",
+      "pose": "front_overall_pockets",
+      "facing": "front",
+      "file": "../outfits/16/front_overall_pockets_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Brown Crewneck Sweater"
+    },
+    {
+      "id": "HOST_16_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_16",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/16/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Brown Crewneck Sweater"
+    },
+    {
+      "id": "HOST_16_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_16",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/16/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Brown Crewneck Sweater"
+    },
+    {
+      "id": "HOST_16_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_16",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/16/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Brown Crewneck Sweater"
+    },
+    {
+      "id": "HOST_17_FRONT_OVERALL_1",
+      "outfit_id": "OUTFIT_17",
+      "pose": "front_overall",
+      "facing": "front",
+      "file": "../outfits/17/front_overall_1.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Oxford Shirt & Chinos"
+    },
+    {
+      "id": "HOST_17_PORTRAIT_2",
+      "outfit_id": "OUTFIT_17",
+      "pose": "portrait",
+      "facing": "front",
+      "file": "../outfits/17/portrait_2.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Oxford Shirt & Chinos"
+    },
+    {
+      "id": "HOST_17_THREE_QUARTER_OVERALL_3",
+      "outfit_id": "OUTFIT_17",
+      "pose": "three_quarter_overall",
+      "facing": "left",
+      "file": "../outfits/17/three_quarter_overall_3.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Oxford Shirt & Chinos"
+    },
+    {
+      "id": "HOST_17_SITTING_CROSSED_LEGS_4",
+      "outfit_id": "OUTFIT_17",
+      "pose": "sitting_crossed_legs",
+      "facing": "front",
+      "file": "../outfits/17/sitting_crossed_legs_4.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Oxford Shirt & Chinos"
+    },
+    {
+      "id": "HOST_17_SITTING_FORWARD_5",
+      "outfit_id": "OUTFIT_17",
+      "pose": "sitting_forward",
+      "facing": "front",
+      "file": "../outfits/17/sitting_forward_5.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Oxford Shirt & Chinos"
+    },
+    {
+      "id": "HOST_17_FRONT_OVERALL_RELAXED_6",
+      "outfit_id": "OUTFIT_17",
+      "pose": "front_overall_relaxed",
+      "facing": "front",
+      "file": "../outfits/17/front_overall_relaxed_6.png",
+      "approved": true,
+      "avatar_look_ids": [],
+      "_outfit_name": "Oxford Shirt & Chinos"
+    }
+  ]
+}
