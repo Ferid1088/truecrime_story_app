@@ -4,8 +4,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./truecrime.db"
 
-    search_provider: str = "mock"
-    tavily_api_key: str = ""
     youtube_api_key: str = ""
 
     # Research runs entirely through the TrueCrime Search Engine;

@@ -144,25 +144,16 @@ def test_discovery_returns_job_and_completes(client, db_session):
 
 
 def test_discovery_fails_cleanly_when_unconfigured(client):
-    """With the research provider unconfigured, discovery falls back to
-    the generation provider; if that is also unavailable the error
-    surfaces as 500."""
-    from app.providers.generation.base import GenerationError
-
+    """With the search engine unconfigured, discovery and research answer
+    503 — there is no unchecked fallback path."""
     provider = FakeProvider(configured=False)
-
-    class UnconfiguredGen:
-        def is_configured(self):
-            return False
-
-        async def generate_structured(self, *a, **kw):
-            raise GenerationError("missing_key", "TrueCrime_OPENROUTER_API_KEY is not configured.")
-
-    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider), \
-         patch("app.agents.topic_discovery.get_generation_provider", return_value=UnconfiguredGen()):
+    with patch("app.main.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post("/api/topics/discover", json={"count": 3, "languages": ["en"]})
-    assert r.status_code == 500
-    assert "OPENROUTER" in r.json()["detail"]
+        assert r.status_code == 503 and "not configured" in r.json()["detail"]
+        case_id = client.post("/api/cases", json={"canonical_title": "No Engine Case",
+                                                  "language": "en", "force": True}).json()["id"]
+        r2 = client.post(f"/api/cases/{case_id}/research")
+        assert r2.status_code == 503
 
 
 # ---------------------------------------------------------------------------

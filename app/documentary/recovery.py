@@ -34,7 +34,7 @@ def recover_after_restart(db: Session) -> dict:
     """Run once when the app starts (single process: anything marked
     running belongs to a process that is gone)."""
     at = utc_now()
-    report = {"documentary_jobs": [], "monitor_runs": [], "video_research_jobs": [],
+    report = {"documentary_jobs": [], "monitor_runs": [], "research_jobs": [],
               "host_scenes": 0}
 
     for job in db.query(DocumentaryJob).filter(
@@ -62,15 +62,14 @@ def recover_after_restart(db: Session) -> dict:
         run.finished_at = at
         report["monitor_runs"].append(run.id)
 
-    # video research runs inside this process; web research jobs are
-    # remote and keep being polled, so they are left alone
+    # every research job runs inside this process (the engine keeps its jobs
+    # in memory): after a restart none of them can continue
     for rj in db.query(ResearchJob).filter(
-            ResearchJob.job_type == "video_research",
             ResearchJob.status.in_(("queued", "running"))).all():
         rj.status = "failed"
         rj.error = INTERRUPTED
         rj.completed_at = at
-        report["video_research_jobs"].append(rj.id)
+        report["research_jobs"].append(rj.id)
 
     from app.documentary.host_scenes import _log
 

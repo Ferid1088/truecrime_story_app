@@ -139,12 +139,11 @@ def test_multilingual_semantic_duplicate_detected_own_family_allowed(db_session)
 
 def test_naming_never_calls_a_search_backend(db_session, monkeypatch):
     import app.research_engine.search as S
-    import app.services.search as SS
 
     def boom(*a, **k):
         raise AssertionError("search backend called during naming")
 
-    for mod in (S, SS):
+    for mod in (S,):
         for name in dir(mod):
             if name.lower().startswith(("search", "query", "run_search")) and callable(
                     getattr(mod, name)) and not isinstance(getattr(mod, name), type):

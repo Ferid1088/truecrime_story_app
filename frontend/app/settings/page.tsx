@@ -247,13 +247,13 @@ export default function SettingsPage() {
           )}
 
           <StatusCard
-            title="Search Provider"
+            title="Search Engine"
             ok={data.search.configured}
             rows={[["Provider", data.search.provider]]}
             hint={
               data.search.configured
                 ? undefined
-                : "Set SEARCH_PROVIDER=tavily and TAVILY_API_KEY in .env"
+                : "Set TRUECRIME_SEARXNG_URL in .env"
             }
           />
           <StatusCard

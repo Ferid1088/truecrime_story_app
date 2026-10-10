@@ -45,8 +45,6 @@ from app.schemas import (
 from app.core.config import settings
 from app.core.ai_config import ai_config
 from app.utils import slugify, utc_now
-from app.agents.topic_discovery import TopicDiscoveryAgent
-from app.agents.research import ResearchAgent
 from app.agents.story import (
     MASTER_ROLES,
     StoryPipeline,
@@ -612,10 +610,8 @@ def settings_status(db: Session = Depends(get_db)):
             "routing": res_cfg.routing,
         },
         "search": {
-            "provider": settings.search_provider,
-            "configured": bool(settings.tavily_api_key)
-            if settings.search_provider.lower() == "tavily"
-            else settings.search_provider.lower() == "mock",
+            "provider": "searxng",
+            "configured": get_research_provider().is_configured(),
         },
         "youtube": {"configured": bool(settings.youtube_api_key)},
         "research_provider": {
@@ -798,30 +794,16 @@ def _pending_follow_ups(db: Session) -> list[dict]:
 
 @app.post("/api/topics/discover")
 async def discover_topics(payload: TopicDiscoveryRequest, db: Session = Depends(get_db)):
-    provider = get_research_provider()
-    if provider.is_configured():
-        try:
-            job = await research_jobs.start_discovery_job(db, payload)
-        except ProviderError as e:
-            raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}")
-        return {"job_id": job.id, "status": job.status}
-
+    """Candidate discovery runs as a job on the search engine (duplicate and
+    status checks included); there is no second, unchecked path."""
+    if not get_research_provider().is_configured():
+        raise HTTPException(status_code=503,
+                            detail="Search engine not configured (set TRUECRIME_SEARXNG_URL).")
     try:
-        agent = TopicDiscoveryAgent()
-        candidates = await agent.discover(
-            db=db,
-            count=payload.count,
-            languages=payload.languages,
-            theme=payload.theme,
-            prefer_undercovered=payload.prefer_undercovered,
-            search_web=payload.search_web,
-            search_youtube=payload.search_youtube,
-            require_multiple_sources=payload.require_multiple_sources,
-            avoid_existing=payload.avoid_existing,
-        )
-        return {"job_id": None, "status": "completed", "result": {"candidates": candidates}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        job = await research_jobs.start_discovery_job(db, payload)
+    except ProviderError as e:
+        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}")
+    return {"job_id": job.id, "status": job.status}
 
 
 @app.get("/api/research-jobs/{job_id}")
@@ -841,7 +823,7 @@ async def list_research_jobs(case_id: int | None = None, db: Session = Depends(g
     rows = query.limit(50).all()
     out = []
     for job in rows:
-        job = await research_jobs.poll_job(db, job)
+        job = await research_jobs.poll_job(db, job, ingest=False)   # list views only read
         out.append(research_jobs.job_dict(job, include_result=False))
     return out
 
@@ -1317,20 +1299,14 @@ def delete_source(case_id: int, source_id: int, db: Session = Depends(get_db)):
 @app.post("/api/cases/{case_id}/research")
 async def run_research(case_id: int, db: Session = Depends(get_db)):
     case = _get_case_or_404(db, case_id)
-
-    provider = get_research_provider()
-    if provider.is_configured():
-        try:
-            job = await research_jobs.start_research_job(db, case)
-        except ProviderError as e:
-            raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}")
-        return {"job_id": job.id, "status": job.status}
-
+    if not get_research_provider().is_configured():
+        raise HTTPException(status_code=503,
+                            detail="Search engine not configured (set TRUECRIME_SEARXNG_URL).")
     try:
-        result = await ResearchAgent().run(db, case)
-        return {"job_id": None, "status": "completed", "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        job = await research_jobs.start_research_job(db, case)
+    except ProviderError as e:
+        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}")
+    return {"job_id": job.id, "status": job.status}
 
 
 @app.get("/api/cases/{case_id}/research")

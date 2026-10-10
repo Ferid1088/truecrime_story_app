@@ -1,4 +1,5 @@
 import json
+import time
 import re
 from datetime import datetime, timedelta
 
@@ -590,13 +591,24 @@ async def _normalize_sources(db: Session, case_id: int) -> int:
     return done
 
 
-async def poll_job(db: Session, job: ResearchJob) -> ResearchJob:
+# Jobs whose results are being ingested right now (this process): a second
+# poller must neither re-enter the ingestion nor see a half-finished job as
+# "completed".
+_INGESTING: dict[int, float] = {}
+_INGEST_STALE_S = 1800.0
+
+
+async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> ResearchJob:
     """Refresh a job's state from the provider and ingest on completion.
 
-    Safe to call repeatedly — terminal jobs return immediately and
-    source ingestion dedupes by URL.
+    Safe to call repeatedly — terminal jobs return immediately, a job that
+    is being ingested is left to the poller that started it, and source
+    ingestion dedupes by URL. `ingest=False` only reads (list views): a
+    finished engine result then stays unconsumed until a real poll.
     """
-    if job.status in ("completed", "failed"):
+    started = _INGESTING.get(job.id)
+    if job.status in ("completed", "failed") or (
+            started is not None and time.monotonic() - started < _INGEST_STALE_S):
         return job
     # video_research jobs are driven by their own background task —
     # external_job_id refers only to the *discovery* phase, and polling it
@@ -654,12 +666,18 @@ async def poll_job(db: Session, job: ResearchJob) -> ResearchJob:
     job.completed_at = utc_now()
     job.result_json = json.dumps(pjob.result or {}, ensure_ascii=False) if pjob.result else None
     _apply_job_telemetry(job, pjob.result)
-    # Mark terminal state BEFORE ingestion so a concurrent poll cannot
-    # re-enter the (minutes-long) ingest+extract pipeline and duplicate
-    # provenance rows; stage shows the real in-flight work.
-    job.status = "completed" if pjob.status == "completed" else "failed"
-    job.current_stage = "ingesting" if pjob.status == "completed" else "failed"
-    if pjob.status != "completed":
+    # A successful result stays "running" (stage "ingesting") until its
+    # sources and facts are really stored — only then "completed"; the
+    # _INGESTING guard keeps a concurrent poll out of the ingestion.
+    if pjob.status == "completed" and not ingest:
+        db.rollback()
+        return job
+    if pjob.status == "completed":
+        job.current_stage = "ingesting"
+        _INGESTING[job.id] = time.monotonic()
+    else:
+        job.status = "failed"
+        job.current_stage = "failed"
         job.error = (pjob.error or "provider failed")[:500]
         job.error_code = (meta.get("error_kind") or "provider_error")[:50]
     db.commit()
@@ -752,6 +770,7 @@ async def poll_job(db: Session, job: ResearchJob) -> ResearchJob:
             if case and case.status == "researching":
                 case.status = "new"
 
+    _INGESTING.pop(job.id, None)
     db.commit()
     db.refresh(job)
     return job
