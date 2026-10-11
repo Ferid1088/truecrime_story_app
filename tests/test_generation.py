@@ -30,7 +30,7 @@ def test_config_file_loads():
     assert ai_config.providers.generation == "apimaster"
     assert ai_config.research_provider().type == "search_engine"
     assert ai_config.research_provider().secret_env is None
-    assert ai_config.generation_provider().secret_env == "TrueCrime_APIMASTER_API_KEY"
+    assert ai_config.generation_provider().secret_env == "TRUECRIME_APIMASTER_API_KEY"
     for role in REQUIRED_ROLES:
         assert ai_config.model_for(role)
         assert ai_config.generation_for(role).max_tokens > 0

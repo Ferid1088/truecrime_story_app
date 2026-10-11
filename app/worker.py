@@ -1,7 +1,7 @@
 """Job worker: runs documentary jobs outside the API process.
 
-    JOB_RUNNER=external python -m app.worker        # the worker
-    JOB_RUNNER=external uvicorn app.main:app        # the API (only queues jobs)
+    TRUECRIME_JOB_RUNNER=external python -m app.worker        # the worker
+    TRUECRIME_JOB_RUNNER=external uvicorn app.main:app        # the API (only queues jobs)
 
 Restarting the API no longer stops a running film. The worker
 
@@ -208,7 +208,7 @@ def main() -> None:
 
     observability.setup()
     if settings.job_runner != "external":
-        raise SystemExit("Set JOB_RUNNER=external for both the worker and the API, otherwise the API runs the jobs itself.")
+        raise SystemExit("Set TRUECRIME_JOB_RUNNER=external for both the worker and the API, otherwise the API runs the jobs itself.")
     from app.db.schema import init_schema
 
     init_schema()

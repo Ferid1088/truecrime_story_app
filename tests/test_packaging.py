@@ -31,15 +31,16 @@ def test_database_is_not_published_and_has_a_healthcheck():
 
 def test_api_and_worker_share_one_job_runner_setting_and_database():
     env = compose["x-app-env"]
-    assert env["JOB_RUNNER"] == "external"
-    assert env["DATABASE_URL"].startswith("postgresql+psycopg://")
+    assert env["TRUECRIME_JOB_RUNNER"] == "external"
+    assert env["TRUECRIME_DATABASE_URL"].startswith("postgresql+psycopg://")
     assert SERVICES["worker"]["command"] == ["python", "-m", "app.worker"]
     assert SERVICES["api"]["environment"] == SERVICES["worker"]["environment"] == env
 
 
 def test_access_token_and_db_password_are_required_not_defaulted():
     text = (ROOT / "docker-compose.yml").read_text()
-    assert "${ACCESS_TOKEN:?" in text and "${POSTGRES_PASSWORD:?" in text
+    assert "${TRUECRIME_ACCESS_TOKEN:-${ACCESS_TOKEN:?" in text
+    assert "${TRUECRIME_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:?" in text
 
 
 def test_start_order_waits_for_healthy_dependencies():
@@ -94,7 +95,11 @@ def test_web_dockerfile_ignores_node_modules():
 
 def test_env_example_lists_every_variable_compose_requires():
     ex = (ROOT / ".env.example").read_text()
-    for var in ("ACCESS_TOKEN", "POSTGRES_PASSWORD", "PUBLIC_API_URL", "COOKIE_SECURE", "CORS_ORIGINS"):
+    for var in (
+        "TRUECRIME_ACCESS_TOKEN", "TRUECRIME_POSTGRES_PASSWORD",
+        "TRUECRIME_PUBLIC_API_URL", "TRUECRIME_COOKIE_SECURE",
+        "TRUECRIME_CORS_ORIGINS",
+    ):
         assert re.search(rf"^{var}=", ex, re.M), var
 
 

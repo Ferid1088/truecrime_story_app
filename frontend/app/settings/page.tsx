@@ -157,11 +157,11 @@ export default function SettingsPage() {
             ]}
             hint={
               !apimaster?.configured
-                ? "Set TrueCrime_APIMASTER_API_KEY in .env"
+                ? "Set TRUECRIME_APIMASTER_API_KEY in .env"
                 : !apimaster.reachable
                   ? "Key is set but APIMaster did not respond."
                   : apimaster.status === "unauthorized" || apimaster.status === "forbidden"
-                    ? "The API key was rejected — check TrueCrime_APIMASTER_API_KEY."
+                    ? "The API key was rejected — check TRUECRIME_APIMASTER_API_KEY."
                     : apimaster.status === "models_missing"
                       ? `Not on APIMaster: ${apimaster.models_missing.join(", ")}`
                       : "All non-search LLM work runs through APIMaster."
@@ -260,7 +260,7 @@ export default function SettingsPage() {
             title="YouTube"
             ok={data.youtube.configured}
             rows={[["Integration", "Video metadata search"]]}
-            hint={data.youtube.configured ? undefined : "Set YOUTUBE_API_KEY in .env"}
+            hint={data.youtube.configured ? undefined : "Set TRUECRIME_YOUTUBE_API_KEY in .env"}
           />
           <StatusCard
             title="Database"

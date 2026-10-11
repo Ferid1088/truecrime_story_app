@@ -1,13 +1,13 @@
 # Security
 
 ## Access control
-- **`ACCESS_TOKEN` empty (default):** the API only answers requests that come from the same machine (loopback). Start uvicorn with `--host 127.0.0.1` so nothing else can even connect.
-- **`ACCESS_TOKEN` set:** every endpoint except `/health` and `/api/auth/*` needs either `Authorization: Bearer <token>` or the session cookie that `/login` sets. Use this before exposing the app on a network.
+- **`TRUECRIME_ACCESS_TOKEN` empty (default):** the API only answers requests that come from the same machine (loopback). Start uvicorn with `--host 127.0.0.1` so nothing else can even connect.
+- **`TRUECRIME_ACCESS_TOKEN` set:** every endpoint except `/health` and `/api/auth/*` needs either `Authorization: Bearer <token>` or the session cookie that `/login` sets. Use this before exposing the app on a network.
   - Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
-  - The cookie (`tc_session`) is signed, `HttpOnly`, `SameSite=Strict`, valid `SESSION_DAYS` (14). Changing `ACCESS_TOKEN` signs everyone out.
-  - Behind HTTPS set `COOKIE_SECURE=true`.
+  - The cookie (`tc_session`) is signed, `HttpOnly`, `SameSite=Strict`, valid `TRUECRIME_SESSION_DAYS` (14). Changing `TRUECRIME_ACCESS_TOKEN` signs everyone out.
+  - Behind HTTPS set `TRUECRIME_COOKIE_SECURE=true`.
 - 5 wrong tokens within 60 s from one address lock that address out for a minute.
-- Cookie-authenticated writes (POST/PUT/PATCH/DELETE) must come from an origin listed in `CORS_ORIGINS` (CSRF protection). Bearer-token clients are exempt.
+- Cookie-authenticated writes (POST/PUT/PATCH/DELETE) must come from an origin listed in `TRUECRIME_CORS_ORIGINS` (CSRF protection). Bearer-token clients are exempt.
 
 ## Responses
 Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store` on API data.

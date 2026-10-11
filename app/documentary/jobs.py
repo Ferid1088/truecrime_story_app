@@ -866,7 +866,7 @@ async def run_job(job_id: int, session_factory=None):
 
 
 def launch(job_id: int) -> None:
-    """Start a queued job. With an external worker (JOB_RUNNER=external) the API only queues it:
+    """Start a queued job. With an external worker (TRUECRIME_JOB_RUNNER=external) the API only queues it:
     the worker picks it up, so restarting the API never stops a running film."""
     from app.core.config import settings
 

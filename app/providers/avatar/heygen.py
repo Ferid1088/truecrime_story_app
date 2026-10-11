@@ -19,6 +19,7 @@ from pathlib import Path
 import httpx
 
 from app.core.ai_config import ai_config
+from app.core.env import env_value
 from app.providers.avatar.base import AvatarJob, AvatarProvider, AvatarProviderError
 
 _KINDS = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
@@ -31,7 +32,7 @@ class HeyGenAvatarProvider(AvatarProvider):
     def __init__(self, key_env: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
         self.cfg = ai_config.avatar
         self.key_env = key_env or self.cfg.secret_env
-        self.api_key = os.getenv(self.key_env) or ""
+        self.api_key = env_value(self.key_env) or ""
         self.transport = transport  # tests replace the network
 
     def is_configured(self) -> bool:

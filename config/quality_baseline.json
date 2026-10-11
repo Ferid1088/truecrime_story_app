@@ -166,7 +166,6 @@
     "app/research_engine/safety.py:B007:Loop control variable `family` not used within loop body",
     "app/research_engine/safety.py:B904:Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling",
     "app/research_engine/safety.py:UP041:Replace aliased errors with `TimeoutError`",
-    "app/research_engine/search_adapters/youtube.py:SIM112:Use capitalized environment variable `TRUECRIME_YOUTUBE_API_KEY` instead of `TrueCrime_YOUTUBE_API_KEY`",
     "app/research_engine/source_quality.py:SIM105:Use `contextlib.suppress(ValueError)` instead of `try`-`except`-`pass`",
     "app/schemas.py:I001:Import block is un-sorted or un-formatted",
     "app/services/claims.py:I001:Import block is un-sorted or un-formatted",

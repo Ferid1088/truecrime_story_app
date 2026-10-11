@@ -9,13 +9,13 @@ HTTP details.
 
 import json
 import logging
-import os
 from typing import Any
 
 import httpx
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
+from app.core.env import env_value
 from app.providers.generation.base import (
     GenerationError,
     GenerationProvider,
@@ -48,7 +48,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
     def __init__(self):
         provider_cfg = ai_config.generation_provider()
         self.base_url = provider_cfg.base_url.rstrip("/")
-        self.api_key = os.getenv(provider_cfg.secret_env)
+        self.api_key = env_value(provider_cfg.secret_env)
 
     def is_configured(self) -> bool:
         return bool(self.api_key)

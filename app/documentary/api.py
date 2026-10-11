@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -16,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.env import env_value
 from app.core.tasks import spawn
 from app.db.base import get_db
 from app.db.models import (
@@ -164,7 +164,7 @@ def documentary_settings():
                               "output_format": ai_config.avatar.output_format},
         # presence only — never the values
         "credentials": {
-            "elevenlabs": bool(os.getenv(ai_config.voice.elevenlabs.secret_env)),
+            "elevenlabs": bool(env_value(ai_config.voice.elevenlabs.secret_env)),
             "avatar": {"provider": ai_config.avatar.provider, **ai_config.avatar.configured()},
         },
     }

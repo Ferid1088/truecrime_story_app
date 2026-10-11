@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { authApi } from "@/lib/api";
 
 /**
- * Asks the API once whether this browser has a valid session. With no ACCESS_TOKEN configured the API
+ * Asks the API once whether this browser has a valid session. With no TRUECRIME_ACCESS_TOKEN configured the API
  * answers "authenticated" and nothing changes; otherwise unauthenticated visitors are sent to /login.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {

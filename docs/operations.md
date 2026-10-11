@@ -10,7 +10,7 @@ Operations page in the UI (failed calls, cost, job queue) and `python scripts/sm
 - Files are named `truecrime-backup-YYYYMMDD-HHMMSS.db` (Postgres: `.dump`, needs `pg_dump`). Old ones beyond "keep last" are deleted, but only files with exactly that name pattern.
 - The folder is never created for you: if the drive is unplugged you get "Is the drive connected?" instead of a stray folder on the internal disk.
 - Each backup is a consistent copy made while the app runs, checked (integrity, tables present), copied to the drive and compared by checksum before it gets its final name. Permissions are owner-only.
-- Docker: set `BACKUP_DIR` in `.env` (host folder or external drive) and use `/backups` as the folder in the app.
+- Docker: set `TRUECRIME_BACKUP_DIR` in `.env` (host folder or external drive) and use `/backups` as the folder in the app.
 
 **What a backup contains:** the database only (cases, sources, texts, settings, history). Generated media (`data/cases/`, volume `tc_data`) is not included; copy that folder separately (Finder, rsync) from time to time.
 

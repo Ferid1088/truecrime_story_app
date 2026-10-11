@@ -749,7 +749,7 @@ ElevenLabsVoiceProvider
 
 Use:
 
-TrueCrime_ELEVENLABS_API_KEY
+TRUECRIME_ELEVENLABS_API_KEY
 
 in .env
 

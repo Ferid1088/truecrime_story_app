@@ -350,6 +350,8 @@ def test_elevenlabs_without_key(monkeypatch):
     from app.providers.voice.elevenlabs import ElevenLabsVoiceProvider
 
     monkeypatch.delenv(ai_config.voice.elevenlabs.secret_env, raising=False)
+    monkeypatch.delenv("TrueCrime_ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.delenv("TRUECRIME_ELEVENLABS_API_KEY", raising=False)
     with pytest.raises(VoiceProviderError) as e:
         asyncio.run(ElevenLabsVoiceProvider().synthesize(REQ))
     assert e.value.kind == "missing_credentials"

@@ -14,7 +14,7 @@
     "apimaster": {
       "enabled": true,
       "base_url": "https://apimaster.ai/v1",
-      "secret_env": "TrueCrime_APIMASTER_API_KEY"
+      "secret_env": "TRUECRIME_APIMASTER_API_KEY"
     }
   },
   "search_engine": {
@@ -46,8 +46,8 @@
   },
   "avatar": {
     "provider": "heygen",
-    "secret_env": "HEYGEN_API_KEY",
-    "avatar_id_env": "TrueCrime_Avatar_ID_Heygen",
+    "secret_env": "TRUECRIME_HEYGEN_API_KEY",
+    "avatar_id_env": "TRUECRIME_AVATAR_ID_HEYGEN",
     "enabled": false,
     "base_url": "https://api.heygen.com",
     "output_format": "webm",

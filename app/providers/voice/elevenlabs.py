@@ -14,12 +14,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-import os
 
 import httpx
 
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
+from app.core.env import env_value
 from app.providers.voice.base import (
     VoiceProvider,
     VoiceProviderError,
@@ -35,7 +35,7 @@ class ElevenLabsVoiceProvider(VoiceProvider):
 
     def __init__(self):
         self.cfg = ai_config.voice.elevenlabs
-        self.api_key = os.getenv(self.cfg.secret_env) or ""
+        self.api_key = env_value(self.cfg.secret_env) or ""
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -163,7 +163,7 @@ class ElevenLabsSoundProvider:
 
     def __init__(self):
         self.cfg = ai_config.voice.elevenlabs
-        self.api_key = os.getenv(self.cfg.secret_env) or ""
+        self.api_key = env_value(self.cfg.secret_env) or ""
 
     def is_configured(self) -> bool:
         return bool(self.api_key)

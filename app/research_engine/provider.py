@@ -10,12 +10,12 @@ id, poll() reports progress, ingestion happens in research_jobs.
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from typing import Any, Awaitable, Callable
 
 from app.core.tasks import spawn
 from app.core.ai_config import ai_config
+from app.core.env import env_value
 from app.providers.base import ProviderJob, ResearchProvider
 from app.providers.generation import get_generation_provider
 from app.research_engine.embeddings import EmbeddingClient
@@ -83,7 +83,7 @@ class TrueCrimeSearchProvider(ResearchProvider):
 
     def __init__(self):
         self.searxng_url = (
-            os.getenv(ai_config.search_engine.searxng_url_env)
+            env_value(ai_config.search_engine.searxng_url_env)
             or ai_config.search_engine.searxng_url
             or ""
         ).rstrip("/")
@@ -106,7 +106,7 @@ class TrueCrimeSearchProvider(ResearchProvider):
         embed_model = gen_cfg.models.get("embedding")
         self.embedder = EmbeddingClient(
             base_url=gen_cfg.base_url,
-            api_key=os.getenv(gen_cfg.secret_env),
+            api_key=env_value(gen_cfg.secret_env),
             model=embed_model or "",
         )
 

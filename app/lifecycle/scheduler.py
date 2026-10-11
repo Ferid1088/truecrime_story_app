@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import datetime, timedelta
 
 from app.core.ai_config import ai_config
@@ -69,7 +68,9 @@ async def _loop():
 
 
 def disabled() -> bool:
-    return (os.getenv("TRUECRIME_DISABLE_SCHEDULER", "").lower() in ("1", "true", "yes")
+    from app.core.env import env_value
+
+    return ((env_value("TRUECRIME_DISABLE_SCHEDULER", "") or "").lower() in ("1", "true", "yes")
             or not ai_config.case_monitor.enabled or not ai_config.case_monitor.autostart)
 
 

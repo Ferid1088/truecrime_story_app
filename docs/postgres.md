@@ -1,6 +1,6 @@
 # Moving from SQLite to Postgres
 
-The app runs on either. It uses SQLite until `DATABASE_URL` points somewhere else, so nothing
+The app runs on either. It uses SQLite until `TRUECRIME_DATABASE_URL` points somewhere else, so nothing
 changes until you decide to switch. Switching is reversible: the SQLite file is never modified.
 
 ## One-time cutover (about 10 minutes)
@@ -17,13 +17,13 @@ changes until you decide to switch. Switching is reversible: the SQLite file is 
    It checks first (values Postgres would refuse are listed and nothing is written), copies everything
    in one transaction, and finally compares every table row by row. It must end with
    `OK copy verified: 55 tables, ... rows identical on both sides`.
-5. In `.env` set `DATABASE_URL=postgresql+psycopg://localhost/truecrime` and start the app.
+5. In `.env` set `TRUECRIME_DATABASE_URL=postgresql+psycopg://localhost/truecrime` and start the app.
 6. Keep `truecrime.db` untouched as the fallback until the Postgres version has run your normal work
    for a few weeks.
 
 ## Go back
 
-Remove the `DATABASE_URL` line (or point it at `sqlite:///./truecrime.db`) and restart. Anything made
+Remove the `TRUECRIME_DATABASE_URL` line (or point it at `sqlite:///./truecrime.db`) and restart. Anything made
 on Postgres after the cutover is not in the SQLite file.
 
 ## Tests

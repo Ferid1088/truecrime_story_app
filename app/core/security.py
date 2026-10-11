@@ -1,8 +1,8 @@
 """Access control for the API: one operator, one secret.
 
-* ACCESS_TOKEN set  -> every /api request needs it, as `Authorization: Bearer <token>` or as the
+* TRUECRIME_ACCESS_TOKEN set  -> every /api request needs it, as `Authorization: Bearer <token>` or as the
   signed session cookie that POST /api/auth/login hands out (httpOnly, SameSite=Strict).
-* ACCESS_TOKEN empty -> no login, but only requests from this machine are answered, so a server started
+* TRUECRIME_ACCESS_TOKEN empty -> no login, but only requests from this machine are answered, so a server started
   by mistake on 0.0.0.0 does not hand the studio to the network.
 
 Also: unsafe requests carrying a cookie must come from an allowed origin (CSRF), failed logins are
@@ -105,7 +105,7 @@ def authorize(method: str, path: str, headers: dict[str, str], client_ip: str) -
         return None
     if not token:
         if client_ip not in LOOPBACK:
-            return 403, "No access token is configured, so only this machine may use the API. Set ACCESS_TOKEN."
+            return 403, "No access token is configured, so only this machine may use the API. Set TRUECRIME_ACCESS_TOKEN."
         return None
     if blocked(client_ip):
         return 429, "Too many failed attempts. Wait a minute."

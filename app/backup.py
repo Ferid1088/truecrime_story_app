@@ -313,7 +313,10 @@ async def _loop(poll_seconds: float):
 
 
 def disabled() -> bool:
-    return os.getenv("TRUECRIME_DISABLE_SCHEDULER", "").lower() in ("1", "true", "yes")
+    from app.core.env import env_value
+
+    return (env_value("TRUECRIME_DISABLE_SCHEDULER", "") or "").lower() in (
+        "1", "true", "yes")
 
 
 def start(poll_seconds: float = 60.0) -> bool:

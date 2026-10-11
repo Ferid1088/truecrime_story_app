@@ -29,7 +29,6 @@ from __future__ import annotations
 import html
 import json
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
@@ -38,6 +37,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.env import env_value
 from app.db.models import Case, Source, VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import images as IM
@@ -190,7 +190,7 @@ class SearxngImagesProvider:
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
         se = ai_config.search_engine
-        self.base = os.getenv(se.searxng_url_env) or se.searxng_url
+        self.base = env_value(se.searxng_url_env) or se.searxng_url
 
     async def search(self, query: str, limit: int) -> list[Candidate]:
         if not self.base:

@@ -285,7 +285,7 @@ def test_env_example_declares_only_current_keys():
     env_example = (
         Path(__file__).resolve().parents[1] / ".env.example"
     ).read_text()
-    assert "TrueCrime_APIMASTER_API_KEY" in env_example
+    assert "TRUECRIME_APIMASTER_API_KEY" in env_example
     assert "TRUECRIME_SEARXNG_URL" in env_example
     # No retired provider credentials (Part 51-52).
     assert "DEVIN_API_KEY" not in env_example

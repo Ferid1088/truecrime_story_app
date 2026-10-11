@@ -761,7 +761,7 @@ class VoiceLanguageConfig(BaseModel):
 
 
 class ElevenLabsConfig(BaseModel):
-    secret_env: str = "TrueCrime_ELEVENLABS_API_KEY"
+    secret_env: str = "TRUECRIME_ELEVENLABS_API_KEY"
     base_url: str = "https://api.elevenlabs.io"
     output_format: str = "mp3_44100_128"
     request_timeout_s: float = Field(default=120.0, gt=0)
@@ -1059,8 +1059,8 @@ class AvatarConfig(BaseModel):
     (HostScene.avatar_id records the look actually used)."""
 
     provider: str = "heygen"
-    secret_env: str = "HEYGEN_API_KEY"
-    avatar_id_env: str = "TrueCrime_Avatar_ID_Heygen"
+    secret_env: str = "TRUECRIME_HEYGEN_API_KEY"
+    avatar_id_env: str = "TRUECRIME_AVATAR_ID_HEYGEN"
     # Avatar videos cost provider credits: generated only when enabled
     # (voice and planning work without it).
     enabled: bool = False
@@ -1074,10 +1074,10 @@ class AvatarConfig(BaseModel):
     max_poll_minutes: float = Field(default=20.0, gt=0)
 
     def configured(self) -> dict[str, bool]:
-        import os
+        from app.core.env import env_value
 
-        return {"key_present": bool(os.getenv(self.secret_env)),
-                "avatar_id_present": bool(os.getenv(self.avatar_id_env))}
+        return {"key_present": bool(env_value(self.secret_env)),
+                "avatar_id_present": bool(env_value(self.avatar_id_env))}
 
 
 class StudioConfig(BaseModel):
@@ -2443,12 +2443,10 @@ def unknown_config_keys(config_dir: Path = CONFIG_DIR) -> list[str]:
 
 def unknown_truecrime_env_vars(raw: dict | None = None) -> list[str]:
     """List configured-prefix environment variables with no known consumer."""
+    from app.core.env import known_environment_names
+
     raw = raw or load_raw_config()
-    known = {
-        "TRUECRIME_SEARXNG_URL",
-        "TRUECRIME_DISABLE_SCHEDULER",
-        "TRUECRIME_YOUTUBE_API_KEY",
-    }
+    known = {name.upper() for name in known_environment_names()}
 
     def walk(value: object, key: str = "") -> None:
         if isinstance(value, dict):

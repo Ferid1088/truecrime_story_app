@@ -10,7 +10,7 @@
   "voice": {
     "provider": "elevenlabs",
     "elevenlabs": {
-      "secret_env": "TrueCrime_ELEVENLABS_API_KEY",
+      "secret_env": "TRUECRIME_ELEVENLABS_API_KEY",
       "base_url": "https://api.elevenlabs.io",
       "output_format": "mp3_44100_128",
       "request_timeout_s": 120,

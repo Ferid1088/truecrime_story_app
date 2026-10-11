@@ -9,10 +9,10 @@ Returns SearchResult rows whose URLs are canonical youtube watch URLs.
 from __future__ import annotations
 
 import logging
-import os
 
 import httpx
 
+from app.core.env import env_value
 from app.research_engine.search import SearchError, SearchResult
 from app.research_engine.urlnorm import canonicalize_url, youtube_video_id
 
@@ -24,8 +24,8 @@ class YouTubeSearchBackend:
 
     def __init__(self, api_key: str | None = None,
                  searxng=None, timeout_s: float = 20.0):
-        self.api_key = api_key if api_key is not None else os.getenv(
-            "TrueCrime_YOUTUBE_API_KEY") or os.getenv("YOUTUBE_API_KEY")
+        self.api_key = api_key if api_key is not None else env_value(
+            "TRUECRIME_YOUTUBE_API_KEY")
         self.searxng = searxng
         self.timeout_s = timeout_s
 

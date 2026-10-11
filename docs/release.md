@@ -12,7 +12,7 @@ git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0
 # 2. on the machine that runs the app:
 python scripts/db_tools.py backup truecrime.db backups/pre-v1.1.0.db   # SQLite; for Postgres use pg_dump
 git pull && docker compose up -d --build        # or restart uvicorn + worker
-python scripts/smoke.py http://127.0.0.1:8000 "$ACCESS_TOKEN"            # expect GREEN
+python scripts/smoke.py http://127.0.0.1:8000 "$TRUECRIME_ACCESS_TOKEN"            # expect GREEN
 ```
 Rollback: migrations do not run backwards. Restore the backup taken in step 2, check out the previous tag, restart.
 

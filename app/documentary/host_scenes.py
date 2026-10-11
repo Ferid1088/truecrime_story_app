@@ -32,6 +32,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.env import env_value
 from app.db.models import HostScene, HostSegments, StoryVersion
 from app.documentary import storage
 from app.documentary import studio as ST
@@ -317,7 +318,7 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         look = scene.avatar_id
         if not look:
             avatar_env = cp["heygen_avatar_env"]
-            configured = os.getenv(avatar_env) or ""
+            configured = env_value(avatar_env) or ""
             if not configured:
                 raise ST.StudioError(f"{avatar_env} is not set (.env)")
             look = await prov.resolve_look(configured)

@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import logging
-import os
 
 import httpx
 
+from app.core.env import env_value
 from app.research_engine.search import SearchError, SearchResult
 from app.research_engine.urlnorm import canonicalize_url, domain_of
 
@@ -27,7 +27,7 @@ class SearXNGSearchBackend:
         timeout_s: float = 25.0,
         max_response_bytes: int = 2_000_000,
     ):
-        self.base_url = (base_url or os.getenv("TRUECRIME_SEARXNG_URL") or "").rstrip("/")
+        self.base_url = (base_url or env_value("TRUECRIME_SEARXNG_URL") or "").rstrip("/")
         self.timeout_s = timeout_s
         self.max_response_bytes = max_response_bytes
 

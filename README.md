@@ -149,7 +149,7 @@ Groundwork for the audio-first documentary engine (`app/documentary/`).
 
 ### Voice (narration audio)
 
-Setup: `TrueCrime_ELEVENLABS_API_KEY` in `.env` (the key needs the
+Setup: `TRUECRIME_ELEVENLABS_API_KEY` in `.env` (the key needs the
 text-to-speech permission), `ffmpeg` installed, and
 `pip install -r requirements-documentary.txt` for the speech-to-text
 check. Voice ids, model ids, styles, pauses and loudness live in
@@ -527,7 +527,7 @@ Avatar videos cost credits and stay off until `avatar.enabled` is true.
 The preferred composition is a transparent avatar (HeyGen v3 `webm` with
 alpha, own audio) over our own studio image, placed by the preset. The
 fallback is `provider_composited`: HeyGen renders the studio image as the
-background (mp4). `TrueCrime_Avatar_ID_Heygen` may name the avatar (a
+background (mp4). `TRUECRIME_AVATAR_ID_HEYGEN` may name the avatar (a
 group of looks) or one look; the look actually used is stored on the
 scene.
 
