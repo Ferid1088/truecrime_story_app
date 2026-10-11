@@ -73,6 +73,7 @@ def configure_logging(level: str | None = None, fmt: str | None = None) -> None:
     root.setLevel((level or settings.log_level).upper())
     logging.getLogger("httpx").setLevel(logging.WARNING)  # its INFO lines carry full URLs (query strings)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)  # the request middleware writes the access line
 
 
 # ---------------------------------------------------------------------------------- request id

@@ -1,16 +1,92 @@
+# Whole stack:  cp .env.example .env  (set ACCESS_TOKEN and POSTGRES_PASSWORD)  then  docker compose up -d --build
+# Everything is published on 127.0.0.1 only; put a TLS reverse proxy in front to reach it from elsewhere.
+name: truecrime
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://truecrime:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/truecrime
+  ACCESS_TOKEN: ${ACCESS_TOKEN:?set ACCESS_TOKEN in .env}
+  JOB_RUNNER: external
+  LOG_FORMAT: json
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  TRUECRIME_SEARXNG_URL: http://searxng:8080
+
+x-app-service: &app-service
+  build:
+    context: .
+    args:
+      REQUIREMENTS: ${PY_REQUIREMENTS:-requirements-documentary.txt}
+  image: truecrime-api:local
+  env_file:
+    - path: .env
+      required: false
+  environment: *app-env
+  volumes:
+    - tc_data:/app/data
+  restart: unless-stopped
+  # Not read-only: the app writes models caches under its home and the dynamic-EQ setting into config/.
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+
 services:
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    volumes:
-      - ./:/app
+  postgres:
+    image: postgres:16
     environment:
-      - TRUECRIME_SEARXNG_URL=http://searxng:8080
+      POSTGRES_USER: truecrime
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: truecrime
+    volumes:
+      - tc_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U truecrime -d truecrime"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    # no published port: only the other containers reach the database
+
+  api:
+    <<: *app-service
+    ports:
+      - "127.0.0.1:8000:8000"
     depends_on:
-      - searxng
+      postgres:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+
+  # Runs the documentary jobs. Starts after the API is healthy because the API applies database migrations.
+  worker:
+    <<: *app-service
+    command: ["python", "-m", "app.worker"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL:-http://127.0.0.1:8000}
+    image: truecrime-web:local
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /web/.next/cache
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   searxng:
     image: searxng/searxng:latest
@@ -22,6 +98,7 @@ services:
     environment:
       - BASE_URL=http://localhost:8085/
       - INSTANCE_NAME=truecrime-searxng
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-}
     cap_drop:
       - ALL
     cap_add:
@@ -34,3 +111,7 @@ services:
         max-size: "1m"
         max-file: "1"
     restart: unless-stopped
+
+volumes:
+  tc_data:
+  tc_pg:
