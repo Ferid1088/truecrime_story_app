@@ -224,7 +224,7 @@ export default function ResearchPage() {
                           {j.profile ?? "—"}
                         </span>
                         {j.model && (
-                          <span className="block truncate font-mono text-[10px] text-muted-foreground/60">
+                          <span className="block truncate font-mono text-[10px] text-muted-foreground">
                             {j.model}
                           </span>
                         )}
@@ -253,7 +253,7 @@ export default function ResearchPage() {
                           )}
                         </span>
                         {j.languages_completed && j.languages_completed.length > 0 && (
-                          <span className="mt-0.5 block text-[10px] text-muted-foreground/60">
+                          <span className="mt-0.5 block text-[10px] text-muted-foreground">
                             langs: {j.languages_completed.join(", ")}
                           </span>
                         )}

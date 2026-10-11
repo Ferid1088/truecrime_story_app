@@ -590,3 +590,45 @@ export const authApi = {
     request<AuthSession>("/api/auth/login", { method: "POST", body: JSON.stringify({ token }) }),
   logout: () => request<AuthSession>("/api/auth/logout", { method: "POST" }),
 };
+
+export type OpsProvider = {
+  host: string;
+  calls: number;
+  errors: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+  p50_ms: number;
+  p95_ms: number;
+};
+export type OpsSummary = {
+  window_hours: number;
+  total_calls: number;
+  total_errors: number;
+  total_cost_usd: number;
+  providers: OpsProvider[];
+  jobs: Record<string, number>;
+};
+export type OpsCall = {
+  id: number;
+  at: string | null;
+  host: string;
+  method: string;
+  path: string;
+  status: number | null;
+  ok: boolean;
+  duration_ms: number;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_usd: number | null;
+  error: string | null;
+  request_id: string | null;
+};
+
+export const opsApi = {
+  summary: (hours = 24) => request<OpsSummary>(`/api/ops/summary?hours=${hours}`),
+  calls: (opts: { onlyErrors?: boolean; limit?: number } = {}) =>
+    request<OpsCall[]>(
+      `/api/ops/provider-calls?limit=${opts.limit ?? 50}${opts.onlyErrors ? "&only_errors=true" : ""}`,
+    ),
+};

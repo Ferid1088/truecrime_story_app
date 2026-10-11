@@ -15,3 +15,10 @@ Writes go through a queue to one background thread, so a slow or broken database
 - `GET /api/ops/summary?hours=24` — per host: calls, errors, p50/p95 ms, tokens, cost; plus documentary jobs by status.
 - `GET /api/ops/provider-calls?limit=100&only_errors=true&host=...` — the latest calls.
 - `GET /health` — liveness (public).
+
+## In the UI
+**Operations** (sidebar) shows the same numbers: calls, failures, reported cost and job queue for the last hour / 24 hours / 7 days, per-service latency (p50/p95) and tokens, and the latest failed calls with their request ids. A request id from there finds the matching log lines.
+
+## Guards that keep the UI honest
+- `tests/test_api_contract.py` fails if `frontend/lib/api.ts` calls an endpoint (or method) the backend does not have.
+- `frontend/e2e/a11y.spec.ts` fails on serious or critical accessibility findings (WCAG 2 A/AA) on the main pages and the login page.

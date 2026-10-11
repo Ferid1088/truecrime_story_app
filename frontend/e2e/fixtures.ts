@@ -474,6 +474,22 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     const path = url.pathname;
     const method = route.request().method();
 
+    if (path === "/api/ops/summary")
+      return json(route, {
+        window_hours: 24,
+        total_calls: 42,
+        total_errors: 3,
+        total_cost_usd: 1.2345,
+        providers: [
+          { host: "api.llm.example", calls: 30, errors: 1, tokens_in: 1200, tokens_out: 800, cost_usd: 1.2, p50_ms: 900, p95_ms: 4000 },
+          { host: "api.voice.example", calls: 12, errors: 2, tokens_in: 0, tokens_out: 0, cost_usd: 0.0345, p50_ms: 300, p95_ms: 700 },
+        ],
+        jobs: { running: 1, queued: 2, completed: 9 },
+      });
+    if (path === "/api/ops/provider-calls")
+      return json(route, [
+        { id: 7, at: "2026-10-11T09:00:00Z", host: "api.voice.example", method: "POST", path: "/v1/tts", status: 503, ok: false, duration_ms: 310, tokens_in: null, tokens_out: null, cost_usd: null, error: null, request_id: "abc123def456" },
+      ]);
     if (path === "/api/auth/session") return json(route, { authenticated: true, auth_required: false });
     if (path === "/api/dashboard") {
       dashboardCalls += 1;

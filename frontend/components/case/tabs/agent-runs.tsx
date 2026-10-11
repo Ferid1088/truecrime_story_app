@@ -55,13 +55,13 @@ export function AgentRunsTab({ caseId, refreshKey }: { caseId: number; refreshKe
                     {r.fallback_used ? " · fb" : ""}
                   </span>
                   {r.total_tokens != null && (
-                    <span className="block truncate text-[10px] text-muted-foreground/60">
+                    <span className="block truncate text-[10px] text-muted-foreground">
                       {r.total_tokens.toLocaleString()} tok
                       {r.estimated_cost_usd != null ? ` · $${r.estimated_cost_usd.toFixed(4)}` : ""}
                     </span>
                   )}
                   {r.role && (
-                    <span className="block truncate text-[10px] text-muted-foreground/60">
+                    <span className="block truncate text-[10px] text-muted-foreground">
                       {r.role}
                     </span>
                   )}

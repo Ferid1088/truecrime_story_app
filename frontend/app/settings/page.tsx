@@ -207,7 +207,7 @@ export default function SettingsPage() {
                         <Badge variant={alias === "premium" ? "accent" : alias === "writer" ? "info" : "default"}>
                           {ALIAS_LABELS[alias] ?? alias}
                         </Badge>
-                        <span className="min-w-0 max-w-36 truncate font-mono text-[10px] text-muted-foreground/60">
+                        <span className="min-w-0 max-w-36 truncate font-mono text-[10px] text-muted-foreground">
                           {data.generation.models[alias]}
                         </span>
                       </span>

@@ -8,7 +8,9 @@ import {
   Archive,
   Clapperboard,
   Compass,
+  Activity,
   Database,
+  LogOut,
   FlaskConical,
   FolderOpen,
   LayoutDashboard,
@@ -22,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/config";
+import { authApi } from "@/lib/api";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -33,6 +36,7 @@ const NAV = [
   { href: "/short-form", label: "Short-Form", icon: Smartphone },
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/database", label: "Database", icon: Database },
+  { href: "/ops", label: "Operations", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -61,6 +65,27 @@ function ApiStatus() {
       />
       {ok === null ? "Checking API…" : ok ? "API connected" : "API offline"}
     </div>
+  );
+}
+
+/** Only shown when the server asks for a login. */
+function SignOut() {
+  const [required, setRequired] = useState(false);
+  useEffect(() => {
+    authApi
+      .session()
+      .then((s) => setRequired(s.auth_required))
+      .catch(() => setRequired(false));
+  }, []);
+  if (!required) return null;
+  return (
+    <button
+      onClick={() => authApi.logout().finally(() => window.location.reload())}
+      className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+    >
+      <LogOut className="size-4" />
+      Sign out
+    </button>
   );
 }
 
@@ -149,6 +174,7 @@ export function Sidebar() {
         <div className="space-y-2 border-t border-border p-3">
           <ApiStatus />
           <ThemeToggle />
+          <SignOut />
         </div>
       </aside>
 
@@ -193,6 +219,7 @@ export function Sidebar() {
             <div className="space-y-2 border-t border-border p-3">
               <ApiStatus />
               <ThemeToggle />
+              <SignOut />
             </div>
           </div>
         </div>
