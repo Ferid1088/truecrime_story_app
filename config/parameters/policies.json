@@ -1,0 +1,31 @@
+{
+  "production_policies": {
+    "user_media": {
+      "require_rights_confirmation": true,
+      "preserve_original_audio": true,
+      "default_auto_audio_use": false
+    },
+    "media_reuse": {
+      "default_policy": "no_repeat",
+      "anchor_reuse_enabled": true,
+      "min_anchor_reuse_minutes": 10
+    },
+    "audio_recovery": {
+      "max_repair_attempts": 2,
+      "fallback_order": ["room_tone", "verified_ambience", "valid_music", "intentional_silence"]
+    },
+    "short_form": {
+      "status": "prototype",
+      "blocks_long_form_release": false
+    },
+    "timeline": {
+      "multi_year_threshold_years": 2,
+      "hide_labels": false,
+      "empty_calendar_markers": false
+    },
+    "publishing": {
+      "default_visibility": "private",
+      "live_mode_default": false
+    }
+  }
+}

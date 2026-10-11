@@ -160,6 +160,57 @@ class ProviderSelection(BaseModel):
     generation: str
 
 
+class UserMediaPolicies(BaseModel):
+    require_rights_confirmation: bool
+    preserve_original_audio: bool
+    default_auto_audio_use: bool
+
+
+class MediaReusePolicies(BaseModel):
+    default_policy: Literal["no_repeat"]
+    anchor_reuse_enabled: bool
+    min_anchor_reuse_minutes: float = Field(ge=0.0)
+
+
+class AudioRecoveryPolicies(BaseModel):
+    max_repair_attempts: int = Field(ge=0, le=10)
+    fallback_order: list[Literal[
+        "room_tone", "verified_ambience", "valid_music", "intentional_silence"
+    ]] = Field(min_length=1)
+
+    @field_validator("fallback_order")
+    @classmethod
+    def _unique_fallbacks(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("audio_recovery.fallback_order must not contain duplicates")
+        return value
+
+
+class ShortFormPolicies(BaseModel):
+    status: Literal["prototype"]
+    blocks_long_form_release: bool
+
+
+class TimelinePolicies(BaseModel):
+    multi_year_threshold_years: int = Field(ge=1)
+    hide_labels: bool
+    empty_calendar_markers: bool
+
+
+class PublishingPolicies(BaseModel):
+    default_visibility: Literal["private", "draft"]
+    live_mode_default: bool
+
+
+class ProductionPolicies(BaseModel):
+    user_media: UserMediaPolicies
+    media_reuse: MediaReusePolicies
+    audio_recovery: AudioRecoveryPolicies
+    short_form: ShortFormPolicies
+    timeline: TimelinePolicies
+    publishing: PublishingPolicies
+
+
 class ModelCapabilities(BaseModel):
     """What a model can actually do — never send unsupported parameters.
 
@@ -1998,6 +2049,7 @@ class ShortFormConfig(BaseModel):
 
 
 class AIConfig(BaseModel):
+    production_policies: ProductionPolicies
     providers: ProviderSelection
     research_providers: dict[str, ResearchProviderSection]
     generation_providers: dict[str, GenerationProviderSection]
