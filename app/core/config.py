@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     job_lease_seconds: float = 120.0
     # A job found dead is queued again automatically at most this many times (finished stages are reused).
     job_max_auto_resumes: int = 2
+    # The worker touches this file every poll; the container health check reads its age.
+    worker_alive_file: str = "/tmp/tc-worker-alive"
 
     # --- observability --------------------------------------------------------------------
     log_level: str = "INFO"

@@ -63,7 +63,11 @@ services:
     <<: *app-service
     command: ["python", "-m", "app.worker"]
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/tmp/tc-worker-alive') < 60 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     depends_on:
       api:
         condition: service_healthy

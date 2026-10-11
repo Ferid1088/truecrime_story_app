@@ -14,6 +14,7 @@ Restarting the API no longer stops a running film. The worker
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 import logging
 import os
 import signal
@@ -96,7 +97,8 @@ def release_held_jobs(db: Session, worker_id: str) -> list[int]:
 class Worker:
     def __init__(self, session_factory=None, run_job=None, worker_id: str | None = None,
                  poll_seconds: float | None = None, lease_seconds: float | None = None,
-                 max_auto_resumes: int | None = None, max_parallel: int | None = None):
+                 max_auto_resumes: int | None = None, max_parallel: int | None = None,
+                 alive_file: str | None = None):
         from app.db.base import SessionLocal
 
         self.session_factory = session_factory or SessionLocal
@@ -116,9 +118,17 @@ class Worker:
         self.max_parallel = max_parallel
         self.stop = asyncio.Event()
         self.tasks: dict[int, asyncio.Task] = {}
+        self.alive_file = alive_file or settings.worker_alive_file
 
     def _db(self) -> Session:
         return self.session_factory()
+
+    def _touch_alive(self) -> None:
+        """The container health check looks at this file's age: a stuck loop stops refreshing it."""
+        try:
+            Path(self.alive_file).touch()
+        except OSError:
+            pass
 
     async def tick(self) -> None:
         """One round: tidy up, report in, take work if there is room."""
@@ -173,6 +183,7 @@ class Worker:
         try:
             while not self.stop.is_set():
                 await self.tick()
+                self._touch_alive()
                 try:
                     await asyncio.wait_for(self.stop.wait(), timeout=self.poll)
                 except asyncio.TimeoutError:

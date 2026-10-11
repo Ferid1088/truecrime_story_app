@@ -106,3 +106,15 @@ def test_docker_compose_accepts_the_file():
     if "docker" in r.stderr.lower() and "not a docker command" in r.stderr.lower():
         pytest.skip("docker compose plugin missing")
     assert r.returncode == 0, r.stderr
+
+
+def test_every_long_running_service_has_a_real_healthcheck():
+    # `docker compose up --wait` (CI, deploy) fails on a service without one
+    image_defined = {"api": "Dockerfile", "web": "frontend/Dockerfile"}
+    for name in ("postgres", "api", "worker", "web"):
+        hc = SERVICES[name].get("healthcheck")
+        if name in image_defined:
+            assert hc is None or not hc.get("disable"), name
+            assert "HEALTHCHECK" in (ROOT / image_defined[name]).read_text(), name
+        else:
+            assert hc and not hc.get("disable"), name

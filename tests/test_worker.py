@@ -317,3 +317,22 @@ def test_worker_killed_with_sigkill_loses_nothing(db_session):
     db_session.expire_all()
     j = db_session.get(DocumentaryJob, job.id)
     assert done == [job.id] and j.status == "completed" and j.auto_resumes == 1
+
+
+def test_worker_refreshes_its_alive_file_every_poll(tmp_path):
+    alive = tmp_path / "alive"
+
+    async def go():
+        w = W.Worker(run_job=None or (lambda *a, **k: None), worker_id="alive-t", poll_seconds=0.02,
+                     lease_seconds=3, max_parallel=1, alive_file=str(alive))
+        task = asyncio.create_task(w.run())
+        await asyncio.sleep(0.2)
+        first = alive.stat().st_mtime_ns
+        await asyncio.sleep(0.2)
+        second = alive.stat().st_mtime_ns
+        w.stop.set()
+        await task
+        return first, second
+
+    first, second = asyncio.run(go())
+    assert second > first
