@@ -8,8 +8,7 @@ def get_research_provider() -> ResearchProvider:
     supplying bounded intelligence only.
 
     Search is not an LLM task: no AI vendor performs web discovery.
-    Historical jobs recorded with provider="devin"/"openrouter"
-    remain readable data."""
+    Historical provider strings remain readable data."""
     return TrueCrimeSearchProvider()
 
 

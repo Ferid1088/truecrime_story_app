@@ -252,8 +252,7 @@ class ResearchProviderSection(BaseModel):
         no model routing; intelligence roles live in the generation
         provider instead.
     type="llm"            — an LLM-vendor research provider; requires
-        model aliases, routing and declared capabilities (kept for
-        backward compatibility with the removed OpenRouter section).
+        model aliases, routing and declared capabilities.
     """
     enabled: bool
     role: str = "internet_research"
@@ -2473,8 +2472,8 @@ def warn_unknown_configuration() -> None:
     if unknown_json:
         log.warning("Unknown AI config keys (ignored): %s", ", ".join(unknown_json))
     if unknown_env:
-        log.warning("Unknown TRUECRIME_* environment variables (ignored): %s",
-                    ", ".join(unknown_env))
+        for name in unknown_env:
+            log.warning("Environment variable %s is unused, remove it.", name)
 
 
 warn_unknown_configuration()

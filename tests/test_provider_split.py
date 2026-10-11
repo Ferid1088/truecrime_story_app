@@ -23,7 +23,6 @@ from app.core.ai_config import (
 from app.providers.generation import get_generation_provider
 from app.providers.generation.apimaster import APIMasterGenerationProvider
 from app.providers.generation.base import GenerationResult
-from app.providers.generation.openrouter import OpenRouterGenerationProvider
 
 
 def _raw_config() -> dict:
@@ -89,14 +88,6 @@ def test_role_sets_are_disjoint_and_complete():
 def test_generation_provider_is_apimaster():
     provider = get_generation_provider()
     assert isinstance(provider, APIMasterGenerationProvider)
-
-
-def test_openrouter_generation_still_registered_not_active():
-    """Registered for provider='openrouter' historical rows / config
-    re-selection — but never selected while generation=apimaster."""
-    assert ai_config.providers.generation == "apimaster"
-    p = OpenRouterGenerationProvider()
-    assert p.name == "openrouter"
 
 
 def test_research_roles_absent_from_generation_section():
@@ -296,8 +287,7 @@ def test_env_example_declares_only_current_keys():
     ).read_text()
     assert "TrueCrime_APIMASTER_API_KEY" in env_example
     assert "TRUECRIME_SEARXNG_URL" in env_example
-    # No active OpenRouter/Devin credentials (Part 51-52).
-    assert "TrueCrime_OPENROUTER_API_KEY" not in env_example
+    # No retired provider credentials (Part 51-52).
     assert "DEVIN_API_KEY" not in env_example
 
 
@@ -313,7 +303,7 @@ def test_cost_split_by_provider(db_session):
     db_session.add(case)
     db_session.commit()
 
-    for prov, cost in (("openrouter", 1.0), ("apimaster", 0.5), ("apimaster", 0.25)):
+    for prov, cost in (("legacy-provider", 1.0), ("apimaster", 0.5), ("apimaster", 0.25)):
         run = record_run(db_session, case.id, "T", "completed")
         stamp = GenerationResult(
             text="x", model="m", provider=prov,
@@ -325,7 +315,7 @@ def test_cost_split_by_provider(db_session):
     db_session.commit()
 
     usage = _generation_usage(db_session, case.id)
-    assert usage["cost_by_provider"]["openrouter"]["estimated_cost_usd"] == 1.0
+    assert usage["cost_by_provider"]["legacy-provider"]["estimated_cost_usd"] == 1.0
     assert usage["cost_by_provider"]["apimaster"]["calls"] == 2
     assert usage["cost_by_provider"]["apimaster"]["estimated_cost_usd"] == 0.75
 
@@ -342,9 +332,6 @@ def test_no_hardcoded_provider_names_in_agents():
     for path in agents_dir.glob("*.py"):
         code = path.read_text()
         assert "apimaster" not in code, f"{path.name} names APIMaster"
-        # 'openrouter' allowed only inside comments mentioning research —
-        # agents must never instantiate or select providers anyway.
-        assert "OpenRouterGenerationProvider" not in code
         assert "APIMasterGenerationProvider" not in code
         assert "get_research_provider" not in code
 

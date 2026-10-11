@@ -70,7 +70,7 @@ def test_source_timestamps_via_api(client, db_session):
 def test_legacy_naive_rows_readable_and_job_timeout_works(db_session):
     """A job with a naive legacy created_at must not crash poll_job."""
     job = ResearchJob(
-        provider="openrouter",
+        provider="legacy-provider",
         job_type="research",
         status="running",
         external_job_id="x",
@@ -97,7 +97,7 @@ def test_legacy_naive_rows_readable_and_job_timeout_works(db_session):
 
 
 def test_job_dict_serializes_aware_timestamps(db_session):
-    job = ResearchJob(provider="openrouter", job_type="discovery", status="queued")
+    job = ResearchJob(provider="legacy-provider", job_type="discovery", status="queued")
     db_session.add(job)
     db_session.commit()
     d = research_jobs.job_dict(job)

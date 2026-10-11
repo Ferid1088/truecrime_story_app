@@ -8,7 +8,7 @@ const jobBody = (
 ) => ({
   id: 77,
   case_id: null,
-  provider: "openrouter",
+  provider: "truecrime",
   external_job_id: "x",
   job_type: "discovery",
   status,

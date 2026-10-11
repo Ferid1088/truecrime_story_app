@@ -71,7 +71,7 @@ export const fixtures = {
       raw_text_length: 1200,
       published_at: "1990-01-01",
       retrieved_at: "2024-06-01T10:00:00Z",
-      research_provider: "openrouter",
+      research_provider: "truecrime",
       external_reference: null,
       status: "active",
       created_at: "2024-06-01T10:00:00Z",
@@ -95,7 +95,7 @@ export const fixtures = {
       raw_text_length: 0,
       published_at: null,
       retrieved_at: "2024-06-01T10:05:00Z",
-      research_provider: "openrouter",
+      research_provider: "truecrime",
       external_reference: null,
       status: "active",
       created_at: "2024-06-01T10:05:00Z",
@@ -164,7 +164,7 @@ export const fixtures = {
       dimensions: { hook: 40, pacing: 35 },
       problems: [],
       rewrite_instructions: [],
-      generation_provider: "openrouter",
+      generation_provider: "apimaster",
       generation_model: "google/gemini-3.8-flash",
       text_hash: "abc123",
       narrative_structure: {
@@ -203,7 +203,7 @@ export const fixtures = {
       dimensions: { hook: 40, pacing: 35 },
       problems: [],
       rewrite_instructions: [],
-      generation_provider: "openrouter",
+      generation_provider: "apimaster",
       generation_model: "google/gemini-3.8-flash",
       text_hash: "abc123",
       narrative_structure: {
@@ -240,7 +240,7 @@ export const fixtures = {
       dimensions: {},
       problems: ["Act 3 engagement below threshold (42 < 55)", "2 unsupported claims"],
       rewrite_instructions: ["Strengthen the Act 3 reveal"],
-      generation_provider: "openrouter",
+      generation_provider: "apimaster",
       generation_model: "google/gemini-3.8-flash",
       text_hash: "def456",
       narrative_structure: null,
@@ -273,7 +273,7 @@ export const fixtures = {
       input_summary: "target=45min lang=en",
       output_summary: "words=2400",
       error: null,
-      provider: "openrouter",
+      provider: "apimaster",
       model: "google/gemini-3.8-flash",
       role: "writer",
       temperature: 0.7,
@@ -296,7 +296,7 @@ export const fixtures = {
       input_summary: null,
       output_summary: null,
       error: "Rate limited",
-      provider: "openrouter",
+      provider: "apimaster",
       model: "anthropic/claude-sonnet-5.5",
       role: "engagement_critic",
       temperature: null,
@@ -311,7 +311,7 @@ export const fixtures = {
   ],
   settings: {
     generation: {
-      provider: "openrouter",
+      provider: "apimaster",
       configured: true,
       models: { cheap: "openai/gpt-5.6-luna", writer: "google/gemini-3.8-flash", premium: "anthropic/claude-sonnet-5.5" },
       routing: { writer: "writer", engagement_critic: "premium" },
@@ -336,14 +336,6 @@ export const fixtures = {
     fetcher: { configured: true, rate_limited: true, cache_enabled: true },
     embedding: { model: "test-embed", configured: true },
     llm: { provider: "apimaster", configured: true },
-  },
-  // Historical provider — retired from active research, status kept for
-  // display only.
-  openrouterStatus: {
-    provider: "openrouter",
-    configured: false,
-    reachable: false,
-    active: false,
   },
   dbOverview: {
     cases: { count: 1, items: [{ id: 1, title: CASE.title, status: "story_ready", created_at: CASE.created_at }] },
@@ -591,8 +583,8 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       const body = opts.researchJob
         ? opts.researchJob(n)
         : n < 2
-          ? { id: 99, case_id: 1, provider: "openrouter", external_job_id: "x", job_type: "research", status: "running", result_summary: null, error: null, result: null, created_at: "2024-06-02T09:00:00Z", started_at: "2024-06-02T09:00:00Z", completed_at: null }
-          : { id: 99, case_id: 1, provider: "openrouter", external_job_id: "x", job_type: "research", status: "completed", result_summary: null, error: null, result: { sources_added: 2 }, created_at: "2024-06-02T09:00:00Z", started_at: "2024-06-02T09:00:00Z", completed_at: "2024-06-02T09:05:00Z" };
+          ? { id: 99, case_id: 1, provider: "truecrime", external_job_id: "x", job_type: "research", status: "running", result_summary: null, error: null, result: null, created_at: "2024-06-02T09:00:00Z", started_at: "2024-06-02T09:00:00Z", completed_at: null }
+          : { id: 99, case_id: 1, provider: "truecrime", external_job_id: "x", job_type: "research", status: "completed", result_summary: null, error: null, result: { sources_added: 2 }, created_at: "2024-06-02T09:00:00Z", started_at: "2024-06-02T09:00:00Z", completed_at: "2024-06-02T09:05:00Z" };
       return json(route, body);
     }
     if (path === "/api/research-jobs") return json(route, fixtures.researchJobs);
@@ -613,7 +605,6 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     }
     if (path === "/api/short-form/metrics" && method === "GET") return json(route, fixtures.shortFormMetrics);
     if (path === "/api/integrations/research/status") return json(route, fixtures.researchStatus);
-    if (path === "/api/integrations/openrouter/status") return json(route, fixtures.openrouterStatus);
     if (path === "/api/db/overview") return json(route, fixtures.dbOverview);
     return json(route, { detail: `unmocked ${method} ${path}` }, 404);
   });

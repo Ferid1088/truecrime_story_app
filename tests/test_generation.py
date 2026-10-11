@@ -1,6 +1,6 @@
 """Tests for central AI config + the APIMaster generation provider.
 
-All APIMaster/OpenRouter HTTP calls are mocked — no real credits are spent.
+All APIMaster HTTP calls are mocked — no real credits are spent.
 """
 import asyncio
 import json
@@ -317,7 +317,7 @@ def test_new_version_status_and_best_flag(db_session):
 
     pipe = StoryPipeline()
     case = _mk_case(db_session)
-    res = GenerationResult(text="x", model="m/test", provider="openrouter")
+    res = GenerationResult(text="x", model="m/test", provider="legacy-provider")
 
     v1 = pipe._new_version(
         db_session, case, "plan", [{"id": "full", "text": "story one"}],
@@ -353,7 +353,7 @@ def test_stamp_run_records_role_and_fallback(db_session):
     from app.services.tracking import record_run, stamp_run
 
     run = record_run(db_session, None, "T", "completed")
-    res = GenerationResult(text="x", model="m/fb", provider="openrouter", fallback_used=True)
+    res = GenerationResult(text="x", model="m/fb", provider="legacy-provider", fallback_used=True)
     stamp_run(run, res, "writer")
     db_session.commit()
     assert run.role == "writer"
@@ -371,7 +371,7 @@ def test_similarity_not_evaluated_without_source_text(db_session):
     db_session.add(
         Source(
             case_id=case.id, title="S", url="https://x.com",
-            source_type="article", research_provider="openrouter",
+        source_type="article", research_provider="legacy-provider",
             summary="Only a summary, no raw text.",
         )
     )
@@ -414,7 +414,7 @@ def test_no_hardcoded_model_ids_anywhere_in_app():
 
 def test_search_engine_status_shape_and_no_key(client):
     """Search-engine status exposes backend/fetcher/embedding/llm —
-    no OpenRouter fields, no keys."""
+    no vendor-specific fields, no keys."""
     r = client.get("/api/integrations/research/status")
     assert r.status_code == 200
     body = r.json()
@@ -572,7 +572,7 @@ def test_usage_metadata_recorded_and_nullable(db_session):
 
     run = record_run(db_session, None, "T", "completed")
     res = GenerationResult(
-        text="x", model="m/t", provider="openrouter",
+        text="x", model="m/t", provider="legacy-provider",
         input_tokens=10, output_tokens=20, total_tokens=30,
         cost_usd=0.001, generation_id="gen-1",
     )
@@ -582,7 +582,7 @@ def test_usage_metadata_recorded_and_nullable(db_session):
     assert run.estimated_cost_usd == 0.001 and run.generation_id == "gen-1"
 
     run2 = record_run(db_session, None, "T", "completed")
-    stamp_run(run2, GenerationResult(text="x", model="m/t", provider="openrouter"), "writer")
+    stamp_run(run2, GenerationResult(text="x", model="m/t", provider="legacy-provider"), "writer")
     db_session.commit()
     assert run2.total_tokens is None and run2.estimated_cost_usd is None
 

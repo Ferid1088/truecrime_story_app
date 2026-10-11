@@ -1,8 +1,8 @@
 """Shared OpenAI-compatible chat-completions generation provider.
 
-APIMaster and OpenRouter generation both speak the same wire format;
-the concrete subclasses only differ in name, credential env var and
-base URL (all from central config). Error kinds are normalized to the
+OpenAI-compatible generation providers speak the same wire format; the
+concrete subclasses only differ in name, credential env var and base URL
+(all from central config). Error kinds are normalized to the
 application-level taxonomy so agents and fallback logic never see raw
 HTTP details.
 """

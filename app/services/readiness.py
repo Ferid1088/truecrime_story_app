@@ -20,7 +20,6 @@ _EXTRACTION_FAILURE_MARKERS = ("extraction failed", "normalization failed")
 _PROVIDER_CAUSE_MARKERS = (
     "permission/quota",
     "403",
-    "openrouter",
     "unauthorized",
     "permission",
 )

@@ -16,7 +16,7 @@
 ## معماری
 
 ```text
-OpenRouter Research Provider (web search + fetch, single gateway)
+TrueCrime Search Engine (web search + fetch, local infrastructure)
         ↓
 Topic Discovery Agent / Deep Research
         ↓
@@ -86,14 +86,14 @@ Override with `NEXT_PUBLIC_API_URL` in `frontend/.env.local` if needed.
 
 Backend tests: `pytest tests/`
 
-## Generation provider (OpenRouter)
+## Generation provider (APIMaster)
 
-OpenRouter is the generation/reasoning provider. Only the secret lives in
+APIMaster is the generation/reasoning provider. Only the secret lives in
 `.env`; every model and generation parameter lives in
 the `config/` layers — swapping a model means editing that one file.
 
 ```env
-TrueCrime_OPENROUTER_API_KEY=...
+TRUECRIME_APIMASTER_API_KEY=...
 ```
 
 the `config/` layers defines three model aliases:
@@ -114,7 +114,7 @@ AgentRun; the model that actually produced each output is recorded on the
 AgentRun (provider/model/role/temperature) and StoryVersion
 (`generation_provider`, `generation_model`).
 
-- `GET /api/integrations/openrouter/status` → `{provider, configured,
+- `GET /api/integrations/research/status` → `{provider, configured,
   reachable, models, routing, fallbacks}`.
 
 Agents never contain model IDs, temperatures, token limits or thresholds —

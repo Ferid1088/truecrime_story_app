@@ -138,7 +138,7 @@ class TrueCrimeSearchProvider(ResearchProvider):
 
     async def provider_status(self) -> dict:
         """Settings-page health (Part 50): backend + fetcher + LLM +
-        embedding — no OpenRouter fields."""
+        embedding — no vendor-specific fields."""
         searx = await self.searxng.health()
         emb_ok = self.embedder.is_configured()
         gen = None

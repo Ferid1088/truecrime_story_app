@@ -1932,7 +1932,7 @@ PART 42 — LIVE VALIDATION
 
 IMPORTANT:
 
-OpenRouter is currently unauthorized.
+The generation provider is currently unauthorized.
 
 Before paid generation:
 
@@ -1942,7 +1942,7 @@ If:
 
 authorized != true
 
-DO NOT run OpenRouter operations.
+DO NOT run unauthorized provider operations.
 
 The implementation/tests can proceed with mocks.
 

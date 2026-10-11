@@ -7,9 +7,8 @@ class Settings(BaseSettings):
     youtube_api_key: str = ""
 
     # Research runs entirely through the TrueCrime Search Engine;
-    # no LLM vendor performs web discovery. Devin/OpenRouter removed from
-    # active workflows. Historical ResearchJob rows may still carry
-    # provider="devin"/"openrouter" as readable data.
+    # no LLM vendor performs web discovery. Historical provider strings
+    # remain readable in stored rows but are not active workflows.
     research_provider: str = "truecrime"
 
     # --- security -------------------------------------------------------------------------

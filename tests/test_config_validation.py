@@ -80,6 +80,13 @@ def test_production_policy_validators_reject_nonsense():
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
+
+def test_config_rejects_unknown_provider_references():
+    raw = load_raw_config()
+    raw["providers"]["generation"] = "missing-provider"
+    with pytest.raises(ValueError, match="providers.generation"):
+        AIConfig.model_validate(raw)
+
     raw = load_raw_config()
     raw["production_policies"]["audio_recovery"]["fallback_order"] = []
     with pytest.raises(ValueError):
@@ -112,3 +119,17 @@ def test_unknown_truecrime_environment_names_are_reported(monkeypatch):
     monkeypatch.delenv("TrueCrime_OPENROUTER_API_KEY", raising=False)
     monkeypatch.setenv("TRUECRIME_TEST_UNKNOWN", "1")
     assert unknown_truecrime_env_vars({}) == ["TRUECRIME_TEST_UNKNOWN"]
+
+
+def test_unused_openrouter_environment_warns_and_never_logs_value(monkeypatch, caplog):
+    from app.core.ai_config import warn_unknown_configuration
+
+    secret = "must-not-appear-in-logs"
+    monkeypatch.setenv("TrueCrime_OPENROUTER_API_KEY", secret)
+    with caplog.at_level("WARNING"):
+        warn_unknown_configuration()
+    records = [r.getMessage() for r in caplog.records
+               if "OPENROUTER" in r.getMessage().upper()]
+    assert len(records) == 1
+    assert "unused, remove it" in records[0]
+    assert secret not in caplog.text

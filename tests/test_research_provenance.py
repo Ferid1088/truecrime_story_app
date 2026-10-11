@@ -649,17 +649,3 @@ def test_historical_devin_job_renders(db_session, client):
     assert res.json()["provider"] == "devin"
     assert res.json()["status"] == "completed"
 
-
-def test_historical_openrouter_job_renders(db_session, client):
-    """Old OpenRouter research jobs stay readable after migration."""
-    case = _mk_case(db_session)
-    job = ResearchJob(
-        case_id=case.id, provider="openrouter", job_type="research",
-        status="completed", result_summary="historical openrouter run",
-    )
-    db_session.add(job)
-    db_session.commit()
-    res = client.get(f"/api/research-jobs/{job.id}")
-    assert res.status_code == 200
-    assert res.json()["provider"] == "openrouter"
-    assert res.json()["status"] == "completed"

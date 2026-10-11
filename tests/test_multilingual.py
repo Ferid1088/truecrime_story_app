@@ -141,7 +141,7 @@ def test_ingest_preserves_source_language_and_text(db_session):
 
     case = _mk_case(db_session)
     job = ResearchJob(
-        case_id=case.id, provider="openrouter", job_type="research", status="running"
+        case_id=case.id, provider="legacy-provider", job_type="research", status="running"
     )
     db_session.add(job)
     db_session.commit()
@@ -175,7 +175,7 @@ def test_translated_duplicate_sources_deduped(db_session):
 
     case = _mk_case(db_session)
     job = ResearchJob(
-        case_id=case.id, provider="openrouter", job_type="research", status="running"
+        case_id=case.id, provider="legacy-provider", job_type="research", status="running"
     )
     db_session.add(job)
     db_session.commit()

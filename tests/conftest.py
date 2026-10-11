@@ -56,7 +56,7 @@ def isolated_host_history(db_session):
 
 @pytest.fixture(autouse=True)
 def _bypass_provider_preflight(monkeypatch):
-    """The OpenRouter authorization preflight is a live-network probe —
+    """The provider authorization preflight is a live-network probe —
     endpoints should not depend on external provider state in tests.
     Individual tests exercise the preflight itself via a fake provider."""
     async def _ok():

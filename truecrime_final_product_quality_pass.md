@@ -604,7 +604,7 @@ The latest validation could only estimate API costs.
 
 Fix this.
 
-Extend `GenerationResult` to capture, when OpenRouter returns them:
+Extend `GenerationResult` to capture, when the provider returns them:
 
 - input_tokens
 - output_tokens
@@ -623,7 +623,7 @@ total_tokens
 estimated_cost_usd
 ```
 
-Do not invent costs if OpenRouter does not provide enough data.
+Do not invent costs if the provider does not provide enough data.
 
 Use `null` when unavailable.
 

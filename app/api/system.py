@@ -83,7 +83,7 @@ def settings_status(db: Session = Depends(get_db)):
 @router.get("/api/integrations/research/status")
 async def research_status():
     """TrueCrime Search Engine status — SearXNG backend, fetcher,
-    embedding and LLM-intelligence health. No OpenRouter."""
+    embedding and LLM-intelligence health."""
     provider = deps.research_provider()
     if hasattr(provider, "provider_status"):
         return await provider.provider_status()

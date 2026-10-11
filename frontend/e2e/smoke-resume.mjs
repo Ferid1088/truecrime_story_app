@@ -40,7 +40,7 @@ page.on("response", (r) => {
 // ------------------------------------------------------------------
 await page.goto(`${BASE}/studio?case=${CASE_ID}`, { waitUntil: "domcontentloaded" });
 await page.locator("select").nth(2).selectOption("45"); // smallest film length — cost control
-log("master", "generating English Master (45min target) via OpenRouter — this blocks…");
+log("master", "generating English Master (45min target) via APIMaster — this blocks…");
 const genStart = Date.now();
 await page.getByRole("button", { name: /generate english master/i }).click();
 
@@ -150,7 +150,7 @@ const activeJobs = jobs.filter((j) => j.status === "queued" || j.status === "run
 console.log("\n================ REAL UI SMOKE TEST — RESUME ================");
 console.log(`case used:           #${CASE_ID}`);
 console.log(`Prior Devin calls:  ${jobs.filter((j) => j.provider === "devin").length} job(s) [historical]`);
-console.log(`OpenRouter calls:    ${runs.filter((r) => r.provider === "openrouter").length} agent run(s)`);
+console.log(`APIMaster calls:     ${runs.filter((r) => r.provider === "apimaster").length} agent run(s)`);
 console.log(`total cost:          $${totalCost.toFixed(4)} (provider-reported, all runs on case)`);
 console.log(`stages completed:    ${stages.length}`);
 stages.forEach((s) => console.log(`  - ${s}`));

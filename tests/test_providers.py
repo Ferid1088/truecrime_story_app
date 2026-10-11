@@ -270,7 +270,7 @@ def test_list_research_jobs_for_case(client):
 
 
 def test_historical_devin_jobs_still_render(client, db_session):
-    """Old provider="devin"/"openrouter" rows are data, not code —
+    """Old provider strings are data, not code —
     they must remain readable alongside new truecrime jobs."""
     from app.db.models import Case
 
@@ -283,7 +283,7 @@ def test_historical_devin_jobs_still_render(client, db_session):
         status="completed", result_summary="sources_added=5",
     ))
     db_session.add(ResearchJob(
-        case_id=case.id, provider="openrouter", job_type="research",
+        case_id=case.id, provider="legacy-provider", job_type="research",
         status="running",
     ))
     db_session.add(ResearchJob(
@@ -294,7 +294,7 @@ def test_historical_devin_jobs_still_render(client, db_session):
 
     rows = client.get(f"/api/research-jobs?case_id={case.id}").json()
     providers = {r["provider"] for r in rows}
-    assert providers == {"devin", "openrouter", "truecrime"}
+    assert providers == {"devin", "legacy-provider", "truecrime"}
     devin_row = next(r for r in rows if r["provider"] == "devin")
     assert devin_row["status"] == "completed"
     assert devin_row["result_summary"] == "sources_added=5"
@@ -334,7 +334,7 @@ def test_provider_name_is_truecrime():
     assert provider.name == "truecrime"
 
 
-def test_provider_status_has_no_openrouter_fields():
+def test_provider_status_has_no_vendor_specific_fields():
     import asyncio
     provider = TrueCrimeSearchProvider()
     provider.searxng = _FakeSearx(healthy=True)
@@ -647,19 +647,3 @@ def test_orchestrator_search_to_source_pipeline():
     assert result["results"][0]["accepted"] is True
     assert result["_telemetry"]["searches"] >= 1
 
-
-def test_historical_openrouter_provider_rows_still_render(client, db_session):
-    """provider='openrouter' job rows remain readable data."""
-    from app.db.models import Case
-
-    case = db_session.query(Case).first() or Case(
-        canonical_title="Hist", slug="hist", language="en")
-    db_session.add(case)
-    db_session.commit()
-    db_session.add(ResearchJob(
-        case_id=case.id, provider="openrouter",
-        job_type="research", status="completed",
-        result_summary="sources_added=3"))
-    db_session.commit()
-    rows = client.get(f"/api/research-jobs?case_id={case.id}").json()
-    assert any(r["provider"] == "openrouter" for r in rows)

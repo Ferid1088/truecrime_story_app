@@ -1,5 +1,5 @@
 // REAL production smoke test — drives the actual UI against the real
-// backend with real OpenRouter calls. Run:
+// backend with real provider calls. Run:
 //   node e2e/smoke-real.mjs
 // Logs every stage; captures console errors, page errors, failed requests.
 import { chromium } from "@playwright/test";
@@ -46,11 +46,11 @@ await page.locator(".animate-pulse").first().waitFor({ state: "detached", timeou
 mark("Dashboard loaded with real stats");
 
 // ------------------------------------------------------------------
-// 2. Discover via real OpenRouter research
+// 2. Discover via the real TrueCrime research engine
 // ------------------------------------------------------------------
 await page.goto(`${BASE}/discover`, { waitUntil: "domcontentloaded" });
 await page.getByRole("button", { name: /discover new cases/i }).waitFor();
-log("discover", "starting real OpenRouter discovery job (5 candidates, EN)…");
+log("discover", "starting real discovery job (5 candidates, EN)…");
 await page.getByRole("button", { name: /discover new cases/i }).click();
 
 // Watch stage transitions until candidates appear or an error shows.
@@ -87,7 +87,7 @@ mark(`Candidate investigated → case #${caseId}`);
 // 4-5. Run real multilingual research; watch stage transitions
 // ------------------------------------------------------------------
 await page.getByRole("button", { name: /run research/i }).click();
-log("research", "real OpenRouter research job started…");
+log("research", "real research job started…");
 {
   const deadline = Date.now() + 15 * 60 * 1000;
   let lastStage = "";
@@ -123,11 +123,11 @@ for (const tab of ["Sources", "Facts", "Timeline", "Contradictions", "Research L
 mark("Sources/Facts/Timeline/Contradictions/Research Languages rendered");
 
 // ------------------------------------------------------------------
-// 7-9. Generate English Master via real OpenRouter
+// 7-9. Generate English Master via the real generation provider
 // ------------------------------------------------------------------
 await page.goto(`${BASE}/studio?case=${caseId}`, { waitUntil: "domcontentloaded" });
 await page.locator("select").nth(2).selectOption("45"); // smallest film length — cost control
-log("master", "generating English Master (45min target) via OpenRouter — this blocks…");
+log("master", "generating English Master (45min target) via APIMaster — this blocks…");
 const genStart = Date.now();
 await page.getByRole("button", { name: /generate english master/i }).click();
 
@@ -235,7 +235,7 @@ const activeJobs = jobs.filter((j) => j.status === "queued" || j.status === "run
 console.log("\n================ REAL UI SMOKE TEST ================");
 console.log(`case used:           #${caseId}`);
 console.log(`Research jobs:       ${jobs.length} (provider: ${[...new Set(jobs.map(j=>j.provider))].join(",") || "n/a"})`);
-console.log(`OpenRouter calls:    ${runs.filter((r) => r.provider === "openrouter").length} agent run(s)`);
+console.log(`APIMaster calls:     ${runs.filter((r) => r.provider === "apimaster").length} agent run(s)`);
 console.log(`total cost:          $${totalCost.toFixed(4)} (provider-reported)`);
 console.log(`stages completed:    ${stages.length}`);
 stages.forEach((s) => console.log(`  - ${s}`));

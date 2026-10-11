@@ -418,7 +418,7 @@ def test_followup_builds_targeted_objective(client, db_session, monkeypatch):
     captured = {}
 
     class FakeResearch:
-        name = "openrouter"
+        name = "legacy-provider"
 
         def is_configured(self):
             return True
@@ -570,7 +570,7 @@ def _real_preflight(monkeypatch, provider):
 
 
 class _QuotaProvider:
-    name = "openrouter"
+    name = "legacy-provider"
 
     async def provider_status(self):
         return {
@@ -580,7 +580,7 @@ class _QuotaProvider:
 
 
 class _HealthyProvider:
-    name = "openrouter"
+    name = "legacy-provider"
 
     async def provider_status(self):
         return {
