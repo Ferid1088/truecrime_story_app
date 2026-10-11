@@ -5,6 +5,8 @@ import asyncio
 import json
 import random
 
+import pytest
+
 from app.core.ai_config import ai_config
 from app.documentary.host import (
     dialogue_issues, persona_prompt, validate_host_plan, word_range,
@@ -213,6 +215,7 @@ def _with_blueprint(db, case, master, status="valid"):
     return row
 
 
+@pytest.mark.filterwarnings("error::sqlalchemy.exc.SAWarning")
 def test_host_director_plans_remembers_and_writes(
     db_session, isolated_host_history, monkeypatch
 ):

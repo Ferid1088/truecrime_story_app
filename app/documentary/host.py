@@ -601,9 +601,16 @@ def segment_output(seg: dict, dialogue: str, language: str, blueprint: dict,
 def remember(db: Session, case_id: int, plan_row: HostPlan, updates: list[dict]) -> int:
     """Replace what earlier plans of this case made the host remember
     (editor-made memories stay)."""
-    (db.query(HostMemory)
-     .filter(HostMemory.case_id == case_id, HostMemory.origin == "host_plan")
-     .delete(synchronize_session=False))
+    # Delete mapped rows through the session. A bulk delete with
+    # synchronize_session=False leaves an old HostMemory object in the
+    # identity map; SQLite can then reuse its id for the replacement and
+    # SQLAlchemy warns that two instances have the same identity.
+    old = (db.query(HostMemory)
+           .filter(HostMemory.case_id == case_id, HostMemory.origin == "host_plan")
+           .all())
+    for row in old:
+        db.delete(row)
+    db.flush()
     for u in updates:
         db.add(HostMemory(case_id=case_id, kind=u["kind"], text=u["text"],
                           origin="host_plan", host_plan_id=plan_row.id))

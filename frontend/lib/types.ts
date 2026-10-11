@@ -8,8 +8,6 @@ export type CaseStatus =
   | "rendered"
   | "published"
   | "completed"
-  /** Finished, but a required part was omitted and recorded in result.warnings. */
-  | "completed_warnings"
   | "rejected"
   | "archived";
 
@@ -1256,6 +1254,8 @@ export type DocumentaryJobStatus =
   | "running"
   | "cancelling"
   | "completed"
+  /** Finished, but a required part was omitted and recorded in result.warnings. */
+  | "completed_warnings"
   /** Finished, but at least one language failed (see `result.errors`). */
   | "partial"
   | "failed"
