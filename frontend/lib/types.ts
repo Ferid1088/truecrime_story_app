@@ -1407,6 +1407,15 @@ export interface DocumentaryJob {
 }
 
 export interface DocumentaryWarning {
+  policy: string;
+  decision: string;
+  rule_id: string;
+  severity: "info" | "warning" | "error" | string;
+  recoverable: boolean;
+  actions: string[];
+  context: Record<string, unknown>;
+  code?: string;
+  message?: string;
   stage: string;
   reason: string;
   language?: string;

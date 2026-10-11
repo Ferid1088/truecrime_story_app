@@ -29,6 +29,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
 from app.core.ai_config import ai_config
+from app.core.policy import warning_for
 from app.documentary import storage
 from app.documentary.render.cards import (
     CARD_KINDS,
@@ -543,9 +544,10 @@ class VideoRenderer:
         if placed:
             intro, intro_reason = _channel_intro(lang, W, H, fps)
             if intro is None:
-                intro_warning = {"stage": "render", "code": "channel_intro",
-                                 "language": lang,
-                                 "reason": intro_reason or "channel intro unavailable"}
+                intro_warning = warning_for(
+                    "INTRO_MISSING", intro_reason or "channel intro unavailable",
+                    {"stage": "render", "language": lang})
+                intro_warning.update({"stage": "render", "language": lang})
         else:
             intro = None
         maker.intro = intro

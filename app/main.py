@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.schema import init_schema
+from app.core.policy import PolicyError, policy_exception_handler
 
 init_schema()
 
@@ -57,6 +58,7 @@ app = FastAPI(
     version="1.0.0",
     description="Research -> Facts -> Contradictions -> Story Direction -> Writing -> Critique",
 )
+app.add_exception_handler(PolicyError, policy_exception_handler)
 
 from app.api import backup as backup_api, cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402

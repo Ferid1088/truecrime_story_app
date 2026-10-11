@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types";
 import { humanize, isRtl, langLabel } from "@/lib/format";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Variant = NonNullable<BadgeProps["variant"]>;
@@ -274,6 +275,15 @@ export function WarningList({ warnings }: { warnings: DocumentaryWarning[] }) {
             <span className="font-medium">
               {stageLabel(warning.stage)}{warning.language ? ` · ${langLabel(warning.language)}` : ""}:
             </span>{" "}{warning.reason}
+            {warning.actions?.length ? (
+              <span className="mt-1 flex flex-wrap gap-1.5">
+                {warning.actions.map((action) => (
+                  <Button key={action} type="button" size="sm" variant="outline" disabled>
+                    {humanize(action)}
+                  </Button>
+                ))}
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>

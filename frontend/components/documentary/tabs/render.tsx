@@ -5,7 +5,7 @@ import { Download } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDateTime, formatTimecode, humanize, langLabel } from "@/lib/format";
-import type { DocumentaryJob, Film, ProductionSummary } from "@/lib/types";
+import type { DocumentaryJob, DocumentaryWarning, Film, ProductionSummary } from "@/lib/types";
 import { ResolutionBadge } from "@/components/status-badge";
 import { FilmStateBadge, ProductionTypeBadge } from "@/components/lifecycle/shared";
 import { Badge } from "@/components/ui/badge";
@@ -69,11 +69,9 @@ function RenderCard({
   const srtUrl = render && production?.subtitles_url ? apiFileUrl(production.subtitles_url) : null;
   const vtt = useSubtitleTrack(srtUrl);
   const stageDetail = stage ? summarizeDetail(stage.detail) : null;
-  const renderWarnings = Array.isArray(jobRender?.warnings)
-    ? jobRender.warnings.filter(
-        (warning): warning is { stage: string; reason: string; language?: string } =>
-          typeof warning === "object" && warning !== null,
-      )
+  const renderWarnings: DocumentaryWarning[] = Array.isArray(jobRender?.warnings)
+    ? jobRender.warnings.filter((warning) => typeof warning === "object" && warning !== null)
+        .map((warning) => warning as DocumentaryWarning)
     : [];
 
   return (

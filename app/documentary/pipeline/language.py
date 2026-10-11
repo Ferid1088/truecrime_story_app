@@ -193,7 +193,8 @@ class LanguageChain:
             video = register_render(db, job, ps, info)
             for warning in info.get("warnings") or []:
                 record_warning(pipe.result, warning.get("stage", "render"),
-                               warning.get("reason", "render warning"), warning.get("language", lang))
+                               warning.get("reason", warning.get("message", "render warning")),
+                               warning.get("language", lang), warning.get("code", "STAGE_WARNING"))
             renders[lang] = {"production_script_id": ps.id, "video_id": video.id,
                              "youtube_title": video.youtube_title, **info}
             return {**info, "video_id": video.id, "youtube_title": video.youtube_title}

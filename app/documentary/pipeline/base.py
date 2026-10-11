@@ -13,6 +13,7 @@ from typing import ClassVar
 
 from app.core.concurrency import gather_limited
 from app.db.models import DocumentaryJob
+from app.core.policy import warning_for
 from app.documentary.pipeline.errors import JobCancelled
 from app.services.tracking import documentary_run_context
 from app.utils import utc_now
@@ -20,7 +21,8 @@ from app.utils import utc_now
 log = logging.getLogger(__name__)
 
 
-def record_warning(result: dict, stage: str, reason: str, language: str | None = None) -> dict:
+def record_warning(result: dict, stage: str, reason: str, language: str | None = None,
+                   code: str | None = None) -> dict:
     """Append a user-visible structured warning, preserving old dict results."""
     warnings = result.get("warnings")
     if isinstance(warnings, dict):
@@ -29,7 +31,11 @@ def record_warning(result: dict, stage: str, reason: str, language: str | None =
     elif not isinstance(warnings, list):
         warnings = []
         result["warnings"] = warnings
-    warning = {"stage": stage, "reason": reason[:500]}
+    warning = warning_for(code or "STAGE_WARNING", reason[:500],
+                          {"stage": stage, **({"language": language} if language else {})})
+    # Keep the Prompt 2 aliases while clients migrate to the policy contract.
+    warning["stage"] = stage
+    warning["reason"] = reason[:500]
     if language:
         warning["language"] = language
     warnings.append(warning)
@@ -135,7 +141,9 @@ class StageRunner:
         st.pop("error_type", None)
         if degraded:
             self.result.setdefault("degraded", {})[name] = str(degraded)[:300]
-            record_warning(self.result, pipeline_stage, str(degraded), language)
+            record_warning(self.result, pipeline_stage, str(degraded), language,
+                           "AUDIO_PLAN_DEGRADED" if pipeline_stage == "audio_plan"
+                           else "STAGE_DEGRADED")
         if name in self.running:
             self.running.remove(name)
         self._save()

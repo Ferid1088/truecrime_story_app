@@ -83,8 +83,10 @@ def test_degraded_stage_is_saved_visible_and_not_redone_in_the_same_run(db_sessi
     st = json.loads(job.stages_json)[0]
     assert st["status"] == "degraded"
     assert json.loads(job.result_json)["degraded"] == {"visual_check": "2 vision checks failed"}
-    assert json.loads(job.result_json)["warnings"] == [{
-        "stage": "visual_check", "reason": "2 vision checks failed"}]
+    warning = json.loads(job.result_json)["warnings"][0]
+    assert warning["stage"] == "visual_check"
+    assert warning["reason"] == "2 vision checks failed"
+    assert warning["code"] == "STAGE_DEGRADED"
     assert job.progress == 1.0
 
 
@@ -97,7 +99,9 @@ def test_invalid_audio_plan_is_a_structured_warning(db_session):
 
     asyncio.run(p._stage("audio_plan", invalid_audio_plan))
     warning = json.loads(job.result_json)["warnings"][0]
-    assert warning == {"stage": "audio_plan", "reason": "audio plan invalid"}
+    assert warning["stage"] == "audio_plan"
+    assert warning["reason"] == "audio plan invalid"
+    assert warning["code"] == "AUDIO_PLAN_DEGRADED"
 
 
 def test_a_stage_from_a_crashed_process_runs_again(db_session):
