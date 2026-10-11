@@ -1,0 +1,4 @@
+# 0001 Alembic migrations; SQLite stays supported next to Postgres
+**Context.** The schema was created by `create_all` and patched by hand. One operator, production data on a Mac, 55 tables, ~29k rows. A bad upgrade means losing research that took weeks.
+**Decision.** Alembic owns the schema. A legacy database matching the frozen baseline is stamped, not altered; anything that matches neither baseline nor models is refused untouched. Postgres is supported through the same migrations; SQLite remains the zero-setup default. Downgrades are not offered: undo = restore the backup.
+**Consequences.** Every schema change needs a migration and a rehearsal on a copy of the real database (`docs/migrations.md`). Both databases run the full test suite in CI, which found real length bugs SQLite ignored. Two dialects mean occasional dialect branches in migrations.

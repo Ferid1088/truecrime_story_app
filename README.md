@@ -888,3 +888,17 @@ A stage never names a model and never contains prompt text: it calls
 role is routed to a model in `models.json`. `tests/test_architecture.py` fails when
 prompt-like text appears in code, when a stage calls the provider directly, when
 an agent name is undefined or unused, or when an agent's role/prompt is missing.
+
+## Documentation
+| Topic | File |
+|---|---|
+| Run it with Docker | `docs/deploy.md` |
+| Day-to-day operations, backups, restore drill | `docs/operations.md` |
+| Security model, accepted risks | `docs/security.md` |
+| Logs, request ids, call ledger, Operations page | `docs/observability.md` |
+| Database migrations | `docs/migrations.md` |
+| Moving to PostgreSQL | `docs/postgres.md` |
+| Background jobs and the worker | `docs/jobs.md` |
+| Releases, dependencies | `docs/release.md` |
+| Architecture decisions | `docs/adr/` |
+| Changes | `CHANGELOG.md` |

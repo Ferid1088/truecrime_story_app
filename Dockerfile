@@ -11,7 +11,9 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY requirements.txt requirements-documentary.txt ./
-RUN pip install -r "$REQUIREMENTS"
+# torch from the CPU-only index (the default Linux wheel bundles ~2.5 GB of GPU libraries)
+RUN if grep -q '^torch' "$REQUIREMENTS"; then pip install torch --index-url https://download.pytorch.org/whl/cpu; fi \
+    && pip install -r "$REQUIREMENTS"
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 # ffmpeg: audio decode/trim/loudness and video rendering in the documentary pipeline

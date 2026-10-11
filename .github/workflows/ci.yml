@@ -5,6 +5,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 5 * * 1"   # Mondays: new advisories show up even without a push
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -29,6 +31,9 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
           pip install "Pillow>=10.3" "opencv-python-headless>=4.9" "faster-whisper>=1.1,<2" "whisper-normalizer>=0.1.12"
+          # runs the phoneme-listener compatibility test against the real libraries
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=5.5,<6" "setuptools>=83"
       - name: Secret scan (tracked files)
         run: python scripts/secret_scan.py
       - name: Python tests
@@ -66,6 +71,9 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
           pip install "Pillow>=10.3" "opencv-python-headless>=4.9" "faster-whisper>=1.1,<2" "whisper-normalizer>=0.1.12"
+          # runs the phoneme-listener compatibility test against the real libraries
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "transformers>=5.5,<6" "setuptools>=83"
       - name: Python tests on Postgres
         run: python -m pytest -q -p no:cacheprovider
 
@@ -119,3 +127,28 @@ jobs:
       - name: Stop
         if: always()
         run: docker compose down -v
+
+  audit:
+    # Known-vulnerability check of what ships: Python packages and production npm packages.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Python packages
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-documentary.txt pip-audit
+          # torch's CPU build ("+cpu") is not on PyPI, so pip-audit cannot look it up; everything else is audited
+          pip freeze --exclude torch > frozen.txt
+          pip-audit -r frozen.txt --no-deps --disable-pip
+      - name: Production npm packages
+        working-directory: frontend
+        run: |
+          npm ci --omit=dev
+          npm audit --omit=dev --audit-level=low

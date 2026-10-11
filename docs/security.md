@@ -19,3 +19,10 @@ Download endpoints serve a stored path only if it resolves (symlinks and `..` in
 - Keys live in `.env` (never committed; the gate's secret scan fails the build if one is). `chmod 600 .env`.
 - Rotate a key by changing it at the provider, updating `.env`, restarting the app.
 - Back up `.env` separately from database backups.
+
+## Dependency audit and accepted risks
+CI audits Python packages (`pip-audit`) and production npm packages (`npm audit --omit=dev`) on every push and weekly; a known vulnerability fails the job.
+
+| Item | Why accepted | Review |
+|---|---|---|
+| `braces` <=3.0.3 (GHSA-vfj7-8cjw-p6xm, stack exhaustion on deeply nested patterns), reached only through `eslint-config-next` → `fast-glob` → `micromatch` | Development-only lint tooling, never shipped or run on untrusted input; no fixed 3.x release exists | January 2027 |
