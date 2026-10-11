@@ -43,6 +43,10 @@ in_frontend() { ( cd frontend && "$@" ); }
 
 if [ "$run_backend" = 1 ]; then
   check "Python test suite" env -u TC_TEST_DATABASE_URL "$PYTHON" -m pytest -q -p no:cacheprovider
+  check "Python ruff" "$PYTHON" -m ruff check app scripts tests
+  check "Python mypy" "$PYTHON" -m mypy app
+  echo; echo "=== Python vulture (report only)"
+  "$PYTHON" -m vulture app scripts --min-confidence 80 || true
   if [ -n "${TC_TEST_DATABASE_URL:-}" ]; then
     check "Python test suite on Postgres" "$PYTHON" -m pytest -q -p no:cacheprovider
   fi
