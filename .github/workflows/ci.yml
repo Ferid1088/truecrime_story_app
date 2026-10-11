@@ -99,7 +99,7 @@ jobs:
       - run: npx playwright test e2e/app.spec.ts --reporter=list
       - name: Keep Playwright traces from a failed run
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-traces
           path: frontend/test-results
