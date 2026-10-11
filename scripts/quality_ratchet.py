@@ -40,7 +40,7 @@ def ruff_findings() -> list[str]:
         except ValueError:
             portable_filename = Path(row["filename"])
         findings.append(
-            f"{portable_filename}:{row['location']['row']}:{row['code']}:{row['message']}"
+            f"{portable_filename}:{row['code']}:{row['message']}"
         )
     return sorted(findings)
 
@@ -52,13 +52,31 @@ def mypy_findings() -> list[str]:
         match = _MYPY.match(line)
         if match:
             findings.append(
-                f"{match['file']}:{match['line']}:{match['message']}"
+                f"{match['file']}:{match['message']}"
             )
     return sorted(findings)
 
 
 def read_baseline() -> dict[str, list[str]]:
-    return json.loads(BASELINE.read_text(encoding="utf-8"))
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    # Older baselines included line numbers. Drop them while reading so
+    # unrelated edits do not turn an existing finding into a false NEW one.
+    for finding in baseline.get("ruff", []):
+        parts = finding.split(":", 3)
+        if len(parts) == 4 and parts[1].isdigit():
+            filename = parts[0]
+            for marker in ("/app/", "/scripts/", "/tests/"):
+                if marker in filename:
+                    filename = filename[filename.index(marker) + 1:]
+                    break
+            baseline["ruff"][baseline["ruff"].index(finding)] = ":".join(
+                (filename, parts[2], parts[3]))
+    for finding in baseline.get("mypy", []):
+        match = re.match(r"^(.*):(\d+):(.*)$", finding)
+        if match:
+            baseline["mypy"][baseline["mypy"].index(finding)] = \
+                f"{match.group(1)}:{match.group(3)}"
+    return baseline
 
 
 def main() -> int:

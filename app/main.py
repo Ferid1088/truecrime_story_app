@@ -57,7 +57,7 @@ app = FastAPI(
     version="1.0.0",
     description="Research -> Facts -> Contradictions -> Story Direction -> Writing -> Critique",
 )
-app.add_exception_handler(PolicyError, policy_exception_handler)
+app.add_exception_handler(PolicyError, policy_exception_handler)  # type: ignore[arg-type]
 
 from app.api import backup as backup_api  # noqa: E402
 from app.api import cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
