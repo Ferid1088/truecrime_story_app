@@ -8,6 +8,8 @@ export type CaseStatus =
   | "rendered"
   | "published"
   | "completed"
+  /** Finished, but a required part was omitted and recorded in result.warnings. */
+  | "completed_warnings"
   | "rejected"
   | "archived";
 
@@ -1394,6 +1396,7 @@ export interface DocumentaryJob {
     errors?: Record<string, string>;
     /** Stages that finished without part of their work, with the reason. */
     degraded?: Record<string, string>;
+    warnings?: DocumentaryWarning[];
     renders?: Record<string, JobRender>;
     [key: string]: unknown;
   };
@@ -1401,6 +1404,12 @@ export interface DocumentaryJob {
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
+}
+
+export interface DocumentaryWarning {
+  stage: string;
+  reason: string;
+  language?: string;
 }
 
 /** A language's render in a job result: the MP4 and the Video record made from it. */

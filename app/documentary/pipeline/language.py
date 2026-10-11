@@ -14,6 +14,7 @@ from app.db.models import ProductionScript, VisualPlan
 from app.documentary import storage
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.errors import LanguageFailed
+from app.documentary.pipeline.base import record_warning
 
 
 class LanguageChain:
@@ -190,6 +191,9 @@ class LanguageChain:
             from app.lifecycle.videos import register_render
 
             video = register_render(db, job, ps, info)
+            for warning in info.get("warnings") or []:
+                record_warning(pipe.result, warning.get("stage", "render"),
+                               warning.get("reason", "render warning"), warning.get("language", lang))
             renders[lang] = {"production_script_id": ps.id, "video_id": video.id,
                              "youtube_title": video.youtube_title, **info}
             return {**info, "video_id": video.id, "youtube_title": video.youtube_title}

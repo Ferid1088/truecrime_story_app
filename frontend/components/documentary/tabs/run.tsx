@@ -35,6 +35,7 @@ import {
   jobProgressTone,
   stageLabel,
   summarizeDetail,
+  WarningList,
 } from "../shared";
 
 interface RunTabProps extends Omit<DocumentaryTabProps, "refreshKey"> {
@@ -482,6 +483,7 @@ function JobPanel({
             </InlineAlert>
           )
         )}
+        <WarningList warnings={job.result.warnings ?? []} />
         <ol className="divide-y divide-border rounded-md border border-border">
           {job.stages.map((s) => {
             const detail = summarizeDetail(s.detail);

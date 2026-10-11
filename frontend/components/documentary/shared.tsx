@@ -5,6 +5,7 @@ import { AlertTriangle, Ban, Check, CircleDashed, Loader2, SkipForward, X } from
 import type {
   DocumentaryJob,
   DocumentaryJobStatus,
+  DocumentaryWarning,
   DocumentaryOverview,
   DocumentarySettings,
   DocumentaryStageStatus,
@@ -70,7 +71,7 @@ export function jobActivity(job: DocumentaryJob): string {
 /** Progress bar colour by job status (running jobs keep the primary colour). */
 export function jobProgressTone(status: DocumentaryJobStatus): string | undefined {
   if (status === "failed") return "bg-rose-500";
-  if (status === "partial" || status === "interrupted") return "bg-amber-500";
+  if (status === "partial" || status === "interrupted" || status === "completed_warnings") return "bg-amber-500";
   if (status === "completed") return "bg-emerald-500";
   return undefined;
 }
@@ -108,6 +109,7 @@ const JOB_STATUS: Record<DocumentaryJobStatus, { label: string; variant: Variant
   running: { label: "Running", variant: "warning" },
   cancelling: { label: "Cancelling", variant: "warning" },
   completed: { label: "Completed", variant: "success" },
+  completed_warnings: { label: "Completed with warnings", variant: "warning" },
   partial: { label: "Partial", variant: "warning" },
   failed: { label: "Failed", variant: "danger" },
   cancelled: { label: "Cancelled", variant: "outline" },
@@ -258,6 +260,24 @@ export function InlineAlert({
     >
       {children}
     </div>
+  );
+}
+
+export function WarningList({ warnings }: { warnings: DocumentaryWarning[] }) {
+  if (!warnings.length) return null;
+  return (
+    <InlineAlert tone="warning">
+      <p className="font-medium">Completed with warnings</p>
+      <ul className="mt-1 space-y-0.5">
+        {warnings.map((warning, index) => (
+          <li key={`${warning.stage}-${warning.language ?? ""}-${index}`} className="break-words">
+            <span className="font-medium">
+              {stageLabel(warning.stage)}{warning.language ? ` · ${langLabel(warning.language)}` : ""}:
+            </span>{" "}{warning.reason}
+          </li>
+        ))}
+      </ul>
+    </InlineAlert>
   );
 }
 

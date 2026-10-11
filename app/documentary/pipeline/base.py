@@ -20,6 +20,22 @@ from app.utils import utc_now
 log = logging.getLogger(__name__)
 
 
+def record_warning(result: dict, stage: str, reason: str, language: str | None = None) -> dict:
+    """Append a user-visible structured warning, preserving old dict results."""
+    warnings = result.get("warnings")
+    if isinstance(warnings, dict):
+        warnings = [{"stage": name, "reason": value} for name, value in warnings.items()]
+        result["warnings"] = warnings
+    elif not isinstance(warnings, list):
+        warnings = []
+        result["warnings"] = warnings
+    warning = {"stage": stage, "reason": reason[:500]}
+    if language:
+        warning["language"] = language
+    warnings.append(warning)
+    return warning
+
+
 class Stage:
     name: ClassVar[str]
     optional: ClassVar[bool] = False
@@ -119,6 +135,7 @@ class StageRunner:
         st.pop("error_type", None)
         if degraded:
             self.result.setdefault("degraded", {})[name] = str(degraded)[:300]
+            record_warning(self.result, pipeline_stage, str(degraded), language)
         if name in self.running:
             self.running.remove(name)
         self._save()
@@ -143,8 +160,7 @@ class StageRunner:
             raise
         except Exception as e:
             log.warning("optional stage %s failed: %s", stage.stage_name, e)
-            self.result.setdefault("warnings", {})[stage.stage_name] = \
-                f"{type(e).__name__}: {e}"[:300]
+            record_warning(self.result, stage.name, f"{type(e).__name__}: {e}", stage.lang)
             self._save()
             return None
 

@@ -548,7 +548,9 @@ class DocumentaryPipeline(StageRunner):
             raise
         except Exception as e:
             log.warning("optional stage %s failed: %s", name, e)
-            self.result.setdefault("warnings", {})[name] = f"{type(e).__name__}: {e}"[:300]
+            from app.documentary.pipeline.base import record_warning
+
+            record_warning(self.result, name, f"{type(e).__name__}: {e}")
             self._save()
             return None
 
@@ -772,6 +774,15 @@ def new_batch_id() -> str:
 _FIXED_CASE_STATES = ("archived", "rejected", "published")
 
 
+def status_for_result(result: dict) -> str:
+    """Map a finished pipeline result to the persisted job status."""
+    if result.get("errors"):
+        return "partial"
+    if result.get("warnings"):
+        return "completed_warnings"
+    return "completed"
+
+
 def _set_case_state(db: Session, case_id: int, state: str) -> None:
     """The case's workflow state follows production: producing while a
     film is made, rendered when one exists, story_ready after a failure."""
@@ -803,7 +814,9 @@ async def run_job(job_id: int, session_factory=None):
             pipeline = DocumentaryPipeline(db, job)
             try:
                 result = await pipeline.run()
-                job.status = "partial" if (result or {}).get("errors") else "completed"
+                # Equivalent to completed_with_warnings, within the existing
+                # DocumentaryJob.status String(20) column.
+                job.status = status_for_result(result or {})
                 _set_case_state(db, job.case_id,
                                 "rendered" if (result or {}).get("renders") else "story_ready")
                 if job.status == "partial":

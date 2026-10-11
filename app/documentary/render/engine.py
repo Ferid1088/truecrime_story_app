@@ -458,18 +458,19 @@ class Overlays:
         return frame if out is None else out
 
 
-def _channel_intro(language: str, W: int, H: int, fps: int) -> dict | None:
+def _channel_intro(language: str, W: int, H: int, fps: int) -> tuple[dict | None, str | None]:
     """The channel's intro at the film's size (made on first use) — a film
     without it still renders."""
     try:
         from app.documentary.intros import ensure_intro
 
-        return ensure_intro(language, W, H, fps)
+        intro = ensure_intro(language, W, H, fps)
+        return intro, None if intro else "no configured or cached channel intro"
     except Exception as e:  # noqa: BLE001 — the film goes on without its intro
         import logging
 
         logging.getLogger(__name__).warning("channel intro for %s unavailable: %s", language, e)
-        return None
+        return None, f"{type(e).__name__}: {e}"
 
 
 def _intro_audio_graph(mode: str | None, start: float, seconds: float) -> str:
@@ -538,7 +539,15 @@ class VideoRenderer:
         # the channel intro: in the cold open's break ("gap") or before the
         # first word ("prepend": everything after it moves by its length)
         placed = script.get("intro") or None
-        intro = _channel_intro(lang, W, H, fps) if placed else None
+        intro_warning = None
+        if placed:
+            intro, intro_reason = _channel_intro(lang, W, H, fps)
+            if intro is None:
+                intro_warning = {"stage": "render", "code": "channel_intro",
+                                 "language": lang,
+                                 "reason": intro_reason or "channel intro unavailable"}
+        else:
+            intro = None
         maker.intro = intro
         pre = float(intro["seconds"]) if intro and placed.get("mode") == "prepend" else 0.0
         srt = write_srt([{**s, "start": s["start"] + pre, "end": s["end"] + pre}
@@ -620,8 +629,11 @@ class VideoRenderer:
         finally:
             maker.release_clips()
             _canvas.cache_clear()
-        return {"path": storage.rel(out_path), "srt": storage.rel(srt),
+        info = {"path": storage.rel(out_path), "srt": storage.rel(srt),
                 "duration": round(duration + pre, 3), "width": W, "height": H, "fps": fps,
                 "frames": total, "shots": len(shots),
                 "intro": ({"mode": placed.get("mode"), "seconds": intro["seconds"],
                            "concept": intro.get("concept")} if intro else None)}
+        if intro_warning:
+            info["warnings"] = [intro_warning]
+        return info

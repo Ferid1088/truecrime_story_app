@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useSubtitleTrack } from "../hooks";
-import { type DocumentaryTabProps, Metric, StageIcon, stageLabel, summarizeDetail } from "../shared";
+import { type DocumentaryTabProps, Metric, StageIcon, WarningList, stageLabel, summarizeDetail } from "../shared";
 
 interface RenderTabProps extends DocumentaryTabProps {
   job: DocumentaryJob | null;
@@ -29,6 +29,7 @@ export function RenderTab({ caseId, settings, overview, job, refreshKey }: Rende
         One MP4 per language with soft subtitles. A pilot render holds only the opening of the film; a
         full render the whole {settings.film_minutes.min}–{settings.film_minutes.max} minutes.
       </p>
+      <WarningList warnings={job?.result.warnings ?? []} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {settings.languages.map((lang) => (
           <RenderCard
@@ -68,6 +69,12 @@ function RenderCard({
   const srtUrl = render && production?.subtitles_url ? apiFileUrl(production.subtitles_url) : null;
   const vtt = useSubtitleTrack(srtUrl);
   const stageDetail = stage ? summarizeDetail(stage.detail) : null;
+  const renderWarnings = Array.isArray(jobRender?.warnings)
+    ? jobRender.warnings.filter(
+        (warning): warning is { stage: string; reason: string; language?: string } =>
+          typeof warning === "object" && warning !== null,
+      )
+    : [];
 
   return (
     <Card>
@@ -83,6 +90,7 @@ function RenderCard({
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        <WarningList warnings={renderWarnings} />
         {stage && job && (
           <div className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-xs">
             <span className="mt-px">
