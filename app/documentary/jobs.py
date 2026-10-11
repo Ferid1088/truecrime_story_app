@@ -70,6 +70,7 @@ RESEARCH_MAX_HOURS = 6.0
 
 from app.documentary.pipeline.base import StageRunner  # noqa: E402
 from app.documentary.pipeline.errors import JobCancelled, LanguageFailed, SpokenRejected  # noqa: E402,F401
+from app.services.retry_policy import ExhaustedAction, RetryAuditPolicy  # noqa: E402
 
 
 async def approve_master(db: Session, case: Case, v: StoryVersion,
@@ -83,23 +84,35 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
     from app.agents.story import StoryPipeline
 
     limit = ai_config.documentary.max_redos if max_redos is None else max_redos
-    history: list[dict] = []
-    while v.status == "needs_revision":
-        notes = json.loads(v.critic_notes or "{}")
-        gates = notes.get("quality_gates") or {}
-        failures = gates.get("failures") or []
-        history.append({"version_id": v.id, "failures": failures})
-        if len(history) > limit:
-            raise RuntimeError(
-                f"Master story not approved after {limit} revision(s): "
-                + (", ".join(map(str, failures)) or "quality gates failed"))
-        instruction = (
-            "Revise the story so that it passes these failed quality checks, and change "
-            "nothing else: " + json.dumps(failures, ensure_ascii=False)
-            + (". Critic notes: " + str(notes.get("summary") or notes.get("notes"))[:1500]
-               if notes.get("summary") or notes.get("notes") else ""))
-        v = await StoryPipeline(roles=MASTER_ROLES).improve(db, case, v, instruction)
-    return v, history
+    current = v
+    rejected: list[dict] = []
+
+    async def produce(feedback: dict) -> StoryVersion:
+        nonlocal current
+        if feedback["reasons"]:
+            notes = json.loads(current.critic_notes or "{}")
+            instruction = (
+                "Revise the story so that it passes these failed quality checks, and change "
+                "nothing else: " + json.dumps(feedback["reasons"], ensure_ascii=False)
+                + (". Critic notes: " + str(notes.get("summary") or notes.get("notes"))[:1500]
+                   if notes.get("summary") or notes.get("notes") else ""))
+            current = await StoryPipeline(roles=MASTER_ROLES).improve(
+                db, case, current, instruction)
+        return current
+
+    async def audit(version: StoryVersion) -> dict:
+        notes = json.loads(version.critic_notes or "{}")
+        failures = (notes.get("quality_gates") or {}).get("failures") or []
+        if version.status == "needs_revision":
+            rejected.append({"version_id": version.id, "failures": failures})
+        return {"approved": version.status != "needs_revision", "reasons": failures}
+
+    outcome = await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
+        produce, audit, limit, ExhaustedAction.STOP, stage="master_story")
+    if outcome.status == "stopped":
+        reasons = ", ".join(map(str, outcome.reasons)) or "quality gates failed"
+        raise RuntimeError(f"Master story not approved after {limit} revision(s): {reasons}")
+    return current, rejected
 
 
 # ---------------------------------------------------------------------------
@@ -294,22 +307,34 @@ class DocumentaryPipeline(StageRunner):
 
         async def spoken_branch(lang: str):
             async def make_spoken():
-
-                v = latest_spoken(db, master, lang, bp_row.id)
-                if v is None:
-                    v = await get_stage_agent("spoken").create(db, case, master, lang)
-                # approved = its meaning/style checks passed; else made
-                # again (and judged again), at most max_redos times — still
-                # not approved: this language is left out of the film
+                current = latest_spoken(db, master, lang, bp_row.id)
                 history = []
-                while v.status == "needs_revision":
-                    gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
-                    history.append({"version_id": v.id, "failures": gates.get("failures", [])})
-                    if len(history) > ai_config.documentary.max_redos:
-                        raise SpokenRejected(
-                            f"spoken version not approved after {len(history) - 1} redo(s): "
-                            + ", ".join(gates.get("failures", [])))
-                    v = await get_stage_agent("spoken").create(db, case, master, lang)
+
+                async def produce(feedback):
+                    nonlocal current
+                    if current is None or feedback["reasons"]:
+                        current = await get_stage_agent("spoken").create(
+                            db, case, master, lang)
+                    return current
+
+                async def audit(version):
+                    gates = json.loads(version.critic_notes or "{}").get(
+                        "quality_gates") or {}
+                    failures = gates.get("failures", [])
+                    if version.status == "needs_revision":
+                        history.append({"version_id": version.id, "failures": failures})
+                    return {"approved": version.status != "needs_revision",
+                            "reasons": failures, "failed_item_ids": [lang]}
+
+                outcome = await RetryAuditPolicy(db, case_id=case.id, language=lang).run_with_audit(
+                    produce, audit, ai_config.documentary.max_redos,
+                    ai_config.production_policies.retry_policy.spoken_versions,
+                    stage="spoken_versions")
+                if outcome.status != "approved":
+                    raise SpokenRejected(
+                        f"spoken version not approved after {outcome.attempts - 1} redo(s): "
+                        + ", ".join(map(str, outcome.reasons)))
+                v = current
                 gates = json.loads(v.critic_notes or "{}").get("quality_gates") or {}
                 return {"version_id": v.id, "status": v.status, "verdict": "approved",
                         "redos": len(history), "rejected_before": history,

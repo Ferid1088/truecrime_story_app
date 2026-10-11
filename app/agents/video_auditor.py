@@ -13,6 +13,7 @@ from app.documentary.visuals import tiers as T
 from app.documentary.visuals.pieces import piece_frames
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
+from app.services.retry_policy import RetryAuditPolicy
 from app.documentary.visuals.video_auditor import (
     DESCRIBE_SYSTEM,
     PLACEMENT_SYSTEM,
@@ -48,23 +49,32 @@ class VideoAuditor:
         provisional = previous.get("provisional_tier") or asset.relevance_tier
         history: list[dict] = []
         redos = ai_config.documentary.max_redos
-        while True:
+        latest: dict = {}
+        probe_error: str | None = None
+
+        async def produce(_feedback):
+            nonlocal latest, probe_error
             try:
                 v, res, n_frames = await self._check_once(db, case, asset, entities, facts)
-            except VideoProbeError as e:
-                asset.verification_status = "rejected"
-                asset.verification_json = json.dumps({
-                    "reason": "duration_probe_failed", "error": str(e)[:300],
-                    "auditor": "video"}, ensure_ascii=False)
-                db.commit()
-                return asset
+                latest = {"verdict": v, "result": res, "frames": n_frames}
+            except VideoProbeError as exc:
+                probe_error = str(exc)[:300]
+                latest = {"probe_error": probe_error}
+            return latest
+
+        async def audit(result):
+            if result.get("probe_error"):
+                return {"approved": False, "reasons": ["duration_probe_failed: "
+                                                        + result["probe_error"]],
+                        "failed_item_ids": [asset.asset_code], "terminal": True}
+            v = result["verdict"]
             cut_ok = v.get("cut_ok") is not False
             desc_ok = v.get("description_ok") is not False
             history.append({"window": [asset.clip_start, asset.clip_end], "cut_ok": cut_ok,
                             "description_ok": desc_ok,
                             "reasons": list(v.get("reasons") or [])[:4]})
-            if (cut_ok and desc_ok) or len(history) > redos:
-                break
+            if cut_ok and desc_ok:
+                return {"approved": True}
             changed = False
             if not cut_ok and self._move_cut(asset, v):
                 changed = True
@@ -73,9 +83,30 @@ class VideoAuditor:
                 asset.title = str(v["name"]).strip()[:500]
                 asset.description = str(v["description"]).strip()[:1000]
                 changed = True
+            if changed:
+                db.commit()
+            reasons = list(v.get("reasons") or [])[:4]
             if not changed:
-                break
+                reasons.append("auditor supplied no applicable correction")
+            return {"approved": False, "reasons": reasons,
+                    "failed_item_ids": [asset.asset_code], "terminal": not changed}
+
+        await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
+            produce, audit, redos,
+            ai_config.production_policies.retry_policy.video_pieces,
+            stage="video_pieces")
+        if probe_error:
+            asset.verification_status = "rejected"
+            asset.verification_json = json.dumps({
+                "reason": "duration_probe_failed", "error": probe_error,
+                "auditor": "video"}, ensure_ascii=False)
             db.commit()
+            return asset
+        v = latest["verdict"]
+        res = latest["result"]
+        n_frames = latest["frames"]
+        cut_ok = v.get("cut_ok") is not False
+        desc_ok = v.get("description_ok") is not False
         status, conf, reason = describe_decide(v)
         if status != "rejected" and not (cut_ok and desc_ok):
             status, reason = "rejected", ("cut_not_meaningful" if not cut_ok

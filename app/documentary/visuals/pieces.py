@@ -41,6 +41,7 @@ from app.documentary.visuals.footage import (
     probe_video,
     sheet_path,
 )
+from app.services.retry_policy import RetryAuditPolicy
 
 SOURCE_TYPE = "video_source"
 _PTS = re.compile(r"pts_time:([0-9.]+)")
@@ -292,18 +293,40 @@ async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
     action = {"mode": mode, "attempt": attempts + 1}
     if manual:
         logging.getLogger(__name__).info("manual video cut again for %s", source.asset_code)
-    try:
-        proposals = await (segmenter or VideoSegmenter()).cut(
-            db, case, source, storage.resolve(source.local_path),
-            float(source.duration_seconds or 0), cuts)
-        if not proposals:
-            raise FootageRejected("the segmenter found no meaningful piece")
-    except Exception as e:  # noqa: BLE001 — kept, recorded, can be cut again later
-        logging.getLogger(__name__).warning("cutting %s failed: %s", source.asset_code, e)
-        spec["segment_error"] = f"{type(e).__name__}: {e}"[:300]
+    latest: dict = {}
+
+    async def produce(_feedback):
+        nonlocal latest
+        try:
+            proposals = await (segmenter or VideoSegmenter()).cut(
+                db, case, source, storage.resolve(source.local_path),
+                float(source.duration_seconds or 0), cuts)
+            if not proposals:
+                latest = {"error": "the segmenter found no meaningful piece"}
+                return latest
+            latest = {"proposals": proposals}
+            return latest
+        except Exception as e:  # noqa: BLE001 — kept, recorded, can be cut again later
+            latest = {"error": f"{type(e).__name__}: {e}"[:300]}
+            return latest
+
+    async def audit(result):
+        if result.get("error"):
+            return {"approved": False, "reasons": [result["error"]],
+                    "failed_item_ids": [source.asset_code]}
+        return {"approved": bool(result.get("proposals"))}
+
+    outcome = await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
+        produce, audit, 0,
+        ai_config.production_policies.retry_policy.video_pieces,
+        stage="video_pieces")
+    if outcome.status != "approved":
+        reason = "; ".join(map(str, outcome.reasons))[:300] or "segmenter rejected the source"
+        logging.getLogger(__name__).warning("cutting %s failed: %s", source.asset_code, reason)
+        spec["segment_error"] = reason
         spec["segment_attempts"] = attempts + 1
         action["status"] = "failed"
-        action["reason"] = spec["segment_error"]
+        action["reason"] = reason
         spec.setdefault("segment_history", []).append(action)
         if not manual and spec["segment_attempts"] >= max_attempts:
             spec["segment_status"] = "rejected"
@@ -311,6 +334,7 @@ async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
         source.spec_json = json.dumps(spec)
         db.commit()
         return []
+    proposals = latest.get("proposals") or []
     pieces = await asyncio.to_thread(store_pieces, db, source, proposals)
     action["status"] = "cut"
     spec.setdefault("segment_history", []).append(action)

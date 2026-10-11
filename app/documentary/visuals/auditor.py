@@ -31,6 +31,10 @@ the other languages reuse them and a changed picture or changed words
 are audited again.
 """
 
+# The replacement callbacks intentionally close over the current shot; the
+# policy service invokes them immediately and never stores them.
+# ruff: noqa: B023
+
 from __future__ import annotations
 
 
@@ -59,6 +63,7 @@ from app.documentary.visuals.usage import (
     asset_facts,
     named_between,
 )
+from app.services.retry_policy import RetryAuditPolicy
 
 log = logging.getLogger(__name__)
 
@@ -268,23 +273,32 @@ async def audit_script(db: Session, row: ProductionScript, auditor: "VisualAudit
         story = SP.story_point(blueprint, s.get("beat_id"))
         tries = 0
         approved = False
-        while True:
+        shown_as = None
+        reasons = []
+
+        async def produce(_feedback):  # noqa: B023
+            nonlocal shown_as, reasons
             a = assets.get(s.get("asset_id"))
             if a is None:
                 verdict, shown_as, reasons = "rejected", None, ["unknown picture"]
             else:
                 verdict, shown_as, reasons = await auditor.check(db, case, a, sentences,
                                                                  story, firewall)
+            return {"verdict": verdict, "as": shown_as, "reasons": reasons}
+
+        async def audit(result):  # noqa: B023
+            nonlocal tries
+            verdict = result["verdict"]
             report["audited"] += 1
             s["audit"] = {"verdict": verdict, "as": shown_as, "reasons": reasons[:4],
                           "sentences": sentences, "try": tries}
             if verdict == "approved":
-                approved = True
-                break
+                return {"approved": True}
             key = id(s)
             rejected_for.setdefault(key, set()).add(s.get("asset_id"))
             if tries >= redos:
-                break
+                return {"approved": False, "reasons": reasons[:4],
+                        "failed_item_ids": [str(s.get("asset_id"))], "terminal": True}
             # the next approved-to-be candidate: unused, a clip first
             tr = UsageTracker.from_shots(shots, {c: asset_facts(x) for c, x in assets.items()},
                                          skip={i})
@@ -295,12 +309,22 @@ async def audit_script(db: Session, row: ProductionScript, auditor: "VisualAudit
                              allow_repeat=False,
                              prefer=lambda c: 0 if assets[c].asset_type == "video" else 1)
             if choice is None:
-                break
+                return {"approved": False, "reasons": reasons[:4] or ["no replacement"],
+                        "failed_item_ids": [str(s.get("asset_id"))], "terminal": True}
             before = s.get("asset_id")
             _use(s, assets[choice["asset_id"]], f"auditor: replaced {before} ({reasons[0] if reasons else 'rejected'})")
             report["replaced"].append({"at": round(s["start"], 2), "from": before,
                                        "to": choice["asset_id"], "why": reasons[:3]})
             tries += 1
+            return {"approved": False, "reasons": reasons[:4],
+                    "failed_item_ids": [str(before)]}
+
+        outcome = await RetryAuditPolicy(db, case_id=row.case_id,
+                                         language=script.get("language")).run_with_audit(
+            produce, audit, redos,
+            ai_config.production_policies.retry_policy.visual_audit_assets,
+            stage="visual_audit_assets")
+        approved = outcome.status == "approved"
         if approved:
             report["approved"] += 1
             if shown_as == "symbolic":

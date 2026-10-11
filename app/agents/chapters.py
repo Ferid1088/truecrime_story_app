@@ -11,6 +11,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, ChapterPlan, Contradiction, EditorialBlueprint, Fact, Source, StoryVersion
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
+from app.services.retry_policy import RetryAuditPolicy
 from app.documentary.chapters import (
     AUDITOR_SYSTEM,
     WRITER_SYSTEM,
@@ -147,49 +148,65 @@ class ChapterWriter:
         rounds: list[dict] = []
         error = None
         redos = ai_config.documentary.max_redos
+        async def produce(feedback: dict):
+            if not pending:
+                return {}
+            fix = None if not rounds else [
+                {"key": k, "previous": drafts.get(k), "languages": sorted(ls),
+                 "auditor": reasons.get(k)} for k, ls in pending.items()]
+            got = await self._write(db, case, ctx, fix)
+            for k in pending:
+                if k in got:
+                    drafts[k] = {**drafts.get(k, {}), **got[k]}
+            return {k: {lg: drafts.get(k, {}).get(lg) for lg in ls}
+                    for k, ls in pending.items()}
+
+        async def audit(drafts_for_round: dict) -> dict:
+            if not pending:
+                return {"approved": True}
+            verdicts = await self._audit(db, case, ctx, drafts_for_round)
+            round_log = []
+            failed_ids = []
+            feedback_reasons = []
+            for k, ls in list(pending.items()):
+                v = verdicts.get(k)
+                bad_model = set()
+                if v is None:
+                    bad_model = set(ls)  # not judged = not approved
+                    why = "the auditor did not judge it"
+                elif v.get("ok") is False:
+                    named = {str(x) for x in v.get("languages") or []}
+                    bad_model = (named & ls) or set(ls)
+                    why = str(v.get("reason") or "rejected")[:300]
+                else:
+                    why = ""
+                still = set()
+                for lg in ls:
+                    pre = self.precheck(k, lg, drafts.get(k, {}).get(lg))
+                    if pre or lg in bad_model:
+                        still.add(lg)
+                        reason = (pre and f"{lg}: {pre}") or why
+                        reasons[k] = reason
+                        feedback_reasons.append(f"{k}/{lg}: {reason}")
+                        failed_ids.append(f"{k}/{lg}")
+                    else:
+                        approved.setdefault(k, {})[lg] = drafts[k][lg]
+                round_log.append({"key": k, "approved": sorted(ls - still),
+                                  "rejected": sorted(still),
+                                  "reason": reasons.get(k) if still else None})
+                if still:
+                    pending[k] = still
+                else:
+                    pending.pop(k)
+            rounds.append({"round": len(rounds), "items": round_log})
+            return {"approved": not pending, "reasons": feedback_reasons,
+                    "failed_item_ids": failed_ids}
+
         try:
-            for r in range(redos + 1):
-                if not pending:
-                    break
-                fix = None if r == 0 else [
-                    {"key": k, "previous": drafts.get(k), "languages": sorted(ls),
-                     "auditor": reasons.get(k)} for k, ls in pending.items()]
-                got = await self._write(db, case, ctx, fix)
-                for k in pending:
-                    if k in got:
-                        drafts[k] = {**drafts.get(k, {}), **got[k]}
-                check = {k: {lg: drafts.get(k, {}).get(lg) for lg in ls}
-                         for k, ls in pending.items()}
-                verdicts = await self._audit(db, case, ctx, check)
-                round_log = []
-                for k, ls in list(pending.items()):
-                    v = verdicts.get(k)
-                    bad_model = set()
-                    if v is None:
-                        bad_model = set(ls)  # not judged = not approved
-                        why = "the auditor did not judge it"
-                    elif v.get("ok") is False:
-                        named = {str(x) for x in v.get("languages") or []}
-                        bad_model = (named & ls) or set(ls)
-                        why = str(v.get("reason") or "rejected")[:300]
-                    else:
-                        why = ""
-                    still = set()
-                    for lg in ls:
-                        pre = self.precheck(k, lg, drafts.get(k, {}).get(lg))
-                        if pre or lg in bad_model:
-                            still.add(lg)
-                            reasons[k] = (pre and f"{lg}: {pre}") or why
-                        else:
-                            approved.setdefault(k, {})[lg] = drafts[k][lg]
-                    round_log.append({"key": k, "approved": sorted(ls - still),
-                                      "rejected": sorted(still),
-                                      "reason": reasons.get(k) if still else None})
-                    if still:
-                        pending[k] = still
-                    else:
-                        pending.pop(k)
-                rounds.append({"round": r, "items": round_log})
+            await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
+                produce, audit, redos,
+                ai_config.production_policies.retry_policy.chapter_texts,
+                stage="chapter_texts")
         except Exception as e:  # noqa: BLE001 — cards without texts, reported
             log.warning("chapter texts for case %s failed: %s", case.id, e)
             error = f"{type(e).__name__}: {e}"[:300]

@@ -26,6 +26,15 @@
     "publishing": {
       "default_visibility": "private",
       "live_mode_default": false
+    },
+    "retry_policy": {
+      "master_story": "STOP",
+      "chapter_texts": "OMIT",
+      "spoken_versions": "OMIT",
+      "host_segments": "OMIT",
+      "video_pieces": "OMIT",
+      "visual_audit_assets": "OMIT",
+      "audio_plan": "DEGRADE"
     }
   }
 }

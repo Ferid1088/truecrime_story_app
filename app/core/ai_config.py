@@ -202,6 +202,16 @@ class PublishingPolicies(BaseModel):
     live_mode_default: bool
 
 
+class RetryPolicyConfig(BaseModel):
+    master_story: Literal["STOP", "OMIT", "DEGRADE"]
+    chapter_texts: Literal["STOP", "OMIT", "DEGRADE"]
+    spoken_versions: Literal["STOP", "OMIT", "DEGRADE"]
+    host_segments: Literal["STOP", "OMIT", "DEGRADE"]
+    video_pieces: Literal["STOP", "OMIT", "DEGRADE"]
+    visual_audit_assets: Literal["STOP", "OMIT", "DEGRADE"]
+    audio_plan: Literal["STOP", "OMIT", "DEGRADE"]
+
+
 class ProductionPolicies(BaseModel):
     user_media: UserMediaPolicies
     media_reuse: MediaReusePolicies
@@ -209,6 +219,7 @@ class ProductionPolicies(BaseModel):
     short_form: ShortFormPolicies
     timeline: TimelinePolicies
     publishing: PublishingPolicies
+    retry_policy: RetryPolicyConfig
 
 
 class ModelCapabilities(BaseModel):
