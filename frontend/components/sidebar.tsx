@@ -41,7 +41,7 @@ function ApiStatus() {
   useEffect(() => {
     let cancelled = false;
     const check = () =>
-      fetch(`${API_BASE}/health`)
+      fetch(`${API_BASE}/health`, { credentials: "include" })
         .then((r) => !cancelled && setOk(r.ok))
         .catch(() => !cancelled && setOk(false));
     check();
@@ -120,6 +120,7 @@ function ThemeToggle() {
 }
 
 export function Sidebar() {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -134,6 +135,8 @@ export function Sidebar() {
       document.body.style.overflow = "";
     };
   }, [mobileOpen]);
+
+  if (pathname === "/login") return null;
 
   return (
     <>

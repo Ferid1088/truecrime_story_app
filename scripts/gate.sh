@@ -58,7 +58,7 @@ if [ "$run_frontend" = 1 ]; then
   check "Frontend: eslint"        in_frontend npx eslint .
   check "Frontend: production build" in_frontend npx next build
   if [ "$run_e2e" = 1 ]; then
-    check "Frontend: Playwright e2e" in_frontend npx playwright test -c "$PW_CONFIG" e2e/app.spec.ts --reporter=list
+    check "Frontend: Playwright e2e" in_frontend npx playwright test -c "$PW_CONFIG" e2e/app.spec.ts e2e/auth.spec.ts --reporter=list
   fi
 fi
 

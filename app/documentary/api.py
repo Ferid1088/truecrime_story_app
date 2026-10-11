@@ -12,6 +12,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from app.core.files import serve as serve_file
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -588,11 +589,9 @@ def visual_file(asset_id: int, thumb: int = 0, db: Session = Depends(get_db)):
     if not a:
         raise HTTPException(status_code=404, detail="Visual not found")
     path = storage.resolve(a.thumbnail_path if thumb else a.local_path)
-    if path is None or not path.exists():
-        raise HTTPException(status_code=404, detail="File missing")
     video = (not thumb and a.asset_type in ("video", "video_source")
-             and path.suffix.lower() == ".mp4")
-    return FileResponse(path, media_type="video/mp4" if video else "image/jpeg")
+             and path is not None and path.suffix.lower() == ".mp4")
+    return serve_file(path, "video/mp4" if video else "image/jpeg")
 
 
 @router.post("/api/visuals/{asset_id}/cut-again")
@@ -744,18 +743,15 @@ def _ps(db: Session, ps_id: int) -> ProductionScript:
 def production_video(ps_id: int, db: Session = Depends(get_db)):
     info = _loads(_ps(db, ps_id).render_json, None)
     path = storage.resolve((info or {}).get("path"))
-    if path is None or not path.exists():
-        raise HTTPException(status_code=404, detail="Not rendered yet")
-    return FileResponse(path, media_type="video/mp4", filename=path.name)
+    return serve_file(path, "video/mp4", filename=path.name if path else None, missing="Not rendered yet")
 
 
 @router.get("/api/documentary/production/{ps_id}/subtitles.srt")
 def production_subtitles(ps_id: int, db: Session = Depends(get_db)):
     info = _loads(_ps(db, ps_id).render_json, None)
     path = storage.resolve((info or {}).get("srt"))
-    if path is None or not path.exists():
-        raise HTTPException(status_code=404, detail="Not rendered yet")
-    return FileResponse(path, media_type="text/plain; charset=utf-8", filename=path.name)
+    return serve_file(path, "text/plain; charset=utf-8", filename=path.name if path else None,
+                      missing="Not rendered yet")
 
 
 @router.get("/api/documentary/music")
@@ -778,9 +774,7 @@ def music_file(cue_id: str, db: Session = Depends(get_db)):
     path = track_file(db, cue_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Unknown track")
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Track not generated yet")
-    return FileResponse(path, media_type="audio/wav")
+    return serve_file(path, "audio/wav", missing="Track not generated yet")
 
 
 # ---------------------------------------------------------------------------

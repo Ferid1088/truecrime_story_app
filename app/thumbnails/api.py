@@ -6,6 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from app.core.files import serve as serve_file
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -113,6 +114,4 @@ def decide(thumbnail_id: int, req: DecisionRequest, db: Session = Depends(get_db
 def image(thumbnail_id: int, db: Session = Depends(get_db)):
     t = db.get(Thumbnail, thumbnail_id)
     p = SV.file_of(t) if t else None
-    if not p or not p.exists():
-        raise HTTPException(status_code=404, detail="Thumbnail image not found")
-    return FileResponse(p, media_type="image/jpeg")
+    return serve_file(p, "image/jpeg", missing="Thumbnail image not found")

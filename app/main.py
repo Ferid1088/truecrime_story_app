@@ -69,10 +69,15 @@ for _router in (
 ):
     app.include_router(_router)
 
+from app.core import security  # noqa: E402
+
+app.include_router(security.router)
+# Added first = inside CORS, so even a 401 carries the CORS headers the browser needs to read it.
+app.add_middleware(security.SecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=sorted(security.allowed_origins()),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )

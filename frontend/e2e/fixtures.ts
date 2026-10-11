@@ -474,6 +474,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     const path = url.pathname;
     const method = route.request().method();
 
+    if (path === "/api/auth/session") return json(route, { authenticated: true, auth_required: false });
     if (path === "/api/dashboard") {
       dashboardCalls += 1;
       const seq = opts.dashboardSequence;

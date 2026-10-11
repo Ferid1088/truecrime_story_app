@@ -122,6 +122,15 @@ export function duplicateConflict(e: unknown): DuplicateConflict | null {
 const DEFAULT_GET_TIMEOUT_MS = 45_000;
 const DEFAULT_MUTATION_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** The API says the session is missing or expired: send the browser to the login page. */
+function redirectToLogin() {
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    // Full reload on purpose: drops all in-memory state tied to the dead session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/login";
+  }
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit & { timeoutMs?: number },
@@ -133,6 +142,7 @@ async function request<T>(
   try {
     res = await fetch(`${API_BASE}${path}`, {
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       ...rest,
       signal: ms > 0 ? AbortSignal.timeout(ms) : rest.signal,
     });
@@ -146,6 +156,7 @@ async function request<T>(
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new ApiError(0, `Cannot reach API at ${API_BASE}. Is the backend running?`);
   }
+  if (res.status === 401 && !path.startsWith("/api/auth/")) redirectToLogin();
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
     let data: unknown = null;
@@ -569,3 +580,13 @@ export async function pollResearchJob(
     });
   }
 }
+
+
+export type AuthSession = { authenticated: boolean; auth_required: boolean };
+
+export const authApi = {
+  session: () => request<AuthSession>("/api/auth/session"),
+  login: (token: string) =>
+    request<AuthSession>("/api/auth/login", { method: "POST", body: JSON.stringify({ token }) }),
+  logout: () => request<AuthSession>("/api/auth/logout", { method: "POST" }),
+};

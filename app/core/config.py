@@ -12,6 +12,17 @@ class Settings(BaseSettings):
     # provider="devin"/"openrouter" as readable data.
     research_provider: str = "truecrime"
 
+    # --- security -------------------------------------------------------------------------
+    # One shared access token for the single operator. Empty = no login, and the API then only
+    # answers requests that come from this machine (loopback). Set it before exposing the API
+    # to anything else (Docker, LAN, tunnel). Generate one: python -c "import secrets;print(secrets.token_urlsafe(32))"
+    access_token: str = ""
+    session_days: int = 14
+    # Browser origins allowed to call the API (comma separated).
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Send the session cookie only over HTTPS (turn on behind a TLS proxy).
+    cookie_secure: bool = False
+
     # Where documentary jobs run:
     #   "inline"   inside the API process (default; restarting the API stops running jobs)
     #   "external" in a separate worker (`python -m app.worker`); the API only queues them
