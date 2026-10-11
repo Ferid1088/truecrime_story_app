@@ -6,11 +6,9 @@ import json
 from contextlib import ExitStack
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
-from app.core.ai_config import ai_config
 from app.providers.base import ProviderError, ProviderJob
-from app.services import research_jobs
 from app.db.models import Case, ResearchJob, Source, DiscoveryCandidate
 
 
@@ -274,7 +272,7 @@ def test_list_research_jobs_for_case(client):
 def test_historical_devin_jobs_still_render(client, db_session):
     """Old provider="devin"/"openrouter" rows are data, not code —
     they must remain readable alongside new truecrime jobs."""
-    from app.db.models import Case, ResearchJob
+    from app.db.models import Case
 
     case = Case(canonical_title="Historical Case", slug="historical-case",
                 language="en", status="researched")
@@ -308,7 +306,6 @@ def test_historical_devin_jobs_still_render(client, db_session):
 
 from app.research_engine.provider import (
     TrueCrimeSearchProvider,
-    _JOBS,
 )
 from app.research_engine.urlnorm import (
     canonicalize_url,
@@ -653,7 +650,7 @@ def test_orchestrator_search_to_source_pipeline():
 
 def test_historical_openrouter_provider_rows_still_render(client, db_session):
     """provider='openrouter' job rows remain readable data."""
-    from app.db.models import Case, ResearchJob
+    from app.db.models import Case
 
     case = db_session.query(Case).first() or Case(
         canonical_title="Hist", slug="hist", language="en")

@@ -11,7 +11,6 @@ import os
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from app.core.files import serve as serve_file
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session

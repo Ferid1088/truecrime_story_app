@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from app.db.base import SessionLocal
 from app.db.models import OriginalMediaSegment, VisualAsset

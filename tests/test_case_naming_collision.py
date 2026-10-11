@@ -1,13 +1,11 @@
 """Collision corpus + exact / near / semantic checks (no network)."""
 
 import asyncio
-import json
 
 import numpy as np
-import pytest
 
 from app.db.models import (Case, CaseTitleCandidate, DiscoveryCandidate, EpisodeIdentity,
-                           Source, Video)
+                           Source)
 from app.naming import collision as C
 from app.naming.corpus import get_corpus
 from app.naming.normalize import norm_title

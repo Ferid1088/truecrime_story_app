@@ -4,7 +4,7 @@ case_uid, EpisodeIdentity and the YouTube title builder (no network)."""
 import pytest
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, CaseStatusHistory
+from app.db.models import Case
 from app.identity import titles as T
 from app.lifecycle.status import set_resolution
 

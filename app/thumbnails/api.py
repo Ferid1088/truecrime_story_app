@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
 from app.core.files import serve as serve_file
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session

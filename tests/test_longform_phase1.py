@@ -11,14 +11,12 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from app.db.base import Base, engine
+from app.db.base import engine
 from app.db.models import (
     Case,
     EditorialBlueprint,
     EpistemicClaim,
-    EpistemicContractSet,
     OriginalMediaSegment,
-    RevealGraph,
     StoryVersion,
     VisualAsset,
 )

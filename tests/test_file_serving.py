@@ -2,7 +2,7 @@
 import uuid
 
 from app.core import files
-from app.db.models import Case, ProductionScript, StoryVersion, VisualAsset
+from app.db.models import Case, VisualAsset
 from app.documentary import storage
 
 

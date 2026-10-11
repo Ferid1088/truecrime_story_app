@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.shortform.operations import ExportPackagePublisher, PlatformExport
+from app.shortform.operations import PlatformExport
 
 
 @dataclass(frozen=True)

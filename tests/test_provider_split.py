@@ -11,7 +11,6 @@ import asyncio
 import json
 from unittest.mock import patch
 
-import httpx
 import pytest
 
 from app.core.ai_config import (
@@ -23,12 +22,11 @@ from app.core.ai_config import (
 )
 from app.providers.generation import get_generation_provider
 from app.providers.generation.apimaster import APIMasterGenerationProvider
-from app.providers.generation.base import GenerationError, GenerationResult
+from app.providers.generation.base import GenerationResult
 from app.providers.generation.openrouter import OpenRouterGenerationProvider
 
 
 def _raw_config() -> dict:
-    from pathlib import Path
 
     from app.core.ai_config import load_raw_config
 
@@ -304,7 +302,6 @@ def test_env_example_declares_only_current_keys():
 
 
 def test_cost_split_by_provider(db_session):
-    from app.db.base import SessionLocal
     from app.api.serializers import generation_usage as _generation_usage
     from app.services.tracking import record_run
     from app.utils import slugify

@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import text
 
 from app.longform import compression as C
 from app.longform import epistemic as E
@@ -23,7 +21,6 @@ from app.shortform import export as X
 from app.shortform import selection as S
 from app.shortform import metrics as M
 from app.shortform import operations as O
-from app.shortform import api as A
 from app.longform import rollout as R
 from app.db.models import Case, EditorialBlueprint, ShortFormMetric, StoryVersion, VisualAsset
 

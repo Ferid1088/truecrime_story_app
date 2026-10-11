@@ -1,13 +1,10 @@
 """Behaviour added by the optimization pass (no network)."""
 
 import asyncio
-import json
 
-import pytest
 
-from app.core.ai_config import ai_config
 from app.core.tasks import running, spawn
-from app.db.models import Case, EpisodeIdentity, ResearchJob, Video
+from app.db.models import Case, ResearchJob, Video
 from app.documentary import jobs as J
 from app.identity import titles as T
 from app.lifecycle import videos as V

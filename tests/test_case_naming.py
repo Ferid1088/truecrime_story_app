@@ -5,8 +5,7 @@ import json
 
 import pytest
 
-from app.db.models import (Case, CaseTitleCandidate, EditorialBlueprint, Fact, Source,
-                           StoryVersion)
+from app.db.models import (Case, CaseTitleCandidate, EditorialBlueprint, Fact, StoryVersion)
 from app.identity import titles as T
 from app.lifecycle.status import set_resolution
 from app.naming import agent as A

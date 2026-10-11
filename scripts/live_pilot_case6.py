@@ -39,7 +39,7 @@ from app.shortform.director import (
 )
 from app.shortform.export import build_export_package
 from app.shortform.operations import repetition_check
-from app.shortform.selection import evaluate_candidate, mmr_select
+from app.shortform.selection import evaluate_candidate
 from app.shortform.assets import require_verified_case_assets, UNSELECTABLE_VERIFICATION_STATUSES
 
 

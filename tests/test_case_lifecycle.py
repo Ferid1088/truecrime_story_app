@@ -15,8 +15,8 @@ import pytest
 
 from app.core.ai_config import ai_config
 from app.db.models import (
-    Case, CaseStatusCheck, CaseStatusHistory, DiscoveryCandidate, DocumentaryJob,
-    FollowUpCandidate, MonitorRun, ProductionScript, Source, StoryVersion, Video,
+    Case, CaseStatusCheck, CaseStatusHistory, DocumentaryJob,
+    FollowUpCandidate, MonitorRun, ProductionScript, StoryVersion, Video,
 )
 from app.lifecycle import followups as F
 from app.lifecycle import scheduler as S

@@ -6,7 +6,6 @@ import signal
 import subprocess
 import sys
 import textwrap
-import time
 import uuid
 from datetime import timedelta
 from pathlib import Path

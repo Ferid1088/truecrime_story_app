@@ -10,7 +10,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import EpistemicClaim, EpistemicContractSet
-from app.longform.epistemic import extract_master_claims
 
 
 def test_case6_master_story_claim_coverage_and_persisted_review_set():

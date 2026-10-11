@@ -7,11 +7,9 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import httpx
 import pytest
 
 from app.core.ai_config import AIConfig, ai_config, REQUIRED_ROLES
-from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError, GenerationResult
 from app.providers.generation.apimaster import APIMasterGenerationProvider
 
@@ -364,7 +362,6 @@ def test_stamp_run_records_role_and_fallback(db_session):
 
 
 def test_similarity_not_evaluated_without_source_text(db_session):
-    import asyncio
 
     from app.agents.story import StoryPipeline
     from app.db.models import Source

@@ -2,9 +2,8 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import pytest
 
-from app.db.models import AgentRun, Case, ResearchJob, Source
+from app.db.models import Case, ResearchJob
 from app.services import research_jobs
 from app.services.tracking import record_run, track_run
 from app.utils import ensure_utc, slugify, utc_now

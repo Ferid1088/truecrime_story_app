@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from pathlib import Path
 
 from app.db.base import SessionLocal
 from app.db.models import Case, VisualAsset, VisualPlan

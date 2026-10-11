@@ -25,7 +25,7 @@ from app.research_engine.planner import PlannedQuery
 from app.research_engine.safety import UnsafeURLError, validate_url
 from app.research_engine.search import SearchBackendRegistry, SearchResult
 from app.services.research_jobs import (
-    _apply_job_telemetry, _ingest_research, _persist_provenance, create_job,
+    _apply_job_telemetry, _ingest_research, create_job,
 )
 from app.utils import detect_language
 
