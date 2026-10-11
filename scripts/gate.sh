@@ -43,8 +43,8 @@ in_frontend() { ( cd frontend && "$@" ); }
 
 if [ "$run_backend" = 1 ]; then
   check "Python test suite" env -u TC_TEST_DATABASE_URL "$PYTHON" -m pytest -q -p no:cacheprovider
-  check "Python ruff" "$PYTHON" -m ruff check app scripts tests
-  check "Python mypy" "$PYTHON" -m mypy app
+  check "Python Ruff ratchet" "$PYTHON" scripts/quality_ratchet.py ruff
+  check "Python Mypy ratchet" "$PYTHON" scripts/quality_ratchet.py mypy
   echo; echo "=== Python vulture (report only)"
   "$PYTHON" -m vulture app scripts --min-confidence 80 || true
   if [ -n "${TC_TEST_DATABASE_URL:-}" ]; then

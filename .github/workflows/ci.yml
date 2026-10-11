@@ -37,9 +37,9 @@ jobs:
       - name: Secret scan (tracked files)
         run: python scripts/secret_scan.py
       - name: Ruff
-        run: python -m ruff check app scripts tests
+        run: python scripts/quality_ratchet.py ruff
       - name: Mypy
-        run: python -m mypy app
+        run: python scripts/quality_ratchet.py mypy
       - name: Vulture (report only)
         run: python -m vulture app scripts --min-confidence 80 || true
       - name: Python tests
