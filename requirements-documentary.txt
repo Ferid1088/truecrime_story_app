@@ -7,6 +7,6 @@ Pillow>=10.3                 # typography, cards, maps (raqm layout for Persian/
 opencv-python-headless>=4.9  # video frames: camera moves, face focus
 # pronunciation check (phoneme listener, CPU is enough):
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
-torch>=2.3
+torch>=2.14.1
 transformers>=5.5,<6
 setuptools>=83             # torch needs it; older releases carry known advisories
