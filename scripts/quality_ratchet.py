@@ -32,10 +32,17 @@ def ruff_findings() -> list[str]:
         rows = json.loads(output or "[]")
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Ruff did not return JSON findings: {output[:500]}") from exc
-    return sorted(
-        f"{row['filename']}:{row['location']['row']}:{row['code']}:{row['message']}"
-        for row in rows
-    )
+    findings = []
+    for row in rows:
+        filename = Path(row["filename"]).resolve()
+        try:
+            portable_filename = filename.relative_to(ROOT)
+        except ValueError:
+            portable_filename = Path(row["filename"])
+        findings.append(
+            f"{portable_filename}:{row['location']['row']}:{row['code']}:{row['message']}"
+        )
+    return sorted(findings)
 
 
 def mypy_findings() -> list[str]:
