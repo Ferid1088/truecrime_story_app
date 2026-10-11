@@ -2,12 +2,12 @@
 # Web UI image. The API address is compiled into the browser code, so it is a build argument:
 #   docker build --build-arg NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 -t truecrime-web frontend
 
-FROM node:22-alpine AS deps
+FROM node:25-alpine AS deps
 WORKDIR /web
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /web
 ARG NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
@@ -17,7 +17,7 @@ COPY --from=deps /web/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+FROM node:25-alpine AS runtime
 WORKDIR /web
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -S -g 10001 web && adduser -S -u 10001 -G web web
