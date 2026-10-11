@@ -19,6 +19,7 @@ from app.documentary.visuals.video_auditor import (
     _limits,
     _piece_times,
     _source_length,
+    VideoProbeError,
     _urls,
     describe_decide,
     piece_parent,
@@ -48,7 +49,15 @@ class VideoAuditor:
         history: list[dict] = []
         redos = ai_config.documentary.max_redos
         while True:
-            v, res, n_frames = await self._check_once(db, case, asset, entities, facts)
+            try:
+                v, res, n_frames = await self._check_once(db, case, asset, entities, facts)
+            except VideoProbeError as e:
+                asset.verification_status = "rejected"
+                asset.verification_json = json.dumps({
+                    "reason": "duration_probe_failed", "error": str(e)[:300],
+                    "auditor": "video"}, ensure_ascii=False)
+                db.commit()
+                return asset
             cut_ok = v.get("cut_ok") is not False
             desc_ok = v.get("description_ok") is not False
             history.append({"window": [asset.clip_start, asset.clip_end], "cut_ok": cut_ok,

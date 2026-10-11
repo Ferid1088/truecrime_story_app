@@ -43,21 +43,30 @@ def piece_parent(asset: VisualAsset) -> str | None:
     return spec.get("parent")
 
 
+class VideoProbeError(RuntimeError):
+    """The source duration is unknown; an auditor must reject, not guess."""
+
+
 def _source_length(asset: VisualAsset) -> float:
     try:
         from app.documentary import storage
         from app.documentary.visuals.footage import probe_video
 
         info = probe_video(storage.resolve(asset.local_path))
-        return float((info or {}).get("duration") or 0.0)
-    except Exception:  # noqa: BLE001
-        return 0.0
+        duration = float((info or {}).get("duration") or 0.0)
+        if duration <= 0.0:
+            raise VideoProbeError("duration probe returned no usable duration")
+        return duration
+    except VideoProbeError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise VideoProbeError(f"duration probe failed: {type(e).__name__}: {e}") from e
 
 
 def _limits(asset: VisualAsset, slack: float = 5.0) -> tuple[float, float]:
     """How far the auditor may move a piece's cut (seconds of the video)."""
     a, b = float(asset.clip_start or 0.0), float(asset.clip_end or 0.0)
-    total = _source_length(asset) or b
+    total = _source_length(asset)
     return round(max(0.0, a - slack), 3), round(min(total, b + slack), 3)
 
 

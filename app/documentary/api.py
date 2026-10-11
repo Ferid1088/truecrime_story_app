@@ -605,7 +605,7 @@ async def cut_video_again(asset_id: int, db: Session = Depends(get_db)):
     if not is_source(a):
         raise HTTPException(status_code=400, detail="Only a kept video can be cut")
     case = db.get(Case, a.case_id)
-    pieces = await cut_video(db, case, a)
+    pieces = await cut_video(db, case, a, manual=True)
     if not pieces:
         err = (_loads(a.spec_json, {}) or {}).get("segment_error") or "no meaningful piece"
         raise HTTPException(status_code=502, detail=f"Not cut: {err}")

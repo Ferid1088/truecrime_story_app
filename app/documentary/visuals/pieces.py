@@ -262,7 +262,8 @@ async def ingest_video(db: Session, case: Case, src: Path, meta: dict, start: fl
     return source, await cut_video(db, case, source, segmenter)
 
 
-async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
+async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None,
+                    manual: bool = False
                     ) -> list[VisualAsset]:
     """Cut a kept video by meaning — also again later ("Cut again" in the
     library, or the next research run) when the segmenter failed before.
@@ -278,7 +279,19 @@ async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
     if done:
         return done
     spec = json.loads(source.spec_json or "{}")
+    attempts = int(spec.get("segment_attempts") or 0)
+    max_attempts = ai_config.documentary.max_redos + 1
+    if not manual and attempts >= max_attempts:
+        spec["segment_status"] = "rejected"
+        spec["segment_left_out"] = True
+        source.spec_json = json.dumps(spec, ensure_ascii=False)
+        db.commit()
+        return []
     cuts = list(spec.get("scene_changes") or [])
+    mode = "manual" if manual else "automatic"
+    action = {"mode": mode, "attempt": attempts + 1}
+    if manual:
+        logging.getLogger(__name__).info("manual video cut again for %s", source.asset_code)
     try:
         proposals = await (segmenter or VideoSegmenter()).cut(
             db, case, source, storage.resolve(source.local_path),
@@ -288,12 +301,22 @@ async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
     except Exception as e:  # noqa: BLE001 — kept, recorded, can be cut again later
         logging.getLogger(__name__).warning("cutting %s failed: %s", source.asset_code, e)
         spec["segment_error"] = f"{type(e).__name__}: {e}"[:300]
-        spec["segment_attempts"] = int(spec.get("segment_attempts") or 0) + 1
+        spec["segment_attempts"] = attempts + 1
+        action["status"] = "failed"
+        action["reason"] = spec["segment_error"]
+        spec.setdefault("segment_history", []).append(action)
+        if not manual and spec["segment_attempts"] >= max_attempts:
+            spec["segment_status"] = "rejected"
+            spec["segment_left_out"] = True
         source.spec_json = json.dumps(spec)
         db.commit()
         return []
     pieces = await asyncio.to_thread(store_pieces, db, source, proposals)
+    action["status"] = "cut"
+    spec.setdefault("segment_history", []).append(action)
     spec["pieces"] = [p.asset_code for p in pieces]
+    spec["segment_status"] = "cut"
+    spec.pop("segment_left_out", None)
     spec.pop("segment_error", None)
     source.spec_json = json.dumps(spec)
     db.commit()
@@ -301,7 +324,7 @@ async def cut_video(db: Session, case: Case, source: VisualAsset, segmenter=None
 
 
 def remove_video(db: Session, source: VisualAsset) -> None:
-    """Drop a source and its pieces (and their files) — a duplicate."""
+    """Drop a source, its pieces, and their derived files."""
     rows = pieces_of(db, source)
     files = [storage.resolve(source.local_path), storage.resolve(source.thumbnail_path)]
     for r in rows:
