@@ -53,10 +53,11 @@ def test_retry_policy_records_attempts_and_final_outcome(db_session):
         return {"approved": False, "reasons": ["not faithful"],
                 "failed_item_ids": ["chapter:2/de"]}
 
+    before = db_session.query(PolicyEvent).count()
     outcome = asyncio.run(RetryAuditPolicy(
         db_session, case_id=9, language="de").run_with_audit(
             produce, audit, 1, ExhaustedAction.OMIT, stage="chapter_texts"))
-    rows = db_session.query(PolicyEvent).order_by(PolicyEvent.id).all()
+    rows = db_session.query(PolicyEvent).order_by(PolicyEvent.id).all()[before:]
     assert outcome.status == "omitted" and len(rows) == 3
     assert rows[-1].decision == "omitted"
     assert json.loads(rows[-1].context_json)["failed_item_ids"] == ["chapter:2/de"]
