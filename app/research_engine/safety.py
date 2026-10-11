@@ -41,8 +41,8 @@ def validate_url(url: str, resolve_dns: bool = True) -> str:
         raise UnsafeURLError("empty_url")
     try:
         parts = urlsplit(u)
-    except ValueError:
-        raise UnsafeURLError("malformed_url")
+    except ValueError as e:
+        raise UnsafeURLError("malformed_url") from e
     if parts.scheme.lower() not in ("http", "https"):
         raise UnsafeURLError("invalid_protocol")
     host = parts.hostname
@@ -76,4 +76,3 @@ def validate_url(url: str, resolve_dns: bool = True) -> str:
         if _blocked_ip(ip):
             raise UnsafeURLError("private_ip")
     return u
-

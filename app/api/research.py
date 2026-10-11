@@ -46,7 +46,7 @@ async def run_research(case_id: int, db: Session = Depends(get_db)):
     try:
         job = await research_jobs.start_research_job(db, case)
     except ProviderError as e:
-        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}")
+        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}") from e
     return {"job_id": job.id, "status": job.status}
 
 
@@ -344,7 +344,7 @@ async def research_followup(
         job.error = str(e)[:500]
         job.completed_at = utc_now()
         db.commit()
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e)) from e
 
     job.external_job_id = external_id
     job.status = "running"

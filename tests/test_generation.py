@@ -39,60 +39,60 @@ def test_config_file_loads():
 def test_invalid_config_fails():
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["routing"]["writer"] = "nonexistent_alias"
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["routing"]["writer"] = "unknown_role"
     del raw["generation_providers"]["apimaster"]["models"]["cheap"]
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
     raw["generation"]["writer"]["temperature"] = 9.9
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
     del raw["generation"]["engagement_critic"]
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
     raw["providers"]["generation"] = "something-else"
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
 
 def test_invalid_fallback_config_fails():
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["fallbacks"] = {"cheap": ["ghost"]}
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["fallbacks"] = {"cheap": ["cheap"]}
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
 
 def test_invalid_story_config_fails():
     raw = _raw_config()
     raw["story"]["minimum_length_ratio"] = 1.5
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
     raw["story"]["minimum_length_ratio"] = 0.9
     raw["story"]["maximum_length_ratio"] = 0.5
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
 
 def test_missing_secret_env_fails():
     raw = _raw_config()
     del raw["generation_providers"]["apimaster"]["secret_env"]
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
 

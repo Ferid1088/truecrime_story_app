@@ -122,7 +122,7 @@ async def generate_master_story(
         )
         return story_full_dict(story)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/api/cases/{case_id}/localizations/generate")
@@ -137,7 +137,7 @@ async def generate_localization(
         try:
             check_target_minutes(target_minutes)
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=422, detail=str(e)) from e
     master = best_master(db, case_id)
     if not master:
         raise HTTPException(status_code=404, detail="No master story found")
@@ -147,9 +147,9 @@ async def generate_localization(
         )
         return story_full_dict(story)
     except (RuntimeError, ValueError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/api/cases/{case_id}/localizations")
@@ -192,9 +192,9 @@ async def improve_localization(version_id: int, db: Session = Depends(get_db)):
         )
         return story_full_dict(new_version)
     except (RuntimeError, ValueError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/api/localizations/{version_id}/compare-master")

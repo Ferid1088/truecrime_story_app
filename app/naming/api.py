@@ -134,7 +134,7 @@ def approve_title(case_id: int, candidate_id: int, req: ApproveRequest | None = 
     try:
         ident = A.approve_candidate(db, case, candidate_id, revise=bool(req and req.revise))
     except A.ApprovalRefused as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except TitleLocked as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return T.identity_dict(ident)

@@ -118,7 +118,7 @@ def test_generation_routing_unknown_role_fails():
     raw["generation_providers"]["apimaster"]["routing"][
         "nonexistent_role"
     ] = "cheap"
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
 
@@ -126,7 +126,7 @@ def test_generation_routing_unknown_alias_fails():
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["routing"]["writer"] = \
         "missing_alias"
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
 

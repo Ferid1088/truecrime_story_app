@@ -44,7 +44,7 @@ def update_studio(language: str, payload: StudioPatch):
         check = ST.update_profile(language, payload.primary_background, payload.presets,
                                   payload.confirm, reviewer="studio settings")
     except ST.StudioError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     return {"validation": check, **ST.studios_view()}
 
 
@@ -62,7 +62,7 @@ def studio_image(asset_id: str, full: bool = False):
             return FileResponse(p, media_type="image/png")
         return FileResponse(ST.thumbnail(asset_id, reg), media_type="image/jpeg")
     except ST.StudioError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/api/studios/sync")
@@ -118,7 +118,7 @@ def plan_scenes(host_segments_id: int, db: Session = Depends(get_db)):
     try:
         return [scene_dict(s) for s in plan_host_scenes(db, row)]
     except ST.StudioError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 class SceneRun(BaseModel):

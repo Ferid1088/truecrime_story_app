@@ -35,7 +35,7 @@ async def discover_topics(payload: TopicDiscoveryRequest, db: Session = Depends(
     try:
         job = await research_jobs.start_discovery_job(db, payload)
     except ProviderError as e:
-        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}")
+        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}") from e
     return {"job_id": job.id, "status": job.status}
 
 

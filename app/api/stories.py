@@ -72,7 +72,7 @@ async def generate_story(case_id: int, payload: GenerateStoryRequest, db: Sessio
             "story_text": story.story_text,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/api/cases/{case_id}/improve-story")
@@ -92,7 +92,7 @@ async def improve_story(case_id: int, payload: ImproveStoryRequest, db: Session 
         )
         return story_full_dict(new_version)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/api/cases/{case_id}/stories")
@@ -175,11 +175,11 @@ async def render_story_voice(
         )
     except VoiceProviderError as e:
         code = 503 if e.kind == "missing_credentials" else 502
-        raise HTTPException(status_code=code, detail={"code": e.kind, "message": str(e)})
+        raise HTTPException(status_code=code, detail={"code": e.kind, "message": str(e)}) from e
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except AudioToolError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     summary = voice_summary(manifest)
     summary["blueprint_used"] = plan.get("blueprint_used", False)
     summary["directed"] = plan.get("directed", False)
@@ -200,9 +200,9 @@ async def create_spoken_version(
     try:
         spoken = await SpokenNarrator().create(db, case, story, language)
     except (RuntimeError, ValueError) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except GenerationError as e:
-        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)})
+        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)}) from e
     body = story_full_dict(spoken)
     body["spoken_checks"] = (json.loads(spoken.critic_notes or "{}").get("spoken"))
     return body
@@ -234,9 +234,9 @@ async def create_audio_plan(case_id: int, version_id: int, db: Session = Depends
     try:
         plan = await AudioDirector().create(db, case, row)
     except RuntimeError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except GenerationError as e:
-        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)})
+        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)}) from e
     return audio_plan_dict(plan)
 
 
@@ -264,9 +264,9 @@ async def create_story_blueprint(
     try:
         row = await NarrativeDirector().create(db, case, story)
     except RuntimeError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except GenerationError as e:
-        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)})
+        raise HTTPException(status_code=502, detail={"code": e.kind, "message": str(e)}) from e
     return blueprint_dict(row)
 
 
@@ -373,7 +373,7 @@ def story_voice_eq_preview(case_id: int, version_id: int,
                                   payload.seconds, ai_config.loudness.sample_rate)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500,
-                            detail=f"EQ preview failed: {type(e).__name__}: {e}")
+                            detail=f"EQ preview failed: {type(e).__name__}: {e}") from e
     return {"mp3_url": f"/api/cases/{case_id}/stories/{version_id}/voice"
                        f"/preview/{report['mp3']}",
             "report": report}

@@ -258,7 +258,7 @@ def approve_follow_up(fu_id: int, payload: ApproveRequest, db: Session = Depends
                         pilot_seconds=payload.pilot_seconds or (
                             ai_config.documentary.pilot_seconds if payload.mode == "pilot" else None))
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return {"follow_up": F.candidate_dict(db, fu), "job": J.job_dict(job)}
 
 
@@ -270,7 +270,7 @@ def dismiss_follow_up(fu_id: int, db: Session = Depends(get_db)):
     try:
         F.dismiss(db, fu)
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return F.candidate_dict(db, fu)
 
 

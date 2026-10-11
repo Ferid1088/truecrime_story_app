@@ -94,7 +94,7 @@ async def compose(case_id: int, req: ComposeRequest, db: Session = Depends(get_d
             primary_asset_id=req.primary_asset_id, secondary_asset_id=req.secondary_asset_id,
             text=req.text)
     except (B.BriefRefused, H.HostMissing) as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     return SV.thumbnail_dict(t)
 
 
@@ -106,7 +106,7 @@ def decide(thumbnail_id: int, req: DecisionRequest, db: Session = Depends(get_db
     try:
         return SV.thumbnail_dict(SV.decide(db, t, req.approve, override=req.override))
     except SV.ThumbnailRefused as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router.get("/api/thumbnails/{thumbnail_id}/image")

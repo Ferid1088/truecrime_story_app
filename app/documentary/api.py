@@ -652,7 +652,7 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
                 a = await FT.add_uploaded_video(db, case, src, name, title, caption, role,
                                                 rights, start)
             except FT.FootageError as e:
-                raise HTTPException(status_code=422, detail=str(e))
+                raise HTTPException(status_code=422, detail=str(e)) from e
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
     else:
@@ -662,7 +662,7 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
         try:
             a = add_uploaded_image(db, case, data, name, title, caption, role, rights)
         except ImageError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=422, detail=str(e)) from e
     _verify_later(case.id, a.id)
     return asset_dict(a)
 

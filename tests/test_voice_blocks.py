@@ -228,7 +228,7 @@ def test_language_speed_changes_duration_estimate():
 
 
 def test_config_rejects_inconsistent_limits():
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         VoiceBlocksConfig(min_seconds=60, target_seconds=30, max_seconds=90)
 
 
