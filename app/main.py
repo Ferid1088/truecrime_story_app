@@ -33,10 +33,21 @@ async def _lifespan(_app):
     finally:
         db.close()
     observability.purge_old_calls()
+    from app import backup as backup_service
+
+    db = SessionLocal()
+    try:
+        backup_service.recover_interrupted(db)
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).error("backup recovery failed: %s", e)
+    finally:
+        db.close()
     scheduler.start()
+    backup_service.start()
     try:
         yield
     finally:
+        backup_service.stop()
         scheduler.stop()
 
 
@@ -47,7 +58,7 @@ app = FastAPI(
     description="Research -> Facts -> Contradictions -> Story Direction -> Writing -> Critique",
 )
 
-from app.api import cases, discovery, masters, ops, research, stories, system  # noqa: E402
+from app.api import backup as backup_api, cases, discovery, masters, ops, research, stories, system  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
@@ -72,6 +83,7 @@ for _router in (
     stories.router,
     masters.router,
     ops.router,
+    backup_api.router,
 ):
     app.include_router(_router)
 

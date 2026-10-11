@@ -632,3 +632,36 @@ export const opsApi = {
       `/api/ops/provider-calls?limit=${opts.limit ?? 50}${opts.onlyErrors ? "&only_errors=true" : ""}`,
     ),
 };
+
+export type BackupSettings = {
+  enabled: boolean;
+  dir: string;
+  every_hours: number;
+  start_time: string;
+  keep_last: number;
+};
+export type BackupRunRow = {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  trigger: "manual" | "scheduled";
+  status: "running" | "ok" | "failed";
+  dest_dir: string;
+  file_path: string | null;
+  size_bytes: number | null;
+  error: string | null;
+};
+export type BackupOverview = {
+  settings: BackupSettings;
+  database: string;
+  next_run_at: string | null;
+  running: boolean;
+  last_ok_at: string | null;
+  runs: BackupRunRow[];
+};
+
+export const backupApi = {
+  overview: () => request<BackupOverview>("/api/backup"),
+  saveSettings: (s: BackupSettings) => put<BackupSettings>("/api/backup/settings", s),
+  runNow: (dir: string) => request<BackupRunRow>("/api/backup/run", { method: "POST", body: JSON.stringify({ dir }) }),
+};

@@ -39,3 +39,6 @@ Follow `docs/postgres.md` (copy tool + checks), pointing `DATABASE_URL` at the c
 ## Limits worth knowing
 - The container file system is writable for api/worker because the dynamic-EQ setting is saved into `config/`; that single change is lost when the image is rebuilt.
 - CI builds the images with `PY_REQUIREMENTS=requirements.txt` (no torch/whisper) to stay fast; your own build includes them by default.
+
+## Backups from the web UI
+The Dashboard has a backup card (see `docs/operations.md`). In Docker, `BACKUP_DIR` (default `./backups`) is mounted as `/backups`; enter `/backups` as the folder. The directory must exist and be writable by uid 10001 (`mkdir -p backups && sudo chown 10001 backups`).

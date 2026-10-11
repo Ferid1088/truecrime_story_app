@@ -23,6 +23,9 @@ x-app-service: &app-service
   environment: *app-env
   volumes:
     - tc_data:/app/data
+    # Where the in-app backup button writes. Create it first and let the app user write to it:
+    #   mkdir -p backups && sudo chown 10001 backups      (or point BACKUP_DIR at an external drive)
+    - ${BACKUP_DIR:-./backups}:/backups
   restart: unless-stopped
   # Not read-only: the app writes models caches under its home and the dynamic-EQ setting into config/.
   tmpfs:

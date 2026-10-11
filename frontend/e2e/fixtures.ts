@@ -467,6 +467,10 @@ export interface MockOptions {
  */
 export async function mockApi(page: Page, opts: MockOptions = {}) {
   const jobCalls = new Map<string, number>();
+  const backup = {
+    settings: { enabled: false, dir: "", every_hours: 24, start_time: "02:00", keep_last: 14 },
+    runs: [] as Record<string, unknown>[],
+  };
   let dashboardCalls = 0;
 
   await page.route("**/api/**", (route) => {
@@ -474,6 +478,37 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     const path = url.pathname;
     const method = route.request().method();
 
+    if (path === "/api/backup" && method === "GET")
+      return json(route, {
+        settings: backup.settings,
+        database: "sqlite",
+        next_run_at: backup.settings.enabled ? "2026-10-12T00:00:00Z" : null,
+        running: false,
+        last_ok_at: (backup.runs.find((r) => r.status === "ok")?.started_at as string) ?? null,
+        runs: backup.runs,
+      });
+    if (path === "/api/backup/settings" && method === "PUT") {
+      backup.settings = route.request().postDataJSON();
+      return json(route, backup.settings);
+    }
+    if (path === "/api/backup/run" && method === "POST") {
+      const dir = route.request().postDataJSON().dir as string;
+      backup.settings = { ...backup.settings, dir };
+      const ok = !dir.includes("unplugged");
+      const run = {
+        id: backup.runs.length + 1,
+        started_at: "2026-10-11T20:00:00Z",
+        finished_at: "2026-10-11T20:00:02Z",
+        trigger: "manual",
+        status: ok ? "ok" : "failed",
+        dest_dir: dir,
+        file_path: ok ? `${dir}/truecrime-backup-20261011-220000.db` : null,
+        size_bytes: ok ? 20557824 : null,
+        error: ok ? null : `Folder not found: ${dir}. Is the drive connected?`,
+      };
+      backup.runs.unshift(run);
+      return json(route, run);
+    }
     if (path === "/api/ops/summary")
       return json(route, {
         window_hours: 24,

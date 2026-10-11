@@ -3,7 +3,7 @@
 Format: newest first. Versions are git tags (`vMAJOR.MINOR.PATCH`); see `docs/release.md`.
 
 ## Unreleased
-Nothing yet.
+- Dashboard: database backup to a chosen folder (external drive) with "Back up now" and an automatic schedule (every N hours from a start time, timestamped files, keep last N). Migration 0006.
 
 ## 1.0.0 — enterprise hardening (October 2026)
 ### Data

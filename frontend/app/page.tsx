@@ -27,6 +27,7 @@ import {
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { FollowUpCard } from "@/components/lifecycle/follow-up-card";
 import { MonitorStatusCard } from "@/components/lifecycle/monitor-status";
+import { BackupCard } from "@/components/backup-card";
 import type { DocumentaryJob, FollowUpCandidate, ResolutionStatus } from "@/lib/types";
 
 const KNOWN_AGENTS = [
@@ -129,6 +130,7 @@ export default function DashboardPage() {
           {data.resolution_counts && <ResolutionTiles counts={data.resolution_counts} />}
 
           <MonitorStatusCard onRunFinished={refresh} />
+          <BackupCard />
 
           <Card>
             <CardHeader>

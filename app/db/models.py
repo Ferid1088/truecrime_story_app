@@ -1654,3 +1654,29 @@ class ProviderCall(Base):
     cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     error: Mapped[str | None] = mapped_column(String(200), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class AppSetting(Base):
+    """Small operator settings that must survive restarts (backup schedule...). One JSON document per key."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value_json: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class BackupRun(Base):
+    """One database backup, manual or scheduled."""
+
+    __tablename__ = "backup_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    trigger: Mapped[str] = mapped_column(String(12), default="manual")   # manual | scheduled
+    status: Mapped[str] = mapped_column(String(12), default="running", index=True)  # running | ok | failed
+    dest_dir: Mapped[str] = mapped_column(Text, default="")
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)

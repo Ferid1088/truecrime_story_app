@@ -17,7 +17,8 @@ RUN if grep -q '^torch' "$REQUIREMENTS"; then pip install torch --index-url http
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 # ffmpeg: audio decode/trim/loudness and video rendering in the documentary pipeline
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# postgresql-client: pg_dump for the in-app database backup
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app
