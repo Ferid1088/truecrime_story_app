@@ -12,8 +12,8 @@ import logging
 from typing import ClassVar
 
 from app.core.concurrency import gather_limited
-from app.db.models import DocumentaryJob
 from app.core.policy import warning_for
+from app.db.models import DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
 from app.services.tracking import documentary_run_context
 from app.utils import utc_now

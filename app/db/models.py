@@ -1664,6 +1664,41 @@ class ProviderCall(Base):
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
+class PolicyEvent(Base):
+    """Durable record of a policy decision or retry/audit outcome."""
+
+    __tablename__ = "policy_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    production_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    policy: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    rule_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    decision: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class OverrideLog(Base):
+    """Every human override, including who made it and how it was reverted."""
+
+    __tablename__ = "override_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+    actor: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    scope_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    scope_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    field: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    old_value_json: Mapped[str] = mapped_column(Text, default="null")
+    new_value_json: Mapped[str] = mapped_column(Text, default="null")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reverted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    reverted_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
 class AppSetting(Base):
     """Small operator settings that must survive restarts (backup schedule...). One JSON document per key."""
 

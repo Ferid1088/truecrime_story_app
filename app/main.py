@@ -6,8 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.schema import init_schema
 from app.core.policy import PolicyError, policy_exception_handler
+from app.db.schema import init_schema
 
 init_schema()
 
@@ -19,10 +19,9 @@ observability.setup()
 @asynccontextmanager
 async def _lifespan(_app):
     """Recover interrupted work on startup and run the lifecycle scheduler."""
+    from app.db.base import SessionLocal
     from app.documentary.recovery import recover_after_restart
     from app.lifecycle import scheduler
-
-    from app.db.base import SessionLocal
 
     db = SessionLocal()
     try:
@@ -60,7 +59,8 @@ app = FastAPI(
 )
 app.add_exception_handler(PolicyError, policy_exception_handler)
 
-from app.api import backup as backup_api, cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
+from app.api import backup as backup_api  # noqa: E402
+from app.api import cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
