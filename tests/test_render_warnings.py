@@ -13,3 +13,9 @@ def test_failed_channel_intro_returns_reason_without_failing_render(monkeypatch)
     assert status_for_result({"warnings": [{"stage": "render", "reason": reason}]}) == \
         "completed_warnings"
     assert status_for_result({"errors": {"fa": "failed"}, "warnings": []}) == "partial"
+
+
+def test_warning_completion_uses_the_persisted_status_literal():
+    assert status_for_result({"warnings": [{"stage": "render", "reason": "missing intro"}]}) == \
+        "completed_warnings"
+    assert status_for_result({}) == "completed"
