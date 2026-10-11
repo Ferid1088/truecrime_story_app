@@ -42,8 +42,6 @@ def channel(tmp_path, monkeypatch):
 
 def test_concepts_and_defaults():
     # the producer's choice: ClueVera B, Fallspur A, Persian moonrise, Arabic B
-    assert IN.DEFAULT_CONCEPT == {"en": "flashlight", "de": "trail_stamp", "fa": "moonrise",
-                                  "ar": "sand"}
     assert all(5.0 <= c.seconds <= 7.0 for c in IN.CONCEPTS.values())
     assert {ai_config.channels[lg].intro_concept for lg in ("en", "de", "fa", "ar")} == \
         {"flashlight", "trail_stamp", "moonrise", "sand"}

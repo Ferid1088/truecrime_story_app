@@ -65,12 +65,6 @@ CONCEPTS = {
     "arch": Concept("arch", 6.0, 620),
     "sand": Concept("sand", 6.0, 620),
 }
-# the producer's choice (10 Oct): ClueVera B, Fallspur A, Persian moonrise
-# on a classical guitar's bass strings, Arabic B
-DEFAULT_CONCEPT = {"en": "flashlight", "de": "trail_stamp", "fa": "moonrise", "ar": "sand"}
-DEFAULT_LOGO = {"en": "data/logos/Logo_English.png", "de": "data/logos/Logo_German.png",
-                "fa": "data/logos/Logo_Persian.png", "ar": "data/logos/Logo_Arabic.png"}
-
 _LOCK = threading.Lock()
 
 
@@ -92,8 +86,8 @@ def ease_out(p):
 def channel_intro(language: str) -> tuple[str, Path] | None:
     """(concept, logo path) of a channel, None without a logo."""
     ch = ai_config.channels.get(language)
-    concept = (getattr(ch, "intro_concept", None) if ch else None) or DEFAULT_CONCEPT.get(language)
-    logo = (getattr(ch, "logo", None) if ch else None) or DEFAULT_LOGO.get(language)
+    concept = getattr(ch, "intro_concept", None) if ch else None
+    logo = getattr(ch, "logo", None) if ch else None
     if not concept or concept not in CONCEPTS or not logo:
         return None
     path = Path(logo)

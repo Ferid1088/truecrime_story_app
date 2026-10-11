@@ -8,6 +8,8 @@ instead of degrading silently mid-pipeline.
 """
 
 import json
+import logging
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -2328,6 +2330,91 @@ def load_ai_config(config_dir: Path = CONFIG_DIR) -> AIConfig:
 
 
 ai_config = load_ai_config()
+
+
+def _schema_node(schema: dict, root: dict) -> dict:
+    ref = schema.get("$ref")
+    if not ref:
+        return schema
+    return root.get("$defs", {}).get(ref.rsplit("/", 1)[-1], {})
+
+
+def _unknown_keys(value: object, schema: dict, root: dict, path: str) -> list[str]:
+    """Return JSON keys not represented by the typed configuration schema.
+
+    Maps such as agents, channels and model aliases intentionally have dynamic
+    keys; their values are checked against the declared value schema instead.
+    """
+    if not isinstance(value, dict):
+        return []
+    schema = _schema_node(schema, root)
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        out: list[str] = []
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else key
+            if key not in properties:
+                out.append(child_path)
+            else:
+                out.extend(_unknown_keys(child, properties[key], root, child_path))
+        return out
+    additional = schema.get("additionalProperties")
+    if isinstance(additional, dict):
+        out = []
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else key
+            out.extend(_unknown_keys(child, additional, root, child_path))
+        return out
+    return []
+
+
+def unknown_config_keys(config_dir: Path = CONFIG_DIR) -> list[str]:
+    """List unknown JSON keys without making startup fail."""
+    schema = AIConfig.model_json_schema()
+    out: list[str] = []
+    for source in config_files(config_dir):
+        data = json.loads(source.read_text(encoding="utf-8"))
+        for key in _unknown_keys(data, schema, schema, ""):
+            out.append(f"{source.name}:{key}")
+    return sorted(out)
+
+
+def unknown_truecrime_env_vars(raw: dict | None = None) -> list[str]:
+    """List configured-prefix environment variables with no known consumer."""
+    raw = raw or load_raw_config()
+    known = {
+        "TRUECRIME_SEARXNG_URL",
+        "TRUECRIME_DISABLE_SCHEDULER",
+        "TRUECRIME_YOUTUBE_API_KEY",
+    }
+
+    def walk(value: object, key: str = "") -> None:
+        if isinstance(value, dict):
+            for child_key, child in value.items():
+                walk(child, child_key)
+        elif isinstance(value, str) and key.endswith("_env"):
+            known.add(value.upper())
+
+    walk(raw)
+    return sorted(
+        name for name in os.environ
+        if name.upper().startswith("TRUECRIME_") and name.upper() not in known
+    )
+
+
+def warn_unknown_configuration() -> None:
+    """Log configuration drift while retaining permissive startup behavior."""
+    log = logging.getLogger(__name__)
+    unknown_json = unknown_config_keys()
+    unknown_env = unknown_truecrime_env_vars()
+    if unknown_json:
+        log.warning("Unknown AI config keys (ignored): %s", ", ".join(unknown_json))
+    if unknown_env:
+        log.warning("Unknown TRUECRIME_* environment variables (ignored): %s",
+                    ", ".join(unknown_env))
+
+
+warn_unknown_configuration()
 
 
 def save_dynamic_eq(cfg: DynamicEQConfig) -> DynamicEQConfig:

@@ -22,6 +22,7 @@
       "fa",
       "ar"
     ],
+    "max_redos": 2,
     "min_film_minutes": 45,
     "max_film_minutes": 120,
     "pilot_seconds": 180,
@@ -60,6 +61,7 @@
     "enabled": true,
     "max_mid_segments": 2,
     "max_total_share": 0.08,
+    "max_total_seconds": 180,
     "min_beats_between": 3,
     "pace_factor": 1.08,
     "max_repair_iterations": 2
