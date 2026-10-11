@@ -1632,3 +1632,25 @@ class Thumbnail(Base):
     status_label: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class ProviderCall(Base):
+    """One outgoing HTTP call to an outside service (LLM, voice, search, stock footage...).
+    Only host, path (no query string), status, timing and usage numbers are kept, never keys or content."""
+
+    __tablename__ = "provider_calls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+    host: Mapped[str] = mapped_column(String(120), index=True)
+    method: Mapped[str] = mapped_column(String(10))
+    path: Mapped[str] = mapped_column(String(300))
+    status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    bytes_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

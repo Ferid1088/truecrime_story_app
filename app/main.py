@@ -10,6 +10,10 @@ from app.db.schema import init_schema
 
 init_schema()
 
+from app.core import observability  # noqa: E402
+
+observability.setup()
+
 
 @asynccontextmanager
 async def _lifespan(_app):
@@ -28,6 +32,7 @@ async def _lifespan(_app):
         logging.getLogger(__name__).error("startup recovery failed: %s", e)
     finally:
         db.close()
+    observability.purge_old_calls()
     scheduler.start()
     try:
         yield
@@ -42,7 +47,7 @@ app = FastAPI(
     description="Research -> Facts -> Contradictions -> Story Direction -> Writing -> Critique",
 )
 
-from app.api import cases, discovery, masters, research, stories, system  # noqa: E402
+from app.api import cases, discovery, masters, ops, research, stories, system  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
@@ -66,6 +71,7 @@ for _router in (
     research.router,
     stories.router,
     masters.router,
+    ops.router,
 ):
     app.include_router(_router)
 
@@ -81,3 +87,5 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+# Last added = outermost: the request id and the access log cover everything, security answers included.
+app.add_middleware(observability.RequestContextMiddleware)

@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     # A job found dead is queued again automatically at most this many times (finished stages are reused).
     job_max_auto_resumes: int = 2
 
+    # --- observability --------------------------------------------------------------------
+    log_level: str = "INFO"
+    # "text" for a terminal, "json" for log collectors (one JSON object per line).
+    log_format: str = "text"
+    # Record every outgoing call to an outside service (host, path, status, time, tokens, cost).
+    provider_ledger: bool = True
+    provider_ledger_days: int = 90
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

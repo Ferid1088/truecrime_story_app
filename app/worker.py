@@ -193,7 +193,9 @@ class Worker:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    from app.core import observability
+
+    observability.setup()
     if settings.job_runner != "external":
         raise SystemExit("Set JOB_RUNNER=external for both the worker and the API, otherwise the API runs the jobs itself.")
     from app.db.schema import init_schema
