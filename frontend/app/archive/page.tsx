@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Clapperboard, CornerDownRight, ExternalLink, MapPin, RefreshCw } from "lucide-react";
+import { BarChart3, Clapperboard, CornerDownRight, ExternalLink, MapPin, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDate, langLabel } from "@/lib/format";
@@ -209,6 +209,9 @@ function ArchiveFilm({ film: f, original, followUps }: { film: Film; original: F
         )}
         {f.opening_strategy && <span>opening: {openingLabel(f.opening_strategy)}</span>}
         <YouTubeLink film={f} />
+        <Link href={`/videos/${f.id}/analysis`} className="inline-flex items-center gap-1 text-primary hover:underline">
+          <BarChart3 className="size-3" aria-hidden /> Cost analysis
+        </Link>
       </div>
       {f.production_type === "follow_up" && (
         <p className="flex flex-wrap items-center gap-1 text-muted-foreground">

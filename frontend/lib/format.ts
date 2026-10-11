@@ -44,6 +44,15 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+export function formatUsd(value: number | null | undefined): string {
+  if (value == null) return "Unreported";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value < 0.01 ? 6 : 4,
+  }).format(value);
+}
+
 export function estimateMinutes(words: number): number {
   return Math.max(1, Math.round(words / 135));
 }

@@ -14,6 +14,7 @@ from typing import ClassVar
 from app.core.concurrency import gather_limited
 from app.db.models import DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
+from app.services.tracking import documentary_run_context
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -86,7 +87,16 @@ class StageRunner:
         self.running.append(name)
         self._save()
         try:
-            detail = await fn()
+            language = None
+            pipeline_stage = name
+            for candidate in json.loads(self.job.languages_json or "[]"):
+                suffix = f":{candidate}"
+                if name.endswith(suffix):
+                    language = candidate
+                    pipeline_stage = name[:-len(suffix)]
+                    break
+            with documentary_run_context(self.job.id, language, pipeline_stage):
+                detail = await fn()
         except Exception as e:
             st["status"] = "failed"
             st["detail"] = str(e)[:500]

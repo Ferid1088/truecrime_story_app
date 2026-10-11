@@ -106,6 +106,34 @@ export interface DashboardResponse {
   resolution_counts: Record<ResolutionStatus, number>;
 }
 
+export interface VideoCostSummaryRow {
+  video_id: number;
+  case_id: number;
+  case_title: string | null;
+  language: string;
+  title: string | null;
+  state: FilmState;
+  direct_cost_usd: number | null;
+  shared_allocation_usd: number | null;
+  fully_loaded_cost_usd: number | null;
+  run_count: number;
+  missing_cost_runs: number;
+}
+
+export interface VideoCostSummary {
+  scope: "archived_library" | string;
+  states: FilmState[];
+  summary: {
+    video_count: number;
+    job_count: number;
+    direct_cost_usd: number | null;
+    shared_cost_usd: number | null;
+    total_cost_usd: number | null;
+    missing_cost_runs: number;
+  };
+  videos: VideoCostSummaryRow[];
+}
+
 export interface Source {
   id: number;
   case_id: number;
@@ -396,6 +424,9 @@ export interface StoryFull extends StoryMeta {
 export interface AgentRun {
   id: number;
   case_id: number | null;
+  documentary_job_id: number | null;
+  language: string | null;
+  pipeline_stage: string | null;
   case_title?: string | null;
   agent_name: string;
   status: RunStatus;
@@ -684,6 +715,48 @@ export interface Film {
   created_at: string;
   /** Relative API path — prefix with API_BASE. */
   video_url: string | null;
+}
+
+export interface VideoCostRun extends AgentRun {
+  scope: "direct" | "shared";
+}
+
+export interface VideoCostDetail {
+  video: Film & { case_title: string | null };
+  job: {
+    id: number;
+    status: string;
+    mode: string;
+    created_at: string;
+    completed_at: string | null;
+    languages: string[];
+  } | null;
+  summary: {
+    direct: {
+      run_count: number;
+      priced_run_count: number;
+      missing_cost_runs: number;
+      cost_usd: number | null;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    };
+    shared: {
+      run_count: number;
+      priced_run_count: number;
+      missing_cost_runs: number;
+      cost_usd: number | null;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    };
+    shared_allocation_usd: number | null;
+    fully_loaded_cost_usd: number | null;
+    output_count: number;
+    attribution: "documentary_job" | "unavailable" | string;
+  };
+  outputs: VideoCostSummaryRow[];
+  runs: VideoCostRun[];
 }
 
 /** GET /api/films */

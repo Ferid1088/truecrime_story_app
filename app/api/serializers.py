@@ -137,6 +137,9 @@ def agent_run_dict(r: AgentRun) -> dict:
     return {
         "id": r.id,
         "case_id": r.case_id,
+        "documentary_job_id": r.documentary_job_id,
+        "language": r.language,
+        "pipeline_stage": r.pipeline_stage,
         "agent_name": r.agent_name,
         "status": r.status,
         "started_at": r.started_at,

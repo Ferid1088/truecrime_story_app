@@ -37,6 +37,9 @@ data/studio_thumbs/
 # regenerable caches
 data/embedding_cache/
 
+# Generated longform verification traces
+reports/longform_gates/phase_15_trace*/
+
 # channel intro renders (regenerated from the logo + concept fingerprint)
 data/intros/
 

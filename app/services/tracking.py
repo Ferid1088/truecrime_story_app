@@ -1,11 +1,41 @@
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import AgentRun
 from app.utils import ensure_utc, utc_now
 from app.providers.generation.base import GenerationResult
+
+
+_run_context: ContextVar[dict | None] = ContextVar("agent_run_context", default=None)
+
+
+@contextmanager
+def documentary_run_context(
+    documentary_job_id: int | None = None,
+    language: str | None = None,
+    pipeline_stage: str | None = None,
+):
+    """Attach documentary job metadata to every nested AgentRun.
+
+    Context variables are task-local, so parallel language branches do not
+    leak attribution into one another.
+    """
+    token = _run_context.set({
+        "documentary_job_id": documentary_job_id,
+        "language": language,
+        "pipeline_stage": pipeline_stage,
+    })
+    try:
+        yield
+    finally:
+        _run_context.reset(token)
+
+
+def _documentary_metadata() -> dict:
+    return _run_context.get() or {}
 
 
 def record_run(
@@ -24,6 +54,7 @@ def record_run(
         duration = int((completed - ensure_utc(started_at)).total_seconds() * 1000)
     row = AgentRun(
         case_id=case_id,
+        **_documentary_metadata(),
         agent_name=agent_name,
         status=status,
         started_at=ensure_utc(started_at) or utc_now(),
@@ -46,6 +77,7 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
     monotonic = time.monotonic()
     row = AgentRun(
         case_id=case_id,
+        **_documentary_metadata(),
         agent_name=agent_name,
         status="running",
         started_at=started,

@@ -244,6 +244,14 @@ class AgentRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    # Documentary attribution. A shared stage has language=None and is
+    # counted once for the job; language branches are attributed to the
+    # corresponding film output after it is rendered.
+    documentary_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documentary_jobs.id"), nullable=True, index=True
+    )
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    pipeline_stage: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
 
     agent_name: Mapped[str] = mapped_column(String(200), index=True)
     status: Mapped[str] = mapped_column(String(50), default="running", index=True)

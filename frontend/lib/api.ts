@@ -83,6 +83,8 @@ import type {
   VoiceDynamics,
   VoiceManifest,
   VoicePerformance,
+  VideoCostDetail,
+  VideoCostSummary,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -303,6 +305,8 @@ export const api = {
     post<FilmListItem & { follow_ups: Film[] }>(`/api/films/${videoId}/archive`),
   archive: (status: ArchiveFilter = "ALL") =>
     request<ArchiveResponse>(`/api/archive${query({ status })}`),
+  videoCostSummary: () => request<VideoCostSummary>("/api/costs/videos"),
+  videoCostDetail: (videoId: number) => request<VideoCostDetail>(`/api/costs/videos/${videoId}`),
 
   followUps: (state: FollowUpState | "all" = "pending") =>
     request<FollowUpCandidate[]>(`/api/follow-ups${query({ state })}`),

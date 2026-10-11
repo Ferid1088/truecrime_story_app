@@ -58,7 +58,7 @@ app = FastAPI(
     description="Research -> Facts -> Contradictions -> Story Direction -> Writing -> Critique",
 )
 
-from app.api import backup as backup_api, cases, discovery, masters, ops, research, stories, system  # noqa: E402
+from app.api import backup as backup_api, cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
@@ -77,6 +77,7 @@ for _router in (
     studio_router,
     shortform_router,
     system.router,
+    costs.router,
     discovery.router,
     cases.router,
     research.router,

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  ArrowUpRight,
   BookOpen,
+  Coins,
   FileText,
   FlaskConical,
   FolderOpen,
@@ -12,7 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { formatDate, formatDuration } from "@/lib/format";
+import { formatDate, formatDuration, formatUsd, langLabel } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
@@ -28,7 +30,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { FollowUpCard } from "@/components/lifecycle/follow-up-card";
 import { MonitorStatusCard } from "@/components/lifecycle/monitor-status";
 import { BackupCard } from "@/components/backup-card";
-import type { DocumentaryJob, FollowUpCandidate, ResolutionStatus } from "@/lib/types";
+import type { DocumentaryJob, FollowUpCandidate, ResolutionStatus, VideoCostSummary } from "@/lib/types";
 
 const KNOWN_AGENTS = [
   "Discovery Agent",
@@ -49,6 +51,7 @@ export default function DashboardPage() {
   // keepPrevious: refreshing after a follow-up decision or a monitor run
   // keeps the dashboard on screen.
   const { data, error, loading, refetch } = useApi(() => api.dashboard(), [tick], { keepPrevious: true });
+  const costs = useApi(() => api.videoCostSummary(), [tick], { keepPrevious: true });
   const [started, setStarted] = useState<{ fu: FollowUpCandidate; job: DocumentaryJob } | null>(null);
   const refresh = () => setTick((t) => t + 1);
   const followUps = data?.follow_up_candidates ?? [];
@@ -126,6 +129,8 @@ export default function DashboardPage() {
             <Stat icon={Timer} label="Waiting for Research" value={data.stats.cases_waiting} />
             <Stat icon={Link2} label="Sources Collected" value={data.stats.sources_collected} />
           </div>
+
+          <ArchivedVideoCosts state={costs} />
 
           {data.resolution_counts && <ResolutionTiles counts={data.resolution_counts} />}
 
@@ -245,6 +250,92 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function ArchivedVideoCosts({ state }: { state: ReturnType<typeof useApi<VideoCostSummary>> }) {
+  const summary = state.data?.summary;
+  const videos = state.data?.videos ?? [];
+  return (
+    <Card>
+      <CardHeader className="flex-wrap gap-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Coins className="size-4 text-amber-500" aria-hidden />
+            Archived video spend
+          </CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Reported model cost across published and archived videos. Shared production work is counted once.
+          </p>
+        </div>
+        <Link href="/archive" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+          Open archive <ArrowUpRight className="size-3.5" aria-hidden />
+        </Link>
+      </CardHeader>
+      <CardContent>
+        {state.loading && !state.data ? (
+          <Skeleton className="h-24" />
+        ) : state.error && !state.data ? (
+          <p className="text-sm text-muted-foreground">Could not load cost data: {state.error}</p>
+        ) : !summary || summary.video_count === 0 ? (
+          <p className="text-sm text-muted-foreground">No published or archived videos have cost records yet.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <CostStat label="Total" value={formatUsd(summary.total_cost_usd)} tone="amber" />
+              <CostStat label="Direct video work" value={formatUsd(summary.direct_cost_usd)} />
+              <CostStat label="Shared production" value={formatUsd(summary.shared_cost_usd)} />
+              <CostStat label="Videos" value={String(summary.video_count)} />
+            </div>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full min-w-[680px] text-sm">
+                <thead className="border-b border-border bg-muted/30">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Video</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Language</th>
+                    <th className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Direct</th>
+                    <th className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Shared allocation</th>
+                    <th className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {videos.slice(0, 8).map((video) => (
+                    <tr key={video.video_id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                      <td className="max-w-[260px] px-3 py-2.5">
+                        <Link href={`/videos/${video.video_id}/analysis`} className="block truncate font-medium hover:text-primary">
+                          {video.title || video.case_title || `Video #${video.video_id}`}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">{video.case_title || `Case #${video.case_id}`}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">{langLabel(video.language)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{formatUsd(video.direct_cost_usd)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{formatUsd(video.shared_allocation_usd)}</td>
+                      <td className="px-3 py-2.5 text-right font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                        {formatUsd(video.fully_loaded_cost_usd)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {summary.missing_cost_runs > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {summary.missing_cost_runs} run{summary.missing_cost_runs === 1 ? "" : "s"} have token data but no provider-reported price.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CostStat({ label, value, tone }: { label: string; value: string; tone?: "amber" }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5">
+      <p className={`text-lg font-semibold tabular-nums ${tone === "amber" ? "text-amber-600 dark:text-amber-400" : ""}`}>{value}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }
