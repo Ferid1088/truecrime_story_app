@@ -86,6 +86,34 @@ For columns whose type and default are unchanged, the only metadata difference
 is nullability. The migration schema also has server defaults for several
 columns; those are recorded in the detailed comparison but are not row data.
 
+Exact changed-column metadata (`live` → `0001–0009`) is:
+
+| Table.column | Live type / nullable / default | Expected type / nullable / default |
+|---|---|---|
+| `agent_runs.fallback_used` | BOOLEAN / NULL / `0` | BOOLEAN / NOT NULL / `0` |
+| `cases.aliases_json`, `identifiers_json`, `people_json` | TEXT / NULL / `'[]'` | TEXT / NOT NULL / `'[]'` |
+| `cases.resolution_status` | VARCHAR(30) / NULL / `'UNKNOWN'` | VARCHAR(30) / NOT NULL / `'UNKNOWN'` |
+| `discovery_candidates.aliases_json`, `people_json`, `source_urls_json` | TEXT / NULL / `'[]'` | TEXT / NOT NULL / `'[]'` |
+| `discovery_candidates.resolution_status` | VARCHAR(30) / NULL / `'UNKNOWN'` | VARCHAR(30) / NOT NULL / `'UNKNOWN'` |
+| `discovery_candidates.state` | VARCHAR(20) / NULL / `'suggested'` | VARCHAR(20) / NOT NULL / `'suggested'` |
+| `documentary_jobs.production_type` | VARCHAR(20) / NULL / `'original'` | VARCHAR(20) / NOT NULL / `'original'` |
+| `epistemic_claims.assertion_role` | VARCHAR(40) / NULL / `'NARRATOR_ASSERTION'` | VARCHAR(40) / NOT NULL / `'NARRATOR_ASSERTION'` |
+| `epistemic_claims.origin` | VARCHAR(20) / NOT NULL / none | VARCHAR(40) / NOT NULL / none |
+| `facts.chunk_ids_json`, `locations_json`, `people_json`, `transcript_claim_ids_json` | TEXT / NULL / `'[]'` | TEXT / NOT NULL / `'[]'` |
+| `facts.original_language` | VARCHAR(20) / NULL / `'en'` | VARCHAR(20) / NOT NULL / `'en'` |
+| `sources.content_status` | VARCHAR(30) / NULL / `'summary_only'` | VARCHAR(30) / NOT NULL / `'summary_only'` |
+| `sources.status` | VARCHAR(50) / NULL / `'active'` | VARCHAR(50) / NOT NULL / `'active'` |
+| `story_versions.is_best` | BOOLEAN / NULL / `0` | BOOLEAN / NOT NULL / `0` |
+| `story_versions.kind` | VARCHAR(20) / NULL / `'direct'` | VARCHAR(20) / NOT NULL / `'direct'` |
+| `story_versions.language` | VARCHAR(20) / NULL / `'fa'` | VARCHAR(20) / NOT NULL / `'fa'` |
+| `story_versions.similarity_status` | VARCHAR(30) / NULL / `'not_evaluated'` | VARCHAR(30) / NOT NULL / `'not_evaluated'` |
+| `story_versions.status` | VARCHAR(20) / NULL / `'draft'` | VARCHAR(20) / NOT NULL / `'draft'` |
+| `videos.render_profile` | VARCHAR(10) / NULL / `'preview'` | VARCHAR(10) / NOT NULL / `'preview'` |
+| `visual_audits.detail_json` | TEXT / NULL / `'{}'` | TEXT / NOT NULL / `'{}'` |
+
+Grouped rows contain multiple columns with identical metadata. The 27-column
+count expands those grouped entries individually.
+
 ### Live vs current ORM models
 
 The table, column, index, and foreign-key difference set is the same as the
