@@ -64,6 +64,13 @@ class ArtifactRegistry:
             row.status = "fresh"
             row.updated_at = utc_now()
         else:
+            # A later audit/approval stage may mutate the same persisted row
+            # without changing its declared inputs.  Re-registration is the
+            # single write choke point for that case: keep the input version,
+            # but make the registry describe the final stored output.
+            if output_hash is not None and row.output_hash != output_hash:
+                row.output_hash = output_hash
+                row.output_ref = output_ref
             row.status = "fresh"
             row.updated_at = utc_now()
         for dependency_id in dict.fromkeys(depends_on):
@@ -124,3 +131,43 @@ class ArtifactRegistry:
             counts[row.type] += 1
         return {"counts": dict(sorted(counts.items())), "total": len(ids),
                 "found": len(found), "label": f"{len(found)} of {len(ids)}"}
+
+    def reconcile(self, case_id: int, *, stage_job_id: int | None = None,
+                  repair: bool = False) -> list[dict]:
+        """Compare registered output hashes with persisted content.
+
+        This is intentionally an explicit shadow-mode operation: it never
+        changes pipeline scheduling or skips work.  ``repair=True`` updates
+        only the registry's output hash/status, preserving the stored artifact
+        and making out-of-band edits visible in the returned report.
+        """
+        from app.services.artifact_shadow import registry_consistency
+        from app.services.policy_events import record_decision
+        from app.core.policy import PolicyDecision
+
+        drift = registry_consistency(self.db, stage_job_id=stage_job_id, case_id=case_id)
+        if not drift:
+            return []
+        if repair:
+            for item in drift:
+                expected = item.get("expected")
+                if expected is None:
+                    continue
+                row = self.db.get(Artifact, item["artifact_id"])
+                if row is not None:
+                    row.output_hash = expected
+                    row.status = "fresh"
+                    row.updated_at = utc_now()
+            self.db.commit()
+        record_decision(
+            self.db,
+            PolicyDecision(
+                policy="artifact_registry", decision="repaired" if repair else "drift",
+                reason=f"{len(drift)} registered artifact output hash mismatch(es)",
+                rule_id="ARTIFACT_REGISTRY_DRIFT", severity="warning", recoverable=True,
+                actions=("continue", "review", "redo"),
+                context={"case_id": case_id, "stage_job_id": stage_job_id,
+                         "artifact_ids": [item["artifact_id"] for item in drift]},
+                code="ARTIFACT_REGISTRY_DRIFT"),
+            case_id=case_id)
+        return drift

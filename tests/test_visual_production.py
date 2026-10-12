@@ -642,6 +642,7 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     from app.documentary import jobs as J
     from app.documentary.production.script import timeline_layout
     from app.services.artifacts import ArtifactRegistry
+    from app.services.artifact_shadow import registry_consistency
 
     SHADOW_VOLATILE_KEYS = {"id", "card_id", "piece_id", "created_at", "updated_at",
                             "timestamp", "started_at", "finished_at"}
@@ -723,6 +724,9 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     print("FOUR_LANGUAGE_ARTIFACT_COUNTS", json.dumps(counts, sort_keys=True))
     hashes_before = {row.id: row.input_hash for row in rows if row.language in languages}
     assert len(hashes_before) == len([row for row in rows if row.language in languages])
+    mismatches = registry_consistency(db_session, job.id)
+    print("REGISTRY_MISMATCHES", json.dumps(mismatches, sort_keys=True))
+    assert mismatches == []
 
     # Re-running the same completed job is a real StageRunner resume pass;
     # shadow registration must not change any existing input hash.

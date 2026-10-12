@@ -18,6 +18,7 @@ from app.services.artifact_shadow import (
     register_stage_outputs,
     registry_consistency,
 )
+from app.services.artifacts import ArtifactRegistry
 
 
 def test_shadow_registration_is_best_effort_and_write_only(db_session, monkeypatch):
@@ -92,4 +93,5 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
     assert registry_consistency(db_session, job.id) == []
     plan.plan_json = json.dumps({"shots": [{"asset_id": b.asset_code}]})
     db_session.commit()
-    assert registry_consistency(db_session, job.id)
+    drift = ArtifactRegistry(db_session).reconcile(case.id, stage_job_id=job.id, repair=True)
+    assert drift and registry_consistency(db_session, job.id) == []

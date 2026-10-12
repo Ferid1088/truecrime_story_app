@@ -838,7 +838,18 @@ async def run_job(job_id: int, session_factory=None):
             _set_case_state(db, job.case_id, "producing")
             pipeline = DocumentaryPipeline(db, job)
             try:
-                result = await pipeline.run()
+                result = await pipeline.run() or {}
+                if ai_config.artifacts.shadow_mode:
+                    from app.services.artifacts import ArtifactRegistry
+
+                    drift = ArtifactRegistry(db).reconcile(
+                        job.case_id, stage_job_id=job.id, repair=True)
+                    if drift:
+                        result.setdefault("warnings", []).append({
+                            "stage": "artifact_reconcile",
+                            "reason": f"repaired {len(drift)} registry output hash mismatch(es)",
+                            "code": "ARTIFACT_REGISTRY_DRIFT",
+                        })
                 # Equivalent to completed_with_warnings, within the existing
                 # DocumentaryJob.status String(20) column.
                 job.status = status_for_result(result or {})

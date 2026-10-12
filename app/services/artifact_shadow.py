@@ -298,19 +298,28 @@ def _stage_detail(job, stage: str, language: str | None) -> dict:
     return detail if isinstance(detail, dict) else {}
 
 
-def registry_consistency(db, stage_job_id: int | None = None) -> list[dict]:
+def registry_consistency(db, stage_job_id: int | None = None,
+                         case_id: int | None = None) -> list[dict]:
     """Read-only check that registered output hashes match saved content."""
     query = db.query(Artifact)
     if stage_job_id is not None:
         query = query.filter(Artifact.stage_job_id == stage_job_id)
+    if case_id is not None:
+        query = query.filter(Artifact.case_id == case_id)
     mismatches = []
     for artifact in query.all():
         if artifact.stage_job_id is None:
-            mismatches.append({"artifact_id": artifact.id, "reason": "no stage job"})
+            mismatches.append({"artifact_id": artifact.id, "type": artifact.type,
+                               "language": artifact.language, "stage": None,
+                               "reason": "no stage job", "actual": artifact.output_hash,
+                               "expected": None})
             continue
         job = db.get(DocumentaryJob, artifact.stage_job_id)
         if job is None:
-            mismatches.append({"artifact_id": artifact.id, "reason": "missing stage job"})
+            mismatches.append({"artifact_id": artifact.id, "type": artifact.type,
+                               "language": artifact.language, "stage": None,
+                               "reason": "missing stage job", "actual": artifact.output_hash,
+                               "expected": None})
             continue
         scope = json.loads(artifact.scope_json or "{}")
         stage = scope.get("stage") or ""
@@ -325,8 +334,9 @@ def registry_consistency(db, stage_job_id: int | None = None) -> list[dict]:
                           "asset_code": asset.asset_code}
         expected = _output_hash(db, job, stage, artifact.language, detail, artifact.type)
         if expected != artifact.output_hash:
-            mismatches.append({"artifact_id": artifact.id, "expected": expected,
-                               "actual": artifact.output_hash})
+            mismatches.append({"artifact_id": artifact.id, "type": artifact.type,
+                               "language": artifact.language, "stage": stage,
+                               "expected": expected, "actual": artifact.output_hash})
     return mismatches
 
 
