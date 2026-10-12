@@ -1,101 +1,185 @@
 # Shorts and publishing
 
+This document separates the existing short-form pilot from a **PROPOSED** production
+and publishing system. No live publishing or OAuth is implemented here.
+
 ## 1. Purpose, non-goals, and final decisions
 
-This document records the current short-form pilot and the PROPOSED production/publishing architecture. It does not implement publishing, OAuth, token storage, or a shorts generator.
+The purpose is to document the current pilot and the design needed after a long film is
+complete. This task does not implement media reuse, shorts behaviour, publishing,
+OAuth, or platform adapters.
 
-Final decisions: one approval click per language approves a bundle containing the long film and its shorts; items can be excluded or rejected independently; editing voids approval of that item only; approval is bound to content hashes; an unconnected language account remains approved but does nothing until “release now”; visibility is private/draft until live mode is enabled per channel; shorts start only after the long film is finished and a short failure can never block the long film or its release.
+Final decisions: one approval click per language approves a bundle containing the long
+film and its shorts; items can be excluded or rejected independently; editing voids only
+that item’s approval; approval is bound to content hashes; an unconnected language stays
+approved but does nothing until “release now”; visibility is private/draft until live
+mode is enabled for a channel; shorts start only after the long film is finished and a
+short failure can never block the long film or its release.
 
 ## 2. Reality check
 
-| surface | status | verified behaviour | tests |
-|---|---|---|---|
-| `app/shortform/selection.py` | REAL pilot | selects candidate beats and applies configured ranges | short-form tests |
-| `app/shortform/director.py` | REAL pilot | creates candidates from case artifacts and gates | short-form tests |
-| `app/shortform/gates.py` | REAL pilot | reveal/repetition/verification gates | short-form tests |
-| `app/shortform/export.py` | REAL local export | deterministic local export contract | short-form tests |
-| `app/shortform/operations.py` | STUB contract | planning data structures, no release workflow | short-form tests |
-| `app/shortform/publishers.py` | STUB contract | publisher interface/no live adapters | short-form tests |
-| `GET /api/short-form/settings` | REAL | returns configured pilot settings | API tests |
-| `PATCH /api/short-form/settings` | REAL | updates pilot settings | API tests |
-| `GET /api/short-form/metrics` | REAL | reads pilot metrics | API tests |
-| `GET /api/short-form/blueprints/{id}/candidates` | REAL | returns candidate table | API tests |
-| `/short-form` | REAL pilot UI | settings, metrics, evidence boundary | frontend e2e |
-| `/short-form/review` | REAL pilot UI | candidate review surface | frontend e2e |
-| OAuth/token storage/live upload | MISSING | no verified implementation found | none |
+This inventory covers every source module under `app/shortform`, every thumbnail module
+relevant to a short, YouTube metadata/upload-related lifecycle code, and both short-form
+frontend pages. REAL means code is present and tested; MOCK means an offline provider
+stub; STUB means a contract or pilot surface without the production workflow.
 
-The UI reports zero persisted concepts and zero original-audio exports in its pilot report (`frontend/app/short-form/page.tsx:74`); “REAL” here does not mean production-ready publishing.
+| surface | status | evidence | tests |
+|---|---|---|---|
+| `app/shortform/api.py` (`ShortFormSettingsPatch`, four routes) | REAL pilot API | `app/shortform/api.py:18`, `app/shortform/api.py:23` | `tests/test_shortform_phase1.py:1` |
+| `app/shortform/assets.py` (`UnverifiedVisualAssetsError`, asset gates) | REAL | `app/shortform/assets.py:10` | `tests/test_shortform_asset_selection.py:1` |
+| `app/shortform/director.py` (`BeatMaterial`, `ShortFormDirectorAgent`, helpers) | REAL candidate construction | `app/shortform/director.py:33`, `app/shortform/director.py:43` | `tests/test_shortform_phase2.py:1` |
+| `app/shortform/export.py` (`SubtitleCue`, `build_export_package`) | REAL local export | `app/shortform/export.py:30`, `app/shortform/export.py:94` | `tests/test_shortform_phase4.py:1` |
+| `app/shortform/gates.py` (modality/reveal/rights/disclosure/duration gates) | REAL deterministic gates | `app/shortform/gates.py:8`, `app/shortform/gates.py:60` | `tests/test_shortform_phase3.py:1` |
+| `app/shortform/metrics.py` (`concept_type_comparison`) | REAL read model | `app/shortform/metrics.py:21` | `tests/test_shortform_phase4.py:1` |
+| `app/shortform/operations.py` (`CriticDecision`, `PlatformExport`, `SocialPublisher`, planning) | STUB/offline contract | `app/shortform/operations.py:13`, `app/shortform/operations.py:41` | `tests/test_shortform_operations.py:1` |
+| `app/shortform/publishers.py` (`PlatformPublisherStub`, four platform classes) | MOCK; no upload | `app/shortform/publishers.py:30`, `app/shortform/publishers.py:42` | `tests/test_shortform_operations.py:1` |
+| `app/shortform/selection.py` (scoring/MMR/diversity) | REAL candidate selection | `app/shortform/selection.py:21`, `app/shortform/selection.py:105` | `tests/test_shortform_phase2.py:1` |
+| `app/thumbnails/api.py` (list/options/compose/decision/image routes) | REAL thumbnail API | `app/thumbnails/api.py:56`, `app/thumbnails/api.py:88` | `tests/test_thumbnails.py:1` |
+| `app/thumbnails/brief.py` (`BriefRefused`, `build_brief`, validation) | REAL | `app/thumbnails/brief.py:23`, `app/thumbnails/brief.py:37` | `tests/test_thumbnails.py:1` |
+| `app/thumbnails/compose.py` (`compose_thumbnail`) | REAL local composition | `app/thumbnails/compose.py:83` | `tests/test_thumbnails.py:1` |
+| `app/thumbnails/critic.py` (deterministic/vision/review) | REAL deterministic + mocked vision | `app/thumbnails/critic.py:42`, `app/thumbnails/critic.py:111` | `tests/test_thumbnails.py:1` |
+| `app/thumbnails/hosts.py` (`HostAsset`, outfit/host selection) | REAL asset lookup | `app/thumbnails/hosts.py:35`, `app/thumbnails/hosts.py:94` | `tests/test_thumbnails.py:1` |
+| `app/thumbnails/selection.py` (late-reveal/asset ranking) | REAL selection | `app/thumbnails/selection.py:31`, `app/thumbnails/selection.py:89` | `tests/test_thumbnails.py:1` |
+| `app/thumbnails/service.py` (`ThumbnailRefused`, create/decide) | REAL persistence | `app/thumbnails/service.py:22`, `app/thumbnails/service.py:42` | `tests/test_thumbnails.py:1` |
+| `app/lifecycle/videos.py` (YouTube title/metadata/register/publish) | REAL local metadata/state; no upload | `app/lifecycle/videos.py:59`, `app/lifecycle/videos.py:74`, `app/lifecycle/videos.py:191` | `tests/test_case_lifecycle.py:1` |
+| `app/lifecycle/api.py` (film publish endpoint) | REAL local state API | `app/lifecycle/api.py:128`, `app/lifecycle/api.py:136` | `tests/test_case_lifecycle.py:1` |
+| `frontend/app/short-form/page.tsx` | REAL pilot settings/review UI | `frontend/app/short-form/page.tsx:20`, `frontend/app/short-form/page.tsx:41` | `frontend/e2e/phase12-shortform.spec.ts:1` |
+| `frontend/app/short-form/review/page.tsx` | REAL pilot evidence/export UI | `frontend/app/short-form/review/page.tsx:17` | `frontend/e2e/phase12-shortform.spec.ts:1` |
+
+Current persisted short concepts, scripts, platform variants, publishing plans, and
+metrics are not the final hash-bound release model (`app/db/models.py:1087`,
+`app/db/models.py:1113`, `app/db/models.py:1168`). The publisher classes are mocks
+(`app/shortform/publishers.py:30`).
 
 ## 3. Shorts pipeline design (PROPOSED)
 
-Start only after the long-film job reaches finished render for that language. Select moments from approved long-film beats: each moment needs a hook, standalone sense, and a spoiler firewall that does not reveal beyond the short. Selection is per language and uses spoken/caption timing. Reframe to vertical with a shot-aware crop and safe zones. Captions use large words, with explicit RTL shaping and right-to-left layout for fa/ar; en/de use left-to-right layouts.
+The trigger is a completed long-film render for one language, extending the render result
+boundary (`app/documentary/jobs.py:534`) and local exporter (`app/shortform/export.py:94`).
+Select moments from long-film beats/captions with a hook, standalone sense, and a
+spoiler firewall that reveals no later material. Extend current beat extraction and MMR
+selection (`app/shortform/director.py:137`, `app/shortform/selection.py:134`).
 
-Platform duration limits are UNVERIFIED until each adapter is checked against current primary documentation. The same applies to loudness targets, formats, title limits, hashtags, and quotas. The planned auditor checks duration, aspect ratio, captions, spoiler scope, rights, loudness, and no repeated source segment. A short failure records an item result and leaves long-film state untouched.
+Each candidate gets language-native copy, vertical reframing with safe zones, large-word
+captions, and a per-short auditor. `subtitle_layout` is the current boundary; Persian and
+Arabic need explicit RTL shaping/alignment, English and German remain LTR
+(`app/shortform/export.py:36`). Long-film artifacts are reused read-only by hash. Any
+short failure is isolated and cannot change long-film state.
 
-Data model PROPOSED: `short_bundle(language, long_content_hash, status, approval_hash)`, `short_item(id, bundle_id, beat_ids, language, input_hash, output_hash, output_ref, status, excluded, rejection_reason, auditor_json)`, and `publish_attempt(id, item_id, platform, idempotency_key, status, error, attempt_count)`.
+Platform lengths, loudness, output formats, title/description/hashtag limits, and exact
+caption rules are **UNVERIFIED** in this offline repository. The pilot has configured
+ranges and disclosure checks only (`app/shortform/gates.py:151`, `app/shortform/gates.py:170`).
 
-Long-film audio, captions, and still/video artifacts may be reused by hash after the long film is complete. Reuse is read-only and does not allow a short to mutate long-film approval.
+**PROPOSED full data model** (PostgreSQL types; nullable-safe SQLite equivalents):
+
+| table | columns | constraints/indexes |
+|---|---|---|
+| `short_candidates` (extend `short_form_concepts`) | `id BIGINT`, `case_id BIGINT`, `long_artifact_id VARCHAR(180)`, `language VARCHAR(10)`, `source_beat_ids_json TEXT`, `evidence_ids_json TEXT`, `asset_ids_json TEXT`, `hook TEXT`, `body TEXT`, `cta TEXT`, `input_hash VARCHAR(64)`, `status VARCHAR(20)`, `excluded BOOLEAN`, `rejection_reason TEXT`, `auditor_json TEXT`, `created_at TIMESTAMP`, `updated_at TIMESTAMP` | PK; case FK; unique `(long_artifact_id, language, input_hash)`; index `(case_id, language, status)` |
+| `short_renders` | `id BIGINT`, `candidate_id BIGINT`, `platform VARCHAR(40)`, `language VARCHAR(10)`, `input_hash VARCHAR(64)`, `output_hash VARCHAR(64)`, `output_ref TEXT`, `duration_seconds DOUBLE`, `width INTEGER`, `height INTEGER`, `status VARCHAR(20)`, `auditor_json TEXT`, `created_at TIMESTAMP` | PK; candidate FK; unique `(candidate_id, platform, input_hash)`; index `(platform, status)` |
+| `publish_accounts` | `id BIGINT`, `channel VARCHAR(40)`, `platform VARCHAR(40)`, `language VARCHAR(10)`, `external_account_id VARCHAR(200)`, `live_mode BOOLEAN`, `visibility_default VARCHAR(20)`, `status VARCHAR(20)`, `created_at TIMESTAMP`, `updated_at TIMESTAMP` | PK; unique `(platform, external_account_id, language)`; index `(channel, language)` |
+| `oauth_tokens` | `id BIGINT`, `account_id BIGINT`, `key_id VARCHAR(80)`, `ciphertext BYTEA`, `nonce BYTEA`, `associated_data BYTEA`, `expires_at TIMESTAMP`, `revoked_at TIMESTAMP NULL`, `created_at TIMESTAMP` | PK; account FK; index `(account_id, revoked_at)`; ciphertext only |
+| `release_bundles` | `id BIGINT`, `case_id BIGINT`, `language VARCHAR(10)`, `long_render_id VARCHAR(180)`, `approval_hash VARCHAR(64)`, `status VARCHAR(20)`, `live_mode BOOLEAN`, `approved_at TIMESTAMP`, `created_at TIMESTAMP`, `updated_at TIMESTAMP` | PK; unique `(case_id, language, approval_hash)`; index `(case_id, language, status)` |
+| `release_items` | `id BIGINT`, `bundle_id BIGINT`, `item_type VARCHAR(20)`, `render_id VARCHAR(180)`, `content_hash VARCHAR(64)`, `status VARCHAR(20)`, `excluded BOOLEAN`, `rejection_reason TEXT`, `voided_at TIMESTAMP NULL` | PK; bundle FK; unique `(bundle_id, item_type, render_id)`; index `(bundle_id, status)` |
+| `publish_jobs` | `id BIGINT`, `release_item_id BIGINT`, `account_id BIGINT`, `idempotency_key VARCHAR(180)`, `status VARCHAR(20)`, `attempt_count INTEGER`, `next_attempt_at TIMESTAMP NULL`, `remote_id VARCHAR(200) NULL`, `error TEXT NULL`, `created_at TIMESTAMP`, `updated_at TIMESTAMP` | PK; item/account FKs; unique idempotency key; index `(status, next_attempt_at)` |
+| `publish_events` | `id BIGINT`, `publish_job_id BIGINT`, `created_at TIMESTAMP`, `event_type VARCHAR(40)`, `from_state VARCHAR(20)`, `to_state VARCHAR(20)`, `remote_id VARCHAR(200) NULL`, `context_json TEXT` | PK; job FK; index `(publish_job_id, created_at)` |
 
 ## 4. Publishing design (PROPOSED)
 
-Channel and language mapping comes from configured identity channels (`config/parameters/identity.json:2-32`) and channel intro lookup (`app/documentary/intros.py:86-100`). Each platform needs an OAuth flow scoped to the chosen channel/language. Tokens must be encrypted at rest with an AEAD algorithm such as AES-256-GCM or XChaCha20-Poly1305; the key must come from the macOS keychain or a deployment secret manager, never the repository, and rotation must retain a key id.
+Channel identity and language branding currently come from identity configuration and
+intro lookup (`config/parameters/identity.json:2`, `app/documentary/intros.py:86`); account
+mapping can extend that boundary. Each OAuth callback must bind state to channel,
+language, and account.
 
-Publisher interface:
+Tokens must be encrypted at rest using AES-256-GCM or XChaCha20-Poly1305, with the key
+from macOS Keychain or an external secret store, never this repository. Store a key ID
+and rotate by decrypting old ciphertext and re-encrypting with the new key.
+
+**PROPOSED** interface, replacing the current mock boundary (`app/shortform/publishers.py:30`):
 
 ```python
 class Publisher(Protocol):
-    async def upload(self, item: PublishItem, account: Account, *, idempotency_key: str) -> UploadReceipt: ...
-    async def poll(self, receipt: UploadReceipt) -> UploadState: ...
-    async def publish(self, receipt: UploadReceipt, *, visibility: str) -> UploadReceipt: ...
-    async def delete(self, receipt: UploadReceipt) -> None: ...
+    async def upload(self, item, account, *, idempotency_key: str): ...
+    async def poll(self, receipt): ...
+    async def publish(self, receipt, *, visibility: str): ...
+    async def delete(self, receipt): ...
 ```
 
-Adapters are PROPOSED for YouTube long/Shorts, Instagram Reels, Facebook Reels, and TikTok. Uploads use idempotency keys, resumable state, bounded retries, explicit quota errors, and private/draft mode unless the channel live switch is on. Every attempt writes an audit event. No live adapter exists today.
+Adapters are planned for YouTube long/Shorts, Instagram Reels, Facebook Reels, and
+TikTok. They need idempotency, resumable uploads, bounded retries, quota errors, and
+audit events. Default visibility is private/draft; live mode is explicit. Existing
+YouTube code computes metadata and local state only (`app/lifecycle/videos.py:74`,
+`app/lifecycle/videos.py:191`).
 
 ## 5. Approval and publishing state machine
 
-States: `draft → in_review → approved → scheduled → uploading → published`; failure from upload goes to `failed`, human refusal goes to `rejected`, and an explicitly excluded item goes to `excluded`. Editing an approved item transitions it to `voided` and then `in_review`; other bundle items remain approved. Upload is permitted only when approval hash equals current content hash, item is not excluded/voided/rejected, and visibility policy allows it. A language without an account stays approved; release waits for “release now”.
+States are `draft`, `in_review`, `approved`, `scheduled`, `uploading`, `published`,
+`failed`, `rejected`, plus `excluded` and `voided`. One language approval captures the
+long-film and included-short hashes. Editing voids only that item. Upload requires the
+stored approval hash to equal the current render hash and excludes voided/rejected items.
 
 | transition | trigger | invariant |
 |---|---|---|
-| draft→in_review | generated artifacts ready | auditor inputs exist |
-| in_review→approved | one language approval click | bundle hash captured |
-| in_review→rejected/excluded | reviewer decision | item reason recorded |
-| approved→voided | item edit | only edited item changes |
-| approved→scheduled | release schedule | hash still current |
-| scheduled→uploading | worker claims attempt | idempotency key unique |
-| uploading→published | platform receipt | visibility policy applied |
-| uploading→failed | terminal platform error | retry reason/audit retained |
+| draft → in_review | long render/candidate audit ready | all included hashes present |
+| in_review → approved | one language approval click | bundle hash captured |
+| in_review → rejected/excluded | reviewer decision | item reason stored |
+| approved → voided | item edit | other bundle items remain approved |
+| approved → scheduled | release schedule | hashes current |
+| scheduled → uploading | worker claim | idempotency key unique |
+| uploading → published | platform receipt | visibility policy applied |
+| uploading → failed | terminal platform error | retry reason retained |
+
+A language without a connected account stays approved and does nothing until “release
+now”. Shorts begin only after the long film is finished; no short transition may block
+the long film or its release.
 
 ## 6. Per-platform requirements
 
-All cells below are UNVERIFIED in this offline repository audit; adapter work must verify each item against primary platform documentation before implementation.
+No official platform documentation is present in this repository. Every cell is therefore
+**UNVERIFIED** and must be checked before adapter work.
 
-| platform | API product/app review | rate limits/quota | formats/length | auth/publish permissions |
-|---|---|---|---|---|
-| YouTube | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
-| Instagram Reels | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
-| Facebook Reels | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
-| TikTok | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| platform | API product/app review | audit/disclosure | rate limits/quota | format/length | OAuth/publish permissions |
+|---|---|---|---|---|---|
+| YouTube long + Shorts | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| Instagram Reels | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| Facebook Reels | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| TikTok | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
 
 ## 7. UI design (PROPOSED)
 
-The review queue shows one language bundle with long film plus shorts, per-item exclude/reject/edit actions, auditor reasons, and content hashes. The per-video overview shows all languages and bundle state. Bulk approve is one click per language; the repair-by-prompt panel previews one item’s invalidation; live mode is a per-channel switch; “release now” is explicit when no account is connected. Every screen handles draft, in review, approved, scheduled, uploading, published, failed, rejected, excluded, and voided. Keyboard focus, visible error text, captions, color-independent status, and RTL direction are required.
+Extend the current workspace and review page (`frontend/app/short-form/page.tsx:41`,
+`frontend/app/short-form/review/page.tsx:17`) with a review queue, per-video all-language
+bundle overview, one-click per-language approval, item exclude/reject/edit, auditor
+reasons, content hashes, repair-by-prompt preview, live-mode switch, and explicit
+release-now. Every screen handles all ten states and disconnected accounts. Keyboard
+focus, non-colour state, captions, screen-reader labels, and `dir="rtl"` for Persian/
+Arabic are required.
 
 ## 8. API endpoints (PROPOSED)
 
-`GET /api/documentary/{case_id}/short-bundles`, `GET /api/shorts/{id}`, `POST /api/shorts/{id}/exclude`, `POST /api/shorts/{id}/reject`, `POST /api/shorts/{id}/approve`, `POST /api/shorts/{id}/edit-preview`, `POST /api/channels/{channel}/oauth/start`, `GET /api/channels/{channel}/oauth/callback`, `POST /api/documentary/{case_id}/release-now`, `POST /api/channels/{channel}/live-mode`.
-
-Responses include state, content hash, auditor decision, account availability, visibility, and audit event id. Errors include `409` hash changed, `422` invalid review action, `503` account unavailable, `429` quota, and structured policy errors.
+`GET /api/documentary/{case_id}/short-bundles`, `GET /api/shorts/{id}`, `POST
+/api/shorts/{id}/exclude`, `POST /api/shorts/{id}/reject`, `POST /api/shorts/{id}/approve`,
+`POST /api/shorts/{id}/edit-preview`, `POST /api/channels/{channel}/oauth/start`,
+`GET /api/channels/{channel}/oauth/callback`, `POST /api/documentary/{case_id}/release-now`,
+and `POST /api/channels/{channel}/live-mode` are **PROPOSED**. Responses include state,
+hash, auditor result, account availability, visibility, and event ID. Errors are 409
+stale hash, 422 invalid action, 429 quota, 503 unavailable account, and structured policy
+errors (`app/core/policy.py:105`).
 
 ## 9. Implementation steps
 
-1. Persist short bundles/items and hash-bound approval; test per-language approval and item isolation (medium risk).
-2. Add post-render short scheduling and failure isolation; test long completion/release is unchanged by short failure (high risk).
-3. Add vertical/caption renderer and per-short auditor with four-language fixtures (high risk).
-4. Add encrypted account/token store and OAuth adapters one platform at a time (high risk).
-5. Add resumable publishing, quota handling, private mode, live switch, and UI review queue (high risk).
+1. Extend `ShortFormConcept` with hash-bound candidates/items and add the proposed tables;
+   test per-language approval and item isolation (medium risk; `app/db/models.py:1087`).
+2. Trigger shorts only after render and isolate failures; test long release is unchanged
+   by rejected shorts (`app/documentary/jobs.py:560`) (high risk).
+3. Add vertical rendering, RTL captions, copy, and a per-short auditor using current
+   export/gate boundaries (`app/shortform/export.py:94`, `app/shortform/gates.py:170`).
+4. Add encrypted accounts and OAuth adapters one at a time; security-test key rotation
+   and callback binding (high risk).
+5. Add resumable publishing, quotas, private mode, live mode, and review UI with mocked
+   platform contract tests (high risk).
 
 ## 10. Open risks and questions
 
-Open risks: platform policies change; OAuth review can block production; RTL caption measurement can change line breaks; and a platform may accept an upload but delay publication. Questions: the exact key-management provider on the Mac, the first release platform, and allowed live-mode actors are unresolved.
+Risks are changing platform policy, OAuth review delays, RTL font shaping, remote
+acceptance after upload, and metadata hash drift. Questions are the first platform, Mac
+key-management boundary, live-mode actors, exact loudness/length tolerances, and whether
+account mapping belongs in identity configuration or the database.
