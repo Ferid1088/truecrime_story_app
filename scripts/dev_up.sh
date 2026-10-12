@@ -55,7 +55,7 @@ for key in TRUECRIME_DATABASE_URL DATABASE_URL TRUECRIME_SEARXNG_URL SEARXNG_DIR
   load_if_unset "$key"
 done
 
-DATABASE_URL_VALUE="${TRUECRIME_DATABASE_URL:-${DATABASE_URL:-sqlite:///./truecrime.db}}"
+DATABASE_URL_VALUE="${TRUECRIME_DATABASE_URL:-${DATABASE_URL:-postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime}}"
 if [[ "$DATABASE_URL_VALUE" == postgresql* || "$DATABASE_URL_VALUE" == postgres* ]]; then
   DB_KIND=postgres
 else
@@ -210,8 +210,8 @@ command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
 [[ -x "$ROOT/frontend/node_modules/.bin/next" ]] || { echo "Run npm ci in frontend first." >&2; exit 1; }
 
 if [[ "$DB_KIND" == postgres ]]; then
-  command -v brew >/dev/null 2>&1 || { echo "Homebrew is required for the configured PostgreSQL database." >&2; exit 1; }
-  command -v pg_isready >/dev/null 2>&1 || { echo "pg_isready is required; install postgresql@16." >&2; exit 1; }
+  command -v brew >/dev/null 2>&1 || { echo "Homebrew is required for the configured PostgreSQL database; no SQLite fallback is used." >&2; exit 1; }
+  command -v pg_isready >/dev/null 2>&1 || { echo "pg_isready is required; install postgresql@16; no SQLite fallback is used." >&2; exit 1; }
 fi
 
 if ! _search_health; then
@@ -249,9 +249,10 @@ if [[ "$SAFE_MODE" == 1 ]]; then
 fi
 
 if [[ "$DB_KIND" == postgres ]]; then
-  brew services start postgresql@16 >/dev/null
-  for _ in {1..30}; do pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1 && break; sleep 1; done
-  pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1 || { echo "PostgreSQL did not become ready." >&2; exit 1; }
+  "$ROOT/scripts/pg_up.sh"
+  load_if_unset TRUECRIME_DATABASE_URL
+  DATABASE_URL_VALUE="${TRUECRIME_DATABASE_URL:-$DATABASE_URL_VALUE}"
+  TRUECRIME_DATABASE_URL="$DATABASE_URL_VALUE" "$ROOT/.venv/bin/python" -m alembic upgrade head
 fi
 
 start_process() {

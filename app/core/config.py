@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = Field(
-        default="sqlite:///./truecrime.db",
+        default="postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime",
         validation_alias=AliasChoices("TRUECRIME_DATABASE_URL", "DATABASE_URL"),
     )
 

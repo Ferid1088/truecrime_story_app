@@ -43,7 +43,4 @@ for name in frontend worker api searxng; do
   fi
 done
 rm -f "$STATE/frontend.port"
-if [[ "$DATABASE_URL_VALUE" == postgresql* || "$DATABASE_URL_VALUE" == postgres* ]]; then
-  command -v brew >/dev/null 2>&1 && brew services stop postgresql@16 >/dev/null 2>&1 || true
-fi
 echo "Local services stopped."
