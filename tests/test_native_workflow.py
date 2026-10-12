@@ -99,6 +99,51 @@ def _stop_fake_stack(root: Path, env: dict[str, str]) -> None:
     )
 
 
+def _native_search_root(tmp_path: Path) -> tuple[Path, dict[str, str], Path]:
+    root, env = _fake_dev_root(tmp_path)
+    (root / "config/searxng").mkdir(parents=True)
+    shutil.copy2(ROOT / "config/searxng/settings.yml.template",
+                 root / "config/searxng/settings.yml.template")
+    shutil.copy2(ROOT / "scripts/searxng_up.sh", root / "scripts/searxng_up.sh")
+    (root / "scripts/searxng_up.sh").chmod(0o755)
+    port = _free_port()
+    runner = root / "fake_searxng"
+    runner.write_text(
+        "#!/bin/sh\n"
+        f"exec {sys.executable} {root / 'fake_searxng.py'}\n"
+    )
+    runner.chmod(0o755)
+    (root / "fake_searxng.py").write_text(
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "from urllib.parse import urlparse\n"
+        "import os\n"
+        "\n"
+        "class Handler(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        if urlparse(self.path).path != '/search':\n"
+        "            self.send_response(404)\n"
+        "            self.end_headers()\n"
+        "            return\n"
+        "        body = b'{\"results\": []}'\n"
+        "        self.send_response(200)\n"
+        "        self.send_header('Content-Type', 'application/json')\n"
+        "        self.send_header('Content-Length', str(len(body)))\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(body)\n"
+        "    def log_message(self, *_args):\n"
+        "        pass\n"
+        "\n"
+        "port = int(urlparse(os.environ['TRUECRIME_SEARXNG_URL']).port)\n"
+        "HTTPServer(('127.0.0.1', port), Handler).serve_forever()\n"
+    )
+    env.update({
+        "TRUECRIME_SEARXNG_URL": f"http://127.0.0.1:{port}",
+        "SEARXNG_RUNNER": str(runner),
+        "SEARXNG_DIR": "",
+    })
+    return root, env, runner
+
+
 def test_native_scripts_help_does_not_start_services():
     for script in ("dev_up.sh", "dev_down.sh", "searxng_up.sh"):
         result = subprocess.run(
@@ -319,6 +364,51 @@ def test_detached_fake_services_survive_launcher_exit_and_group_kill(tmp_path):
         if survivor_pid.exists():
             child_pid = int(survivor_pid.read_text())
             os.kill(child_pid, signal.SIGTERM)
+
+
+def test_native_searxng_runner_is_recorded_after_health_and_stopped_by_dev_down(tmp_path):
+    root, env, _runner = _native_search_root(tmp_path)
+    try:
+        result = subprocess.run(
+            ["bash", str(root / "scripts/dev_up.sh")],
+            cwd=root, env=env, capture_output=True, text=True, check=False, timeout=20,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "SearXNG is healthy" in result.stdout
+        pidfile = root / "data/searxng/searxng.pid"
+        assert pidfile.exists()
+        search_pid = int(pidfile.read_text())
+        assert subprocess.run(["kill", "-0", str(search_pid)], check=False).returncode == 0
+
+        down = subprocess.run(
+            ["bash", str(root / "scripts/dev_down.sh")],
+            cwd=root, env=env, capture_output=True, text=True, check=False,
+        )
+        assert down.returncode == 0
+        assert subprocess.run(["kill", "-0", str(search_pid)], check=False).returncode != 0
+        assert not pidfile.exists()
+    finally:
+        _stop_fake_stack(root, env)
+
+
+def test_dev_down_never_stops_external_healthy_searxng(tmp_path):
+    root, env, runner = _native_search_root(tmp_path)
+    env["TRUECRIME_SEARXNG_URL"] = f"http://127.0.0.1:{_free_port()}"
+    external = subprocess.Popen([str(runner)], cwd=root, env=env)
+    try:
+        time.sleep(0.4)
+        assert subprocess.run(["curl", "-fsS", f"{env['TRUECRIME_SEARXNG_URL']}/search?q=test&format=json"],
+                              check=False, stdout=subprocess.DEVNULL).returncode == 0
+        down = subprocess.run(
+            ["bash", str(root / "scripts/dev_down.sh")],
+            cwd=root, env=env, capture_output=True, text=True, check=False,
+        )
+        assert down.returncode == 0
+        assert external.poll() is None
+    finally:
+        if external.poll() is None:
+            external.terminate()
+            external.wait(timeout=5)
 
 
 def test_native_search_template_has_json_api_and_local_secret_placeholder():

@@ -29,7 +29,7 @@ Operations page in the UI (failed calls, cost, job queue) and `python scripts/sm
 ## Incidents
 | Symptom | First look | Usual cause / action |
 |---|---|---|
-| UI shows "API offline" | `scripts/dev_up.sh status`, API logs | API crashed or migrating |
+| UI shows "API offline" | `scripts/dev_up.sh --status`, API logs | API crashed or migrating |
 | Documentary job stuck "running" | Operations → jobs; worker logs | Worker died; it is resumed automatically after the lease (`JOB_LEASE_SECONDS`), or press Resume |
 | Many failed calls to one host | Operations → Services / latest failures | Provider outage or expired key; rotate key (`docs/security.md`) |
 | Login says "Too many failed attempts" | wait a minute | lockout is per address |

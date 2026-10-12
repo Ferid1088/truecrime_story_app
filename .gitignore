@@ -53,3 +53,6 @@ data/backups/
 
 # Native SearXNG runtime state and generated secret (never commit)
 data/searxng/
+
+# Native local service runtime state (PIDs, ports, and logs)
+data/dev/

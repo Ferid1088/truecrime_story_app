@@ -89,7 +89,7 @@ Start and stop the complete local process set with:
 
 ```bash
 scripts/dev_up.sh
-scripts/dev_up.sh status
+scripts/dev_up.sh --status
 scripts/dev_down.sh
 ```
 
