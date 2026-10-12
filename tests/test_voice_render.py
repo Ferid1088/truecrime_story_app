@@ -28,12 +28,12 @@ pytestmark = pytest.mark.skipif(
 LEAD, SPEECH_PER_CHAR, TAIL = 0.4, 0.02, 0.6
 
 
-def _mp3(seconds_speech: float) -> bytes:
+def _mp3(seconds_speech: float, frequency: int = 220) -> bytes:
     """Silence, a tone standing in for speech, silence — as MP3."""
     out = Path(f"/tmp/fake_tts_{uuid.uuid4().hex}.mp3")
     subprocess.run([
         "ffmpeg", "-y", "-v", "error", "-f", "lavfi",
-        "-i", f"sine=frequency=220:duration={seconds_speech:.3f}:sample_rate=44100",
+        "-i", f"sine=frequency={frequency}:duration={seconds_speech:.3f}:sample_rate=44100",
         "-af", f"adelay={int(LEAD * 1000)},apad=pad_dur={TAIL}",
         "-ac", "1", "-c:a", "libmp3lame", "-b:a", "128k", str(out),
     ], check=True)
@@ -52,16 +52,22 @@ class FakeTTS:
         return True
 
     async def synthesize(self, req: VoiceRequest) -> VoiceRenderResult:
+        from mock_payload import config_hash_payload, request_hash
+
         self.requests.append(req)
         chars = list(req.text)
         speech = len(chars) * SPEECH_PER_CHAR
         starts = [LEAD + i * SPEECH_PER_CHAR for i in range(len(chars))]
         ends = [s + SPEECH_PER_CHAR for s in starts]
+        fingerprint = request_hash(
+            "tts", request=req, config=config_hash_payload(ai_config.voice),
+        )
         return VoiceRenderResult(
-            audio=_mp3(speech), audio_format="mp3_44100_128",
+            audio=_mp3(speech, frequency=220 + int(fingerprint[:4], 16) % 1000),
+            audio_format="mp3_44100_128",
             characters=chars, char_starts=starts, char_ends=ends,
             provider=self.name, model_id=req.model_id, voice_id=req.voice_id,
-            request_id=f"req-{len(self.requests)}", character_cost=len(chars),
+            request_id=f"req-{fingerprint}", character_cost=len(chars),
         )
 
 
@@ -75,15 +81,23 @@ class FakeASR:
         self.calls = 0
 
     def transcribe(self, audio_path: str, language: str) -> dict:
+        from app.core.ai_config import ai_config
+        from mock_payload import config_hash_payload, request_hash
+
         self.calls += 1
         wav = Path(audio_path)
         key = wav.stem.split("__")[-1]  # takes may be reused across block ids
-        meta = json.loads(next(wav.parent.glob(f"*__{key}.json")).read_text())
+        meta_path = next(wav.parent.glob(f"*__{key}.json"))
+        meta = json.loads(meta_path.read_text())
         # audio tags ("[whispers]") are performed, never spoken
         words = re.sub(r"\[[^\[\]]*\]", " ", meta["text"]).split()
         if meta["seed"] in self.drop_for_seeds:
             words = words[:3] + words[8:]  # five words skipped
-        return {"text": " ".join(words), "words": []}
+        fingerprint = request_hash(
+            "asr", audio=wav.read_bytes(), sidecar=meta, language=language,
+            config=config_hash_payload(ai_config.asr_check),
+        )
+        return {"text": " ".join(words), "words": [], "request_hash": fingerprint}
 
 
 def _plan(blocks):

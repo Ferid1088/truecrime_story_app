@@ -414,36 +414,59 @@ class PipelineGen:
         return GenerationResult(text="{}", model=f"m/{role}", provider="fake")
 
     async def generate_text(self, role, system, user, images=None):
+        from mock_payload import config_hash_payload, request_hash
+
+        fingerprint = request_hash(
+            "generation.text", role=role, system=system, user=user, images=images,
+            config=config_hash_payload(ai_config),
+        )
         self.roles.append(role)
-        return await self.spoken.generate_text(role, system, user)
+        result = await self.spoken.generate_text(role, system, user)
+        result.text += f"\n\n[MOCK_REQUEST_SHA256:{fingerprint}]"
+        return result
 
     async def generate_structured(self, role, system, user, images=None):
+        from mock_payload import config_hash_payload, request_hash
+
+        fingerprint = request_hash(
+            "generation.structured", role=role, system=system, user=user, images=images,
+            config=config_hash_payload(ai_config),
+        )
         self.roles.append(role)
         if role in ("spoken_meaning_checker", "spoken_style_critic"):
-            return await self.spoken.generate_structured(role, system, user)
+            data, result = await self.spoken.generate_structured(role, system, user)
+            data["_mock_request_sha256"] = fingerprint
+            return data, result
         if role == "narrative_director":
-            return _no_contradiction(_good()), self._res(role)
+            data, result = _no_contradiction(_good()), self._res(role)
+            data["_mock_request_sha256"] = fingerprint
+            return data, result
         if role.startswith("host_"):
             from test_host import HostGen
             self.__dict__.setdefault("host", HostGen())
-            return await self.host.generate_structured(role, system, user)
+            data, result = await self.host.generate_structured(role, system, user)
+            data["_mock_request_sha256"] = fingerprint
+            return data, result
         if role == "audio_director":
             from test_spoken_audio import _good_plan
-            return _good_plan(), self._res(role)
+            data, result = _good_plan(), self._res(role)
+            data["_mock_request_sha256"] = fingerprint
+            return data, result
         if role == "visual_planner":
             beats = [{"beat_id": f"B0{i}", "requirements": [
                 {"entity": "the_house", "purpose": "orientation", "priority": "high"}],
                 "map_place": "Nannup, Western Australia" if i == 2 else None,
                 "date_text": None, "quote": None, "document": None} for i in range(1, 6)]
             return {"entities": [{"key": "the_house", "type": "building", "name": "The farmhouse",
-                                  "search_queries": ["farmhouse"]}], "beats": beats}, self._res(role)
+                                  "search_queries": ["farmhouse"]}], "beats": beats,
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "visual_verifier":
             assert images and images[0].startswith("data:image/jpeg;base64,")
             return {"depicts": "The farmhouse", "subject_type": "building",
                     "matches_claim": "yes", "role": "evidence", "period_ok": "yes",
                     "entities": ["the_house"], "reveals": [], "quality": 0.8,
                     "watermark": False, "graphic_or_sensitive": False,
-                    "confidence": 0.9}, self._res(role)
+                    "confidence": 0.9, "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "visual_director":
             data = json.loads(user)
             out = []
@@ -457,20 +480,22 @@ class PipelineGen:
                                   "from_sentence": len(b["narration"]) - 1 if shots else 0})
                 out.append({"beat_id": b["beat_id"], "attention": {"listen": 0.8},
                             "shots": shots or [{"command": "KEEP_CURRENT_IMAGE"}]})
-            return {"beats": out}, self._res(role)
+            return {"beats": out, "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "voice_performance_director":
             if "INPUT:\n" not in user:
                 data = json.loads(user)
                 return {"incident_beat": "B02", "beats": [
                     {"beat_id": b["beat_id"], "level": 1, "peak": 2}
-                    for b in data["beats"]]}, self._res(role)
+                    for b in data["beats"]], "_mock_request_sha256": fingerprint}, self._res(role)
             data = json.loads(user.split("INPUT:\n", 1)[1])
             return {"sentences": [
                 {"i": x["i"], "level": b["arc_level"], "tts": f"[softly] {x['text']}"}
-                for b in data["beats"] for x in b["sentences"]]}, self._res(role)
+                for b in data["beats"] for x in b["sentences"]],
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "overlay_localizer":
             data = json.loads(user)
-            return {"texts": {k: f"{v} ({data['language']})" for k, v in data["texts"].items()}}, \
+            return {"texts": {k: f"{v} ({data['language']})" for k, v in data["texts"].items()},
+                    "_mock_request_sha256": fingerprint}, \
                 self._res(role)
         if role == "chapter_writer":
             data = json.loads(user)
@@ -481,20 +506,24 @@ class PipelineGen:
                                  for c in data["chapters"]],
                     "events": [{"id": e["id"], "label": {lg: f"Event {e['id']} ({lg})"
                                                          for lg in langs}}
-                               for e in data["events"]]}, self._res(role)
+                               for e in data["events"]],
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "chapter_auditor":
             data = json.loads(user)
             self.cards_audited = sorted(data["texts"])
-            return {"verdicts": [{"key": k, "ok": True} for k in data["texts"]]}, self._res(role)
+            return {"verdicts": [{"key": k, "ok": True} for k in data["texts"]],
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role.endswith("_critic"):
-            return {"score": 80, "problems": [], "summary": "fine"}, self._res(role)
+            return {"score": 80, "problems": [], "summary": "fine",
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "visual_auditor":
             data = json.loads(user)
             assert images and data["narration_while_on_screen"]
             self.audited = getattr(self, "audited", 0) + 1
             return {"verdict": "approved", "as": "evidence", "fits_words": 0.9,
                     "specific_kind_ok": True, "tone_ok": True, "person_ok": True,
-                    "depicts": "the farmhouse", "reasons": []}, self._res(role)
+                    "depicts": "the farmhouse", "reasons": [],
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         raise AssertionError(f"unexpected role {role}")
 
 
@@ -529,10 +558,16 @@ def documentary_env(tmp_path, monkeypatch):
 
     async def fake_research(self, db, case, queries, progress=None, found_during="research",
                             **kw):
+        from mock_payload import config_hash_payload, request_hash
         from app.documentary import storage
         from app.documentary.visuals.research import next_asset_code
 
         assert queries[0]["entity"] == "the_house"
+        fingerprint = request_hash(
+            "visual_search", case_id=case.id, queries=queries, found_during=found_during,
+            progress=progress, options=kw,
+            config=config_hash_payload(ai_config.visual_search),
+        )
         gen.research_calls.append(found_during)
         for i in range(2):
             code = next_asset_code(db)
@@ -540,17 +575,31 @@ def documentary_env(tmp_path, monkeypatch):
             t = _jpg(storage.thumbs_dir(case.id) / f"{code}.jpg", (200, 125))
             db.add(VisualAsset(case_id=case.id, asset_code=code, provider="source_page",
                                rights_status="editorial_review_required", asset_role="evidence",
-                               title=f"The farmhouse {i}", local_path=str(p), thumbnail_path=str(t),
+                               title=f"The farmhouse {i} [mock:{fingerprint}]", local_path=str(p), thumbnail_path=str(t),
                                width=800, height=500, entities_json='["the_house"]'))
             db.commit()
-        return {"added": 2}
+        return {"added": 2, "request_hash": fingerprint}
 
     async def fake_geocode(place, client=None, near=None):
-        return {"lat": -34.15, "lon": 115.67, "display_name": place}
+        from mock_payload import config_hash_payload, request_hash
+
+        fingerprint = request_hash(
+            "geocode", place=place, client=client, near=near,
+            config=config_hash_payload(ai_config.maps),
+        )
+        return {"lat": -34.15, "lon": 115.67, "display_name": place,
+                "request_hash": fingerprint}
 
     async def fake_map(lat, lon, zoom, out, W=2400, H=1350, client=None):
+        from mock_payload import config_hash_payload, request_hash
+
+        fingerprint = request_hash(
+            "map", lat=lat, lon=lon, zoom=zoom, out=out, width=W, height=H,
+            client=client, config=config_hash_payload(ai_config.maps),
+        )
         _jpg(Path(out), (W // 4, H // 4), (30, 40, 50))
-        return {"path": str(out), "marker": [W // 8, H // 8]}
+        return {"path": str(out), "marker": [W // 8, H // 8],
+                "request_hash": fingerprint}
 
     monkeypatch.setattr("app.agents.visual_research.VisualResearchAgent.run", fake_research)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.geocode", fake_geocode)

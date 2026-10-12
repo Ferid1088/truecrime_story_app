@@ -515,8 +515,16 @@ class FakeSound:
         self.calls = []
 
     async def generate(self, prompt, seconds, loop, influence):
+        from app.core.ai_config import ai_config
+        from mock_payload import config_hash_payload, request_hash
+
         self.calls.append((prompt, seconds, loop))
-        return _sine_mp3(seconds, 330 if loop else 550), int(seconds * 11)
+        fingerprint = request_hash(
+            "music", prompt=prompt, seconds=seconds, loop=loop, influence=influence,
+            config=config_hash_payload(ai_config.music_library),
+        )
+        frequency = 220 + int(fingerprint[:4], 16) % 1000
+        return _sine_mp3(seconds, frequency), int(seconds * 11)
 
 
 @needs_ffmpeg
