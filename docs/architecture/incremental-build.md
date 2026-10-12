@@ -122,7 +122,7 @@ This is the exact declarative table in `app/core/artifact_dependencies.py:42`.
 
 | artifact | scope | depends on | invalidates |
 |---|---|---|---|
-| master_story | shared | — | beats, spoken_version, chapter_plan |
+| master_story | shared | research_result | beats, spoken_version, chapter_plan, naming |
 | beats | shared | master_story | audio_blocks, visual_needs, chapter_plan, timeline_cards, downstreams |
 | audio_blocks | shared | beats | voice_takes, audio_timing, music_cues, captions, production_script, final_render |
 | spoken_version | per-language | master_story | voice_takes, audio_timing, music_cues, captions, production_script, final_render (same language) |
@@ -136,16 +136,16 @@ This is the exact declarative table in `app/core/artifact_dependencies.py:42`.
 | chapter_plan | shared | master_story, beats | chapter_cards, production_script, final_render |
 | chapter_cards | per-language | chapter_plan, timeline_cards | production_script, final_render (same language) |
 | timeline_cards | per-language | beats | chapter_cards, production_script, final_render (same language) |
-| intro | per-language | — | final_render (same language) |
+| intro | per-language | — (typed channel identity, logo bytes, and intro design version are fingerprint inputs) | final_render (same language) |
 | music_cues | per-language | audio_blocks, audio_timing | production_script, final_render (same language) |
 | captions | per-language | spoken_version, audio_timing | production_script, final_render (same language) |
-| production_script | per-language | spoken_version, voice_takes, audio_timing, visual_plan, chapter_cards, timeline_cards, captions, music_cues | final_render (same language) |
+| production_script | per-language | spoken_version, voice_takes, audio_timing, visual_plan, chapter_cards, timeline_cards, captions, music_cues, host_segments, film_length | final_render (same language) |
 | final_render | per-language | production_script, intro | — |
 | research_result | shared | — | master_story |
 | host_plan | shared | beats | host_segments |
 | host_segments | per-language | host_plan, spoken_version | host scenes/render |
 | naming | shared | master_story | channel metadata |
-| film_length | per-language | spoken_version, audio_blocks | render admission |
+| film_length | per-language | spoken_version, audio_blocks | production_script, final_render (same language) |
 
 Timing is a separate per-language artifact produced after voice rendering
 (`app/documentary/pipeline/language.py:105`), while audio direction is shared and made
@@ -165,8 +165,22 @@ invalidated by one language's retake.
 
 The `visual_asset` node limits replacement invalidation to its shot/piece dependents.
 Shadow source payloads include persisted rows and documentary/voice/audio/music/render
-configuration (`app/services/artifact_shadow.py:69`, `app/services/artifact_shadow.py:115`);
-these must become explicit public fingerprint inputs before hash-aware skipping.
+configuration (`app/services/artifact_shadow.py:69`, `app/services/artifact_shadow.py:115`).
+This is input capture only; hash-aware skipping remains out of scope until the
+coverage matrix and renderer acceptance tests are complete.
+
+### How drift is detected
+
+At the end of a shadow-mode job, `ArtifactRegistry.reconcile()` recomputes the
+content hash for every artifact belonging to the case and records an
+`ARTIFACT_REGISTRY_DRIFT` policy event when the saved `output_hash` differs
+(`app/services/artifacts.py:126`, `app/documentary/jobs.py:844`). The check is
+read-only unless the caller explicitly requests repair; repair updates only the
+registry hash/status, never the persisted pipeline row. Stage registration runs
+after the stage function returns, and re-registration updates an existing row's
+output hash even when its input hash is unchanged (`app/documentary/pipeline/base.py:147`,
+`app/services/artifacts.py:72`). The four-language shadow proof asserts zero
+mismatches after a full run (`tests/test_visual_production.py:727`).
 
 ## 6. Artifact-graph schema
 

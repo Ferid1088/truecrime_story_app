@@ -48,7 +48,7 @@ ARTIFACT_SCOPES: dict[str, ArtifactScope] = {
 # the manifest; their shared plan/card rows do not read a language's timing.
 # This keeps a Persian retake from invalidating German artifacts.
 ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
-    "master_story": [],
+    "master_story": ["research_result"],
     "beats": ["master_story"],
     "audio_blocks": ["beats"],
     "spoken_version": ["master_story"],
@@ -68,6 +68,7 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "production_script": [
         "spoken_version", "voice_takes", "audio_timing", "visual_plan",
         "chapter_cards", "timeline_cards", "captions", "music_cues",
+        "host_segments", "film_length",
     ],
     "final_render": ["production_script", "intro"],
     "research_result": [],

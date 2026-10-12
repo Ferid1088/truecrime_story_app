@@ -7,6 +7,7 @@ from app.core.artifact_dependencies import (
     validate_dependency_table,
 )
 from app.core.member_ids import assign_new_ids, ensure_document_member_ids, load_legacy_ids
+from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES
 from app.services.artifacts import ArtifactGraphError, ArtifactRegistry
 
 
@@ -41,6 +42,21 @@ def test_dependency_table_is_acyclic_and_documented_types_are_present():
     assert "audio_timing" in direct_dependents("voice_takes")
 
 
+def test_every_registered_type_has_a_dependency_entry_and_producer():
+    registered = {artifact_type for types in STAGE_ARTIFACT_TYPES.values()
+                  for artifact_type in types}
+    assert registered <= set(ARTIFACT_DEPENDENCIES)
+    produced = registered | {dependency for deps in ARTIFACT_DEPENDENCIES.values()
+                             for dependency in deps}
+    assert produced == set(ARTIFACT_DEPENDENCIES)
+
+
+def test_timing_and_story_dependency_edges_are_explicit():
+    assert ARTIFACT_DEPENDENCIES["master_story"] == ["research_result"]
+    assert "host_segments" in ARTIFACT_DEPENDENCIES["production_script"]
+    assert "film_length" in ARTIFACT_DEPENDENCIES["production_script"]
+
+
 def test_registry_fresh_version_scope_preview_and_invalidation(db_session):
     registry = ArtifactRegistry(db_session)
     master = registry.register("master_story", {"case": 1}, {"text": "a"})
@@ -52,6 +68,18 @@ def test_registry_fresh_version_scope_preview_and_invalidation(db_session):
     affected = registry.invalidate([master.id], "beat changed")
     assert set(affected) == {"master_story", "beats"}
     assert registry.invalidate([master.id], "same reason") == affected
+
+
+def test_reregistration_updates_output_hash_without_changing_input_version(db_session):
+    registry = ArtifactRegistry(db_session)
+    first = registry.register("master_story", {"case": 77}, {"text": "same"},
+                              output_hash="output-before")
+    second = registry.register("master_story", {"case": 77}, {"text": "same"},
+                               output_hash="output-after")
+    assert second.id == first.id
+    assert second.version == first.version == 1
+    assert second.input_hash == first.input_hash
+    assert second.output_hash == "output-after"
 
 
 def test_registry_rejects_cycles_and_absolute_paths(db_session):
