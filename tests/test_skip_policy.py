@@ -111,7 +111,7 @@ def test_verify_mode_runs_the_producer_after_a_would_skip(db_session, monkeypatc
     assert "INCREMENTAL_VERIFY" in decisions
 
 
-def test_stage_runner_enforce_reuses_a_sound_artifact(db_session, configured, monkeypatch):
+def test_stage_runner_enforce_reuses_a_sound_artifact(db_session, client, configured, monkeypatch):
     import asyncio
 
     from app.documentary.pipeline.base import Stage, StageRunner
@@ -135,3 +135,10 @@ def test_stage_runner_enforce_reuses_a_sound_artifact(db_session, configured, mo
                  if item["name"] == "master_story")
     assert stage["status"] == "skipped"
     assert stage["detail"]["reused"] is True
+    response = client.get(f"/api/documentary/jobs/{job.id}")
+    assert response.status_code == 200
+    print("REUSED_JOB_API", json.dumps({
+        "id": response.json()["id"],
+        "stage": next(item for item in response.json()["stages"]
+                       if item["name"] == "master_story"),
+    }, sort_keys=True, default=str))
