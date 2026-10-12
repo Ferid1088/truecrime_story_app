@@ -1,148 +1,101 @@
-# Shorts and publishing architecture
+# Shorts and publishing
 
-Status: regenerated from the current code on 2026-10-12. The short-form
-models and deterministic export contracts exist, but end-to-end generation,
-approval bundles, OAuth and platform posting are not complete.
+## 1. Purpose, non-goals, and final decisions
 
-## What is real today
+This document records the current short-form pilot and the PROPOSED production/publishing architecture. It does not implement publishing, OAuth, token storage, or a shorts generator.
 
-- `ShortFormConcept`, `ShortFormScript`, `PlatformVariant`,
-  `ShortFormPublishingPlan` and `ShortFormMetric` tables exist.
-- `ShortFormDirectorAgent` can create candidate concepts from an editorial
-  blueprint, and deterministic gates/selection code records gate results.
-- The short-form settings, metrics and blueprint-candidate API routes exist.
-- `shortform/export.py` can build a local deterministic export package and
-  subtitle layout, subject to local ffmpeg availability.
-- `ExportPackagePublisher` is the only working publisher and produces an
-  export handoff; platform publisher classes deliberately raise a stub error.
-- The current config explicitly keeps short-form status `prototype` and says
-  it does not block long-form release.
+Final decisions: one approval click per language approves a bundle containing the long film and its shorts; items can be excluded or rejected independently; editing voids approval of that item only; approval is bound to content hashes; an unconnected language account remains approved but does nothing until “release now”; visibility is private/draft until live mode is enabled per channel; shorts start only after the long film is finished and a short failure can never block the long film or its release.
 
-## What is still a stub or missing
+## 2. Reality check
 
-There is no production gate that waits for a finished long film before short
-generation, no one-click per-language approval bundle, no item-level
-exclusion/rejection lifecycle, no content-hash-bound approval record, and no
-OAuth/token store or live platform API publisher. The current publishing
-helpers use `review`/`publishing` spellings and a smaller transition set; the
-final state machine below supersedes those names when publishing is built.
-There is no live-mode UI or per-channel release queue. Platform requirements
-remain UNVERIFIED until each official API contract and integration test is
-reviewed.
+| surface | status | verified behaviour | tests |
+|---|---|---|---|
+| `app/shortform/selection.py` | REAL pilot | selects candidate beats and applies configured ranges | short-form tests |
+| `app/shortform/director.py` | REAL pilot | creates candidates from case artifacts and gates | short-form tests |
+| `app/shortform/gates.py` | REAL pilot | reveal/repetition/verification gates | short-form tests |
+| `app/shortform/export.py` | REAL local export | deterministic local export contract | short-form tests |
+| `app/shortform/operations.py` | STUB contract | planning data structures, no release workflow | short-form tests |
+| `app/shortform/publishers.py` | STUB contract | publisher interface/no live adapters | short-form tests |
+| `GET /api/short-form/settings` | REAL | returns configured pilot settings | API tests |
+| `PATCH /api/short-form/settings` | REAL | updates pilot settings | API tests |
+| `GET /api/short-form/metrics` | REAL | reads pilot metrics | API tests |
+| `GET /api/short-form/blueprints/{id}/candidates` | REAL | returns candidate table | API tests |
+| `/short-form` | REAL pilot UI | settings, metrics, evidence boundary | frontend e2e |
+| `/short-form/review` | REAL pilot UI | candidate review surface | frontend e2e |
+| OAuth/token storage/live upload | MISSING | no verified implementation found | none |
 
-## Short-form pipeline design
+The UI reports zero persisted concepts and zero original-audio exports in its pilot report (`frontend/app/short-form/page.tsx:74`); “REAL” here does not mean production-ready publishing.
 
-1. Finish and approve the long film for a language. Shorts are not eligible
-   before that state. A long film remains releasable if a short is rejected,
-   omitted or fails.
-2. Derive candidate concepts only from approved long-film beats, evidence and
-   assets. Store allowed/forbidden reveals and source IDs with every concept.
-3. Write and audit native scripts per language. Reject a short item without
-   changing the long film or other language.
-4. Build platform variants and deterministic export packages. Validate rights,
-   duration, layout, disclosure, CTA and content hashes.
-5. Let the user exclude or reject individual items. An edit voids approval of
-   that item only and creates a new content hash.
-6. Keep the bundle status `prototype` until the complete shorts test suite and
-   the production gates pass. A failed short is reported but never blocks
-   long-film completion or release.
+## 3. Shorts pipeline design (PROPOSED)
 
-One approval click per language approves a bundle containing the long film and
-its shorts. Approval is bound to the selected long-film and short-item content
-hashes. A language without a connected publishing account remains approved,
-but does nothing until the user presses **release now**.
+Start only after the long-film job reaches finished render for that language. Select moments from approved long-film beats: each moment needs a hook, standalone sense, and a spoiler firewall that does not reveal beyond the short. Selection is per language and uses spoken/caption timing. Reframe to vertical with a shot-aware crop and safe zones. Captions use large words, with explicit RTL shaping and right-to-left layout for fa/ar; en/de use left-to-right layouts.
 
-## Publishing state machine
+Platform duration limits are UNVERIFIED until each adapter is checked against current primary documentation. The same applies to loudness targets, formats, title limits, hashtags, and quotas. The planned auditor checks duration, aspect ratio, captions, spoiler scope, rights, loudness, and no repeated source segment. A short failure records an item result and leaves long-film state untouched.
 
-The target state machine is:
+Data model PROPOSED: `short_bundle(language, long_content_hash, status, approval_hash)`, `short_item(id, bundle_id, beat_ids, language, input_hash, output_hash, output_ref, status, excluded, rejection_reason, auditor_json)`, and `publish_attempt(id, item_id, platform, idempotency_key, status, error, attempt_count)`.
 
-```text
-draft -> in_review -> approved -> scheduled -> uploading -> published
-   |         |            |           |            |
- rejected <-+------------+-----------+------------+----> failed
-```
+Long-film audio, captions, and still/video artifacts may be reused by hash after the long film is complete. Reuse is read-only and does not allow a short to mutate long-film approval.
 
-`draft` is the default for a new long film or short item. `in_review` means
-the bundle or item is awaiting the user's decision. `approved` records the
-per-language bundle approval and hashes. `scheduled` is a user-approved
-release slot. `uploading` is an idempotent provider operation. `published`
-records the remote URL and published hash. `failed` retains the provider
-error and is retryable after review. `rejected` is terminal for that version
-but a new edit can create a new draft. Individual items can be excluded
-without rejecting the rest of the bundle.
+## 4. Publishing design (PROPOSED)
 
-Visibility is private/draft by default. Live mode is an explicit per-channel
-user setting; only then may a release request choose public visibility.
+Channel and language mapping comes from configured identity channels (`config/parameters/identity.json:2-32`) and channel intro lookup (`app/documentary/intros.py:86-100`). Each platform needs an OAuth flow scoped to the chosen channel/language. Tokens must be encrypted at rest with an AEAD algorithm such as AES-256-GCM or XChaCha20-Poly1305; the key must come from the macOS keychain or a deployment secret manager, never the repository, and rotation must retain a key id.
 
-## OAuth and token storage
-
-Each channel/platform connection should store provider, account/channel ID,
-scopes, encrypted access token, encrypted refresh token, expiry, and a
-redacted connection status. Encryption keys come from deployment secret
-management, not the database or logs. Tokens must never appear in policy
-context, request logs, error text, exported bundles or frontend payloads.
-Refresh is server-side, bounded by a timeout, and audited by connection ID.
-Disconnect revokes/forgets the encrypted token material according to the
-provider contract while retaining non-secret audit history.
-
-## Publisher interface
-
-The eventual interface should be explicit and idempotent:
+Publisher interface:
 
 ```python
 class Publisher(Protocol):
-    def authorize(self, channel_id: str) -> ConnectionStatus: ...
-    def validate(self, item: PublishItem) -> list[PolicyError]: ...
-    def upload(self, item: PublishItem, idempotency_key: str) -> UploadResult: ...
-    def status(self, remote_id: str) -> UploadStatus: ...
-    def cancel(self, remote_id: str) -> None: ...
+    async def upload(self, item: PublishItem, account: Account, *, idempotency_key: str) -> UploadReceipt: ...
+    async def poll(self, receipt: UploadReceipt) -> UploadState: ...
+    async def publish(self, receipt: UploadReceipt, *, visibility: str) -> UploadReceipt: ...
+    async def delete(self, receipt: UploadReceipt) -> None: ...
 ```
 
-`ExportPackagePublisher` remains useful for local handoff and tests. Live
-publishers must enforce the hash, approval, visibility and channel checks in
-the service, not rely on UI state.
+Adapters are PROPOSED for YouTube long/Shorts, Instagram Reels, Facebook Reels, and TikTok. Uploads use idempotency keys, resumable state, bounded retries, explicit quota errors, and private/draft mode unless the channel live switch is on. Every attempt writes an audit event. No live adapter exists today.
 
-## Platform requirements — UNVERIFIED
+## 5. Approval and publishing state machine
 
-| Platform | Required verification before implementation |
-| --- | --- |
-| YouTube Shorts | OAuth scopes, upload/resumable upload, privacy default, title/description limits, quota, Content ID/disclosure |
-| Instagram Reels | Meta app review, Page/Instagram account linkage, media container lifecycle, publish permissions, rate limits |
-| Facebook Reels | Page token scopes, upload lifecycle, privacy and policy requirements, rate limits |
-| TikTok | Login Kit scopes, Content Posting API review, upload/direct-post rules, privacy/audience controls, disclosure |
+States: `draft → in_review → approved → scheduled → uploading → published`; failure from upload goes to `failed`, human refusal goes to `rejected`, and an explicitly excluded item goes to `excluded`. Editing an approved item transitions it to `voided` and then `in_review`; other bundle items remain approved. Upload is permitted only when approval hash equals current content hash, item is not excluded/voided/rejected, and visibility policy allows it. A language without an account stays approved; release waits for “release now”.
 
-No platform requirement in this table should be treated as implemented until
-the official current documentation and a mocked contract test are recorded.
+| transition | trigger | invariant |
+|---|---|---|
+| draft→in_review | generated artifacts ready | auditor inputs exist |
+| in_review→approved | one language approval click | bundle hash captured |
+| in_review→rejected/excluded | reviewer decision | item reason recorded |
+| approved→voided | item edit | only edited item changes |
+| approved→scheduled | release schedule | hash still current |
+| scheduled→uploading | worker claims attempt | idempotency key unique |
+| uploading→published | platform receipt | visibility policy applied |
+| uploading→failed | terminal platform error | retry reason/audit retained |
 
-## UI design
+## 6. Per-platform requirements
 
-The production screen should show one language bundle card: long-film hash,
-short-item list, per-item status, exclusions/rejections, account connection,
-visibility and release state. The user can open each intermediate script,
-variant and export, edit by prompt, accept/redo/undo, or exclude one item.
-The single language approval button is disabled when required audits fail and
-shows the exact failed item IDs. A missing account leaves the bundle approved
-and exposes **release now** after connection; it does not silently publish.
-Live mode is a separate per-channel toggle with a clear private/draft default.
-Long-film status and release controls are visually independent from the short
-queue; short failures display warnings and cannot block them.
+All cells below are UNVERIFIED in this offline repository audit; adapter work must verify each item against primary platform documentation before implementation.
 
-## Implementation steps, tests and risk
+| platform | API product/app review | rate limits/quota | formats/length | auth/publish permissions |
+|---|---|---|---|---|
+| YouTube | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| Instagram Reels | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| Facebook Reels | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
+| TikTok | UNVERIFIED | UNVERIFIED | UNVERIFIED | UNVERIFIED |
 
-1. Add long-film-finished and short-isolated orchestration (high risk).
-   Test that no short starts early and that failed/rejected shorts never alter
-   long-film completion or release.
-2. Add bundle/item approval tables with content hashes and override events
-   (high risk). Test one click per language, item exclusion/rejection, and
-   item-only approval invalidation after an edit.
-3. Replace the prototype state helpers with the full state machine (medium
-   risk). Test every legal transition, rejected/failed recovery, idempotency,
-   and private-by-default visibility.
-4. Add encrypted OAuth connections and mocked platform adapters (high risk).
-   Test token secrecy, refresh expiry, timeout/retry, and no external calls in
-   CI. Platform requirements remain UNVERIFIED until contract review.
-5. Build the review/release UI and per-channel live-mode controls (medium
-   risk). Test missing-account approval, explicit release-now, and isolated
-   short failure display.
-6. Promote status from `prototype` only after backend, frontend and mocked
-   end-to-end tests pass (low operational risk, high release significance).
+## 7. UI design (PROPOSED)
+
+The review queue shows one language bundle with long film plus shorts, per-item exclude/reject/edit actions, auditor reasons, and content hashes. The per-video overview shows all languages and bundle state. Bulk approve is one click per language; the repair-by-prompt panel previews one item’s invalidation; live mode is a per-channel switch; “release now” is explicit when no account is connected. Every screen handles draft, in review, approved, scheduled, uploading, published, failed, rejected, excluded, and voided. Keyboard focus, visible error text, captions, color-independent status, and RTL direction are required.
+
+## 8. API endpoints (PROPOSED)
+
+`GET /api/documentary/{case_id}/short-bundles`, `GET /api/shorts/{id}`, `POST /api/shorts/{id}/exclude`, `POST /api/shorts/{id}/reject`, `POST /api/shorts/{id}/approve`, `POST /api/shorts/{id}/edit-preview`, `POST /api/channels/{channel}/oauth/start`, `GET /api/channels/{channel}/oauth/callback`, `POST /api/documentary/{case_id}/release-now`, `POST /api/channels/{channel}/live-mode`.
+
+Responses include state, content hash, auditor decision, account availability, visibility, and audit event id. Errors include `409` hash changed, `422` invalid review action, `503` account unavailable, `429` quota, and structured policy errors.
+
+## 9. Implementation steps
+
+1. Persist short bundles/items and hash-bound approval; test per-language approval and item isolation (medium risk).
+2. Add post-render short scheduling and failure isolation; test long completion/release is unchanged by short failure (high risk).
+3. Add vertical/caption renderer and per-short auditor with four-language fixtures (high risk).
+4. Add encrypted account/token store and OAuth adapters one platform at a time (high risk).
+5. Add resumable publishing, quota handling, private mode, live switch, and UI review queue (high risk).
+
+## 10. Open risks and questions
+
+Open risks: platform policies change; OAuth review can block production; RTL caption measurement can change line breaks; and a platform may accept an upload but delay publication. Questions: the exact key-management provider on the Mac, the first release platform, and allowed live-mode actors are unresolved.

@@ -1,160 +1,130 @@
-# Incremental build architecture
+# Incremental build and artifact graph
 
-Status: regenerated from the current code on 2026-10-12. The artifact graph
-described below is a design target; it is not yet a database table.
+This document separates verified behaviour from the proposed incremental-build design. Current-code claims carry a `file:line` reference; `PROPOSED` and `UNVERIFIED` text is not a claim about the current implementation.
 
-## Addressable units and IDs today
+## 1. Purpose and non-goals
 
-The database is the current source of identity. Cases, story versions,
-editorial blueprints, production scripts, visual assets, visual audits,
-host scenes, videos, and documentary jobs have integer primary keys. A
-documentary stage is currently addressed by its job stage name, with a
-language suffix where applicable (for example `spoken:de` or `render:fa`).
-The stage list is stored in `documentary_jobs.stages_json`; stage detail and
-attempt history are stored alongside it in that JSON. Short-form concepts,
-scripts, platform variants, publishing plans, and metrics also have integer
-IDs, but are not yet linked to the long-form job graph.
+The purpose is to make a documentary rebuild addressable, auditable, resumable, and safe to preview before execution. Today, a job persists stage state in `DocumentaryJob.stages_json` and reruns unfinished work; it does not yet use a dependency graph to skip work (`app/documentary/pipeline/base.py:61-150`).
 
-Existing stable content identifiers include:
+Non-goals for the current implementation: hash-aware skipping, partial rendering, edit-by-prompt execution, media reuse, user media, audio recovery, timeline policy, shorts, publishing, and splitting the large pipeline modules. Those are PROPOSED follow-up work.
 
-| Unit | Current identity/fingerprint |
-| --- | --- |
-| Case and story | `Case.id`, `StoryVersion.id`, evidence fingerprints and text hashes in story services |
-| Documentary run | `DocumentaryJob.id`, stage name, language, `stages_json` |
-| Spoken script | language-specific script hash recorded by `pipeline/language.py` |
-| Voice and host media | text SHA-256, voice SHA-256, avatar-video SHA-256, persisted sidecars |
-| Visual asset | `VisualAsset.id`, `asset_code`, file SHA-256 and perceptual hash |
-| Visual audit | `VisualAudit.key`, asset code, sentences JSON and verdict |
-| Render | `Video.id`, job/script relationship, output path and metadata |
+## 2. Artifact inventory
 
-Hashes are not uniform today: some are full SHA-256 values, some are short
-prefixes used in filenames or cache keys, and some stages use a JSON/text
-fingerprint. An implementation must preserve the full hash in the graph even
-when a display filename uses a prefix.
+The rows below describe the current storage when it exists and the PROPOSED stable graph type. A blank hash/cache cell means no verified current cache key was found.
 
-## Current render assembly
+| type | where stored today | stable ID today | inputs | produced by | consumed by | hash/cache today | reuse today |
+|---|---|---|---|---|---|---|---|
+| master_story | `story_versions` row | row id | case research and prompt | `app/documentary/jobs.py:244-260` | approval, blueprint | `StoryVersion.text_hash` | latest approved row |
+| beats | `blueprints.blueprint_json` | no member ID | master text | blueprint agent, `app/documentary/jobs.py:266-285` | audio, visuals | blueprint story hash | latest non-invalid row |
+| audio_blocks | `audio_plans.plan_json` | no member ID | blueprint | audio-plan agent, `app/documentary/jobs.py:290-300` | voice and production | no graph hash | latest row |
+| spoken_version | `story_versions` rows | row id + language | master and language | spoken branch, `app/documentary/jobs.py:308-340` | performance | row text hash | latest branch row |
+| voice_takes | voice/performance tables and files | database row ids | spoken text and voice settings | pipeline voice stages, `app/documentary/jobs.py:217-220` | production script | file metadata only | stage reuse |
+| visual_needs | visual-needs records | database ids | blueprint beats | visual-needs stage | visual research | no graph hash | current job state |
+| visual_shots | visual plan JSON | no member ID | visual needs and firewall | director/plan stages | production script | no graph hash | latest plan |
+| visual_pieces | visual asset rows/files | asset and piece ids | source video and cuts | `app/documentary/visuals/pieces.py` | visual audit, render | source metadata | audited rows reused |
+| visual_plan | plan JSON/production rows | no member ID | needs, assets, story order | `app/documentary/jobs.py:215-220` | production script | no graph hash | latest plan unless refresh |
+| chapter_plan | chapter plan rows/JSON | row id | master/blueprint | chapter writer | cards and script | no graph hash | latest valid plan |
+| chapter_cards | production script/cards JSON | no member ID | chapters and timeline | `app/documentary/chapters.py` | renderer | no graph hash | regenerated with script |
+| timeline_cards | production script/cards JSON | no member ID | meaningful events | timeline/card code | renderer | no graph hash | regenerated with script |
+| intro | `data/intros/<lang>/` files | path/fingerprint | channel identity and size | `app/documentary/intros.py:119-141` | renderer | intro fingerprint | cached per channel/size |
+| music_cues | audio plan JSON | no member ID | audio plan | audio planner | production audio | no graph hash | stage reuse |
+| captions | production script JSON/SRT | no member ID | narration timings and text | production script and `render/engine.py:554-557` | renderer | no graph hash | regenerated with script |
+| production_script | `production_scripts` rows | row id + language | spoken, voice, visuals, cards | `app/documentary/production/script.py:1347-1362` | critique and render | row/version fields | latest row |
+| final_render | relative media path + production row | row id/path | production script, audio, intro | `app/documentary/render/engine.py:525-640` | UI/download | no graph hash | output file reused only by stage state |
 
-The language pipeline produces a production script, narration/audio and
-visual decisions. `app/documentary/render/engine.py` builds the ffmpeg filter
-graph and writes to an atomic temporary output before renaming it. Intro
-rendering is cached under `data/intros/<language>/`; the render result is
-serialized in the documentary job and the resulting `Video` row. The render
-stage must remain the last consumer of the approved stage outputs. A graph
-implementation should record the exact input artifact IDs and hashes used by
-each assembly, rather than infer dependencies from a filesystem scan.
+PROPOSED: Task 6 adds stable member IDs and an `artifacts`/`artifact_deps` graph without making existing readers positional-incompatible.
 
-## Dependency and invalidation table
+## 3. Pipeline stage sequence and resume
 
-| Artifact | Depends on | Invalidates when changed |
-| --- | --- | --- |
-| Research/evidence package | case, source contents, research configuration | master story and all downstream documentary artifacts |
-| Master story | evidence package, story prompt/config, edit scope | blueprint, spoken versions, audio, visuals, chapters, host, render |
-| Blueprint/acts | master story, director config | audio plan, spoken versions, chapters, visuals, host, render |
-| Spoken language version | master story/blueprint, language, localization edit | that language's audio, visuals, chapters, host and render only |
-| Audio plan | spoken version, audio config, approved cues | narration mix and that language's render |
-| Visual plan/assets | blueprint, spoken sentences, rights, visual research | audited assets and render for the affected scope |
-| Audited video piece/photo | source media, cut, meaning, target sentences | only the shot/beat and render that consumes it |
-| Chapter/timeline cards | acts, already-told events, language text | that language's overlays and render |
-| Host segment | host plan, host text, studio/outfit, language audio | that segment and render |
-| Channel intro | channel/language/size concept and logo | render assembly for that channel/size |
-| Rendered film | all approved inputs above, profile, ffmpeg/render config | publication approval for that language |
-| Short-form bundle | finished long film, approved beats, language and platform policy | only the short item; never the long film |
+`plan_stages()` creates these exact `stages_json[].name` keys (`app/documentary/jobs.py:208-221`): `research`, `master_story` (from-zero only), `master_approval`, `blueprint`, `audio_plan`, `spoken:<lang>`, optional `host_plan`, optional `chapters`, optional `naming`, `film_length`, `visual_needs`, `visual_research`, `visual_check`, `visual_plan`, `visual_gaps`, then per language `host:<lang>` (optional), `performance:<lang>`, `voice:<lang>`, `production:<lang>`, `critique:<lang>`, `visual_audit:<lang>`, `render:<lang>`.
 
-The first implementation should invalidate by exact dependency edges, not by
-deleting all artifacts for a case. An edit to one language must not invalidate
-other languages; an item edit must void approval for that item only.
+Inputs and outputs are stage detail dictionaries saved in the matching entry: research ingests source/fact rows; master story writes a story version; approval chooses the approved master; blueprint writes a blueprint row; audio plan writes an audio-plan row; spoken writes one localized story version per language; visual stages write needs/assets/plans; performance and voice write audio rows/files; production writes a production script; critique and visual audit write verdicts; render writes the final relative path and media metadata (`app/documentary/jobs.py:241-300`, `app/documentary/pipeline/base.py:94-150`).
 
-## Proposed artifact-graph schema
+On resume, `StageRunner` skips entries whose status is `done`, `skipped`, or `degraded`; failed/pending entries run again and their attempts/errors remain in the JSON (`app/documentary/pipeline/base.py:94-150`). The explicit resume endpoint resets a failed/partial/interrupted/cancelled job’s active stage entries to pending (`app/documentary/api.py:498-518`). This is stage-level resume, not member-level resume.
 
-Create an `artifact_graph` table with these required fields:
+## 4. Final render today and per-segment analysis
 
-| Field | Meaning |
-| --- | --- |
-| `artifact_id` | stable application ID for the produced artifact |
-| `type` | master, audio, visual, chapter, host, intro, render, short, etc. |
-| `scope_case_id` | case scope, nullable only for global assets |
-| `scope_production_id` | documentary production/job scope |
-| `scope_language` | language scope, nullable for language-independent artifacts |
-| `scope_item_id` | beat, shot, segment or short item scope when applicable |
-| `input_hash` | canonical hash of all normalized inputs and policy versions |
-| `output_path` | repository/data-relative output path; never an absolute path in audit context |
-| `status` | pending, building, approved, omitted, degraded, invalidated, failed |
-| `depends_on` | JSON list of artifact IDs and edge metadata |
-| `version` | graph/schema and producer version |
-| `created_by` | stage/agent/service identifier |
-| `edit_id` | the user edit that produced this version, nullable |
+Current render reads a production script, resolves narration audio, writes an SRT, streams RGB frames to ffmpeg, maps AAC audio and mov_text subtitles, and atomically renames the `.part` output (`app/documentary/render/engine.py:525-580`, `616-640`). Frames are selected from shot windows, crossfaded or faded to black at transition points, overlaid with cards/subtitles, and faded at the end (`app/documentary/render/engine.py:581-613`).
 
-The graph must also store created/updated timestamps and an error/reason JSON
-field in the eventual migration, while keeping the required field names
-above. Context is sanitized before persistence: no secrets, PII, or absolute
-paths.
+When an intro is present, the graph adds intro audio, delays it, ducks film audio with volume ramps, and maps mixed audio; otherwise it maps documentary audio directly (`app/documentary/render/engine.py:477-501`, `568-578`). Intro files are made/cached by language, size, and fingerprint (`app/documentary/intros.py:24-27`, `119-141`). The renderer currently does not apply a separate `loudnorm` filter or crossfade audio segments; loudness is inherited from prepared audio. This is a verified limitation.
 
-## Invalidation algorithm
+Per-segment rendering is PROPOSED. A segment stitch must preserve PTS, continuous narration sample timing, the global loudness target, intro ducking windows, transition overlaps, subtitle offsets, and chapter/timeline timing. Risks are encoder delay, cumulative duration drift, reset audio clocks, duplicated loudness normalization, and a crossfade consuming the next segment’s first words. Acceptance should measure integrated loudness within tolerance, total duration drift below a threshold, no audio discontinuity at joins, and subtitle timestamps within their owning segment.
 
-1. Normalize the edit or upstream input into a canonical intent and compute
-   its scope: case, production, language, stage and optional item IDs.
-2. Recompute the input hash for the directly affected artifact. If it is
-   unchanged, keep the artifact and report a no-op.
-3. Mark that artifact `invalidated` and breadth-first traverse `depends_on`.
-   Mark descendants invalidated only when their dependency edge intersects the
-   edit scope.
-4. Keep old rows and files addressable for review/undo. Create a new `edit_id`
-   and new artifact version for regenerated outputs.
-5. Re-run only invalidated stages, using existing approved artifacts for all
-   other edges. Auditors must approve the replacement before a render can
-   consume it.
-6. Recompute the render assembly hash from the selected artifact versions.
-   Publication approval is bound to that hash; any changed item loses only its
-   own approval.
+PROPOSED stitch: render each segment with a shared time base and codec parameters, retain exact input PTS/durations, concatenate only after validating no overlap/gap, apply loudness once to the assembled program, then run a duration/PTS/loudness/discontinuity auditor.
 
-`DocumentaryJob.stages_json` remains the operational resume ledger during the
-transition. It records pending/running/done/skipped/degraded/failed stage
-entries and attempt history. `resume_documentary_job()` resets only failed,
-running and blocked stages; saved stage details remain. The artifact graph
-will become the durable dependency/selection ledger, while `stages_json`
-continues to provide a compact worker checkpoint until all stages write graph
-edges.
+## 5. Dependency table
 
-## Edit-by-prompt flow
+The following is the declarative PROPOSED registry table used by Task 6. “Invalidates” is the transitive downstream set, not a current skip rule.
 
-The user-facing edit request should be persisted as an intent before it is
-executed. A minimal intent schema is:
+| artifact | depends on | invalidates |
+|---|---|---|
+| master_story | research inputs, prompts, model/config | beats, audio_blocks, spoken_version, visual_needs, chapters, production_script, final_render |
+| beats | master_story | audio_blocks, visual_needs, visual_shots, chapter_plan, timeline_cards, captions, production_script, final_render |
+| audio_blocks | beats, audio config | voice_takes, spoken_version, music_cues, captions, production_script, final_render |
+| voice_takes | audio_blocks, spoken_version, voice config | production_script, captions, final_render |
+| spoken_version | master_story, language, localization config | voice_takes, captions, production_script, final_render |
+| visual_needs | beats, spoiler firewall | visual_shots, visual_pieces, visual_plan, production_script, final_render |
+| visual_shots | visual_needs, assets, story order | visual_plan, production_script, final_render |
+| visual_pieces | source media, cut window, auditor result | visual_plan, production_script, final_render |
+| visual_plan | visual_needs, visual_shots, visual_pieces | production_script, final_render |
+| chapter_plan | master_story, beats, chapter config | chapter_cards, captions, production_script, final_render |
+| chapter_cards | chapter_plan, timeline_cards | production_script, final_render |
+| timeline_cards | beats, meaningful events, language layout | production_script, final_render |
+| intro | channel identity, language, size | final_render |
+| music_cues | audio_blocks, music config | production_script, final_render |
+| captions | spoken_version, voice_takes, timing | production_script, final_render |
+| production_script | spoken_version, voice_takes, visual_plan, cards, captions, music_cues | critique, final_render |
+| final_render | production_script, audio, intro, render config | none |
 
-```json
-{
-  "edit_id": "uuid",
-  "actor": "operator",
-  "prompt": "short free-text instruction",
-  "target": {"case_id": 1, "production_id": 2, "language": "de", "item_ids": [17]},
-  "requested_fields": ["chapter_text"],
-  "reason": "editorial reason"
-}
+A timing change in one audio block therefore invalidates the dependent voice take and every timing-bearing visual, card, timeline, caption, music, production script, and final render in that language. Shorts are downstream only after a finished long film and cannot invalidate or block it (final decision).
+
+## 6. Artifact-graph schema
+
+PROPOSED schema (implemented by migration 0009): `artifacts(id String primary key, case_id Integer nullable, production_id Integer nullable, language String nullable, type String, scope_json Text, input_hash String, output_hash String nullable, output_ref String, status String, version Integer, created_by String, edit_id String nullable, stage_job_id Integer nullable, created_at DateTime, updated_at DateTime)`; `artifact_deps(artifact_id String, depends_on_id String, unique(artifact_id, depends_on_id))`; and `edit_log(id Integer primary key, created_at DateTime, actor String nullable, scope_type String nullable, scope_id String nullable, instruction_text Text, intent_json Text, scope_preview_json Text, status String, result_json Text, parent_edit_id Integer nullable)`.
+
+Indexes are required on artifact case/type/language/status, both edge directions, and edit creation/scope. Status state machine: `fresh → stale → building → fresh`, with `building → failed|omitted`; a rejected edit does not alter artifact status. Version increments only when an unchanged ID receives changed inputs.
+
+The graph is separate from `DocumentaryJob.stages_json`: stages remain the operational resume record (`app/db/models.py:1196-1204`); graph rows are addressable outputs. Existing `override_log` and `policy_events` remain audit records (`app/db/models.py:1667-1699`); `edit_log` records edit intent and lifecycle and does not duplicate policy decisions.
+
+## 7. ID scheme
+
+PROPOSED new members use UUID-based IDs with a type prefix, for example `beat_01J...`, `shot_01J...`, `chapter_card_01J...`, `timeline_card_01J...`, and `caption_01J...`. IDs are assigned at creation, persisted in JSON, never positional, and never derived from text. A legacy member without an ID receives deterministic UUID5 from `(parent_id, member_type, original_position)` and `legacy_id: true` on the next in-memory load; historical rows are not rewritten unless their stage is saved.
+
+## 8. Invalidation algorithm
+
+```text
+invalidate(requested_ids, reason):
+  affected = ordered set(requested_ids); queue = requested_ids
+  while queue:
+    id = queue.pop()
+    if id is visiting: raise CycleError
+    mark id visiting
+    for dependent in reverse_edges(id):
+      if dependent not in affected: add dependent and queue it
+    mark id stale and visiting complete
+  persist each state transition once with reason
+  return affected grouped by type
 ```
 
-The flow is: parse intent; validate allowed fields and language/item scope;
-preview the dependency impact and expected cost; ask the user to execute;
-produce a new candidate; show before/after and exact changed IDs/hashes; run
-the relevant auditor; then offer accept, redo with another instruction, undo,
-or escalation. Accept writes the new graph version and override event. Redo
-creates a new edit. Undo selects the prior approved version without deleting
-history. Auditor escalation leaves the item out or stops the stage according
-to the configured exhaustion policy.
+PROPOSED cycle detection uses a color set over the full reachable subgraph before committing; repeated invalidation of the same IDs is idempotent because stale rows and the same reason produce no new transition.
 
-## Implementation steps, tests and risk
+## 9. Edit-by-prompt flow
 
-1. Add normalized hash helpers and a graph migration/API (medium risk).
-   Test deterministic hashes, sanitized context, Postgres/SQLite migration,
-   and dependency edge persistence.
-2. Make research, master story and blueprint writers emit graph nodes
-   (medium/high risk). Test selective invalidation and unchanged-input reuse.
-3. Add per-language audio, visual, chapter and host edges (high risk).
-   Test that an `en` edit does not rebuild `de`, and an item edit does not
-   void unrelated approvals.
-4. Make render consume a graph-selected manifest and bind `Video` approval to
-   the assembly hash (high risk). Test atomic output, missing dependency
-   rejection and resume after interruption.
-5. Add the prompt-edit preview/execution UI and audit escalation (medium
-   risk). Test accept/redo/undo and audit rejection paths end to end.
-6. Link the short-form bundle only after the long film reaches its finished
-   state (medium risk). Test that every short failure is isolated from long
-   film completion and release.
+PROPOSED intent schema: `{"instruction":"string","scope":{"language":"en|null","beat_ids":["beat_..."]},"requested_changes":[{"field":"string","value":{}}],"reason":"string"}`. The policy layer validates allowed fields and scope, previews dependencies, and escalates story/fact/spoiler changes to the relevant auditors. If the requested field is outside the selected scope, the UI asks for approval to widen the scope. Preview is `{rebuilds:N,total:M,affected_by_type:{},estimated_cost_usd:null,estimated_time_seconds:null}`. Execution records before/after hashes, runs auditors, and offers accept/redo/undo. A redo creates a child edit; undo marks the edit undone and invalidates affected outputs again. If a job is running, preview is allowed, execution queues behind it or explicitly cancels/replans; optimistic input hashes reject stale previews.
+
+## 10. API endpoints
+
+PROPOSED: `GET /api/documentary/{case_id}/artifacts?type=&language=&status=` returns artifact summaries; `POST /api/documentary/{case_id}/artifacts/scope-preview` with `{artifact_ids:[]}` returns grouped counts and `N of M`; `POST /api/documentary/{case_id}/edits/preview` and `/execute` return an edit record and before/after hashes; `POST /api/documentary/{case_id}/edits/{id}/redo` and `/undo` return updated status. Errors are `404` unknown case/artifact, `409` stale preview or cycle, `422` invalid intent/scope, and structured policy errors for auditor rejection.
+
+## 11. Implementation steps
+
+1. Add canonical fingerprints and stable member IDs; test normalization, legacy determinism, insert/delete/reorder (low risk).
+2. Add migration 0009 and registry dependency data; test SQLite/Postgres schema and cycle detection (medium risk).
+3. Add write-only shadow registration and read-only inspection endpoints; assert output identity with shadow on/off (medium risk).
+4. Add invalidation and scope previews without skip behaviour; test transitive sets and idempotence (medium risk).
+5. Add edit intent and auditor escalation; integration-test concurrency and undo (high risk).
+6. Add hash-aware skipping only after acceptance metrics prove no timing/loudness regression (high risk).
+
+## 12. Open risks and questions
+
+Open risks: current JSON members lack stable IDs; output files can be externally removed; render timing is audio-driven; no current loudness auditor is in the final renderer; and current stage retry/resume is coarser than member invalidation (`app/documentary/pipeline/base.py:94-150`). Open questions: exact loudness tolerance, whether artifact IDs must survive case export/import, and whether an edit may widen from one language to all languages automatically.
