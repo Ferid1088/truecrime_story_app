@@ -19,10 +19,10 @@ def artifact_snapshot(db: Session, case_id: int) -> dict[str, str]:
     drift = {item["artifact_id"]: item.get("expected")
              for item in registry_consistency(db, case_id=case_id)
              if item.get("expected")}
-    return {
-        row.id: drift.get(row.id, row.output_hash or "")
-        for row in db.query(Artifact).filter(Artifact.case_id == case_id).all()
-    }
+    snapshot: dict[str, str] = {}
+    for row in db.query(Artifact).filter(Artifact.case_id == case_id).all():
+        snapshot[row.id] = str(drift.get(row.id) or row.output_hash or "")
+    return snapshot
 
 
 def downstream_closure(db: Session, artifact_ids: list[str]) -> set[str]:
