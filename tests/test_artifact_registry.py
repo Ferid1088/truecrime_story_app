@@ -1,6 +1,11 @@
 import pytest
 
-from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, validate_dependency_table
+from app.core.artifact_dependencies import (
+    ARTIFACT_DEPENDENCIES,
+    ARTIFACT_SCOPES,
+    direct_dependents,
+    validate_dependency_table,
+)
 from app.core.member_ids import assign_new_ids, ensure_document_member_ids, load_legacy_ids
 from app.services.artifacts import ArtifactGraphError, ArtifactRegistry
 
@@ -30,10 +35,10 @@ def test_known_document_members_get_prefixed_ids():
 
 def test_dependency_table_is_acyclic_and_documented_types_are_present():
     validate_dependency_table()
-    assert {"master_story", "beats", "audio_blocks", "voice_takes", "spoken_version",
-            "visual_needs", "visual_shots", "visual_pieces", "visual_plan", "chapter_plan",
-            "chapter_cards", "timeline_cards", "intro", "music_cues", "captions",
-            "production_script", "final_render"} <= set(ARTIFACT_DEPENDENCIES)
+    assert set(ARTIFACT_DEPENDENCIES) == set(ARTIFACT_SCOPES)
+    assert ARTIFACT_SCOPES["voice_takes"] == "per_language"
+    assert ARTIFACT_SCOPES["beats"] == "shared"
+    assert "audio_timing" in direct_dependents("voice_takes")
 
 
 def test_registry_fresh_version_scope_preview_and_invalidation(db_session):
@@ -57,3 +62,60 @@ def test_registry_rejects_cycles_and_absolute_paths(db_session):
         registry.register("master_story", {"a": 1}, {}, [b.id])
     with pytest.raises(ArtifactGraphError):
         registry.register("intro", {"a": 2}, {}, output_ref="/absolute/file")
+
+
+def _timing_graph(registry, language, blocks=None, master=None):
+    if blocks is None:
+        beats = registry.register("beats", {"scope": "shared"}, {"text": "beat"})
+        master = registry.register("master_story", {"scope": "shared"}, {"text": "story"})
+        blocks = registry.register("audio_blocks", {"scope": "shared"}, {"plan": 1}, [beats.id])
+    spoken = registry.register("spoken_version", {"language": language}, {"text": language},
+                               [master.id])
+    takes = registry.register("voice_takes", {"language": language}, {"duration": 10},
+                              [blocks.id, spoken.id])
+    timing = registry.register("audio_timing", {"language": language}, {"duration": 10},
+                               [takes.id])
+    music = registry.register("music_cues", {"language": language}, {"cue": language},
+                              [blocks.id, timing.id])
+    captions = registry.register("captions", {"language": language}, {"words": language},
+                                 [spoken.id, timing.id])
+    script = registry.register("production_script", {"language": language}, {"script": language},
+                               [spoken.id, takes.id, timing.id, music.id, captions.id])
+    final = registry.register("final_render", {"language": language}, {"script": language},
+                              [script.id, registry.register("intro", {"language": language},
+                                                             {"intro": language}).id])
+    return takes.id, {"audio_timing", "music_cues", "captions", "production_script", "final_render"}, final.id
+
+
+def test_voice_duration_invalidates_only_that_language_timing_consumers(db_session):
+    registry = ArtifactRegistry(db_session)
+    en_take, expected, _ = _timing_graph(registry, "en")
+    de_take, _, _ = _timing_graph(registry, "de")
+    affected = registry.invalidate([en_take], "voice duration changed")
+    assert set(affected) == {"voice_takes", *expected}
+    assert de_take not in {item for values in affected.values() for item in values}
+
+
+def test_shared_beat_invalidates_all_language_dependents(db_session):
+    registry = ArtifactRegistry(db_session)
+    beat = registry.register("beats", {"scope": "shared"}, {"text": "old"})
+    master = registry.register("master_story", {"scope": "shared"}, {"text": "story"})
+    blocks = registry.register("audio_blocks", {"scope": "shared"}, {"text": "old"}, [beat.id])
+    en_take, _, _ = _timing_graph(registry, "en", blocks, master)
+    de_take, _, _ = _timing_graph(registry, "de", blocks, master)
+    affected = registry.invalidate([beat.id], "beat text changed")
+    flat = {item for values in affected.values() for item in values}
+    assert affected["beats"] == [beat.id]
+    assert en_take in flat and de_take in flat
+
+
+def test_asset_replacement_only_invalidates_shots_that_use_it(db_session):
+    registry = ArtifactRegistry(db_session)
+    asset_a = registry.register("visual_asset", {"asset": "a"}, {"sha": "a"})
+    asset_b = registry.register("visual_asset", {"asset": "b"}, {"sha": "b"})
+    shot_a = registry.register("visual_shots", {"shot": "a"}, {"asset": "a"}, [asset_a.id])
+    shot_b = registry.register("visual_shots", {"shot": "b"}, {"asset": "b"}, [asset_b.id])
+    affected = registry.invalidate([asset_a.id], "asset replaced")
+    flat = {item for values in affected.values() for item in values}
+    assert asset_a.id in flat and shot_a.id in flat
+    assert asset_b.id not in flat and shot_b.id not in flat

@@ -12,25 +12,27 @@ Non-goals for the current implementation: hash-aware skipping, partial rendering
 
 The rows below describe the current storage when it exists and the PROPOSED stable graph type. A blank hash/cache cell means no verified current cache key was found.
 
-| type | where stored today | stable ID today | inputs | produced by | consumed by | hash/cache today | reuse today |
+| type | scope | where stored today | stable ID today | inputs | produced by | consumed by | hash/cache today | reuse today |
 |---|---|---|---|---|---|---|---|
-| master_story | `story_versions` row | row id | case research and prompt | `app/documentary/jobs.py:244-260` | approval, blueprint | `StoryVersion.text_hash` | latest approved row |
-| beats | `blueprints.blueprint_json` | no member ID | master text | blueprint agent, `app/documentary/jobs.py:266-285` | audio, visuals | blueprint story hash | latest non-invalid row |
-| audio_blocks | `audio_plans.plan_json` | no member ID | blueprint | audio-plan agent, `app/documentary/jobs.py:290-300` | voice and production | no graph hash | latest row |
-| spoken_version | `story_versions` rows | row id + language | master and language | spoken branch, `app/documentary/jobs.py:308-340` | performance | row text hash | latest branch row |
-| voice_takes | voice/performance tables and files | database row ids | spoken text and voice settings | pipeline voice stages, `app/documentary/jobs.py:217-220` | production script | file metadata only | stage reuse |
-| visual_needs | visual-needs records | database ids | blueprint beats | visual-needs stage | visual research | no graph hash | current job state |
-| visual_shots | visual plan JSON | no member ID | visual needs and firewall | director/plan stages | production script | no graph hash | latest plan |
-| visual_pieces | visual asset rows/files | asset and piece ids | source video and cuts | `app/documentary/visuals/pieces.py` | visual audit, render | source metadata | audited rows reused |
-| visual_plan | plan JSON/production rows | no member ID | needs, assets, story order | `app/documentary/jobs.py:215-220` | production script | no graph hash | latest plan unless refresh |
-| chapter_plan | chapter plan rows/JSON | row id | master/blueprint | chapter writer | cards and script | no graph hash | latest valid plan |
-| chapter_cards | production script/cards JSON | no member ID | chapters and timeline | `app/documentary/chapters.py` | renderer | no graph hash | regenerated with script |
-| timeline_cards | production script/cards JSON | no member ID | meaningful events | timeline/card code | renderer | no graph hash | regenerated with script |
-| intro | `data/intros/<lang>/` files | path/fingerprint | channel identity and size | `app/documentary/intros.py:119-141` | renderer | intro fingerprint | cached per channel/size |
-| music_cues | audio plan JSON | no member ID | audio plan | audio planner | production audio | no graph hash | stage reuse |
-| captions | production script JSON/SRT | no member ID | narration timings and text | production script and `render/engine.py:554-557` | renderer | no graph hash | regenerated with script |
-| production_script | `production_scripts` rows | row id + language | spoken, voice, visuals, cards | `app/documentary/production/script.py:1347-1362` | critique and render | row/version fields | latest row |
-| final_render | relative media path + production row | row id/path | production script, audio, intro | `app/documentary/render/engine.py:525-640` | UI/download | no graph hash | output file reused only by stage state |
+| master_story | shared | `story_versions` row | row id | case research and prompt | `app/documentary/jobs.py:244-260` | approval, blueprint | `StoryVersion.text_hash` | latest approved row |
+| beats | shared | `blueprints.blueprint_json` | no member ID today | master text | blueprint agent, `app/documentary/jobs.py:266-285` | audio, visuals | blueprint story hash | latest non-invalid row |
+| audio_blocks | shared | `audio_plans.plan_json` | no member ID today | blueprint | audio-plan agent, `app/documentary/jobs.py:290-300` | voice and production | no graph hash | latest row |
+| spoken_version | per-language | `story_versions` rows | row id + language | master and language | spoken branch, `app/documentary/jobs.py:308-340` | performance | row text hash | latest branch row |
+| voice_takes | per-language | voice/performance tables and files | database row ids | spoken text and voice settings | pipeline voice stages, `app/documentary/jobs.py:217-220` | audio timing | file metadata only | stage reuse |
+| audio_timing | per-language | voice manifest JSON/files | no graph ID today | voice-take durations and timestamps | `app/documentary/voice_render.py:1-10` | music, captions, production | manifest fields | stage reuse |
+| visual_needs | shared | visual-needs records | database ids | blueprint beats | visual-needs stage | visual research | no graph hash | current job state |
+| visual_asset | shared | `visual_assets` rows/files | asset code/row id | source media and verification | visual research/ingest | visual shots and pieces | file SHA/metadata | audited rows reused |
+| visual_shots | shared | visual plan JSON | no member ID today | visual needs and assets | director/plan stages | visual plan, production | no graph hash | latest plan |
+| visual_pieces | shared | visual asset rows/files | asset and piece ids | source video, cuts, visual asset | `app/documentary/visuals/pieces.py` | visual plan/audit | source metadata | audited rows reused |
+| visual_plan | shared | plan JSON/production rows | no member ID today | needs, assets, story order | `app/documentary/jobs.py:215-220` | production script | no graph hash | latest plan unless refresh |
+| chapter_plan | shared | chapter plan rows/JSON | row id | master/blueprint | chapter writer | cards and script | no graph hash | latest valid plan |
+| chapter_cards | per-language | chapter plan JSON/cards | no member ID today | chapter plan and localized layout | `app/documentary/chapters.py:207-240` | production script | no graph hash | regenerated with script |
+| timeline_cards | per-language | chapter plan JSON/cards | no member ID today | beats, events, localized dates | `app/documentary/chapters.py:207-240` | production script | no graph hash | regenerated with script |
+| intro | per-language | `data/intros/<lang>/` files | path/fingerprint | channel identity and size | `app/documentary/intros.py:119-141` | renderer | intro fingerprint | cached per channel/size |
+| music_cues | per-language | audio manifest mix placements | no member ID today | audio plan and audio timing/music library | `app/documentary/music.py:597-611` | production script | no graph hash | stage reuse |
+| captions | per-language | production script JSON/SRT | no member ID today | narration timings and text | production script and `render/engine.py:554-557` | renderer | no graph hash | regenerated with script |
+| production_script | per-language | `production_scripts` rows | row id + language | spoken, voice, timing, visuals, cards | `app/documentary/production/script.py:1347-1362` | critique and render | row/version fields | latest row |
+| final_render | per-language | relative media path + production row | row id/path | production script, audio, intro | `app/documentary/render/engine.py:525-640` | UI/download | no graph hash | output file reused only by stage state |
 
 PROPOSED: Task 6 adds stable member IDs and an `artifacts`/`artifact_deps` graph without making existing readers positional-incompatible.
 
@@ -58,23 +60,25 @@ The following is the declarative PROPOSED registry table used by Task 6. “Inva
 
 | artifact | depends on | invalidates |
 |---|---|---|
-| master_story | research inputs, prompts, model/config | beats, audio_blocks, spoken_version, visual_needs, chapters, production_script, final_render |
-| beats | master_story | audio_blocks, visual_needs, visual_shots, chapter_plan, timeline_cards, captions, production_script, final_render |
-| audio_blocks | beats, audio config | voice_takes, spoken_version, music_cues, captions, production_script, final_render |
-| voice_takes | audio_blocks, spoken_version, voice config | production_script, captions, final_render |
-| spoken_version | master_story, language, localization config | voice_takes, captions, production_script, final_render |
-| visual_needs | beats, spoiler firewall | visual_shots, visual_pieces, visual_plan, production_script, final_render |
-| visual_shots | visual_needs, assets, story order | visual_plan, production_script, final_render |
-| visual_pieces | source media, cut window, auditor result | visual_plan, production_script, final_render |
-| visual_plan | visual_needs, visual_shots, visual_pieces | production_script, final_render |
-| chapter_plan | master_story, beats, chapter config | chapter_cards, captions, production_script, final_render |
-| chapter_cards | chapter_plan, timeline_cards | production_script, final_render |
-| timeline_cards | beats, meaningful events, language layout | production_script, final_render |
-| intro | channel identity, language, size | final_render |
-| music_cues | audio_blocks, music config | production_script, final_render |
-| captions | spoken_version, voice_takes, timing | production_script, final_render |
-| production_script | spoken_version, voice_takes, visual_plan, cards, captions, music_cues | critique, final_render |
-| final_render | production_script, audio, intro, render config | none |
+| master_story | — | beats, spoken_version, chapter_plan |
+| beats | master_story | audio_blocks, visual_needs, chapter_plan, timeline_cards |
+| audio_blocks | beats | voice_takes, music_cues |
+| spoken_version | master_story | voice_takes, captions, production_script |
+| voice_takes | audio_blocks, spoken_version | audio_timing, production_script |
+| audio_timing | voice_takes | music_cues, captions, production_script |
+| visual_needs | beats | visual_shots, visual_plan |
+| visual_asset | — | visual_shots, visual_pieces |
+| visual_shots | visual_needs, visual_asset | visual_pieces, visual_plan |
+| visual_pieces | visual_asset, visual_shots | visual_plan |
+| visual_plan | visual_needs, visual_shots, visual_pieces | production_script |
+| chapter_plan | master_story, beats | chapter_cards |
+| chapter_cards | chapter_plan, timeline_cards | production_script |
+| timeline_cards | beats | chapter_cards, production_script |
+| intro | — | final_render |
+| music_cues | audio_blocks, audio_timing | production_script |
+| captions | spoken_version, audio_timing | production_script |
+| production_script | spoken_version, voice_takes, audio_timing, visual_plan, cards, captions, music_cues | final_render |
+| final_render | production_script, intro | none |
 
 A timing change in one audio block therefore invalidates the dependent voice take and every timing-bearing visual, card, timeline, caption, music, production script, and final render in that language. Shorts are downstream only after a finished long film and cannot invalidate or block it (final decision).
 
