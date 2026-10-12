@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -85,6 +86,56 @@ def test_apply_live_aborts_when_a_service_is_running(tmp_path, monkeypatch):
         db_reconcile.apply_live(root=ROOT, live=live, backup_dir=tmp_path / "backups")
     assert _sha(live) == before
     assert not (tmp_path / "backups").exists()
+
+
+def test_preflight_allows_running_frontend_and_searxng(tmp_path, monkeypatch, capsys):
+    live = tmp_path / "truecrime.db"
+    _fresh_0009(live)
+
+    def fake_run(args, **kwargs):
+        if args[0].endswith("dev_up.sh"):
+            return subprocess.CompletedProcess(
+                args, 0,
+                stdout=("postgresql: not used (sqlite)\n"
+                        "searxng: running (external, not managed by dev_up, pid external, port 8085)\n"
+                        "api: stopped (pid none, port 8001)\n"
+                        "worker: stopped (pid none, port n/a)\n"
+                        "frontend: running (pid 123, port 3001)\n"),
+                stderr="",
+            )
+        if args[0].endswith("lsof"):
+            return subprocess.CompletedProcess(
+                args, 0,
+                stdout="COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\n"
+                       "mds 1 user 3r REG 1,1 10 2 " + str(live) + "\n",
+                stderr="",
+            )
+        if args[0] == "kill":
+            return subprocess.CompletedProcess(args, 1)
+        raise AssertionError(args)
+
+    monkeypatch.setattr(db_reconcile.subprocess, "run", fake_run)
+    monkeypatch.setattr(db_reconcile, "_pidfile_paths", lambda root: [])
+    db_reconcile.ensure_live_quiescent(ROOT, live)
+    output = capsys.readouterr().out
+    assert "non-database services do not block" in output
+
+
+def test_preflight_still_blocks_running_database_writer(tmp_path, monkeypatch):
+    live = tmp_path / "truecrime.db"
+    _fresh_0009(live)
+
+    def fake_run(args, **kwargs):
+        if args[0].endswith("dev_up.sh"):
+            return subprocess.CompletedProcess(args, 0,
+                stdout="api: running (pid 42, port 8001)\nfrontend: running (pid 123, port 3001)\n",
+                stderr="")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(db_reconcile.subprocess, "run", fake_run)
+    monkeypatch.setattr(db_reconcile, "_pidfile_paths", lambda root: [])
+    with pytest.raises(RuntimeError, match="api: running"):
+        db_reconcile.ensure_live_quiescent(ROOT, live)
 
 
 def test_apply_live_aborts_on_backup_mismatch(tmp_path, monkeypatch):

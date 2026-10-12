@@ -53,7 +53,7 @@ NEW_TABLES = {
     "app_settings", "artifact_deps", "artifacts", "backup_runs",
     "edit_log", "override_log", "policy_events", "provider_calls",
 }
-SERVICE_NAMES = ("searxng", "api", "worker", "frontend")
+DATABASE_WRITER_SERVICES = ("api", "worker")
 
 
 class LiveApplyError(RuntimeError):
@@ -99,9 +99,7 @@ def verify_database_pair(reference: Path, candidate: Path) -> None:
 
 
 def _pidfile_paths(root: Path) -> list[Path]:
-    return [root / "data" / "dev" / f"{name}.pid" for name in ("api", "worker", "frontend")] + [
-        root / "data" / "searxng" / "searxng.pid"
-    ]
+    return [root / "data" / "dev" / f"{name}.pid" for name in DATABASE_WRITER_SERVICES]
 
 
 def ensure_live_quiescent(root: Path, live: Path) -> None:
@@ -115,7 +113,12 @@ def ensure_live_quiescent(root: Path, live: Path) -> None:
     if status.returncode != 0:
         raise RuntimeError("dev_up.sh --status failed")
     running = [line for line in report.splitlines()
-               if any(line.startswith(f"{name}: running") for name in SERVICE_NAMES)]
+               if any(line.startswith(f"{name}: running") for name in DATABASE_WRITER_SERVICES)]
+    non_writers = [line for line in report.splitlines()
+                   if line.startswith("searxng: running") or line.startswith("frontend: running")]
+    if non_writers:
+        print("Pre-flight warning: non-database services do not block reconciliation: "
+              + "; ".join(non_writers))
     pid_running = []
     for pidfile in _pidfile_paths(root):
         if not pidfile.exists():
