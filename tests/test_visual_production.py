@@ -913,7 +913,9 @@ def test_four_language_independent_run_determinism(tmp_path):
         snapshot = run_root / "snapshot.json"
         payloads = run_root / "mock-payloads.jsonl"
         env = os.environ.copy()
+        env.pop("TC_TEST_DATABASE_URL", None)
         env.update({
+            "TC_COPY_DATABASE_URL": f"sqlite:///{run_root / 'pipeline.db'}",
             "SOUNDNESS_CHILD": "1",
             "SOUNDNESS_RUN_ROOT": str(run_root),
             "SOUNDNESS_CAPTURE": str(snapshot),
