@@ -66,6 +66,17 @@ TC_TEST_DATABASE_URL='postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime_te
 PYTHONPATH=. .venv/bin/pytest -q tests/test_sqlite_to_postgres.py
 ```
 
+Run the full suite against the app-owned PostgreSQL test database with:
+
+```sh
+db_url=$(grep '^TRUECRIME_DATABASE_URL=' .env.local | cut -d= -f2-)
+TC_TEST_DATABASE_URL="$db_url" PYTHONPATH=. .venv/bin/pytest -q -p no:cacheprovider tests
+```
+
+The full suite has one intentional PostgreSQL-only skip for the cross-process
+SIGKILL fixture; the reason and limitation are recorded in
+`docs/architecture/experiments/9h-postgres-worker-subprocess.md`.
+
 Set `TRUECRIME_TEST_ADMIN_URL` for a remote or nonstandard server. When no
 admin URL is usable, the fixture prints one `POSTGRES_TEST_ADMIN_SKIP` line and
 skips only these disposable-database tests. The administrator URL is used only
