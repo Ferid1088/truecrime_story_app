@@ -86,13 +86,31 @@ def record_request(provider: str, stage: str, language: str | None,
     path = Path(log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(entry, ensure_ascii=False, sort_keys=True,
+                stream.write(json.dumps(entry, ensure_ascii=False, sort_keys=True,
                                  separators=(",", ":")) + "\n")
+
+
+def record_adapter_call(provider: str, stage: str, language: str | None) -> None:
+    """Count one invocation at the mock-provider adapter boundary.
+
+    This is deliberately separate from the application's provider_calls
+    ledger: provider fakes do not need to manufacture production telemetry.
+    """
+    path = os.environ.get("SOUNDNESS_CALL_COUNTER")
+    if not path:
+        return
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({
+            "provider": provider, "stage": stage, "language": language,
+        }, sort_keys=True, separators=(",", ":")) + "\n")
 
 
 def provider_request(provider: str, stage: str, language_context: str | None,
                      kind: str, *, recording_identity: str | None = None, **payload: Any) -> str:
     """Record and fingerprint exactly the same complete fake request."""
+    record_adapter_call(provider, stage, language_context)
     record_request(provider, stage, language_context, kind, payload, identity=recording_identity)
     return request_hash(kind, **payload)
 

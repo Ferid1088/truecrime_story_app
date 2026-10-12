@@ -59,6 +59,19 @@ def _provider_calls(path: Path) -> dict[str, int]:
     return counts
 
 
+def _adapter_calls(path: Path) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    if not path.exists():
+        return counts
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        provider, stage = row["provider"], row["stage"]
+        counts.setdefault(provider, {})[stage] = counts.setdefault(provider, {}).get(stage, 0) + 1
+    return counts
+
+
 def _perturb(db, scenario: str) -> None:
     if scenario == "unchanged":
         return
@@ -140,6 +153,8 @@ def test_9k_rerun_real_job(isolated_pipeline_db, db_session, documentary_env, cl
         "enforced_types",
         ["research_result", "master_story", "naming"],
     )
+    if os.environ.get("SOUNDNESS_NAMING_ENABLED") == "1":
+        monkeypatch.setattr(ai_config.case_naming, "generate_in_pipeline", True)
     _perturb(db_session, scenario)
     if gate == "out_of_band":
         row = db_session.query(StoryVersion).filter_by(kind="master").one()
@@ -169,6 +184,8 @@ def test_9k_rerun_real_job(isolated_pipeline_db, db_session, documentary_env, cl
     before_event = db_session.query(PolicyEvent).order_by(PolicyEvent.id.desc()).first()
     before_event_id = before_event.id if before_event else 0
     log_path = Path(os.environ.get("SOUNDNESS_PAYLOAD_LOG", ""))
+    counter_value = os.environ.get("SOUNDNESS_CALL_COUNTER")
+    counter_path = Path(counter_value) if counter_value else None
     before_calls = _provider_calls(log_path)
 
     started = __import__("time").perf_counter()
@@ -180,6 +197,7 @@ def test_9k_rerun_real_job(isolated_pipeline_db, db_session, documentary_env, cl
     stages = json.loads(job.stages_json or "[]")
     after_snapshot = _snapshot(db_session)
     after_calls = _provider_calls(log_path)
+    after_adapter_calls = _adapter_calls(counter_path) if counter_path else {}
     provider_delta = {
         provider: after_calls.get(provider, 0) - before_calls.get(provider, 0)
         for provider in set(before_calls) | set(after_calls)
@@ -209,6 +227,7 @@ def test_9k_rerun_real_job(isolated_pipeline_db, db_session, documentary_env, cl
                           if event["rule_id"] in {"INCREMENTAL_SKIP", "INCREMENTAL_RUN"})
         },
         "provider_calls": provider_delta,
+        "adapter_calls": after_adapter_calls,
         "wall_clock_seconds": round(wall_clock, 3),
         "before_snapshot": before_snapshot,
         "after_snapshot": after_snapshot,

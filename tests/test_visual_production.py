@@ -699,6 +699,43 @@ class PipelineGen:
                 ],
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
+        if role == "case_naming_agent":
+            language = {
+                "English": "en", "German": "de", "Persian (Farsi)": "fa", "Arabic": "ar",
+            }[json.loads(user)["language"]]
+            prefixes = {
+                "en": "The Farmhouse Signal",
+                "de": "Das Farmhaus-Signal",
+                "fa": "نشانه خانه روستایی",
+                "ar": "إشارة البيت الريفي",
+            }
+            count = json.loads(user)["count"]
+            return {
+                "editorial_concept": "the evidence left behind",
+                "candidates": [
+                    {"title": f"{prefixes[language]} {i}", "angle": "evidence"}
+                    for i in range(1, count + 1)
+                ],
+                "_mock_request_sha256": fingerprint,
+            }, self._res(role)
+        if role in ("case_title_critic", "native_title_critic"):
+            data = json.loads(user)
+            scores = []
+            for title in data["titles"]:
+                scores.append({
+                    "title": title,
+                    "specificity": 0.8,
+                    "memorability": 0.8,
+                    "curiosity": 0.8,
+                    "documentary_tone": 0.8,
+                    "sensationalism_risk": 0.1,
+                    "spoiler_risk": 0.1,
+                    "epistemic_risk": 0.1,
+                    "native_quality": 0.9,
+                    "literal_translation": False,
+                    "reason": "ok",
+                })
+            return {"scores": scores, "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "timeline_builder":
             return {"timeline": [], "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "contradiction_analyzer":
@@ -896,6 +933,8 @@ def documentary_env(tmp_path, monkeypatch):
     # when the caller did not preconfigure SOUNDNESS_RUN_ROOT; otherwise the
     # absolute pytest temp prefix becomes part of request fingerprints.
     monkeypatch.setenv("SOUNDNESS_RUN_ROOT", str(run_root))
+    if os.environ.get("SOUNDNESS_NAMING_ENABLED") == "1":
+        monkeypatch.setattr(ai_config.case_naming, "generate_in_pipeline", True)
     if os.environ.get("SOUNDNESS_FROM_ZERO") == "1":
         from mock_payload import provider_request
 
@@ -1111,6 +1150,7 @@ def documentary_env(tmp_path, monkeypatch):
         "app.agents.chapters",
     ):
         monkeypatch.setattr(f"{mod}.get_generation_provider", lambda: gen, raising=False)
+    monkeypatch.setattr("app.providers.generation.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts
     monkeypatch.setattr(

@@ -300,3 +300,12 @@ def _no_title_drafting_in_pipeline_tests(monkeypatch):
     from app.core.ai_config import ai_config
 
     monkeypatch.setattr(ai_config.case_naming, "generate_in_pipeline", False)
+
+
+@pytest.fixture(autouse=True)
+def _deny_outbound_network_in_hermetic_runs(monkeypatch):
+    """Pipeline children and explicit E2E test runs may only use loopback."""
+    if os.environ.get("SOUNDNESS_CHILD") == "1" or os.environ.get("TC_TEST_NO_NETWORK") == "1":
+        from no_network import install
+
+        install(monkeypatch)

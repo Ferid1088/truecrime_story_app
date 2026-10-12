@@ -29,7 +29,36 @@ def _env(**values: str) -> dict[str, str]:
     env["SOUNDNESS_FROM_ZERO"] = "1"
     env["SOUNDNESS_CHAPTER_PAYLOAD"] = "1"
     env["SOUNDNESS_CHILD"] = "1"
+    if os.environ.get("K_ENABLE_NAMING") == "1":
+        env["SOUNDNESS_NAMING_ENABLED"] = "1"
     return env
+
+
+def _read_adapter_calls(path: Path) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    if not path.exists():
+        return counts
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        provider, stage = row["provider"], row["stage"]
+        counts.setdefault(provider, {})[stage] = counts.setdefault(provider, {}).get(stage, 0) + 1
+    return counts
+
+
+def _subtract_calls(
+    full: dict[str, dict[str, int]], partial: dict[str, dict[str, int]]
+) -> dict[str, dict[str, int]]:
+    providers = set(full) | set(partial)
+    return {
+        provider: {
+            stage: full.get(provider, {}).get(stage, 0)
+            - partial.get(provider, {}).get(stage, 0)
+            for stage in set(full.get(provider, {})) | set(partial.get(provider, {}))
+        }
+        for provider in sorted(providers)
+    }
 
 
 def _run(command: list[str], env: dict[str, str], log: Path) -> float:
@@ -79,6 +108,7 @@ def _child(run: Path, *, mode: str, scenario: str, force: bool = False,
         TC_COPY_DATABASE_URL=f"sqlite:///{run / 'pipeline.db'}",
         SOUNDNESS_RUN_ROOT=run / "files",
         SOUNDNESS_PAYLOAD_LOG=run / "requests.jsonl",
+        SOUNDNESS_CALL_COUNTER=run / "adapter-calls.jsonl",
         K_OUTPUT=output,
         K_MODE=mode,
         K_SCENARIO=scenario,
@@ -112,6 +142,7 @@ def main() -> None:
         SOUNDNESS_RUN_ROOT=baseline_files,
         SOUNDNESS_CAPTURE=parent / "baseline-snapshot.json",
         SOUNDNESS_PAYLOAD_LOG=parent / "baseline-requests.jsonl",
+        SOUNDNESS_CALL_COUNTER=parent / "baseline-adapter-calls.jsonl",
         SOUNDNESS_SNAPSHOT_VALUES=parent / "baseline-values.json",
         SOUNDNESS_SEED_MASTER="1",
     )
@@ -183,6 +214,7 @@ def main() -> None:
         "initial": {
             "subprocess_wall_clock_seconds": round(initial_seconds, 3),
             "snapshot": json.loads((parent / "baseline-snapshot.json").read_text()),
+            "adapter_calls": _read_adapter_calls(parent / "baseline-adapter-calls.jsonl"),
         },
         "verify": verify,
         "enforce": enforce,
@@ -217,6 +249,12 @@ def main() -> None:
                 for provider in sorted(set(forced[scenario]["provider_calls"])
                                        | set(enforce[scenario]["provider_calls"]))
             }
+            for scenario in enforce
+        },
+        "adapter_calls_saved": {
+            scenario: _subtract_calls(
+                forced[scenario]["adapter_calls"], enforce[scenario]["adapter_calls"]
+            )
             for scenario in enforce
         },
         "byte_compare": {scenario: True for scenario in enforce},

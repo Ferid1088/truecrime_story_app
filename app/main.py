@@ -1,6 +1,13 @@
 """TrueCrime Story Studio API: app, lifespan, CORS and the routers."""
 
 import logging
+import os
+
+if os.environ.get("TC_TEST_NO_NETWORK") == "1":
+    from app.core.network_guard import install as _install_test_network_guard
+
+    _install_test_network_guard()
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

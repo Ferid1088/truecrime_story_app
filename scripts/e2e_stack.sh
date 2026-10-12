@@ -73,6 +73,7 @@ export TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL"
 export DATABASE_URL="$E2E_DATABASE_URL"
 export TRUECRIME_DISABLE_SCHEDULER=1
 export TRUECRIME_SEARXNG_URL="http://127.0.0.1:9"
+export TC_TEST_NO_NETWORK=1
 export NEXT_DIST_DIR=".next-e2e"
 
 "$ROOT/.venv/bin/python" -m alembic upgrade head
