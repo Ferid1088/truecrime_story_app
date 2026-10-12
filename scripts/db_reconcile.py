@@ -332,7 +332,7 @@ def safe_start(path: Path) -> None:
             stderr=subprocess.STDOUT,
         )
         try:
-            time.sleep(2)
+            time.sleep(float(os.environ.get("TRUECRIME_SAFE_START_SECONDS", "60")))
         finally:
             if process.poll() is None:
                 process.send_signal(signal.SIGTERM)

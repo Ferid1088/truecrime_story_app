@@ -7,18 +7,23 @@ mkdir -p "$STATE"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/dev_up.sh [status]
+Usage: scripts/dev_up.sh [--first-run-safe] [status|--status]
 
-Start the native local services, or show their status. Use --help for this text.
+Start the native local services, or show their status. First-run-safe sets
+TRUECRIME_JOB_MAX_AUTO_RESUMES=0 and TRUECRIME_DISABLE_SCHEDULER=1.
 EOF
 }
 
-case "${1:-}" in
-  --help|-h) usage; exit 0 ;;
-  status) ;;
-  "") ;;
-  *) usage >&2; exit 2 ;;
-esac
+SAFE_MODE=0
+ACTION=start
+for arg in "$@"; do
+  case "$arg" in
+    --help|-h) usage; exit 0 ;;
+    --first-run-safe) SAFE_MODE=1 ;;
+    status|--status) ACTION=status ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
 
 # .env fills in TRUECRIME_API_PORT / TRUECRIME_FRONTEND_PORT if set there; an already
 # exported value in the caller's shell is never overwritten.
@@ -53,7 +58,10 @@ status() {
   fi
 }
 
-if [[ "${1:-}" == status ]]; then status; exit 0; fi
+if [[ "$SAFE_MODE" == 1 ]]; then
+  echo "first-run-safe: TRUECRIME_JOB_MAX_AUTO_RESUMES=0 TRUECRIME_DISABLE_SCHEDULER=1"
+fi
+if [[ "$ACTION" == status ]]; then status; exit 0; fi
 command -v brew >/dev/null 2>&1 || { echo "Homebrew is required." >&2; exit 1; }
 command -v pg_isready >/dev/null 2>&1 || { echo "pg_isready is required; install postgresql@16." >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
@@ -96,6 +104,11 @@ if [[ "$FRONTEND_PORT" != "$FRONTEND_PORT_REQUESTED" ]]; then
 fi
 echo "$FRONTEND_PORT" > "$STATE/frontend.port"
 
+SAFE_ENV=()
+if [[ "$SAFE_MODE" == 1 ]]; then
+  SAFE_ENV=(TRUECRIME_JOB_MAX_AUTO_RESUMES=0 TRUECRIME_DISABLE_SCHEDULER=1)
+fi
+
 brew services start postgresql@16 >/dev/null
 for _ in {1..30}; do pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1 && break; sleep 1; done
 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1 || { echo "PostgreSQL did not become ready." >&2; exit 1; }
@@ -129,9 +142,9 @@ start_process() {
   fi
   echo "$new_pid" > "$pidfile"
 }
-start_process api port "$API_PORT" env TRUECRIME_JOB_RUNNER=external TRUECRIME_API_PORT="$API_PORT" TRUECRIME_FRONTEND_PORT="$FRONTEND_PORT" \
+start_process api port "$API_PORT" env TRUECRIME_JOB_RUNNER=external TRUECRIME_API_PORT="$API_PORT" TRUECRIME_FRONTEND_PORT="$FRONTEND_PORT" "${SAFE_ENV[@]}" \
   "$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT"
-start_process worker process - env TRUECRIME_JOB_RUNNER=external "$ROOT/.venv/bin/python" -m app.worker
+start_process worker process - env TRUECRIME_JOB_RUNNER=external "${SAFE_ENV[@]}" "$ROOT/.venv/bin/python" -m app.worker
 start_process frontend port "$FRONTEND_PORT" env NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:$API_PORT" \
   npm --prefix "$ROOT/frontend" run dev -- --hostname 127.0.0.1 --port "$FRONTEND_PORT"
 echo "Local services started (api: $API_PORT, frontend: $FRONTEND_PORT). Run scripts/dev_up.sh status for readiness."
