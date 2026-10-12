@@ -18,6 +18,8 @@ from app.db.models import (
     EditorialBlueprint,
     HostPlan,
     HostSegments,
+    MusicTrack,
+    MusicUsage,
     ProductionScript,
     StoryVersion,
     VisualAsset,
@@ -76,7 +78,18 @@ def _row_payload(row) -> dict:
         fields.update({name: getattr(row, name) for name in (
             "asset_code", "asset_type", "asset_role", "rights_status",
             "verification_status", "verification_confidence", "sha256", "duration_seconds")})
+    if isinstance(row, MusicTrack):
+        fields.update({name: getattr(row, name) for name in (
+            "track_code", "kind", "mood", "variant", "seconds", "loop",
+            "prompt", "style", "provider", "file_path", "characters_paid", "active")})
     return fields
+
+
+def _unconsumed_music_tracks(db, case_id: int) -> list[dict]:
+    used = {row.track_id for row in db.query(MusicUsage).filter(
+        MusicUsage.case_id == case_id, MusicUsage.track_id.is_not(None)).all()}
+    tracks = db.query(MusicTrack).order_by(MusicTrack.id).all()
+    return [_row_payload(track) for track in tracks if track.id not in used]
 
 
 def _get(db, model, primary_key):
@@ -187,6 +200,8 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
         source["voice"] = _row_payload(version)
         if version is not None:
             source["story_version_id"] = version.id
+    elif artifact_type == "music_cues" and language is None:
+        source["music_library"] = _unconsumed_music_tracks(db, job.case_id)
     elif artifact_type in ("visual_needs", "visual_shots", "visual_plan", "visual_gaps"):
         row = _get(db, VisualPlan, detail.get("visual_plan_id"))
         if row is None:
@@ -267,6 +282,8 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
         payload["row"] = _row_payload(_get(db, EditorialBlueprint, detail.get("blueprint_id")))
     elif artifact_type in ("audio_blocks", "music_cues"):
         payload["row"] = _row_payload(_get(db, AudioPlan, detail.get("audio_plan_id")))
+        if artifact_type == "music_cues" and language is None:
+            payload["music_library"] = _unconsumed_music_tracks(db, job.case_id)
     elif artifact_type in ("visual_needs", "visual_shots", "visual_plan", "visual_gaps"):
         row = _get(db, VisualPlan, detail.get("visual_plan_id"))
         if row is None:
@@ -399,6 +416,13 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
                     artifact_detail["asset_code"] = asset.asset_code
                 languages = (_language_rows(job, language)
                              if ARTIFACT_SCOPES[artifact_type] == "per_language" else [None])
+                if (artifact_type == "music_cues"
+                        and _unconsumed_music_tracks(db, job.case_id)):
+                    # The shared library contains tracks that are not placed
+                    # in any language branch. Register that saved output too;
+                    # otherwise a library/config edit is an unrepresented
+                    # snapshot diff.
+                    languages = [None, *languages]
                 for artifact_language in languages:
                     dependencies: list[str] = []
                     for dep_type in ARTIFACT_DEPENDENCIES[artifact_type]:

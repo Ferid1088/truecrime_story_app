@@ -733,9 +733,10 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     replay_trace = None
     if os.environ.get("SOUNDNESS_REPLAY"):
         from app.db.models import Case, StoryVersion
-        from soundness_replay import install
+        from soundness_replay import install, install_phase5
 
-        replay_trace = install(monkeypatch)
+        replay_trace = (install_phase5 if os.environ.get("SOUNDNESS_PHASE5") == "1"
+                        else install)(monkeypatch)
         case = db_session.query(Case).one()
         master = db_session.query(StoryVersion).filter_by(kind="master").one()
     else:
