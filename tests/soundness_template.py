@@ -43,7 +43,8 @@ def manifest() -> dict:
             "code_hash": _digest(path for path in code if path.is_file()),
             "config_hash": _digest(path for path in (ROOT / "config").rglob("*") if path.is_file()),
             "mock_version": _digest(ROOT / name for name in MOCK_FILES),
-            "languages": ["en", "de", "fa", "ar"], "incremental_mode": "off"}
+            "languages": ["en", "de", "fa", "ar"], "incremental_mode": "off",
+            "chapter_mock": "consumed-full-request-sha256-v1"}
 
 
 def ensure_template(destination: Path, postgres_admin_url: str | None = None) -> tuple[Path, dict]:
@@ -77,6 +78,7 @@ def ensure_template(destination: Path, postgres_admin_url: str | None = None) ->
         database_url = make_url(postgres_admin_url).set(database=database_name).render_as_string(
             hide_password=False)
     env.update({"TC_COPY_DATABASE_URL": database_url,
+                "SOUNDNESS_CHAPTER_PAYLOAD": "1",
                 "SOUNDNESS_CHILD": "1", "SOUNDNESS_RUN_ROOT": str(run),
                 "SOUNDNESS_CAPTURE": str(build / "snapshot.json"),
                 "SOUNDNESS_PAYLOAD_LOG": str(build / "requests.jsonl"),

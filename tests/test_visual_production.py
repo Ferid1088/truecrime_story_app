@@ -505,6 +505,19 @@ class PipelineGen:
         if role == "chapter_writer":
             data = json.loads(user)
             langs = data["languages"]
+            if os.environ.get("SOUNDNESS_CHAPTER_PAYLOAD") == "1":
+                # A top-level _mock_request_sha256 is discarded by
+                # ChapterWriter._parse. Carry the COMPLETE hash in valid,
+                # consumed text fields for the soundness proof (46 chars).
+                import base64
+
+                token = base64.urlsafe_b64encode(bytes.fromhex(fingerprint)).decode().rstrip("=")
+                return {"film_title": {lg: f"{lg}:{token}" for lg in langs},
+                        "chapters": [{"act_id": c["act_id"],
+                                      "title": {lg: f"{lg}:{token}" for lg in langs}}
+                                     for c in data["chapters"]],
+                        "events": [{"id": e["id"], "label": {lg: f"{lg}:{token}" for lg in langs}}
+                                   for e in data["events"]]}, self._res(role)
             return {"film_title": {lg: f"The farmhouse ({lg})" for lg in langs},
                     "chapters": [{"act_id": c["act_id"],
                                   "title": {lg: f"Part {c['number']} ({lg})" for lg in langs}}
@@ -714,7 +727,16 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
         return value
 
     monkeypatch.setattr("app.db.models.new_case_uid", lambda: "CASE_SOUNDNESS")
-    case, master = _story(db_session, title="BP SOUNDNESS")
+    replay_trace = None
+    if os.environ.get("SOUNDNESS_REPLAY"):
+        from app.db.models import Case, StoryVersion
+        from soundness_replay import install
+
+        replay_trace = install(monkeypatch)
+        case = db_session.query(Case).one()
+        master = db_session.query(StoryVersion).filter_by(kind="master").one()
+    else:
+        case, master = _story(db_session, title="BP SOUNDNESS")
     case.case_uid = "CASE_SOUNDNESS"
     db_session.commit()
     case.resolution_status = "UNSOLVED"
@@ -805,6 +827,14 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     # Returning here makes each child a single clean full pipeline run; the
     # old same-database resume comparison was not an independent-run test.
     if os.environ.get("SOUNDNESS_CHILD") == "1":
+        if replay_trace is not None:
+            from soundness_observation import observe
+
+            run_root = Path(os.environ["SOUNDNESS_RUN_ROOT"])
+            observation = observe(db_session, run_root)
+            observation["executed_stages"], observation["source_applications"] = replay_trace
+            Path(os.environ["SOUNDNESS_OBSERVATION"]).write_text(
+                json.dumps(observation, sort_keys=True, ensure_ascii=False))
         print("INDEPENDENT_RUN", json.dumps({
             "artifacts": len(baseline_snapshot),
             "seconds": round(time.perf_counter() - snapshot_started, 3),

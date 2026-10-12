@@ -13,7 +13,7 @@ def test_template_manifest_tracks_config_code_and_mocks():
     before = templates.manifest()
     assert before == templates.manifest()
     assert set(before) == {"schema", "git_head", "code_hash", "config_hash", "mock_version",
-                           "languages", "incremental_mode"}
+                           "languages", "incremental_mode", "chapter_mock"}
     assert all(len(before[key]) == 64 for key in ("code_hash", "config_hash", "mock_version"))
 
 

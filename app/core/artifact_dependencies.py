@@ -55,7 +55,8 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "voice_takes": ["audio_blocks", "spoken_version"],
     "audio_timing": ["voice_takes"],
     "visual_needs": ["beats"],
-    "visual_asset": [],
+    # Persisted verification reads case.canonical_title as case context.
+    "visual_asset": ["naming"],
     "visual_shots": ["visual_needs", "visual_asset"],
     "visual_pieces": ["visual_asset", "visual_shots"],
     "visual_plan": ["visual_needs", "visual_shots", "visual_pieces"],
