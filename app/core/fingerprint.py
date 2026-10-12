@@ -13,15 +13,15 @@ import unicodedata
 from typing import Any
 
 _DROP = object()
-_VOLATILE_KEYS = {
+FINGERPRINT_VOLATILE_FIELDS = frozenset({
     "created_at", "updated_at", "timestamp", "generated_at", "completed_at",
     "started_at", "finished_at", "run_at", "fetched_at", "expires_at",
-}
+})
 _ABSOLUTE_PATH = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
 
 
 def _normalise(value: Any, *, key: str | None = None) -> Any:
-    if key and key.casefold() in _VOLATILE_KEYS:
+    if key and key.casefold() in FINGERPRINT_VOLATILE_FIELDS:
         return _DROP
     if isinstance(value, dict):
         out: dict[str, Any] = {}
