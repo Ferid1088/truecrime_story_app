@@ -8,10 +8,10 @@ import copy
 import json
 
 from app.core.ai_config import ai_config
+from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import input_fingerprint
 from app.db.models import DocumentaryJob
 from app.services.artifact_shadow import _source_payload
-from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 
 SOURCES = {
     "typed_config": "all registered artifact types",
