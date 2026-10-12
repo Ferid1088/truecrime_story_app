@@ -182,6 +182,8 @@ PHASE5_TYPES = {
     "typed_config_audio": (None, None),
     "typed_config_host": (None, None),
     "typed_config_music": (None, None),
+    "used_visual_metadata": ("visual_asset", None),
+    "unused_visual_metadata": ("visual_asset", None),
 }
 
 
@@ -442,6 +444,28 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
     elif source == "naming":
         case = db.query(Case).one()
         case.canonical_title = (case.canonical_title or "case") + " — soundness"
+        overlay["approved_titles"] = {
+            language: f"{language} soundness title"
+            for language in ("en", "de", "fa", "ar")
+        }
+    elif source in {"used_visual_metadata", "unused_visual_metadata"}:
+        assets = db.query(VisualAsset).filter(VisualAsset.case_id == 1).all()
+        used = _asset_codes_from_scripts(db)
+        want_used = source == "used_visual_metadata"
+        candidates = [a for a in assets if (a.asset_code in used) == want_used]
+        asset = candidates[0] if candidates else None
+        assert asset is not None, f"no {'used' if want_used else 'unused'} asset"
+        overlay.update({
+            "asset_code": asset.asset_code,
+            "metadata": {
+                "title": (asset.title or asset.asset_code) + " metadata edit",
+                "description": (asset.description or "asset") + " metadata edit",
+                "rights_status": "public_domain" if asset.rights_status != "public_domain" else "owned",
+                "verification_status": "needs_review" if asset.verification_status != "needs_review" else "verified",
+            },
+        })
+        for field, value in overlay["metadata"].items():
+            setattr(asset, field, value)
     elif source not in PHASE5_TYPES:
         raise ValueError(source)
     db.commit()
@@ -577,6 +601,14 @@ def install_phase5(monkeypatch):
                 row.plan_json = _change_json_text(row.plan_json, "host-plan")
                 db.commit()
                 applied.append(name)
+            elif source == "naming" and name == "naming":
+                from app.identity.titles import sync_identity
+                case = db.query(Case).one()
+                for language, title in overlay["approved_titles"].items():
+                    identity = sync_identity(db, case, language, title=title, revise=True)
+                    identity.title_approved = True
+                db.commit()
+                applied.append(name)
             elif source == "one_voice_take" and name == "performance:de":
                 row = (
                     db.query(VoicePerformance)
@@ -595,6 +627,14 @@ def install_phase5(monkeypatch):
                     _asset_file(Path(os.environ["SOUNDNESS_RUN_ROOT"]).parent, asset).write_bytes(
                         bytes.fromhex(overlay["image_hex"])
                     )
+                db.commit()
+                applied.append(name)
+            elif source in {"used_visual_metadata", "unused_visual_metadata"} and name == (
+                "visual_research" if source == "used_visual_metadata" else "visual_plan"
+            ):
+                asset = db.query(VisualAsset).filter_by(asset_code=overlay["asset_code"]).one()
+                for field, value in overlay["metadata"].items():
+                    setattr(asset, field, value)
                 db.commit()
                 applied.append(name)
             elif source == "music_history_library" and name == "voice:en":

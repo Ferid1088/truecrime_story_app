@@ -107,3 +107,38 @@ changed) changed `intro:en` and `final_render:en`; no provider request carried
 logo bytes. The mode-off regression after the run-root/intro isolation passed
 `1 passed in 61.54s`; the refreshed golden contains 193 snapshot keys and the
 comparison is zero-diff.
+
+## Part 3 strengthened perturbations
+
+The naming fixture now creates an approved per-language identity at the naming
+stage boundary, so `approved_title()` is exercised rather than merely changing
+`Case.canonical_title`. Evidence:
+
+```text
+predicted = naming:shared, visual_asset:shared, visual_pieces:shared,
+            visual_plan:shared, visual_shots:shared,
+            production_script:{ar,de,en,fa}, final_render:{ar,de,en,fa}
+actual    = naming:shared, visual_asset:shared, visual_pieces:shared,
+            production_script:{ar,de,en,fa}, final_render:{ar,de,en,fa}
+hidden    = []
+```
+
+This exercises `app/documentary/production/script.py:1343-1349` and proves
+`production_script` changes in all four languages. The remaining prediction
+over-invalidation is visual-plan/shot scope, with no hidden input.
+
+Metadata perturbations use the same full forced job and mutate title,
+description, rights status, and verification status at the real visual-stage
+boundary:
+
+| perturbation | actual snapshot set | hidden |
+|---|---|---|
+| used visual metadata | `visual_asset:shared`, `visual_pieces:shared`, `visual_plan:shared`, `visual_shots:shared`, `production_script:{ar,de,en,fa}`, `final_render:{ar,de,en,fa}` | none |
+| unused visual metadata | `visual_asset:shared` only | none |
+
+The unused result is a code-level no-effect: candidate filtering requires a
+verified/usable asset at `app/documentary/visuals/director.py:614-616` and
+`app/documentary/visuals/director.py:901-923`; only assets that enter the
+saved production script are recorded by `app/documentary/visuals/usage.py:398-414`.
+The replay boundary pinning is in
+`tests/soundness_replay.py:184-205, 454-469, 626-651`.
