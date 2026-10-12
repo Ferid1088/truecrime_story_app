@@ -307,8 +307,13 @@ def music_history_snapshot(db: Session, film_key: str, n: int) -> list[dict]:
     # describe the policy window even though the snapshot records the full
     # deterministic usage input read by the selector.
     del film_key, n
+    # Language stages may finish concurrently.  Database insertion order is
+    # therefore not a stable representation of this semantic input; sort by
+    # the complete usage identity instead of the generated row id.
     rows = (db.query(MusicUsage)
-            .order_by(MusicUsage.id)
+            .order_by(MusicUsage.film_key, MusicUsage.language,
+                      MusicUsage.track_id, MusicUsage.purpose, MusicUsage.mood,
+                      MusicUsage.start, MusicUsage.end)
             .all())
     return [{"position": position, "film_key": row.film_key,
              "track_id": row.track_id, "language": row.language,

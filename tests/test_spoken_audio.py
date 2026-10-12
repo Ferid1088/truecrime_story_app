@@ -516,11 +516,12 @@ class FakeSound:
 
     async def generate(self, prompt, seconds, loop, influence):
         from app.core.ai_config import ai_config
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request
 
         self.calls.append((prompt, seconds, loop))
-        fingerprint = request_hash(
-            "music", prompt=prompt, seconds=seconds, loop=loop, influence=influence,
+        fingerprint = provider_request(
+            "music", "generate", None, "music",
+            prompt=prompt, seconds=seconds, loop=loop, influence=influence,
             config=config_hash_payload(ai_config.music_library),
         )
         frequency = 220 + int(fingerprint[:4], 16) % 1000

@@ -541,13 +541,22 @@ class DocumentaryPipeline(StageRunner):
         shared.pilot, shared.pilot_seconds = pilot, pilot_seconds
         shared.vp_row, shared.visual_ready = vp_row, visual_ready
         shared.visual_state, shared.renders = visual_state, renders
-
+        # Music selection reads usage history written by preceding language
+        # renders. Preserve the pre-incremental completion order explicitly.
+        shared.languages = [lang for lang in ("fa", "ar", "en", "de") if lang in ok_langs]
+        shared.music_turns = [asyncio.Event() for _ in shared.languages]
+        if shared.music_turns:
+            shared.music_turns[0].set()
         async def language_chain(lang: str):
             from app.documentary.pipeline.language import LanguageChain
 
             await LanguageChain(self, lang, spoken[lang], shared).run()
 
         async def guarded(lang: str):
+            # Do not let the language semaphore be occupied by a task waiting
+            # for the ordered music boundary; otherwise an arbitrary pair of
+            # later languages can starve the first turn.
+            await shared.music_turns[shared.languages.index(lang)].wait()
             async with slot("languages"):
                 try:
                     await language_chain(lang)
@@ -557,7 +566,7 @@ class DocumentaryPipeline(StageRunner):
                     self.lang_errors[lang] = f"{type(e).__name__}: {e}"[:400]
                     self._skip_language(lang, str(e))
 
-        await self._parallel([visual_chain()] + [guarded(l) for l in ok_langs], shared_from=0,
+        await self._parallel([visual_chain()] + [guarded(l) for l in shared.languages], shared_from=0,
                              shared_count=1)
         if self.lang_errors:
             self.result["errors"] = self.lang_errors

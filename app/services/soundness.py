@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import shutil
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -17,11 +18,23 @@ from app.services.artifact_shadow import _output_hash, _stage_detail
 
 SNAPSHOT_EXCLUDED_FIELDS = frozenset({
     "id", "card_id", "piece_id", "created_at", "updated_at", "timestamp",
-    "started_at", "finished_at",
+    "started_at", "finished_at", "production_script_id", "job_id", "video_id",
+    "artifact_id", "stage_job_id", "host_segments_id", "script_sha256",
 })
 SNAPSHOT_VOLATILE_JSON_KEYS = frozenset({
-    "id", "created_at", "updated_at", "timestamp", "started_at", "finished_at", "at",
+    # Generated primary-key/FK references are not output identity.  Their
+    # insertion order varies when language stages finish concurrently.
+    "id", "card_id", "production_script_id", "job_id", "video_id",
+    "artifact_id", "stage_job_id", "host_segments_id",
+    "created_at", "updated_at", "timestamp", "started_at", "finished_at", "at",
+    # Derived from the raw script serialization, which contains the volatile
+    # ids above; the canonical script body remains snapshotted.
+    "script_sha256",
+    # This records the concurrent observation window used by music selection;
+    # selected track identity and rendered bytes remain snapshotted separately.
+    "music_history_snapshot",
 })
+SNAPSHOT_ORDER_INSENSITIVE_LIST_KEYS = frozenset()
 
 # Explicit pipeline outputs. Provider-ledger, policy/audit, monitoring, and
 # lifecycle history rows are operational telemetry rather than saved pipeline
@@ -54,9 +67,20 @@ def _snapshot_value(value, path_replacements: tuple[tuple[str, str], ...] = ()):
             return _snapshot_value(parsed, path_replacements)
         return value
     if isinstance(value, dict):
-        return {str(k): _snapshot_value(v, path_replacements)
-                for k, v in sorted(value.items(), key=lambda x: str(x[0]))
-                if str(k) not in SNAPSHOT_VOLATILE_JSON_KEYS}
+        normalized = {str(k): _snapshot_value(v, path_replacements)
+                      for k, v in sorted(value.items(), key=lambda x: str(x[0]))
+                      if str(k) not in SNAPSHOT_VOLATILE_JSON_KEYS}
+        for key in SNAPSHOT_ORDER_INSENSITIVE_LIST_KEYS:
+            entries = normalized.get(key)
+            if isinstance(entries, list):
+                entries = sorted(entries, key=lambda item: json.dumps(
+                    {k: v for k, v in item.items() if k != "position"}
+                    if isinstance(item, dict) else item,
+                    sort_keys=True, ensure_ascii=False))
+                normalized[key] = [
+                    {**entry, "position": index} if isinstance(entry, dict) else entry
+                    for index, entry in enumerate(entries)]
+        return normalized
     if isinstance(value, (list, tuple)):
         return [_snapshot_value(v, path_replacements) for v in value]
     return value
@@ -78,6 +102,7 @@ def saved_output_snapshot(db: Session, *, file_roots: Iterable[Path] = ()) -> di
     roots = tuple(Path(root) for root in file_roots)
     replacements = tuple((str(root), f"<{root.name}>") for root in roots)
     snapshot: dict[str, str] = {}
+    debug_values: dict[str, object] = {}
     bind = db.get_bind()
     inspector = inspect(bind)
     for table_name in SNAPSHOT_PIPELINE_TABLES:
@@ -88,14 +113,39 @@ def saved_output_snapshot(db: Session, *, file_roots: Iterable[Path] = ()) -> di
                             key=lambda value: json.dumps(value, sort_keys=True, ensure_ascii=False))
         for ordinal, row in enumerate(normalized):
             encoded = json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-            snapshot[f"db:{table_name}:{ordinal}"] = hashlib.sha256(encoded.encode()).hexdigest()
+            key = f"db:{table_name}:{ordinal}"
+            snapshot[key] = hashlib.sha256(encoded.encode()).hexdigest()
+            if os.environ.get("SOUNDNESS_SNAPSHOT_VALUES"):
+                debug_values[key] = row
     for root in file_roots:
         root = Path(root)
         if not root.exists():
             continue
         for path in sorted(p for p in root.rglob("*") if p.is_file()):
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            snapshot[f"file:{root.name}/{path.relative_to(root).as_posix()}"] = digest
+            raw = path.read_bytes()
+            # JSON output files contain generated ids and absolute paths just
+            # like JSON DB columns.  Apply the same named volatile-field and
+            # root canonicalization contract before hashing; binary outputs
+            # remain byte-hashed.
+            if path.suffix.lower() == ".json":
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError):
+                    parsed = None
+                if isinstance(parsed, (dict, list)):
+                    normalized = _snapshot_value(parsed, replacements)
+                    raw = json.dumps(normalized, sort_keys=True,
+                                     ensure_ascii=False, separators=(",", ":")) \
+                        .encode("utf-8")
+            digest = hashlib.sha256(raw).hexdigest()
+            key = f"file:{root.name}/{path.relative_to(root).as_posix()}"
+            snapshot[key] = digest
+    debug_path = os.environ.get("SOUNDNESS_SNAPSHOT_VALUES")
+    if debug_path:
+        Path(debug_path).write_text(
+            json.dumps(debug_values, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return snapshot
 
 

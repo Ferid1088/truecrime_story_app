@@ -92,7 +92,7 @@ class LanguageChain:
         await pipe._stage(f"performance:{lang}", performance)
         holder: dict = {}
 
-        async def voice():
+        async def render_voice():
             from app.documentary.production.audio import render_documentary_audio
 
             paid = pipe.result.setdefault("tts_characters", {})
@@ -118,14 +118,24 @@ class LanguageChain:
                    "selection_reasons": (m.get("mix") or {}).get(
                        "selection_reasons", [])}
             # the listening check (speech-to-text, pronunciation) is the
-            # narration's auditor: takes it still rejects after the
-            # retakes are reported, never silently kept
+            # narration's auditor: takes it still rejects after the retakes are
+            # reported, never silently kept
             failed = [f for f in m.get("flags") or []
                       if f.endswith((":asr_check_failed", ":pronunciation_unresolved"))]
             if failed:
                 out["degraded"] = (f"{len(failed)} narration block(s) failed the listening "
                                    "check after retakes: " + ", ".join(failed[:6]))
             return out
+
+        async def voice():
+            turn = sh.music_turns[sh.languages.index(lang)]
+            await turn.wait()
+            try:
+                return await render_voice()
+            finally:
+                index = sh.languages.index(lang)
+                if index + 1 < len(sh.music_turns):
+                    sh.music_turns[index + 1].set()
 
         await pipe._stage(f"voice:{lang}", voice)
         manifest = holder.get("m") or _load_manifest(case.id, version)

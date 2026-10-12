@@ -52,15 +52,16 @@ class FakeTTS:
         return True
 
     async def synthesize(self, req: VoiceRequest) -> VoiceRenderResult:
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request
 
         self.requests.append(req)
         chars = list(req.text)
         speech = len(chars) * SPEECH_PER_CHAR
         starts = [LEAD + i * SPEECH_PER_CHAR for i in range(len(chars))]
         ends = [s + SPEECH_PER_CHAR for s in starts]
-        fingerprint = request_hash(
-            "tts", request=req, config=config_hash_payload(ai_config.voice),
+        fingerprint = provider_request(
+            "tts", "synthesize", req.language, "tts",
+            request=req, config=config_hash_payload(ai_config.voice),
         )
         return VoiceRenderResult(
             audio=_mp3(speech, frequency=220 + int(fingerprint[:4], 16) % 1000),
@@ -82,7 +83,7 @@ class FakeASR:
 
     def transcribe(self, audio_path: str, language: str) -> dict:
         from app.core.ai_config import ai_config
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request
 
         self.calls += 1
         wav = Path(audio_path)
@@ -93,8 +94,9 @@ class FakeASR:
         words = re.sub(r"\[[^\[\]]*\]", " ", meta["text"]).split()
         if meta["seed"] in self.drop_for_seeds:
             words = words[:3] + words[8:]  # five words skipped
-        fingerprint = request_hash(
-            "asr", audio=wav.read_bytes(), sidecar=meta, language=language,
+        fingerprint = provider_request(
+            "asr", "transcribe", language, "asr",
+            audio=wav.read_bytes(), sidecar=meta, language=language,
             config=config_hash_payload(ai_config.asr_check),
         )
         return {"text": " ".join(words), "words": [], "request_hash": fingerprint}

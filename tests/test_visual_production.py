@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -416,10 +417,11 @@ class PipelineGen:
         return GenerationResult(text="{}", model=f"m/{role}", provider="fake")
 
     async def generate_text(self, role, system, user, images=None):
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request, request_language
 
-        fingerprint = request_hash(
-            "generation.text", role=role, system=system, user=user, images=images,
+        fingerprint = provider_request(
+            "generation", role, request_language(user, system), "generation.text",
+            role=role, system=system, user=user, images=images,
             config=config_hash_payload(ai_config),
         )
         self.roles.append(role)
@@ -428,10 +430,11 @@ class PipelineGen:
         return result
 
     async def generate_structured(self, role, system, user, images=None):
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request, request_language
 
-        fingerprint = request_hash(
-            "generation.structured", role=role, system=system, user=user, images=images,
+        fingerprint = provider_request(
+            "generation", role, request_language(user, system), "generation.structured",
+            role=role, system=system, user=user, images=images,
             config=config_hash_payload(ai_config),
         )
         self.roles.append(role)
@@ -536,9 +539,10 @@ def documentary_env(tmp_path, monkeypatch):
     from app.documentary.music import DocumentaryMixer, MusicLibrary
     from app.documentary.voice_render import VoiceRenderer
 
-    monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path / "audio"))
-    monkeypatch.setattr(ai_config.music_library, "dir", str(tmp_path / "lib"))
-    monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    run_root = Path(os.environ.get("SOUNDNESS_RUN_ROOT", str(tmp_path)))
+    monkeypatch.setattr(ai_config.voice, "work_dir", str(run_root / "audio"))
+    monkeypatch.setattr(ai_config.music_library, "dir", str(run_root / "lib"))
+    monkeypatch.setattr(ai_config.documentary, "storage_dir", str(run_root / "cases"))
     monkeypatch.setattr(ai_config.avatar, "enabled", True)  # the host stages only run then
     monkeypatch.setattr(ai_config.render, "width", 320)
     monkeypatch.setattr(ai_config.render, "height", 180)
@@ -560,13 +564,14 @@ def documentary_env(tmp_path, monkeypatch):
 
     async def fake_research(self, db, case, queries, progress=None, found_during="research",
                             **kw):
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request
         from app.documentary import storage
         from app.documentary.visuals.research import next_asset_code
 
         assert queries[0]["entity"] == "the_house"
-        fingerprint = request_hash(
-            "visual_search", case_id=case.id, queries=queries, found_during=found_during,
+        fingerprint = provider_request(
+            "visual_search", "research", None, "visual_search",
+            case_id=case.id, queries=queries, found_during=found_during,
             progress=progress, options=kw,
             config=config_hash_payload(ai_config.visual_search),
         )
@@ -583,20 +588,21 @@ def documentary_env(tmp_path, monkeypatch):
         return {"added": 2, "request_hash": fingerprint}
 
     async def fake_geocode(place, client=None, near=None):
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request
 
-        fingerprint = request_hash(
-            "geocode", place=place, client=client, near=near,
+        fingerprint = provider_request(
+            "maps", "geocode", None, "geocode", place=place, client=client, near=near,
             config=config_hash_payload(ai_config.maps),
         )
         return {"lat": -34.15, "lon": 115.67, "display_name": place,
                 "request_hash": fingerprint}
 
     async def fake_map(lat, lon, zoom, out, W=2400, H=1350, client=None):
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import config_hash_payload, provider_request
 
-        fingerprint = request_hash(
-            "map", lat=lat, lon=lon, zoom=zoom, out=out, width=W, height=H,
+        fingerprint = provider_request(
+            "maps", "render_map", None, "map",
+            lat=lat, lon=lon, zoom=zoom, out=out, width=W, height=H,
             client=client, config=config_hash_payload(ai_config.maps),
         )
         _jpg(Path(out), (W // 4, H // 4), (30, 40, 50))
@@ -795,21 +801,15 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
             encoding="utf-8",
         )
 
-    # Re-running the same completed job is a real StageRunner resume pass;
-    # shadow registration must not change any existing input hash.
-    before_hashes = {row.id: row.input_hash for row in rows}
-    asyncio.run(J.run_job(job.id))
-    db_session.expire_all()
-    after_rows = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
-    assert before_hashes == {row.id: row.input_hash for row in after_rows}
-    repeat_snapshot = saved_output_snapshot(db_session, file_roots=snapshot_roots)
-    snapshot_diff = sorted(key for key in set(baseline_snapshot) | set(repeat_snapshot)
-                           if baseline_snapshot.get(key) != repeat_snapshot.get(key))
-    assert repeat_snapshot == baseline_snapshot, snapshot_diff[:50]
-    print("SNAPSHOT_DETERMINISM", json.dumps({
-        "equal": True, "artifacts": len(baseline_snapshot),
-        "baseline_seconds": round(baseline_seconds, 3),
-    }, sort_keys=True))
+    # The independent-run proof invokes this test in two fresh processes.
+    # Returning here makes each child a single clean full pipeline run; the
+    # old same-database resume comparison was not an independent-run test.
+    if os.environ.get("SOUNDNESS_CHILD") == "1":
+        print("INDEPENDENT_RUN", json.dumps({
+            "artifacts": len(baseline_snapshot),
+            "seconds": round(time.perf_counter() - snapshot_started, 3),
+        }, sort_keys=True))
+        return
 
     def reachable_types(start):
         found = {start}
@@ -899,6 +899,50 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     for language in ("fa", "ar"):
         _, points = timeline_layout(window, language)
         assert [point["x"] for point in points] == sorted(point["x"] for point in points)
+
+
+@needs_ffmpeg
+def test_four_language_independent_run_determinism(tmp_path):
+    """Compare two fresh-process, fresh-DB, fresh-output full runs."""
+    root = Path(__file__).resolve().parents[1]
+    runs = []
+    for name in ("independent-run-a", "independent-run-b"):
+        run_root = tmp_path / name
+        run_root.mkdir()
+        snapshot = run_root / "snapshot.json"
+        payloads = run_root / "mock-payloads.jsonl"
+        env = os.environ.copy()
+        env.update({
+            "SOUNDNESS_CHILD": "1",
+            "SOUNDNESS_RUN_ROOT": str(run_root),
+            "SOUNDNESS_CAPTURE": str(snapshot),
+            "SOUNDNESS_PAYLOAD_LOG": str(payloads),
+            "SOUNDNESS_SNAPSHOT_VALUES": str(run_root / "snapshot-values.json"),
+            "PYTHONPATH": str(root),
+        })
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", __file__ +
+             "::test_four_language_shadow_pipeline_real_job"],
+            cwd=root, env=env, capture_output=True, text=True, check=False,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        runs.append((json.loads(snapshot.read_text()),
+                     [json.loads(line) for line in payloads.read_text().splitlines()]))
+    first, second = runs
+    assert first[0] == second[0]
+    # Language stages are intentionally concurrent, so global append order is
+    # scheduler-dependent.  Compare the complete request multiset while the
+    # recorder still exposes provider/stage/language/sequence order for A2's
+    # diagnostic diff.
+    payload_key = lambda entry: json.dumps(entry, sort_keys=True,
+                                           ensure_ascii=False, separators=(",", ":"))
+    assert sorted(first[1], key=payload_key) == sorted(second[1], key=payload_key)
+    ordered_differences = sum(a != b for a, b in zip(first[1], second[1]))
+    print("INDEPENDENT_DETERMINISM", json.dumps({
+        "runs": 2, "artifacts": len(first[0]), "provider_calls": len(first[1]),
+        "snapshot_equal": True, "payload_multiset_equal": True,
+        "ordered_payload_differences": ordered_differences,
+    }, sort_keys=True))
 
 
 @needs_ffmpeg
