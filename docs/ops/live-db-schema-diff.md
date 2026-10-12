@@ -1,13 +1,43 @@
 # Live database schema diagnosis
 
+## Current PostgreSQL production target (2026-10-12)
+
+The application now defaults to the app-owned local PostgreSQL database
+`postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime` in
+`app/core/config.py:6-10`. A local `TRUECRIME_DATABASE_URL` override is still
+accepted by `app/core/config.py:8` and is loaded by `scripts/dev_up.sh:48-62`.
+The empty `truecrime` database was upgraded through Alembic `0010` with
+`TRUECRIME_DATABASE_URL=... .venv/bin/python -m alembic upgrade head`; Alembic
+reported all ten revisions and PostgreSQL committed transactional DDL. The
+subsequent `alembic check` reported `No new upgrade operations detected`, so
+the live PostgreSQL schema has no ORM/migration autogenerate differences.
+
+The PostgreSQL catalog confirms both required relationships:
+
+| Constraint | Definition |
+|---|---|
+| `fk_agent_runs_documentary_job_id` | `agent_runs.documentary_job_id REFERENCES documentary_jobs(id)` |
+| `story_versions_master_version_id_fkey` | `story_versions.master_version_id REFERENCES story_versions(id)` |
+
+The query used `pg_constraint` and restricted `agent_runs` and
+`story_versions` to foreign-key constraints. PostgreSQL is provisioned only
+by `scripts/pg_up.sh`; it creates the app-owned `truecrime` and
+`truecrime_test` databases and never selects or drops other databases.
+
+The remainder of this file is the retained Phase A SQLite drift diagnosis.
+It is historical evidence for the test-only `truecrime.db`, not the current
+production schema. The Phase B SQLite allowlist below applies only to SQLite
+tests and reconciliation copies; it does not apply to PostgreSQL.
+
 Date of inspection: 2026-10-12. This document contains schema metadata only; it
 does not contain row values or secrets. The source was opened with SQLite
 `mode=ro`. The verified backup was created with SQLite's backup API.
 
 ## Databases inspected
 
-The application resolves `sqlite:///./truecrime.db` by default from the working
-directory (`app/core/config.py:7-10`, `app/db/base.py:5-12`).
+The historical inspection resolved `sqlite:///./truecrime.db` by default from
+the working directory (`app/core/config.py:7-10`, `app/db/base.py:5-12`) before
+the PostgreSQL default was introduced.
 `TRUECRIME_DATABASE_URL` wins over `DATABASE_URL`; neither was exported during
 this inspection. The live database is therefore:
 
