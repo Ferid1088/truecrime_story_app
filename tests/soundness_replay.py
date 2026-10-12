@@ -32,10 +32,9 @@ from app.db.models import (
 )
 from app.core.artifact_dependencies import (
     ARTIFACT_SCOPES,
-    predicted_for_config,
     direct_dependents,
 )
-from app.services.soundness import downstream_closure
+from app.services.soundness import predicted_change_keys
 
 
 def prepare(db, run: Path, source: str) -> dict:
@@ -52,10 +51,7 @@ def prepare(db, run: Path, source: str) -> dict:
         r for r in rows if r.type == source_type and (source != "spoken_de" or r.language == "de")
     ]
     selected = candidates[:1]
-    predicted_ids = downstream_closure(db, [r.id for r in selected])
-    predicted = sorted(
-        {f"{r.type}:{r.language or 'shared'}" for r in rows if r.id in predicted_ids}
-    )
+    predicted = sorted(predicted_change_keys(db, [r.id for r in selected]))
     overlay = {"source": source}
     if source == "spoken_de":
         row = db.query(StoryVersion).filter_by(kind="spoken", language="de").one()
@@ -344,10 +340,7 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
     if source_type and not selected:
         raise AssertionError(f"No registered source for {source}: {source_type}/{source_language}")
     selected = selected[:1]
-    predicted_ids = downstream_closure(db, [r.id for r in selected]) if selected else set()
-    predicted = sorted(
-        {f"{r.type}:{r.language or 'shared'}" for r in rows if r.id in predicted_ids}
-    )
+    predicted = sorted(predicted_change_keys(db, [r.id for r in selected])) if selected else []
     config_sections = {
         "language_profile": {"language_profile"},
         "pronunciation_voice": {"pronunciation_voice"},
@@ -366,7 +359,7 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
         "typed_config_music": {"music"},
     }.get(source)
     if config_sections:
-        predicted = sorted(predicted_for_config(config_sections))
+        predicted = sorted(predicted_change_keys(db, config_sections=config_sections))
     overlay = {"source": source}
 
     if source == "research_result":

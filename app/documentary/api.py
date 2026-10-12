@@ -41,6 +41,7 @@ router = APIRouter(tags=["documentary"])
 class ArtifactScopePreview(BaseModel):
     artifact_ids: list[str] = Field(default_factory=list)
     changed_artifact_ids: list[str] = Field(default_factory=list)
+    changed_config_sections: list[str] = Field(default_factory=list)
 
 
 @router.get("/api/documentary/{case_id}/artifacts")
@@ -63,7 +64,10 @@ def list_artifacts(case_id: int, type: str | None = None, language: str | None =
 @router.post("/api/documentary/{case_id}/artifacts/scope-preview")
 def artifact_scope_preview(case_id: int, req: ArtifactScopePreview, db: Session = Depends(get_db)):
     _case(db, case_id)
-    return ArtifactRegistry(db).scope_preview(req.artifact_ids, req.changed_artifact_ids)
+    return ArtifactRegistry(db).scope_preview(
+        req.artifact_ids, req.changed_artifact_ids,
+        changed_config_sections=req.changed_config_sections,
+    )
 
 
 def _case(db: Session, case_id: int) -> Case:

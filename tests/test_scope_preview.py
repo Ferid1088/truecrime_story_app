@@ -1,6 +1,7 @@
 import json
 
-from app.db.models import Artifact, Case, DocumentaryJob, PolicyEvent
+from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
+from app.db.models import Artifact, ArtifactDep, Case, DocumentaryJob, PolicyEvent
 from app.services.artifacts import ArtifactRegistry
 
 
@@ -120,3 +121,85 @@ def test_scope_preview_real_graph_closures_are_language_scoped_and_read_only(db_
         if kind in {"intro", "final_render"}
     }
     assert counts() == before
+
+
+def test_full_four_language_preview_contains_snapshot_diff_for_eight_perturbations(
+    db_session, monkeypatch
+):
+    """Preview and the replay harness use the same predicted key function."""
+    from generate_soundness_status import load_records
+    from sqlalchemy import func, select
+    from app.db.base import Base
+
+    case = Case(canonical_title="Full preview", slug="full-preview-9h", language="en")
+    db_session.add(case)
+    db_session.flush()
+    job = DocumentaryJob(case_id=case.id, languages_json='["en", "de", "fa", "ar"]')
+    db_session.add(job)
+    db_session.flush()
+
+    rows = {}
+    for artifact_type in ARTIFACT_SCOPES:
+        languages = ("en", "de", "fa", "ar") if ARTIFACT_SCOPES[artifact_type] == "per_language" else (None,)
+        for language in languages:
+            row = Artifact(
+                id=f"full-preview-{artifact_type}-{language or 'shared'}",
+                case_id=case.id, stage_job_id=job.id, type=artifact_type,
+                language=language,
+                scope_json=json.dumps({"type": artifact_type, "language": language}),
+                input_hash="input", output_hash="output", status="fresh",
+            )
+            rows[(artifact_type, language)] = row
+            db_session.add(row)
+    db_session.flush()
+    for target, dependencies in ARTIFACT_DEPENDENCIES.items():
+        target_languages = ("en", "de", "fa", "ar") if ARTIFACT_SCOPES[target] == "per_language" else (None,)
+        for language in target_languages:
+            target_row = rows[(target, language)]
+            for dependency in dependencies:
+                dep_language = language if ARTIFACT_SCOPES[dependency] == "per_language" else None
+                db_session.add(ArtifactDep(
+                    artifact_id=target_row.id,
+                    depends_on_id=rows[(dependency, dep_language)].id,
+                ))
+    db_session.commit()
+
+    monkeypatch.setattr("app.services.skip_policy.SkipPolicy.reusable_reasons", lambda *args: [])
+    all_ids = [row.id for row in rows.values()]
+    before = {
+        table.name: db_session.execute(select(func.count()).select_from(table)).scalar_one()
+        for table in Base.metadata.sorted_tables
+    }
+    records = {}
+    for row in load_records():
+        records[row["source"]] = row
+    probes = [
+        ("logo_bytes", None, {"logo_bytes"}),
+        ("naming", ("naming", None), set()),
+        ("spoken_de", ("spoken_version", "de"), set()),
+        ("one_beat", ("beats", None), set()),
+        ("one_voice_take", ("voice_takes", "de"), set()),
+        ("host_plan", ("host_plan", None), set()),
+        ("typed_config_audio", None, {"audio"}),
+        ("used_visual_metadata", ("visual_asset", None), set()),
+    ]
+    table = []
+    for source, root, config_sections in probes:
+        changed = [rows[root].id] if root else []
+        preview = ArtifactRegistry(db_session).scope_preview(
+            all_ids, changed, changed_config_sections=config_sections
+        )
+        will_rerun = {
+            f"{item['type']}:{item['language'] or 'shared'}"
+            for item in preview["artifacts"] if item["will_rerun"]
+        }
+        actual = set(records[source]["actual"])
+        missing = sorted(actual - will_rerun)
+        assert not missing, (source, missing)
+        table.append({"perturbation": source, "preview": len(will_rerun),
+                      "actual": len(actual), "missing": missing})
+    print("FULL_PREVIEW_VS_SNAPSHOT", json.dumps(table, sort_keys=True))
+    assert before == {
+        table.name: db_session.execute(select(func.count()).select_from(table)).scalar_one()
+        for table in Base.metadata.sorted_tables
+    }

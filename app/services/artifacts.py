@@ -123,11 +123,13 @@ class ArtifactRegistry:
         return dict(grouped)
 
     def scope_preview(self, artifact_ids: Iterable[str],
-                      changed_artifact_ids: Iterable[str] = ()) -> dict:
+                      changed_artifact_ids: Iterable[str] = (), *,
+                      changed_config_sections: Iterable[str] = ()) -> dict:
         ids = list(dict.fromkeys(artifact_ids))
         rows = [self.db.get(Artifact, artifact_id) for artifact_id in ids]
         found = [row for row in rows if row is not None]
         changed = list(dict.fromkeys(changed_artifact_ids))
+        config_sections = set(changed_config_sections)
         if changed:
             # A preview request names the roots it is changing.  Expand to
             # every artifact in the affected job(s), so callers cannot get a
@@ -149,20 +151,21 @@ class ArtifactRegistry:
             counts[row.type] += 1
         result = {"counts": dict(sorted(counts.items())), "total": len(ids),
                   "found": len(found), "label": f"{len(found)} of {len(ids)}"}
-        if not changed:
+        if not changed and not config_sections:
             return result
         from app.services.skip_policy import SkipPolicy
-        from app.services.soundness import downstream_closure
+        from app.services.soundness import predicted_change_keys
 
-        closure = downstream_closure(self.db, changed)
+        predicted = predicted_change_keys(self.db, changed, config_sections)
         details = []
         rebuild_by_language: dict[str, list[str]] = defaultdict(list)
         for row in found:
             job = self.db.get(DocumentaryJob, row.stage_job_id)
-            reasons = (["changed artifact or dependency"] if row.id in closure else
+            key = f"{row.type}:{row.language or 'shared'}"
+            reasons = (["changed artifact or dependency"] if key in predicted else
                        SkipPolicy(self.db).reusable_reasons(row, job) if job else ["missing stage job"])
-            rerun = row.id in closure or bool(reasons)
-            unproven = "type is unproven" in reasons and row.id not in closure
+            rerun = key in predicted or bool(reasons)
+            unproven = "type is unproven" in reasons and key not in predicted
             item = {"artifact_id": row.id, "type": row.type, "language": row.language,
                     "will_rerun": rerun, "will_reuse": not rerun,
                     "unproven_will_rerun": unproven, "reasons": reasons}

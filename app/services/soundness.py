@@ -346,6 +346,25 @@ def downstream_closure(db: Session, artifact_ids: list[str]) -> set[str]:
     return found
 
 
+def predicted_change_keys(
+    db: Session,
+    changed_artifact_ids: Iterable[str] = (),
+    config_sections: set[str] | None = None,
+) -> set[str]:
+    """Return the shared prediction set used by replay and scope preview."""
+    from app.core.artifact_dependencies import predicted_for_config
+
+    keys = set()
+    rows = {row.id: row for row in db.query(Artifact).all()}
+    for artifact_id in downstream_closure(db, list(changed_artifact_ids)):
+        row = rows.get(artifact_id)
+        if row is not None:
+            keys.add(f"{row.type}:{row.language or 'shared'}")
+    if config_sections:
+        keys.update(predicted_for_config(set(config_sections)))
+    return keys
+
+
 def changed_artifacts(before: dict[str, str], after: dict[str, str]) -> set[str]:
     return {
         artifact_id
