@@ -3,7 +3,7 @@
 ## Every change
 1. Work on a branch or directly on `main`; run `scripts/gate.sh` first (it is the same list CI runs).
 2. Database change: add a migration, then rehearse it on a COPY of the real database (`docs/migrations.md`); the real file must stay byte-identical.
-3. Push; wait for CI (backend, backend-postgres, frontend, docker) to be green. A red CI on `main` is fixed before anything else.
+3. Push; wait for CI (backend, backend-postgres, frontend, audit) to be green. A red CI on `main` is fixed before anything else.
 
 ## Releasing
 ```bash
@@ -11,13 +11,13 @@
 git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0
 # 2. on the machine that runs the app:
 python scripts/db_tools.py backup truecrime.db backups/pre-v1.1.0.db   # SQLite; for Postgres use pg_dump
-git pull && docker compose up -d --build        # or restart uvicorn + worker
+git pull && scripts/dev_up.sh
 python scripts/smoke.py http://127.0.0.1:8000 "$TRUECRIME_ACCESS_TOKEN"            # expect GREEN
 ```
 Rollback: migrations do not run backwards. Restore the backup taken in step 2, check out the previous tag, restart.
 
 ## Dependencies
-- Dependabot opens weekly grouped pull requests for Python and npm, monthly for GitHub Actions and Docker bases.
+- Dependabot opens weekly grouped pull requests for Python and npm, and monthly for GitHub Actions.
 - CI job `audit` fails on a known vulnerability in Python packages or in production npm packages, on every push and every Monday.
 - Accepted risks are listed in `docs/security.md` with the reason and a review date.
 

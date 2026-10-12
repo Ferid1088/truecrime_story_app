@@ -111,29 +111,6 @@ jobs:
           path: frontend/test-results
           retention-days: 7
 
-  docker:
-    # Builds both images, starts the whole stack (Postgres, API, worker, web) and runs the smoke checks against it.
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-      - name: Settings for the stack
-        run: |
-          printf 'TRUECRIME_ACCESS_TOKEN=ci-token-0123456789abcdef\nTRUECRIME_POSTGRES_PASSWORD=ci-pg-pass\nTRUECRIME_PY_REQUIREMENTS=requirements.txt\n' > .env
-      - name: Build and start
-        run: docker compose up -d --build --wait --wait-timeout 900
-      - name: Smoke checks
-        run: |
-          pip install httpx
-          python scripts/smoke.py http://127.0.0.1:8000 ci-token-0123456789abcdef
-          curl -fsS http://127.0.0.1:3000/login > /dev/null
-      - name: Logs (on failure)
-        if: failure()
-        run: docker compose logs --no-color --tail 200
-      - name: Stop
-        if: always()
-        run: docker compose down -v
-
   audit:
     # Known-vulnerability check of what ships: Python packages and production npm packages.
     runs-on: ubuntu-latest

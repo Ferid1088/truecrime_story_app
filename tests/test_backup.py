@@ -185,13 +185,13 @@ def test_due_logic(db_session):
 def test_failed_attempt_is_retried_after_thirty_minutes_not_every_minute(db_session):
     now = local(2026, 10, 11, 12)
     s = B.BackupSettings(enabled=True, dir="/x", every_hours=24, start_time="02:00")
-    db_session.add(BackupRun(status="failed", started_at=utc_now() - timedelta(minutes=10), dest_dir="/x"))
+    db_session.add(BackupRun(status="failed", started_at=now - timedelta(minutes=10), dest_dir="/x"))
     db_session.commit()
-    assert not B.is_due(db_session, s, utc_now())
+    assert not B.is_due(db_session, s, now)
     db_session.query(BackupRun).delete()
-    db_session.add(BackupRun(status="failed", started_at=utc_now() - timedelta(minutes=45), dest_dir="/x"))
+    db_session.add(BackupRun(status="failed", started_at=now - timedelta(minutes=45), dest_dir="/x"))
     db_session.commit()
-    assert B.is_due(db_session, s, utc_now())
+    assert B.is_due(db_session, s, now)
 
 
 def test_nothing_is_due_while_a_backup_is_running(db_session):

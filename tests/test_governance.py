@@ -10,12 +10,11 @@ CI = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
 def test_dependabot_covers_every_ecosystem_in_use():
     cfg = yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())
     kinds = {(u["package-ecosystem"], u["directory"]) for u in cfg["updates"]}
-    assert {("pip", "/"), ("npm", "/frontend"), ("github-actions", "/"), ("docker", "/"),
-            ("docker", "/frontend")} <= kinds
+    assert {("pip", "/"), ("npm", "/frontend"), ("github-actions", "/")} <= kinds
 
 
 def test_ci_has_every_job_the_docs_name_and_a_weekly_schedule():
-    assert {"backend", "backend-postgres", "frontend", "docker", "audit"} <= set(CI["jobs"])
+    assert {"backend", "backend-postgres", "frontend", "audit"} <= set(CI["jobs"])
     assert "schedule" in CI[True] if True in CI else "schedule" in CI["on"]
 
 

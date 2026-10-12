@@ -1,5 +1,4 @@
-# SearXNG settings for TrueCrime Search Engine.
-# JSON API enabled — the app talks to /search?format=json.
+# Native SearXNG settings for the local TrueCrime process runner.
 use_default_settings: true
 
 general:
@@ -15,14 +14,13 @@ search:
     - json
 
 server:
-  port: 8080
-  bind_address: "0.0.0.0"
-  secret_key: "truecrime-local-searxng-secret-change-in-prod"
+  port: 8085
+  bind_address: "127.0.0.1"
+  secret_key: "__TRUECRIME_SEARXNG_SECRET__"
   limiter: false
   image_proxy: false
   method: "GET"
 
-# Enable a broad set of general engines; SearXNG aggregates them.
 engines:
   - name: google
     disabled: false
@@ -36,10 +34,6 @@ engines:
     disabled: false
   - name: wikipedia
     disabled: false
-  - name: startpage
-    disabled: true
-  - name: yahoo
-    disabled: true
   - name: qwant
     disabled: false
 

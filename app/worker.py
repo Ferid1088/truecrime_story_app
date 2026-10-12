@@ -124,7 +124,7 @@ class Worker:
         return self.session_factory()
 
     def _touch_alive(self) -> None:
-        """The container health check looks at this file's age: a stuck loop stops refreshing it."""
+        """Local status checks look at this file's age: a stuck loop stops refreshing it."""
         try:
             Path(self.alive_file).touch()
         except OSError:

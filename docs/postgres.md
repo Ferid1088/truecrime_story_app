@@ -5,10 +5,9 @@ changes until you decide to switch. Switching is reversible: the SQLite file is 
 
 ## One-time cutover (about 10 minutes)
 
-1. Install Postgres 16 or newer (Homebrew: `brew install postgresql@16 && brew services start postgresql@16`;
-   or any Docker image `postgres:16`).
+1. Install Postgres 16 or newer with Homebrew: `brew install postgresql@16 && brew services start postgresql@16`.
 2. Create an empty database:
-   `createdb truecrime` (or `docker exec <container> createdb -U postgres truecrime`).
+   `createdb truecrime`.
 3. Stop the app and any running jobs. Take a backup and note its baseline:
    `python scripts/db_tools.py backup truecrime.db backups/`
    `python scripts/db_tools.py baseline truecrime.db backups/baseline-before-postgres.json`

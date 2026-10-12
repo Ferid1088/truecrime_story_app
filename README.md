@@ -58,15 +58,33 @@ discovery and research answer `503` (there is no fallback path).
 برای یوتیوب، متادیتا و لینک‌ها را می‌توان جمع کرد، اما متن/ترنسکریپت باید از منبعی
 استفاده شود که شما حق استفاده از آن را دارید یا به‌صورت مجاز در اختیار اپ قرار گرفته باشد.
 
-## اجرا
+## اجرای بومی روی macOS
 
 ```bash
-python -m venv .venv
+Prerequisites: Python 3.12, Node.js 22+, Homebrew `postgresql@16`, `ffmpeg`,
+the PostgreSQL client tools (`pg_dump`), and a native SearXNG installation.
+The app does not manage or install these system services.
+
+```bash
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
 cp .env.example .env
-uvicorn app.main:app --reload
+cd frontend && npm ci && cd ..
+brew services start postgresql@16
+```
+
+Install SearXNG in a separate local Python environment and set `SEARXNG_DIR`
+when starting it; `scripts/searxng_up.sh` creates its private settings file
+under `data/searxng/` and generates the local secret there.
+
+Start and stop the complete local process set with:
+
+```bash
+scripts/dev_up.sh
+scripts/dev_up.sh status
+scripts/dev_down.sh
+```
 ```
 
 سپس:
@@ -892,7 +910,7 @@ an agent name is undefined or unused, or when an agent's role/prompt is missing.
 ## Documentation
 | Topic | File |
 |---|---|
-| Run it with Docker | `docs/deploy.md` |
+| Run it locally | `docs/README.md` |
 | Day-to-day operations, backups, restore drill | `docs/operations.md` |
 | Security model, accepted risks | `docs/security.md` |
 | Logs, request ids, call ledger, Operations page | `docs/observability.md` |

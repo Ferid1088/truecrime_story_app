@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # --- security -------------------------------------------------------------------------
     # One shared access token for the single operator. Empty = no login, and the API then only
     # answers requests that come from this machine (loopback). Set it before exposing the API
-    # to anything else (Docker, LAN, tunnel). Generate one: python -c "import secrets;print(secrets.token_urlsafe(32))"
+    # to anything else (LAN or tunnel). Generate one: python -c "import secrets;print(secrets.token_urlsafe(32))"
     access_token: str = Field(
         default="", validation_alias=AliasChoices("TRUECRIME_ACCESS_TOKEN", "ACCESS_TOKEN")
     )
@@ -60,11 +60,8 @@ class Settings(BaseSettings):
         default=2,
         validation_alias=AliasChoices("TRUECRIME_JOB_MAX_AUTO_RESUMES", "JOB_MAX_AUTO_RESUMES"),
     )
-    # The worker touches this file every poll; the container health check reads its age.
-    worker_alive_file: str = Field(
-        default="/tmp/tc-worker-alive",
-        validation_alias=AliasChoices("TRUECRIME_WORKER_ALIVE_FILE", "WORKER_ALIVE_FILE"),
-    )
+    # The worker touches this file every poll; local status checks read its age.
+    worker_alive_file: str = "/tmp/tc-worker-alive"
 
     # --- observability --------------------------------------------------------------------
     log_level: str = Field(

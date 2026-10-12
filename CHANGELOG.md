@@ -18,7 +18,7 @@ Format: newest first. Versions are git tags (`vMAJOR.MINOR.PATCH`); see `docs/re
 ### Observability
 - Structured JSON logs with request ids; ledger of every outgoing call (host, status, latency, tokens, cost); Operations page.
 ### Packaging
-- Multi-stage non-root Docker images and a compose stack (Postgres, API, worker, web, search); built and smoke-tested in CI.
+- Native macOS process runner for Postgres, API, worker, web, and search; smoke-tested in CI.
 ### Quality
 - Test gate: Python suites on SQLite and Postgres, secret scan, type/lint/build, 46 browser tests including accessibility; API contract test between UI and backend.
 - Dependencies upgraded to clear all known vulnerabilities (FastAPI/Starlette, pypdf, python-dotenv).

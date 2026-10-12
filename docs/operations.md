@@ -10,13 +10,13 @@ Operations page in the UI (failed calls, cost, job queue) and `python scripts/sm
 - Files are named `truecrime-backup-YYYYMMDD-HHMMSS.db` (Postgres: `.dump`, needs `pg_dump`). Old ones beyond "keep last" are deleted, but only files with exactly that name pattern.
 - The folder is never created for you: if the drive is unplugged you get "Is the drive connected?" instead of a stray folder on the internal disk.
 - Each backup is a consistent copy made while the app runs, checked (integrity, tables present), copied to the drive and compared by checksum before it gets its final name. Permissions are owner-only.
-- Docker: set `TRUECRIME_BACKUP_DIR` in `.env` (host folder or external drive) and use `/backups` as the folder in the app.
+- Backups: choose an existing local folder or external drive in the Dashboard backup card.
 
 **What a backup contains:** the database only (cases, sources, texts, settings, history). Generated media (`data/cases/`, volume `tc_data`) is not included; copy that folder separately (Finder, rsync) from time to time.
 
 **By hand:**
 - SQLite: `python scripts/db_tools.py backup truecrime.db <folder>`.
-- Postgres: `docker compose exec -T postgres pg_dump -U truecrime -Fc truecrime > backups/$(date +%F).dump`.
+- Postgres: the app uses the local `pg_dump` client; a manual equivalent is `pg_dump -Fc truecrime > backups/$(date +%F).dump`.
 - Keep `.env` in a password manager, never in the backup folder.
 - Suggested: daily, keep 14; copy one backup off the machine now and then.
 
@@ -29,7 +29,7 @@ Operations page in the UI (failed calls, cost, job queue) and `python scripts/sm
 ## Incidents
 | Symptom | First look | Usual cause / action |
 |---|---|---|
-| UI shows "API offline" | `docker compose ps`, API logs | API crashed or migrating; `docker compose logs api` |
+| UI shows "API offline" | `scripts/dev_up.sh status`, API logs | API crashed or migrating |
 | Documentary job stuck "running" | Operations → jobs; worker logs | Worker died; it is resumed automatically after the lease (`JOB_LEASE_SECONDS`), or press Resume |
 | Many failed calls to one host | Operations → Services / latest failures | Provider outage or expired key; rotate key (`docs/security.md`) |
 | Login says "Too many failed attempts" | wait a minute | lockout is per address |

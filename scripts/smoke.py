@@ -1,5 +1,7 @@
-"""End-to-end smoke check of a running stack:  python scripts/smoke.py http://127.0.0.1:8000 <ACCESS_TOKEN>
-Exit code 0 = healthy and locked down. Used after `docker compose up` and by the release checklist."""
+"""End-to-end smoke check of local processes.
+
+Run: python scripts/smoke.py http://127.0.0.1:8000 <ACCESS_TOKEN>
+"""
 import sys
 
 import httpx
