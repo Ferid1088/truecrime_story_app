@@ -129,6 +129,7 @@ def test_full_four_language_preview_contains_snapshot_diff_for_eight_perturbatio
     """Preview and the replay harness use the same predicted key function."""
     from generate_soundness_status import load_records
     from sqlalchemy import func, select
+
     from app.db.base import Base
 
     case = Case(canonical_title="Full preview", slug="full-preview-9h", language="en")

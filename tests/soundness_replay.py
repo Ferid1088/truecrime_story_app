@@ -18,21 +18,20 @@ from pathlib import Path
 from soundness_observation import observe
 from sqlalchemy import inspect, text
 
+from app.core.artifact_dependencies import (
+    ARTIFACT_SCOPES,
+    direct_dependents,
+)
 from app.db.models import (
     Artifact,
     Case,
     EditorialBlueprint,
     HostPlan,
+    ProductionScript,
     ResearchResult,
     StoryVersion,
     VisualAsset,
-    VisualPlan,
     VoicePerformance,
-    ProductionScript,
-)
-from app.core.artifact_dependencies import (
-    ARTIFACT_SCOPES,
-    direct_dependents,
 )
 from app.services.soundness import predicted_change_keys
 
@@ -418,8 +417,9 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
             {"library_name": path.name, "library_hex": (bytes((raw[0] ^ 1,)) + raw[1:]).hex()}
         )
     elif source == "logo_bytes":
-        from app.core.ai_config import ai_config
         from PIL import Image
+
+        from app.core.ai_config import ai_config
 
         original = Path(ai_config.channels["en"].logo)
         altered = run.parent / f"{run.name}-logo.png"

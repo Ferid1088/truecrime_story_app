@@ -1,12 +1,12 @@
 import json
 
 from soundness_observation import observe
-from app.services.soundness import _snapshot_value
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.models import Artifact, Case, ChapterPlan, EditorialBlueprint, StoryVersion
+from app.services.soundness import _snapshot_value
 
 
 def test_observation_reads_saved_outputs_never_registry_or_output_hash(tmp_path):

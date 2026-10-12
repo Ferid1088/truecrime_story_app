@@ -1,8 +1,8 @@
 import pytest
 
 from app.core.artifact_dependencies import (
-    ARTIFACT_DEPENDENCIES,
     ARTIFACT_CONFIG_INPUTS,
+    ARTIFACT_DEPENDENCIES,
     ARTIFACT_SCOPES,
     direct_dependents,
     validate_dependency_table,

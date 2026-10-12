@@ -53,7 +53,11 @@ def test_real_template_restores_every_saved_output(tmp_path):
     engine = create_engine(f"sqlite:///{restored['database']}")
     with Session(engine) as db:
         actual = saved_output_snapshot(
-            db, file_roots=[Path(restored["files"]) / name for name in ("cases", "audio", "lib")]
+            db,
+            file_roots=[
+                Path(restored["files"]) / name
+                for name in ("cases", "audio", "lib", "intros")
+            ],
         )
         from sqlalchemy import text
 

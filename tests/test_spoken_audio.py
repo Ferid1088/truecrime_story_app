@@ -12,22 +12,32 @@ import uuid
 from pathlib import Path
 
 import pytest
+from test_blueprint_performance import (
+    PACK,
+    SECTIONS,
+    _director,
+    _good,
+    _no_contradiction,
+    _story,
+)
 
 from app.agents.story import _parse_sections, stored_sections
 from app.core.ai_config import AIConfig, ai_config, load_raw_config
 from app.documentary import spoken as SP
 from app.documentary.audio_director import (
-    AudioDirector, director_system_prompt, validate_audio_plan,
+    AudioDirector,
+    director_system_prompt,
+    validate_audio_plan,
 )
 from app.documentary.blueprint import latest_blueprint, validate_blueprint
 from app.documentary.music import (
-    DocumentaryMixer, MusicLibrary, _tone_shaping, plan_placements,
+    DocumentaryMixer,
+    MusicLibrary,
+    _tone_shaping,
+    plan_placements,
 )
 from app.documentary.performance import build_directed_performance
 from app.providers.generation.base import GenerationResult
-from test_blueprint_performance import (
-    PACK, SECTIONS, _director, _good, _no_contradiction, _story,
-)
 
 needs_ffmpeg = pytest.mark.skipif(
     not shutil.which("ffmpeg"), reason="ffmpeg is required for audio tests")
@@ -515,7 +525,6 @@ class FakeSound:
         self.calls = []
 
     async def generate(self, prompt, seconds, loop, influence):
-        from app.core.ai_config import ai_config
         from mock_payload import music_request_payload, provider_request
 
         self.calls.append((prompt, seconds, loop))

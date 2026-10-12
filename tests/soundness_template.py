@@ -245,7 +245,11 @@ if __name__ == "__main__":
     engine = create_engine(restored_url)
     with Session(engine) as db:
         actual = saved_output_snapshot(
-            db, file_roots=[Path(timings["files"]) / name for name in ("cases", "audio", "lib")]
+            db,
+            file_roots=[
+                Path(timings["files"]) / name
+                for name in ("cases", "audio", "lib", "intros")
+            ],
         )
     engine.dispose()
     expected = json.loads((template / "snapshot.json").read_text())

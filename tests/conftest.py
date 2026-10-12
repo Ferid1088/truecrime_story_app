@@ -75,8 +75,88 @@ os.environ["TRUECRIME_DISABLE_SCHEDULER"] = "1"
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.main import app  # noqa: E402
 from app.db.base import SessionLocal  # noqa: E402
+from app.main import app  # noqa: E402
+
+
+def _delete_case_tree(db, case_id: int) -> None:
+    """Delete one test case and rows reachable through its foreign keys."""
+    from sqlalchemy import MetaData, Table, inspect, or_, select
+
+    bind = db.get_bind()
+    inspector = inspect(bind)
+    metadata = MetaData()
+    tables = {name: Table(name, metadata, autoload_with=bind)
+              for name in inspector.get_table_names()}
+    primary_keys = {
+        name: tuple(inspector.get_pk_constraint(name)["constrained_columns"])
+        for name in tables
+    }
+    foreign_keys = {name: inspector.get_foreign_keys(name) for name in tables}
+    targets: dict[str, set[object]] = {"cases": {case_id}}
+    for name, table in tables.items():
+        if "case_id" not in table.c or len(primary_keys[name]) != 1:
+            continue
+        values = db.execute(
+            select(table.c[primary_keys[name][0]]).where(table.c.case_id == case_id)
+        ).scalars()
+        targets.setdefault(name, set()).update(values)
+
+    changed = True
+    while changed:
+        changed = False
+        for name, fks in foreign_keys.items():
+            if len(primary_keys[name]) != 1:
+                continue
+            for fk in fks:
+                parent = targets.get(fk["referred_table"])
+                if not parent or len(fk["constrained_columns"]) != 1:
+                    continue
+                column = tables[name].c[fk["constrained_columns"][0]]
+                values = db.execute(
+                    select(tables[name].c[primary_keys[name][0]]).where(column.in_(parent))
+                ).scalars()
+                bucket = targets.setdefault(name, set())
+                old_size = len(bucket)
+                bucket.update(values)
+                changed |= len(bucket) != old_size
+
+    depths = {"cases": 0}
+    for _ in range(len(tables) + 1):
+        for name, fks in foreign_keys.items():
+            parents = [depths[fk["referred_table"]] for fk in fks
+                       if fk["referred_table"] in depths]
+            if parents:
+                depths[name] = max(depths.get(name, 0), max(parents) + 1)
+
+    for name in sorted(targets, key=lambda value: depths.get(value, 0), reverse=True):
+        table = tables[name]
+        predicates = []
+        if "case_id" in table.c:
+            predicates.append(table.c.case_id == case_id)
+        if len(primary_keys[name]) == 1 and targets.get(name):
+            predicates.append(table.c[primary_keys[name][0]].in_(targets[name]))
+        for fk in foreign_keys[name]:
+            parent = targets.get(fk["referred_table"])
+            if parent and len(fk["constrained_columns"]) == 1:
+                predicates.append(table.c[fk["constrained_columns"][0]].in_(parent))
+        if predicates:
+            db.execute(table.delete().where(or_(*predicates)))
+    db.commit()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _remove_api_crud_fixture_case():
+    yield
+    db = SessionLocal()
+    try:
+        from app.db.models import Case
+
+        case = db.query(Case).filter(Case.canonical_title == "Test Case Alpha").one_or_none()
+        if case is not None:
+            _delete_case_tree(db, case.id)
+    finally:
+        db.close()
 
 
 @pytest.fixture
@@ -101,8 +181,8 @@ def isolated_pipeline_db(monkeypatch, tmp_path):
 
     import app.db.base as base
     import app.db.models  # noqa: F401 - populate Base.metadata
-    from app.db.migrate import upgrade_database
     import app.documentary.music as music
+    from app.db.migrate import upgrade_database
 
     # The persistent-template builder supplies a disposable copy through
     # TC_COPY_DATABASE_URL.  Use that database so the child run can copy the

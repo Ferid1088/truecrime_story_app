@@ -11,8 +11,8 @@ from test_spoken_audio import FakeSound
 from test_visual_production import PipelineGen, _story
 from test_voice_render import FakeASR, FakeTTS
 
-from app.providers.voice.base import VoiceRequest
 from app.core.ai_config import ai_config
+from app.providers.voice.base import VoiceRequest
 
 pytest_plugins = ["test_visual_production"]
 
