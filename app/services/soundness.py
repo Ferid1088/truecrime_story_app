@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session
 from app.db.models import Artifact, ArtifactDep
 from app.services.artifact_shadow import registry_consistency
 
+SNAPSHOT_EXCLUDED_FIELDS = frozenset({
+    "id", "card_id", "piece_id", "created_at", "updated_at", "timestamp",
+    "started_at", "finished_at",
+})
+
 
 def artifact_snapshot(db: Session, case_id: int) -> dict[str, str]:
     """Return hashes of the currently saved, registered outputs.

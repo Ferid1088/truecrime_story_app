@@ -76,16 +76,18 @@ class SkipPolicy:
         reasons: list[str] = []
         if row.status not in ("fresh", "ok"):
             reasons.append(f"status is {row.status}")
-        detail = _stage_detail(job, json.loads(row.scope_json or "{}").get("stage", ""), row.language)
+        stage = json.loads(row.scope_json or "{}").get("stage", "")
+        detail = _stage_detail(job, stage, row.language)
+        if not detail and stage == "master_story":
+            detail = _stage_detail(job, "master_approval", row.language)
         expected_inputs = _source_payload(self.db, job,
-                                           json.loads(row.scope_json or "{}").get("stage", ""),
+                                           stage,
                                            row.language, detail, row.type)
         from app.core.fingerprint import input_fingerprint
 
         if input_fingerprint(row.type, expected_inputs, "artifact-input-v1") != row.input_hash:
             reasons.append("input hash changed")
-        if _output_hash(self.db, job, json.loads(row.scope_json or "{}").get("stage", ""),
-                        row.language, detail, row.type) != row.output_hash:
+        if _output_hash(self.db, job, stage, row.language, detail, row.type) != row.output_hash:
             reasons.append("output hash changed")
         if self.soundness.get(row.type) != "SOUND":
             reasons.append("type is unproven")

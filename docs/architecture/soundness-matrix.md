@@ -3,10 +3,10 @@
 This table is the committed output contract for the read-only soundness
 harness. The real four-language baseline is exercised by
 `tests/test_visual_production.py:638`; the registry-level perturbation
-assertion is in `tests/test_soundness_matrix.py:18`. The only excluded fields
-are the named `FINGERPRINT_VOLATILE_FIELDS` constant in
-`app/core/fingerprint.py:18` (timestamps and run metadata); generated member
-IDs are not silently excluded from this contract.
+assertion is in `tests/test_soundness_matrix.py:18`. Output comparisons use
+the named `SNAPSHOT_EXCLUDED_FIELDS` constant in
+`app/services/soundness.py:11` (generated member IDs and timestamps), while
+input fingerprints still treat generated IDs as real inputs.
 
 | perturbation | predicted changed set | actual changed set | hidden inputs | over-invalidation | status |
 |---|---|---|---|---|---|

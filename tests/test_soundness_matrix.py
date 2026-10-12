@@ -5,6 +5,7 @@ from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
 from app.db.models import Artifact, ArtifactDep
 from app.services.skip_policy import SOUNDNESS
 from app.services.soundness import (
+    SNAPSHOT_EXCLUDED_FIELDS,
     changed_artifacts,
     downstream_closure,
     matrix_row,
@@ -15,6 +16,7 @@ def test_named_volatile_field_contract_is_explicit():
     assert "created_at" in FINGERPRINT_VOLATILE_FIELDS
     assert "updated_at" in FINGERPRINT_VOLATILE_FIELDS
     assert "generated_ids" not in FINGERPRINT_VOLATILE_FIELDS
+    assert {"id", "created_at"} <= SNAPSHOT_EXCLUDED_FIELDS
     assert canonical_json({"timestamp": "one", "value": 1}) == \
         canonical_json({"timestamp": "two", "value": 1})
 
