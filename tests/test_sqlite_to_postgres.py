@@ -16,6 +16,7 @@ from app.db import migrate
 from app.db.models import Case, Fact, StoryVersion
 
 PG = os.environ.get("TC_TEST_DATABASE_URL")
+TEST_ADMIN = os.environ.get("TRUECRIME_TEST_ADMIN_URL")
 pytestmark = pytest.mark.skipif(not PG, reason="needs a Postgres server (TC_TEST_DATABASE_URL)")
 
 _spec = importlib.util.spec_from_file_location(
@@ -28,10 +29,22 @@ _spec.loader.exec_module(copier)
 def pg_url():
     """A fresh empty database next to the test database."""
     name = "tc_copy_" + uuid.uuid4().hex[:8]
-    admin = create_engine(make_url(PG).set(database="postgres"), isolation_level="AUTOCOMMIT")
+    # The application role is intentionally not CREATEDB.  By default use
+    # the local macOS login as the administrator; CI and non-local setups can
+    # provide an explicit, secret-bearing URL.
+    admin_url = TEST_ADMIN or make_url(PG).set(
+        username=os.environ.get("USER") or "postgres", password=None, database="postgres")
+    admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
     with admin.connect() as c:
         c.execute(text(f'CREATE DATABASE "{name}"'))
     url = make_url(PG).set(database=name).render_as_string(hide_password=False)
+    app_role = make_url(PG).username or "truecrime"
+    target_admin = create_engine(make_url(admin_url).set(database=name),
+                                 isolation_level="AUTOCOMMIT")
+    with target_admin.connect() as c:
+        c.execute(text("GRANT ALL ON SCHEMA public TO \"%s\"" % app_role.replace('"', '""')))
+        c.execute(text("ALTER SCHEMA public OWNER TO \"%s\"" % app_role.replace('"', '""')))
+    target_admin.dispose()
     yield url
     with admin.connect() as c:
         c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))

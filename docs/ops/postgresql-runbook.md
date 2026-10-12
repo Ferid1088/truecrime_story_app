@@ -55,6 +55,23 @@ The PostgreSQL service and its databases are not removed by this rollback.
 Return to PostgreSQL by setting `TRUECRIME_DATABASE_URL` in `.env.local` to the
 app-owned PostgreSQL URL and starting `scripts/dev_up.sh --first-run-safe`.
 
+## Postgres integration tests
+
+The app role `truecrime` is deliberately not a database administrator. Run the
+disposable-database suite with an explicit administrator URL (normally the
+local Homebrew superuser):
+
+```sh
+TC_TEST_DATABASE_URL='postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime_test' \
+TRUECRIME_TEST_ADMIN_URL='postgresql+psycopg://<local-superuser>@127.0.0.1:5432/postgres' \
+PYTHONPATH=. .venv/bin/pytest -q tests/test_sqlite_to_postgres.py
+```
+
+When `TRUECRIME_TEST_ADMIN_URL` is omitted, the fixture derives the local
+superuser URL from `TC_TEST_DATABASE_URL` and `$USER`; CI or a remote server
+must set it explicitly. The administrator URL is used only to create and drop
+temporary databases and is never stored in the repository.
+
 ## Table-count convention
 
 The current PostgreSQL schema has 64 public base tables including

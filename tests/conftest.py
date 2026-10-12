@@ -3,6 +3,7 @@ import tempfile
 
 _PG_URL = os.environ.get("TC_TEST_DATABASE_URL")
 _COPY_URL = os.environ.get("TC_COPY_DATABASE_URL")
+_PG_ADMIN_URL = os.environ.get("TRUECRIME_TEST_ADMIN_URL")
 if _COPY_URL:
     # An explicit disposable copy is used by the Phase-B reconciliation smoke
     # test.  Unlike the Postgres suite, it must not drop or recreate anything.
@@ -10,11 +11,16 @@ if _COPY_URL:
 elif _PG_URL:
     # Run the suite on Postgres: start every run from an empty schema (the tests share one database).
     import sqlalchemy as _sa
+    from sqlalchemy.engine import make_url as _make_url
 
-    _eng = _sa.create_engine(_PG_URL, isolation_level="AUTOCOMMIT")
+    _admin_url = _PG_ADMIN_URL or _make_url(_PG_URL).set(
+        username=os.environ.get("USER") or "postgres", password=None)
+    _admin_url = _make_url(_admin_url).set(database=_make_url(_PG_URL).database)
+    _eng = _sa.create_engine(_admin_url, isolation_level="AUTOCOMMIT")
     with _eng.connect() as _c:
         _c.execute(_sa.text("DROP SCHEMA public CASCADE"))
         _c.execute(_sa.text("CREATE SCHEMA public"))
+        _c.execute(_sa.text("ALTER SCHEMA public OWNER TO truecrime"))
     _eng.dispose()
     os.environ["DATABASE_URL"] = _PG_URL
 else:
