@@ -643,10 +643,13 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     from app.documentary.production.script import timeline_layout
     from app.services.artifacts import ArtifactRegistry
 
+    SHADOW_VOLATILE_KEYS = {"id", "card_id", "piece_id", "created_at", "updated_at",
+                            "timestamp", "started_at", "finished_at"}
+
     def strip_ids(value):
         if isinstance(value, dict):
                 return {k: strip_ids(v) for k, v in value.items()
-                        if k not in {"id", "card_id", "piece_id"}}
+                        if k not in SHADOW_VOLATILE_KEYS}
         if isinstance(value, list):
             return [strip_ids(v) for v in value]
         return value
