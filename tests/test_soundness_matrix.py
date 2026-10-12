@@ -121,7 +121,7 @@ def test_all_registered_types_are_named_in_soundness_sources():
     assert set(SOUNDNESS.values()) <= {"SOUND", "UNPROVEN"}
 
 
-def test_sound_type_has_a_passing_snapshot_diff_record():
+def test_sound_type_has_a_passing_strong_snapshot_diff_record():
     records = load_records()
     statuses = build_status(records)
     for target, status in statuses.items():
@@ -130,6 +130,10 @@ def test_sound_type_has_a_passing_snapshot_diff_record():
                 _can_reach(row, target)
                 and row.get("status", "passed") == "passed"
                 and not row.get("hidden")
+                # A weak perturbation that changed no saved output cannot
+                # establish soundness. A recorded, justified no-effect edge
+                # is also strong evidence for that specific edge.
+                and (row.get("actual") or row.get("no_effect_edges"))
                 for row in records
             )
 

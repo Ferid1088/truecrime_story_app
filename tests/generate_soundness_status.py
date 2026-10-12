@@ -18,6 +18,8 @@ PHASE5_ROOTS = {
     "one_beat": "beats", "one_voice_take": "voice_takes",
     "unused_visual": "visual_asset", "host_plan": "host_plan",
     "naming": "naming",
+    "used_visual_metadata": "visual_asset",
+    "unused_visual_metadata": "visual_asset",
 }
 CONFIG_SOURCES = {
     "language_profile", "pronunciation_voice", "channel_identity_logo",

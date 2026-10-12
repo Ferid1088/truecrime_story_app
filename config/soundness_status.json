@@ -25,7 +25,9 @@
     "typed_config_visual",
     "typed_config_voice",
     "unused_visual",
-    "used_visual"
+    "unused_visual_metadata",
+    "used_visual",
+    "used_visual_metadata"
   ],
   "reasons": {},
   "record_files": [
