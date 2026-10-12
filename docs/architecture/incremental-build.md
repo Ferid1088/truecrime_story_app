@@ -43,6 +43,13 @@ the language; “shared” means it carries no language.
 | captions | per-language | production JSON/SRT | caption IDs | text/word timing | `app/documentary/production/script.py:1249` | renderer | no skip hash | rebuilt |
 | production_script | per-language | `production_scripts.script_json` | member IDs | spoken/voice/timing/visuals/cards/music/config | `app/documentary/production/script.py:1348` | critique/render | row/version | latest row |
 | final_render | per-language | relative path/`render_json` | row ID/path | script/audio/intro/render config | `app/documentary/render/engine.py:525` | UI/download | no skip hash | stage resume |
+| research_result | shared | research rows/job result | stage/job ID | research inputs and provider result | `app/documentary/jobs.py:236` | master story | shadow input hash | no cache authority |
+| master_approval | shared | approved story/audit history | stage/job ID | master story and auditor decision | `app/documentary/jobs.py:255` | blueprint | shadow input hash | stage resume |
+| host_plan | shared | `host_plans.plan_json` | row ID | beats and host settings | `app/documentary/jobs.py:370` | host segments | shadow input hash | latest valid row |
+| host_segments | per-language | `host_segments.segments_json` | row ID | host plan/spoken version | `app/documentary/pipeline/language.py:80` | host scenes/render | shadow input hash | latest matching row |
+| naming | shared | title-candidate rows/result detail | family ID | case/master/title config | `app/documentary/jobs.py:414` | channel metadata | shadow input hash | stage resume |
+| film_length | per-language | job result estimates | language/stage ID | spoken/audio estimates | `app/documentary/jobs.py:432` | render admission | shadow input hash | stage resume |
+| visual_gaps | shared | `visual_plans.plan_json` after gap fill | stage/plan ID | visual plan and gap candidates | `app/documentary/jobs.py:500` | visual plan/script | shadow input hash | stage resume |
 
 The source registry records scope and output registration (`app/services/artifact_shadow.py:29`,
 `app/services/artifact_shadow.py:122`). Rows are observability, not a cache authority.
@@ -143,6 +150,15 @@ from the blueprint (`app/documentary/jobs.py:290`). Therefore one Persian durati
 does not stale German rows, while a shared beat change affects every language. `spoken_version`
 depends on `master_story`, not `beats`, because its producer receives master and language
 (`app/documentary/jobs.py:313`, `app/documentary/jobs.py:316`).
+
+The timing perturbation boundary is deliberate: `music_cues`, `captions`, and
+`production_script` consume the per-language voice manifest/timestamps
+(`app/documentary/pipeline/language.py:96`, `app/documentary/production/script.py:1300`),
+and `final_render` consumes the resulting script (`app/documentary/pipeline/language.py:210`).
+The visual plan and chapter/timeline plan rows are created before narration and
+contain no language-specific durations; card and shot placement is materialized
+in the production script. Consequently those shared plan rows are not falsely
+invalidated by one language's retake.
 
 The `visual_asset` node limits replacement invalidation to its shot/piece dependents.
 Shadow source payloads include persisted rows and documentary/voice/audio/music/render

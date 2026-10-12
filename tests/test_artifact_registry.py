@@ -119,3 +119,34 @@ def test_asset_replacement_only_invalidates_shots_that_use_it(db_session):
     flat = {item for values in affected.values() for item in values}
     assert asset_a.id in flat and shot_a.id in flat
     assert asset_b.id not in flat and shot_b.id not in flat
+
+
+def test_voice_timing_invalidation_is_language_local(db_session):
+    registry = ArtifactRegistry(db_session)
+    master = registry.register("master_story", {"case": 2}, {"text": "story"})
+    beats = registry.register("beats", {"case": 2}, {"text": "beat"}, [master.id])
+    blocks = registry.register("audio_blocks", {"case": 2}, {"blocks": 1}, [beats.id])
+    spoken = {}
+    final = {}
+    for language in ("en", "de"):
+        spoken[language] = registry.register("spoken_version", {"language": language},
+                                             {"text": language}, [master.id])
+        take = registry.register("voice_takes", {"language": language},
+                                 {"duration": 10}, [blocks.id, spoken[language].id])
+        timing = registry.register("audio_timing", {"language": language},
+                                   {"duration": 10}, [take.id])
+        music = registry.register("music_cues", {"language": language}, {"cue": language},
+                                  [blocks.id, timing.id])
+        captions = registry.register("captions", {"language": language},
+                                     {"captions": language}, [spoken[language].id, timing.id])
+        script = registry.register(
+            "production_script", {"language": language}, {"script": language},
+            [spoken[language].id, take.id, timing.id, captions.id, music.id])
+        final[language] = registry.register("final_render", {"language": language},
+                                             {"render": language}, [script.id])
+    en_take = registry.register("voice_takes", {"language": "en"}, {"duration": 11},
+                                [blocks.id, spoken["en"].id])
+    affected = registry.invalidate([en_take.id], "duration changed")
+    flat = {item for values in affected.values() for item in values}
+    assert en_take.id in flat and final["en"].id in flat
+    assert final["de"].id not in flat and spoken["de"].id not in flat

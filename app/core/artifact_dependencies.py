@@ -44,8 +44,11 @@ ARTIFACT_SCOPES: dict[str, ArtifactScope] = {
 
 
 # A dependency is an input read by the producing stage, not merely a
-# conceptual predecessor. Placement of cards and subtitles is part of the
-# language production script, which consumes audio_timing.
+# conceptual predecessor. Voice duration/timestamps are consumed directly by
+# music cues, captions, and the production script. Visual shot timing and
+# chapter/timeline card placement are computed inside production_script from
+# the manifest; their shared plan/card rows do not read a language's timing.
+# This keeps a Persian retake from invalidating German artifacts.
 ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "master_story": [],
     "beats": ["master_story"],
