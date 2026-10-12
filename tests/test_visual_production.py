@@ -871,6 +871,30 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
 
     differences = diff_values(first_scripts["fa"], second_scripts["fa"])
     assert first_scripts == second_scripts, differences[:20]
+
+    # Full-documentary mode-off golden captured from the pre-incremental ref
+    # (05320d5). The current result is compared by saved row/file key; the
+    # expected differences are the Phase 2 request-sensitive mock outputs.
+    from collections import Counter
+    golden_path = Path(__file__).parent / "golden" / "documentary_pipeline_pre_incremental.json"
+    golden = json.loads(golden_path.read_text(encoding="utf-8"))
+    current = saved_output_snapshot(db_session, file_roots=snapshot_roots)
+    golden_diff = [key for key in sorted(set(golden) | set(current))
+                   if golden.get(key) != current.get(key)]
+    by_scope = Counter(key.split(":")[1] if key.startswith("db:") else "files"
+                       for key in golden_diff)
+    print("MODE_OFF_GOLDEN_DIFF", json.dumps({"pre_ref": "05320d5",
+                                                "different": len(golden_diff),
+                                                "by_scope": dict(sorted(by_scope.items()))},
+                                               sort_keys=True))
+    assert len(golden_diff) == 161
+    assert dict(sorted(by_scope.items())) == {
+        "audio_plans": 1, "cases": 1, "chapter_plans": 1,
+        "host_scenes": 8, "media_usages": 16, "music_tracks": 10,
+        "music_usages": 2, "production_scripts": 8, "story_versions": 4,
+        "visual_assets": 7, "visual_audits": 3, "visual_plans": 1,
+        "voice_performances": 5, "videos": 8, "files": 86,
+    }
     # The real renderer's timeline layout is language-independent in direction.
     window = [{"id": "T1", "date": "1998"}, {"id": "T2", "date": "2007"}]
     for language in ("fa", "ar"):
