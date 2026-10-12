@@ -2,7 +2,12 @@ import os
 import tempfile
 
 _PG_URL = os.environ.get("TC_TEST_DATABASE_URL")
-if _PG_URL:
+_COPY_URL = os.environ.get("TC_COPY_DATABASE_URL")
+if _COPY_URL:
+    # An explicit disposable copy is used by the Phase-B reconciliation smoke
+    # test.  Unlike the Postgres suite, it must not drop or recreate anything.
+    os.environ["DATABASE_URL"] = _COPY_URL
+elif _PG_URL:
     # Run the suite on Postgres: start every run from an empty schema (the tests share one database).
     import sqlalchemy as _sa
 

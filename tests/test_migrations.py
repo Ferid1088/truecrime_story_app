@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from alembic.autogenerate import compare_metadata
+from alembic import command
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
@@ -29,6 +30,79 @@ def _version(path):
         return con.execute("SELECT version_num FROM alembic_version").fetchone()[0]
     finally:
         con.close()
+
+
+def _upgrade_to(path, revision):
+    cfg = migrate.alembic_config(f"sqlite:///{path}")
+    command.upgrade(cfg, revision)
+
+
+def _stamp_and_upgrade(path):
+    cfg = migrate.alembic_config(f"sqlite:///{path}")
+    command.stamp(cfg, "0009")
+    command.upgrade(cfg, "head")
+
+
+def _drift_allowlist(actual, expected):
+    allowed_nullability = {
+        ("agent_runs", "fallback_used"),
+        ("cases", "aliases_json"), ("cases", "identifiers_json"),
+        ("cases", "people_json"), ("cases", "resolution_status"),
+        ("discovery_candidates", "aliases_json"),
+        ("discovery_candidates", "people_json"),
+        ("discovery_candidates", "resolution_status"),
+        ("discovery_candidates", "source_urls_json"),
+        ("discovery_candidates", "state"),
+        ("documentary_jobs", "production_type"),
+        ("epistemic_claims", "assertion_role"),
+        ("facts", "chunk_ids_json"), ("facts", "locations_json"),
+        ("facts", "original_language"), ("facts", "people_json"),
+        ("facts", "transcript_claim_ids_json"),
+        ("sources", "content_status"), ("sources", "status"),
+        ("story_versions", "is_best"), ("story_versions", "kind"),
+        ("story_versions", "language"), ("story_versions", "similarity_status"),
+        ("story_versions", "status"), ("videos", "render_profile"),
+        ("visual_audits", "detail_json"),
+    }
+    allowed_length = {("epistemic_claims", "origin")}
+    allowed_fks = {
+        ("agent_runs", "documentary_job_id", "documentary_jobs", "id"),
+        ("story_versions", "master_version_id", "story_versions", "id"),
+    }
+    assert set(actual) == set(expected)
+    differences = []
+    for table in sorted(actual):
+        left, right = actual[table], expected[table]
+        assert left["indexes"] == right["indexes"], table
+        for column in sorted(set(left["columns"]) | set(right["columns"])):
+            if column not in left["columns"] or column not in right["columns"]:
+                differences.append(("column_presence", table, column))
+                continue
+            if left["columns"][column] == right["columns"][column]:
+                continue
+            live_type, live_nullable, live_pk = left["columns"][column]
+            head_type, head_nullable, head_pk = right["columns"][column]
+            if (table, column) in allowed_nullability and live_type == head_type and live_pk == head_pk:
+                assert live_nullable != head_nullable
+                continue
+            if (table, column) in allowed_length and live_nullable == head_nullable and live_pk == head_pk:
+                assert live_type.startswith("VARCHAR") and head_type.startswith("VARCHAR")
+                continue
+            differences.append(("column", table, column, left["columns"][column], right["columns"][column]))
+        live_fks = set(left["foreign_keys"])
+        head_fks = set(right["foreign_keys"])
+        for fk in sorted(live_fks - head_fks):
+            differences.append(("extra_fk", table, fk))
+        for fk in sorted(head_fks - live_fks):
+            key = (table, fk[0], fk[1], fk[2])
+            if key not in allowed_fks:
+                differences.append(("missing_fk", key))
+    missing_fks = {
+        (table, fk[0], fk[1], fk[2])
+        for table in actual for fk in set(expected[table]["foreign_keys"]) - set(actual[table]["foreign_keys"])
+    }
+    assert missing_fks <= allowed_fks
+    assert not differences, differences
 
 
 def _legacy_db(path):
@@ -94,6 +168,72 @@ def test_upgrade_is_idempotent(tmp_path):
     migrate.upgrade_database(_engine(db))
     assert migrate.upgrade_database(_engine(db)) == "upgraded"
     assert _version(db) == _head()
+
+
+def test_0010_is_a_noop_after_a_fresh_0009(tmp_path):
+    db = tmp_path / "fresh-0009.db"
+    _upgrade_to(db, "0009")
+    before = migrate._live_signature(_engine(db))
+    _upgrade_to(db, "head")
+    after = migrate._live_signature(_engine(db))
+    assert before == after
+    assert _version(db) == "0010"
+
+
+def test_reconcile_drifted_copy_preserves_rows_and_only_keeps_allowlist(tmp_path):
+    db = tmp_path / "drifted.db"
+    # Model the verified live drift: the pre-0010 schema is otherwise at 0009,
+    # but the eight new tables and the objects listed in the Phase-B allowlist
+    # are absent.  This keeps the fixture independent of the user's live file.
+    _upgrade_to(db, "0009")
+    con = sqlite3.connect(db)
+    _insert(con, "cases", id=1, canonical_title="preserved", slug="preserved")
+    for table in ("provider_calls", "app_settings", "backup_runs", "policy_events",
+                  "override_log", "artifacts", "artifact_deps", "edit_log"):
+        con.execute(f'DROP TABLE "{table}"')
+    for index in (
+        "ix_cases_resolution_status", "ix_discovery_candidates_case_id",
+        "ix_discovery_candidates_state", "ix_epistemic_claims_assertion_role",
+        "ix_epistemic_claims_parent_claim_key", "ix_story_versions_case_id",
+        "ix_story_versions_status", "ix_visual_assets_entity_key",
+        "ix_agent_runs_documentary_job_id", "ix_agent_runs_language",
+        "ix_agent_runs_pipeline_stage",
+    ):
+        con.execute(f'DROP INDEX "{index}"')
+    # SQLite cannot drop columns that participate in the existing 0007 FK
+    # definition, so rebuild this one legacy table from the frozen baseline.
+    agent_sql = migrate.LEGACY_SQL.read_text(encoding="utf-8").split(";\n", 1)[0] + ";"
+    agent_sql = agent_sql.replace("CREATE TABLE agent_runs (", "CREATE TABLE agent_runs_legacy (")
+    con.execute("ALTER TABLE agent_runs RENAME TO agent_runs_current")
+    con.executescript(agent_sql)
+    con.execute("DROP TABLE agent_runs_current")
+    con.execute("ALTER TABLE agent_runs_legacy RENAME TO agent_runs")
+    con.executescript(
+        "CREATE INDEX ix_agent_runs_agent_name ON agent_runs (agent_name);"
+        "CREATE INDEX ix_agent_runs_case_id ON agent_runs (case_id);"
+        "CREATE INDEX ix_agent_runs_status ON agent_runs (status);"
+    )
+    con.commit()
+    before_tables = [r[0] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+    before_counts = {table: con.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+                     for table in before_tables}
+    con.close()
+
+    _stamp_and_upgrade(db)
+    fresh = tmp_path / "fresh-head.db"
+    _upgrade_to(fresh, "head")
+    _drift_allowlist(migrate._live_signature(_engine(db)),
+                     migrate._live_signature(_engine(fresh)))
+
+    con = sqlite3.connect(db)
+    try:
+        assert {table: con.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+                for table in before_tables} == before_counts
+        assert con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert con.execute("PRAGMA foreign_key_check").fetchall() == []
+    finally:
+        con.close()
 
 
 def test_old_database_is_adopted_and_keeps_every_row(tmp_path):

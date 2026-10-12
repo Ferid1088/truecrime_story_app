@@ -21,10 +21,14 @@ cleanup() { dropdb -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME" >/dev/nu
 trap cleanup EXIT
 
 cd "$ROOT"
-echo "upgrade head: $DB_NAME"
+echo "upgrade through 0009: $DB_NAME"
+TRUECRIME_DATABASE_URL="$URL" .venv/bin/python -m alembic upgrade 0009
+echo "upgrade 0010 on a clean 0009 schema (reconciliation no-op): $DB_NAME"
+TRUECRIME_DATABASE_URL="$URL" .venv/bin/python -m alembic upgrade head
+echo "upgrade head second pass: $DB_NAME"
 TRUECRIME_DATABASE_URL="$URL" .venv/bin/python -m alembic upgrade head
 echo "downgrade -1: $DB_NAME"
 TRUECRIME_DATABASE_URL="$URL" .venv/bin/python -m alembic downgrade -1
-echo "upgrade head (second pass): $DB_NAME"
+echo "upgrade head after downgrade: $DB_NAME"
 TRUECRIME_DATABASE_URL="$URL" .venv/bin/python -m alembic upgrade head
 echo "Migration cycle passed: $DB_NAME"

@@ -126,8 +126,8 @@ extra `agent_runs` columns.
 
 ## Migrations versus models on an empty database
 
-An empty SQLite database was upgraded through `0009`. Its `alembic_version` was
-`0009`. Alembic `compare_metadata(..., compare_type=True)` returned `[]` against
+An empty SQLite database was upgraded through `0010`. Its `alembic_version` was
+`0010`. Alembic `compare_metadata(..., compare_type=True)` returned `[]` against
 the current ORM metadata. There is no actionable migration-vs-model drift by
 Alembic's comparison rules. The physical server-default differences noted
 above are intentional differences between migration defaults and Python-side
@@ -163,21 +163,39 @@ official schema:
 | `agent_runs.language` | ORM field at `app/db/models.py:253`; populated through the same tracking context at `app/services/tracking.py:16-30` and `55-58` |
 | `agent_runs.pipeline_stage` | ORM field at `app/db/models.py:254`; populated through the same tracking context at `app/services/tracking.py:16-30` and `55-58` |
 
-## Recommended reconciliation plan — not executed
+## Phase B reconciliation allowlist
 
-1. Preserve the verified backup and record its hash.
-2. Add an idempotent reconciliation migration that creates missing tables and
-   indexes, adds missing worker columns, and adds the official `agent_runs`
-   constraints without dropping or rewriting existing rows.
-3. Decide whether existing nullable columns can be backfilled safely before
-   tightening nullability; do not make that decision from schema metadata alone.
-4. Stamp only the verified copy at the correct pre-migration revision, upgrade
-   it to head, compare row counts, run integrity and foreign-key checks, and
-   exercise API/job smoke tests.
-5. Only after manager approval, repeat the same procedure on the live file with
-   a fresh backup and a tested rollback copy.
+Migration `0010_reconcile_legacy_schema` is additive and idempotent. The
+verified backup copy was stamped at `0009` and upgraded to `0010`; the source
+file was not opened for writing. Its 56 pre-existing table row counts were
+unchanged across all 55 pre-existing user tables, `PRAGMA integrity_check` returned `ok`, and
+`PRAGMA foreign_key_check` returned no rows.
 
-Risks are SQLite table-rebuild behavior for nullability/foreign keys, accidental
-loss of legacy rows during a failed rebuild, incorrectly stamping a database at
-the wrong revision, and starting the API against a copy that still resolves
-relative paths differently. No reconciliation was run in Phase A.
+The reconciled SQLite copy was compared with a fresh database at `0010`. The
+only permitted differences are this explicit SQLite allowlist:
+
+1. Existing nullable columns remain nullable. Tightening them would require a
+   SQLite table rebuild and could require data backfills; `0010` does not make
+   that destructive or semantic decision.
+2. Existing `VARCHAR` lengths remain as-is. SQLite does not enforce those
+   lengths, so widening or narrowing them is not performed by reconciliation.
+3. The two foreign keys on legacy tables are not added on the SQLite copy:
+   `agent_runs.documentary_job_id -> documentary_jobs.id` and
+   `story_versions.master_version_id -> story_versions.id`. SQLite requires a
+   table rebuild to add them; `0010` adds them only on Postgres.
+
+No extra tables, columns, indexes, or constraints were present outside this
+allowlist. The permanent migration test and
+`scripts/check_model_migrations.py` verify the fresh migration schema against
+the ORM metadata; the copy-specific comparison is performed by
+`scripts/db_reconcile.sh`.
+
+The copy had no documentary or research jobs in `running`, `queued`,
+`interrupted`, or `partial` status. The safe worker check used
+`TRUECRIME_JOB_MAX_AUTO_RESUMES=0` and observed no job-state or provider-call
+ledger changes. API, settings, operations, artifact-list, and dashboard
+backup smoke checks were run against the copy.
+
+Risks remain SQLite table-rebuild behavior for future nullability/FK work,
+incorrectly stamping a database at the wrong revision, and starting services
+with a copy path that resolves relative artifact paths differently.
