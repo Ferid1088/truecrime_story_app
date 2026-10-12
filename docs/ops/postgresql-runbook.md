@@ -91,3 +91,14 @@ SELECT count(*) FROM information_schema.tables
 
 No migration after `0010` created an additional application table; the apparent
 55-versus-64 difference is the counting scope above.
+
+## Remove the Prompt 8P smoke case
+
+The disposable smoke case was removed from the app-owned `truecrime` database
+with the following explicit SQL after confirming that `cases` contained only
+ID 1. `CASCADE` is required because the smoke case had one status-history row;
+it does not affect any other database:
+
+```sql
+TRUNCATE TABLE cases RESTART IDENTITY CASCADE;
+```
