@@ -130,6 +130,9 @@ def ensure_live_quiescent(root: Path, live: Path) -> None:
             pid_running.append(f"{pidfile} -> {pid}")
         else:
             print(f"stale pidfile reported (not blocking): {pidfile}")
+    postgres_ready = any(line.startswith("postgresql@16: ready") for line in report.splitlines())
+    if postgres_ready:
+        pid_running.append("postgresql@16 is ready")
     if running or pid_running:
         raise RuntimeError("TrueCrime service is running: " + "; ".join(running + pid_running))
 
