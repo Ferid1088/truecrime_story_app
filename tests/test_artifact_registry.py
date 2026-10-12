@@ -2,6 +2,7 @@ import pytest
 
 from app.core.artifact_dependencies import (
     ARTIFACT_DEPENDENCIES,
+    ARTIFACT_CONFIG_INPUTS,
     ARTIFACT_SCOPES,
     direct_dependents,
     validate_dependency_table,
@@ -40,6 +41,18 @@ def test_dependency_table_is_acyclic_and_documented_types_are_present():
     assert ARTIFACT_SCOPES["voice_takes"] == "per_language"
     assert ARTIFACT_SCOPES["beats"] == "shared"
     assert "audio_timing" in direct_dependents("voice_takes")
+
+
+def test_every_artifact_declares_config_inputs_and_logo_is_precise():
+    assert set(ARTIFACT_CONFIG_INPUTS) == set(ARTIFACT_SCOPES)
+    from app.core.artifact_dependencies import predicted_for_config
+
+    logo = predicted_for_config({"logo_bytes"})
+    assert logo == {"intro:en", "intro:de", "intro:fa", "intro:ar",
+                    "final_render:en", "final_render:de",
+                    "final_render:fa", "final_render:ar"}
+    assert "music_cues:shared" in predicted_for_config({"music"})
+    assert {"intro:en", "intro:de", "intro:fa", "intro:ar"} <= predicted_for_config({"render"})
 
 
 def test_every_registered_type_has_a_dependency_entry_and_producer():

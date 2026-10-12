@@ -12,6 +12,7 @@ from test_visual_production import PipelineGen, _story
 from test_voice_render import FakeASR, FakeTTS
 
 from app.providers.voice.base import VoiceRequest
+from app.core.ai_config import ai_config
 
 pytest_plugins = ["test_visual_production"]
 
@@ -76,6 +77,59 @@ def test_music_fake_hashes_complete_request():
     changed = asyncio.run(run("calm"))
     assert first == repeat
     assert first != changed
+
+
+def test_generation_and_host_ignore_config_not_sent_to_provider(monkeypatch):
+    async def generation():
+        return await PipelineGen().generate_text(
+            "spoken_writer", "system",
+            json.dumps({"language": "en", "script": "[[ACT:B01]]\n\nhello"}),
+        )
+
+    first = asyncio.run(generation())
+    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "verify")
+    monkeypatch.setattr(ai_config.production_policies.incremental, "enforced_types", ["intro"])
+    unchanged = asyncio.run(generation())
+    assert first.text == unchanged.text
+
+    from test_host import HostGen
+
+    user = json.dumps({"language": "en", "segments": [
+        {"id": "H1", "target_words": 5},
+    ]})
+    host_a, _ = asyncio.run(HostGen().generate_structured("host_writer", "system", user))
+    monkeypatch.setattr(ai_config.channels["en"], "name", "unrelated-test-channel")
+    host_b, _ = asyncio.run(HostGen().generate_structured("host_writer", "system", user))
+    assert host_a == host_b
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required for media fakes")
+def test_tts_asr_and_music_ignore_local_only_config(monkeypatch, tmp_path):
+    req = VoiceRequest("hello world", "voice-a", "model-a", {"speed": 1}, language="en")
+    tts = FakeTTS()
+    before_tts = asyncio.run(tts.synthesize(req))
+    monkeypatch.setattr(ai_config.voice, "lead_pad_ms", ai_config.voice.lead_pad_ms + 1)
+    after_tts = asyncio.run(tts.synthesize(req))
+    assert (before_tts.audio, before_tts.request_id) == (after_tts.audio, after_tts.request_id)
+
+    audio = tmp_path / "take__7.mp3"
+    audio.write_bytes(before_tts.audio)
+    (tmp_path / "block__7.json").write_text(
+        json.dumps({"text": req.text, "seed": 1}), encoding="utf-8"
+    )
+    asr = FakeASR()
+    before_asr = asr.transcribe(str(audio), "en")
+    monkeypatch.setattr(ai_config.asr_check, "max_word_error_rate", 0.2)
+    after_asr = asr.transcribe(str(audio), "en")
+    assert before_asr == after_asr
+
+    async def music():
+        return await FakeSound().generate("mystery", 0.1, False, 0.5)
+
+    before_music = asyncio.run(music())
+    monkeypatch.setattr(ai_config.music_library, "reference_lufs", -12.0)
+    after_music = asyncio.run(music())
+    assert before_music == after_music
 
 
 def test_visual_search_geocode_and_map_fakes_hash_complete_requests(

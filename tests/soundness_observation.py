@@ -41,7 +41,8 @@ TABLE_OWNER = {
 def observe(db, root: Path) -> dict:
     buckets = {f"{t}:shared": {} for t in SHARED}
     buckets.update({f"{t}:{lang}": {} for t in LOCAL for lang in LANGUAGES})
-    replacements = tuple((str(root / name), f"<{name}>") for name in ("cases", "audio", "lib"))
+    replacements = tuple((str(root / name), f"<{name}>")
+                         for name in ("cases", "audio", "lib", "intros"))
     present = set(inspect(db.get_bind()).get_table_names())
     rows = {table: [dict(row) for row in db.execute(text(f'SELECT * FROM "{table}" ORDER BY id')).mappings()]
             for table in SNAPSHOT_PIPELINE_TABLES if table in present}
@@ -128,6 +129,8 @@ def observe(db, root: Path) -> dict:
             owner = "production_script"
         elif "visuals" in rel.parts:
             owner = "visual_asset"
+        elif rel.parts[0] == "intros":
+            owner = "intro"
         elif rel.parts[0] == "lib":
             langs = set()
             for track in rows["music_tracks"]:

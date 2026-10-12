@@ -79,6 +79,82 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "film_length": ["spoken_version", "audio_blocks"],
 }
 
+# Configuration is an input at the stage that reads it; it is not a reason to
+# invalidate every artifact in the job.  Names are stable perturbation labels
+# used by the soundness harness and intentionally do not expose provider
+# secrets.  A direct config input is predicted at that artifact and is then
+# followed through the ordinary artifact graph.
+ARTIFACT_CONFIG_INPUTS: dict[str, set[str]] = {
+    "master_story": {"documentary", "agent_model_routing"},
+    "beats": {"documentary", "agent_model_routing"},
+    "audio_blocks": {"audio"},
+    "spoken_version": {"voice", "language_profile", "pronunciation_voice",
+                        "agent_model_routing"},
+    "voice_takes": {"voice", "pronunciation_voice", "agent_model_routing"},
+    # The persisted language manifest is owned by audio_timing in the
+    # snapshot observer and contains the final mix's music placement and
+    # library identity.  Music-library edits therefore affect this saved
+    # output through documentary/music.py, not through the provider mock.
+    "audio_timing": {"audio", "voice", "music", "music_history_library"},
+    "visual_needs": {"visual", "agent_model_routing"},
+    "visual_asset": {"visual"},
+    "visual_shots": {"visual", "agent_model_routing"},
+    "visual_pieces": {"visual", "agent_model_routing"},
+    "visual_plan": {"visual", "agent_model_routing"},
+    "chapter_plan": {"chapters", "agent_model_routing"},
+    "chapter_cards": {"chapters", "language_profile", "agent_model_routing"},
+    "timeline_cards": {"chapters", "agent_model_routing"},
+    # Intro rendering uses the output dimensions/fps from render config.
+    "intro": {"intro_design", "logo_bytes", "render"},
+    "music_cues": {"music", "music_history_library", "audio"},
+    "captions": {"voice", "language_profile"},
+    "production_script": {"documentary", "render", "chapters", "visual",
+                          "audio", "host", "music", "voice", "naming",
+                          "language_profile", "pronunciation_voice"},
+    "final_render": {"render", "intro_design", "channel_identity", "logo_bytes"},
+    "research_result": {"research"},
+    "host_plan": {"host", "documentary", "agent_model_routing"},
+    "host_segments": {"host", "language_profile", "channel_identity", "agent_model_routing"},
+    "naming": {"documentary"},
+    "film_length": {"audio", "voice"},
+}
+
+
+def artifact_closure(roots: set[str]) -> set[str]:
+    """Return roots plus all downstream artifact types."""
+    reached = set(roots)
+    changed = True
+    while changed:
+        changed = False
+        for target, deps in ARTIFACT_DEPENDENCIES.items():
+            if target not in reached and set(deps) & reached:
+                reached.add(target)
+                changed = True
+    return reached
+
+
+def config_artifact_roots(config_sections: set[str]) -> set[str]:
+    """Return direct artifact producers that read changed config sections."""
+    return {artifact for artifact, inputs in ARTIFACT_CONFIG_INPUTS.items()
+            if inputs & config_sections}
+
+
+def predicted_for_config(config_sections: set[str], languages: tuple[str, ...] =
+                         ("en", "de", "fa", "ar")) -> set[str]:
+    """Predict scoped artifact keys for a typed config perturbation."""
+    types = artifact_closure(config_artifact_roots(config_sections))
+    predicted = {
+        f"{artifact}:{language}"
+        if ARTIFACT_SCOPES[artifact] == "per_language" else f"{artifact}:shared"
+        for artifact in types for language in languages
+    }
+    # The music stage also registers the unconsumed library as an explicit
+    # shared artifact.  This is a real saved output, not registry telemetry;
+    # music-library/history edits therefore predict that shared key too.
+    if config_sections & {"music", "music_history_library"}:
+        predicted.add("music_cues:shared")
+    return predicted
+
 
 def direct_dependents(artifact_type: str) -> set[str]:
     """Return direct downstream types for documentation and tests."""
@@ -92,6 +168,8 @@ def validate_dependency_table() -> None:
         raise ValueError(f"unknown artifact dependency types: {sorted(missing)}")
     if set(ARTIFACT_DEPENDENCIES) != set(ARTIFACT_SCOPES):
         raise ValueError("every artifact type must declare shared/per-language scope")
+    if set(ARTIFACT_CONFIG_INPUTS) != set(ARTIFACT_SCOPES):
+        raise ValueError("every artifact type must declare config_inputs")
     visiting: set[str] = set()
     done: set[str] = set()
 

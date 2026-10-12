@@ -179,7 +179,7 @@ class HostGen:
         return True
 
     async def generate_structured(self, role, system, user, images=None):
-        from mock_payload import config_hash_payload, request_hash
+        from mock_payload import generation_request_payload, request_hash
 
         data = json.loads(user)
         self.calls.append((role, data))
@@ -189,8 +189,8 @@ class HostGen:
         if role == "host_writer":
             out = []
             request_seed = int(request_hash(
-                "generation.structured", role=role, system=system, user=user,
-                images=images, config=config_hash_payload(ai_config),
+                "generation.structured",
+                request=generation_request_payload(role, system, user, images),
             )[:8], 16)
             for k, s in enumerate(data["segments"]):
                 seed = request_seed + sum(map(ord, data["language"] + s["id"]))

@@ -2,17 +2,7 @@
 
 import json
 
-from mock_payload import config_hash_payload
-
-from app.core.ai_config import ai_config
 from app.services.soundness import saved_request_snapshot
-
-
-def test_incremental_policy_is_not_a_fake_generation_input(monkeypatch):
-    before = config_hash_payload(ai_config)
-    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "verify")
-    monkeypatch.setattr(ai_config.production_policies.incremental, "enforced_types", ["intro"])
-    assert config_hash_payload(ai_config) == before
 
 
 def test_asr_snapshot_orders_by_block_identity_not_payload(tmp_path):

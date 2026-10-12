@@ -646,18 +646,14 @@ class PipelineGen:
         return GenerationResult(text="{}", model=f"m/{role}", provider="fake")
 
     async def generate_text(self, role, system, user, images=None):
-        from mock_payload import config_hash_payload, provider_request, request_language
+        from mock_payload import generation_request_payload, provider_request, request_language
 
         fingerprint = provider_request(
             "generation",
             role,
             request_language(user, system),
             "generation.text",
-            role=role,
-            system=system,
-            user=user,
-            images=images,
-            config=config_hash_payload(ai_config),
+            request=generation_request_payload(role, system, user, images),
         )
         self.roles.append(role)
         result = await self.spoken.generate_text(role, system, user)
@@ -665,18 +661,14 @@ class PipelineGen:
         return result
 
     async def generate_structured(self, role, system, user, images=None):
-        from mock_payload import config_hash_payload, provider_request, request_language
+        from mock_payload import generation_request_payload, provider_request, request_language
 
         fingerprint = provider_request(
             "generation",
             role,
             request_language(user, system),
             "generation.structured",
-            role=role,
-            system=system,
-            user=user,
-            images=images,
-            config=config_hash_payload(ai_config),
+            request=generation_request_payload(role, system, user, images),
         )
         self.roles.append(role)
         if role in ("spoken_meaning_checker", "spoken_style_critic"):
@@ -906,7 +898,7 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setenv("SOUNDNESS_RUN_ROOT", str(run_root))
     if os.environ.get("SOUNDNESS_FROM_ZERO") == "1":
         from app.providers.base import ProviderJob
-        from mock_payload import config_hash_payload, provider_request
+        from mock_payload import provider_request
 
         class MockResearchProvider:
             name = "truecrime"
@@ -927,7 +919,7 @@ def documentary_env(tmp_path, monkeypatch):
                     "search_fetch", "research", language, "research.case",
                     case_title=case_title, language=language,
                     objective=objective, research_languages=research_languages,
-                    context=context, config=config_hash_payload(ai_config.search_engine),
+                    context=context,
                 )
                 external_id = f"mock-research-{len(self.jobs) + 1}"
                 extra_titles = [
@@ -1088,6 +1080,9 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.voice, "work_dir", str(run_root / "audio"))
     monkeypatch.setattr(ai_config.music_library, "dir", str(run_root / "lib"))
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(run_root / "cases"))
+    # Intros are generated media too. Keep them inside this run so concurrent
+    # full-pipeline tests cannot race through the shared data/intros cache.
+    monkeypatch.setattr(ai_config.chapters, "intro_dir", str(run_root / "intros"))
     monkeypatch.setattr(ai_config.avatar, "enabled", True)  # the host stages only run then
     monkeypatch.setattr(ai_config.render, "width", 320)
     monkeypatch.setattr(ai_config.render, "height", 180)
@@ -1122,7 +1117,7 @@ def documentary_env(tmp_path, monkeypatch):
     )
 
     async def fake_research(self, db, case, queries, progress=None, found_during="research", **kw):
-        from mock_payload import config_hash_payload, provider_request
+        from mock_payload import provider_request
 
         from app.documentary import storage
         from app.documentary.visuals.research import next_asset_code
@@ -1138,7 +1133,6 @@ def documentary_env(tmp_path, monkeypatch):
             found_during=found_during,
             progress=progress,
             options=kw,
-            config=config_hash_payload(ai_config.visual_search),
         )
         gen.research_calls.append(found_during)
         for i in range(2):
@@ -1164,7 +1158,7 @@ def documentary_env(tmp_path, monkeypatch):
         return {"added": 2, "request_hash": fingerprint}
 
     async def fake_geocode(place, client=None, near=None):
-        from mock_payload import config_hash_payload, provider_request
+        from mock_payload import provider_request
 
         fingerprint = provider_request(
             "maps",
@@ -1174,12 +1168,11 @@ def documentary_env(tmp_path, monkeypatch):
             place=place,
             client=client,
             near=near,
-            config=config_hash_payload(ai_config.maps),
         )
         return {"lat": -34.15, "lon": 115.67, "display_name": place, "request_hash": fingerprint}
 
     async def fake_map(lat, lon, zoom, out, W=2400, H=1350, client=None):
-        from mock_payload import config_hash_payload, provider_request
+        from mock_payload import provider_request
 
         fingerprint = provider_request(
             "maps",
@@ -1193,7 +1186,6 @@ def documentary_env(tmp_path, monkeypatch):
             width=W,
             height=H,
             client=client,
-            config=config_hash_payload(ai_config.maps),
         )
         _jpg(Path(out), (W // 4, H // 4), (30, 40, 50))
         return {"path": str(out), "marker": [W // 8, H // 8], "request_hash": fingerprint}
@@ -1461,6 +1453,7 @@ def test_four_language_shadow_pipeline_real_job(
         Path(ai_config.documentary.storage_dir),
         Path(ai_config.voice.work_dir),
         Path(ai_config.music_library.dir),
+        Path(ai_config.chapters.intro_dir),
     ]
     snapshot_started = time.perf_counter()
     baseline_snapshot = saved_output_snapshot(db_session, file_roots=snapshot_roots)

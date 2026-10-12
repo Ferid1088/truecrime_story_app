@@ -118,17 +118,68 @@ def request_language(user: Any, system: Any = None) -> str | None:
     return None
 
 
-def config_hash_payload(config: Any) -> Any:
-    """Return the complete typed configuration for inclusion in a fake request."""
-    payload = _jsonable(config)
-    # The fake deliberately fingerprints more than the real wire request.
-    # Production builds scoped bodies, not ai_config/production_policies:
-    # generation/openai_compat.py:_chat, voice/elevenlabs.py:_body/generate,
-    # documentary/asr.py:WhisperASR.transcribe, visuals/research.py and maps.py,
-    # render/engine.py:VideoRenderer.render. Incremental controls reuse only.
-    # Keep this test-only exclusion while the fake hashes the broad config.
-    if isinstance(payload, dict):
-        policies = payload.get("production_policies")
-        if isinstance(policies, dict):
-            policies.pop("incremental", None)
-    return payload
+def generation_request_payload(role: str, system: str, user: str,
+                               images: list[str] | None = None) -> dict[str, Any]:
+    """Build the exact JSON body sent by the OpenAI-compatible adapter."""
+    from app.core.ai_config import ai_config
+
+    gen = ai_config.generation[role]
+    content: Any = user
+    if images:
+        content = [{"type": "text", "text": user}] + [
+            {"type": "image_url", "image_url": {"url": url}} for url in images
+        ]
+    body: dict[str, Any] = {
+        "model": ai_config.model_for(role),
+        "temperature": gen.temperature,
+        "max_tokens": gen.max_tokens,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": content},
+        ],
+    }
+    if gen.seed is not None:
+        body["seed"] = gen.seed
+    return body
+
+
+def tts_request_payload(req: Any) -> dict[str, Any]:
+    """The ElevenLabs URL parameters, path identity, and JSON body."""
+    from app.core.ai_config import ai_config
+
+    cfg = ai_config.voice.elevenlabs
+    body: dict[str, Any] = {
+        "text": req.text, "model_id": req.model_id,
+        "voice_settings": dict(req.settings),
+    }
+    if req.previous_text and req.model_id not in cfg.no_context_models:
+        body["previous_text"] = req.previous_text
+    if req.next_text and req.model_id not in cfg.no_context_models:
+        body["next_text"] = req.next_text
+    if req.seed is not None:
+        body["seed"] = int(req.seed)
+    if req.language_code and req.model_id in cfg.language_code_models:
+        body["language_code"] = req.language_code
+    return {"path_voice_id": req.voice_id,
+            "params": {"output_format": cfg.output_format}, "json": body}
+
+
+def asr_request_payload(audio: bytes, language: str, *, model: str,
+                        compute_type: str) -> dict[str, Any]:
+    """The local Whisper adapter inputs and fixed transcription options."""
+    return {"audio": audio, "language": language, "model": model,
+            "compute_type": compute_type, "word_timestamps": True,
+            "vad_filter": False}
+
+
+def music_request_payload(prompt: str, seconds: float, loop: bool,
+                          influence: float) -> dict[str, Any]:
+    """The ElevenLabs sound-generation query/body after its builder runs."""
+    body: dict[str, Any] = {"text": prompt, "duration_seconds": float(seconds),
+                            "prompt_influence": float(influence)}
+    if loop:
+        body["loop"] = True
+        body["model_id"] = "eleven_text_to_sound_v2"
+    from app.core.ai_config import ai_config
+    return {"params": {"output_format": ai_config.voice.elevenlabs.output_format},
+            "json": body}

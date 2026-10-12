@@ -32,6 +32,7 @@ from app.db.models import (
 )
 from app.core.artifact_dependencies import (
     ARTIFACT_SCOPES,
+    predicted_for_config,
     direct_dependents,
 )
 from app.services.soundness import downstream_closure
@@ -108,6 +109,11 @@ def prepare(db, run: Path, source: str) -> dict:
             db.execute(text("DELETE FROM story_versions WHERE kind != 'master'"))
         else:
             db.execute(text(f'DELETE FROM "{table}"'))
+    # Copied SQLite templates retain sqlite_sequence values after derived-row
+    # deletion. Reset the disposable run so regenerated member IDs cannot
+    # masquerade as a source perturbation.
+    if db.get_bind().dialect.name == "sqlite":
+        db.execute(text("DELETE FROM sqlite_sequence"))
     db.commit()
     db.expunge_all()
     (run / "files").rename(run / "baseline-files")
@@ -340,12 +346,25 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
     predicted = sorted(
         {f"{r.type}:{r.language or 'shared'}" for r in rows if r.id in predicted_ids}
     )
-    if not selected and source in PHASE5_TYPES:
-        # The shadow input deliberately carries the complete typed config for
-        # every registered artifact. There is no persisted config root row, so
-        # this is the registry's conservative closure: every registered node
-        # is reachable from the changed config input.
-        predicted = sorted({f"{r.type}:{r.language or 'shared'}" for r in rows})
+    config_sections = {
+        "language_profile": {"language_profile"},
+        "pronunciation_voice": {"pronunciation_voice"},
+        "channel_identity_logo": {"channel_identity"},
+        "intro_design": {"intro_design"},
+        "agent_model_routing": {"documentary"},
+        "music_history_library": {"music_history_library"},
+        "logo_bytes": {"logo_bytes"},
+        "typed_config_documentary": {"documentary"},
+        "typed_config_render": {"render"},
+        "typed_config_chapters": {"chapters"},
+        "typed_config_visual": {"visual"},
+        "typed_config_voice": {"voice"},
+        "typed_config_audio": {"audio"},
+        "typed_config_host": {"host"},
+        "typed_config_music": {"music"},
+    }.get(source)
+    if config_sections:
+        predicted = sorted(predicted_for_config(config_sections))
     overlay = {"source": source}
 
     if source == "research_result":
@@ -405,10 +424,20 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
         )
     elif source == "logo_bytes":
         from app.core.ai_config import ai_config
+        from PIL import Image
 
         original = Path(ai_config.channels["en"].logo)
         altered = run.parent / f"{run.name}-logo.png"
-        altered.write_bytes(original.read_bytes() + b"\x00")
+        # Change decoded pixels, not only an ignored trailing PNG byte.  The
+        # latter changes a file hash but need not change the rendered intro.
+        image = Image.open(original).convert("RGBA")
+        from PIL import ImageDraw
+
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        draw.rectangle((0, 0, max(1, width // 5), max(1, height // 5)),
+                       fill=(255, 0, 0, 255))
+        image.save(altered, format="PNG")
         overlay["logo_path"] = str(altered)
     elif source == "naming":
         case = db.query(Case).one()
@@ -474,8 +503,10 @@ def install_phase5(monkeypatch):
 
             intros.VERSION += 1
         elif name == "agent_model_routing":
-            ai_config.generation_providers["apimaster"].routing["chapter_writer"] = (
-                ai_config.generation_providers["apimaster"].routing["chapter_writer"] + "_soundness"
+            provider = ai_config.generation_providers["apimaster"]
+            current = provider.routing["chapter_writer"]
+            provider.routing["chapter_writer"] = next(
+                alias for alias in provider.models if alias != current
             )
         elif name.startswith("typed_config_"):
             section = name.removeprefix("typed_config_")

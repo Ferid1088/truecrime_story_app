@@ -34,6 +34,16 @@ SNAPSHOT_EXCLUDED_FIELDS = frozenset(
         "artifact_id",
         "stage_job_id",
         "host_segments_id",
+        # Generated member identities embedded under semantic field names.
+        # The content they identify is snapshotted separately; their UUIDs
+        # are regenerated when a disposable SQLite template is replayed.
+        "beat_id",
+        "block_id",
+        "audio_block_id",
+        "voice_block_id",
+        "shot_id",
+        "caption_id",
+        "cue_id",
         "script_sha256",
     }
 )
@@ -56,6 +66,13 @@ SNAPSHOT_VOLATILE_JSON_KEYS = frozenset(
         "finished_at",
         "retrieved_at",
         "at",
+        "beat_id",
+        "block_id",
+        "audio_block_id",
+        "voice_block_id",
+        "shot_id",
+        "caption_id",
+        "cue_id",
         # Derived from the raw script serialization, which contains the volatile
         # ids above; the canonical script body remains snapshotted.
         "script_sha256",
@@ -108,6 +125,18 @@ def _snapshot_value(value, path_replacements: tuple[tuple[str, str], ...] = ()):
         for prefix, replacement in path_replacements:
             if value.startswith(prefix):
                 return replacement + value[len(prefix) :]
+        # Persistent templates are restored into a fresh temporary directory.
+        # Rows serialized during the baseline therefore contain a different
+        # absolute ``.../files/...`` prefix than rows serialized during the
+        # perturbation run.  The output root is logical; canonicalize both
+        # prefixes without weakening byte hashing for actual files.
+        for marker in ("/files/", "/baseline-files/"):
+            if marker in value and value.startswith(("/tmp/", "/private/var/", "/var/")):
+                suffix = value.split(marker, 1)[1]
+                root_name, separator, remainder = suffix.partition("/")
+                if root_name in {"cases", "audio", "lib"}:
+                    return f"<{root_name}>" + (separator + remainder if separator else "")
+                return "<RUN>" + suffix
         try:
             parsed = json.loads(value)
         except (TypeError, ValueError):

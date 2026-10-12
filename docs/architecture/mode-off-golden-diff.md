@@ -94,3 +94,40 @@ production scripts consume localized chapter cards, and the four production
 JSON/renders consume those scripts. No upstream story, visual, voice, host,
 audio, or library key changed in this controlled comparison. The updated
 golden is `tests/golden/documentary_pipeline_pre_incremental.json`.
+
+## 9H Part 2 provider-payload boundary
+
+The Part 2 mock change removed broad `ai_config` from every fake request and
+replaced it with the real adapter payload. The old golden consequently differed
+in 110 keys (31 persisted database rows and 79 generated files). The changed
+rows/files are provider-derived chapter/host/story/visual/voice/production
+outputs, language audio trees, production JSON/renders, and the generated music
+library; each carries either a fake request hash or bytes derived from it. No
+unrelated mode-off pipeline behavior changed. After regenerating the golden
+with the corresponding mock boundary, the full-job check reported
+`MODE_OFF_GOLDEN_DIFF {"different": 0}` (`tests/test_visual_production.py:1591-1606`).
+The exact adapter boundary and preserved pre-update experiment are recorded in
+`docs/architecture/experiments/9h-provider-payload-boundary.md`.
+
+The refreshed golden also records the later, narrowed HostGen payload change.
+The reproducible 29-key delta from the previous Part-2 golden was:
+
+`db:host_scenes:0..7`, `db:media_usages:0..13`, and
+`file:cases/1/renders/{ar,de,fa}/pilot_*.mp4`.
+
+These are all downstream host/visual/render outputs. The HostGen fake now
+hashes the exact generation request at `tests/test_host.py:189-194`, so the
+changed host text changes scene rows; scene-driven media usage and the three
+language renders consume those rows. No other snapshot key changed. The
+golden was regenerated from the current tree with those corresponding mock
+changes; the subsequent mode-off comparison is zero-diff.
+
+After the harness isolated the intro cache under each run's output root, the
+old golden differed in 54 keys: 19 DB rows (`audio_plans`, `host_plans`,
+`host_segments`, `production_scripts`, `story_versions`, `visual_plans`, and
+`voice_performances`), 23 JSON audio/production files, 3 language render
+MP4s, and the 12 new `file:intros/{ar,de,en,fa}/intro_320x180.{json,mp4,wav}`
+files. These are the expected output-root/cache-boundary changes from
+`tests/test_visual_production.py:1080-1088` and
+`tests/soundness_observation.py:122-127`; they are not incremental behavior.
+The golden was refreshed with the same isolated fixture.

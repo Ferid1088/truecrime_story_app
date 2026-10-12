@@ -1,6 +1,7 @@
 import json
 
 from soundness_observation import observe
+from app.services.soundness import _snapshot_value
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
@@ -65,6 +66,21 @@ def test_observation_captures_file_bytes_and_rejects_unowned_files(tmp_path):
         with pytest.raises(AssertionError, match="Unowned output"):
             observe(db, tmp_path)
     engine.dispose()
+
+
+def test_snapshot_canonicalizes_independent_template_file_roots():
+    values = [
+        "/private/var/folders/a/tc-soundness-baseline/files/audio/en/a.wav",
+        "/private/var/folders/b/tc-soundness-phase5/files/audio/en/a.wav",
+        "/tmp/tc-soundness-phase5/files/audio/en/a.wav",
+    ]
+    assert len({_snapshot_value(value) for value in values}) == 1
+
+
+def test_snapshot_excludes_embedded_generated_member_ids():
+    value = {"beat_id": "uuid-a", "block_id": "uuid-b", "text": "same"}
+    other = {"beat_id": "uuid-c", "block_id": "uuid-d", "text": "same"}
+    assert _snapshot_value(value) == _snapshot_value(other)
 
 
 def test_german_card_edit_does_not_change_shared_or_other_language_observation(tmp_path):
