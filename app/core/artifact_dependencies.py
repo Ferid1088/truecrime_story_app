@@ -61,7 +61,7 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "visual_pieces": ["visual_asset", "visual_shots"],
     "visual_plan": ["visual_needs", "visual_shots", "visual_pieces"],
     "chapter_plan": ["master_story", "beats"],
-    "chapter_cards": ["chapter_plan", "timeline_cards"],
+    "chapter_cards": ["chapter_plan", "timeline_cards", "spoken_version"],
     "timeline_cards": ["beats"],
     "intro": [],
     "music_cues": ["audio_blocks", "audio_timing"],

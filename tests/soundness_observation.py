@@ -72,7 +72,12 @@ def observe(db, root: Path) -> dict:
                 continue
             else:
                 owner = TABLE_OWNER[table]
-            add(owner, None if owner in SHARED else language, key, _row_snapshot(row, replacements))
+            # The persisted chapter row contains both the neutral plan and
+            # localized card text. Observe those logical artifacts separately;
+            # the raw row must not make a German card edit look shared.
+            if table != "chapter_plans":
+                add(owner, None if owner in SHARED else language, key,
+                    _row_snapshot(row, replacements))
             if table == "visual_plans":
                 plan = json.loads(row["plan_json"] or "{}")
                 add("visual_needs", None, key, row["requirements_json"])
@@ -80,9 +85,17 @@ def observe(db, root: Path) -> dict:
                 add("visual_pieces", None, key, plan.get("pieces"))
             if table == "chapter_plans":
                 plan = json.loads(row["plan_json"] or "{}")
+                add("chapter_plan", None, key, {
+                    "languages": plan.get("languages", []),
+                    "cold_open": plan.get("cold_open"),
+                    "chapters": [{k: v for k, v in c.items() if k != "title"}
+                                  for c in plan.get("chapters", [])],
+                    "events": [{k: v for k, v in e.items() if k != "label"}
+                               for e in plan.get("events", [])],
+                })
                 for lang in LANGUAGES:
                     add("chapter_cards", lang, key, {
-                        "title": plan.get("film_title", {}).get(lang),
+                        "film_title": plan.get("film_title", {}).get(lang),
                         "chapters": [{**c, "title": c.get("title", {}).get(lang)}
                                      for c in plan.get("chapters", [])]})
                     add("timeline_cards", lang, key, [

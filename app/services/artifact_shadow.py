@@ -127,6 +127,35 @@ def _latest_version(db, job, language: str | None):
     return query.order_by(StoryVersion.id.desc()).first()
 
 
+def _chapter_payload(row: ChapterPlan | None, artifact_type: str,
+                     language: str | None = None) -> dict:
+    """Keep neutral chapter structure separate from localized card text."""
+    if row is None:
+        return {}
+    plan = json.loads(row.plan_json or "{}")
+    if artifact_type == "chapter_plan":
+        return {
+            "languages": plan.get("languages", []),
+            "cold_open": plan.get("cold_open"),
+            "chapters": [{k: v for k, v in c.items() if k != "title"}
+                          for c in plan.get("chapters", [])],
+            "events": [{k: v for k, v in e.items() if k != "label"}
+                       for e in plan.get("events", [])],
+        }
+    if artifact_type == "chapter_cards":
+        return {
+            "language": language,
+            "film_title": (plan.get("film_title") or {}).get(language),
+            "chapters": [{**{k: v for k, v in c.items() if k != "title"},
+                          "title": (c.get("title") or {}).get(language)}
+                         for c in plan.get("chapters", [])],
+            "events": [{**{k: v for k, v in e.items() if k != "label"},
+                        "label": (e.get("label") or {}).get(language)}
+                       for e in plan.get("events", [])],
+        }
+    return {"language": language, "events": plan.get("events", [])}
+
+
 def _source_payload(db, job, stage: str, language: str | None, detail: dict | None,
                     artifact_type: str) -> dict:
     """Capture the persisted data and config read by the producer.
@@ -180,7 +209,7 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
             _get(db, HostSegments, detail.get("host_segments_id")))
     elif artifact_type in ("chapter_plan", "chapter_cards", "timeline_cards"):
         row = _get(db, ChapterPlan, detail.get("chapter_plan_id"))
-        source["chapters"] = _row_payload(row)
+        source["chapters"] = _chapter_payload(row, artifact_type, language)
     elif artifact_type in ("captions", "production_script"):
         production_id = detail.get("production_script_id")
         source["production"] = _row_payload(
@@ -258,7 +287,8 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
     elif artifact_type == "host_segments":
         payload["row"] = _row_payload(_get(db, HostSegments, detail.get("host_segments_id")))
     elif artifact_type in ("chapter_plan", "chapter_cards", "timeline_cards"):
-        payload["row"] = _row_payload(_get(db, ChapterPlan, detail.get("chapter_plan_id")))
+        payload["row"] = _chapter_payload(
+            _get(db, ChapterPlan, detail.get("chapter_plan_id")), artifact_type, language)
     elif artifact_type in ("captions", "production_script"):
         payload["row"] = _row_payload(_get(db, ProductionScript, detail.get("production_script_id")))
     else:

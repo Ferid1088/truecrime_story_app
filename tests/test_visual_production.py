@@ -504,7 +504,7 @@ class PipelineGen:
                 self._res(role)
         if role == "chapter_writer":
             data = json.loads(user)
-            langs = data["languages"]
+            langs = data.get("languages") or [data["language"]]
             if os.environ.get("SOUNDNESS_CHAPTER_PAYLOAD") == "1":
                 # A top-level _mock_request_sha256 is discarded by
                 # ChapterWriter._parse. Carry the COMPLETE hash in valid,
@@ -727,6 +727,9 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
         return value
 
     monkeypatch.setattr("app.db.models.new_case_uid", lambda: "CASE_SOUNDNESS")
+    # The soundness run requires every chapter provider response to carry the
+    # complete request fingerprint in valid text fields.
+    monkeypatch.setenv("SOUNDNESS_CHAPTER_PAYLOAD", "1")
     replay_trace = None
     if os.environ.get("SOUNDNESS_REPLAY"):
         from app.db.models import Case, StoryVersion
@@ -947,6 +950,7 @@ def test_four_language_independent_run_determinism(tmp_path):
         env.update({
             "TC_COPY_DATABASE_URL": f"sqlite:///{run_root / 'pipeline.db'}",
             "SOUNDNESS_CHILD": "1",
+            "SOUNDNESS_CHAPTER_PAYLOAD": "1",
             "SOUNDNESS_RUN_ROOT": str(run_root),
             "SOUNDNESS_CAPTURE": str(snapshot),
             "SOUNDNESS_PAYLOAD_LOG": str(payloads),

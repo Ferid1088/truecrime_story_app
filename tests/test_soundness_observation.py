@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.db.models import Artifact, Case
+from app.db.models import Artifact, Case, ChapterPlan, EditorialBlueprint, StoryVersion
 from soundness_observation import observe
 
 
@@ -50,4 +50,45 @@ def test_observation_captures_file_bytes_and_rejects_unowned_files(tmp_path):
         (tmp_path / "unexpected.json").write_text(json.dumps({"output": "must not disappear"}))
         with pytest.raises(AssertionError, match="Unowned output"):
             observe(db, tmp_path)
+    engine.dispose()
+
+
+def test_german_card_edit_does_not_change_shared_or_other_language_observation(tmp_path):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    plan = {
+        "languages": ["en", "de", "fa", "ar"],
+        "cold_open": True,
+        "film_title": {lang: f"Title {lang}" for lang in ("en", "de", "fa", "ar")},
+        "chapters": [{"act_id": "act1", "number": 1, "first_beat": "B01",
+                      "last_beat": "B01", "beats": ["B01"], "title": {
+                          lang: f"Part {lang}" for lang in ("en", "de", "fa", "ar")}}],
+        "events": [],
+    }
+    with Session(engine) as db:
+        db.add(Case(canonical_title="one", slug="one", language="en", case_uid="one"))
+        db.flush()
+        master = StoryVersion(case_id=1, language="en", kind="master", version=1,
+                              status="approved", narrative_angle="chronological",
+                              story_text="story",
+                              narrative_structure="{}")
+        db.add(master)
+        db.flush()
+        blueprint = EditorialBlueprint(case_id=1, story_version_id=master.id,
+                                       blueprint_json="{}", status="valid")
+        db.add(blueprint)
+        db.flush()
+        db.add(ChapterPlan(case_id=1, blueprint_id=blueprint.id, version=1, status="approved",
+                           languages_json=json.dumps(plan["languages"]),
+                           plan_json=json.dumps(plan, ensure_ascii=False), audit_json="{}"))
+        db.commit()
+        before = observe(db, tmp_path)
+        plan["chapters"][0]["title"]["de"] = "German replacement"
+        plan["film_title"]["de"] = "German replacement"
+        db.query(ChapterPlan).one().plan_json = json.dumps(plan, ensure_ascii=False)
+        db.commit()
+        after = observe(db, tmp_path)
+        changed = {key for key in before["hashes"]
+                   if before["hashes"][key] != after["hashes"][key]}
+        assert changed == {"chapter_cards:de"}
     engine.dispose()

@@ -405,7 +405,8 @@ class DocumentaryPipeline(StageRunner):
                 row = await get_stage_agent("chapters").create(db, case, bp_row, master, ok_langs, spoken)
             plan = json.loads(row.plan_json or "{}")
             audit = json.loads(row.audit_json or "{}")
-            left = [f"{x['key']} ({', '.join(x['languages'])}): {x.get('reason') or ''}"[:160]
+            left = [f"{x['key']} ({', '.join(x.get('languages') or [x.get('language', '?')])}): "
+                    f"{x.get('reason') or ''}"[:160]
                     for x in audit.get("left_out") or []]
             out = {"chapter_plan_id": row.id, "status": row.status, "reused": reused,
                    "chapters": len(plan.get("chapters") or []),

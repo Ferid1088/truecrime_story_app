@@ -58,6 +58,9 @@ def test_timing_and_story_dependency_edges_are_explicit():
     # An approved title is substituted into the persisted script by
     # app/documentary/production/script.py:1348.
     assert "naming" in ARTIFACT_DEPENDENCIES["production_script"]
+    assert ARTIFACT_DEPENDENCIES["chapter_plan"] == ["master_story", "beats"]
+    assert ARTIFACT_DEPENDENCIES["chapter_cards"] == [
+        "chapter_plan", "timeline_cards", "spoken_version"]
 
 
 def test_registry_fresh_version_scope_preview_and_invalidation(db_session):

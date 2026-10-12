@@ -65,3 +65,32 @@ Both snapshots contain 181 keys. The golden file is
 assertion is `tests/test_visual_production.py:885-896`. No type was promoted
 to SOUND by this part.
 
+## Step 1 chapter decision — 9F
+
+The authorized chapter change makes the chapter writer/auditor one-language
+call per language. The neutral chapter-plan observation remains shared; the
+localized card observation is per language. The current mode-off run used the
+same test-only request-fingerprint mock mode as the accepted baseline
+(`SOUNDNESS_CHAPTER_PAYLOAD=1`). The final diff had 13 keys, all justified:
+
+```text
+db:chapter_plans:0
+db:production_scripts:0
+db:production_scripts:1
+db:production_scripts:2
+db:production_scripts:3
+file:cases/1/production/ar/production_v5_1.json
+file:cases/1/production/de/production_v3_1.json
+file:cases/1/production/en/production_v2_1.json
+file:cases/1/production/fa/production_v4_1.json
+file:cases/1/renders/ar/pilot_v5_1.mp4
+file:cases/1/renders/de/pilot_v3_1.mp4
+file:cases/1/renders/en/pilot_v2_1.mp4
+file:cases/1/renders/fa/pilot_v4_1.mp4
+```
+
+`db:chapter_plans:0` is the changed persisted chapter result. The four
+production scripts consume localized chapter cards, and the four production
+JSON/renders consume those scripts. No upstream story, visual, voice, host,
+audio, or library key changed in this controlled comparison. The updated
+golden is `tests/golden/documentary_pipeline_pre_incremental.json`.

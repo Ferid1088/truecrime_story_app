@@ -134,7 +134,7 @@ This is the exact declarative table in `app/core/artifact_dependencies.py:42`.
 | visual_pieces | shared | visual_asset, visual_shots | visual_plan, production_script, final_render |
 | visual_plan | shared | visual_needs, visual_shots, visual_pieces | production_script, final_render |
 | chapter_plan | shared | master_story, beats | chapter_cards, production_script, final_render |
-| chapter_cards | per-language | chapter_plan, timeline_cards | production_script, final_render (same language) |
+| chapter_cards | per-language | chapter_plan, timeline_cards, spoken_version (same language) | production_script, final_render (same language) |
 | timeline_cards | per-language | beats | chapter_cards, production_script, final_render (same language) |
 | intro | per-language | — (typed channel identity, logo bytes, and intro design version are fingerprint inputs) | final_render (same language) |
 | music_cues | per-language | audio_blocks, audio_timing | production_script, final_render (same language) |

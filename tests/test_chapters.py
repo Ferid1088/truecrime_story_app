@@ -138,37 +138,41 @@ class CardGen:
 
     def __init__(self, fail=False):
         self.fail, self.writes, self.audits = fail, [], []
+        self.writes_by_language = {}
 
     async def generate_structured(self, role, system, user, images=None):
         data = json.loads(user)
         res = GenerationResult(text="{}", model=f"m/{role}", provider="fake")
         if self.fail:
             raise RuntimeError("model down")
-        langs = data["languages"]
+        language = data["language"]
+        langs = [language]
         if role == "chapter_writer":
             self.writes.append(data.get("fix"))
             fix = {f["key"] for f in data.get("fix") or []}
-            r = len(self.writes)
+            r = self.writes_by_language.get(language, 0) + 1
+            self.writes_by_language[language] = r
             out = {"film_title": {lg: f"The lake ({lg})" for lg in langs},
                    "chapters": [], "events": []}
             for c in data["chapters"]:
                 t = {lg: f"Part {c['number']}" for lg in langs}
-                if c["act_id"] == "act2" and r == 1:
+                if c["act_id"] == "act2" and language == "de" and r == 1:
                     t["de"] = "Der Bruder war es"
                 out["chapters"].append({"act_id": c["act_id"], "title": t})
             for e in data["events"]:
                 lab = {lg: f"Event {e['id']}" for lg in langs}
-                if e["id"] == "T003":
+                if e["id"] == "T003" and language == "en":
                     lab["en"] = "x" * 200
                 out["events"].append({"id": e["id"], "label": lab})
             if r > 1:
-                assert fix and all(k in fix for k in ("chapter:act2",))
+                expected = "chapter:act2" if language == "de" else "event:T003"
+                assert fix and expected in fix
             return out, res
         assert role == "chapter_auditor"
         self.audits.append(sorted(data["texts"]))
         verdicts = []
-        for k, texts in data["texts"].items():
-            if texts.get("de") == "Der Bruder war es":
+        for k, text in data["texts"].items():
+            if text == "Der Bruder war es":
                 verdicts.append({"key": k, "ok": False, "languages": ["de"],
                                  "reason": "names the culprit before the reveal"})
             else:
@@ -185,16 +189,17 @@ def test_texts_are_audited_redone_and_left_out(db_session):
     assert row.status == "partial"
     ch2 = next(c for c in plan["chapters"] if c["act_id"] == "act2")
     assert ch2["title"] == {"en": "Part 2", "de": "Part 2"}     # rewritten, approved
-    # the fix carried the auditor's reason
-    fix = next(f for f in gen.writes[1] if f["key"] == "chapter:act2")
-    assert fix["languages"] == ["de"] and "culprit" in fix["auditor"]
-    # only rejected items were audited again
-    assert set(gen.audits[1]) == {"chapter:act2", "event:T003"}
+    # Each language now carries its own retry and auditor context.
+    fix = next(f for writes in gen.writes for f in (writes or [])
+               if f["key"] == "chapter:act2")
+    assert fix["language"] == "de" and "culprit" in fix["auditor"]
+    assert set(gen.audits[1]) == {"event:T003"}
+    assert set(gen.audits[-1]) == {"chapter:act2"}
     t3 = next(e for e in plan["events"] if e["id"] == "T003")
-    assert t3["label"] == {"de": "Event T003"}                   # en left out
-    assert audit["left_out"] == [{"key": "event:T003", "languages": ["en"],
+    assert t3["label"] == {"en": None, "de": "Event T003"}     # en left out
+    assert audit["left_out"] == [{"key": "event:T003", "language": "en",
                                   "reason": "en: longer than 48 characters"}]
-    assert len(gen.writes) == ai_config.documentary.max_redos + 1
+    assert len(gen.writes) == 5  # en exhausts two redos; de needs one retry
     assert plan["film_title"] == {"en": "The lake (en)", "de": "The lake (de)"}
     cards = CH.cards_for(row, "de")
     assert cards["chapters"][1]["label"] == "Kapitel 2" and cards["film_title"] == "The lake (de)"
