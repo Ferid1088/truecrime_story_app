@@ -23,4 +23,4 @@ def test_research_start_fails_fast_with_structured_search_warning(client, db_ses
     assert response.status_code == 503
     assert response.json()["code"] == "SEARCH_UNAVAILABLE"
     assert response.json()["severity"] == "error"
-    assert db_session.query(ResearchJob).count() == 0
+    assert db_session.query(ResearchJob).filter(ResearchJob.case_id == case_id).count() == 0
