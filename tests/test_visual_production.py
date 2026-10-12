@@ -559,7 +559,7 @@ def documentary_env(tmp_path, monkeypatch):
 
 
 @needs_ffmpeg
-def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
+def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isolated_host_history):
     from app.documentary import jobs as J
 
     case, master = _story(db_session)

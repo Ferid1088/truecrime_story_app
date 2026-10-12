@@ -47,6 +47,16 @@ def test_apply_live_success_uses_only_a_copy(tmp_path, monkeypatch):
                    for table in db_reconcile.NEW_TABLES)
 
 
+def test_reconciliation_refuses_to_reuse_an_existing_copy(tmp_path):
+    source = tmp_path / "source.db"
+    destination = tmp_path / "destination.db"
+    _fresh_0009(source)
+    db_reconcile.copy_database(source, destination)
+
+    with pytest.raises(SystemExit, match="Refusing to overwrite"):
+        db_reconcile.copy_database(source, destination)
+
+
 def test_apply_live_aborts_when_a_service_is_running(tmp_path, monkeypatch):
     live = tmp_path / "truecrime.db"
     _fresh_0009(live)
