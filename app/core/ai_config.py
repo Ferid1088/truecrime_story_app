@@ -212,6 +212,11 @@ class RetryPolicyConfig(BaseModel):
     audio_plan: Literal["STOP", "OMIT", "DEGRADE"]
 
 
+class IncrementalPolicyConfig(BaseModel):
+    mode: Literal["off", "verify", "enforce"] = "off"
+    enforced_types: list[str] = Field(default_factory=list)
+
+
 class ProductionPolicies(BaseModel):
     user_media: UserMediaPolicies
     media_reuse: MediaReusePolicies
@@ -220,6 +225,7 @@ class ProductionPolicies(BaseModel):
     timeline: TimelinePolicies
     publishing: PublishingPolicies
     retry_policy: RetryPolicyConfig
+    incremental: IncrementalPolicyConfig
 
 
 class ModelCapabilities(BaseModel):

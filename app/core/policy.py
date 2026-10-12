@@ -59,6 +59,7 @@ ERROR_CATALOG: dict[str, ErrorSpec] = {
     "ARTIFACT_REGISTRATION_FAILED": ErrorSpec("warning", True, ("continue", "review")),
     "ARTIFACT_REGISTRY_DRIFT": ErrorSpec("warning", True, ("continue", "review", "redo")),
     "SEARCH_UNAVAILABLE": ErrorSpec("error", True, ("review", "continue")),
+    "INCREMENTAL_UNPROVEN": ErrorSpec("error", False, ("review",)),
 }
 
 

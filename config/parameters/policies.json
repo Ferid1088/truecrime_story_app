@@ -35,6 +35,10 @@
       "video_pieces": "OMIT",
       "visual_audit_assets": "OMIT",
       "audio_plan": "DEGRADE"
+    },
+    "incremental": {
+      "mode": "off",
+      "enforced_types": []
     }
   }
 }

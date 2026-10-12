@@ -11,9 +11,11 @@ import json
 import logging
 from typing import ClassVar
 
+from app.core.ai_config import ai_config
+from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.concurrency import gather_limited
-from app.core.policy import warning_for
-from app.db.models import DocumentaryJob
+from app.core.policy import PolicyDecision, warning_for
+from app.db.models import Artifact, DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
 from app.services.tracking import documentary_run_context
 from app.utils import utc_now
@@ -66,6 +68,7 @@ class StageRunner:
         self.result = json.loads(job.result_json or "{}")
         self.running: list[str] = []
         self.lang_errors: dict[str, str] = {}
+        self._reran_artifact_types: set[str] = set()
 
     # -- bookkeeping ---------------------------------------------------------
     def _save(self):
@@ -99,6 +102,48 @@ class StageRunner:
         degraded (the film went on without that part; the reason is on
         the stage and in the job result) — a new run redoes it."""
         st = self._entry(name)
+        skip_result = None
+        from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES
+
+        language = next((lang for lang in json.loads(self.job.languages_json or "[]")
+                         if name.endswith(f":{lang}")), None)
+        pipeline_stage = name[:-len(language) - 1] if language else name
+        types = set(STAGE_ARTIFACT_TYPES.get(pipeline_stage, ()))
+        if st["status"] in ("done", "skipped", "degraded"):
+            from app.services.skip_policy import SkipPolicy
+
+            policy = SkipPolicy(self.db)
+            dependencies_reran = any(
+                dep in self._reran_artifact_types
+                for artifact_type in types
+                for dep in ARTIFACT_DEPENDENCIES.get(artifact_type, ())
+            )
+            skip_result = policy.evaluate(
+                self.job, name,
+                pending_edit=policy.pending_edit(
+                    [row.id for row in self.db.query(Artifact).filter(
+                        Artifact.stage_job_id == self.job.id,
+                        Artifact.type.in_(types),
+                    ).all()]),
+                dependencies_reran=dependencies_reran,
+            )
+            mode = ai_config.production_policies.incremental.mode
+            if mode == "enforce" and skip_result.decision.decision == "skip":
+                detail = dict(st.get("detail") or {})
+                detail["reused"] = True
+                detail["reuse_decision"] = skip_result.decision.to_dict()
+                st["detail"] = detail
+                st["status"] = "skipped"
+                self._save()
+                return detail
+            if mode == "enforce":
+                st["status"] = "pending"
+                st["detail"] = None
+            elif mode == "verify":
+                # Verify mode deliberately runs the producer, even when all
+                # hash gates say it could have been reused.
+                st["status"] = "pending"
+                st["detail"] = None
         if st["status"] in ("done", "skipped", "degraded"):
             return st.get("detail")
         self._check_cancel()
@@ -147,6 +192,22 @@ class StageRunner:
         from app.services.artifact_shadow import register_stage_outputs
         register_stage_outputs(self.db, self.job, pipeline_stage, language,
                                detail if isinstance(detail, dict) else None, self.result)
+        from app.services.skip_policy import SkipPolicy
+        if skip_result is not None and ai_config.production_policies.incremental.mode == "verify":
+            current = SkipPolicy(self.db).evaluate(self.job, name)
+            post_run_match = current.decision.decision == "skip"
+            current_decision = PolicyDecision(
+                policy="incremental", decision="verify_match" if post_run_match else "verify_mismatch",
+                reason=("producer output matched reusable artifact" if post_run_match
+                        else current.decision.reason),
+                rule_id="INCREMENTAL_VERIFY",
+                severity="info", recoverable=True, actions=("continue", "review"),
+                context={"job_id": self.job.id, "stage": name,
+                         "would_skip": skip_result.decision.decision == "skip",
+                         "post_run_skip": current.decision.decision == "skip"},
+            )
+            SkipPolicy(self.db)._event(current_decision, self.job, language)
+        self._reran_artifact_types.update(types if 'types' in locals() else set())
         if name in self.running:
             self.running.remove(name)
         self._save()
