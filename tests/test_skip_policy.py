@@ -6,7 +6,7 @@ import pytest
 from app.core.ai_config import ai_config
 from app.core.fingerprint import input_fingerprint
 from app.core.policy import PolicyError
-from app.db.models import Artifact, Case, DocumentaryJob, EditLog
+from app.db.models import Artifact, Case, DocumentaryJob, EditLog, PolicyEvent
 from app.services.skip_policy import SkipPolicy
 
 
@@ -82,6 +82,35 @@ def test_verify_records_would_skip_but_does_not_authorize_skip(db_session, monke
     assert result.decision.decision == "skip"
 
 
+def test_verify_mode_runs_the_producer_after_a_would_skip(db_session, monkeypatch):
+    import asyncio
+
+    from app.documentary.pipeline.base import Stage, StageRunner
+    from app.services import skip_policy
+
+    job, _ = _job(db_session)
+    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "verify")
+    monkeypatch.setattr(ai_config.production_policies.incremental, "enforced_types", [])
+    monkeypatch.setattr("app.services.skip_policy._source_payload", lambda *args: {})
+    monkeypatch.setattr("app.services.skip_policy._output_hash", lambda *args: "output")
+    monkeypatch.setitem(skip_policy.SOUNDNESS, "master_story", "SOUND")
+    calls = []
+
+    class Dummy(Stage):
+        name = "master_story"
+
+        async def run(self):
+            calls.append("ran")
+            return {"output_ref": "row:master_story"}
+
+    runner = StageRunner(db_session, job)
+    asyncio.run(runner.execute(Dummy(None)))
+    asyncio.run(runner.execute(Dummy(None)))
+    assert calls == ["ran", "ran"]
+    decisions = [event.rule_id for event in db_session.query(PolicyEvent).all()]
+    assert "INCREMENTAL_VERIFY" in decisions
+
+
 def test_stage_runner_enforce_reuses_a_sound_artifact(db_session, configured, monkeypatch):
     import asyncio
 
@@ -102,3 +131,7 @@ def test_stage_runner_enforce_reuses_a_sound_artifact(db_session, configured, mo
     result = asyncio.run(StageRunner(db_session, job).execute(Dummy(None)))
     assert result["reused"] is True
     assert called == []
+    stage = next(item for item in json.loads(job.stages_json)
+                 if item["name"] == "master_story")
+    assert stage["status"] == "skipped"
+    assert stage["detail"]["reused"] is True
