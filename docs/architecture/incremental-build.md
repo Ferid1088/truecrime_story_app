@@ -41,7 +41,7 @@ the language; “shared” means it carries no language.
 | intro | per-language | `data/intros/<lang>/` | cached fingerprint/path | identity/language/size | `app/documentary/intros.py:119` | renderer | intro fingerprint | cached file |
 | music_cues | per-language | manifest placements | cue IDs | direction/timing/library | `app/documentary/music.py:597` | production/mixer | usage history | stage resume |
 | captions | per-language | production JSON/SRT | caption IDs | text/word timing | `app/documentary/production/script.py:1249` | renderer | no skip hash | rebuilt |
-| production_script | per-language | `production_scripts.script_json` | member IDs | spoken/voice/timing/visuals/cards/music/config | `app/documentary/production/script.py:1348` | critique/render | row/version | latest row |
+| production_script | per-language | `production_scripts.script_json` | member IDs | spoken/voice/timing/visuals/cards/music/host/film length/naming/config | `app/documentary/production/script.py:1348` | critique/render | row/version | latest row |
 | final_render | per-language | relative path/`render_json` | row ID/path | script/audio/intro/render config | `app/documentary/render/engine.py:525` | UI/download | no skip hash | stage resume |
 | research_result | shared | research rows/job result | stage/job ID | research inputs and provider result | `app/documentary/jobs.py:236` | master story | shadow input hash | no cache authority |
 | host_plan | shared | `host_plans.plan_json` | row ID | beats and host settings | `app/documentary/jobs.py:370` | host segments | shadow input hash | latest valid row |
@@ -139,12 +139,12 @@ This is the exact declarative table in `app/core/artifact_dependencies.py:42`.
 | intro | per-language | — (typed channel identity, logo bytes, and intro design version are fingerprint inputs) | final_render (same language) |
 | music_cues | per-language | audio_blocks, audio_timing | production_script, final_render (same language) |
 | captions | per-language | spoken_version, audio_timing | production_script, final_render (same language) |
-| production_script | per-language | spoken_version, voice_takes, audio_timing, visual_plan, chapter_cards, timeline_cards, captions, music_cues, host_segments, film_length | final_render (same language) |
+| production_script | per-language | spoken_version, voice_takes, audio_timing, visual_plan, chapter_cards, timeline_cards, captions, music_cues, host_segments, film_length, naming | final_render (same language) |
 | final_render | per-language | production_script, intro | — |
 | research_result | shared | — | master_story |
 | host_plan | shared | beats | host_segments |
 | host_segments | per-language | host_plan, spoken_version | host scenes/render |
-| naming | shared | master_story | channel metadata |
+| naming | shared | master_story | production_script, channel metadata |
 | film_length | per-language | spoken_version, audio_blocks | production_script, final_render (same language) |
 
 Timing is a separate per-language artifact produced after voice rendering

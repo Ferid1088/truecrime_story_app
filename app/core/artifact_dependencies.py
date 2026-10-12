@@ -68,7 +68,7 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "production_script": [
         "spoken_version", "voice_takes", "audio_timing", "visual_plan",
         "chapter_cards", "timeline_cards", "captions", "music_cues",
-        "host_segments", "film_length",
+        "host_segments", "film_length", "naming",
     ],
     "final_render": ["production_script", "intro"],
     "research_result": [],

@@ -55,6 +55,9 @@ def test_timing_and_story_dependency_edges_are_explicit():
     assert ARTIFACT_DEPENDENCIES["master_story"] == ["research_result"]
     assert "host_segments" in ARTIFACT_DEPENDENCIES["production_script"]
     assert "film_length" in ARTIFACT_DEPENDENCIES["production_script"]
+    # An approved title is substituted into the persisted script by
+    # app/documentary/production/script.py:1348.
+    assert "naming" in ARTIFACT_DEPENDENCIES["production_script"]
 
 
 def test_registry_fresh_version_scope_preview_and_invalidation(db_session):
