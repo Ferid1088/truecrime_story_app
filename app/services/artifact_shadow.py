@@ -119,7 +119,8 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
     happened to be unchanged.
     """
     detail = detail or {}
-    source: dict = {"stage": stage, "language": language, "detail": detail}
+    source: dict = {"stage": stage, "language": language, "detail": detail,
+                    "job_languages": _language_rows(job, None)}
     if artifact_type in ("master_story", "master_approval"):
         source["story"] = _row_payload(db.get(StoryVersion, detail.get("master_version_id")))
     elif artifact_type == "beats":
@@ -163,15 +164,30 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
         source["asset"] = _row_payload(asset)
         if asset is not None:
             source["asset_file_sha256"] = asset.sha256
-    source["config"] = {
-        "documentary": ai_config.documentary.model_dump(mode="json"),
-        "voice": ai_config.voice.model_dump(mode="json"),
-        "audio_direction": ai_config.audio_direction.model_dump(mode="json"),
-        "music_library": ai_config.music_library.model_dump(mode="json"),
-        "render": ai_config.render.model_dump(mode="json"),
-        "chapters": ai_config.chapters.model_dump(mode="json"),
-        "visual_direction": ai_config.visual_direction.model_dump(mode="json"),
-    }
+    # Shadow mode intentionally uses a complete typed-config snapshot.  This
+    # is conservative: every section read by a producer (including agent
+    # prompts/routing, pronunciation and channel/studio identity) is an
+    # explicit input instead of an accidental hidden default.
+    source["config"] = ai_config.model_dump(mode="json")
+    channel_identity = {}
+    for lang, channel in ai_config.channels.items():
+        item = channel.model_dump(mode="json")
+        logo = item.get("logo")
+        if isinstance(logo, str):
+            path = Path(logo) if Path(logo).is_absolute() else ROOT / logo
+            if path.is_file():
+                item["logo_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        channel_identity[lang] = item
+    source["channel_identity"] = channel_identity
+    try:
+        from app.documentary import intros
+
+        source["intro_design"] = {
+            "version": intros.VERSION,
+            "concepts": {key: value.__dict__ for key, value in intros.CONCEPTS.items()},
+        }
+    except Exception:  # noqa: BLE001 - shadow capture must stay best effort
+        source["intro_design"] = {"version": None}
     return source
 
 

@@ -44,12 +44,10 @@ the language; “shared” means it carries no language.
 | production_script | per-language | `production_scripts.script_json` | member IDs | spoken/voice/timing/visuals/cards/music/config | `app/documentary/production/script.py:1348` | critique/render | row/version | latest row |
 | final_render | per-language | relative path/`render_json` | row ID/path | script/audio/intro/render config | `app/documentary/render/engine.py:525` | UI/download | no skip hash | stage resume |
 | research_result | shared | research rows/job result | stage/job ID | research inputs and provider result | `app/documentary/jobs.py:236` | master story | shadow input hash | no cache authority |
-| master_approval | shared | approved story/audit history | stage/job ID | master story and auditor decision | `app/documentary/jobs.py:255` | blueprint | shadow input hash | stage resume |
 | host_plan | shared | `host_plans.plan_json` | row ID | beats and host settings | `app/documentary/jobs.py:370` | host segments | shadow input hash | latest valid row |
 | host_segments | per-language | `host_segments.segments_json` | row ID | host plan/spoken version | `app/documentary/pipeline/language.py:80` | host scenes/render | shadow input hash | latest matching row |
 | naming | shared | title-candidate rows/result detail | family ID | case/master/title config | `app/documentary/jobs.py:414` | channel metadata | shadow input hash | stage resume |
 | film_length | per-language | job result estimates | language/stage ID | spoken/audio estimates | `app/documentary/jobs.py:432` | render admission | shadow input hash | stage resume |
-| visual_gaps | shared | `visual_plans.plan_json` after gap fill | stage/plan ID | visual plan and gap candidates | `app/documentary/jobs.py:500` | visual plan/script | shadow input hash | stage resume |
 
 The source registry records scope and output registration (`app/services/artifact_shadow.py:29`,
 `app/services/artifact_shadow.py:122`). Rows are observability, not a cache authority.
@@ -143,6 +141,11 @@ This is the exact declarative table in `app/core/artifact_dependencies.py:42`.
 | captions | per-language | spoken_version, audio_timing | production_script, final_render (same language) |
 | production_script | per-language | spoken_version, voice_takes, audio_timing, visual_plan, chapter_cards, timeline_cards, captions, music_cues | final_render (same language) |
 | final_render | per-language | production_script, intro | — |
+| research_result | shared | — | master_story |
+| host_plan | shared | beats | host_segments |
+| host_segments | per-language | host_plan, spoken_version | host scenes/render |
+| naming | shared | master_story | channel metadata |
+| film_length | per-language | spoken_version, audio_blocks | render admission |
 
 Timing is a separate per-language artifact produced after voice rendering
 (`app/documentary/pipeline/language.py:105`), while audio direction is shared and made
