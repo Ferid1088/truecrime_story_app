@@ -497,8 +497,17 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
 
 def install_phase5(monkeypatch):
     """Apply one Phase 5 source after its producer, or config before the run."""
+    import atexit
+
     from app.core.ai_config import ai_config
     from app.documentary.pipeline.base import StageRunner
+    from config_read_recorder import install as install_config_read_recorder
+
+    _, restore_config_reads = install_config_read_recorder(
+        ai_config,
+        Path(os.environ.get("SOUNDNESS_RUN_ROOT", ".")) / "config_reads.json",
+    )
+    atexit.register(restore_config_reads)
 
     overlay = json.loads(Path(os.environ["SOUNDNESS_REPLAY"]).read_text())
     source = overlay["source"]

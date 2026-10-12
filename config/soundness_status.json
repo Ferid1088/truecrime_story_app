@@ -1,64 +1,126 @@
 {
   "generated_by": "tests/generate_soundness_status.py",
   "passing_records": [
-    "agent_model_routing",
     "channel_identity_logo",
-    "host_plan",
-    "intro_design",
-    "language_profile",
     "logo_bytes",
-    "master_story",
-    "music_history_library",
     "naming",
     "naming",
-    "one_beat",
-    "one_voice_take",
-    "pronunciation_voice",
     "research_result",
-    "spoken_de",
-    "typed_config_audio",
-    "typed_config_chapters",
-    "typed_config_documentary",
-    "typed_config_host",
-    "typed_config_music",
     "typed_config_render",
-    "typed_config_visual",
-    "typed_config_voice",
-    "unused_visual",
-    "unused_visual_metadata",
-    "used_visual",
     "used_visual_metadata"
   ],
-  "reasons": {},
+  "reasons": {
+    "audio_blocks": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en",
+    "audio_timing": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; music_history_library: missing strong direct-consumer effect: audio_timing:en; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; one_voice_take: missing strong direct-consumer effect: audio_timing:en, production_script:en; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_music: missing strong direct-consumer effect: production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "beats": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en",
+    "captions": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; music_history_library: missing strong direct-consumer effect: audio_timing:en; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; one_voice_take: missing strong direct-consumer effect: audio_timing:en, production_script:en; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_music: missing strong direct-consumer effect: production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "chapter_cards": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_chapters: missing strong direct-consumer effect: chapter_plan:shared, timeline_cards:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "chapter_plan": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_chapters: missing strong direct-consumer effect: chapter_plan:shared, timeline_cards:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en",
+    "film_length": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "final_render": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; host_plan: missing strong direct-consumer effect: host_segments:en; intro_design: missing strong direct-consumer effect: final_render:en; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; music_history_library: missing strong direct-consumer effect: audio_timing:en; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; one_voice_take: missing strong direct-consumer effect: audio_timing:en, production_script:en; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_chapters: missing strong direct-consumer effect: chapter_plan:shared, timeline_cards:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_host: missing strong direct-consumer effect: host_plan:shared, production_script:en; typed_config_music: missing strong direct-consumer effect: production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en; unused_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; unused_visual_metadata: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; used_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared",
+    "host_plan": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; host_plan: missing strong direct-consumer effect: host_segments:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_host: missing strong direct-consumer effect: host_plan:shared, production_script:en",
+    "host_segments": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; host_plan: missing strong direct-consumer effect: host_segments:en; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_host: missing strong direct-consumer effect: host_plan:shared, production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "intro": "UNPROVEN: intro_design: missing strong direct-consumer effect: final_render:en",
+    "master_story": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en",
+    "music_cues": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; music_history_library: missing strong direct-consumer effect: audio_timing:en; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; one_voice_take: missing strong direct-consumer effect: audio_timing:en, production_script:en; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_music: missing strong direct-consumer effect: production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "naming": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en",
+    "production_script": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; host_plan: missing strong direct-consumer effect: host_segments:en; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; music_history_library: missing strong direct-consumer effect: audio_timing:en; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; one_voice_take: missing strong direct-consumer effect: audio_timing:en, production_script:en; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_chapters: missing strong direct-consumer effect: chapter_plan:shared, timeline_cards:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_host: missing strong direct-consumer effect: host_plan:shared, production_script:en; typed_config_music: missing strong direct-consumer effect: production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en; unused_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; unused_visual_metadata: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; used_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared",
+    "spoken_version": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en",
+    "timeline_cards": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_chapters: missing strong direct-consumer effect: chapter_plan:shared, timeline_cards:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en",
+    "visual_asset": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared; unused_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; unused_visual_metadata: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; used_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared",
+    "visual_needs": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared",
+    "visual_pieces": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared; unused_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; unused_visual_metadata: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; used_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared",
+    "visual_plan": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared; unused_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; unused_visual_metadata: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; used_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared",
+    "visual_shots": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_visual: missing strong direct-consumer effect: production_script:en, visual_asset:shared, visual_needs:shared, visual_pieces:shared, visual_plan:shared, visual_shots:shared; unused_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; unused_visual_metadata: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared; used_visual: missing strong direct-consumer effect: visual_pieces:shared, visual_shots:shared",
+    "voice_takes": "UNPROVEN: agent_model_routing: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared; language_profile: missing strong direct-consumer effect: captions:en, chapter_cards:en, host_segments:en, production_script:en; master_story: missing strong direct-consumer effect: chapter_plan:shared, naming:shared; one_beat: missing strong direct-consumer effect: audio_blocks:shared, chapter_plan:shared, host_plan:shared, timeline_cards:en, visual_needs:shared; one_voice_take: missing strong direct-consumer effect: audio_timing:en, production_script:en; pronunciation_voice: missing strong direct-consumer effect: production_script:en, spoken_version:en, voice_takes:en; spoken_de: missing strong direct-consumer effect: film_length:de; typed_config_audio: missing strong direct-consumer effect: audio_blocks:shared, audio_timing:en, film_length:en, music_cues:en, production_script:en; typed_config_documentary: missing strong direct-consumer effect: beats:shared, host_plan:shared, master_story:shared, naming:shared, production_script:en; typed_config_voice: missing strong direct-consumer effect: audio_timing:en, captions:en, film_length:en, production_script:en, spoken_version:en, voice_takes:en"
+  },
   "record_files": [
     "tests/golden/soundness_phase4_results.json",
     "tests/golden/soundness_phase5_results.json",
     "tests/golden/soundness_research_result.json"
   ],
   "statuses": {
-    "audio_blocks": "SOUND",
-    "audio_timing": "SOUND",
-    "beats": "SOUND",
-    "captions": "SOUND",
-    "chapter_cards": "SOUND",
-    "chapter_plan": "SOUND",
-    "film_length": "SOUND",
-    "final_render": "SOUND",
-    "host_plan": "SOUND",
-    "host_segments": "SOUND",
-    "intro": "SOUND",
-    "master_story": "SOUND",
-    "music_cues": "SOUND",
-    "naming": "SOUND",
-    "production_script": "SOUND",
+    "audio_blocks": "UNPROVEN",
+    "audio_timing": "UNPROVEN",
+    "beats": "UNPROVEN",
+    "captions": "UNPROVEN",
+    "chapter_cards": "UNPROVEN",
+    "chapter_plan": "UNPROVEN",
+    "film_length": "UNPROVEN",
+    "final_render": "UNPROVEN",
+    "host_plan": "UNPROVEN",
+    "host_segments": "UNPROVEN",
+    "intro": "UNPROVEN",
+    "master_story": "UNPROVEN",
+    "music_cues": "UNPROVEN",
+    "naming": "UNPROVEN",
+    "production_script": "UNPROVEN",
     "research_result": "SOUND",
-    "spoken_version": "SOUND",
-    "timeline_cards": "SOUND",
-    "visual_asset": "SOUND",
-    "visual_needs": "SOUND",
-    "visual_pieces": "SOUND",
-    "visual_plan": "SOUND",
-    "visual_shots": "SOUND",
-    "voice_takes": "SOUND"
-  }
+    "spoken_version": "UNPROVEN",
+    "timeline_cards": "UNPROVEN",
+    "visual_asset": "UNPROVEN",
+    "visual_needs": "UNPROVEN",
+    "visual_pieces": "UNPROVEN",
+    "visual_plan": "UNPROVEN",
+    "visual_shots": "UNPROVEN",
+    "voice_takes": "UNPROVEN"
+  },
+  "strong_records": [
+    {
+      "actual_count": 2,
+      "direct_consumers": [
+        "final_render:en",
+        "host_segments:en"
+      ],
+      "source": "channel_identity_logo"
+    },
+    {
+      "actual_count": 2,
+      "direct_consumers": [
+        "final_render:en",
+        "intro:en"
+      ],
+      "source": "logo_bytes"
+    },
+    {
+      "actual_count": 11,
+      "direct_consumers": [
+        "production_script:en",
+        "visual_asset:shared"
+      ],
+      "source": "naming"
+    },
+    {
+      "actual_count": 11,
+      "direct_consumers": [
+        "production_script:en",
+        "visual_asset:shared"
+      ],
+      "source": "naming"
+    },
+    {
+      "actual_count": 15,
+      "direct_consumers": [
+        "master_story:shared"
+      ],
+      "source": "research_result"
+    },
+    {
+      "actual_count": 12,
+      "direct_consumers": [
+        "final_render:en",
+        "intro:en",
+        "production_script:en"
+      ],
+      "source": "typed_config_render"
+    },
+    {
+      "actual_count": 12,
+      "direct_consumers": [
+        "visual_pieces:shared",
+        "visual_shots:shared"
+      ],
+      "source": "used_visual_metadata"
+    }
+  ]
 }

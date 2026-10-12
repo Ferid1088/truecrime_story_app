@@ -46,6 +46,7 @@ _PG_RESOLVED_ADMIN = None
 if _COPY_URL:
     # An explicit disposable copy is used by the Phase-B reconciliation smoke
     # test.  Unlike the Postgres suite, it must not drop or recreate anything.
+    os.environ["TRUECRIME_DATABASE_URL"] = _COPY_URL
     os.environ["DATABASE_URL"] = _COPY_URL
 elif _PG_URL:
     # Run the suite on Postgres: start every run from an empty schema (the tests share one database).

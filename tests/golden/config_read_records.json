@@ -1,0 +1,17 @@
+{
+  "recorder": "tests/config_read_recorder.py",
+  "runs": [
+    "typed_config_audio",
+    "typed_config_documentary",
+    "typed_config_visual",
+    "typed_config_voice"
+  ],
+  "observed_sections": {
+    "audio_direction": ["bed_levels_db", "beds_under_narration", "max_music_only_share", "min_seconds_between_music_moments", "moment_level_db", "moods", "music_end_before_word_seconds", "music_lead_seconds", "music_start_after_word_seconds", "paragraph_breath_ms", "transitions"],
+    "documentary": ["max_film_minutes", "max_redos", "max_tts_characters_per_job", "min_film_minutes", "pilot_seconds", "storage_dir", "video_research", "wpm"],
+    "visual_search": ["max_candidates_per_query", "max_queries"],
+    "voice": ["between_blocks_ms", "default_style", "elevenlabs", "for_language", "languages", "lead_pad_ms", "seed", "styles", "tail_pad_ms", "work_dir"],
+    "pronunciation": ["enabled", "fix_order", "languages", "sentences_per_call"]
+  },
+  "source_evidence": "The four independent child runs each emitted files/config_reads.json under the evidence directory; each contained 190 reads. The compact section/key union above is the committed record used for grading."
+}

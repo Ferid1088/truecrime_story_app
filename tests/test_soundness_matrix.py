@@ -1,7 +1,7 @@
 import json
 import sqlite3
 
-from generate_soundness_status import _can_reach, build_status, generate, load_records
+from generate_soundness_status import _can_reach, build_status, generate, load_records, strong_record
 
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
@@ -130,10 +130,7 @@ def test_sound_type_has_a_passing_strong_snapshot_diff_record():
                 _can_reach(row, target)
                 and row.get("status", "passed") == "passed"
                 and not row.get("hidden")
-                # A weak perturbation that changed no saved output cannot
-                # establish soundness. A recorded, justified no-effect edge
-                # is also strong evidence for that specific edge.
-                and (row.get("actual") or row.get("no_effect_edges"))
+                and strong_record(row)[0]
                 for row in records
             )
 
@@ -142,6 +139,24 @@ def test_every_recorded_no_effect_edge_has_a_reason():
     for row in load_records():
         for edge in row.get("no_effect_edges", ()):
             assert edge["from"] and edge["to"] and edge["reason"].strip()
+
+
+def test_zero_effect_record_without_code_level_reason_is_not_strong():
+    row = {"source": "typed_config_audio", "config_source": True,
+           "actual": [], "predicted": ["audio_blocks:shared"]}
+    assert not strong_record(row)[0]
+
+
+def test_code_level_no_effect_reasons_can_cover_their_edges():
+    row = {
+        "source": "unused_visual", "root": "visual_asset",
+        "actual": ["visual_asset:shared"],
+        "no_effect_edges": [
+            {"to": "visual_shots:shared", "reason": "not read at app/x.py:12"},
+            {"to": "visual_pieces:shared", "reason": "not read at app/x.py:13"},
+        ],
+    }
+    assert strong_record(row)[0]
 
 
 def test_regenerating_soundness_outputs_is_deterministic():

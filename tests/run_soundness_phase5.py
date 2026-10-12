@@ -14,7 +14,11 @@ from pathlib import Path
 from soundness_replay import PHASE5_TYPES, no_effect_edges, prepare_phase5
 from soundness_template import ROOT, ensure_template, restore_template
 
-SOURCES = tuple(PHASE5_TYPES)
+SOURCES = tuple(
+    source for source in PHASE5_TYPES
+    if not os.environ.get("SOUNDNESS_ONLY")
+    or source in {item.strip() for item in os.environ["SOUNDNESS_ONLY"].split(",")}
+)
 
 
 def run_case(template: Path, parent: Path, source: str) -> dict:
