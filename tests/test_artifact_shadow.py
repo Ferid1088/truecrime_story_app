@@ -6,7 +6,8 @@ from app.db.models import (Artifact, ArtifactDep, Case, EditorialBlueprint, Stor
 from app.core.ai_config import ai_config
 from app.db.models import Artifact, DocumentaryJob
 from app.documentary.jobs import plan_stages
-from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES, register_stage_outputs
+from app.services.artifact_shadow import (STAGE_ARTIFACT_TYPES, register_stage_outputs,
+                                          registry_consistency)
 
 
 def test_shadow_registration_is_best_effort_and_write_only(db_session, monkeypatch):
@@ -66,6 +67,9 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
     db_session.commit()
     register_stage_outputs(db_session, job, "visual_plan", None,
                            {"visual_plan_id": plan.id}, {})
+    job.stages_json = json.dumps([{"name": "visual_plan", "detail": {
+        "visual_plan_id": plan.id}}])
+    db_session.commit()
     rows = db_session.query(Artifact).filter_by(stage_job_id=job.id,
                                                 type="visual_asset").all()
     assert {json.loads(row.scope_json)["asset_id"] for row in rows} == {
@@ -75,3 +79,7 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
     edge_ids = {edge.depends_on_id for edge in db_session.query(ArtifactDep).filter_by(
         artifact_id=visual_plan.id).all()}
     assert len(edge_ids & {row.id for row in rows}) == 1
+    assert registry_consistency(db_session, job.id) == []
+    plan.plan_json = json.dumps({"shots": [{"asset_id": b.asset_code}]})
+    db_session.commit()
+    assert registry_consistency(db_session, job.id)

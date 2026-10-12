@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
+from pathlib import Path
 from pathlib import PurePath
 
 from app.core.ai_config import ai_config
@@ -12,32 +14,41 @@ from app.db.models import (
     Artifact,
     AudioPlan,
     ChapterPlan,
+    DocumentaryJob,
     EditorialBlueprint,
     ProductionScript,
     StoryVersion,
     VisualAsset,
     VisualPlan,
+    HostPlan,
+    HostSegments,
 )
 from app.documentary.pipeline.base import record_warning
 from app.services.artifacts import ArtifactRegistry
 from app.services.policy_events import record_decision
+from app.core.fingerprint import canonical_json
 
 log = logging.getLogger(__name__)
+ROOT = Path(__file__).resolve().parents[2]
 
 # Every current stage is listed, including bookkeeping-only stages.  The
 # coverage test intentionally fails when plan_stages() gains a new name.
 STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
-    "research": (), "master_story": ("master_story",), "master_approval": (),
+    "research": ("research_result",), "master_story": ("master_story",),
+    "master_approval": ("master_story",),
     "blueprint": ("beats",), "audio_plan": ("audio_blocks",),
-    "spoken": ("spoken_version",), "host_plan": (), "chapters": (
+    "spoken": ("spoken_version",), "host_plan": ("host_plan",), "chapters": (
         "chapter_plan", "timeline_cards", "chapter_cards"),
-    "naming": (), "film_length": (), "visual_needs": ("visual_needs",),
+    "naming": ("naming",), "film_length": ("film_length",),
+    "visual_needs": ("visual_needs",),
     "visual_research": ("visual_pieces",),
     "visual_check": ("visual_pieces",),
     "visual_plan": ("visual_asset", "visual_shots", "visual_pieces", "visual_plan"),
-    "visual_gaps": (), "host": (), "performance": ("voice_takes",),
+    "visual_gaps": ("visual_plan",), "host": ("host_segments",),
+    "performance": ("voice_takes",),
     "voice": ("voice_takes", "audio_timing", "music_cues"), "production": (
-        "captions", "production_script"), "critique": (), "visual_audit": (),
+        "captions", "production_script"), "critique": ("production_script",),
+    "visual_audit": ("production_script",),
     "render": ("intro", "final_render"),
 }
 
@@ -109,7 +120,7 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
     """
     detail = detail or {}
     source: dict = {"stage": stage, "language": language, "detail": detail}
-    if artifact_type == "master_story":
+    if artifact_type in ("master_story", "master_approval"):
         source["story"] = _row_payload(db.get(StoryVersion, detail.get("master_version_id")))
     elif artifact_type == "beats":
         source["blueprint"] = _row_payload(db.get(EditorialBlueprint, detail.get("blueprint_id")))
@@ -129,9 +140,17 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
         source["voice"] = _row_payload(version)
         if version is not None:
             source["story_version_id"] = version.id
-    elif artifact_type in ("visual_needs", "visual_shots", "visual_plan"):
+    elif artifact_type in ("visual_needs", "visual_shots", "visual_plan", "visual_gaps"):
         row = db.get(VisualPlan, detail.get("visual_plan_id"))
+        if row is None:
+            row = (db.query(VisualPlan).filter(VisualPlan.case_id == job.case_id)
+                   .order_by(VisualPlan.id.desc()).first())
         source["visual_plan"] = _row_payload(row)
+    elif artifact_type == "host_plan":
+        source["host_plan"] = _row_payload(db.get(HostPlan, detail.get("host_plan_id")))
+    elif artifact_type == "host_segments":
+        source["host_segments"] = _row_payload(
+            db.get(HostSegments, detail.get("host_segments_id")))
     elif artifact_type in ("chapter_plan", "chapter_cards", "timeline_cards"):
         row = db.get(ChapterPlan, detail.get("chapter_plan_id"))
         source["chapters"] = _row_payload(row)
@@ -163,6 +182,88 @@ def _language_rows(job, language: str | None) -> list[str | None]:
         return [str(x) for x in json.loads(job.languages_json or "[]")]
     except (TypeError, ValueError):
         return [None]
+
+
+def _output_payload(db, job, stage: str, language: str | None, detail: dict,
+                    artifact_type: str) -> dict:
+    """Canonical representation of the content persisted by a stage."""
+    payload: dict = {"artifact_type": artifact_type, "detail": detail}
+    if artifact_type == "visual_asset":
+        payload["row"] = _row_payload(db.get(VisualAsset, detail.get("asset_id")))
+    elif artifact_type in ("master_story", "master_approval"):
+        payload["row"] = _row_payload(db.get(StoryVersion, detail.get("master_version_id")))
+    elif artifact_type == "beats":
+        payload["row"] = _row_payload(db.get(EditorialBlueprint, detail.get("blueprint_id")))
+    elif artifact_type in ("audio_blocks", "music_cues"):
+        payload["row"] = _row_payload(db.get(AudioPlan, detail.get("audio_plan_id")))
+    elif artifact_type in ("visual_needs", "visual_shots", "visual_plan", "visual_gaps"):
+        row = db.get(VisualPlan, detail.get("visual_plan_id"))
+        if row is None:
+            row = (db.query(VisualPlan).filter(VisualPlan.case_id == job.case_id)
+                   .order_by(VisualPlan.id.desc()).first())
+        payload["row"] = _row_payload(row)
+    elif artifact_type == "host_plan":
+        payload["row"] = _row_payload(db.get(HostPlan, detail.get("host_plan_id")))
+    elif artifact_type == "host_segments":
+        payload["row"] = _row_payload(db.get(HostSegments, detail.get("host_segments_id")))
+    elif artifact_type in ("chapter_plan", "chapter_cards", "timeline_cards"):
+        payload["row"] = _row_payload(db.get(ChapterPlan, detail.get("chapter_plan_id")))
+    elif artifact_type in ("captions", "production_script"):
+        payload["row"] = _row_payload(db.get(ProductionScript, detail.get("production_script_id")))
+    return payload
+
+
+def _output_hash(db, job, stage: str, language: str | None, detail: dict,
+                 artifact_type: str) -> str:
+    output_ref = detail.get("path") or detail.get("output_ref")
+    if isinstance(output_ref, str) and not PurePath(output_ref).is_absolute():
+        path = ROOT / output_ref
+        if path.is_file():
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+    payload = _output_payload(db, job, stage, language, detail, artifact_type)
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def _stage_detail(job, stage: str, language: str | None) -> dict:
+    try:
+        entries = json.loads(job.stages_json or "[]")
+    except (TypeError, ValueError):
+        return {}
+    name = f"{stage}:{language}" if language else stage
+    entry = next((item for item in entries if item.get("name") == name), {})
+    return entry.get("detail") if isinstance(entry.get("detail"), dict) else {}
+
+
+def registry_consistency(db, stage_job_id: int | None = None) -> list[dict]:
+    """Read-only check that registered output hashes match saved content."""
+    query = db.query(Artifact)
+    if stage_job_id is not None:
+        query = query.filter(Artifact.stage_job_id == stage_job_id)
+    mismatches = []
+    for artifact in query.all():
+        if artifact.stage_job_id is None:
+            mismatches.append({"artifact_id": artifact.id, "reason": "no stage job"})
+            continue
+        job = db.get(DocumentaryJob, artifact.stage_job_id)
+        if job is None:
+            mismatches.append({"artifact_id": artifact.id, "reason": "missing stage job"})
+            continue
+        scope = json.loads(artifact.scope_json or "{}")
+        stage = scope.get("stage") or ""
+        detail = _stage_detail(job, stage, artifact.language)
+        if artifact.type == "visual_asset" and scope.get("asset_id"):
+            asset = (db.query(VisualAsset)
+                     .filter(VisualAsset.case_id == job.case_id,
+                             VisualAsset.asset_code == scope["asset_id"])
+                     .first())
+            if asset is not None:
+                detail = {**detail, "asset_id": asset.id,
+                          "asset_code": asset.asset_code}
+        expected = _output_hash(db, job, stage, artifact.language, detail, artifact.type)
+        if expected != artifact.output_hash:
+            mismatches.append({"artifact_id": artifact.id, "expected": expected,
+                               "actual": artifact.output_hash})
+    return mismatches
 
 
 def register_stage_outputs(db, job, stage: str, language: str | None, detail: dict | None,
@@ -221,6 +322,8 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
                         _source_payload(db, job, stage, artifact_language, artifact_detail,
                                         artifact_type),
                         dependencies, _relative_ref(detail or {}, artifact_type),
+                        output_hash=_output_hash(db, job, stage, artifact_language,
+                                                 artifact_detail, artifact_type),
                         created_by="shadow_stage", case_id=job.case_id,
                         language=artifact_language, stage_job_id=job.id)
     except Exception as exc:  # shadow registration must never fail the job

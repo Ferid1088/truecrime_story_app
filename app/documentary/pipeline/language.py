@@ -152,7 +152,8 @@ class LanguageChain:
             from app.documentary.production.script import display_words
 
             rep = await DocumentaryCritics().review(db, ps, display_words(manifest))
-            return {"score": rep.get("score"), "fixes": len(rep.get("fixes") or []),
+            return {"production_script_id": ps.id,
+                    "score": rep.get("score"), "fixes": len(rep.get("fixes") or []),
                     "issues": len(rep["deterministic"]["issues"])}
 
         await pipe._stage(f"critique:{lang}", critique)
@@ -166,7 +167,8 @@ class LanguageChain:
             if not ai_config.visual_audit.enabled:
                 return {"skipped": True, "reason": "visual_audit disabled"}
             db.refresh(ps)
-            return audit_summary(await audit_script(db, ps))
+            return {"production_script_id": ps.id,
+                    **audit_summary(await audit_script(db, ps))}
 
         await pipe._stage(f"visual_audit:{lang}", visual_audit)
 
