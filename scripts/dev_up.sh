@@ -98,6 +98,56 @@ _wait_for_port() {
   return 1
 }
 
+_frontend_process_cwd() {
+  local pid="$1"
+  command -v lsof >/dev/null 2>&1 || return 0
+  lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1
+}
+
+_stop_stale_frontend_servers() {
+  local recorded_pid="" line pid command cwd
+  if [[ -f "$STATE/frontend.pid" ]]; then
+    recorded_pid="$(<"$STATE/frontend.pid")"
+  fi
+  command -v ps >/dev/null 2>&1 || return 0
+  command -v lsof >/dev/null 2>&1 || return 0
+
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    pid="${line%% *}"
+    command="${line#* }"
+    [[ -n "$pid" && "$pid" != "$recorded_pid" ]] || continue
+    case "$command" in
+      *next-server*|*"next dev"*) ;;
+      *) continue ;;
+    esac
+    cwd="$(_frontend_process_cwd "$pid")"
+    [[ "$cwd" == "$ROOT/frontend" ]] || continue
+    kill "$pid" 2>/dev/null || true
+    for _ in {1..20}; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.25
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+    echo "stopped stale frontend pid $pid"
+  done < <(ps -axo pid=,command=)
+}
+
+_last_log_line() {
+  local name="$1" log="$STATE/$1.log"
+  [[ -f "$log" ]] || return 0
+  awk 'NF { line=$0 } END { if (line != "") print line }' "$log"
+}
+
+_record_start_failure() {
+  local name="$1" last_line
+  last_line="$(_last_log_line "$name")"
+  [[ -n "$last_line" ]] || last_line="no log output"
+  printf '%s\n' "$last_line" > "$STATE/$name.error"
+}
+
 _port_holder_report() {
   local port="$1" pid command cwd
   command -v lsof >/dev/null 2>&1 || return 0
@@ -127,6 +177,8 @@ _component_status() {
   else
     if [[ "$name" == worker ]]; then
       echo "$name: stopped (pid none, port n/a)"
+    elif [[ -f "$STATE/$name.error" ]]; then
+      echo "$name: stopped (pid none, port $port; last error: $(<"$STATE/$name.error"))"
     else
       echo "$name: stopped (pid none, port $port)"
     fi
@@ -176,6 +228,7 @@ else
   echo "SearXNG is healthy at $SEARXNG_URL."
 fi
 
+_stop_stale_frontend_servers
 FRONTEND_PORT="$FRONTEND_PORT_REQUESTED"
 while ! _port_free "$FRONTEND_PORT"; do
   _port_holder_report "$FRONTEND_PORT"
@@ -212,6 +265,7 @@ start_process() {
       kill "$new_pid" 2>/dev/null || true
       wait "$new_pid" 2>/dev/null || true
       [[ -f "$pidfile" ]] && ! _pid_alive "$pidfile" && rm -f "$pidfile"
+      _record_start_failure "$name"
       echo "$name did not become ready; its pidfile was not recorded." >&2
       return 1
     fi
@@ -220,16 +274,37 @@ start_process() {
     if ! kill -0 "$new_pid" 2>/dev/null; then
       wait "$new_pid" 2>/dev/null || true
       [[ -f "$pidfile" ]] && ! _pid_alive "$pidfile" && rm -f "$pidfile"
+      _record_start_failure "$name"
       echo "$name exited before readiness; its pidfile was not recorded." >&2
       return 1
     fi
   fi
   echo "$new_pid" > "$pidfile"
+  rm -f "$STATE/$name.error"
 }
 
-start_process api port "$API_PORT" env TRUECRIME_JOB_RUNNER=external TRUECRIME_API_PORT="$API_PORT" TRUECRIME_FRONTEND_PORT="$FRONTEND_PORT" "${SAFE_ENV[@]}" \
-  "$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT"
-start_process worker process - env TRUECRIME_JOB_RUNNER=external "${SAFE_ENV[@]}" "$ROOT/.venv/bin/python" -m app.worker
+start_failed=0
+start_process api port "$API_PORT" env TRUECRIME_JOB_RUNNER=external TRUECRIME_API_PORT="$API_PORT" TRUECRIME_FRONTEND_PORT="$FRONTEND_PORT" ${SAFE_ENV[@]+"${SAFE_ENV[@]}"} \
+  "$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" || start_failed=1
+start_process worker process - env TRUECRIME_JOB_RUNNER=external ${SAFE_ENV[@]+"${SAFE_ENV[@]}"} "$ROOT/.venv/bin/python" -m app.worker || start_failed=1
 start_process frontend port "$FRONTEND_PORT" env NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:$API_PORT" \
-  npm --prefix "$ROOT/frontend" run dev -- --hostname 127.0.0.1 --port "$FRONTEND_PORT"
-echo "Local services started (api: $API_PORT, frontend: $FRONTEND_PORT). Run scripts/dev_up.sh status for readiness."
+  npm --prefix "$ROOT/frontend" run dev -- --hostname 127.0.0.1 --port "$FRONTEND_PORT" || start_failed=1
+
+verify_failed=()
+for name in api worker frontend; do
+  if ! _pid_alive "$STATE/$name.pid"; then
+    verify_failed+=("$name")
+  fi
+done
+if ((${#verify_failed[@]} > 0)) || [[ "$start_failed" == 1 ]]; then
+  ((${#verify_failed[@]} > 0)) || verify_failed+=("startup")
+  echo "Services failed after readiness verification: ${verify_failed[*]}" >&2
+  for name in api worker frontend; do
+    if [[ -f "$STATE/$name.error" ]]; then
+      echo "$name last error: $(<"$STATE/$name.error")" >&2
+    fi
+  done
+  exit 1
+fi
+
+echo "Local services started (api: $API_PORT, frontend: $FRONTEND_PORT). Run scripts/dev_up.sh --status for readiness."
