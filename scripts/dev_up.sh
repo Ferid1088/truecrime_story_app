@@ -62,6 +62,25 @@ command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
 
 _port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
+_wait_for_port() {
+  local pid="$1" port="$2"
+  for _ in {1..40}; do
+    kill -0 "$pid" 2>/dev/null || return 1
+    if ! _port_free "$port"; then return 0; fi
+    sleep 0.25
+  done
+  return 1
+}
+
+_wait_for_process() {
+  local pid="$1"
+  for _ in {1..40}; do
+    kill -0 "$pid" 2>/dev/null || return 1
+    sleep 0.25
+  done
+  kill -0 "$pid" 2>/dev/null
+}
+
 # The API port is fixed (the worker, the frontend and CORS all need to agree on it without
 # re-discovery); the frontend port is a starting point only, moved forward if it's taken.
 FRONTEND_PORT="$FRONTEND_PORT_REQUESTED"
@@ -86,15 +105,33 @@ for _ in {1..30}; do curl -fsS 'http://127.0.0.1:8085/search?q=health&format=jso
 curl -fsS 'http://127.0.0.1:8085/search?q=health&format=json' >/dev/null 2>&1 || { echo "SearXNG did not become ready." >&2; exit 1; }
 
 start_process() {
-  name="$1"; shift
-  pidfile="$STATE/$name.pid"
+  local name="$1" readiness="$2" target="$3"; shift 3
+  local pidfile="$STATE/$name.pid" new_pid
   if [[ -f "$pidfile" ]] && kill -0 "$(<"$pidfile")" 2>/dev/null; then return; fi
   nohup "$@" >"$STATE/$name.log" 2>&1 &
-  echo $! > "$pidfile"
+  new_pid=$!
+  if [[ "$readiness" == port ]]; then
+    _wait_for_port "$new_pid" "$target" || {
+      kill "$new_pid" 2>/dev/null || true
+      wait "$new_pid" 2>/dev/null || true
+      [[ -f "$pidfile" ]] && ! kill -0 "$(<"$pidfile")" 2>/dev/null && rm -f "$pidfile"
+      echo "$name did not become ready; its pidfile was not recorded." >&2
+      return 1
+    }
+  else
+    _wait_for_process "$new_pid" || {
+      kill "$new_pid" 2>/dev/null || true
+      wait "$new_pid" 2>/dev/null || true
+      [[ -f "$pidfile" ]] && ! kill -0 "$(<"$pidfile")" 2>/dev/null && rm -f "$pidfile"
+      echo "$name exited before readiness; its pidfile was not recorded." >&2
+      return 1
+    }
+  fi
+  echo "$new_pid" > "$pidfile"
 }
-start_process api env TRUECRIME_JOB_RUNNER=external TRUECRIME_API_PORT="$API_PORT" TRUECRIME_FRONTEND_PORT="$FRONTEND_PORT" \
+start_process api port "$API_PORT" env TRUECRIME_JOB_RUNNER=external TRUECRIME_API_PORT="$API_PORT" TRUECRIME_FRONTEND_PORT="$FRONTEND_PORT" \
   "$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT"
-start_process worker env TRUECRIME_JOB_RUNNER=external "$ROOT/.venv/bin/python" -m app.worker
-start_process frontend env NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:$API_PORT" \
+start_process worker process - env TRUECRIME_JOB_RUNNER=external "$ROOT/.venv/bin/python" -m app.worker
+start_process frontend port "$FRONTEND_PORT" env NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:$API_PORT" \
   npm --prefix "$ROOT/frontend" run dev -- --hostname 127.0.0.1 --port "$FRONTEND_PORT"
 echo "Local services started (api: $API_PORT, frontend: $FRONTEND_PORT). Run scripts/dev_up.sh status for readiness."

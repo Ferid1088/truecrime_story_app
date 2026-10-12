@@ -24,6 +24,15 @@ def test_native_process_scripts_exist_and_have_expected_order():
     assert "docker" not in up.lower()
 
 
+def test_dev_up_records_pid_only_after_readiness_and_cleans_failed_start():
+    up = (ROOT / "scripts/dev_up.sh").read_text()
+    assert 'new_pid=$!' in up
+    assert 'echo "$new_pid" > "$pidfile"' in up
+    assert up.index('_wait_for_port') < up.index('echo "$new_pid" > "$pidfile"')
+    assert 'did not become ready; its pidfile was not recorded.' in up
+    assert 'kill "$new_pid"' in up
+
+
 def test_native_search_template_has_json_api_and_local_secret_placeholder():
     template = (ROOT / "config/searxng/settings.yml.template").read_text()
     assert "format" in template or "json" in template

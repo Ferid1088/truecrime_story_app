@@ -49,5 +49,21 @@ fi
 TRUECRIME_SEARXNG_URL="http://127.0.0.1:8085" \
 SEARXNG_SETTINGS_PATH="$SETTINGS" \
 nohup "$RUNNER" >"$LOGFILE" 2>&1 &
-echo $! > "$PIDFILE"
-echo "SearXNG started (pid $(<"$PIDFILE")); readiness is checked by dev_up.sh."
+new_pid=$!
+ready=0
+for _ in {1..40}; do
+  if ! kill -0 "$new_pid" 2>/dev/null; then break; fi
+  if curl -fsS 'http://127.0.0.1:8085/search?q=health&format=json' >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 0.25
+done
+if [[ "$ready" != 1 ]]; then
+  kill "$new_pid" 2>/dev/null || true
+  wait "$new_pid" 2>/dev/null || true
+  [[ -f "$PIDFILE" ]] && ! kill -0 "$(<"$PIDFILE")" 2>/dev/null && rm -f "$PIDFILE"
+  fail "SearXNG did not become ready; its pidfile was not recorded."
+fi
+echo "$new_pid" > "$PIDFILE"
+echo "SearXNG started (pid $(<"$PIDFILE"))."

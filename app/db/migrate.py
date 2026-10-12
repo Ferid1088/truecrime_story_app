@@ -100,6 +100,42 @@ def _first_difference(a: dict, b: dict) -> str:
     return "unknown difference"
 
 
+def _difference_summary(actual: dict, expected: dict) -> str:
+    """Describe every structural difference without including row data."""
+    parts: list[str] = []
+    missing_tables = sorted(set(expected) - set(actual))
+    extra_tables = sorted(set(actual) - set(expected))
+    if missing_tables:
+        parts.append("missing tables: " + ", ".join(missing_tables))
+    if extra_tables:
+        parts.append("extra tables: " + ", ".join(extra_tables))
+    for table in sorted(set(actual) & set(expected)):
+        left, right = actual[table], expected[table]
+        missing = sorted(set(right["columns"]) - set(left["columns"]))
+        extra = sorted(set(left["columns"]) - set(right["columns"]))
+        changed = sorted(name for name in set(left["columns"]) & set(right["columns"])
+                         if left["columns"][name] != right["columns"][name])
+        if missing:
+            parts.append(f"{table} missing columns: {', '.join(missing)}")
+        if extra:
+            parts.append(f"{table} extra columns: {', '.join(extra)}")
+        if changed:
+            parts.append(f"{table} changed columns: {', '.join(changed)}")
+        missing_indexes = sorted(set(right["indexes"]) - set(left["indexes"]))
+        extra_indexes = sorted(set(left["indexes"]) - set(right["indexes"]))
+        if missing_indexes:
+            parts.append(f"{table} missing indexes: {', '.join(missing_indexes)}")
+        if extra_indexes:
+            parts.append(f"{table} extra indexes: {', '.join(extra_indexes)}")
+        missing_fks = sorted(set(right["foreign_keys"]) - set(left["foreign_keys"]))
+        extra_fks = sorted(set(left["foreign_keys"]) - set(right["foreign_keys"]))
+        if missing_fks:
+            parts.append(f"{table} missing foreign keys: {len(missing_fks)}")
+        if extra_fks:
+            parts.append(f"{table} extra foreign keys: {len(extra_fks)}")
+    return "; ".join(parts) or "unknown difference"
+
+
 def upgrade_database(engine: Engine) -> str:
     """Upgrade `engine`'s database to the newest revision. Returns what it did."""
     url = engine.url.render_as_string(hide_password=False)
@@ -123,6 +159,6 @@ def upgrade_database(engine: Engine) -> str:
         return "adopted database already at current models"
     raise SchemaMismatch(
         "The database was created before Alembic and does not match the known baseline: "
-        + _first_difference(live, _legacy_signature())
-        + ". Nothing was changed. Restore a backup or compare with scripts/db_tools.py schema-diff."
+        + _difference_summary(live, _legacy_signature())
+        + ". Nothing was changed. Restore a backup or run scripts/db_reconcile.sh."
     )

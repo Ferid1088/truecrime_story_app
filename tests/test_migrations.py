@@ -147,7 +147,10 @@ def test_unknown_database_is_refused_and_left_untouched(tmp_path):
     before = db.read_bytes()
     with pytest.raises(migrate.SchemaMismatch) as exc:
         migrate.upgrade_database(_engine(db))
-    assert "cases" in str(exc.value) and "Nothing was changed" in str(exc.value)
+    message = str(exc.value)
+    assert "cases extra columns: surprise" in message
+    assert "Nothing was changed" in message
+    assert "scripts/db_reconcile.sh" in message
     assert db.read_bytes() == before
 
 
