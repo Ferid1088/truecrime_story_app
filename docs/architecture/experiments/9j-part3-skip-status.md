@@ -1,6 +1,7 @@
 # 9J Part 3 — skip-mode status
 
-The only SOUND type after Part 2 is `research_result`. The committed evidence
+The SOUND types after the completed Part 2 evidence refresh are
+`master_story`, `naming`, and `research_result`. The committed evidence
 therefore keeps enforcement closed for every other type. The real four-language
 fixture was not run in verify/enforce mode: its fixture intentionally pins
 incremental mode off while it proves the full saved-output snapshot. This
