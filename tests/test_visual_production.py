@@ -904,6 +904,7 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
 @needs_ffmpeg
 def test_four_language_independent_run_determinism(tmp_path):
     """Compare two fresh-process, fresh-DB, fresh-output full runs."""
+    from app.services.soundness import saved_request_snapshot
     root = Path(__file__).resolve().parents[1]
     runs = []
     for name in ("independent-run-a", "independent-run-b"):
@@ -926,22 +927,13 @@ def test_four_language_independent_run_determinism(tmp_path):
             cwd=root, env=env, capture_output=True, text=True, check=False,
         )
         assert completed.returncode == 0, completed.stdout + completed.stderr
-        runs.append((json.loads(snapshot.read_text()),
-                     [json.loads(line) for line in payloads.read_text().splitlines()]))
+        runs.append((json.loads(snapshot.read_text()), saved_request_snapshot(payloads)))
     first, second = runs
     assert first[0] == second[0]
-    # Language stages are intentionally concurrent, so global append order is
-    # scheduler-dependent.  Compare the complete request multiset while the
-    # recorder still exposes provider/stage/language/sequence order for A2's
-    # diagnostic diff.
-    payload_key = lambda entry: json.dumps(entry, sort_keys=True,
-                                           ensure_ascii=False, separators=(",", ":"))
-    assert sorted(first[1], key=payload_key) == sorted(second[1], key=payload_key)
-    ordered_differences = sum(a != b for a, b in zip(first[1], second[1]))
+    assert first[1] == second[1]
     print("INDEPENDENT_DETERMINISM", json.dumps({
         "runs": 2, "artifacts": len(first[0]), "provider_calls": len(first[1]),
-        "snapshot_equal": True, "payload_multiset_equal": True,
-        "ordered_payload_differences": ordered_differences,
+        "snapshot_equal": True, "logical_request_snapshot_equal": True,
     }, sort_keys=True))
 
 

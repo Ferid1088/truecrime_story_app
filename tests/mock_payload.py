@@ -64,7 +64,7 @@ def request_hash(kind: str, **payload: Any) -> str:
 
 
 def record_request(provider: str, stage: str, language: str | None,
-                   kind: str, payload: dict[str, Any]) -> None:
+                   kind: str, payload: dict[str, Any], *, identity: str | None = None) -> None:
     """Record one complete provider request for independent-run diagnosis."""
     log_path = os.environ.get("SOUNDNESS_PAYLOAD_LOG")
     if not log_path:
@@ -78,6 +78,7 @@ def record_request(provider: str, stage: str, language: str | None,
         "language": language,
         "kind": kind,
         "payload": _jsonable(payload),
+        "request_identity": identity,
     }
     path = Path(log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,9 +88,9 @@ def record_request(provider: str, stage: str, language: str | None,
 
 
 def provider_request(provider: str, stage: str, language_context: str | None,
-                     kind: str, **payload: Any) -> str:
+                     kind: str, *, recording_identity: str | None = None, **payload: Any) -> str:
     """Record and fingerprint exactly the same complete fake request."""
-    record_request(provider, stage, language_context, kind, payload)
+    record_request(provider, stage, language_context, kind, payload, identity=recording_identity)
     return request_hash(kind, **payload)
 
 
@@ -117,9 +118,12 @@ def request_language(user: Any, system: Any = None) -> str | None:
 def config_hash_payload(config: Any) -> Any:
     """Return the complete typed configuration for inclusion in a fake request."""
     payload = _jsonable(config)
-    # Incremental policy controls reuse, not provider generation.  Including
-    # it in a fake provider request made mode=off look like a generation
-    # input even though the pipeline output must be unchanged.
+    # The fake deliberately fingerprints more than the real wire request.
+    # Production builds scoped bodies, not ai_config/production_policies:
+    # generation/openai_compat.py:_chat, voice/elevenlabs.py:_body/generate,
+    # documentary/asr.py:WhisperASR.transcribe, visuals/research.py and maps.py,
+    # render/engine.py:VideoRenderer.render. Incremental controls reuse only.
+    # Keep this test-only exclusion while the fake hashes the broad config.
     if isinstance(payload, dict):
         policies = payload.get("production_policies")
         if isinstance(policies, dict):

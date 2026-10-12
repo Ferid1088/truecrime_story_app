@@ -149,6 +149,30 @@ def saved_output_snapshot(db: Session, *, file_roots: Iterable[Path] = ()) -> di
     return snapshot
 
 
+def saved_request_snapshot(path: Path) -> dict[str, str]:
+    """Snapshot diagnostic requests by logical identity, never by output.
+
+    ASR threads append in completion order. Their recorder supplies block +
+    retry seed; other providers retain sequence within provider/stage/language.
+    Payloads are hashed only AFTER keys are assigned: a changed payload cannot
+    move a call to a different comparison slot or be hidden by output sorting.
+    This is diagnostic evidence, not the artifact soundness observation.
+    """
+    occurrences: dict[str, int] = defaultdict(int)
+    result = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = json.loads(line)
+        if entry["provider"] == "asr" and not entry.get("request_identity"):
+            raise ValueError("ASR recording requires logical request identity")
+        identity = json.dumps([entry["provider"], entry["stage"], entry["language"],
+                               entry.get("request_identity")], separators=(",", ":"))
+        key = f"{identity}:{occurrences[identity]}"
+        occurrences[identity] += 1
+        result[key] = hashlib.sha256(json.dumps(entry["payload"], sort_keys=True,
+                                              ensure_ascii=False).encode()).hexdigest()
+    return dict(sorted(result.items()))
+
+
 @dataclass(frozen=True)
 class SnapshotTemplate:
     database_path: Path

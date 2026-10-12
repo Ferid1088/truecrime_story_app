@@ -96,6 +96,7 @@ class FakeASR:
             words = words[:3] + words[8:]  # five words skipped
         fingerprint = provider_request(
             "asr", "transcribe", language, "asr",
+            recording_identity=f"{wav.stem.rsplit('__', 1)[0]}:seed={meta['seed']}",
             audio=wav.read_bytes(), sidecar=meta, language=language,
             config=config_hash_payload(ai_config.asr_check),
         )
