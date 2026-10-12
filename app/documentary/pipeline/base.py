@@ -193,7 +193,13 @@ class StageRunner:
         register_stage_outputs(self.db, self.job, pipeline_stage, language,
                                detail if isinstance(detail, dict) else None, self.result)
         from app.services.skip_policy import SkipPolicy
-        if skip_result is not None and ai_config.production_policies.incremental.mode == "verify":
+        # A stage that was already classified ``would-run`` is not a verify
+        # candidate.  Only an initial ``would-skip`` can produce a
+        # verify_match/verify_mismatch result; otherwise every unproven or
+        # invalidated stage would be reported as a false mismatch.
+        if (skip_result is not None
+                and skip_result.decision.decision == "skip"
+                and ai_config.production_policies.incremental.mode == "verify"):
             current = SkipPolicy(self.db).evaluate(self.job, name)
             post_run_match = current.decision.decision == "skip"
             current_decision = PolicyDecision(

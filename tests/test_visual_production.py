@@ -897,8 +897,9 @@ def documentary_env(tmp_path, monkeypatch):
     # absolute pytest temp prefix becomes part of request fingerprints.
     monkeypatch.setenv("SOUNDNESS_RUN_ROOT", str(run_root))
     if os.environ.get("SOUNDNESS_FROM_ZERO") == "1":
-        from app.providers.base import ProviderJob
         from mock_payload import provider_request
+
+        from app.providers.base import ProviderJob
 
         class MockResearchProvider:
             name = "truecrime"
@@ -1076,7 +1077,12 @@ def documentary_env(tmp_path, monkeypatch):
                 self.db.commit()
             return result
 
-        monkeypatch.setattr(StageRunner, "_stage", seed_researched_master)
+        # The persistent rerun proof must consume the saved master output. A
+        # reseed is valid only while constructing the initial fixture; doing
+        # it on a rerun would overwrite an intentional out-of-band edit before
+        # the master-story hash gate can observe it.
+        if os.environ.get("SOUNDNESS_SEED_MASTER") == "1":
+            monkeypatch.setattr(StageRunner, "_stage", seed_researched_master)
     monkeypatch.setattr(ai_config.voice, "work_dir", str(run_root / "audio"))
     monkeypatch.setattr(ai_config.music_library, "dir", str(run_root / "lib"))
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(run_root / "cases"))

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path, PurePath
 
 from app.core.ai_config import ai_config
@@ -13,6 +14,7 @@ from app.core.policy import PolicyDecision
 from app.db.models import (
     Artifact,
     AudioPlan,
+    Case,
     ChapterPlan,
     DocumentaryJob,
     EditorialBlueprint,
@@ -21,6 +23,7 @@ from app.db.models import (
     MusicTrack,
     MusicUsage,
     ProductionScript,
+    ResearchResult,
     StoryVersion,
     VisualAsset,
     VisualPlan,
@@ -106,6 +109,56 @@ def _asset_bytes_sha256(asset: VisualAsset) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _research_result_payload(row: ResearchResult) -> dict:
+    """Stable semantic fields for the saved research-result artifact."""
+    return {
+        name: getattr(row, name)
+        for name in (
+            "research_query_id", "url", "canonical_url", "final_url", "title",
+            "snippet", "rank", "provider", "model", "result_language",
+            "relevance_score", "credibility_score", "novelty_score", "fetch_status",
+            "accepted", "rejection_reason",
+        )
+    }
+
+
+def _logical_run_paths(value):
+    """Make per-run fixture paths stable in shadow input fingerprints."""
+    raw_root = os.environ.get("SOUNDNESS_RUN_ROOT")
+    roots = {raw_root} if raw_root else set()
+    if raw_root:
+        roots.add(str(Path(raw_root).resolve()))
+    if isinstance(value, str):
+        for root in sorted((root for root in roots if root), key=len, reverse=True):
+            if value == root or value.startswith(root + os.sep):
+                return "<RUN>" + value[len(root):]
+        return value
+    if isinstance(value, dict):
+        return {key: _logical_run_paths(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_logical_run_paths(item) for item in value]
+    return value
+
+
+def _producer_config() -> dict:
+    """Return configuration read by producers, excluding policy bookkeeping.
+
+    Incremental mode/enforced-types control the cache gate itself; no
+    documentary producer reads them.  Including those values would make
+    changing from ``off`` during the initial build to ``enforce`` during a
+    rerun invalidate every otherwise unchanged artifact.
+    """
+    config = ai_config.model_dump(mode="json")
+    policies = config.get("production_policies")
+    if isinstance(policies, dict):
+        incremental = policies.get("incremental")
+        if isinstance(incremental, dict):
+            policies = dict(policies)
+            policies.pop("incremental", None)
+            config["production_policies"] = policies
+    return _logical_run_paths(config)
+
+
 def _asset_codes(value) -> set[str]:
     """Find the editorial asset identities actually referenced by a plan."""
     found: set[str] = set()
@@ -178,8 +231,24 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
     happened to be unchanged.
     """
     detail = detail or {}
-    source: dict = {"stage": stage, "language": language, "detail": detail,
+    # Stage detail is operational bookkeeping, not a producer input.  For
+    # example, research returns a job id on first execution and
+    # ``case already has facts`` on a valid resume.  Fingerprinting that
+    # output detail would make every unchanged resume look edited.
+    source: dict = {"stage": stage, "language": language,
                     "job_languages": _language_rows(job, None)}
+    if artifact_type == "research_result":
+        source["research_results"] = [
+            _research_result_payload(row)
+            for row in db.query(ResearchResult).order_by(ResearchResult.id).all()
+        ]
+    elif artifact_type == "naming":
+        case = db.get(Case, job.case_id)
+        source["case_identity"] = {
+            "canonical_title": case.canonical_title if case else None,
+            "summary": case.summary if case else None,
+            "resolution_status": case.resolution_status if case else None,
+        }
     if artifact_type in ("master_story", "master_approval"):
         source["story"] = _row_payload(_get(db, StoryVersion, detail.get("master_version_id")))
     elif artifact_type == "beats":
@@ -238,7 +307,7 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
     # is conservative: every section read by a producer (including agent
     # prompts/routing, pronunciation and channel/studio identity) is an
     # explicit input instead of an accidental hidden default.
-    source["config"] = ai_config.model_dump(mode="json")
+    source["config"] = _producer_config()
     channel_identity = {}
     for lang, channel in ai_config.channels.items():
         item = channel.model_dump(mode="json")
@@ -248,7 +317,7 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
             if path.is_file():
                 item["logo_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         channel_identity[lang] = item
-    source["channel_identity"] = channel_identity
+    source["channel_identity"] = _logical_run_paths(channel_identity)
     try:
         from app.documentary import intros
 
@@ -274,7 +343,19 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
                     artifact_type: str) -> dict:
     """Canonical representation of the content persisted by a stage."""
     payload: dict = {"artifact_type": artifact_type}
-    if artifact_type == "visual_asset":
+    if artifact_type == "research_result":
+        payload["research_results"] = [
+            _research_result_payload(row)
+            for row in db.query(ResearchResult).order_by(ResearchResult.id).all()
+        ]
+    elif artifact_type == "naming":
+        case = db.get(Case, job.case_id)
+        payload["case_identity"] = {
+            "canonical_title": case.canonical_title if case else None,
+            "summary": case.summary if case else None,
+            "resolution_status": case.resolution_status if case else None,
+        }
+    elif artifact_type == "visual_asset":
         payload["row"] = _row_payload(_get(db, VisualAsset, detail.get("asset_id")))
     elif artifact_type in ("master_story", "master_approval"):
         payload["row"] = _row_payload(_get(db, StoryVersion, detail.get("master_version_id")))
