@@ -29,7 +29,7 @@ def _jsonable(value: Any) -> Any:
     if callable(value):
         return {"callable": f"{value.__module__}.{value.__qualname__}"}
     if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json")
+        return _jsonable(value.model_dump(mode="json"))
     if hasattr(value, "__dict__") and not isinstance(value, type):
         return {k: _jsonable(v) for k, v in vars(value).items() if not k.startswith("_")}
     if isinstance(value, dict):
@@ -39,7 +39,10 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, str):
         run_root = os.environ.get("SOUNDNESS_RUN_ROOT")
         if run_root:
-            value = value.replace(str(Path(run_root).resolve()), "<PATH>")
+            raw_root = str(Path(run_root))
+            resolved_root = str(Path(run_root).resolve())
+            value = value.replace(raw_root, "<PATH>")
+            value = value.replace(resolved_root, "<PATH>")
         # Several fake requests are JSON strings.  Their object insertion
         # order can follow concurrent language completion order, but that is
         # not a semantic request-field change and must not perturb a fake.

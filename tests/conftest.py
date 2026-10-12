@@ -1,9 +1,48 @@
 import os
+import sys
 import tempfile
 
 _PG_URL = os.environ.get("TC_TEST_DATABASE_URL")
 _COPY_URL = os.environ.get("TC_COPY_DATABASE_URL")
 _PG_ADMIN_URL = os.environ.get("TRUECRIME_TEST_ADMIN_URL")
+
+
+def _postgres_admin_url(pg_url):
+    """Return a verified local admin URL, or None with one actionable line."""
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    parsed = make_url(pg_url)
+    candidates = [_PG_ADMIN_URL] if _PG_ADMIN_URL else []
+    local_user = os.environ.get("PGUSER") or os.environ.get("USER") or "postgres"
+    candidates.append(parsed.set(
+        username=local_user, password=None, database="postgres"
+    ).render_as_string(hide_password=False))
+    if parsed.host in (None, "localhost", "127.0.0.1"):
+        candidates.append(f"postgresql+psycopg:///postgres?user={local_user}")
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        engine = create_engine(candidate, isolation_level="AUTOCOMMIT")
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            return candidate
+        except Exception:
+            pass
+        finally:
+            engine.dispose()
+    print(
+        "POSTGRES_TEST_ADMIN_SKIP: no usable TRUECRIME_TEST_ADMIN_URL or local "
+        "admin connection; migration-copy tests will be skipped",
+        flush=True,
+    )
+    return None
+
+
+_PG_RESOLVED_ADMIN = None
 if _COPY_URL:
     # An explicit disposable copy is used by the Phase-B reconciliation smoke
     # test.  Unlike the Postgres suite, it must not drop or recreate anything.
@@ -13,15 +52,20 @@ elif _PG_URL:
     import sqlalchemy as _sa
     from sqlalchemy.engine import make_url as _make_url
 
-    _admin_url = _PG_ADMIN_URL or _make_url(_PG_URL).set(
-        username=os.environ.get("USER") or "postgres", password=None)
-    _admin_url = _make_url(_admin_url).set(database=_make_url(_PG_URL).database)
-    _eng = _sa.create_engine(_admin_url, isolation_level="AUTOCOMMIT")
-    with _eng.connect() as _c:
-        _c.execute(_sa.text("DROP SCHEMA public CASCADE"))
-        _c.execute(_sa.text("CREATE SCHEMA public"))
-        _c.execute(_sa.text("ALTER SCHEMA public OWNER TO truecrime"))
-    _eng.dispose()
+    _PG_RESOLVED_ADMIN = _postgres_admin_url(_PG_URL)
+    if _PG_RESOLVED_ADMIN:
+        _admin_url = _make_url(_PG_RESOLVED_ADMIN).set(
+            database=_make_url(_PG_URL).database
+        )
+        _eng = _sa.create_engine(_admin_url, isolation_level="AUTOCOMMIT")
+        with _eng.connect() as _c:
+            _c.execute(_sa.text("DROP SCHEMA public CASCADE"))
+            _c.execute(_sa.text("CREATE SCHEMA public"))
+            _c.execute(_sa.text("ALTER SCHEMA public OWNER TO truecrime"))
+        _eng.dispose()
+        os.environ["TRUECRIME_TEST_ADMIN_URL"] = _PG_RESOLVED_ADMIN
+    else:
+        os.environ["TRUECRIME_TEST_ADMIN_UNAVAILABLE"] = "1"
     os.environ["DATABASE_URL"] = _PG_URL
 else:
     os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mktemp(suffix='.db')}"
@@ -47,6 +91,40 @@ def db_session():
         yield db
     finally:
         db.close()
+
+
+@pytest.fixture
+def isolated_pipeline_db(monkeypatch, tmp_path):
+    """Give the full documentary golden test a disposable database."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    import app.db.base as base
+    import app.db.models  # noqa: F401 - populate Base.metadata
+    from app.db.migrate import upgrade_database
+    import app.documentary.music as music
+
+    # The persistent-template builder supplies a disposable copy through
+    # TC_COPY_DATABASE_URL.  Use that database so the child run can copy the
+    # actual populated baseline; ordinary suite runs get a fresh per-test DB.
+    database_url = os.environ.get("TC_COPY_DATABASE_URL")
+    if database_url:
+        engine = create_engine(database_url)
+    else:
+        engine = create_engine(
+            f"sqlite:///{tmp_path / 'pipeline-isolated.db'}",
+            connect_args={"check_same_thread": False, "timeout": 15},
+        )
+    upgrade_database(engine)
+    monkeypatch.setattr(base, "engine", engine)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(base, "SessionLocal", factory)
+    monkeypatch.setattr(sys.modules[__name__], "SessionLocal", factory)
+    monkeypatch.setattr(music, "SessionLocal", factory)
+    try:
+        yield
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture

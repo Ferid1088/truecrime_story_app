@@ -159,7 +159,16 @@ def saved_output_snapshot(db: Session, *, file_roots: Iterable[Path] = ()) -> di
     named ``SNAPSHOT_EXCLUDED_FIELDS`` contract above.
     """
     roots = tuple(Path(root) for root in file_roots)
-    replacements = tuple((str(root), f"<{root.name}>") for root in roots)
+    # A test run may receive either the spelling supplied by the caller or
+    # its resolved spelling (notably /tmp versus /private/tmp on macOS).
+    # Canonicalize both spellings so run-directory names cannot affect the
+    # persisted-row side of a snapshot comparison.
+    replacement_pairs = [
+        (spelling, f"<{root.name}>")
+        for root in roots
+        for spelling in (str(root), str(root.resolve()))
+    ]
+    replacements = tuple(dict.fromkeys(replacement_pairs))
     snapshot: dict[str, str] = {}
     debug_values: dict[str, object] = {}
     bind = db.get_bind()

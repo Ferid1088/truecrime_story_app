@@ -58,19 +58,18 @@ app-owned PostgreSQL URL and starting `scripts/dev_up.sh --first-run-safe`.
 ## Postgres integration tests
 
 The app role `truecrime` is deliberately not a database administrator. Run the
-disposable-database suite with an explicit administrator URL (normally the
-local Homebrew superuser):
+disposable-database suite; the fixture derives a local administrator from
+`$PGUSER`/`$USER`:
 
 ```sh
 TC_TEST_DATABASE_URL='postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime_test' \
-TRUECRIME_TEST_ADMIN_URL='postgresql+psycopg://<local-superuser>@127.0.0.1:5432/postgres' \
 PYTHONPATH=. .venv/bin/pytest -q tests/test_sqlite_to_postgres.py
 ```
 
-When `TRUECRIME_TEST_ADMIN_URL` is omitted, the fixture derives the local
-superuser URL from `TC_TEST_DATABASE_URL` and `$USER`; CI or a remote server
-must set it explicitly. The administrator URL is used only to create and drop
-temporary databases and is never stored in the repository.
+Set `TRUECRIME_TEST_ADMIN_URL` for a remote or nonstandard server. When no
+admin URL is usable, the fixture prints one `POSTGRES_TEST_ADMIN_SKIP` line and
+skips only these disposable-database tests. The administrator URL is used only
+to create and drop temporary databases and is never stored in the repository.
 
 ## Table-count convention
 

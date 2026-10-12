@@ -43,13 +43,16 @@ def test_exact_collision_with_internal_archived_and_production(db_session):
 
 def test_own_family_is_not_a_collision_but_own_research_title_is(db_session):
     me = _case(db_session, "Family subject")
+    # Use a title not also seeded by the video-identity tests; the assertion is
+    # about same-case family exclusion, not cross-test corpus contents.
+    own_title = "Der eigene Familienkreis"
     db_session.add(EpisodeIdentity(case_id=me.id, language="de", channel_id="de",
-                                   editorial_title="Der verschwundene Kreis"))
+                                   editorial_title=own_title))
     db_session.add(Source(case_id=me.id, title="Der leere Hof", url="http://x/1",
                           source_type="article", language="de"))
     db_session.commit()
     corpus = get_corpus(db_session)
-    assert not C.check_lexical("Der verschwundene Kreis", "de", me.id, corpus).rejected
+    assert not C.check_lexical(own_title, "de", me.id, corpus).rejected
     assert C.check_lexical("Der leere Hof", "de", me.id, corpus).exact
 
 

@@ -17,7 +17,13 @@ from app.db.models import Case, Fact, StoryVersion
 
 PG = os.environ.get("TC_TEST_DATABASE_URL")
 TEST_ADMIN = os.environ.get("TRUECRIME_TEST_ADMIN_URL")
-pytestmark = pytest.mark.skipif(not PG, reason="needs a Postgres server (TC_TEST_DATABASE_URL)")
+pytestmark = pytest.mark.skipif(
+    not PG or os.environ.get("TRUECRIME_TEST_ADMIN_UNAVAILABLE"),
+    reason=(
+        "needs a Postgres server (TC_TEST_DATABASE_URL) and a usable admin "
+        "URL (TRUECRIME_TEST_ADMIN_URL or local admin)"
+    ),
+)
 
 _spec = importlib.util.spec_from_file_location(
     "sqlite_to_postgres", Path(__file__).resolve().parents[1] / "scripts" / "sqlite_to_postgres.py")

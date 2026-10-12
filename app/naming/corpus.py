@@ -58,7 +58,10 @@ _TABLES = (
     (CaseTitleCandidate, CaseTitleCandidate.title), (Source, Source.title),
     (VideoSource, VideoSource.title),
 )
-_cache: dict[int, tuple[tuple, TitleCollisionCorpus]] = {}
+# Keep the bind object itself as the cache key.  ``id(bind)`` can be reused
+# after a test engine is disposed, allowing a later database to inherit a
+# stale corpus under a reversed test order.
+_cache: dict[object, tuple[tuple, TitleCollisionCorpus]] = {}
 
 
 def _fingerprint(db: Session) -> tuple:
@@ -105,7 +108,7 @@ def build_corpus(db: Session) -> TitleCollisionCorpus:
 
 
 def get_corpus(db: Session) -> TitleCollisionCorpus:
-    key = id(db.get_bind())
+    key = db.get_bind()
     fp = _fingerprint(db)
     hit = _cache.get(key)
     if hit and hit[0] == fp:

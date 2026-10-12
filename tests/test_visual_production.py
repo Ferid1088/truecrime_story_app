@@ -872,6 +872,10 @@ def documentary_env(tmp_path, monkeypatch):
     from app.documentary.voice_render import VoiceRenderer
 
     run_root = Path(os.environ.get("SOUNDNESS_RUN_ROOT", str(tmp_path)))
+    # All provider fakes must see the same canonical run-root contract even
+    # when the caller did not preconfigure SOUNDNESS_RUN_ROOT; otherwise the
+    # absolute pytest temp prefix becomes part of request fingerprints.
+    monkeypatch.setenv("SOUNDNESS_RUN_ROOT", str(run_root))
     monkeypatch.setattr(ai_config.voice, "work_dir", str(run_root / "audio"))
     monkeypatch.setattr(ai_config.music_library, "dir", str(run_root / "lib"))
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(run_root / "cases"))
@@ -1078,7 +1082,9 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
 
 
 @needs_ffmpeg
-def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, monkeypatch):
+def test_four_language_shadow_pipeline_real_job(
+    isolated_pipeline_db, db_session, documentary_env, monkeypatch
+):
     """The four-language proof uses the real pipeline, with only providers mocked."""
     from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
     from app.db.models import Artifact, ArtifactDep, MusicTrack, MusicUsage
