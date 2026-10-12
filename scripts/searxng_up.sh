@@ -9,8 +9,20 @@ PIDFILE="$STATE/searxng.pid"
 LOGFILE="$STATE/searxng.log"
 RUNNER="${SEARXNG_RUNNER:-}"
 
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+Usage: scripts/searxng_up.sh
+
+Start native SearXNG on the configured local URL. The first run creates
+data/searxng/settings.yml with a local secret. Use --help for this text.
+EOF
+  exit 0
+fi
+[[ -z "${1:-}" ]] || { echo "Usage: scripts/searxng_up.sh" >&2; exit 2; }
+
 fail() { echo "SearXNG: $*" >&2; exit 1; }
 mkdir -p "$STATE"
+[[ -f "$TEMPLATE" ]] || fail "settings template is missing: $TEMPLATE"
 
 if [[ ! -f "$SETTINGS" ]]; then
   command -v openssl >/dev/null 2>&1 || fail "openssl is required to create the local secret."
@@ -27,6 +39,7 @@ if [[ -z "$RUNNER" ]]; then
   fi
 fi
 [[ -n "$RUNNER" ]] || fail "native SearXNG is not installed; set SEARXNG_DIR or SEARXNG_RUNNER."
+[[ -x "$RUNNER" ]] || fail "SearXNG runner is not executable: $RUNNER"
 
 if [[ -f "$PIDFILE" ]] && kill -0 "$(<"$PIDFILE")" 2>/dev/null; then
   echo "SearXNG already running (pid $(<"$PIDFILE"))."

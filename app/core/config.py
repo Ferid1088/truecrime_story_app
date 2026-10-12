@@ -30,11 +30,22 @@ class Settings(BaseSettings):
     session_days: int = Field(
         default=14, validation_alias=AliasChoices("TRUECRIME_SESSION_DAYS", "SESSION_DAYS")
     )
-    # Browser origins allowed to call the API (comma separated).
+    # Local dev process ports (scripts/dev_up.sh, dev_down.sh, the frontend, CORS below).
+    # The API port is fixed; the frontend port is a starting point only (dev_up.sh moves to
+    # the next free port if it's taken, and exports the result for the frontend/CORS to use).
+    api_port: int = Field(
+        default=8001, validation_alias=AliasChoices("TRUECRIME_API_PORT")
+    )
+    frontend_port: int = Field(
+        default=3001, validation_alias=AliasChoices("TRUECRIME_FRONTEND_PORT")
+    )
+    # Browser origins allowed to call the API (comma separated). Default is derived from
+    # frontend_port unless explicitly set.
     cors_origins: str = Field(
-        default="http://localhost:3000,http://127.0.0.1:3000",
+        default="",
         validation_alias=AliasChoices("TRUECRIME_CORS_ORIGINS", "CORS_ORIGINS"),
     )
+
     # Send the session cookie only over HTTPS (turn on behind a TLS proxy).
     cookie_secure: bool = Field(
         default=False, validation_alias=AliasChoices("TRUECRIME_COOKIE_SECURE", "COOKIE_SECURE")
@@ -82,6 +93,14 @@ class Settings(BaseSettings):
             "TRUECRIME_PROVIDER_LEDGER_DAYS", "PROVIDER_LEDGER_DAYS"
         ),
     )
+
+    @model_validator(mode="after")
+    def _default_cors_origins(self):
+        if not self.cors_origins:
+            self.cors_origins = (
+                f"http://localhost:{self.frontend_port},http://127.0.0.1:{self.frontend_port}"
+            )
+        return self
 
     @model_validator(mode="after")
     def _warn_legacy_environment(self):

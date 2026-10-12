@@ -58,9 +58,12 @@ discovery and research answer `503` (there is no fallback path).
 برای یوتیوب، متادیتا و لینک‌ها را می‌توان جمع کرد، اما متن/ترنسکریپت باید از منبعی
 استفاده شود که شما حق استفاده از آن را دارید یا به‌صورت مجاز در اختیار اپ قرار گرفته باشد.
 
-## اجرای بومی روی macOS
+## Run the app natively on macOS
 
-```bash
+The commands below are the supported local workflow; `scripts/dev_up.sh --help`,
+`scripts/dev_down.sh --help`, and `scripts/searxng_up.sh --help` show the command
+usage without starting a service.
+
 Prerequisites: Python 3.12, Node.js 22+, Homebrew `postgresql@16`, `ffmpeg`,
 the PostgreSQL client tools (`pg_dump`), and a native SearXNG installation.
 The app does not manage or install these system services.
@@ -74,9 +77,13 @@ cd frontend && npm ci && cd ..
 brew services start postgresql@16
 ```
 
-Install SearXNG in a separate local Python environment and set `SEARXNG_DIR`
-when starting it; `scripts/searxng_up.sh` creates its private settings file
-under `data/searxng/` and generates the local secret there.
+Install SearXNG in its own venv (clone `searxng/searxng` from GitHub — there
+is no official PyPI package — and `pip install --use-pep517
+--no-build-isolation -e .` from that source tree into the venv; see
+https://docs.searxng.org/admin/installation-searxng.html), then set
+`SEARXNG_DIR` to that installation's root (the directory containing
+`.venv/bin/searxng-run`). `scripts/searxng_up.sh` creates its private
+settings file under `data/searxng/` and generates the local secret there.
 
 Start and stop the complete local process set with:
 
@@ -85,22 +92,32 @@ scripts/dev_up.sh
 scripts/dev_up.sh status
 scripts/dev_down.sh
 ```
-```
+
+`dev_up.sh` binds the API to `TRUECRIME_API_PORT` (default 8001, fixed — the
+worker and the frontend both need to agree on it) and the frontend to
+`TRUECRIME_FRONTEND_PORT` (default 3001; if that's taken, `dev_up.sh` moves
+to the next free port and prints which one it picked). Both can be set in
+`.env`. `dev_down.sh` only ever stops the PIDs `dev_up.sh` recorded under
+`data/dev/`, never anything found by port, so it never touches another
+project's process that happens to be using the same port.
 
 سپس:
 
-- API docs: http://127.0.0.1:8000/docs
+- API docs: http://127.0.0.1:8001/docs
 
 ## Frontend (Next.js)
 
 ```bash
 cd frontend
 npm install
-npm run dev   # http://localhost:3000
+npm run dev -- --port 3001
 ```
 
-The UI talks to the FastAPI backend at `http://127.0.0.1:8000` by default.
-Override with `NEXT_PUBLIC_API_URL` in `frontend/.env.local` if needed.
+The UI talks to the FastAPI backend at `http://127.0.0.1:8001` by default
+(`TRUECRIME_API_PORT`'s default). Override with `NEXT_PUBLIC_API_BASE_URL`
+(or the legacy `NEXT_PUBLIC_API_URL`) in `frontend/.env.local` if needed;
+`dev_up.sh` sets it for you from `TRUECRIME_API_PORT` when it starts the
+frontend.
 
 Backend tests: `pytest tests/`
 

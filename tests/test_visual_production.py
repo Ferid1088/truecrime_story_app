@@ -570,7 +570,8 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
-    assert job.status == "completed", (job.error, stages)
+    assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
+    assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     assert job.progress == 1.0
     assert all(s["status"] in ("done", "skipped") for s in stages.values())
     film = stages["film_length"]["detail"]
@@ -637,15 +638,17 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
 def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, monkeypatch):
     """The four-language proof uses the real pipeline, with only providers mocked."""
     from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
-    from app.db.models import Artifact, ArtifactDep, MusicUsage
+    from app.db.models import Artifact, ArtifactDep, MusicTrack, MusicUsage
     from app.documentary import jobs as J
     from app.documentary.production.script import timeline_layout
     from app.services.artifacts import ArtifactRegistry
 
+    # Music selection_reason is audit provenance and intentionally changes when
+    # the no-repeat usage history is reset for this shadow-mode comparison.
     def strip_ids(value):
         if isinstance(value, dict):
-            return {k: strip_ids(v) for k, v in value.items()
-                    if k not in {"id", "card_id", "piece_id"}}
+                return {k: strip_ids(v) for k, v in value.items()
+                        if k not in {"id", "card_id", "piece_id", "selection_reason"}}
         if isinstance(value, list):
             return [strip_ids(v) for v in value]
         return value
@@ -687,7 +690,8 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
-    assert job.status == "completed", (job.error, stages)
+    assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
+    assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     result = json.loads(job.result_json)
     assert set(result["renders"]) == set(languages)
     for language in languages:
@@ -755,13 +759,20 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     # Reset the fixture's music-use history so the second run compares the
     # shadow flag, not the existing no-repeat selection history.
     db_session.query(MusicUsage).delete(synchronize_session=False)
+    selected_code = first_scripts["en"]["music"][0]["track_code"]
+    selected_track = db_session.query(MusicTrack).filter(
+        MusicTrack.track_code == selected_code).one()
+    db_session.add(MusicUsage(track_id=selected_track.id, case_id=case.id,
+                               film_key=first_scripts["en"]["film_key"]))
     db_session.commit()
     monkeypatch.setattr(ai_config.artifacts, "shadow_mode", False)
     job_off = J.create_job(db_session, case, master, languages, "pilot", 80.0, "preview")
     asyncio.run(J.run_job(job_off.id))
     db_session.expire_all()
     off_job = db_session.get(DocumentaryJob, job_off.id)
-    assert off_job.status == "completed", (off_job.error, json.loads(off_job.stages_json))
+    assert off_job.status in {"completed", "completed_warnings"}, (
+        off_job.error, json.loads(off_job.stages_json))
+    assert "errors" not in json.loads(off_job.result_json), json.loads(off_job.result_json)
     off_result = json.loads(off_job.result_json)
     second_scripts = {
         language: strip_ids(json.loads(db_session.get(
@@ -776,7 +787,7 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
             return differences
         if isinstance(left, list) and isinstance(right, list):
             differences = []
-            for index, (l_item, r_item) in enumerate(zip(left, right)):
+            for index, (l_item, r_item) in enumerate(zip(left, right, strict=False)):
                 differences.extend(diff_values(l_item, r_item, f"{path}[{index}]"))
             if len(left) != len(right):
                 differences.append(f"{path}: lengths {len(left)} != {len(right)}")

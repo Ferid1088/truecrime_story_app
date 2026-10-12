@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.main import app
 
 TOKEN = "t0ken-" + "x9Zq" * 8
-ORIGIN = "http://127.0.0.1:3000"
+ORIGIN = "http://127.0.0.1:3001"  # settings.frontend_port's default (app.core.config)
 
 
 @pytest.fixture(autouse=True)

@@ -1,6 +1,17 @@
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_native_scripts_help_does_not_start_services():
+    for script in ("dev_up.sh", "dev_down.sh", "searxng_up.sh"):
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / script), "--help"],
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == 0
+        assert "Usage:" in result.stdout
 
 
 def test_native_process_scripts_exist_and_have_expected_order():

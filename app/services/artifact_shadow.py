@@ -1,8 +1,8 @@
 """Best-effort write-only artifact registration for pipeline stages."""
 from __future__ import annotations
 
-import logging
 import json
+import logging
 from pathlib import PurePath
 
 from app.core.ai_config import ai_config

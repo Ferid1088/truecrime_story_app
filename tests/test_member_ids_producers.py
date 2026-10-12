@@ -4,7 +4,6 @@ from pathlib import Path
 from app.core.member_ids import ensure_pipeline_member_ids, load_legacy_ids
 from app.documentary.production.script import compose
 
-
 GOLDEN = Path(__file__).parent / "golden/production_script_previous.json"
 
 

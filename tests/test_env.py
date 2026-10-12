@@ -40,3 +40,34 @@ def test_settings_accepts_canonical_and_legacy_names(monkeypatch):
     monkeypatch.setenv("TRUECRIME_YOUTUBE_API_KEY", "canonical")
     monkeypatch.setenv("YOUTUBE_API_KEY", "legacy")
     assert Settings(_env_file=None).youtube_api_key == "canonical"
+
+
+def test_dev_ports_default(monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.delenv("TRUECRIME_API_PORT", raising=False)
+    monkeypatch.delenv("TRUECRIME_FRONTEND_PORT", raising=False)
+    monkeypatch.delenv("TRUECRIME_CORS_ORIGINS", raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.api_port == 8001
+    assert settings.frontend_port == 3001
+    assert settings.cors_origins == "http://localhost:3001,http://127.0.0.1:3001"
+
+
+def test_cors_origins_follows_overridden_frontend_port(monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.setenv("TRUECRIME_FRONTEND_PORT", "3042")
+    monkeypatch.delenv("TRUECRIME_CORS_ORIGINS", raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.frontend_port == 3042
+    assert settings.cors_origins == "http://localhost:3042,http://127.0.0.1:3042"
+
+
+def test_explicit_cors_origins_not_overridden_by_frontend_port(monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.setenv("TRUECRIME_FRONTEND_PORT", "3042")
+    monkeypatch.setenv("TRUECRIME_CORS_ORIGINS", "https://example.com")
+    settings = Settings(_env_file=None)
+    assert settings.cors_origins == "https://example.com"
