@@ -10,25 +10,59 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from app.core.files import serve as serve_file
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.core.env import env_value
+from app.core.files import serve as serve_file
 from app.core.tasks import spawn
 from app.db.base import get_db
 from app.db.models import (
-    Case, DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
+    Artifact,
+    Case,
+    DocumentaryJob,
+    ProductionScript,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
 )
 from app.documentary import jobs as J
 from app.documentary import storage
 from app.documentary.audio_director import audio_plan_dict, latest_audio_plan
 from app.documentary.blueprint import blueprint_dict, latest_blueprint
 from app.documentary.visuals import rights as R
+from app.services.artifacts import ArtifactRegistry
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["documentary"])
+
+
+class ArtifactScopePreview(BaseModel):
+    artifact_ids: list[str] = Field(default_factory=list)
+
+
+@router.get("/api/documentary/{case_id}/artifacts")
+def list_artifacts(case_id: int, type: str | None = None, language: str | None = None,
+                   status: str | None = None, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    query = db.query(Artifact).filter(Artifact.case_id == case_id)
+    if type:
+        query = query.filter(Artifact.type == type)
+    if language:
+        query = query.filter(Artifact.language == language)
+    if status:
+        query = query.filter(Artifact.status == status)
+    return [{"id": row.id, "type": row.type, "language": row.language,
+             "scope": _loads(row.scope_json, {}), "input_hash": row.input_hash,
+             "output_hash": row.output_hash, "output_ref": row.output_ref,
+             "status": row.status, "version": row.version} for row in query.order_by(Artifact.id)]
+
+
+@router.post("/api/documentary/{case_id}/artifacts/scope-preview")
+def artifact_scope_preview(case_id: int, req: ArtifactScopePreview, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    return ArtifactRegistry(db).scope_preview(req.artifact_ids)
 
 
 def _case(db: Session, case_id: int) -> Case:

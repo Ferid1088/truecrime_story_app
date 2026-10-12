@@ -36,6 +36,9 @@
     "video_research": true,
     "max_tts_characters_per_job": 0
   },
+  "artifacts": {
+    "shadow_mode": true
+  },
   "documentary_critics": {
     "critics": [
       "automation_feel",

@@ -2058,6 +2058,10 @@ class ShortFormConfig(BaseModel):
         return round(max_count * self.candidate_multiplier)
 
 
+class ArtifactsConfig(BaseModel):
+    shadow_mode: bool = False
+
+
 class AIConfig(BaseModel):
     production_policies: ProductionPolicies
     providers: ProviderSelection
@@ -2139,6 +2143,7 @@ class AIConfig(BaseModel):
     opening: OpeningConfig = Field(default_factory=OpeningConfig)
     visual_direction: VisualDirectionConfig = Field(default_factory=VisualDirectionConfig)
     footage: FootageConfig = Field(default_factory=FootageConfig)
+    artifacts: ArtifactsConfig = Field(default_factory=ArtifactsConfig)
 
     @model_validator(mode="after")
     def _validate(self):

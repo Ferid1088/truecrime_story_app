@@ -144,6 +144,9 @@ class StageRunner:
             record_warning(self.result, pipeline_stage, str(degraded), language,
                            "AUDIO_PLAN_DEGRADED" if pipeline_stage == "audio_plan"
                            else "STAGE_DEGRADED")
+        from app.services.artifact_shadow import register_stage_outputs
+        register_stage_outputs(self.db, self.job, pipeline_stage, language,
+                               detail if isinstance(detail, dict) else None, self.result)
         if name in self.running:
             self.running.remove(name)
         self._save()
