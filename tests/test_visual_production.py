@@ -638,17 +638,15 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
 def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, monkeypatch):
     """The four-language proof uses the real pipeline, with only providers mocked."""
     from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
-    from app.db.models import Artifact, ArtifactDep, MusicTrack, MusicUsage
+    from app.db.models import Artifact, ArtifactDep, MusicUsage
     from app.documentary import jobs as J
     from app.documentary.production.script import timeline_layout
     from app.services.artifacts import ArtifactRegistry
 
-    # Music selection_reason is audit provenance and intentionally changes when
-    # the no-repeat usage history is reset for this shadow-mode comparison.
     def strip_ids(value):
         if isinstance(value, dict):
                 return {k: strip_ids(v) for k, v in value.items()
-                        if k not in {"id", "card_id", "piece_id", "selection_reason"}}
+                        if k not in {"id", "card_id", "piece_id"}}
         if isinstance(value, list):
             return [strip_ids(v) for v in value]
         return value
@@ -756,14 +754,10 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
             ProductionScript, result["renders"][language]["production_script_id"]).script_json))
         for language in languages
     }
-    # Reset the fixture's music-use history so the second run compares the
-    # shadow flag, not the existing no-repeat selection history.
+    # Reset the fixture's music-use history to the same declared pre-selection
+    # snapshot used by the first run.  Selection reasons are part of the
+    # identity comparison; they are no longer excluded.
     db_session.query(MusicUsage).delete(synchronize_session=False)
-    selected_code = first_scripts["en"]["music"][0]["track_code"]
-    selected_track = db_session.query(MusicTrack).filter(
-        MusicTrack.track_code == selected_code).one()
-    db_session.add(MusicUsage(track_id=selected_track.id, case_id=case.id,
-                               film_key=first_scripts["en"]["film_key"]))
     db_session.commit()
     monkeypatch.setattr(ai_config.artifacts, "shadow_mode", False)
     job_off = J.create_job(db_session, case, master, languages, "pilot", 80.0, "preview")
