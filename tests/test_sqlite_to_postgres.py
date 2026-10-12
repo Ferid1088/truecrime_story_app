@@ -42,8 +42,9 @@ def pg_url():
     target_admin = create_engine(make_url(admin_url).set(database=name),
                                  isolation_level="AUTOCOMMIT")
     with target_admin.connect() as c:
-        c.execute(text("GRANT ALL ON SCHEMA public TO \"%s\"" % app_role.replace('"', '""')))
-        c.execute(text("ALTER SCHEMA public OWNER TO \"%s\"" % app_role.replace('"', '""')))
+        quoted_role = app_role.replace('"', '""')
+        c.execute(text(f'GRANT ALL ON SCHEMA public TO "{quoted_role}"'))
+        c.execute(text(f'ALTER SCHEMA public OWNER TO "{quoted_role}"'))
     target_admin.dispose()
     yield url
     with admin.connect() as c:
