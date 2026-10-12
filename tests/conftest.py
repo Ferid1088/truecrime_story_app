@@ -49,6 +49,9 @@ if _COPY_URL:
     os.environ["DATABASE_URL"] = _COPY_URL
 elif _PG_URL:
     # Run the suite on Postgres: start every run from an empty schema (the tests share one database).
+    from app.core.test_database_guard import assert_safe_test_database
+
+    assert_safe_test_database(_PG_URL)
     import sqlalchemy as _sa
     from sqlalchemy.engine import make_url as _make_url
 
@@ -66,8 +69,13 @@ elif _PG_URL:
         os.environ["TRUECRIME_TEST_ADMIN_URL"] = _PG_RESOLVED_ADMIN
     else:
         os.environ["TRUECRIME_TEST_ADMIN_UNAVAILABLE"] = "1"
+    # Settings gives TRUECRIME_DATABASE_URL precedence over DATABASE_URL. Set
+    # both explicitly so an inherited live URL can never win over the guarded
+    # disposable target.
+    os.environ["TRUECRIME_DATABASE_URL"] = _PG_URL
     os.environ["DATABASE_URL"] = _PG_URL
 else:
+    os.environ.pop("TRUECRIME_DATABASE_URL", None)
     os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mktemp(suffix='.db')}"
 # the in-app monitor scheduler never starts inside tests
 os.environ["TRUECRIME_DISABLE_SCHEDULER"] = "1"

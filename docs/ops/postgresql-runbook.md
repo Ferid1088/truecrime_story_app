@@ -69,9 +69,23 @@ PYTHONPATH=. .venv/bin/pytest -q tests/test_sqlite_to_postgres.py
 Run the full suite against the app-owned PostgreSQL test database with:
 
 ```sh
-db_url=$(grep '^TRUECRIME_DATABASE_URL=' .env.local | cut -d= -f2-)
-TC_TEST_DATABASE_URL="$db_url" PYTHONPATH=. .venv/bin/pytest -q -p no:cacheprovider tests
+TC_TEST_DATABASE_URL='postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime_test' \
+PYTHONPATH=. .venv/bin/pytest -q -p no:cacheprovider tests
 ```
+
+The fixture refuses `truecrime` and any other non-disposable PostgreSQL
+database unless `TRUECRIME_ALLOW_LIVE_TESTS=1` is explicitly set. The app
+role is not a database administrator; the fixture derives a local admin URL
+only for resetting the disposable `truecrime_test` schema.
+
+Run browser E2E in an isolated stack with:
+
+```sh
+scripts/e2e_stack.sh
+```
+
+This creates and drops `truecrime_e2e`, uses API port 8011 and frontend port
+3011, and never calls `dev_up.sh`, `dev_down.sh`, or manages SearXNG.
 
 The full suite has one intentional PostgreSQL-only skip for the cross-process
 SIGKILL fixture; the reason and limitation are recorded in
@@ -112,3 +126,28 @@ it does not affect any other database:
 ```sql
 TRUNCATE TABLE cases RESTART IDENTITY CASCADE;
 ```
+
+## Intentional live-database cleanup
+
+Before cleaning the app-owned live database, create a custom-format backup and
+record its checksum:
+
+```sh
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+pg_dump --format=custom --file="data/backups/truecrime-live-${stamp}.dump" "$TRUECRIME_DATABASE_URL"
+shasum -a 256 "data/backups/truecrime-live-${stamp}.dump"
+```
+
+The cleanup preserves only `alembic_version` (migration state) and
+`app_settings` (operator settings). It truncates the remaining public
+application tables with `RESTART IDENTITY CASCADE` and prints every table's
+before/after count. The exact command is:
+
+```sh
+PYTHONPATH=. .venv/bin/python scripts/clean_live_db.py \
+  --database-url "$TRUECRIME_DATABASE_URL" \
+  --confirm CLEAN_TRUECRIME_LIVE
+```
+
+The Prompt 9I run records the generated output and checksum in its findings
+document; tests must never target this database.
