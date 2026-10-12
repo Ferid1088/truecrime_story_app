@@ -273,6 +273,12 @@ def verify_post_migration(live: Path, backup: Path) -> dict[str, object]:
 
 def apply_live(root: Path | None = None, live: Path | None = None,
                backup_dir: Path | None = None) -> Path:
+    """Apply only the database phase of Phase C.
+
+    Service startup is intentionally not called here.  Callers must run
+    ``scripts/dev_up.sh`` only after this function returns successfully;
+    startup failures must never trigger database rollback.
+    """
     root = root or Path(__file__).resolve().parents[1]
     live = live or root / "truecrime.db"
     backup_dir = backup_dir or root / "data" / "backups"

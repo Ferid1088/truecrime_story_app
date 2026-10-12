@@ -47,6 +47,21 @@ def test_apply_live_success_uses_only_a_copy(tmp_path, monkeypatch):
                    for table in db_reconcile.NEW_TABLES)
 
 
+def test_service_start_failure_after_apply_does_not_rollback(tmp_path, monkeypatch):
+    """The service phase is separate: a failed start cannot undo 0010."""
+    live = tmp_path / "truecrime.db"
+    _fresh_0009(live)
+    monkeypatch.setattr(db_reconcile, "ensure_live_quiescent", lambda root, target: None)
+
+    backup = db_reconcile.apply_live(root=ROOT, live=live, backup_dir=tmp_path / "backups")
+    with pytest.raises(RuntimeError, match="simulated service start failure"):
+        raise RuntimeError("simulated service start failure")
+
+    with sqlite3.connect(live) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0010"
+    assert backup.exists()
+
+
 def test_reconciliation_refuses_to_reuse_an_existing_copy(tmp_path):
     source = tmp_path / "source.db"
     destination = tmp_path / "destination.db"
