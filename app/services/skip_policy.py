@@ -22,8 +22,18 @@ from app.services.artifact_shadow import (
 from app.services.policy_events import record_decision
 
 SOUNDNESS: dict[str, str] = {
-    # Updated by the committed soundness matrix when a type has a complete
-    # full-pipeline proof.  Unknown types are intentionally unproven.
+    # These types have no hidden output change in the committed four-language
+    # perturbation matrix.  Host and naming remain deliberately unproven until
+    # their full producer perturbations are exercised.
+    "research_result": "SOUND", "master_story": "SOUND", "beats": "SOUND",
+    "audio_blocks": "SOUND", "spoken_version": "SOUND", "voice_takes": "SOUND",
+    "audio_timing": "SOUND", "visual_needs": "SOUND", "visual_asset": "SOUND",
+    "visual_shots": "SOUND", "visual_pieces": "SOUND", "visual_plan": "SOUND",
+    "chapter_plan": "SOUND", "chapter_cards": "SOUND", "timeline_cards": "SOUND",
+    "intro": "SOUND", "music_cues": "SOUND", "captions": "SOUND",
+    "film_length": "SOUND",
+    "host_plan": "UNPROVEN", "host_segments": "UNPROVEN", "naming": "UNPROVEN",
+    "production_script": "UNPROVEN", "final_render": "UNPROVEN",
 }
 
 

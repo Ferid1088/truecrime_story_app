@@ -3,6 +3,7 @@ import json
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
 from app.db.models import Artifact, ArtifactDep
+from app.services.skip_policy import SOUNDNESS
 from app.services.soundness import (
     changed_artifacts,
     downstream_closure,
@@ -55,3 +56,5 @@ def test_all_registered_types_are_named_in_soundness_sources():
     }
     assert len(sources) == 15
     assert set(ARTIFACT_DEPENDENCIES)
+    assert set(SOUNDNESS) == set(ARTIFACT_DEPENDENCIES)
+    assert {status for status in SOUNDNESS.values()} == {"SOUND", "UNPROVEN"}

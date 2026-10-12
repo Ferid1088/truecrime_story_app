@@ -31,3 +31,15 @@ predicted closure. `UNPROVEN` is intentional: those rows need a full
 perturb-and-rerun proof before enforce mode may use them. The current test does
 not claim that a hash-only perturbation is a substitute for every full-pipeline
 rerun; this limitation is tracked rather than hidden.
+
+## Per-type gate
+
+SOUND: `research_result`, `master_story`, `beats`, `audio_blocks`,
+`spoken_version`, `voice_takes`, `audio_timing`, `visual_needs`,
+`visual_asset`, `visual_shots`, `visual_pieces`, `visual_plan`, `chapter_plan`,
+`chapter_cards`, `timeline_cards`, `intro`, `music_cues`, `captions`,
+`film_length`.
+
+UNPROVEN: `host_plan`, `host_segments`, `naming`, `production_script`,
+`final_render`. Enforce mode refuses these types with
+`INCREMENTAL_UNPROVEN`; the default policy remains `mode: off`.
