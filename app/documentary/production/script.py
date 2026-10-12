@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.story import stored_sections
 from app.core.ai_config import ai_config
+from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import (
     Case, EditorialBlueprint, MusicUsage, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
 )
@@ -1350,6 +1351,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                      reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),
                      production_type=production_type or "original", opening_strategy=opening)
+    script = ensure_pipeline_member_ids(f"production-script:{version.id}:{language}", script)
     film_key = film_key_of(plan_row, manifest)
     script["film_key"] = film_key
     script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")

@@ -8,6 +8,7 @@ import json
 from collections import Counter
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
+from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import AudioPlan, Case, EditorialBlueprint, VisualAsset, VisualPlan
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -123,6 +124,7 @@ class VisualDirector:
         plan["candidates"] = fill_candidates(ctx["cands"])
         plan["opening"] = {k: ctx["opening"].get(k) for k in ("strategy", "reason")}
         plan["case_status"] = ctx["case_status"]
+        plan = ensure_pipeline_member_ids(f"visual-plan:{plan_row.id}", plan)
         validation = _loads(plan_row.validation_json, {})
         validation[key] = report
         plan_row.plan_json = json.dumps(plan, ensure_ascii=False)

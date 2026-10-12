@@ -8,6 +8,7 @@ import json
 from sqlalchemy.orm import Session
 from app.agents.story import build_evidence_pack
 from app.core.ai_config import ai_config
+from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import Case, ChapterPlan, Contradiction, EditorialBlueprint, Fact, Source, StoryVersion
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -223,6 +224,7 @@ class ChapterWriter:
             "events": [{**e, "label": approved.get(f"event:{e['id']}") or {}}
                        for e in ctx["events"]],
         }
+        plan = ensure_pipeline_member_ids(f"chapter-plan:{bp_row.id}", plan)
         status = ("no_texts" if not approved and keys else
                   "partial" if left_out else "approved")
         count = db.query(ChapterPlan).filter(ChapterPlan.blueprint_id == bp_row.id).count()

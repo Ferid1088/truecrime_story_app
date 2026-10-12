@@ -6,6 +6,7 @@ from __future__ import annotations
 from app.agents.runner import run_agent
 import json
 from sqlalchemy.orm import Session
+from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import Case, EditorialBlueprint, VisualPlan
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -31,6 +32,7 @@ class VisualPlanner:
             raw, res = await run_agent("visuals.plan", self.gen, json.dumps(payload, ensure_ascii=False), system=PLANNER_SYSTEM)
             stamp_run(run, res, "visual_planner")
         reqs, report = validate_requirements(raw, blueprint, pack, sources)
+        reqs = ensure_pipeline_member_ids(f"visual-needs:{blueprint_row.id}", reqs)
         count = db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_row.id).count()
         row = VisualPlan(
             case_id=case.id, blueprint_id=blueprint_row.id, version=count + 1,

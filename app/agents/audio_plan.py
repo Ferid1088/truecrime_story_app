@@ -7,6 +7,7 @@ from app.agents.runner import run_agent
 import json
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
+from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import AudioPlan, Case, EditorialBlueprint
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -45,6 +46,7 @@ class AudioDirector:
                 stamp_run(run, res, "audio_director")
             plan, report = validate_audio_plan(raw, blueprint)
         report["repair_iterations"] = repairs
+        plan = ensure_pipeline_member_ids(f"audio-plan:{blueprint_row.id}", plan)
         count = db.query(AudioPlan).filter(
             AudioPlan.blueprint_id == blueprint_row.id).count()
         row = AudioPlan(

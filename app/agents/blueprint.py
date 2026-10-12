@@ -7,6 +7,7 @@ import json
 from sqlalchemy.orm import Session
 from app.agents.story import build_evidence_pack, evidence_fingerprint, is_structured, stored_evidence_fingerprint
 from app.core.ai_config import ai_config
+from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import Case, Contradiction, EditorialBlueprint, Fact, Source, StoryVersion
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -48,6 +49,7 @@ class NarrativeDirector:
             stamp_run(run, res, "narrative_director")
             run.output_summary = f"beats={len((raw or {}).get('beats') or [])}"
         blueprint, report = validate_blueprint(raw, sections, pack)
+        blueprint = ensure_pipeline_member_ids(f"blueprint:{version.id}", blueprint)
 
         repairs = 0
         while report["errors"] and repairs < ai_config.blueprint.max_repair_iterations:
