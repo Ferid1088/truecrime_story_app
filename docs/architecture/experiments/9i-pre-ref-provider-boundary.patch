@@ -1,0 +1,79 @@
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 933b22d..00ed25e 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -34,0 +35,3 @@ from app.main import app  # noqa: E402
++from provenance_soundness import saved_output_snapshot  # noqa: E402
++import app.services.soundness as _soundness  # noqa: E402
++_soundness.saved_output_snapshot = saved_output_snapshot
+diff --git a/tests/test_visual_production.py b/tests/test_visual_production.py
+index 0e5ea06..0b176c6 100644
+--- a/tests/test_visual_production.py
++++ b/tests/test_visual_production.py
+@@ -5,0 +6 @@ import json
++import os
+@@ -417 +418 @@ class PipelineGen:
+-        from mock_payload import config_hash_payload, request_hash
++        from mock_payload import generation_request_payload, provider_request, request_language
+@@ -419,3 +420,3 @@ class PipelineGen:
+-        fingerprint = request_hash(
+-            "generation.text", role=role, system=system, user=user, images=images,
+-            config=config_hash_payload(ai_config),
++        fingerprint = provider_request(
++            "generation", role, request_language(user, system), "generation.text",
++            request=generation_request_payload(role, system, user, images),
+@@ -429 +430 @@ class PipelineGen:
+-        from mock_payload import config_hash_payload, request_hash
++        from mock_payload import generation_request_payload, provider_request, request_language
+@@ -431,3 +432,3 @@ class PipelineGen:
+-        fingerprint = request_hash(
+-            "generation.structured", role=role, system=system, user=user, images=images,
+-            config=config_hash_payload(ai_config),
++        fingerprint = provider_request(
++            "generation", role, request_language(user, system), "generation.structured",
++            request=generation_request_payload(role, system, user, images),
+@@ -561 +562 @@ def documentary_env(tmp_path, monkeypatch):
+-        from mock_payload import config_hash_payload, request_hash
++        from mock_payload import provider_request
+@@ -566,2 +567,3 @@ def documentary_env(tmp_path, monkeypatch):
+-        fingerprint = request_hash(
+-            "visual_search", case_id=case.id, queries=queries, found_during=found_during,
++        fingerprint = provider_request(
++            "search_fetch", "research", None, "visual_search",
++            case_id=case.id, queries=queries, found_during=found_during,
+@@ -569 +570,0 @@ def documentary_env(tmp_path, monkeypatch):
+-            config=config_hash_payload(ai_config.visual_search),
+@@ -584 +585 @@ def documentary_env(tmp_path, monkeypatch):
+-        from mock_payload import config_hash_payload, request_hash
++        from mock_payload import provider_request
+@@ -586,3 +587,2 @@ def documentary_env(tmp_path, monkeypatch):
+-        fingerprint = request_hash(
+-            "geocode", place=place, client=client, near=near,
+-            config=config_hash_payload(ai_config.maps),
++        fingerprint = provider_request(
++            "maps", "geocode", None, "geocode", place=place, client=client, near=near,
+@@ -594 +594 @@ def documentary_env(tmp_path, monkeypatch):
+-        from mock_payload import config_hash_payload, request_hash
++        from mock_payload import provider_request
+@@ -596,3 +596,3 @@ def documentary_env(tmp_path, monkeypatch):
+-        fingerprint = request_hash(
+-            "map", lat=lat, lon=lon, zoom=zoom, out=out, width=W, height=H,
+-            client=client, config=config_hash_payload(ai_config.maps),
++        fingerprint = provider_request(
++            "maps", "render_map", None, "map", lat=lat, lon=lon, zoom=zoom, out=out,
++            width=W, height=H, client=client,
+@@ -688,0 +689 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
++    from app.services.soundness import saved_output_snapshot
+@@ -778,0 +780,12 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
++    capture_path = os.environ.get("PROVENANCE_CAPTURE")
++    if capture_path:
++        snapshot_roots = [
++            Path(ai_config.documentary.storage_dir),
++            Path(ai_config.voice.work_dir),
++            Path(ai_config.music_library.dir),
++            Path(ai_config.chapters.intro_dir),
++        ]
++        Path(capture_path).write_text(
++            json.dumps(saved_output_snapshot(db_session, file_roots=snapshot_roots),
++                       sort_keys=True, ensure_ascii=False, indent=2) + "\n"
++        )
