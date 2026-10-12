@@ -27,5 +27,12 @@ on Postgres after the cutover is not in the SQLite file.
 
 ## Tests
 
+`TC_TEST_DATABASE_URL=postgresql+psycopg://truecrime@localhost/truecrime_test \
+TRUECRIME_TEST_ADMIN_URL=postgresql+psycopg://<local-superuser>@localhost/postgres \
+python -m pytest tests/test_sqlite_to_postgres.py` runs the Postgres integration suite.
+`TRUECRIME_TEST_ADMIN_URL` is used only to create/drop disposable test databases;
+it defaults to `TC_TEST_DATABASE_URL` with the local `$USER` and database
+`postgres` when omitted. The application role must remain without `CREATEDB`.
+
 `TC_TEST_DATABASE_URL=postgresql+psycopg://user@localhost/test_db python -m pytest` runs the whole suite on
 Postgres (the database is wiped first, use a throw-away one). CI does this on every push.
