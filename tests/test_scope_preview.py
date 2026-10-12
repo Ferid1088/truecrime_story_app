@@ -87,6 +87,8 @@ def test_scope_preview_real_graph_closures_are_language_scoped_and_read_only(db_
     master_preview = registry.scope_preview([master.id], [master.id])
     master_rerun = {item["artifact_id"] for item in master_preview["artifacts"]
                     if item["will_rerun"]}
+    print("MASTER_PREVIEW_TYPES", sorted({item["type"] for item in master_preview["artifacts"]
+                                           if item["will_rerun"]}))
     assert master_rerun == {
         row.id for (kind, _language), row in made.items() if kind != "intro"
     }
@@ -95,6 +97,9 @@ def test_scope_preview_real_graph_closures_are_language_scoped_and_read_only(db_
     de_preview = registry.scope_preview([spoken_de.id], [spoken_de.id])
     de_rerun = {item["artifact_id"] for item in de_preview["artifacts"]
                 if item["will_rerun"]}
+    print("DE_SPOKEN_PREVIEW", sorted({(item["type"], item["language"])
+                                        for item in de_preview["artifacts"]
+                                        if item["will_rerun"]}))
     assert de_rerun == {
         row.id for (kind, language), row in made.items()
         if language in (None, "de") and kind in {
@@ -107,6 +112,9 @@ def test_scope_preview_real_graph_closures_are_language_scoped_and_read_only(db_
     logo_preview = registry.scope_preview(logo_roots, logo_roots)
     logo_rerun = {item["artifact_id"] for item in logo_preview["artifacts"]
                   if item["will_rerun"]}
+    print("LOGO_PREVIEW_TYPES", sorted({(item["type"], item["language"])
+                                         for item in logo_preview["artifacts"]
+                                         if item["will_rerun"]}))
     assert logo_rerun == {
         row.id for (kind, language), row in made.items()
         if kind in {"intro", "final_render"}
