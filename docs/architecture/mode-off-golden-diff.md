@@ -131,3 +131,19 @@ files. These are the expected output-root/cache-boundary changes from
 `tests/test_visual_production.py:1080-1088` and
 `tests/soundness_observation.py:122-127`; they are not incremental behavior.
 The golden was refreshed with the same isolated fixture.
+
+## 9J Part 1 — golden provenance attribution closed
+
+The 25-key (29 with the packaged verifier) UNPROVEN finding from
+`docs/architecture/experiments/9i-golden-provenance-failure.md` is resolved in
+`docs/architecture/experiments/9j-golden-attribution.md`: 13 keys trace to
+`25cf3aa` (the chapter decision above), 12 keys (including `db:cases:0`) trace
+to `d0422f4` (9D Part A's determinism fix, with `de39976`'s snapshot
+canonicalization as a contributing cause for `db:cases:0` specifically). No
+class-(c) unauthorized difference was found. The 4 extra intro-file keys seen
+only by the packaged verifier were a test-isolation gap (shared `data/intros/`
+cache, not a rendering nondeterminism bug), fixed in
+`docs/architecture/experiments/9j-intro-dir-isolation.patch`. The full
+attribution and both pieces of evidence are recorded in
+`tests/golden/authorized_deltas.json` and enforced by
+`scripts/verify_golden_provenance.sh`.

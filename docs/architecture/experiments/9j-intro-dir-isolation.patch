@@ -1,0 +1,12 @@
+--- a/tests/test_visual_production.py
++++ b/tests/test_visual_production.py
+@@ -538,6 +538,9 @@ def documentary_env(tmp_path, monkeypatch):
+     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path / "audio"))
+     monkeypatch.setattr(ai_config.music_library, "dir", str(tmp_path / "lib"))
+     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
++    # Intros are generated media too. Keep them inside this run so concurrent
++    # full-pipeline tests cannot race through the shared data/intros cache.
++    monkeypatch.setattr(ai_config.chapters, "intro_dir", str(tmp_path / "intros"))
+     monkeypatch.setattr(ai_config.avatar, "enabled", True)  # the host stages only run then
+     monkeypatch.setattr(ai_config.render, "width", 320)
+     monkeypatch.setattr(ai_config.render, "height", 180)
