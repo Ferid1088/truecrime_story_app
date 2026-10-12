@@ -134,6 +134,12 @@ def test_sound_type_has_a_passing_snapshot_diff_record():
             )
 
 
+def test_every_recorded_no_effect_edge_has_a_reason():
+    for row in load_records():
+        for edge in row.get("no_effect_edges", ()):
+            assert edge["from"] and edge["to"] and edge["reason"].strip()
+
+
 def test_regenerating_soundness_outputs_is_deterministic():
     first = generate()
     second = generate()

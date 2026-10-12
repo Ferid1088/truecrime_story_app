@@ -11,7 +11,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from soundness_replay import prepare
+from soundness_replay import no_effect_edges, prepare
 from soundness_template import ROOT, ensure_template, restore_template
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -67,12 +67,22 @@ def run_case(template, parent, source):
         if before["hashes"].get(key) != after["hashes"].get(key)
     )
     predicted = evidence["predicted"]
+    if evidence["source_changed"]:
+        source_key = evidence["source_changed"][0]
+        source_type, _, source_language = source_key.partition(":")
+        no_effect = no_effect_edges(
+            source_type, None if source_language == "shared" else source_language, actual,
+            asset_used=source == "used_visual",
+        )
+    else:
+        no_effect = []
     result = {
         "source": source,
         "predicted": predicted,
         "actual": actual,
         "hidden": sorted(set(actual) - set(predicted)),
         "over_invalidation": sorted(set(predicted) - set(actual)),
+        "no_effect_edges": no_effect,
         "other_languages_changed": [
             k
             for k in actual
@@ -116,7 +126,11 @@ def main():
     }
     (parent / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
     print(json.dumps(report, indent=2, sort_keys=True), flush=True)
-    assert all(not r["hidden"] and not r["other_languages_changed"] for r in results)
+    assert all(
+        not r["hidden"] and not r["other_languages_changed"]
+        and all(edge["reason"].strip() for edge in r["no_effect_edges"])
+        for r in results
+    )
 
 
 if __name__ == "__main__":

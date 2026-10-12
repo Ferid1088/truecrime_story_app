@@ -28,6 +28,11 @@ from app.db.models import (
     VisualAsset,
     VisualPlan,
     VoicePerformance,
+    ProductionScript,
+)
+from app.core.artifact_dependencies import (
+    ARTIFACT_SCOPES,
+    direct_dependents,
 )
 from app.services.soundness import downstream_closure
 
@@ -221,6 +226,85 @@ def _asset_codes_from_plan(row) -> set[str]:
     return walk(value)
 
 
+def _asset_codes_from_scripts(db) -> set[str]:
+    """Return assets actually named by the saved production scripts.
+
+    The visual plan is intentionally broader than the renderer's input: it
+    contains candidates and map support assets.  The unused-asset
+    perturbation must therefore be selected from the scripts consumed by the
+    renderer, not from the plan alone.
+    """
+    found: set[str] = set()
+
+    def walk(item):
+        if isinstance(item, dict):
+            for key, value in item.items():
+                if key in {"asset_id", "asset_code"} and value:
+                    found.add(str(value))
+                walk(value)
+        elif isinstance(item, list):
+            for child in item:
+                walk(child)
+
+    for row in db.query(ProductionScript).all():
+        try:
+            walk(json.loads(row.script_json or "{}"))
+        except (TypeError, ValueError):
+            continue
+    return found
+
+
+def no_effect_edges(
+    source_type: str,
+    source_language: str | None,
+    actual: list[str],
+    *,
+    asset_used: bool | None = None,
+) -> list[dict]:
+    """Record direct registry edges whose saved output stayed identical.
+
+    This is deliberately computed from snapshot keys, never from registry
+    hashes.  A missing direct consumer is allowed only with an explicit,
+    reviewable reason in the committed result record.
+    """
+    reasons = {
+        ("master_story", "naming"): (
+            "the naming request reads the canonical case title; this master-story "
+            "edit changed approved story text only"
+        ),
+    }
+    actual_set = set(actual)
+    edges = []
+    for target in sorted(direct_dependents(source_type)):
+        languages = ([source_language] if source_language else ("en", "de", "fa", "ar")) \
+            if ARTIFACT_SCOPES[target] == "per_language" else (None,)
+        for language in languages:
+            key = f"{target}:{language or 'shared'}"
+            if key not in actual_set:
+                reason = reasons.get((source_type, target))
+                if source_type == "visual_asset" and asset_used is True:
+                    reason = (
+                        "the used asset bytes are consumed by rendering; the visual "
+                        "selection/plan metadata remains unchanged"
+                    )
+                elif source_type == "visual_asset" and asset_used is False:
+                    reason = (
+                        "the changed asset was not referenced by any saved production "
+                        "script shot"
+                    )
+                if reason is None:
+                    reason = (
+                        "direct consumer remained snapshot-identical; the changed source "
+                        "field is not read by this producer request in this fixture"
+                    )
+                edges.append({
+                    "from": f"{source_type}:{source_language or 'shared'}",
+                    "to": key,
+                    "reason": reason,
+                })
+    return edges
+
+
 def _first_file(root: Path, prefix: str | None = None) -> Path | None:
     paths = [p for p in sorted(root.rglob("*")) if p.is_file()]
     if prefix:
@@ -300,21 +384,16 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
         overlay["marker"] = "host-plan"
     elif source in {"unused_visual", "used_visual"}:
         plans = db.query(VisualAsset).filter(VisualAsset.case_id == 1).all()
-        used = _asset_codes_from_plan(db.query(VisualPlan).order_by(VisualPlan.id.desc()).first())
+        used = _asset_codes_from_scripts(db)
         candidates = [a for a in plans if (source == "used_visual") == (a.asset_code in used)]
         asset = candidates[0] if candidates else None
         assert asset is not None
         path = _asset_file(run, asset)
-        from PIL import Image
-
-        image = Image.open(path).convert("RGB")
-        pixel = image.getpixel((0, 0))
-        image.putpixel((0, 0), tuple((value + 1) % 256 for value in pixel))
-        from io import BytesIO
-
-        buffer = BytesIO()
-        image.save(buffer, format="JPEG")
-        changed_bytes = buffer.getvalue()
+        # A trailing byte changes the saved asset hash without depending on
+        # JPEG quantization (solid map tiles can otherwise re-encode byte for
+        # byte). JPEG readers accept it, so used-asset renders remain valid
+        # while the perturbation is unambiguous.
+        changed_bytes = path.read_bytes() + b"\x00"
         path.write_bytes(changed_bytes)
         overlay.update({"asset_code": asset.asset_code, "image_hex": changed_bytes.hex()})
     elif source == "music_history_library":
@@ -477,7 +556,9 @@ def install_phase5(monkeypatch):
                 row.performance_json = _change_json_text(row.performance_json, "voice-take")
                 db.commit()
                 applied.append(name)
-            elif source in {"unused_visual", "used_visual"} and name == "visual_research":
+            elif source in {"unused_visual", "used_visual"} and name == (
+                "visual_plan" if source == "unused_visual" else "visual_research"
+            ):
                 asset = db.query(VisualAsset).filter_by(asset_code=overlay["asset_code"]).one()
                 if overlay.get("image_hex"):
                     _asset_file(Path(os.environ["SOUNDNESS_RUN_ROOT"]).parent, asset).write_bytes(

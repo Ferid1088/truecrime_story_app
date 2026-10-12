@@ -11,7 +11,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from soundness_replay import PHASE5_TYPES, prepare_phase5
+from soundness_replay import PHASE5_TYPES, no_effect_edges, prepare_phase5
 from soundness_template import ROOT, ensure_template, restore_template
 
 SOURCES = tuple(PHASE5_TYPES)
@@ -71,12 +71,26 @@ def run_case(template: Path, parent: Path, source: str) -> dict:
         if before["hashes"].get(key) != after["hashes"].get(key)
     )
     predicted = evidence["predicted"]
+    source_key = evidence["source_changed"][0]
+    source_type, _, source_language = source_key.partition(":")
+    no_effect = (
+        no_effect_edges(
+            source_type, None if source_language == "shared" else source_language, actual,
+            asset_used=False if source == "unused_visual" else None,
+        )
+        if source_type in PHASE5_TYPES.values() or source_type in {
+            "research_result", "master_story", "beats", "voice_takes", "visual_asset",
+            "host_plan", "naming",
+        }
+        else []
+    )
     result = {
         "source": source,
         "predicted": predicted,
         "actual": actual,
         "hidden": sorted(set(actual) - set(predicted)),
         "over_invalidation": sorted(set(predicted) - set(actual)),
+        "no_effect_edges": no_effect,
         "seconds": round(time.perf_counter() - started, 3),
         "restore_seconds": timing["restore_seconds"],
         "executed_stages": after["executed_stages"],
@@ -112,7 +126,10 @@ def main() -> None:
     }
     (parent / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
     print(json.dumps(report, indent=2, sort_keys=True), flush=True)
-    assert all(row.get("status", "passed") == "unproven" or not row["hidden"] for row in results)
+    assert all(
+        row.get("status", "passed") == "unproven" or not row["hidden"]
+        for row in results
+    )
 
 
 if __name__ == "__main__":

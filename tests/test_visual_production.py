@@ -1045,35 +1045,42 @@ def documentary_env(tmp_path, monkeypatch):
         )
         monkeypatch.setattr(ai_config.documentary, "video_research", False)
         monkeypatch.setattr("app.documentary.jobs.RESEARCH_POLL_SECONDS", 0.0)
-        from app.db.models import Case, StoryVersion
+        from app.db.models import Case, ResearchResult, StoryVersion
         from app.documentary.pipeline.base import StageRunner
 
         original_stage = StageRunner._stage
 
         async def seed_researched_master(self, name, fn):
             result = await original_stage(self, name, fn)
-            if name == "research" and not self.db.query(StoryVersion).filter_by(
-                kind="master"
-            ).first():
+            if name == "research":
                 case = self.db.get(Case, self.job.case_id)
                 # The research rows are produced by the real ingestion stage;
                 # this small approved master is only the deterministic handoff
                 # needed to exercise the remaining documentary stages.
                 sections = [dict(section) for section in SECTIONS]
+                research = self.db.query(ResearchResult).order_by(ResearchResult.id.desc()).first()
+                assert research is not None
+                # Keep the paragraph count unchanged: blueprint validation
+                # requires one beat coverage per source paragraph.
+                sections[-1]["text"] += f" Research anchor: {research.title}"
                 story_text = "\n\n".join(section["text"] for section in sections)
-                self.db.add(StoryVersion(
-                    case_id=case.id, version=1, kind="master", language="en",
-                    narrative_angle="{}",
-                    narrative_structure=json.dumps({
-                        "sections": [
-                            {**section, "words": len(section["text"].split())}
-                            for section in sections
-                        ]
-                    }, ensure_ascii=False),
-                    story_text=story_text,
-                    text_hash=__import__("hashlib").sha256(story_text.encode()).hexdigest(),
-                    engagement_score=80.0, status="ready",
-                ))
+                master = self.db.query(StoryVersion).filter_by(kind="master").first()
+                if master is None:
+                    master = StoryVersion(
+                        case_id=case.id, version=1, kind="master", language="en"
+                    )
+                    self.db.add(master)
+                master.narrative_angle = "{}"
+                master.narrative_structure = json.dumps({
+                    "sections": [
+                        {**section, "words": len(section["text"].split())}
+                        for section in sections
+                    ]
+                }, ensure_ascii=False)
+                master.story_text = story_text
+                master.text_hash = __import__("hashlib").sha256(story_text.encode()).hexdigest()
+                master.engagement_score = 80.0
+                master.status = "ready"
                 self.db.commit()
             return result
 

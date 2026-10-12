@@ -27,6 +27,7 @@ SNAPSHOT_EXCLUDED_FIELDS = frozenset(
         "timestamp",
         "started_at",
         "finished_at",
+        "retrieved_at",
         "production_script_id",
         "job_id",
         "video_id",
@@ -53,6 +54,7 @@ SNAPSHOT_VOLATILE_JSON_KEYS = frozenset(
         "timestamp",
         "started_at",
         "finished_at",
+        "retrieved_at",
         "at",
         # Derived from the raw script serialization, which contains the volatile
         # ids above; the canonical script body remains snapshotted.
