@@ -683,6 +683,34 @@ class PipelineGen:
             data, result = await self.spoken.generate_structured(role, system, user)
             data["_mock_request_sha256"] = fingerprint
             return data, result
+        if role == "fact_extractor":
+            payload = json.loads(user)
+            return {
+                "facts": [
+                    {
+                        "claim": f"Research report {index + 1} documents farmhouse evidence.",
+                        "category": "evidence",
+                        "confidence": 0.9,
+                        "source_ids": [source["id"]] if source.get("id") else [],
+                        "disputed": False,
+                        "event_date": None,
+                        "original_language": "en",
+                        "narrative_value": "scene_detail",
+                        "evidence_strength": "strong_secondary",
+                        "supporting_text": source.get("text") or source.get("summary"),
+                        "chunk_ids": [],
+                        "quote_status": "paraphrase",
+                        "people": [],
+                        "locations": ["Nannup"],
+                    }
+                    for index, source in enumerate(payload.get("sources") or [])
+                ],
+                "_mock_request_sha256": fingerprint,
+            }, self._res(role)
+        if role == "timeline_builder":
+            return {"timeline": [], "_mock_request_sha256": fingerprint}, self._res(role)
+        if role == "contradiction_analyzer":
+            return {"contradictions": [], "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "narrative_director":
             data, result = _no_contradiction(_good()), self._res(role)
             data["_mock_request_sha256"] = fingerprint
@@ -876,6 +904,180 @@ def documentary_env(tmp_path, monkeypatch):
     # when the caller did not preconfigure SOUNDNESS_RUN_ROOT; otherwise the
     # absolute pytest temp prefix becomes part of request fingerprints.
     monkeypatch.setenv("SOUNDNESS_RUN_ROOT", str(run_root))
+    if os.environ.get("SOUNDNESS_FROM_ZERO") == "1":
+        from app.providers.base import ProviderJob
+        from mock_payload import config_hash_payload, provider_request
+
+        class MockResearchProvider:
+            name = "truecrime"
+
+            def __init__(self):
+                self.jobs = {}
+
+            def is_configured(self):
+                return True
+
+            async def check_health(self):
+                return True
+
+            async def start_case_research(self, case_title, language,
+                                          objective=None, research_languages=None,
+                                          context=None):
+                request_hash = provider_request(
+                    "search_fetch", "research", language, "research.case",
+                    case_title=case_title, language=language,
+                    objective=objective, research_languages=research_languages,
+                    context=context, config=config_hash_payload(ai_config.search_engine),
+                )
+                external_id = f"mock-research-{len(self.jobs) + 1}"
+                extra_titles = [
+                    "Witness chronology", "Property records", "Search log",
+                    "Archive memorandum", "Municipal filing", "Interview transcript",
+                    "Court docket", "Survey notebook", "Library clipping",
+                    "Ranger journal", "Census ledger", "Transport manifest",
+                ]
+                extra_publishers = [
+                    "North Archive", "Civic Records", "Search Bureau",
+                    "Historical Ledger", "Municipal Registry", "Field Notes",
+                    "County Court", "Land Survey", "Public Library",
+                    "Park Service", "Census Office", "Transit Authority",
+                ]
+                self.jobs[external_id] = {
+                    "case": {"summary": "A mocked research report for the farmhouse."},
+                    "queries": [
+                        {
+                            "language": language or "en", "query": f"{case_title} farmhouse",
+                            "purpose": "case evidence", "priority": "high", "round": 1,
+                        },
+                        {
+                            "language": language or "en", "query": f"{case_title} investigation",
+                            "purpose": "independent corroboration", "priority": "high", "round": 1,
+                        },
+                    ] + [
+                        {
+                            "language": language or "en",
+                            "query": f"{case_title} corroboration {i}",
+                            "purpose": "independent corroboration",
+                            "priority": "normal", "round": 1,
+                        }
+                        for i in range(2, 8)
+                    ],
+                    "results": [
+                        {
+                            "query_idx": 0, "url": "https://research.example/farmhouse",
+                            "canonical_url": "research.example/farmhouse",
+                            "title": "Farmhouse evidence report", "snippet": "A primary report.",
+                            "rank": 1, "accepted": True, "result_language": "en",
+                            "relevance": 0.95, "credibility": 0.9, "novelty": 0.8,
+                            "fetch_status": "ok", "_result_idx": 0,
+                        },
+                        {
+                            "query_idx": 1, "url": "https://archive.example/investigation",
+                            "canonical_url": "archive.example/investigation",
+                            "title": "Investigation archive report", "snippet": "An independent report.",
+                            "rank": 1, "accepted": True, "result_language": "en",
+                            "relevance": 0.9, "credibility": 0.85, "novelty": 0.75,
+                            "fetch_status": "ok", "_result_idx": 1,
+                        },
+                    ] + [
+                        {
+                            "query_idx": i,
+                            "url": f"https://archive.example/report-{i}",
+                            "canonical_url": f"archive.example/report-{i}",
+                            "title": extra_titles[i - 2],
+                            "snippet": "An independent report.", "rank": 1,
+                            "accepted": True, "result_language": "en",
+                            "relevance": 0.85, "credibility": 0.8, "novelty": 0.7,
+                            "fetch_status": "ok", "_result_idx": i,
+                        }
+                        for i in range(2, 8)
+                    ],
+                    "sources": [
+                        {
+                            "url": "https://research.example/farmhouse",
+                            "title": "Farmhouse evidence report",
+                            "summary": "A mocked research report for the farmhouse.",
+                            "full_text": "The farmhouse evidence was documented in the report.",
+                            "full_text_available": True, "content_status": "full_text",
+                            "source_type": "article", "language": "en",
+                            "publisher": "Mock Research", "source_family": "farmhouse-report",
+                            "_result_idx": 0,
+                        },
+                        {
+                            "url": "https://archive.example/investigation",
+                            "title": "Investigation archive report",
+                            "summary": "An independent report about the investigation.",
+                            "full_text": "The investigation archive records a separate line of evidence.",
+                            "full_text_available": True, "content_status": "full_text",
+                            "source_type": "article", "language": "en",
+                            "publisher": "Archive Research", "source_family": "investigation-report",
+                            "_result_idx": 1,
+                        },
+                    ] + [
+                        {
+                            "url": f"https://archive.example/report-{i}",
+                            "title": extra_titles[i - 2],
+                            "summary": "An independent report.",
+                            "full_text": f"The archive records a separate line of evidence {i}.",
+                            "full_text_available": True, "content_status": "full_text",
+                            "source_type": "article", "language": "en",
+                            "publisher": extra_publishers[i - 2],
+                            "source_family": f"investigation-report-{i}",
+                            "_result_idx": i,
+                        }
+                        for i in range(2, 8)
+                    ],
+                    "possible_facts": [], "possible_contradictions": [],
+                    "_telemetry": {"calls": 1, "searches": 1, "fetches": 1},
+                    "request_hash": request_hash,
+                }
+                return external_id
+
+            async def poll(self, external_id):
+                return ProviderJob(
+                    external_id=external_id, status="completed", result=self.jobs[external_id]
+                )
+
+        research_provider = MockResearchProvider()
+        monkeypatch.setattr("app.providers.get_research_provider", lambda: research_provider)
+        monkeypatch.setattr(
+            "app.services.research_jobs.get_research_provider", lambda: research_provider
+        )
+        monkeypatch.setattr(ai_config.documentary, "video_research", False)
+        monkeypatch.setattr("app.documentary.jobs.RESEARCH_POLL_SECONDS", 0.0)
+        from app.db.models import Case, StoryVersion
+        from app.documentary.pipeline.base import StageRunner
+
+        original_stage = StageRunner._stage
+
+        async def seed_researched_master(self, name, fn):
+            result = await original_stage(self, name, fn)
+            if name == "research" and not self.db.query(StoryVersion).filter_by(
+                kind="master"
+            ).first():
+                case = self.db.get(Case, self.job.case_id)
+                # The research rows are produced by the real ingestion stage;
+                # this small approved master is only the deterministic handoff
+                # needed to exercise the remaining documentary stages.
+                sections = [dict(section) for section in SECTIONS]
+                story_text = "\n\n".join(section["text"] for section in sections)
+                self.db.add(StoryVersion(
+                    case_id=case.id, version=1, kind="master", language="en",
+                    narrative_angle="{}",
+                    narrative_structure=json.dumps({
+                        "sections": [
+                            {**section, "words": len(section["text"].split())}
+                            for section in sections
+                        ]
+                    }, ensure_ascii=False),
+                    story_text=story_text,
+                    text_hash=__import__("hashlib").sha256(story_text.encode()).hexdigest(),
+                    engagement_score=80.0, status="ready",
+                ))
+                self.db.commit()
+            return result
+
+        monkeypatch.setattr(StageRunner, "_stage", seed_researched_master)
     monkeypatch.setattr(ai_config.voice, "work_dir", str(run_root / "audio"))
     monkeypatch.setattr(ai_config.music_library, "dir", str(run_root / "lib"))
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(run_root / "cases"))
@@ -886,6 +1088,7 @@ def documentary_env(tmp_path, monkeypatch):
     gen.research_calls = []
     for mod in (
         "app.agents.blueprint",
+        "app.agents.research",
         "app.agents.audio_plan",
         "app.agents.spoken",
         "app.agents.visual_planner",
@@ -1127,6 +1330,19 @@ def test_four_language_shadow_pipeline_real_job(
         )
         case = db_session.query(Case).one()
         master = db_session.query(StoryVersion).filter_by(kind="master").one()
+    elif os.environ.get("SOUNDNESS_FROM_ZERO") == "1":
+        from app.db.models import Case
+        from app.utils import slugify
+
+        case = Case(
+            canonical_title="BP SOUNDNESS RESEARCH",
+            slug=slugify("BP SOUNDNESS RESEARCH"),
+            language="en",
+            case_uid="CASE_SOUNDNESS",
+        )
+        db_session.add(case)
+        db_session.commit()
+        master = None
     else:
         case, master = _story(db_session, title="BP SOUNDNESS")
     case.case_uid = "CASE_SOUNDNESS"
@@ -1187,10 +1403,18 @@ def test_four_language_shadow_pipeline_real_job(
 
     monkeypatch.setattr(documentary_env.spoken, "generate_text", target_script)
     languages = ["en", "de", "fa", "ar"]
-    job = J.create_job(db_session, case, master, languages, "pilot", 80.0, "preview")
+    from_zero = os.environ.get("SOUNDNESS_FROM_ZERO") == "1"
+    job = J.create_job(
+        db_session, case, master, languages, "pilot", 80.0, "preview",
+        from_zero=from_zero, target_minutes=20.0 if from_zero else None,
+    )
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
+    if from_zero:
+        from app.db.models import StoryVersion
+
+        master = db_session.query(StoryVersion).filter_by(kind="master").one()
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
     assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)

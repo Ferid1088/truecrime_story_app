@@ -94,7 +94,10 @@ def prepare(db, run: Path, source: str) -> dict:
     # template and the before-edit snapshot remain untouched.
     tables = inspect(db.get_bind()).get_table_names()
     for table in reversed(tables):
-        if table in {"cases", "facts", "alembic_version"}:
+        preserved = {"cases", "alembic_version"}
+        if os.environ.get("SOUNDNESS_FROM_ZERO") != "1":
+            preserved.add("facts")
+        if table in preserved:
             continue
         if table == "story_versions":
             db.execute(text("DELETE FROM story_versions WHERE kind != 'master'"))
@@ -345,7 +348,10 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
 
     tables = inspect(db.get_bind()).get_table_names()
     for table in reversed(tables):
-        if table in {"cases", "facts", "alembic_version"}:
+        preserved = {"cases", "alembic_version"}
+        if os.environ.get("SOUNDNESS_FROM_ZERO") != "1":
+            preserved.add("facts")
+        if table in preserved:
             continue
         if table == "story_versions":
             db.execute(text("DELETE FROM story_versions WHERE kind != 'master'"))

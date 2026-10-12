@@ -31,6 +31,7 @@ def run_case(template, parent, source):
             "TC_COPY_DATABASE_URL": f"sqlite:///{run / 'pipeline.db'}",
             "SOUNDNESS_CHAPTER_PAYLOAD": "1",
             "SOUNDNESS_CHILD": "1",
+            "SOUNDNESS_FROM_ZERO": "1",
             "SOUNDNESS_RUN_ROOT": str(run / "files"),
             "SOUNDNESS_REPLAY": str(run / "overlay.json"),
             "SOUNDNESS_OBSERVATION": str(run / "after.json"),
@@ -89,6 +90,7 @@ def run_case(template, parent, source):
 
 def main():
     started = time.perf_counter()
+    os.environ["SOUNDNESS_FROM_ZERO"] = "1"
     template, timing = ensure_template(ROOT / "data/dev/soundness/template")
     parent = Path(tempfile.mkdtemp(prefix="tc-soundness-phase4-")).resolve()
     (parent / "owned-by-soundness").touch()

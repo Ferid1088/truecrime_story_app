@@ -9,6 +9,7 @@ from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPE
 ROOT = Path(__file__).resolve().parents[1]
 PHASE4 = ROOT / "tests/golden/soundness_phase4_results.json"
 PHASE5 = ROOT / "tests/golden/soundness_phase5_results.json"
+RESEARCH_RESULT = ROOT / "tests/golden/soundness_research_result.json"
 MATRIX = ROOT / "docs/architecture/soundness-matrix.md"
 STATUS = ROOT / "config/soundness_status.json"
 
@@ -45,7 +46,11 @@ def _closure(root: str) -> set[str]:
 
 def load_records() -> list[dict]:
     phase4 = json.loads(PHASE4.read_text())['results']
-    phase5 = json.loads(PHASE5.read_text())['results']
+    phase5 = [
+        row for row in json.loads(PHASE5.read_text())['results']
+        if row["source"] != "research_result"
+    ]
+    research_result = json.loads(RESEARCH_RESULT.read_text())['results']
     records = []
     for row in phase4:
         root = {"spoken_de": "spoken_version", "naming": "naming",
@@ -55,7 +60,23 @@ def load_records() -> list[dict]:
         root = PHASE5_ROOTS.get(row["source"])
         records.append({**row, "root": root, "phase": 5,
                         "config_source": row["source"] in CONFIG_SOURCES})
-    return sorted(records, key=lambda row: row["source"])
+    for row in research_result:
+        # The run record stores the observed source diff; the predicted set is
+        # the registry closure computed from the same declared root.
+        predicted_types = _closure("research_result")
+        predicted = []
+        for artifact_type in sorted(predicted_types):
+            if ARTIFACT_SCOPES[artifact_type] == "per_language":
+                predicted.extend(f"{artifact_type}:{language}" for language in ("en", "de", "fa", "ar"))
+            else:
+                predicted.append(f"{artifact_type}:shared")
+        record = {**row, "predicted": predicted, "root": "research_result", "phase": 5,
+                  "config_source": False}
+        record["over_invalidation"] = sorted(
+            set(record["predicted"]) - set(record.get("actual", ()))
+        )
+        records.append(record)
+    return sorted(records, key=lambda row: (row["source"], row["phase"]))
 
 
 def _can_reach(row: dict, target: str) -> bool:
@@ -114,7 +135,10 @@ def generate() -> tuple[str, str]:
     matrix = build_matrix(records, statuses)
     status_payload = {
         "generated_by": "tests/generate_soundness_status.py",
-        "record_files": [str(PHASE4.relative_to(ROOT)), str(PHASE5.relative_to(ROOT))],
+        "record_files": [
+            str(PHASE4.relative_to(ROOT)), str(PHASE5.relative_to(ROOT)),
+            str(RESEARCH_RESULT.relative_to(ROOT)),
+        ],
         "statuses": {key: ("SOUND" if value == "SOUND" else "UNPROVEN")
                      for key, value in sorted(statuses.items())},
         "reasons": {key: value for key, value in sorted(statuses.items())

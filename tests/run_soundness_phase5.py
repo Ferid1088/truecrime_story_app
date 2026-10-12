@@ -20,27 +20,6 @@ SOURCES = tuple(PHASE5_TYPES)
 def run_case(template: Path, parent: Path, source: str) -> dict:
     run = parent / source
     timing = restore_template(template, run)
-    if source == "research_result":
-        # The accepted four-language fixture is a continuation job.  Its
-        # stage list starts after research and the template consequently has
-        # no ResearchResult row to perturb.  Do not invent a registry root or
-        # silently claim a snapshot proof: record the exact unimplementable
-        # case so Phase 6 leaves research dependents UNPROVEN.
-        return {
-            "source": source,
-            "status": "unproven",
-            "reason": "template is not from_zero; research stage is absent and research_results has zero rows",
-            "predicted": [],
-            "actual": [],
-            "hidden": [],
-            "over_invalidation": [],
-            "seconds": 0.0,
-            "restore_seconds": timing["restore_seconds"],
-            "executed_stages": [],
-            "applied": [],
-            "source_changed": [],
-            "evidence": str(run),
-        }
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
@@ -55,6 +34,7 @@ def run_case(template: Path, parent: Path, source: str) -> dict:
             "TC_COPY_DATABASE_URL": f"sqlite:///{run / 'pipeline.db'}",
             "SOUNDNESS_CHILD": "1",
             "SOUNDNESS_PHASE5": "1",
+            "SOUNDNESS_FROM_ZERO": "1",
             "SOUNDNESS_CHAPTER_PAYLOAD": "1",
             "SOUNDNESS_RUN_ROOT": str(run / "files"),
             "SOUNDNESS_REPLAY": str(run / "overlay.json"),
@@ -110,6 +90,7 @@ def run_case(template: Path, parent: Path, source: str) -> dict:
 
 def main() -> None:
     started = time.perf_counter()
+    os.environ["SOUNDNESS_FROM_ZERO"] = "1"
     template, template_timing = ensure_template(ROOT / "data/dev/soundness/template")
     parent = Path(tempfile.mkdtemp(prefix="tc-soundness-phase5-")).resolve()
     (parent / "owned-by-soundness").touch()

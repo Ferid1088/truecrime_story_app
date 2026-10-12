@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "actual": [
+        "research_result:shared"
+      ],
+      "applied": [
+        "research"
+      ],
+      "evidence": "phase-2 research-root run; see the run evidence recorded in the Part 2 report",
+      "hidden": [],
+      "over_invalidation": [],
+      "restore_seconds": 0.25,
+      "seconds": 44.477,
+      "source": "research_result",
+      "source_changed": [
+        "research_result:shared"
+      ],
+      "status": "passed"
+    }
+  ]
+}
