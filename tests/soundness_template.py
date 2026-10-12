@@ -97,6 +97,7 @@ def ensure_template(destination: Path, postgres_admin_url: str | None = None) ->
             "SOUNDNESS_CHAPTER_PAYLOAD": "1",
             "SOUNDNESS_CHILD": "1",
             "SOUNDNESS_FROM_ZERO": "1",
+            "SOUNDNESS_SEED_MASTER": "1",
             "SOUNDNESS_RUN_ROOT": str(run),
             "SOUNDNESS_CAPTURE": str(build / "snapshot.json"),
             "SOUNDNESS_PAYLOAD_LOG": str(build / "requests.jsonl"),

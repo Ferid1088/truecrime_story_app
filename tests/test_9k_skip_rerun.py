@@ -124,6 +124,8 @@ def _policy_events(db, job_id: int, after_id: int) -> list[dict]:
 
 
 def test_9k_rerun_real_job(isolated_pipeline_db, db_session, documentary_env, client, monkeypatch):
+    if os.environ.get("SOUNDNESS_CHILD") != "1":
+        pytest.skip("9K rerun proof is driven by tests/run_9k_skip_proof.py")
     job = db_session.query(DocumentaryJob).order_by(DocumentaryJob.id).first()
     assert job is not None
     assert json.loads(job.languages_json) == ["en", "de", "fa", "ar"]
