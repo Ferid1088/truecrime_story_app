@@ -34,12 +34,10 @@ ARTIFACT_SCOPES: dict[str, ArtifactScope] = {
     "production_script": "per_language",
     "final_render": "per_language",
     "research_result": "shared",
-    "master_approval": "shared",
     "host_plan": "shared",
     "host_segments": "per_language",
     "naming": "shared",
     "film_length": "per_language",
-    "visual_gaps": "shared",
 }
 
 
@@ -73,12 +71,10 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     ],
     "final_render": ["production_script", "intro"],
     "research_result": [],
-    "master_approval": ["master_story"],
     "host_plan": ["beats"],
     "host_segments": ["host_plan", "spoken_version"],
     "naming": ["master_story"],
-    "film_length": ["spoken_version", "audio_timing"],
-    "visual_gaps": ["visual_plan"],
+    "film_length": ["spoken_version", "audio_blocks"],
 }
 
 
