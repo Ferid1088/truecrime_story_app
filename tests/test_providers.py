@@ -71,7 +71,9 @@ def test_research_status_unconfigured(client):
         r = client.get("/api/integrations/research/status")
     assert r.status_code == 200
     body = r.json()
-    assert body == {"provider": "truecrime", "configured": False, "reachable": False}
+    assert body["provider"] == "truecrime"
+    assert body["configured"] is False and body["reachable"] is False
+    assert body["warning"]["code"] == "SEARCH_UNAVAILABLE"
     assert "apk" not in json.dumps(body)
 
 
@@ -84,7 +86,9 @@ def test_research_status_configured_reachable(client):
 def test_research_status_configured_unreachable(client):
     with patch("app.api.deps.get_research_provider", return_value=FakeProvider(health=False)):
         r = client.get("/api/integrations/research/status")
-        assert r.json() == {"provider": "truecrime", "configured": True, "reachable": False}
+        body = r.json()
+        assert body["configured"] is True and body["reachable"] is False
+        assert body["warning"]["code"] == "SEARCH_UNAVAILABLE"
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +151,8 @@ def test_discovery_fails_cleanly_when_unconfigured(client):
     provider = FakeProvider(configured=False)
     with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post("/api/topics/discover", json={"count": 3, "languages": ["en"]})
-        assert r.status_code == 503 and "not configured" in r.json()["detail"]
+        assert r.status_code == 503
+        assert r.json()["code"] == "SEARCH_UNAVAILABLE"
         case_id = client.post("/api/cases", json={"canonical_title": "No Engine Case",
                                                   "language": "en", "force": True}).json()["id"]
         r2 = client.post(f"/api/cases/{case_id}/research")
@@ -646,4 +651,3 @@ def test_orchestrator_search_to_source_pipeline():
     assert src["detected_language"] == "en"
     assert result["results"][0]["accepted"] is True
     assert result["_telemetry"]["searches"] >= 1
-

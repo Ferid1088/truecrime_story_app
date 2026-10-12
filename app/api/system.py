@@ -15,6 +15,7 @@ from app.db.models import (
 )
 from app.core.config import settings
 from app.core.ai_config import ai_config
+from app.core.policy import warning_for
 
 
 from app.lifecycle.api import resolution_dict
@@ -86,13 +87,27 @@ async def research_status():
     embedding and LLM-intelligence health."""
     provider = deps.research_provider()
     if hasattr(provider, "provider_status"):
-        return await provider.provider_status()
+        status = await provider.provider_status()
+        if not status.get("reachable"):
+            status["warning"] = warning_for(
+                "SEARCH_UNAVAILABLE",
+                "Research search is unavailable; new research jobs cannot start.",
+                {"provider": status.get("provider", provider.name)},
+            )
+        return status
     configured = provider.is_configured()
-    return {
+    status = {
         "provider": provider.name,
         "configured": configured,
         "reachable": await provider.check_health() if configured else False,
     }
+    if not status["reachable"]:
+        status["warning"] = warning_for(
+            "SEARCH_UNAVAILABLE",
+            "Research search is unavailable; new research jobs cannot start.",
+            {"provider": provider.name},
+        )
+    return status
 
 
 @router.get("/api/integrations/search-engine/status")

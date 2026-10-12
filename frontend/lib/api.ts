@@ -631,6 +631,7 @@ export type OpsCall = {
 
 export const opsApi = {
   summary: (hours = 24) => request<OpsSummary>(`/api/ops/summary?hours=${hours}`),
+  searchStatus: () => request<SearchEngineStatus>("/api/integrations/research/status"),
   calls: (opts: { onlyErrors?: boolean; limit?: number } = {}) =>
     request<OpsCall[]>(
       `/api/ops/provider-calls?limit=${opts.limit ?? 50}${opts.onlyErrors ? "&only_errors=true" : ""}`,

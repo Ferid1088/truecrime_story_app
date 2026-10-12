@@ -4,6 +4,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STATE="$ROOT/data/dev"
 
+read_local_value() {
+  local file="$1" key="$2" value
+  [[ -f "$file" ]] || return 0
+  value="$(grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- || true)"
+  value="${value%$'\r'}"
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then value="${value:1:${#value}-2}"; fi
+  if [[ "$value" == \'*\' && "$value" == *\' ]]; then value="${value:1:${#value}-2}"; fi
+  printf '%s' "$value"
+}
+
+DATABASE_URL_VALUE="${TRUECRIME_DATABASE_URL:-${DATABASE_URL:-}}"
+if [[ -z "$DATABASE_URL_VALUE" ]]; then
+  DATABASE_URL_VALUE="$(read_local_value "$ROOT/.env" TRUECRIME_DATABASE_URL)"
+fi
+if [[ -z "$DATABASE_URL_VALUE" ]]; then
+  DATABASE_URL_VALUE="$(read_local_value "$ROOT/.env" DATABASE_URL)"
+fi
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
 Usage: scripts/dev_down.sh
@@ -25,5 +43,7 @@ for name in frontend worker api searxng; do
   fi
 done
 rm -f "$STATE/frontend.port"
-if command -v brew >/dev/null 2>&1; then brew services stop postgresql@16 >/dev/null 2>&1 || true; fi
+if [[ "$DATABASE_URL_VALUE" == postgresql* || "$DATABASE_URL_VALUE" == postgres* ]]; then
+  command -v brew >/dev/null 2>&1 && brew services stop postgresql@16 >/dev/null 2>&1 || true
+fi
 echo "Local services stopped."

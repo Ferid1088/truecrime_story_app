@@ -29,9 +29,7 @@ router = APIRouter()
 async def discover_topics(payload: TopicDiscoveryRequest, db: Session = Depends(get_db)):
     """Candidate discovery runs as a job on the search engine (duplicate and
     status checks included); there is no second, unchecked path."""
-    if not deps.research_provider().is_configured():
-        raise HTTPException(status_code=503,
-                            detail="Search engine not configured (set TRUECRIME_SEARXNG_URL).")
+    await deps.require_search_available()
     try:
         job = await research_jobs.start_discovery_job(db, payload)
     except ProviderError as e:

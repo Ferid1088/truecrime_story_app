@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/state";
+import { PolicyWarningNotice } from "@/components/policy-warning";
 
 const WINDOWS = [
   { hours: 1, label: "1 hour" },
@@ -32,6 +33,7 @@ export default function OpsPage() {
   const [hours, setHours] = useState(24);
   const summary = useApi(() => opsApi.summary(hours), [hours], { keepPrevious: true });
   const errors = useApi(() => opsApi.calls({ onlyErrors: true, limit: 20 }), [hours], { keepPrevious: true });
+  const search = useApi(() => opsApi.searchStatus(), []);
 
   return (
     <div>
@@ -61,6 +63,7 @@ export default function OpsPage() {
 
       {summary.data && (
         <div className="space-y-4">
+          <PolicyWarningNotice warning={search.data?.warning} />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Stat label="Calls" value={String(summary.data.total_calls)} />
             <Stat label="Failed" value={String(summary.data.total_errors)} />

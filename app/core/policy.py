@@ -57,6 +57,7 @@ ERROR_CATALOG: dict[str, ErrorSpec] = {
     "STAGE_DEGRADED": ErrorSpec("warning", True, ("continue", "review")),
     "STAGE_WARNING": ErrorSpec("warning", True, ("continue", "review")),
     "ARTIFACT_REGISTRATION_FAILED": ErrorSpec("warning", True, ("continue", "review")),
+    "SEARCH_UNAVAILABLE": ErrorSpec("error", True, ("review", "continue")),
 }
 
 

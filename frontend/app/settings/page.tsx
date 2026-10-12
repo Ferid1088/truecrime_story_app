@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelStudios } from "@/components/settings/channel-studios";
+import { PolicyWarningNotice } from "@/components/policy-warning";
 
 const ROLE_LABELS: Record<string, string> = {
   fact_extractor: "Fact Extractor",
@@ -65,6 +66,7 @@ export default function SettingsPage() {
         </div>
       )}
       {error && <ErrorState message={error} onRetry={refetch} />}
+      <PolicyWarningNotice warning={engine?.warning} className="mb-4" />
 
       {data && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

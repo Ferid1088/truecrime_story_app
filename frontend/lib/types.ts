@@ -935,6 +935,7 @@ export interface SearchEngineStatus {
     cache_hits?: number;
   };
   llm?: { provider?: string; configured?: boolean };
+  warning?: PolicyWarning;
 }
 
 // APIMaster — generation/analysis scope only.
@@ -1419,6 +1420,18 @@ export interface DocumentaryWarning {
   stage: string;
   reason: string;
   language?: string;
+}
+
+export interface PolicyWarning {
+  policy?: string;
+  decision?: string;
+  rule_id?: string;
+  severity: "info" | "warning" | "error" | string;
+  recoverable: boolean;
+  actions: string[];
+  context: Record<string, unknown>;
+  code: string;
+  message: string;
 }
 
 /** A language's render in a job result: the MP4 and the Video record made from it. */

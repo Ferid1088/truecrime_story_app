@@ -9,6 +9,7 @@ from app.db.models import (
 from app.utils import slugify
 from app.providers import get_research_provider
 from app.providers.generation import get_generation_provider
+from app.core.policy import PolicyError
 
 
 
@@ -119,6 +120,36 @@ def unique_slug(db: Session, title: str) -> str:
 def research_provider():
     """The search-engine provider (a function so tests and tools can replace it in one place)."""
     return get_research_provider()
+
+
+async def require_search_available():
+    """Fail a new research request promptly when SearXNG is down."""
+    provider = research_provider()
+    if not provider.is_configured():
+        raise PolicyError(
+            "SEARCH_UNAVAILABLE",
+            "Research search is unavailable: SearXNG is not configured.",
+            {"provider": provider.name, "reason": "not_configured"},
+            status_code=503,
+        )
+    check_health = getattr(provider, "check_health", None)
+    if not callable(check_health):
+        return provider
+    try:
+        healthy = await check_health()
+    except Exception as exc:  # noqa: BLE001 - classify all health failures
+        healthy = False
+        reason = type(exc).__name__
+    else:
+        reason = "unreachable"
+    if not healthy:
+        raise PolicyError(
+            "SEARCH_UNAVAILABLE",
+            "Research search is unavailable: SearXNG did not pass its health check.",
+            {"provider": provider.name, "reason": reason},
+            status_code=503,
+        )
+    return provider
 
 
 def generation_provider():

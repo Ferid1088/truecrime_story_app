@@ -40,9 +40,7 @@ router = APIRouter()
 @router.post("/api/cases/{case_id}/research")
 async def run_research(case_id: int, db: Session = Depends(get_db)):
     case = get_case_or_404(db, case_id)
-    if not deps.research_provider().is_configured():
-        raise HTTPException(status_code=503,
-                            detail="Search engine not configured (set TRUECRIME_SEARXNG_URL).")
+    await deps.require_search_available()
     try:
         job = await research_jobs.start_research_job(db, case)
     except ProviderError as e:
@@ -307,13 +305,7 @@ async def research_followup(
             },
         )
 
-    provider = deps.research_provider()
-    if not provider.is_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Research engine not configured "
-                   "(SearXNG backend unreachable)",
-        )
+    provider = await deps.require_search_available()
 
     gap_lines = "; ".join(
         f"{m['type']} ({m['priority']}): {m['reason']}" for m in missing
@@ -366,6 +358,7 @@ async def start_video_research(case_id: int, db: Session = Depends(get_db)):
     from app.services.video_research import run_video_research
 
     case = get_case_or_404(db, case_id)
+    await deps.require_search_available()
     job = research_jobs.create_job(
         db, job_type="video_research", case_id=case.id,
         input_data={"case_title": case.canonical_title},
