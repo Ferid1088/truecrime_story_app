@@ -99,7 +99,11 @@ worker and the frontend both need to agree on it) and the frontend to
 to the next free port and prints which one it picked). Both can be set in
 `.env`. `dev_down.sh` only ever stops the PIDs `dev_up.sh` recorded under
 `data/dev/`, never anything found by port, so it never touches another
-project's process that happens to be using the same port.
+project's process that happens to be using the same port. Each managed process
+is launched in a new POSIX session with stdin from `/dev/null` and output in
+its `data/dev/<name>.log`, so the services remain running after the launching
+Terminal command exits or its process group is terminated. The PID is recorded
+only after the service passes its readiness check.
 
 سپس:
 

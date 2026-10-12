@@ -25,6 +25,7 @@ def _fake_dev_root(tmp_path: Path, *, frontend_failure: bool = False) -> tuple[P
     (root / "bin").mkdir()
     shutil.copy2(ROOT / "scripts/dev_up.sh", root / "scripts/dev_up.sh")
     shutil.copy2(ROOT / "scripts/dev_down.sh", root / "scripts/dev_down.sh")
+    shutil.copy2(ROOT / "scripts/detached_exec.py", root / "scripts/detached_exec.py")
     (root / "scripts/dev_up.sh").chmod(0o755)
     (root / "scripts/dev_down.sh").chmod(0o755)
     (root / "scripts/searxng_up.sh").write_text("#!/usr/bin/env bash\nexit 1\n")
@@ -54,6 +55,7 @@ def _fake_dev_root(tmp_path: Path, *, frontend_failure: bool = False) -> tuple[P
     python = Path(sys.executable)
     (root / ".venv/bin/python").write_text(
         "#!/bin/sh\n"
+        f"case \"$1\" in *detached_exec.py) exec {python} \"$@\";; esac\n"
         f"if [ \"$1\" = \"-m\" ] && [ \"$2\" = \"uvicorn\" ]; then exec {python} {service} api \"$@\"; fi\n"
         f"exec {python} {service} worker \"$@\"\n"
     )
@@ -266,6 +268,57 @@ def test_frontend_failure_is_reported_by_status_and_dev_up_fails(tmp_path):
         assert "last error: FATAL frontend failed to bind" in status.stdout
     finally:
         _stop_fake_stack(root, env)
+
+
+def test_detached_fake_services_survive_launcher_exit_and_group_kill(tmp_path):
+    root, env = _fake_dev_root(tmp_path)
+    result = subprocess.run(
+        ["bash", str(root / "scripts/dev_up.sh")],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    pidfiles = [root / "data/dev" / f"{name}.pid" for name in ("api", "worker", "frontend")]
+    pids = [int(path.read_text()) for path in pidfiles]
+    try:
+        assert all(subprocess.run(["kill", "-0", str(pid)], check=False).returncode == 0
+                   for pid in pids)
+        for pid in pids:
+            assert os.getsid(pid) == pid
+    finally:
+        _stop_fake_stack(root, env)
+
+    # A separate harmless service proves that killing the launcher's process
+    # group does not reach a service that detached into its own session.
+    service = root / "survivor.sh"
+    survivor_pid = root / "survivor.pid"
+    service.write_text(
+        f"#!/bin/sh\necho $$ > {survivor_pid}\ntrap 'exit 0' TERM INT\nsleep 60\n"
+    )
+    service.chmod(0o755)
+    launcher = subprocess.Popen(
+        ["bash", "-c", f"{sys.executable} {root / 'scripts/detached_exec.py'} {service}; sleep 60"],
+        cwd=root,
+        start_new_session=True,
+    )
+    try:
+        for _ in range(20):
+            if survivor_pid.exists():
+                break
+            time.sleep(0.1)
+        child_pid = int(survivor_pid.read_text())
+        os.killpg(launcher.pid, signal.SIGTERM)
+        launcher.wait(timeout=5)
+        assert launcher.returncode != 0
+        assert subprocess.run(["kill", "-0", str(child_pid)], check=False).returncode == 0
+    finally:
+        if survivor_pid.exists():
+            child_pid = int(survivor_pid.read_text())
+            os.kill(child_pid, signal.SIGTERM)
 
 
 def test_native_search_template_has_json_api_and_local_secret_placeholder():

@@ -258,7 +258,8 @@ start_process() {
   local name="$1" readiness="$2" target="$3"; shift 3
   local pidfile="$STATE/$name.pid" new_pid
   if [[ -f "$pidfile" ]] && kill -0 "$(<"$pidfile")" 2>/dev/null; then return; fi
-  nohup "$@" >"$STATE/$name.log" 2>&1 &
+  nohup "$ROOT/.venv/bin/python" "$ROOT/scripts/detached_exec.py" "$@" \
+    </dev/null >"$STATE/$name.log" 2>&1 &
   new_pid=$!
   if [[ "$readiness" == port ]]; then
     if ! _wait_for_port "$new_pid" "$target"; then
