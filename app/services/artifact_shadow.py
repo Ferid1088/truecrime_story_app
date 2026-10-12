@@ -150,6 +150,15 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
             row = (db.query(VisualPlan).filter(VisualPlan.case_id == job.case_id)
                    .order_by(VisualPlan.id.desc()).first())
         source["visual_plan"] = _row_payload(row)
+        if row is not None and artifact_type != "visual_plan":
+            try:
+                plan = json.loads(row.plan_json or "{}")
+            except (TypeError, ValueError):
+                plan = {}
+            source["visual_member"] = (
+                plan.get("requirements") if artifact_type == "visual_needs"
+                else plan.get("shots") if artifact_type == "visual_shots"
+                else plan.get("pieces"))
     elif artifact_type == "host_plan":
         source["host_plan"] = _row_payload(_get(db, HostPlan, detail.get("host_plan_id")))
     elif artifact_type == "host_segments":
@@ -221,6 +230,15 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
             row = (db.query(VisualPlan).filter(VisualPlan.case_id == job.case_id)
                    .order_by(VisualPlan.id.desc()).first())
         payload["row"] = _row_payload(row)
+        if row is not None and artifact_type != "visual_plan":
+            try:
+                plan = json.loads(row.plan_json or "{}")
+            except (TypeError, ValueError):
+                plan = {}
+            payload["visual_member"] = (
+                plan.get("requirements") if artifact_type == "visual_needs"
+                else plan.get("shots") if artifact_type == "visual_shots"
+                else plan.get("pieces"))
     elif artifact_type == "host_plan":
         payload["row"] = _row_payload(_get(db, HostPlan, detail.get("host_plan_id")))
     elif artifact_type == "host_segments":
@@ -248,11 +266,20 @@ def _stage_detail(job, stage: str, language: str | None) -> dict:
         entries = json.loads(job.stages_json or "[]")
     except (TypeError, ValueError):
         return {}
-    name = f"{stage}:{language}" if language else stage
     if not isinstance(entries, list):
         return {}
-    entry: dict = next((item for item in entries
-                        if isinstance(item, dict) and item.get("name") == name), {})
+    name = f"{stage}:{language}" if language else stage
+    names = {name}
+    if stage == "production" and language:
+        names.update({f"critique:{language}", f"visual_audit:{language}",
+                      f"render:{language}"})
+    matches = [item for item in entries
+               if isinstance(item, dict) and item.get("name") in names]
+    if stage == "production":
+        matches = [item for item in matches
+                   if isinstance(item.get("detail"), dict)
+                   and item["detail"].get("production_script_id")] or matches
+    entry: dict = matches[-1] if matches else {}
     detail = entry.get("detail")
     return detail if isinstance(detail, dict) else {}
 
@@ -337,7 +364,12 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
                                     scope = {}
                                 if scope.get("asset_id") == asset_row.asset_code:
                                     dependencies.append(candidate.id)
-                    scope = {"job_id": job.id, "stage": stage, "language": artifact_language,
+                    scope_stage = {"master_approval": "master_story",
+                                   "visual_gaps": "visual_plan",
+                                   "critique": "production",
+                                   "visual_audit": "production"}.get(stage, stage)
+                    scope = {"job_id": job.id, "stage": scope_stage,
+                             "language": artifact_language,
                              "type": artifact_type,
                              **({"asset_id": asset.asset_code} if asset is not None else {})}
                     registry.register(
