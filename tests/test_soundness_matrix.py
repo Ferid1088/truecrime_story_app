@@ -1,20 +1,21 @@
 import json
 import sqlite3
 
+from generate_soundness_status import _can_reach, build_status, generate, load_records
+
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
 from app.db.models import Artifact, ArtifactDep
 from app.services.skip_policy import SOUNDNESS, load_soundness_status
 from app.services.soundness import (
     SNAPSHOT_EXCLUDED_FIELDS,
-    create_snapshot_template,
-    restore_snapshot_template,
-    saved_output_snapshot,
     changed_artifacts,
+    create_snapshot_template,
     downstream_closure,
     matrix_row,
+    restore_snapshot_template,
+    saved_output_snapshot,
 )
-from generate_soundness_status import _can_reach, build_status, generate, load_records
 
 
 def test_saved_output_snapshot_hashes_rows_and_files_with_only_named_exclusions(
@@ -58,18 +59,24 @@ def test_named_volatile_field_contract_is_explicit():
     assert "updated_at" in FINGERPRINT_VOLATILE_FIELDS
     assert "generated_ids" not in FINGERPRINT_VOLATILE_FIELDS
     assert {"id", "created_at"} <= SNAPSHOT_EXCLUDED_FIELDS
-    assert canonical_json({"timestamp": "one", "value": 1}) == \
-        canonical_json({"timestamp": "two", "value": 1})
+    assert canonical_json({"timestamp": "one", "value": 1}) == canonical_json(
+        {"timestamp": "two", "value": 1}
+    )
 
 
 def test_soundness_harness_prediction_is_read_only_and_detects_hidden_inputs(db_session):
     rows = []
     for artifact_type in ("research_result", "master_story", "beats", "spoken_version"):
-        row = Artifact(id=f"sound-{artifact_type}", type=artifact_type,
-                       case_id=1, language="en" if artifact_type == "spoken_version" else None,
-                       scope_json=json.dumps({"type": artifact_type}),
-                       input_hash=artifact_type, output_hash=f"before-{artifact_type}",
-                       status="fresh")
+        row = Artifact(
+            id=f"sound-{artifact_type}",
+            type=artifact_type,
+            case_id=1,
+            language="en" if artifact_type == "spoken_version" else None,
+            scope_json=json.dumps({"type": artifact_type}),
+            input_hash=artifact_type,
+            output_hash=f"before-{artifact_type}",
+            status="fresh",
+        )
         rows.append(row)
     db_session.add_all(rows)
     db_session.flush()
@@ -91,10 +98,20 @@ def test_soundness_harness_prediction_is_read_only_and_detects_hidden_inputs(db_
 
 def test_all_registered_types_are_named_in_soundness_sources():
     sources = {
-        "research result", "master story text", "one beat", "spoken version",
-        "voice take", "visual asset", "host plan", "naming title",
-        "typed config", "language profile", "pronunciation/voice setting",
-        "channel identity/logo", "intro design", "agent/model routing",
+        "research result",
+        "master story text",
+        "one beat",
+        "spoken version",
+        "voice take",
+        "visual asset",
+        "host plan",
+        "naming title",
+        "typed config",
+        "language profile",
+        "pronunciation/voice setting",
+        "channel identity/logo",
+        "intro design",
+        "agent/model routing",
         "music history/library",
     }
     assert len(sources) == 15
@@ -109,9 +126,12 @@ def test_sound_type_has_a_passing_snapshot_diff_record():
     statuses = build_status(records)
     for target, status in statuses.items():
         if status == "SOUND":
-            assert any(_can_reach(row, target)
-                       and row.get("status", "passed") == "passed"
-                       and not row.get("hidden") for row in records)
+            assert any(
+                _can_reach(row, target)
+                and row.get("status", "passed") == "passed"
+                and not row.get("hidden")
+                for row in records
+            )
 
 
 def test_regenerating_soundness_outputs_is_deterministic():

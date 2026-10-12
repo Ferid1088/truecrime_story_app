@@ -159,7 +159,7 @@ class ChapterWriter:
                     drafts.update(await self._write(db, case, ctx, language, version, fix))
                     verdicts = await self._audit(
                         db, case, ctx, language, version,
-                        {key: drafts.get(key) for key in pending})
+                        {key: drafts.get(key) or "" for key in pending})
                 except Exception as exc:
                     language_error = f"{type(exc).__name__}: {exc}"[:300]
                     errors.append(f"{language}: {language_error}")

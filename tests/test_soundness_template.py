@@ -2,18 +2,26 @@ import json
 from pathlib import Path
 
 import pytest
+import soundness_template as templates
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-import soundness_template as templates
 from app.services.soundness import saved_output_snapshot
 
 
 def test_template_manifest_tracks_config_code_and_mocks():
     before = templates.manifest()
     assert before == templates.manifest()
-    assert set(before) == {"schema", "git_head", "code_hash", "config_hash", "mock_version",
-                           "languages", "incremental_mode", "chapter_mock"}
+    assert set(before) == {
+        "schema",
+        "git_head",
+        "code_hash",
+        "config_hash",
+        "mock_version",
+        "languages",
+        "incremental_mode",
+        "chapter_mock",
+    }
     assert all(len(before[key]) == 64 for key in ("code_hash", "config_hash", "mock_version"))
 
 
@@ -44,16 +52,19 @@ def test_real_template_restores_every_saved_output(tmp_path):
     restored = templates.restore_template(template, tmp_path / "restored")
     engine = create_engine(f"sqlite:///{restored['database']}")
     with Session(engine) as db:
-        actual = saved_output_snapshot(db, file_roots=[Path(restored["files"]) / name
-                                                      for name in ("cases", "audio", "lib")])
+        actual = saved_output_snapshot(
+            db, file_roots=[Path(restored["files"]) / name for name in ("cases", "audio", "lib")]
+        )
         from sqlalchemy import text
 
         for table, column in (("visual_assets", "local_path"), ("videos", "file_path")):
             # Every stored reference must point into the RESTORED directory,
             # not merely hash the same as a now-moved source path.
-            if column not in [c["name"] for c in __import__("sqlalchemy").inspect(engine).get_columns(table)]:
+            if column not in [
+                c["name"] for c in __import__("sqlalchemy").inspect(engine).get_columns(table)
+            ]:
                 continue
-            for value, in db.execute(text(f'SELECT "{column}" FROM "{table}"')):
+            for (value,) in db.execute(text(f'SELECT "{column}" FROM "{table}"')):
                 if value:
                     assert Path(value).is_relative_to(Path(restored["files"]))
                     assert Path(value).is_file()

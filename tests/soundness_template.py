@@ -3,6 +3,7 @@
 Run: PYTHONPATH=.:tests .venv/bin/python tests/soundness_template.py
 The child pytest process owns the SQLite connection and exits before file copy.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -18,8 +19,13 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MOCK_FILES = ("tests/mock_payload.py", "tests/test_visual_production.py",
-              "tests/test_voice_render.py", "tests/test_spoken_audio.py", "tests/test_host.py")
+MOCK_FILES = (
+    "tests/mock_payload.py",
+    "tests/test_visual_production.py",
+    "tests/test_voice_render.py",
+    "tests/test_spoken_audio.py",
+    "tests/test_host.py",
+)
 
 
 def _digest(paths):
@@ -31,20 +37,25 @@ def _digest(paths):
 
 
 def manifest() -> dict:
-    tracked = subprocess.check_output(["git", "ls-files", "app", "tests", "scripts"],
-                                      cwd=ROOT, text=True).splitlines()
+    tracked = subprocess.check_output(
+        ["git", "ls-files", "app", "tests", "scripts"], cwd=ROOT, text=True
+    ).splitlines()
     # Include new harness files before their phase commit, too.
     code = {ROOT / name for name in tracked if name.endswith(".py")}
     code.update((ROOT / "tests").glob("*.py"))
     code.update((Path(__file__), ROOT / "app/services/soundness.py"))
-    return {"schema": 1,
-            "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"],
-                                                 cwd=ROOT, text=True).strip(),
-            "code_hash": _digest(path for path in code if path.is_file()),
-            "config_hash": _digest(path for path in (ROOT / "config").rglob("*") if path.is_file()),
-            "mock_version": _digest(ROOT / name for name in MOCK_FILES),
-            "languages": ["en", "de", "fa", "ar"], "incremental_mode": "off",
-            "chapter_mock": "consumed-full-request-sha256-v1"}
+    return {
+        "schema": 1,
+        "git_head": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
+        "code_hash": _digest(path for path in code if path.is_file()),
+        "config_hash": _digest(path for path in (ROOT / "config").rglob("*") if path.is_file()),
+        "mock_version": _digest(ROOT / name for name in MOCK_FILES),
+        "languages": ["en", "de", "fa", "ar"],
+        "incremental_mode": "off",
+        "chapter_mock": "consumed-full-request-sha256-v1",
+    }
 
 
 def ensure_template(destination: Path, postgres_admin_url: str | None = None) -> tuple[Path, dict]:
@@ -75,19 +86,39 @@ def ensure_template(destination: Path, postgres_admin_url: str | None = None) ->
         with admin.connect() as conn:
             conn.execute(text(f'CREATE DATABASE "{database_name}"'))
         admin.dispose()
-        database_url = make_url(postgres_admin_url).set(database=database_name).render_as_string(
-            hide_password=False)
-    env.update({"TC_COPY_DATABASE_URL": database_url,
-                "SOUNDNESS_CHAPTER_PAYLOAD": "1",
-                "SOUNDNESS_CHILD": "1", "SOUNDNESS_RUN_ROOT": str(run),
-                "SOUNDNESS_CAPTURE": str(build / "snapshot.json"),
-                "SOUNDNESS_PAYLOAD_LOG": str(build / "requests.jsonl"),
-                "SOUNDNESS_SNAPSHOT_VALUES": str(build / "snapshot-values.json"),
-                "PYTHONPATH": str(ROOT)})
+        database_url = (
+            make_url(postgres_admin_url)
+            .set(database=database_name)
+            .render_as_string(hide_password=False)
+        )
+    env.update(
+        {
+            "TC_COPY_DATABASE_URL": database_url,
+            "SOUNDNESS_CHAPTER_PAYLOAD": "1",
+            "SOUNDNESS_CHILD": "1",
+            "SOUNDNESS_RUN_ROOT": str(run),
+            "SOUNDNESS_CAPTURE": str(build / "snapshot.json"),
+            "SOUNDNESS_PAYLOAD_LOG": str(build / "requests.jsonl"),
+            "SOUNDNESS_SNAPSHOT_VALUES": str(build / "snapshot-values.json"),
+            "PYTHONPATH": str(ROOT),
+        }
+    )
     started = time.perf_counter()
-    completed = subprocess.run([sys.executable, "-m", "pytest", "-q", "-s",
-                               "tests/test_visual_production.py::test_four_language_shadow_pipeline_real_job"],
-                              cwd=ROOT, env=env, capture_output=True, text=True, timeout=300)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-s",
+            "tests/test_visual_production.py::test_four_language_shadow_pipeline_real_job",
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
     elapsed = time.perf_counter() - started
     (build / "run.log").write_text(completed.stdout + completed.stderr)
     if completed.returncode:
@@ -96,8 +127,12 @@ def ensure_template(destination: Path, postgres_admin_url: str | None = None) ->
     if not postgres_admin_url:
         with sqlite3.connect(build / "pipeline.db") as db:
             assert db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
-    metadata = {"identity": expected, "source_files_root": str(run),
-                "baseline_seconds": elapsed, "database_name": database_name}
+    metadata = {
+        "identity": expected,
+        "source_files_root": str(run),
+        "baseline_seconds": elapsed,
+        "database_name": database_name,
+    }
     (build / "manifest.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
     if destination.exists():
         archive = Path(tempfile.mkdtemp(prefix="stale-template-", dir=destination.parent))
@@ -106,8 +141,9 @@ def ensure_template(destination: Path, postgres_admin_url: str | None = None) ->
     return destination, {"rebuilt": True, "rebuild_seconds": elapsed}
 
 
-def restore_template(template: Path, destination: Path,
-                     postgres_admin_url: str | None = None) -> dict:
+def restore_template(
+    template: Path, destination: Path, postgres_admin_url: str | None = None
+) -> dict:
     """SQLite file copy + all output files into a NEW per-test directory.
 
     Rebase only the absolute harness directory in persisted paths, not content,
@@ -133,8 +169,9 @@ def restore_template(template: Path, destination: Path,
         admin = create_engine(postgres_admin_url)
         clone_postgres_template(admin, metadata["database_name"], target)
         admin.dispose()
-        database_url = make_url(postgres_admin_url).set(database=target).render_as_string(
-            hide_password=False)
+        database_url = (
+            make_url(postgres_admin_url).set(database=target).render_as_string(hide_password=False)
+        )
     engine = create_engine(database_url)
     inspector = inspect(engine)
     with engine.begin() as db:
@@ -142,16 +179,23 @@ def restore_template(template: Path, destination: Path,
             for column in inspector.get_columns(table):
                 name = column["name"]
                 if any(token in str(column["type"]).upper() for token in ("CHAR", "TEXT")):
-                    db.execute(text(f'UPDATE "{table}" SET "{name}"=replace("{name}", :old, :new) '
-                                    f'WHERE "{name}" LIKE :pattern'),
-                               {"old": old, "new": new, "pattern": f"%{old}%"})
+                    db.execute(
+                        text(
+                            f'UPDATE "{table}" SET "{name}"=replace("{name}", :old, :new) '
+                            f'WHERE "{name}" LIKE :pattern'
+                        ),
+                        {"old": old, "new": new, "pattern": f"%{old}%"},
+                    )
     engine.dispose()
     for path in (destination / "files").rglob("*.json"):
         data = path.read_text()
         if old in data:
             path.write_text(data.replace(old, new))
-    return {"restore_seconds": time.perf_counter() - started,
-            "database": target or str(destination / "pipeline.db"), "files": new}
+    return {
+        "restore_seconds": time.perf_counter() - started,
+        "database": target or str(destination / "pipeline.db"),
+        "files": new,
+    }
 
 
 def clone_postgres_template(admin_engine, source: str, target: str) -> None:
@@ -162,6 +206,7 @@ def clone_postgres_template(admin_engine, source: str, target: str) -> None:
     DROP operation is performed here.
     """
     import re
+
     from sqlalchemy import text
 
     for name in (source, target):
@@ -181,20 +226,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
     template, timings = ensure_template(
         ROOT / "data/dev/soundness" / ("template-pg" if args.postgres_admin_url else "template"),
-        args.postgres_admin_url)
+        args.postgres_admin_url,
+    )
     restore_parent = Path(tempfile.mkdtemp(prefix="tc-soundness-restore-"))
     timings.update(restore_template(template, restore_parent / "run", args.postgres_admin_url))
     from sqlalchemy import create_engine
     from sqlalchemy.engine import make_url
     from sqlalchemy.orm import Session
+
     from app.services.soundness import saved_output_snapshot
 
-    restored_url = (make_url(args.postgres_admin_url).set(database=timings["database"])
-                    if args.postgres_admin_url else f"sqlite:///{timings['database']}")
+    restored_url = (
+        make_url(args.postgres_admin_url).set(database=timings["database"])
+        if args.postgres_admin_url
+        else f"sqlite:///{timings['database']}"
+    )
     engine = create_engine(restored_url)
     with Session(engine) as db:
-        actual = saved_output_snapshot(db, file_roots=[Path(timings["files"]) / name
-                                                      for name in ("cases", "audio", "lib")])
+        actual = saved_output_snapshot(
+            db, file_roots=[Path(timings["files"]) / name for name in ("cases", "audio", "lib")]
+        )
     engine.dispose()
     expected = json.loads((template / "snapshot.json").read_text())
     assert actual == expected, "Restored snapshot differs from baseline"

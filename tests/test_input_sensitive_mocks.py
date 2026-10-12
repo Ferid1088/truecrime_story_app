@@ -6,21 +6,22 @@ import shutil
 from dataclasses import replace
 
 import pytest
-
-pytest_plugins = ["test_visual_production"]
-
-from app.core.ai_config import ai_config
-from app.providers.voice.base import VoiceRequest
 from mock_payload import request_hash
-from test_spoken_audio import FakeSound, _sine_mp3
+from test_spoken_audio import FakeSound
 from test_visual_production import PipelineGen, _story
 from test_voice_render import FakeASR, FakeTTS
+
+from app.providers.voice.base import VoiceRequest
+
+pytest_plugins = ["test_visual_production"]
 
 
 def test_generation_text_changes_for_one_request_field_and_repeats_identically():
     async def run(system):
         return await PipelineGen().generate_text(
-            "spoken_writer", system, json.dumps({"script": "[[ACT:B01]]\n\nalpha beta"}),
+            "spoken_writer",
+            system,
+            json.dumps({"script": "[[ACT:B01]]\n\nalpha beta"}),
             images=["data:image/jpeg;base64,AA=="],
         )
 
@@ -55,7 +56,8 @@ def test_tts_and_asr_fakes_hash_complete_requests(tmp_path):
     audio = tmp_path / "take__7.mp3"
     audio.write_bytes(first.audio)
     (tmp_path / "block__7.json").write_text(
-        json.dumps({"text": req.text, "seed": 1}), encoding="utf-8")
+        json.dumps({"text": req.text, "seed": 1}), encoding="utf-8"
+    )
     asr = FakeASR()
     heard = asr.transcribe(str(audio), "en")
     heard_repeat = asr.transcribe(str(audio), "en")
@@ -105,10 +107,21 @@ def test_visual_search_geocode_and_map_fakes_hash_complete_requests(
 
 
 def test_request_hash_changes_for_each_payload_field():
-    base = {"prompt": "a", "system": "b", "model": "c", "params": {"x": 1},
-            "attachments": ["a"], "language": "en"}
-    for field, value in (("prompt", "z"), ("system", "z"), ("model", "z"),
-                         ("params", {"x": 2}), ("attachments", ["b"]),
-                         ("language", "de")):
+    base = {
+        "prompt": "a",
+        "system": "b",
+        "model": "c",
+        "params": {"x": 1},
+        "attachments": ["a"],
+        "language": "en",
+    }
+    for field, value in (
+        ("prompt", "z"),
+        ("system", "z"),
+        ("model", "z"),
+        ("params", {"x": 2}),
+        ("attachments", ["b"]),
+        ("language", "de"),
+    ):
         changed = dict(base, **{field: value})
         assert request_hash("contract", **base) != request_hash("contract", **changed)

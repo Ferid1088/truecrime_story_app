@@ -16,12 +16,20 @@ def test_shared_chapter_context_has_no_per_language_inputs(db_session):
 
 def test_chapter_card_payload_contains_only_its_language_excerpt(db_session):
     from test_chapters import _setup
+
     from app.db.models import StoryVersion
 
     case, master, bp = _setup(db_session)
-    de = StoryVersion(case_id=case.id, language="de", kind="spoken", version=2,
-                      status="approved", narrative_angle="", story_text="DE ONLY",
-                      narrative_structure="{}")
+    de = StoryVersion(
+        case_id=case.id,
+        language="de",
+        kind="spoken",
+        version=2,
+        status="approved",
+        narrative_angle="",
+        story_text="DE ONLY",
+        narrative_structure="{}",
+    )
     db_session.add(de)
     db_session.commit()
     context = ChapterWriter().context(db_session, case, bp, master, ["de"], {"de": de})
