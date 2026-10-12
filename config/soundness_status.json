@@ -1,6 +1,6 @@
 {
-  "generated_by": "snapshot-diff harness",
-  "evidence": "9B requires full input-sensitive-provider perturbation runs; no artifact type is promoted until those runs complete.",
+  "generated_by": "conservative 9B bootstrap; not a completed perturbation run",
+  "evidence": "No artifact type is promoted until the full input-sensitive-provider perturbation harness completes.",
   "statuses": {
     "research_result": "UNPROVEN",
     "master_story": "UNPROVEN",
