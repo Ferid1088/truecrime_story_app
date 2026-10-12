@@ -229,7 +229,7 @@ def _language_rows(job, language: str | None) -> list[str | None]:
 def _output_payload(db, job, stage: str, language: str | None, detail: dict,
                     artifact_type: str) -> dict:
     """Canonical representation of the content persisted by a stage."""
-    payload: dict = {"artifact_type": artifact_type, "detail": detail}
+    payload: dict = {"artifact_type": artifact_type}
     if artifact_type == "visual_asset":
         payload["row"] = _row_payload(_get(db, VisualAsset, detail.get("asset_id")))
     elif artifact_type in ("master_story", "master_approval"):
@@ -261,6 +261,12 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
         payload["row"] = _row_payload(_get(db, ChapterPlan, detail.get("chapter_plan_id")))
     elif artifact_type in ("captions", "production_script"):
         payload["row"] = _row_payload(_get(db, ProductionScript, detail.get("production_script_id")))
+    else:
+        # Stages without a dedicated persisted row expose their saved result
+        # through the stage detail.  Row-backed artifacts intentionally omit
+        # bookkeeping detail so a later approval/audit can re-register the
+        # same final row without hashing transient stage metadata.
+        payload["detail"] = detail
     return payload
 
 
@@ -398,10 +404,10 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
                              **({"asset_id": asset.asset_code} if asset is not None else {})}
                     registry.register(
                         artifact_type, scope,
-                        _source_payload(db, job, stage, artifact_language, artifact_detail,
+                        _source_payload(db, job, scope_stage, artifact_language, artifact_detail,
                                         artifact_type),
                         dependencies, _relative_ref(detail or {}, artifact_type),
-                        output_hash=_output_hash(db, job, stage, artifact_language,
+                        output_hash=_output_hash(db, job, scope_stage, artifact_language,
                                                  artifact_detail, artifact_type),
                         created_by="shadow_stage", case_id=job.case_id,
                         language=artifact_language, stage_job_id=job.id)

@@ -826,6 +826,8 @@ async def run_job(job_id: int, session_factory=None):
     try:
         async with slot("jobs"):
             job = db.get(DocumentaryJob, job_id)
+            if job is None:
+                raise ValueError(f"documentary job {job_id} not found")
             db.refresh(job)
             if job.status in ("cancelling", "cancelled"):
                 job.status = "cancelled"
@@ -842,14 +844,8 @@ async def run_job(job_id: int, session_factory=None):
                 if ai_config.artifacts.shadow_mode:
                     from app.services.artifacts import ArtifactRegistry
 
-                    drift = ArtifactRegistry(db).reconcile(
+                    ArtifactRegistry(db).reconcile(
                         job.case_id, stage_job_id=job.id, repair=True)
-                    if drift:
-                        result.setdefault("warnings", []).append({
-                            "stage": "artifact_reconcile",
-                            "reason": f"repaired {len(drift)} registry output hash mismatch(es)",
-                            "code": "ARTIFACT_REGISTRY_DRIFT",
-                        })
                 # Equivalent to completed_with_warnings, within the existing
                 # DocumentaryJob.status String(20) column.
                 job.status = status_for_result(result or {})
