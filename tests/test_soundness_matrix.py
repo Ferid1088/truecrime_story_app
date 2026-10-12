@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
@@ -6,10 +7,49 @@ from app.db.models import Artifact, ArtifactDep
 from app.services.skip_policy import SOUNDNESS, load_soundness_status
 from app.services.soundness import (
     SNAPSHOT_EXCLUDED_FIELDS,
+    create_snapshot_template,
+    restore_snapshot_template,
+    saved_output_snapshot,
     changed_artifacts,
     downstream_closure,
     matrix_row,
 )
+
+
+def test_saved_output_snapshot_hashes_rows_and_files_with_only_named_exclusions(
+    db_session, tmp_path
+):
+    from app.db.models import Case
+
+    db_session.add(Case(canonical_title="snapshot", slug="snapshot-files", language="en"))
+    db_session.commit()
+    root = tmp_path / "outputs"
+    root.mkdir()
+    (root / "render.mp4").write_bytes(b"render-a")
+    first = saved_output_snapshot(db_session, file_roots=[root])
+    repeat = saved_output_snapshot(db_session, file_roots=[root])
+    assert first == repeat
+    (root / "render.mp4").write_bytes(b"render-b")
+    changed = saved_output_snapshot(db_session, file_roots=[root])
+    assert changed["file:outputs/render.mp4"] != first["file:outputs/render.mp4"]
+    assert any(key.startswith("db:cases:") for key in first)
+
+
+def test_snapshot_template_round_trips_database_copy_and_files(tmp_path):
+    source_db = tmp_path / "source.db"
+    sqlite3.connect(source_db).close()
+    source_files = tmp_path / "source-files"
+    source_files.mkdir()
+    (source_files / "artifact.bin").write_bytes(b"baseline")
+    template = create_snapshot_template(source_db, source_files, tmp_path / "template")
+    destination_db = tmp_path / "destination.db"
+    destination_files = tmp_path / "destination-files"
+    sqlite3.connect(destination_db).close()
+    destination_files.mkdir()
+    (destination_files / "artifact.bin").write_bytes(b"changed")
+    restore_snapshot_template(template, destination_db, destination_files)
+    assert destination_db.read_bytes() == source_db.read_bytes()
+    assert (destination_files / "artifact.bin").read_bytes() == b"baseline"
 
 
 def test_named_volatile_field_contract_is_explicit():

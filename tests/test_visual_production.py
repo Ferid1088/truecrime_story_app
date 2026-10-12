@@ -5,6 +5,7 @@ import asyncio
 import json
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -692,6 +693,7 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     from app.documentary.production.script import timeline_layout
     from app.services.artifacts import ArtifactRegistry
     from app.services.artifact_shadow import registry_consistency
+    from app.services.soundness import saved_output_snapshot
 
     SHADOW_VOLATILE_KEYS = {"id", "card_id", "piece_id", "created_at", "updated_at",
                             "timestamp", "started_at", "finished_at"}
@@ -777,6 +779,12 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     print("REGISTRY_MISMATCHES", json.dumps(mismatches, sort_keys=True))
     assert mismatches == []
 
+    snapshot_roots = [Path(ai_config.documentary.storage_dir),
+                      Path(ai_config.voice.work_dir), Path(ai_config.music_library.dir)]
+    snapshot_started = time.perf_counter()
+    baseline_snapshot = saved_output_snapshot(db_session, file_roots=snapshot_roots)
+    baseline_seconds = time.perf_counter() - snapshot_started
+
     # Re-running the same completed job is a real StageRunner resume pass;
     # shadow registration must not change any existing input hash.
     before_hashes = {row.id: row.input_hash for row in rows}
@@ -784,6 +792,14 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     db_session.expire_all()
     after_rows = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
     assert before_hashes == {row.id: row.input_hash for row in after_rows}
+    repeat_snapshot = saved_output_snapshot(db_session, file_roots=snapshot_roots)
+    snapshot_diff = sorted(key for key in set(baseline_snapshot) | set(repeat_snapshot)
+                           if baseline_snapshot.get(key) != repeat_snapshot.get(key))
+    assert repeat_snapshot == baseline_snapshot, snapshot_diff[:50]
+    print("SNAPSHOT_DETERMINISM", json.dumps({
+        "equal": True, "artifacts": len(baseline_snapshot),
+        "baseline_seconds": round(baseline_seconds, 3),
+    }, sort_keys=True))
 
     def reachable_types(start):
         found = {start}
