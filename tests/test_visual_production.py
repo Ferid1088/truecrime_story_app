@@ -3,6 +3,7 @@ one-button documentary pipeline (end to end with scripted models, fake
 voice and sound providers, real FFmpeg/OpenCV rendering)."""
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -706,7 +707,10 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
             return [strip_ids(v) for v in value]
         return value
 
-    case, master = _story(db_session)
+    monkeypatch.setattr("app.db.models.new_case_uid", lambda: "CASE_SOUNDNESS")
+    case, master = _story(db_session, title="BP SOUNDNESS")
+    case.case_uid = "CASE_SOUNDNESS"
+    db_session.commit()
     case.resolution_status = "UNSOLVED"
     monkeypatch.setattr(ai_config.artifacts, "shadow_mode", True)
     history_before = [
@@ -784,6 +788,12 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     snapshot_started = time.perf_counter()
     baseline_snapshot = saved_output_snapshot(db_session, file_roots=snapshot_roots)
     baseline_seconds = time.perf_counter() - snapshot_started
+    capture_path = os.environ.get("SOUNDNESS_CAPTURE")
+    if capture_path:
+        Path(capture_path).write_text(
+            json.dumps(baseline_snapshot, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
     # Re-running the same completed job is a real StageRunner resume pass;
     # shadow registration must not change any existing input hash.
@@ -873,28 +883,17 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     assert first_scripts == second_scripts, differences[:20]
 
     # Full-documentary mode-off golden captured from the pre-incremental ref
-    # (05320d5). The current result is compared by saved row/file key; the
-    # expected differences are the Phase 2 request-sensitive mock outputs.
-    from collections import Counter
+    # (05320d5), with only the Phase 2 mock commit applied there. Compare the
+    # clean first-run snapshot, before the resume and second-job checks above.
     golden_path = Path(__file__).parent / "golden" / "documentary_pipeline_pre_incremental.json"
     golden = json.loads(golden_path.read_text(encoding="utf-8"))
-    current = saved_output_snapshot(db_session, file_roots=snapshot_roots)
+    current = baseline_snapshot
     golden_diff = [key for key in sorted(set(golden) | set(current))
                    if golden.get(key) != current.get(key)]
-    by_scope = Counter(key.split(":")[1] if key.startswith("db:") else "files"
-                       for key in golden_diff)
     print("MODE_OFF_GOLDEN_DIFF", json.dumps({"pre_ref": "05320d5",
                                                 "different": len(golden_diff),
-                                                "by_scope": dict(sorted(by_scope.items()))},
-                                               sort_keys=True))
-    assert len(golden_diff) == 161
-    assert dict(sorted(by_scope.items())) == {
-        "audio_plans": 1, "cases": 1, "chapter_plans": 1,
-        "host_scenes": 8, "media_usages": 16, "music_tracks": 10,
-        "music_usages": 2, "production_scripts": 8, "story_versions": 4,
-        "visual_assets": 7, "visual_audits": 3, "visual_plans": 1,
-        "voice_performances": 5, "videos": 8, "files": 86,
-    }
+                                                "keys": golden_diff[:20]}, sort_keys=True))
+    assert golden_diff == []
     # The real renderer's timeline layout is language-independent in direction.
     window = [{"id": "T1", "date": "1998"}, {"id": "T2", "date": "2007"}]
     for language in ("fa", "ar"):

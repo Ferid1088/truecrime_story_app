@@ -19,6 +19,9 @@ SNAPSHOT_EXCLUDED_FIELDS = frozenset({
     "id", "card_id", "piece_id", "created_at", "updated_at", "timestamp",
     "started_at", "finished_at",
 })
+SNAPSHOT_VOLATILE_JSON_KEYS = frozenset({
+    "id", "created_at", "updated_at", "timestamp", "started_at", "finished_at", "at",
+})
 
 # Explicit pipeline outputs. Provider-ledger, policy/audit, monitoring, and
 # lifecycle history rows are operational telemetry rather than saved pipeline
@@ -34,20 +37,33 @@ SNAPSHOT_PIPELINE_TABLES = (
 )
 
 
-def _snapshot_value(value):
+def _snapshot_value(value, path_replacements: tuple[tuple[str, str], ...] = ()):
     if isinstance(value, bytes):
         return {"sha256": hashlib.sha256(value).hexdigest(), "length": len(value)}
     if hasattr(value, "isoformat"):
         return value.isoformat()
+    if isinstance(value, str):
+        for prefix, replacement in path_replacements:
+            if value.startswith(prefix):
+                return replacement + value[len(prefix):]
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return value
+        if isinstance(parsed, (dict, list)):
+            return _snapshot_value(parsed, path_replacements)
+        return value
     if isinstance(value, dict):
-        return {str(k): _snapshot_value(v) for k, v in sorted(value.items(), key=lambda x: str(x[0]))}
+        return {str(k): _snapshot_value(v, path_replacements)
+                for k, v in sorted(value.items(), key=lambda x: str(x[0]))
+                if str(k) not in SNAPSHOT_VOLATILE_JSON_KEYS}
     if isinstance(value, (list, tuple)):
-        return [_snapshot_value(v) for v in value]
+        return [_snapshot_value(v, path_replacements) for v in value]
     return value
 
 
-def _row_snapshot(row: dict) -> dict:
-    return {key: _snapshot_value(value) for key, value in sorted(row.items())
+def _row_snapshot(row: dict, path_replacements: tuple[tuple[str, str], ...] = ()) -> dict:
+    return {key: _snapshot_value(value, path_replacements) for key, value in sorted(row.items())
             if key not in SNAPSHOT_EXCLUDED_FIELDS}
 
 
@@ -59,6 +75,8 @@ def saved_output_snapshot(db: Session, *, file_roots: Iterable[Path] = ()) -> di
     side of a snapshot-diff soundness run. Volatile columns are limited to the
     named ``SNAPSHOT_EXCLUDED_FIELDS`` contract above.
     """
+    roots = tuple(Path(root) for root in file_roots)
+    replacements = tuple((str(root), f"<{root.name}>") for root in roots)
     snapshot: dict[str, str] = {}
     bind = db.get_bind()
     inspector = inspect(bind)
@@ -66,7 +84,7 @@ def saved_output_snapshot(db: Session, *, file_roots: Iterable[Path] = ()) -> di
         if table_name not in inspector.get_table_names():
             continue
         rows = db.execute(text(f'SELECT * FROM "{table_name}"')).mappings().all()
-        normalized = sorted((_row_snapshot(dict(row)) for row in rows),
+        normalized = sorted((_row_snapshot(dict(row), replacements) for row in rows),
                             key=lambda value: json.dumps(value, sort_keys=True, ensure_ascii=False))
         for ordinal, row in enumerate(normalized):
             encoded = json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":"))

@@ -156,12 +156,13 @@ class DirectorGen:
             text="{}", model="m/director", provider="fake")
 
 
-def _story(db, sections=SECTIONS, fingerprint=None):
+def _story(db, sections=SECTIONS, fingerprint=None, title=None):
     from app.db.models import Case, Fact, StoryVersion
     from app.utils import slugify
 
-    title = f"BP {uuid.uuid4().hex[:6]}"
-    case = Case(canonical_title=title, slug=slugify(title), language="en")
+    title = title or f"BP {uuid.uuid4().hex[:6]}"
+    case = Case(canonical_title=title, slug=slugify(title), language="en",
+                case_uid="CASE_SOUNDNESS" if title == "BP SOUNDNESS" else None)
     db.add(case)
     db.commit()
     for i in range(1, 5):
