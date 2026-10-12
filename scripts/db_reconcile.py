@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import signal
 import socket
 import sqlite3
@@ -12,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -46,6 +49,15 @@ FOREIGN_KEY_ALLOWLIST = {
     ("agent_runs", "documentary_job_id", "documentary_jobs", "id"),
     ("story_versions", "master_version_id", "story_versions", "id"),
 }
+NEW_TABLES = {
+    "app_settings", "artifact_deps", "artifacts", "backup_runs",
+    "edit_log", "override_log", "policy_events", "provider_calls",
+}
+SERVICE_NAMES = ("searxng", "api", "worker", "frontend")
+
+
+class LiveApplyError(RuntimeError):
+    """A live apply failed; the message includes whether rollback succeeded."""
 
 
 def sqlite_url(path: Path) -> str:
@@ -71,6 +83,79 @@ def integrity(path: Path) -> tuple[str, list[tuple]]:
         )
 
 
+def _same_rows(reference: Path, candidate: Path) -> None:
+    expected = table_counts(reference)
+    actual = table_counts(candidate)
+    if expected != actual:
+        raise RuntimeError("row counts differ")
+
+
+def verify_database_pair(reference: Path, candidate: Path) -> None:
+    for path in (reference, candidate):
+        check, foreign_keys = integrity(path)
+        if check != "ok" or foreign_keys:
+            raise RuntimeError(f"{path}: integrity={check}, foreign_keys={foreign_keys}")
+    _same_rows(reference, candidate)
+
+
+def _pidfile_paths(root: Path) -> list[Path]:
+    return [root / "data" / "dev" / f"{name}.pid" for name in ("api", "worker", "frontend")] + [
+        root / "data" / "searxng" / "searxng.pid"
+    ]
+
+
+def ensure_live_quiescent(root: Path, live: Path) -> None:
+    status = subprocess.run(
+        [str(root / "scripts" / "dev_up.sh"), "--status"],
+        cwd=root, check=False, capture_output=True, text=True,
+    )
+    report = (status.stdout or "") + (status.stderr or "")
+    print("Pre-flight service status:")
+    print(report.rstrip())
+    if status.returncode != 0:
+        raise RuntimeError("dev_up.sh --status failed")
+    running = [line for line in report.splitlines()
+               if any(line.startswith(f"{name}: running") for name in SERVICE_NAMES)]
+    pid_running = []
+    for pidfile in _pidfile_paths(root):
+        if not pidfile.exists():
+            continue
+        try:
+            pid = int(pidfile.read_text(encoding="utf-8").strip())
+        except ValueError:
+            pid_running.append(f"{pidfile} contains an invalid PID")
+            continue
+        if subprocess.run(["kill", "-0", str(pid)], check=False,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            pid_running.append(f"{pidfile} -> {pid}")
+        else:
+            print(f"stale pidfile reported (not blocking): {pidfile}")
+    if running or pid_running:
+        raise RuntimeError("TrueCrime service is running: " + "; ".join(running + pid_running))
+
+    lsof = shutil.which("lsof")
+    if not lsof:
+        raise RuntimeError("lsof is required for the live database open-handle guard")
+    result = subprocess.run([lsof, "-nP", "--", str(live)], check=False,
+                            capture_output=True, text=True)
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    if lines:
+        print("Open database handles:")
+        print("\n".join(lines))
+    writable = []
+    for line in lines[1:]:
+        fields = line.split()
+        fd = fields[3] if len(fields) > 3 else "?"
+        if not fd.endswith("r"):
+            writable.append(line)
+    if writable:
+        raise RuntimeError("truecrime.db has non-read-only open handles")
+    if lines:
+        print("Only read-only database handles found; continuing.")
+    else:
+        print("No database open handles found.")
+
+
 def copy_database(source: Path, destination: Path) -> None:
     if source.resolve() == destination.resolve():
         raise SystemExit("Refusing to reconcile in place: --copy must differ from --source.")
@@ -82,6 +167,22 @@ def copy_database(source: Path, destination: Path) -> None:
     source_uri = f"file:{source.resolve()}?mode=ro"
     with sqlite3.connect(source_uri, uri=True) as source_connection, sqlite3.connect(destination) as target:
         source_connection.backup(target)
+
+
+def restore_database(backup: Path, target: Path) -> None:
+    """Restore through SQLite backup API and atomically replace the target."""
+    for sidecar in (Path(f"{target}-wal"), Path(f"{target}-shm")):
+        if sidecar.exists():
+            sidecar.unlink()
+            print(f"Removed stale sidecar: {sidecar}")
+    temporary = target.with_name(f".{target.name}.restore-{uuid.uuid4().hex}.db")
+    try:
+        copy_database(backup, temporary)
+        os.replace(temporary, target)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    verify_database_pair(backup, target)
 
 
 def compare_with_fresh_head(path: Path) -> None:
@@ -140,6 +241,66 @@ def reconcile(path: Path) -> dict[str, int]:
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()[0]
     print(f"Reconciled {path}: alembic_version={revision}, tables={len(after)}")
     return before
+
+
+def verify_post_migration(live: Path, backup: Path) -> dict[str, object]:
+    backup_counts = table_counts(backup)
+    live_counts = table_counts(live)
+    if backup_counts != {table: live_counts.get(table) for table in backup_counts}:
+        raise RuntimeError("post-migration row counts differ from the backup")
+    if not set(live_counts) >= NEW_TABLES:
+        raise RuntimeError("one or more reconciliation tables are missing")
+    nonempty = {table: live_counts[table] for table in NEW_TABLES if live_counts[table] != 0}
+    if nonempty:
+        raise RuntimeError(f"new reconciliation tables are not empty: {nonempty}")
+    check, foreign_keys = integrity(live)
+    if check != "ok" or foreign_keys:
+        raise RuntimeError(f"post-migration integrity={check}, foreign_keys={foreign_keys}")
+    with sqlite3.connect(live) as connection:
+        revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+    from alembic.script import ScriptDirectory
+
+    head = ScriptDirectory(str(Path(__file__).resolve().parents[1] / "migrations")).get_current_head()
+    if revision != head:
+        raise RuntimeError(f"alembic_version={revision}, expected {head}")
+    compare_with_fresh_head(live)
+    return {"pre_existing_tables": len(backup_counts), "new_tables": sorted(NEW_TABLES),
+            "alembic_version": revision}
+
+
+def apply_live(root: Path | None = None, live: Path | None = None,
+               backup_dir: Path | None = None) -> Path:
+    root = root or Path(__file__).resolve().parents[1]
+    live = live or root / "truecrime.db"
+    backup_dir = backup_dir or root / "data" / "backups"
+    ensure_live_quiescent(root, live)
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S%z")
+    backup = backup_dir / f"truecrime-pre-phaseC-{timestamp}.db"
+    if backup.exists():
+        raise RuntimeError(f"backup already exists: {backup}")
+    copy_database(live, backup)
+    print(f"Created backup: {backup}")
+    verify_database_pair(backup, live)
+    print(f"Pre-migration backup verification passed for {len(table_counts(backup))} tables.")
+    live_url = sqlite_url(live)
+    try:
+        cfg = migrate.alembic_config(live_url)
+        command.stamp(cfg, "0009")
+        command.upgrade(cfg, "head")
+        result = verify_post_migration(live, backup)
+        print("Live migration verification passed: " + json.dumps(result, sort_keys=True))
+        return backup
+    except Exception as error:
+        print(f"Live migration verification failed: {error}", file=sys.stderr)
+        try:
+            restore_database(backup, live)
+        except Exception as rollback_error:
+            raise LiveApplyError(
+                f"automatic rollback FAILED after {error}: {rollback_error}"
+            ) from rollback_error
+        print("Automatic rollback completed and backup row counts/integrity verified.", file=sys.stderr)
+        raise LiveApplyError(f"live migration rolled back: {error}") from error
 
 
 def job_snapshot(path: Path) -> dict:
@@ -287,11 +448,17 @@ def mocked_job(path: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path("truecrime.db"))
-    parser.add_argument("--copy", type=Path, required=True)
+    parser.add_argument("--copy", type=Path)
+    parser.add_argument("--apply-live", action="store_true")
     parser.add_argument("--safe-start", action="store_true")
     parser.add_argument("--api-smoke", action="store_true")
     parser.add_argument("--mocked-job", action="store_true")
     args = parser.parse_args()
+    if args.apply_live:
+        apply_live()
+        return 0
+    if args.copy is None:
+        parser.error("--copy is required unless --apply-live is used")
     source = args.source.resolve()
     destination = args.copy.resolve()
     copy_database(source, destination)
