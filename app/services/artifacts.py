@@ -127,17 +127,33 @@ class ArtifactRegistry:
         ids = list(dict.fromkeys(artifact_ids))
         rows = [self.db.get(Artifact, artifact_id) for artifact_id in ids]
         found = [row for row in rows if row is not None]
+        changed = list(dict.fromkeys(changed_artifact_ids))
+        if changed:
+            # A preview request names the roots it is changing.  Expand to
+            # every artifact in the affected job(s), so callers cannot get a
+            # misleading "root reruns, child reused" answer merely by
+            # omitting the child's id from the request.
+            job_ids = {row.stage_job_id for row in found if row.stage_job_id is not None}
+            job_ids.update(
+                row.stage_job_id for artifact_id in changed
+                if (row := self.db.get(Artifact, artifact_id)) is not None
+                and row.stage_job_id is not None
+            )
+            if job_ids:
+                found = (self.db.query(Artifact)
+                         .filter(Artifact.stage_job_id.in_(job_ids))
+                         .order_by(Artifact.id).all())
+                ids = [row.id for row in found]
         counts: dict[str, int] = defaultdict(int)
         for row in found:
             counts[row.type] += 1
         result = {"counts": dict(sorted(counts.items())), "total": len(ids),
                   "found": len(found), "label": f"{len(found)} of {len(ids)}"}
-        if not changed_artifact_ids:
+        if not changed:
             return result
         from app.services.skip_policy import SkipPolicy
         from app.services.soundness import downstream_closure
 
-        changed = list(dict.fromkeys(changed_artifact_ids))
         closure = downstream_closure(self.db, changed)
         details = []
         rebuild_by_language: dict[str, list[str]] = defaultdict(list)
