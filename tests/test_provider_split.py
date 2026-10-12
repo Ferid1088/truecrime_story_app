@@ -11,6 +11,7 @@ import asyncio
 import json
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.core.ai_config import (
@@ -23,6 +24,30 @@ from app.core.ai_config import (
 from app.providers.generation import get_generation_provider
 from app.providers.generation.apimaster import APIMasterGenerationProvider
 from app.providers.generation.base import GenerationResult
+
+
+def test_searxng_health_is_cached(monkeypatch):
+    from app.research_engine.search_adapters import searxng
+
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            return httpx.Response(200)
+
+    searxng._health_cache.clear()
+    monkeypatch.setattr(searxng.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = searxng.SearXNGSearchBackend("http://search", health_cache_seconds=30)
+    assert asyncio.run(backend.health())["healthy"]
+    assert asyncio.run(backend.health())["healthy"]
+    assert len(calls) == 1
 
 
 def _raw_config() -> dict:
