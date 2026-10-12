@@ -110,7 +110,13 @@ class LanguageChain:
                    "characters_paid": m.get("characters_paid"),
                    "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
                    "audio_tags": plan.get("audio_tags"),
-                   "flags": m.get("flags")}
+                   "flags": m.get("flags"),
+                   "music_history_snapshot": (m.get("mix") or {}).get(
+                       "music_history_snapshot", []),
+                   "music_library_identity": (m.get("mix") or {}).get(
+                       "music_library_identity", []),
+                   "selection_reasons": (m.get("mix") or {}).get(
+                       "selection_reasons", [])}
             # the listening check (speech-to-text, pronunciation) is the
             # narration's auditor: takes it still rejects after the
             # retakes are reported, never silently kept

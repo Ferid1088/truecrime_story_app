@@ -90,6 +90,11 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
         audio_plan_id = detail.get("audio_plan_id")
         source["audio_plan"] = _row_payload(
             db.get(AudioPlan, audio_plan_id) if audio_plan_id is not None else None)
+        if artifact_type == "music_cues":
+            for key in ("music_history_snapshot", "music_library_identity",
+                        "selection_reasons"):
+                if key in detail:
+                    source[key] = detail[key]
     elif artifact_type == "spoken_version":
         source["spoken"] = _row_payload(db.get(StoryVersion, detail.get("version_id")))
     elif artifact_type in ("voice_takes", "audio_timing"):

@@ -12,12 +12,14 @@ import uuid
 import pytest
 
 from app.core.ai_config import ai_config
+from app.core.fingerprint import input_fingerprint
 from app.db.models import AudioPlan, Case, MusicTrack, MusicUsage, StoryVersion
 from app.documentary.audio_director import (
     MOOD_ALIASES, director_system_prompt, normalize_mood, validate_audio_plan,
 )
 from app.documentary.music import (
-    DocumentaryMixer, MusicLibrary, _plan, film_key_for, plan_placements, select_track,
+    DocumentaryMixer, MusicLibrary, _plan, film_key_for, music_history_snapshot,
+    plan_placements, select_track,
 )
 from test_spoken_audio import FakeSound, _bp, _plan_item, _sine_mp3
 
@@ -421,6 +423,25 @@ def test_usage_rows_carry_why_and_selection_reason_without_duplicates(db_session
     # another language adds its own
     _assign(lib, db_session, _manifest(case.id, language="fa"), script)
     assert db_session.query(MusicUsage).filter_by(film_key="bp910401").count() == 6
+
+
+def test_music_history_snapshot_is_explicit_and_fingerprintable(db_session, library):
+    lib, _ = library
+    track = MusicTrack(track_code="history-v1", kind="bridge", mood="danger",
+                       variant=1, seconds=4, loop=False, prompt="x")
+    db_session.add(track)
+    db_session.commit()
+    db_session.add(MusicUsage(track_id=track.id, case_id=1, film_key="film-a",
+                               language="en", purpose="music_bridge", mood="danger"))
+    db_session.commit()
+    first = music_history_snapshot(db_session, "film-b", 10)
+    second = music_history_snapshot(db_session, "film-b", 10)
+    assert first == second and "created_at" not in json.dumps(first)
+    h1 = input_fingerprint("music_cues", {"history": first}, "music-v1")
+    changed = [*first, {"position": 1, "film_key": "film-c", "track_id": 99,
+                        "language": "en", "kind": "music_bridge", "mood": "danger"}]
+    h2 = input_fingerprint("music_cues", {"history": changed}, "music-v1")
+    assert h1 != h2
 
 
 @needs_ffmpeg

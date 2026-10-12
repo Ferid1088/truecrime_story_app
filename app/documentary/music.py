@@ -295,6 +295,44 @@ def recent_other_films(db: Session, film_key: str, n: int) -> list[str]:
     return [r[0] for r in rows]
 
 
+def music_history_snapshot(db: Session, film_key: str, n: int) -> list[dict]:
+    """Stable no-repeat input used by selection.
+
+    The policy is global to the music library: usages from every other film
+    participate in the recent-film window, while usages from the current film
+    provide its theme.  Positions are used instead of timestamps or database
+    creation times so the snapshot is portable and auditable.
+    """
+    # Keep the arguments explicit at the call site: ``film_key`` and ``n``
+    # describe the policy window even though the snapshot records the full
+    # deterministic usage input read by the selector.
+    del film_key, n
+    rows = (db.query(MusicUsage)
+            .order_by(MusicUsage.id)
+            .all())
+    return [{"position": position, "film_key": row.film_key,
+             "track_id": row.track_id, "language": row.language,
+             "kind": row.purpose, "mood": row.mood}
+            for position, row in enumerate(rows)]
+
+
+def music_library_identity(db: Session, library: MusicLibrary) -> list[dict]:
+    """Identity of the selection catalogue and the bytes currently on disk."""
+    out = []
+    for track in db.query(MusicTrack).order_by(MusicTrack.id).all():
+        path = library.track_path(track)
+        digest = None
+        size = None
+        if path.is_file():
+            size = path.stat().st_size
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        out.append({"track_id": track.id, "track_code": track.track_code,
+                    "file_sha256": digest, "file_size": size,
+                    "kind": track.kind, "mood": track.mood,
+                    "variant": track.variant, "active": track.active})
+    return out
+
+
 def select_track(db: Session, library: MusicLibrary, kind: str, mood: str,
                  film_key: str) -> tuple[MusicTrack, str]:
     """The track for one (kind, mood) in one film, and why it was chosen."""
@@ -659,6 +697,9 @@ class DocumentaryMixer:
         case_id = manifest.get("case_id") or script.get("case_id")
         film_key, bp_id = film_key_for(db, script, manifest)
         self.library.sync_config_cues(db)
+        history_snapshot = music_history_snapshot(
+            db, film_key, ai_config.music_library.reuse_after_videos)
+        library_identity = music_library_identity(db, self.library)
         reasons = (_director_reasons(db, bp_id)
                    if any(not p.get("why") for p in placements) else {})
         legacy = _legacy_cue_ids()
@@ -695,7 +736,9 @@ class DocumentaryMixer:
             record_usages(db, case_id=int(case_id), film_key=film_key,
                           language=language, placements=resolved)
         return {"film_key": film_key, "language": language, "placements": resolved,
-                "characters_paid": cost, "tracks_generated": generated}
+                "characters_paid": cost, "tracks_generated": generated,
+                "music_history_snapshot": history_snapshot,
+                "music_library_identity": library_identity}
 
     async def mix(self, manifest: dict, script: dict, out_dir: Path,
                   db: Session | None = None) -> dict:
@@ -738,6 +781,8 @@ class DocumentaryMixer:
                  "role": p["role"], "track_code": p["track_code"],
                  "why": p.get("why"), "selection_reason": p["selection_reason"]}
                 for p in resolved],
+            "music_history_snapshot": chosen["music_history_snapshot"],
+            "music_library_identity": chosen["music_library_identity"],
             "skipped": chosen["skipped"],
             "music_moments": sum(1 for p in resolved if p["role"] in MUSIC_TYPES),
             "silences": sum(1 for p in resolved if p["role"] == "silence"),
