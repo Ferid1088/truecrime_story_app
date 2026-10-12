@@ -95,3 +95,6 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
     db_session.commit()
     drift = ArtifactRegistry(db_session).reconcile(case.id, stage_job_id=job.id, repair=True)
     assert drift and registry_consistency(db_session, job.id) == []
+    register_stage_outputs(db_session, job, "visual_plan", None,
+                           {"visual_plan_id": plan.id}, {})
+    assert registry_consistency(db_session, job.id) == []
