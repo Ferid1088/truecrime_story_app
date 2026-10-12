@@ -592,6 +592,7 @@ class SearchEngineConfig(BaseModel):
     searxng_url_env: str = "TRUECRIME_SEARXNG_URL"
     searxng_url: str | None = None
     request_timeout_s: int = Field(ge=5, le=120, default=25)
+    health_cache_seconds: float = Field(ge=0, le=300, default=10.0)
     # Iterative loop (Part 6/38)
     max_results_per_query: int = Field(ge=1, le=25)
     max_queries_per_language: int = Field(ge=1, le=20)

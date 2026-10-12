@@ -117,6 +117,17 @@ _lock = threading.Lock()
 _SKIP_HOSTS = {"testserver", "test"}  # in-process test clients, not outside services
 
 
+def _is_health_request(request: httpx.Request) -> bool:
+    """Return true for the probe used by the research readiness check.
+
+    Readiness is polled by the UI and is not provider usage.  Keeping this
+    narrowly scoped means real SearXNG searches (which carry a user query and
+    language/category parameters) remain in the ledger.
+    """
+    return (request.method == "GET" and request.url.path == "/search"
+            and dict(request.url.params) == {"q": "test", "format": "json"})
+
+
 def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
     """Token counts and cost from an LLM-style JSON body that is already in memory."""
     try:
@@ -136,7 +147,8 @@ def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
 
 def record_call(request: httpx.Request, started: float, response: httpx.Response | None = None,
                 error: BaseException | None = None, stream: bool = False) -> None:
-    if not settings.provider_ledger or request.url.host in _SKIP_HOSTS:
+    if (not settings.provider_ledger or request.url.host in _SKIP_HOSTS
+            or _is_health_request(request)):
         return
     try:
         status = response.status_code if response is not None else None

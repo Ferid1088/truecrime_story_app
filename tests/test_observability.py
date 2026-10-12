@@ -77,6 +77,18 @@ def test_sync_client_is_recorded_too():
     assert [r.host for r in rows()] == ["s.example.com"]
 
 
+def test_searxng_readiness_probe_is_not_provider_usage():
+    with httpx.Client(transport=mock(lambda r: httpx.Response(200, json={"results": []}))) as c:
+        c.get("https://search.example/search?q=test&format=json")
+    assert rows() == []
+
+
+def test_real_searxng_search_is_still_provider_usage():
+    with httpx.Client(transport=mock(lambda r: httpx.Response(200, json={"results": []}))) as c:
+        c.get("https://search.example/search?q=case&format=json&language=en-US")
+    assert len(rows()) == 1
+
+
 def test_the_api_itself_and_disabled_ledger_leave_no_rows(client, monkeypatch):
     client.get("/health")
     assert rows() == []

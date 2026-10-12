@@ -21,6 +21,7 @@
     "searxng_url_env": "TRUECRIME_SEARXNG_URL",
     "searxng_url": "http://localhost:8085",
     "request_timeout_s": 25,
+    "health_cache_seconds": 10,
     "max_results_per_query": 10,
     "max_queries_per_language": 6,
     "max_rounds_per_language": 3,

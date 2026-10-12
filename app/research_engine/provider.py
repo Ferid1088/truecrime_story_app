@@ -89,7 +89,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
         ).rstrip("/")
         self.searxng = SearXNGSearchBackend(
             base_url=self.searxng_url or None,
-            timeout_s=ai_config.search_engine.request_timeout_s)
+            timeout_s=ai_config.search_engine.request_timeout_s,
+            health_cache_seconds=ai_config.search_engine.health_cache_seconds)
         self.youtube = YouTubeSearchBackend(searxng=self.searxng)
         self.registry = SearchBackendRegistry([self.searxng])
         cfg = ai_config.search_engine

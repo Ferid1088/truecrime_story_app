@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import httpx
 
@@ -15,6 +16,8 @@ _LANG_TO_SEARXNG = {
     "en": "en-US", "de": "de-DE", "fa": "fa", "ar": "ar-SA",
 }
 
+_health_cache: dict[str, tuple[float, dict]] = {}
+
 
 class SearXNGSearchBackend:
     """Talks to a self-hosted SearXNG instance's /search JSON API."""
@@ -26,27 +29,36 @@ class SearXNGSearchBackend:
         base_url: str | None = None,
         timeout_s: float = 25.0,
         max_response_bytes: int = 2_000_000,
+        health_cache_seconds: float = 10.0,
     ):
         self.base_url = (base_url or env_value("TRUECRIME_SEARXNG_URL") or "").rstrip("/")
         self.timeout_s = timeout_s
         self.max_response_bytes = max_response_bytes
+        self.health_cache_seconds = health_cache_seconds
 
     def is_available(self) -> bool:
         return bool(self.base_url)
 
     async def health(self) -> dict:
+        cached = _health_cache.get(self.base_url)
+        if cached is not None and cached[0] > time.monotonic():
+            return dict(cached[1])
         if not self.base_url:
-            return {"backend": self.name, "healthy": False, "reason": "no_url"}
+            result = {"backend": self.name, "healthy": False, "reason": "no_url"}
+            _health_cache[self.base_url] = (time.monotonic() + self.health_cache_seconds, result)
+            return dict(result)
         try:
             async with httpx.AsyncClient(timeout=10) as c:
                 r = await c.get(f"{self.base_url}/search",
                                 params={"q": "test", "format": "json"})
             ok = r.status_code == 200
-            return {"backend": self.name, "healthy": ok,
-                    "status_code": r.status_code,
-                    "base_url": self.base_url}
+            result = {"backend": self.name, "healthy": ok,
+                      "status_code": r.status_code,
+                      "base_url": self.base_url}
         except httpx.HTTPError as e:
-            return {"backend": self.name, "healthy": False, "reason": str(e)}
+            result = {"backend": self.name, "healthy": False, "reason": str(e)}
+        _health_cache[self.base_url] = (time.monotonic() + self.health_cache_seconds, result)
+        return dict(result)
 
     async def search(
         self,
