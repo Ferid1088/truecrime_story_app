@@ -14,6 +14,7 @@ from app.services.soundness import (
     downstream_closure,
     matrix_row,
 )
+from generate_soundness_status import _can_reach, build_status, generate, load_records
 
 
 def test_saved_output_snapshot_hashes_rows_and_files_with_only_named_exclusions(
@@ -100,7 +101,23 @@ def test_all_registered_types_are_named_in_soundness_sources():
     assert set(ARTIFACT_DEPENDENCIES)
     assert set(SOUNDNESS) == set(ARTIFACT_DEPENDENCIES)
     assert load_soundness_status() == SOUNDNESS
-    assert set(SOUNDNESS.values()) == {"UNPROVEN"}
+    assert set(SOUNDNESS.values()) <= {"SOUND", "UNPROVEN"}
+
+
+def test_sound_type_has_a_passing_snapshot_diff_record():
+    records = load_records()
+    statuses = build_status(records)
+    for target, status in statuses.items():
+        if status == "SOUND":
+            assert any(_can_reach(row, target)
+                       and row.get("status", "passed") == "passed"
+                       and not row.get("hidden") for row in records)
+
+
+def test_regenerating_soundness_outputs_is_deterministic():
+    first = generate()
+    second = generate()
+    assert first == second
 
 
 def test_actual_snapshot_does_not_read_registry_output_hash(db_session):

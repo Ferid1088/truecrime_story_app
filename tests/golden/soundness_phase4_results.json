@@ -1,0 +1,29 @@
+{
+  "source": "phase4",
+  "results": [
+    {
+      "source": "spoken_de",
+      "status": "passed",
+      "predicted": ["audio_timing:de", "captions:de", "chapter_cards:de", "film_length:de", "final_render:de", "host_segments:de", "music_cues:de", "production_script:de", "spoken_version:de", "voice_takes:de"],
+      "actual": ["audio_timing:de", "captions:de", "chapter_cards:de", "final_render:de", "host_segments:de", "music_cues:de", "production_script:de", "spoken_version:de", "voice_takes:de"],
+      "hidden": [],
+      "over_invalidation": ["film_length:de"]
+    },
+    {
+      "source": "naming",
+      "status": "passed",
+      "predicted": ["final_render:ar", "final_render:de", "final_render:en", "final_render:fa", "naming:shared", "production_script:ar", "production_script:de", "production_script:en", "production_script:fa", "visual_asset:shared", "visual_pieces:shared", "visual_plan:shared", "visual_shots:shared"],
+      "actual": ["final_render:ar", "final_render:de", "final_render:en", "final_render:fa", "naming:shared", "visual_asset:shared"],
+      "hidden": [],
+      "over_invalidation": ["production_script:ar", "production_script:de", "production_script:en", "production_script:fa", "visual_pieces:shared", "visual_plan:shared", "visual_shots:shared"]
+    },
+    {
+      "source": "used_visual",
+      "status": "passed",
+      "predicted": ["final_render:ar", "final_render:de", "final_render:en", "final_render:fa", "production_script:ar", "production_script:de", "production_script:en", "production_script:fa", "visual_asset:shared", "visual_pieces:shared", "visual_plan:shared", "visual_shots:shared"],
+      "actual": ["final_render:ar", "final_render:de", "final_render:en", "final_render:fa", "visual_asset:shared"],
+      "hidden": [],
+      "over_invalidation": ["production_script:ar", "production_script:de", "production_script:en", "production_script:fa", "visual_pieces:shared", "visual_plan:shared", "visual_shots:shared"]
+    }
+  ]
+}
