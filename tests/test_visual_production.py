@@ -638,7 +638,7 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
 def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, monkeypatch):
     """The four-language proof uses the real pipeline, with only providers mocked."""
     from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
-    from app.db.models import Artifact, ArtifactDep, MusicUsage
+    from app.db.models import Artifact, ArtifactDep, MusicTrack, MusicUsage
     from app.documentary import jobs as J
     from app.documentary.production.script import timeline_layout
     from app.services.artifacts import ArtifactRegistry
@@ -659,6 +659,7 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
             "track_id", "case_id", "film_key", "production_script_id", "language",
             "beat_id", "purpose", "mood", "start", "end", "why", "selection_reason")}
         for row in db_session.query(MusicUsage).order_by(MusicUsage.id).all()]
+    initial_track_ids = {row.id for row in db_session.query(MusicTrack).all()}
 
     # The production fixture's normal fake writer is English-only. Keep the
     # real pipeline and replace only its mocked spoken output with target
@@ -763,6 +764,8 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     # snapshot used by the first run.  Selection reasons are part of the
     # identity comparison; they are no longer excluded.
     db_session.query(MusicUsage).delete(synchronize_session=False)
+    db_session.query(MusicTrack).filter(~MusicTrack.id.in_(initial_track_ids)).delete(
+        synchronize_session=False)
     db_session.add_all([MusicUsage(**row) for row in history_before])
     db_session.commit()
     monkeypatch.setattr(ai_config.artifacts, "shadow_mode", False)
