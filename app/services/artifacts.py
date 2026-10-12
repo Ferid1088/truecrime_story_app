@@ -141,9 +141,9 @@ class ArtifactRegistry:
         only the registry's output hash/status, preserving the stored artifact
         and making out-of-band edits visible in the returned report.
         """
+        from app.core.policy import PolicyDecision
         from app.services.artifact_shadow import registry_consistency
         from app.services.policy_events import record_decision
-        from app.core.policy import PolicyDecision
 
         drift = registry_consistency(self.db, stage_job_id=stage_job_id, case_id=case_id)
         if not drift:
