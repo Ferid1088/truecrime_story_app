@@ -54,3 +54,23 @@ scripts/db_rollback.sh --to-sqlite data/backups/truecrime-final-sqlite-<timestam
 The PostgreSQL service and its databases are not removed by this rollback.
 Return to PostgreSQL by setting `TRUECRIME_DATABASE_URL` in `.env.local` to the
 app-owned PostgreSQL URL and starting `scripts/dev_up.sh --first-run-safe`.
+
+## Table-count convention
+
+The current PostgreSQL schema has 64 public base tables including
+`alembic_version`, or 63 when that migration bookkeeping table is excluded.
+The earlier Phase-C report counted the 55 pre-existing application tables only;
+it excluded the eight tables added by reconciliation (`app_settings`,
+`artifact_deps`, `artifacts`, `backup_runs`, `edit_log`, `override_log`,
+`policy_events`, and `provider_calls`) and `alembic_version`. The two checks are:
+
+```sql
+SELECT count(*) FROM information_schema.tables
+ WHERE table_schema = 'public' AND table_type = 'BASE TABLE';       -- 64
+SELECT count(*) FROM information_schema.tables
+ WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+   AND table_name <> 'alembic_version';                              -- 63
+```
+
+No migration after `0010` created an additional application table; the apparent
+55-versus-64 difference is the counting scope above.
