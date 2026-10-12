@@ -12,6 +12,7 @@ from pathlib import Path
 from tests.test_master_pipeline import ScriptGen, _add_fact, _mk_case, _pipeline
 
 GOLDEN = Path(__file__).parent / "golden" / "story_pipeline.json"
+PRE_INCREMENTAL_GOLDEN = Path(__file__).parent / "golden" / "story_pipeline_pre_incremental.json"
 
 
 def _run_once(db_session, monkeypatch) -> dict:
@@ -57,3 +58,13 @@ def test_pipeline_output_matches_golden(db_session, monkeypatch):
 
 def test_pipeline_is_deterministic_across_runs(db_session, monkeypatch):
     assert _run_once(db_session, monkeypatch) == _run_once(db_session, monkeypatch)
+
+
+def test_incremental_mode_off_matches_pre_feature_snapshot(db_session, monkeypatch):
+    """Mode off keeps the pre-incremental observable story output byte-stable."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "off")
+    actual = _run_once(db_session, monkeypatch)
+    expected = json.loads(PRE_INCREMENTAL_GOLDEN.read_text(encoding="utf-8"))
+    assert actual == expected

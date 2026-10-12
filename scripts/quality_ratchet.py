@@ -42,7 +42,11 @@ def ruff_findings() -> list[str]:
         findings.append(
             f"{portable_filename}:{row['code']}:{row['message']}"
         )
-    return sorted(findings)
+    # The baseline is an identity baseline, not an occurrence counter. Ruff
+    # can report the same file/rule/message several times; duplicate rows do
+    # not represent a new class of finding. Keep the raw count available to
+    # the CLI below, but compare unique identities.
+    return sorted(set(findings))
 
 
 def mypy_findings() -> list[str]:
@@ -54,7 +58,18 @@ def mypy_findings() -> list[str]:
             findings.append(
                 f"{match['file']}:{match['message']}"
             )
-    return sorted(findings)
+    return sorted(set(findings))
+
+
+def compare_findings(current: list[str], baseline: list[str]) -> list[str]:
+    """Return genuinely new diagnostic identities.
+
+    Line numbers are intentionally absent from the identity so an unrelated
+    edit that moves an existing diagnostic does not create a false positive.
+    A new file/rule/message identity is still a ratchet failure.  The tests
+    exercise this contract with an injected finding.
+    """
+    return sorted(set(current) - set(baseline))
 
 
 def read_baseline() -> dict[str, list[str]]:
@@ -100,10 +115,10 @@ def main() -> int:
         return 0
 
     baseline = read_baseline()
-    new = {tool: sorted(set(findings) - set(baseline.get(tool, [])))
+    new = {tool: compare_findings(findings, baseline.get(tool, []))
            for tool, findings in current.items() if args.tool in ("all", tool)}
     for tool, findings in new.items():
-        print(f"{tool}: {len(current[tool])} current, {len(findings)} new")
+        print(f"{tool}: {len(current[tool])} unique current, {len(findings)} new")
         for finding in findings:
             print(f"  NEW {finding}")
     return 1 if any(new.values()) else 0
