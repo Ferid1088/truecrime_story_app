@@ -72,11 +72,25 @@ def _row_payload(row) -> dict:
                  "duration_seconds", "render_json", "generation_model"):
         if hasattr(row, name):
             fields[name] = getattr(row, name)
+    if isinstance(row, VisualAsset):
+        fields.update({name: getattr(row, name) for name in (
+            "asset_code", "asset_type", "asset_role", "rights_status",
+            "verification_status", "verification_confidence", "sha256", "duration_seconds")})
     return fields
 
 
 def _get(db, model, primary_key):
     return db.get(model, primary_key) if primary_key is not None else None
+
+
+def _asset_bytes_sha256(asset: VisualAsset) -> str | None:
+    value = asset.local_path
+    if not isinstance(value, str) or not value:
+        return asset.sha256
+    path = Path(value) if Path(value).is_absolute() else ROOT / value
+    if not path.is_file():
+        return asset.sha256
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _asset_codes(value) -> set[str]:
@@ -175,7 +189,7 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
         asset = _get(db, VisualAsset, detail.get("asset_id"))
         source["asset"] = _row_payload(asset)
         if asset is not None:
-            source["asset_file_sha256"] = asset.sha256
+            source["asset_file_sha256"] = _asset_bytes_sha256(asset)
     # Shadow mode intentionally uses a complete typed-config snapshot.  This
     # is conservative: every section read by a producer (including agent
     # prompts/routing, pronunciation and channel/studio identity) is an
