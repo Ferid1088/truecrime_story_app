@@ -30,11 +30,11 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
     "research": (), "master_story": ("master_story",), "master_approval": (),
     "blueprint": ("beats",), "audio_plan": ("audio_blocks",),
     "spoken": ("spoken_version",), "host_plan": (), "chapters": (
-        "chapter_plan", "chapter_cards", "timeline_cards"),
+        "chapter_plan", "timeline_cards", "chapter_cards"),
     "naming": (), "film_length": (), "visual_needs": ("visual_needs",),
     "visual_research": ("visual_pieces",),
     "visual_check": ("visual_pieces",),
-    "visual_plan": ("visual_asset", "visual_shots", "visual_plan"),
+    "visual_plan": ("visual_asset", "visual_shots", "visual_pieces", "visual_plan"),
     "visual_gaps": (), "host": (), "performance": ("voice_takes",),
     "voice": ("voice_takes", "audio_timing", "music_cues"), "production": (
         "captions", "production_script"), "critique": (), "visual_audit": (),
@@ -87,7 +87,9 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
     elif artifact_type == "beats":
         source["blueprint"] = _row_payload(db.get(EditorialBlueprint, detail.get("blueprint_id")))
     elif artifact_type in ("audio_blocks", "music_cues"):
-        source["audio_plan"] = _row_payload(db.get(AudioPlan, detail.get("audio_plan_id")))
+        audio_plan_id = detail.get("audio_plan_id")
+        source["audio_plan"] = _row_payload(
+            db.get(AudioPlan, audio_plan_id) if audio_plan_id is not None else None)
     elif artifact_type == "spoken_version":
         source["spoken"] = _row_payload(db.get(StoryVersion, detail.get("version_id")))
     elif artifact_type in ("voice_takes", "audio_timing"):

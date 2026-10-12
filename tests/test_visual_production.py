@@ -634,6 +634,165 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env):
 
 
 @needs_ffmpeg
+def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, monkeypatch):
+    """The four-language proof uses the real pipeline, with only providers mocked."""
+    from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
+    from app.db.models import Artifact, ArtifactDep, MusicUsage
+    from app.documentary import jobs as J
+    from app.documentary.production.script import timeline_layout
+    from app.services.artifacts import ArtifactRegistry
+
+    def strip_ids(value):
+        if isinstance(value, dict):
+            return {k: strip_ids(v) for k, v in value.items()
+                    if k not in {"id", "card_id", "piece_id"}}
+        if isinstance(value, list):
+            return [strip_ids(v) for v in value]
+        return value
+
+    case, master = _story(db_session)
+    case.resolution_status = "UNSOLVED"
+    monkeypatch.setattr(ai_config.artifacts, "shadow_mode", True)
+
+    # The production fixture's normal fake writer is English-only. Keep the
+    # real pipeline and replace only its mocked spoken output with target
+    # scripts so the real fa/ar language gates and renderers execute.
+    real_spoken = documentary_env.spoken.generate_text
+
+    async def target_script(role, system, user):
+        result = await real_spoken(role, system, user)
+        if role == "spoken_writer":
+            payload = json.loads(user.split("INPUT:\n", 1)[1])
+            token = "این ماجرا آرام ادامه یافت" if payload.get("language") == "fa" \
+                else "هذه القضية استمرت بهدوء" if payload.get("language") == "ar" else None
+            if token:
+                lines = []
+                for line in result.text.splitlines():
+                    if line.startswith("[[ACT:"):
+                        lines.append(line)
+                    else:
+                        words = token.split()
+                        count = max(1, len(line.split()))
+                        generated = [words[i % len(words)] for i in range(count)]
+                        sentences = [" ".join(generated[i:i + 4])
+                                     for i in range(0, count, 4)]
+                        lines.append(". ".join(sentences) + ".")
+                result.text = "\n".join(lines)
+        return result
+
+    monkeypatch.setattr(documentary_env.spoken, "generate_text", target_script)
+    languages = ["en", "de", "fa", "ar"]
+    job = J.create_job(db_session, case, master, languages, "pilot", 80.0, "preview")
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    job = db_session.get(DocumentaryJob, job.id)
+    stages = {s["name"]: s for s in json.loads(job.stages_json)}
+    assert job.status == "completed", (job.error, stages)
+    result = json.loads(job.result_json)
+    assert set(result["renders"]) == set(languages)
+    for language in languages:
+        script = json.loads(db_session.get(
+            ProductionScript, result["renders"][language]["production_script_id"]).script_json)
+        assert script["language"] == language
+        for shot in script.get("shots") or []:
+            if shot.get("kind") == "timeline":
+                xs = [label["x"] for label in shot["timeline"].get("labels") or []]
+                assert xs == sorted(xs)
+        assert stages[f"render:{language}"]["status"] == "done"
+    per_language = {name for name, scope in ARTIFACT_SCOPES.items()
+                    if scope == "per_language"}
+    rows = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
+    counts = {language: {row.type: 0 for row in rows if row.language == language}
+              for language in languages}
+    for row in rows:
+        if row.language in counts:
+            counts[row.language][row.type] += 1
+    assert all(per_language <= set(values) for values in counts.values())
+    assert all(all(n >= 1 for n in values.values()) for values in counts.values())
+    print("FOUR_LANGUAGE_ARTIFACT_COUNTS", json.dumps(counts, sort_keys=True))
+    hashes_before = {row.id: row.input_hash for row in rows if row.language in languages}
+    assert len(hashes_before) == len([row for row in rows if row.language in languages])
+
+    # Re-running the same completed job is a real StageRunner resume pass;
+    # shadow registration must not change any existing input hash.
+    before_hashes = {row.id: row.input_hash for row in rows}
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    after_rows = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
+    assert before_hashes == {row.id: row.input_hash for row in after_rows}
+
+    def reachable_types(start):
+        found = {start}
+        changed = True
+        while changed:
+            changed = False
+            for artifact_type, deps in ARTIFACT_DEPENDENCIES.items():
+                if artifact_type not in found and set(deps) & found:
+                    found.add(artifact_type)
+                    changed = True
+        return found
+
+    beat_row = next(row for row in rows if row.type == "beats")
+    beat_affected = ArtifactRegistry(db_session).invalidate([beat_row.id], "beat text changed")
+    assert set(beat_affected) == reachable_types("beats")
+    fa_timing = next(row for row in rows if row.type == "audio_timing" and row.language == "fa")
+    fa_take = next(edge.depends_on_id for edge in db_session.query(ArtifactDep)
+                   .filter(ArtifactDep.artifact_id == fa_timing.id).all())
+    fa_affected = ArtifactRegistry(db_session).invalidate([fa_take], "fa voice duration changed")
+    assert set(fa_affected) == {"voice_takes", "audio_timing", "music_cues", "captions",
+                                "production_script", "final_render"}
+    assert all(row.language in (None, "fa")
+               for row in db_session.query(Artifact).filter(
+                   Artifact.id.in_([item for values in fa_affected.values() for item in values])))
+
+    # A second full job with shadow disabled must preserve the film JSON once
+    # generated IDs and volatile fields are removed.
+    first_scripts = {
+        language: strip_ids(json.loads(db_session.get(
+            ProductionScript, result["renders"][language]["production_script_id"]).script_json))
+        for language in languages
+    }
+    # Reset the fixture's music-use history so the second run compares the
+    # shadow flag, not the existing no-repeat selection history.
+    db_session.query(MusicUsage).delete(synchronize_session=False)
+    db_session.commit()
+    monkeypatch.setattr(ai_config.artifacts, "shadow_mode", False)
+    job_off = J.create_job(db_session, case, master, languages, "pilot", 80.0, "preview")
+    asyncio.run(J.run_job(job_off.id))
+    db_session.expire_all()
+    off_job = db_session.get(DocumentaryJob, job_off.id)
+    assert off_job.status == "completed", (off_job.error, json.loads(off_job.stages_json))
+    off_result = json.loads(off_job.result_json)
+    second_scripts = {
+        language: strip_ids(json.loads(db_session.get(
+            ProductionScript, off_result["renders"][language]["production_script_id"]).script_json))
+        for language in languages
+    }
+    def diff_values(left, right, path=""):
+        if isinstance(left, dict) and isinstance(right, dict):
+            differences = []
+            for key in sorted(set(left) | set(right)):
+                differences.extend(diff_values(left.get(key), right.get(key), f"{path}.{key}"))
+            return differences
+        if isinstance(left, list) and isinstance(right, list):
+            differences = []
+            for index, (l_item, r_item) in enumerate(zip(left, right)):
+                differences.extend(diff_values(l_item, r_item, f"{path}[{index}]"))
+            if len(left) != len(right):
+                differences.append(f"{path}: lengths {len(left)} != {len(right)}")
+            return differences
+        return [] if left == right else [f"{path}: {left!r} != {right!r}"]
+
+    differences = diff_values(first_scripts["fa"], second_scripts["fa"])
+    assert first_scripts == second_scripts, differences[:20]
+    # The real renderer's timeline layout is language-independent in direction.
+    window = [{"id": "T1", "date": "1998"}, {"id": "T2", "date": "2007"}]
+    for language in ("fa", "ar"):
+        _, points = timeline_layout(window, language)
+        assert [point["x"] for point in points] == sorted(point["x"] for point in points)
+
+
+@needs_ffmpeg
 def test_a_failing_language_does_not_stop_the_others(db_session, documentary_env, monkeypatch):
     from app.documentary import jobs as J
 
