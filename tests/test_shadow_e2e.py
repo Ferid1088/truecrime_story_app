@@ -55,15 +55,16 @@ def test_one_beat_change_invalidates_only_declared_downstream_set(db_session):
     registry = ArtifactRegistry(db_session)
     made = {}
     for artifact_type in ("master_story", "beats", "audio_blocks", "spoken_version", "voice_takes",
-                           "visual_needs", "visual_shots", "visual_pieces", "visual_plan",
-                           "chapter_plan", "timeline_cards", "chapter_cards", "music_cues",
-                           "captions", "production_script", "intro", "final_render"):
+                          "audio_timing",
+                          "visual_needs", "visual_shots", "visual_pieces", "visual_plan",
+                          "chapter_plan", "timeline_cards", "chapter_cards", "music_cues",
+                          "captions", "production_script", "intro", "final_render"):
         deps = [made[x] for x in ARTIFACT_DEPENDENCIES[artifact_type] if x in made]
         row = registry.register(artifact_type, {"fixture": True, "type": artifact_type},
                                 {"beat_text": "original", "type": artifact_type}, deps)
         made[artifact_type] = row.id
     affected = registry.invalidate([made["beats"]], "one beat text changed")
-    expected = {"beats", "audio_blocks", "voice_takes", "visual_needs",
+    expected = {"beats", "audio_blocks", "voice_takes", "audio_timing", "visual_needs",
                 "visual_shots", "visual_pieces", "visual_plan", "chapter_plan", "chapter_cards",
                 "timeline_cards", "music_cues", "captions", "production_script", "final_render"}
     assert set(affected) == expected

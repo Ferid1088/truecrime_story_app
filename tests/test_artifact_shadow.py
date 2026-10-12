@@ -2,7 +2,8 @@ import json
 
 from app.core.ai_config import ai_config
 from app.db.models import Artifact, DocumentaryJob
-from app.services.artifact_shadow import register_stage_outputs
+from app.documentary.jobs import plan_stages
+from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES, register_stage_outputs
 
 
 def test_shadow_registration_is_best_effort_and_write_only(db_session, monkeypatch):
@@ -22,3 +23,13 @@ def test_shadow_registration_can_be_disabled(db_session, monkeypatch):
     db_session.commit()
     register_stage_outputs(db_session, job, "blueprint", None, {}, {})
     assert db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).count() == 0
+
+
+def test_every_planned_stage_has_shadow_coverage(monkeypatch):
+    monkeypatch.setattr(ai_config.host, "enabled", False)
+    monkeypatch.setattr(ai_config.avatar, "enabled", False)
+    stages = plan_stages(["en", "de"])
+    covered = set(STAGE_ARTIFACT_TYPES)
+    assert {entry["name"].split(":", 1)[0] for entry in stages} <= covered
+    assert set(STAGE_ARTIFACT_TYPES["visual_plan"]) >= {"visual_shots", "visual_plan"}
+    assert set(STAGE_ARTIFACT_TYPES["voice"]) >= {"voice_takes", "audio_timing", "music_cues"}
