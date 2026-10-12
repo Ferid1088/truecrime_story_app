@@ -61,6 +61,28 @@ class SkipPolicy:
                         production_id=job.id, language=language)
         return decision
 
+    def reusable_reasons(self, row: Artifact, job: DocumentaryJob) -> list[str]:
+        """Pure gate inspection used by read-only scope preview."""
+        reasons: list[str] = []
+        if row.status not in ("fresh", "ok"):
+            reasons.append(f"status is {row.status}")
+        detail = _stage_detail(job, json.loads(row.scope_json or "{}").get("stage", ""), row.language)
+        expected_inputs = _source_payload(self.db, job,
+                                           json.loads(row.scope_json or "{}").get("stage", ""),
+                                           row.language, detail, row.type)
+        from app.core.fingerprint import input_fingerprint
+
+        if input_fingerprint(row.type, expected_inputs, "artifact-input-v1") != row.input_hash:
+            reasons.append("input hash changed")
+        if _output_hash(self.db, job, json.loads(row.scope_json or "{}").get("stage", ""),
+                        row.language, detail, row.type) != row.output_hash:
+            reasons.append("output hash changed")
+        if self.soundness.get(row.type) != "SOUND":
+            reasons.append("type is unproven")
+        if self.pending_edit([row.id]):
+            reasons.append("pending user edit or lock")
+        return reasons
+
     def evaluate(self, job: DocumentaryJob, stage_name: str, *,
                  pending_edit: bool = False, dependencies_reran: bool = False) -> SkipResult:
         self.validate_configuration()
@@ -68,10 +90,6 @@ class SkipPolicy:
         language = next((lang for lang in json.loads(job.languages_json or "[]")
                          if stage_name.endswith(f":{lang}")), None)
         stage = stage_name[:-len(language) - 1] if language else stage_name
-        canonical_stage = {"master_approval": "master_story",
-                           "visual_gaps": "visual_plan",
-                           "critique": "production",
-                           "visual_audit": "production"}.get(stage, stage)
         types = STAGE_ARTIFACT_TYPES.get(stage, ())
         rows = self.db.query(Artifact).filter(
             Artifact.stage_job_id == job.id, Artifact.type.in_(types))
@@ -89,22 +107,7 @@ class SkipPolicy:
         if pending_edit:
             reasons.append("pending user edit or lock")
         for row in rows:
-            if row.status not in ("fresh", "ok"):
-                reasons.append(f"{row.id}: status is {row.status}")
-                continue
-            detail = _stage_detail(job, canonical_stage, row.language)
-            expected_inputs = _source_payload(self.db, job, canonical_stage,
-                                               row.language, detail, row.type)
-            from app.core.fingerprint import input_fingerprint
-
-            if input_fingerprint(row.type, expected_inputs, "artifact-input-v1") != row.input_hash:
-                reasons.append(f"{row.id}: input hash changed")
-            expected_output = _output_hash(self.db, job, canonical_stage,
-                                           row.language, detail, row.type)
-            if expected_output != row.output_hash:
-                reasons.append(f"{row.id}: output hash changed")
-            if self.soundness.get(row.type) != "SOUND":
-                reasons.append(f"{row.id}: type is unproven")
+            reasons.extend(f"{row.id}: {reason}" for reason in self.reusable_reasons(row, job))
         allowed = cfg.mode in ("verify", "enforce") and bool(rows) and not reasons
         if cfg.mode == "enforce" and rows and any(
                 self.soundness.get(row.type) != "SOUND" or row.type not in cfg.enforced_types

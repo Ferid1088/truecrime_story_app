@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import canonical_json, input_fingerprint
-from app.db.models import Artifact, ArtifactDep
+from app.db.models import Artifact, ArtifactDep, DocumentaryJob
 from app.utils import utc_now
 
 
@@ -122,15 +122,43 @@ class ArtifactRegistry:
                 grouped[row.type].append(artifact_id)
         return dict(grouped)
 
-    def scope_preview(self, artifact_ids: Iterable[str]) -> dict:
+    def scope_preview(self, artifact_ids: Iterable[str],
+                      changed_artifact_ids: Iterable[str] = ()) -> dict:
         ids = list(dict.fromkeys(artifact_ids))
         rows = [self.db.get(Artifact, artifact_id) for artifact_id in ids]
         found = [row for row in rows if row is not None]
         counts: dict[str, int] = defaultdict(int)
         for row in found:
             counts[row.type] += 1
-        return {"counts": dict(sorted(counts.items())), "total": len(ids),
-                "found": len(found), "label": f"{len(found)} of {len(ids)}"}
+        result = {"counts": dict(sorted(counts.items())), "total": len(ids),
+                  "found": len(found), "label": f"{len(found)} of {len(ids)}"}
+        if not changed_artifact_ids:
+            return result
+        from app.services.skip_policy import SkipPolicy
+        from app.services.soundness import downstream_closure
+
+        changed = list(dict.fromkeys(changed_artifact_ids))
+        closure = downstream_closure(self.db, changed)
+        details = []
+        rebuild_by_language: dict[str, list[str]] = defaultdict(list)
+        for row in found:
+            job = self.db.get(DocumentaryJob, row.stage_job_id)
+            reasons = (["changed artifact or dependency"] if row.id in closure else
+                       SkipPolicy(self.db).reusable_reasons(row, job) if job else ["missing stage job"])
+            rerun = row.id in closure or bool(reasons)
+            unproven = "type is unproven" in reasons and row.id not in closure
+            item = {"artifact_id": row.id, "type": row.type, "language": row.language,
+                    "will_rerun": rerun, "will_reuse": not rerun,
+                    "unproven_will_rerun": unproven, "reasons": reasons}
+            details.append(item)
+            if rerun:
+                rebuild_by_language[row.language or "shared"].append(row.id)
+        result["artifacts"] = details
+        result["estimated_rebuild"] = {
+            "total": sum(len(values) for values in rebuild_by_language.values()),
+            "by_language": dict(sorted(rebuild_by_language.items())),
+        }
+        return result
 
     def reconcile(self, case_id: int, *, stage_job_id: int | None = None,
                   repair: bool = False) -> list[dict]:
