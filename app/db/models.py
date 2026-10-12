@@ -1004,6 +1004,68 @@ class ProductionScript(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class Artifact(Base):
+    """One addressable documentary output used by the shadow graph."""
+
+    __tablename__ = "artifacts"
+    __table_args__ = (
+        Index("ix_artifacts_case_type", "case_id", "type"),
+        Index("ix_artifacts_scope", "case_id", "language", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(180), primary_key=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    production_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    type: Mapped[str] = mapped_column(String(80), index=True)
+    scope_json: Mapped[str] = mapped_column(Text, default="{}")
+    input_hash: Mapped[str] = mapped_column(String(64), default="")
+    output_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    output_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="fresh", index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    edit_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stage_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documentary_jobs.id"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class ArtifactDep(Base):
+    """A directed dependency edge: artifact_id depends on depends_on_id."""
+
+    __tablename__ = "artifact_deps"
+    __table_args__ = (
+        UniqueConstraint("artifact_id", "depends_on_id", name="uq_artifact_deps_edge"),
+        Index("ix_artifact_deps_artifact", "artifact_id"),
+        Index("ix_artifact_deps_dependency", "depends_on_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    artifact_id: Mapped[str] = mapped_column(ForeignKey("artifacts.id"), index=True)
+    depends_on_id: Mapped[str] = mapped_column(ForeignKey("artifacts.id"), index=True)
+
+
+class EditLog(Base):
+    """Edit-by-prompt record; behaviour is intentionally added in a later task."""
+
+    __tablename__ = "edit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+    actor: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    scope_type: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    scope_id: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
+    instruction_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    intent_json: Mapped[str] = mapped_column(Text, default="{}")
+    scope_preview_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(20), default="previewed", index=True)
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    parent_edit_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+
 class VisualAudit(Base):
     """One verdict of the visual auditor: may this picture/clip be shown
     while these words are spoken? Keyed by the asset (code + file hash)
