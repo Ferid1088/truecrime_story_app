@@ -76,6 +76,10 @@ def _row_payload(row) -> dict:
     return fields
 
 
+def _get(db, model, primary_key):
+    return db.get(model, primary_key) if primary_key is not None else None
+
+
 def _asset_codes(value) -> set[str]:
     """Find the editorial asset identities actually referenced by a plan."""
     found: set[str] = set()
@@ -92,7 +96,7 @@ def _asset_codes(value) -> set[str]:
 
 
 def _visual_asset_rows(db, job, detail: dict) -> list[VisualAsset]:
-    row = db.get(VisualPlan, detail.get("visual_plan_id"))
+    row = _get(db, VisualPlan, detail.get("visual_plan_id"))
     if row is None:
         return []
     try:
@@ -122,45 +126,45 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
     source: dict = {"stage": stage, "language": language, "detail": detail,
                     "job_languages": _language_rows(job, None)}
     if artifact_type in ("master_story", "master_approval"):
-        source["story"] = _row_payload(db.get(StoryVersion, detail.get("master_version_id")))
+        source["story"] = _row_payload(_get(db, StoryVersion, detail.get("master_version_id")))
     elif artifact_type == "beats":
-        source["blueprint"] = _row_payload(db.get(EditorialBlueprint, detail.get("blueprint_id")))
+        source["blueprint"] = _row_payload(_get(db, EditorialBlueprint, detail.get("blueprint_id")))
     elif artifact_type in ("audio_blocks", "music_cues"):
         audio_plan_id = detail.get("audio_plan_id")
         source["audio_plan"] = _row_payload(
-            db.get(AudioPlan, audio_plan_id) if audio_plan_id is not None else None)
+            _get(db, AudioPlan, audio_plan_id))
         if artifact_type == "music_cues":
             for key in ("music_history_snapshot", "music_library_identity",
                         "selection_reasons"):
                 if key in detail:
                     source[key] = detail[key]
     elif artifact_type == "spoken_version":
-        source["spoken"] = _row_payload(db.get(StoryVersion, detail.get("version_id")))
+        source["spoken"] = _row_payload(_get(db, StoryVersion, detail.get("version_id")))
     elif artifact_type in ("voice_takes", "audio_timing"):
         version = _latest_version(db, job, language)
         source["voice"] = _row_payload(version)
         if version is not None:
             source["story_version_id"] = version.id
     elif artifact_type in ("visual_needs", "visual_shots", "visual_plan", "visual_gaps"):
-        row = db.get(VisualPlan, detail.get("visual_plan_id"))
+        row = _get(db, VisualPlan, detail.get("visual_plan_id"))
         if row is None:
             row = (db.query(VisualPlan).filter(VisualPlan.case_id == job.case_id)
                    .order_by(VisualPlan.id.desc()).first())
         source["visual_plan"] = _row_payload(row)
     elif artifact_type == "host_plan":
-        source["host_plan"] = _row_payload(db.get(HostPlan, detail.get("host_plan_id")))
+        source["host_plan"] = _row_payload(_get(db, HostPlan, detail.get("host_plan_id")))
     elif artifact_type == "host_segments":
         source["host_segments"] = _row_payload(
-            db.get(HostSegments, detail.get("host_segments_id")))
+            _get(db, HostSegments, detail.get("host_segments_id")))
     elif artifact_type in ("chapter_plan", "chapter_cards", "timeline_cards"):
-        row = db.get(ChapterPlan, detail.get("chapter_plan_id"))
+        row = _get(db, ChapterPlan, detail.get("chapter_plan_id"))
         source["chapters"] = _row_payload(row)
     elif artifact_type in ("captions", "production_script"):
         production_id = detail.get("production_script_id")
         source["production"] = _row_payload(
-            db.get(ProductionScript, production_id) if production_id is not None else None)
+            _get(db, ProductionScript, production_id))
     elif artifact_type == "visual_asset":
-        asset = db.get(VisualAsset, detail.get("asset_id"))
+        asset = _get(db, VisualAsset, detail.get("asset_id"))
         source["asset"] = _row_payload(asset)
         if asset is not None:
             source["asset_file_sha256"] = asset.sha256
@@ -205,27 +209,27 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
     """Canonical representation of the content persisted by a stage."""
     payload: dict = {"artifact_type": artifact_type, "detail": detail}
     if artifact_type == "visual_asset":
-        payload["row"] = _row_payload(db.get(VisualAsset, detail.get("asset_id")))
+        payload["row"] = _row_payload(_get(db, VisualAsset, detail.get("asset_id")))
     elif artifact_type in ("master_story", "master_approval"):
-        payload["row"] = _row_payload(db.get(StoryVersion, detail.get("master_version_id")))
+        payload["row"] = _row_payload(_get(db, StoryVersion, detail.get("master_version_id")))
     elif artifact_type == "beats":
-        payload["row"] = _row_payload(db.get(EditorialBlueprint, detail.get("blueprint_id")))
+        payload["row"] = _row_payload(_get(db, EditorialBlueprint, detail.get("blueprint_id")))
     elif artifact_type in ("audio_blocks", "music_cues"):
-        payload["row"] = _row_payload(db.get(AudioPlan, detail.get("audio_plan_id")))
+        payload["row"] = _row_payload(_get(db, AudioPlan, detail.get("audio_plan_id")))
     elif artifact_type in ("visual_needs", "visual_shots", "visual_plan", "visual_gaps"):
-        row = db.get(VisualPlan, detail.get("visual_plan_id"))
+        row = _get(db, VisualPlan, detail.get("visual_plan_id"))
         if row is None:
             row = (db.query(VisualPlan).filter(VisualPlan.case_id == job.case_id)
                    .order_by(VisualPlan.id.desc()).first())
         payload["row"] = _row_payload(row)
     elif artifact_type == "host_plan":
-        payload["row"] = _row_payload(db.get(HostPlan, detail.get("host_plan_id")))
+        payload["row"] = _row_payload(_get(db, HostPlan, detail.get("host_plan_id")))
     elif artifact_type == "host_segments":
-        payload["row"] = _row_payload(db.get(HostSegments, detail.get("host_segments_id")))
+        payload["row"] = _row_payload(_get(db, HostSegments, detail.get("host_segments_id")))
     elif artifact_type in ("chapter_plan", "chapter_cards", "timeline_cards"):
-        payload["row"] = _row_payload(db.get(ChapterPlan, detail.get("chapter_plan_id")))
+        payload["row"] = _row_payload(_get(db, ChapterPlan, detail.get("chapter_plan_id")))
     elif artifact_type in ("captions", "production_script"):
-        payload["row"] = _row_payload(db.get(ProductionScript, detail.get("production_script_id")))
+        payload["row"] = _row_payload(_get(db, ProductionScript, detail.get("production_script_id")))
     return payload
 
 
