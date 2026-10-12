@@ -30,12 +30,28 @@ def _job(db_session):
     return job, row
 
 
+def _fresh_job(db_session):
+    case = Case(canonical_title="Fresh skip case", slug=f"fresh-skip-{uuid4().hex[:8]}",
+                language="en")
+    db_session.add(case)
+    db_session.flush()
+    job = DocumentaryJob(
+        case_id=case.id, languages_json=json.dumps(["en"]),
+        stages_json=json.dumps([{"name": "master_story", "status": "pending"}]),
+    )
+    db_session.add(job)
+    db_session.commit()
+    return job
+
+
 @pytest.fixture
 def configured(monkeypatch):
     monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "enforce")
     monkeypatch.setattr(ai_config.production_policies.incremental, "enforced_types", ["master_story"])
     monkeypatch.setattr("app.services.skip_policy._source_payload", lambda *args: {})
     monkeypatch.setattr("app.services.skip_policy._output_hash", lambda *args: "output")
+    monkeypatch.setattr("app.services.artifact_shadow._source_payload", lambda *args: {})
+    monkeypatch.setattr("app.services.artifact_shadow._output_hash", lambda *args: "output")
     yield
 
 
@@ -88,11 +104,13 @@ def test_verify_mode_runs_the_producer_after_a_would_skip(db_session, monkeypatc
     from app.documentary.pipeline.base import Stage, StageRunner
     from app.services import skip_policy
 
-    job, _ = _job(db_session)
-    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "verify")
+    job = _fresh_job(db_session)
+    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "off")
     monkeypatch.setattr(ai_config.production_policies.incremental, "enforced_types", [])
     monkeypatch.setattr("app.services.skip_policy._source_payload", lambda *args: {})
     monkeypatch.setattr("app.services.skip_policy._output_hash", lambda *args: "output")
+    monkeypatch.setattr("app.services.artifact_shadow._source_payload", lambda *args: {})
+    monkeypatch.setattr("app.services.artifact_shadow._output_hash", lambda *args: "output")
     monkeypatch.setitem(skip_policy.SOUNDNESS, "master_story", "SOUND")
     calls = []
 
@@ -105,10 +123,14 @@ def test_verify_mode_runs_the_producer_after_a_would_skip(db_session, monkeypatc
 
     runner = StageRunner(db_session, job)
     asyncio.run(runner.execute(Dummy(None)))
+    monkeypatch.setattr(ai_config.production_policies.incremental, "mode", "verify")
+    runner = StageRunner(db_session, job)
     asyncio.run(runner.execute(Dummy(None)))
     assert calls == ["ran", "ran"]
     decisions = [event.rule_id for event in db_session.query(PolicyEvent).all()]
     assert "INCREMENTAL_VERIFY" in decisions
+    assert any(event.rule_id == "INCREMENTAL_VERIFY" and event.decision == "verify_match"
+               for event in db_session.query(PolicyEvent).all())
 
 
 def test_stage_runner_enforce_reuses_a_sound_artifact(db_session, client, configured, monkeypatch):
