@@ -38,7 +38,7 @@
         "production_script:fa"
       ],
       "applied": [],
-      "evidence": "/private/var/folders/4t/4k_v5bnj1ng81bs7wj7g3sgw0000gn/T/tc-soundness-phase5-gpgwvfkk/agent_model_routing",
+      "evidence": "/private/var/folders/4t/4k_v5bnj1ng81bs7wj7g3sgw0000gn/T/tc-soundness-phase5-_h3j761u/agent_model_routing",
       "executed_stages": [
         "research",
         "master_story",
@@ -90,23 +90,23 @@
       "hidden": [],
       "no_effect_edges": [
         {
-          "from": "agent_model_routing:routing[chapter_writer]",
-          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py:531-536); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and beats's producer role is visual_planner per config/agents.json:298 \u2014 a different role, so its embedded model string (and therefore its request fingerprint) is unchanged by this perturbation.",
+          "from": "agent_model_routing:routing-or-config",
+          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and beats is produced by the visual_planner role (config/agents.json:298) \u2014 a different role, so its embedded model string is unchanged by this perturbation.",
           "to": "beats:shared"
         },
         {
-          "from": "agent_model_routing:routing[chapter_writer]",
-          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py:531-536); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and host_plan's producer role is host_director/host_writer per config/agents.json:431,438 \u2014 a different role, so its embedded model string (and therefore its request fingerprint) is unchanged by this perturbation.",
+          "from": "agent_model_routing:routing-or-config",
+          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and host_plan is produced by the host_director/host_writer roles (config/agents.json:431,438) \u2014 different roles, so their embedded model string is unchanged by this perturbation.",
           "to": "host_plan:shared"
         },
         {
-          "from": "agent_model_routing:routing[chapter_writer]",
-          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py:531-536); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and master_story's producer role is master_story_director/master_writer per config/agents.json:396,403 \u2014 a different role, so its embedded model string (and therefore its request fingerprint) is unchanged by this perturbation.",
+          "from": "agent_model_routing:routing-or-config",
+          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and master_story is produced by the master_story_director/master_writer roles (config/agents.json:396,403) \u2014 different roles, so their embedded model string is unchanged by this perturbation.",
           "to": "master_story:shared"
         },
         {
-          "from": "agent_model_routing:routing[chapter_writer]",
-          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py:531-536); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and naming's producer role is case_naming_agent per config/agents.json:361 \u2014 a different role, so its embedded model string (and therefore its request fingerprint) is unchanged by this perturbation.",
+          "from": "agent_model_routing:routing-or-config",
+          "reason": "agent_model_routing only reassigns routing['chapter_writer'] (tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the mocked request payload embeds ai_config.model_for(role) (tests/mock_payload.py:126,133), and naming is produced by the case_naming_agent role (config/agents.json:361) \u2014 a different role, so its embedded model string is unchanged by this perturbation.",
           "to": "naming:shared"
         }
       ],
@@ -212,8 +212,8 @@
         "voice_takes:en",
         "voice_takes:fa"
       ],
-      "restore_seconds": 0.5147648749989457,
-      "seconds": 49.068,
+      "restore_seconds": 0.44423604098847136,
+      "seconds": 40.064,
       "source": "agent_model_routing",
       "source_changed": [
         "config:agent_model_routing"
@@ -758,7 +758,7 @@
       "applied": [
         "master_story"
       ],
-      "evidence": "/private/var/folders/4t/4k_v5bnj1ng81bs7wj7g3sgw0000gn/T/tc-soundness-phase5-gpgwvfkk/master_story",
+      "evidence": "/private/var/folders/4t/4k_v5bnj1ng81bs7wj7g3sgw0000gn/T/tc-soundness-phase5-9m9_gdd6/master_story",
       "executed_stages": [
         "research",
         "master_story",
@@ -811,12 +811,12 @@
       "no_effect_edges": [
         {
           "from": "master_story:shared",
-          "reason": "direct consumer remained snapshot-identical; the changed source field is not read by this producer request in this fixture",
+          "reason": "app/agents/chapters.py:29 reads master.narrative_structure, but _payload() (chapters.py:45-67) only embeds ctx['acts']/ctx['events'], built by acts_of()/told_events() (app/documentary/chapters.py:69-89), which read structure['acts'] (plan metadata), never structure['sections'] (prose text); this perturbation (tests/soundness_replay.py:193-205) only appends to sections[-1]['text'] and story_text.",
           "to": "chapter_plan:shared"
         },
         {
           "from": "master_story:shared",
-          "reason": "the naming request reads the canonical case title; this master-story edit changed approved story text only",
+          "reason": "app/naming/context.py:54-103 (build_context) reads case.canonical_title, case.summary and the blueprint, never StoryVersion.story_text/narrative_structure; this perturbation (tests/soundness_replay.py:193-205) only changes those two master-story fields.",
           "to": "naming:shared"
         }
       ],
@@ -918,8 +918,8 @@
         "voice_takes:en",
         "voice_takes:fa"
       ],
-      "restore_seconds": 0.5698159580060747,
-      "seconds": 49.796,
+      "restore_seconds": 0.23134070800733753,
+      "seconds": 39.214,
       "source": "master_story",
       "source_changed": [
         "master_story:shared"
@@ -1969,7 +1969,7 @@
     {
       "actual": [],
       "applied": [],
-      "evidence": "/private/var/folders/4t/4k_v5bnj1ng81bs7wj7g3sgw0000gn/T/tc-soundness-phase5-gpgwvfkk/typed_config_documentary",
+      "evidence": "/private/var/folders/4t/4k_v5bnj1ng81bs7wj7g3sgw0000gn/T/tc-soundness-phase5-_h3j761u/typed_config_documentary",
       "executed_stages": [
         "research",
         "master_story",
@@ -2019,7 +2019,33 @@
         "render:de"
       ],
       "hidden": [],
-      "no_effect_edges": [],
+      "no_effect_edges": [
+        {
+          "from": "typed_config_documentary:routing-or-config",
+          "reason": "typed_config_documentary bumps ai_config.documentary.pilot_seconds (tests/soundness_replay.py config_edit, 'typed_config_' branch). app/documentary/jobs.py:238 only consults it as `job.pilot_seconds or ai_config.documentary.pilot_seconds`; this fixture's job is created with an explicit pilot_seconds=80.0 (tests/test_visual_production.py:1406-1407), which always wins the `or`, so the config field is never read in this run at all \u2014 not by beats' visual_planner request or anything else.",
+          "to": "beats:shared"
+        },
+        {
+          "from": "typed_config_documentary:routing-or-config",
+          "reason": "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds is shadowed by this fixture's explicit job.pilot_seconds=80.0 (app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and is never read in this run.",
+          "to": "host_plan:shared"
+        },
+        {
+          "from": "typed_config_documentary:routing-or-config",
+          "reason": "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds is shadowed by this fixture's explicit job.pilot_seconds=80.0 (app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and is never read in this run.",
+          "to": "master_story:shared"
+        },
+        {
+          "from": "typed_config_documentary:routing-or-config",
+          "reason": "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds is shadowed by this fixture's explicit job.pilot_seconds=80.0 (app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and is never read in this run.",
+          "to": "naming:shared"
+        },
+        {
+          "from": "typed_config_documentary:routing-or-config",
+          "reason": "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds is shadowed by this fixture's explicit job.pilot_seconds=80.0 (app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and is never read in this run.",
+          "to": "production_script:en"
+        }
+      ],
       "over_invalidation": [
         "audio_blocks:shared",
         "audio_timing:ar",
@@ -2134,8 +2160,8 @@
         "voice_takes:en",
         "voice_takes:fa"
       ],
-      "restore_seconds": 0.5485033750010189,
-      "seconds": 49.318,
+      "restore_seconds": 0.4113083340052981,
+      "seconds": 40.107,
       "source": "typed_config_documentary",
       "source_changed": [
         "config:typed_config_documentary"

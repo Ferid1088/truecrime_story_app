@@ -19,6 +19,7 @@ from soundness_observation import observe
 from sqlalchemy import inspect, text
 
 from app.core.artifact_dependencies import (
+    ARTIFACT_CONFIG_INPUTS,
     ARTIFACT_SCOPES,
     direct_dependents,
 )
@@ -34,6 +35,27 @@ from app.db.models import (
     VoicePerformance,
 )
 from app.services.soundness import predicted_change_keys
+
+# Shared with prepare_phase5() below and tests/generate_soundness_status.py's
+# CONFIG_SECTIONS: which ARTIFACT_CONFIG_INPUTS section(s) each config-sourced
+# perturbation touches.
+CONFIG_SECTIONS = {
+    "language_profile": {"language_profile"},
+    "pronunciation_voice": {"pronunciation_voice"},
+    "channel_identity_logo": {"channel_identity"},
+    "intro_design": {"intro_design"},
+    "agent_model_routing": {"documentary"},
+    "music_history_library": {"music_history_library"},
+    "logo_bytes": {"logo_bytes"},
+    "typed_config_documentary": {"documentary"},
+    "typed_config_render": {"render"},
+    "typed_config_chapters": {"chapters"},
+    "typed_config_visual": {"visual"},
+    "typed_config_voice": {"voice"},
+    "typed_config_audio": {"audio"},
+    "typed_config_host": {"host"},
+    "typed_config_music": {"music"},
+}
 
 
 def prepare(db, run: Path, source: str) -> dict:
@@ -257,34 +279,141 @@ def _asset_codes_from_scripts(db) -> set[str]:
     return found
 
 
+#: (perturbation name, consumer artifact type) -> code-level reason. Covers
+#: both real-root perturbations (keyed by source_type, e.g. "master_story")
+#: and config-sourced ones (keyed by the perturbation name itself, e.g.
+#: "agent_model_routing"), since the two never collide.
+NO_EFFECT_REASONS = {
+    ("master_story", "naming"): (
+        "app/naming/context.py:54-103 (build_context) reads case.canonical_title, "
+        "case.summary and the blueprint, never StoryVersion.story_text/"
+        "narrative_structure; this perturbation (tests/soundness_replay.py:193-205) "
+        "only changes those two master-story fields."
+    ),
+    ("master_story", "chapter_plan"): (
+        "app/agents/chapters.py:29 reads master.narrative_structure, but "
+        "_payload() (chapters.py:45-67) only embeds ctx['acts']/ctx['events'], "
+        "built by acts_of()/told_events() (app/documentary/chapters.py:69-89), "
+        "which read structure['acts'] (plan metadata), never structure['sections'] "
+        "(prose text); this perturbation (tests/soundness_replay.py:193-205) only "
+        "appends to sections[-1]['text'] and story_text."
+    ),
+    ("agent_model_routing", "beats"): (
+        "agent_model_routing only reassigns routing['chapter_writer'] "
+        "(tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the "
+        "mocked request payload embeds ai_config.model_for(role) "
+        "(tests/mock_payload.py:126,133), and beats is produced by the "
+        "visual_planner role (config/agents.json:298) — a different role, so its "
+        "embedded model string is unchanged by this perturbation."
+    ),
+    ("agent_model_routing", "host_plan"): (
+        "agent_model_routing only reassigns routing['chapter_writer'] "
+        "(tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the "
+        "mocked request payload embeds ai_config.model_for(role) "
+        "(tests/mock_payload.py:126,133), and host_plan is produced by the "
+        "host_director/host_writer roles (config/agents.json:431,438) — different "
+        "roles, so their embedded model string is unchanged by this perturbation."
+    ),
+    ("agent_model_routing", "master_story"): (
+        "agent_model_routing only reassigns routing['chapter_writer'] "
+        "(tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the "
+        "mocked request payload embeds ai_config.model_for(role) "
+        "(tests/mock_payload.py:126,133), and master_story is produced by the "
+        "master_story_director/master_writer roles (config/agents.json:396,403) — "
+        "different roles, so their embedded model string is unchanged by this "
+        "perturbation."
+    ),
+    ("agent_model_routing", "naming"): (
+        "agent_model_routing only reassigns routing['chapter_writer'] "
+        "(tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the "
+        "mocked request payload embeds ai_config.model_for(role) "
+        "(tests/mock_payload.py:126,133), and naming is produced by the "
+        "case_naming_agent role (config/agents.json:361) — a different role, so "
+        "its embedded model string is unchanged by this perturbation."
+    ),
+    ("typed_config_documentary", "beats"): (
+        "typed_config_documentary bumps ai_config.documentary.pilot_seconds "
+        "(tests/soundness_replay.py config_edit, 'typed_config_' branch). "
+        "app/documentary/jobs.py:238 only consults it as `job.pilot_seconds or "
+        "ai_config.documentary.pilot_seconds`; this fixture's job is created with an "
+        "explicit pilot_seconds=80.0 (tests/test_visual_production.py:1406-1407), "
+        "which always wins the `or`, so the config field is never read in this run "
+        "at all — not by beats' visual_planner request or anything else."
+    ),
+    ("typed_config_documentary", "host_plan"): (
+        "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds "
+        "is shadowed by this fixture's explicit job.pilot_seconds=80.0 "
+        "(app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and "
+        "is never read in this run."
+    ),
+    ("typed_config_documentary", "master_story"): (
+        "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds "
+        "is shadowed by this fixture's explicit job.pilot_seconds=80.0 "
+        "(app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and "
+        "is never read in this run."
+    ),
+    ("typed_config_documentary", "naming"): (
+        "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds "
+        "is shadowed by this fixture's explicit job.pilot_seconds=80.0 "
+        "(app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and "
+        "is never read in this run."
+    ),
+    ("typed_config_documentary", "production_script"): (
+        "See the beats edge for this perturbation: ai_config.documentary.pilot_seconds "
+        "is shadowed by this fixture's explicit job.pilot_seconds=80.0 "
+        "(app/documentary/jobs.py:238; tests/test_visual_production.py:1406-1407) and "
+        "is never read in this run."
+    ),
+}
+
+
+def _config_direct_consumer_types(config_source: str) -> set[str]:
+    sections = CONFIG_SECTIONS.get(config_source, set())
+    return {
+        artifact for artifact, inputs in ARTIFACT_CONFIG_INPUTS.items()
+        if inputs & sections
+    }
+
+
 def no_effect_edges(
     source_type: str,
     source_language: str | None,
     actual: list[str],
     *,
     asset_used: bool | None = None,
+    config_source: str | None = None,
 ) -> list[dict]:
     """Record direct registry edges whose saved output stayed identical.
 
     This is deliberately computed from snapshot keys, never from registry
     hashes.  A missing direct consumer is allowed only with an explicit,
     reviewable reason in the committed result record.
+
+    `config_source` is set for config-sourced perturbations (e.g.
+    "agent_model_routing", "typed_config_documentary"): their direct
+    consumers come from ARTIFACT_CONFIG_INPUTS/CONFIG_SECTIONS, each at a
+    single representative language ("en"), not from the real-root registry
+    closure `direct_dependents()` uses for a changed artifact.
     """
-    reasons = {
-        ("master_story", "naming"): (
-            "the naming request reads the canonical case title; this master-story "
-            "edit changed approved story text only"
-        ),
-    }
+    reason_key_source = config_source or source_type
     actual_set = set(actual)
     edges = []
-    for target in sorted(direct_dependents(source_type)):
-        languages = ([source_language] if source_language else ("en", "de", "fa", "ar")) \
-            if ARTIFACT_SCOPES[target] == "per_language" else (None,)
+    if config_source:
+        targets = sorted(_config_direct_consumer_types(config_source))
+        from_label = f"{config_source}:routing-or-config"
+    else:
+        targets = sorted(direct_dependents(source_type))
+        from_label = f"{source_type}:{source_language or 'shared'}"
+    for target in targets:
+        if config_source:
+            languages = ("en",) if ARTIFACT_SCOPES[target] == "per_language" else (None,)
+        else:
+            languages = ([source_language] if source_language else ("en", "de", "fa", "ar")) \
+                if ARTIFACT_SCOPES[target] == "per_language" else (None,)
         for language in languages:
             key = f"{target}:{language or 'shared'}"
             if key not in actual_set:
-                reason = reasons.get((source_type, target))
+                reason = NO_EFFECT_REASONS.get((reason_key_source, target))
                 if source_type == "visual_asset" and asset_used is True:
                     reason = (
                         "the used asset bytes are consumed by rendering; the visual "
@@ -301,7 +430,7 @@ def no_effect_edges(
                         "field is not read by this producer request in this fixture"
                     )
                 edges.append({
-                    "from": f"{source_type}:{source_language or 'shared'}",
+                    "from": from_label,
                     "to": key,
                     "reason": reason,
                 })
@@ -340,23 +469,7 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
         raise AssertionError(f"No registered source for {source}: {source_type}/{source_language}")
     selected = selected[:1]
     predicted = sorted(predicted_change_keys(db, [r.id for r in selected])) if selected else []
-    config_sections = {
-        "language_profile": {"language_profile"},
-        "pronunciation_voice": {"pronunciation_voice"},
-        "channel_identity_logo": {"channel_identity"},
-        "intro_design": {"intro_design"},
-        "agent_model_routing": {"documentary"},
-        "music_history_library": {"music_history_library"},
-        "logo_bytes": {"logo_bytes"},
-        "typed_config_documentary": {"documentary"},
-        "typed_config_render": {"render"},
-        "typed_config_chapters": {"chapters"},
-        "typed_config_visual": {"visual"},
-        "typed_config_voice": {"voice"},
-        "typed_config_audio": {"audio"},
-        "typed_config_host": {"host"},
-        "typed_config_music": {"music"},
-    }.get(source)
+    config_sections = CONFIG_SECTIONS.get(source)
     if config_sections:
         predicted = sorted(predicted_change_keys(db, config_sections=config_sections))
     overlay = {"source": source}
@@ -499,9 +612,10 @@ def install_phase5(monkeypatch):
     """Apply one Phase 5 source after its producer, or config before the run."""
     import atexit
 
+    from config_read_recorder import install as install_config_read_recorder
+
     from app.core.ai_config import ai_config
     from app.documentary.pipeline.base import StageRunner
-    from config_read_recorder import install as install_config_read_recorder
 
     _, restore_config_reads = install_config_read_recorder(
         ai_config,

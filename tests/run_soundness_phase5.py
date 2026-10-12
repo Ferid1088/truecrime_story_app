@@ -77,17 +77,22 @@ def run_case(template: Path, parent: Path, source: str) -> dict:
     predicted = evidence["predicted"]
     source_key = evidence["source_changed"][0]
     source_type, _, source_language = source_key.partition(":")
-    no_effect = (
-        no_effect_edges(
+    if source_type == "config":
+        # prepare_phase5() records config-sourced perturbations as
+        # "config:<source>" (no real-root artifact changed); compute direct
+        # consumers from ARTIFACT_CONFIG_INPUTS instead of the registry
+        # closure a changed artifact would use.
+        no_effect = no_effect_edges(None, None, actual, config_source=source)
+    elif source_type in {
+        "research_result", "master_story", "beats", "voice_takes", "visual_asset",
+        "host_plan", "naming",
+    }:
+        no_effect = no_effect_edges(
             source_type, None if source_language == "shared" else source_language, actual,
             asset_used=False if source == "unused_visual" else None,
         )
-        if source_type in PHASE5_TYPES.values() or source_type in {
-            "research_result", "master_story", "beats", "voice_takes", "visual_asset",
-            "host_plan", "naming",
-        }
-        else []
-    )
+    else:
+        no_effect = []
     result = {
         "source": source,
         "predicted": predicted,

@@ -1,7 +1,13 @@
 import json
 import sqlite3
 
-from generate_soundness_status import _can_reach, build_status, generate, load_records, strong_record
+from generate_soundness_status import (
+    _can_reach,
+    build_status,
+    generate,
+    load_records,
+    strong_record,
+)
 
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
