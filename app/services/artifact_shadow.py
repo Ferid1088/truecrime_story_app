@@ -65,6 +65,33 @@ def _row_payload(row) -> dict:
     return fields
 
 
+def _asset_codes(value) -> set[str]:
+    """Find the editorial asset identities actually referenced by a plan."""
+    found: set[str] = set()
+    if isinstance(value, dict):
+        asset_id = value.get("asset_id")
+        if asset_id not in (None, ""):
+            found.add(str(asset_id))
+        for child in value.values():
+            found.update(_asset_codes(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.update(_asset_codes(child))
+    return found
+
+
+def _visual_asset_rows(db, job, detail: dict) -> list[VisualAsset]:
+    row = db.get(VisualPlan, detail.get("visual_plan_id"))
+    if row is None:
+        return []
+    try:
+        used = _asset_codes(json.loads(row.plan_json or "{}"))
+    except (TypeError, ValueError):
+        used = set()
+    assets = db.query(VisualAsset).filter(VisualAsset.case_id == job.case_id).all()
+    return [asset for asset in assets if asset.asset_code in used]
+
+
 def _latest_version(db, job, language: str | None):
     query = db.query(StoryVersion).filter(StoryVersion.case_id == job.case_id)
     if language:
@@ -113,8 +140,10 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
         source["production"] = _row_payload(
             db.get(ProductionScript, production_id) if production_id is not None else None)
     elif artifact_type == "visual_asset":
-        source["assets"] = [_row_payload(a) for a in db.query(VisualAsset)
-                             .filter(VisualAsset.case_id == job.case_id).all()]
+        asset = db.get(VisualAsset, detail.get("asset_id"))
+        source["asset"] = _row_payload(asset)
+        if asset is not None:
+            source["asset_file_sha256"] = asset.sha256
     source["config"] = {
         "documentary": ai_config.documentary.model_dump(mode="json"),
         "voice": ai_config.voice.model_dump(mode="json"),
@@ -147,27 +176,53 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
     try:
         registry = ArtifactRegistry(db)
         for artifact_type in types:
-            languages = _language_rows(job, language) if ARTIFACT_SCOPES[artifact_type] == "per_language" else [None]
-            for artifact_language in languages:
-                dependencies: list[str] = []
-                for dep_type in ARTIFACT_DEPENDENCIES[artifact_type]:
-                    query = db.query(Artifact).filter(
-                        Artifact.stage_job_id == job.id, Artifact.type == dep_type)
-                    if ARTIFACT_SCOPES[dep_type] == "per_language":
-                        query = query.filter(Artifact.language == artifact_language)
-                    else:
-                        query = query.filter(Artifact.language.is_(None))
-                    row = query.order_by(Artifact.created_at.desc()).first()
-                    if row is not None:
-                        dependencies.append(row.id)
-                scope = {"job_id": job.id, "stage": stage, "language": artifact_language,
-                         "type": artifact_type}
-                registry.register(
-                    artifact_type, scope,
-                    _source_payload(db, job, stage, artifact_language, detail, artifact_type),
-                    dependencies, _relative_ref(detail or {}, artifact_type),
-                    created_by="shadow_stage", case_id=job.case_id,
-                    language=artifact_language, stage_job_id=job.id)
+            asset_rows = (db.query(VisualAsset)
+                          .filter(VisualAsset.case_id == job.case_id).all()
+                          if artifact_type == "visual_asset" else [None])
+            if artifact_type == "visual_asset" and not asset_rows:
+                continue
+            for asset in asset_rows:
+                artifact_detail = dict(detail or {})
+                if asset is not None:
+                    artifact_detail["asset_id"] = asset.id
+                    artifact_detail["asset_code"] = asset.asset_code
+                languages = (_language_rows(job, language)
+                             if ARTIFACT_SCOPES[artifact_type] == "per_language" else [None])
+                for artifact_language in languages:
+                    dependencies: list[str] = []
+                    for dep_type in ARTIFACT_DEPENDENCIES[artifact_type]:
+                        query = db.query(Artifact).filter(
+                            Artifact.stage_job_id == job.id, Artifact.type == dep_type)
+                        if ARTIFACT_SCOPES[dep_type] == "per_language":
+                            query = query.filter(Artifact.language == artifact_language)
+                        else:
+                            query = query.filter(Artifact.language.is_(None))
+                        row = query.order_by(Artifact.created_at.desc()).first()
+                        if row is not None:
+                            dependencies.append(row.id)
+                    if artifact_type in {"visual_shots", "visual_pieces", "visual_plan"}:
+                        used_assets = _visual_asset_rows(db, job, detail or {})
+                        for asset_row in used_assets:
+                            asset_rows_query = db.query(Artifact).filter(
+                                Artifact.stage_job_id == job.id,
+                                Artifact.type == "visual_asset")
+                            for candidate in asset_rows_query.all():
+                                try:
+                                    scope = json.loads(candidate.scope_json or "{}")
+                                except (TypeError, ValueError):
+                                    scope = {}
+                                if scope.get("asset_id") == asset_row.asset_code:
+                                    dependencies.append(candidate.id)
+                    scope = {"job_id": job.id, "stage": stage, "language": artifact_language,
+                             "type": artifact_type,
+                             **({"asset_id": asset.asset_code} if asset is not None else {})}
+                    registry.register(
+                        artifact_type, scope,
+                        _source_payload(db, job, stage, artifact_language, artifact_detail,
+                                        artifact_type),
+                        dependencies, _relative_ref(detail or {}, artifact_type),
+                        created_by="shadow_stage", case_id=job.case_id,
+                        language=artifact_language, stage_job_id=job.id)
     except Exception as exc:  # shadow registration must never fail the job
         reason = f"{type(exc).__name__}: {exc}"
         record_warning(result, stage, reason, language, "ARTIFACT_REGISTRATION_FAILED")
