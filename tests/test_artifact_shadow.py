@@ -1,13 +1,23 @@
 import json
 import uuid
 
-from app.db.models import (Artifact, ArtifactDep, Case, EditorialBlueprint, StoryVersion,
-                           VisualAsset, VisualPlan)
 from app.core.ai_config import ai_config
-from app.db.models import Artifact, DocumentaryJob
+from app.db.models import (
+    Artifact,
+    ArtifactDep,
+    Case,
+    DocumentaryJob,
+    EditorialBlueprint,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
+)
 from app.documentary.jobs import plan_stages
-from app.services.artifact_shadow import (STAGE_ARTIFACT_TYPES, register_stage_outputs,
-                                          registry_consistency)
+from app.services.artifact_shadow import (
+    STAGE_ARTIFACT_TYPES,
+    register_stage_outputs,
+    registry_consistency,
+)
 
 
 def test_shadow_registration_is_best_effort_and_write_only(db_session, monkeypatch):

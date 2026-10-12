@@ -1,14 +1,14 @@
 """Best-effort write-only artifact registration for pipeline stages."""
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import logging
-from pathlib import Path
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 from app.core.ai_config import ai_config
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
+from app.core.fingerprint import canonical_json
 from app.core.policy import PolicyDecision
 from app.db.models import (
     Artifact,
@@ -16,17 +16,16 @@ from app.db.models import (
     ChapterPlan,
     DocumentaryJob,
     EditorialBlueprint,
+    HostPlan,
+    HostSegments,
     ProductionScript,
     StoryVersion,
     VisualAsset,
     VisualPlan,
-    HostPlan,
-    HostSegments,
 )
 from app.documentary.pipeline.base import record_warning
 from app.services.artifacts import ArtifactRegistry
 from app.services.policy_events import record_decision
-from app.core.fingerprint import canonical_json
 
 log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
@@ -250,8 +249,12 @@ def _stage_detail(job, stage: str, language: str | None) -> dict:
     except (TypeError, ValueError):
         return {}
     name = f"{stage}:{language}" if language else stage
-    entry = next((item for item in entries if item.get("name") == name), {})
-    return entry.get("detail") if isinstance(entry.get("detail"), dict) else {}
+    if not isinstance(entries, list):
+        return {}
+    entry: dict = next((item for item in entries
+                        if isinstance(item, dict) and item.get("name") == name), {})
+    detail = entry.get("detail")
+    return detail if isinstance(detail, dict) else {}
 
 
 def registry_consistency(db, stage_job_id: int | None = None) -> list[dict]:

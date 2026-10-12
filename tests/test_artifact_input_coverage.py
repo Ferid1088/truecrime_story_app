@@ -11,7 +11,6 @@ from app.core.fingerprint import input_fingerprint
 from app.db.models import DocumentaryJob
 from app.services.artifact_shadow import _source_payload
 
-
 SOURCES = {
     "typed_config": "all registered artifact types",
     "language_list": "all registered artifact types",
