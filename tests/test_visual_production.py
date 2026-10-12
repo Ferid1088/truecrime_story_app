@@ -654,6 +654,11 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     case, master = _story(db_session)
     case.resolution_status = "UNSOLVED"
     monkeypatch.setattr(ai_config.artifacts, "shadow_mode", True)
+    history_before = [
+        {key: getattr(row, key) for key in (
+            "track_id", "case_id", "film_key", "production_script_id", "language",
+            "beat_id", "purpose", "mood", "start", "end", "why", "selection_reason")}
+        for row in db_session.query(MusicUsage).order_by(MusicUsage.id).all()]
 
     # The production fixture's normal fake writer is English-only. Keep the
     # real pipeline and replace only its mocked spoken output with target
@@ -758,6 +763,7 @@ def test_four_language_shadow_pipeline_real_job(db_session, documentary_env, mon
     # snapshot used by the first run.  Selection reasons are part of the
     # identity comparison; they are no longer excluded.
     db_session.query(MusicUsage).delete(synchronize_session=False)
+    db_session.add_all([MusicUsage(**row) for row in history_before])
     db_session.commit()
     monkeypatch.setattr(ai_config.artifacts, "shadow_mode", False)
     job_off = J.create_job(db_session, case, master, languages, "pilot", 80.0, "preview")
