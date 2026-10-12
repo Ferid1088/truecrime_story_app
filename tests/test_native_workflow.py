@@ -156,7 +156,7 @@ def test_native_scripts_help_does_not_start_services():
 
 def test_native_process_scripts_exist_and_have_expected_order():
     up = (ROOT / "scripts/dev_up.sh").read_text()
-    assert "brew services start postgresql@16" in up
+    assert '"$ROOT/scripts/pg_up.sh"' in up
     assert '"$ROOT/scripts/searxng_up.sh"' in up
     assert up.index('"$ROOT/scripts/searxng_up.sh"') < up.index("start_process api")
     assert up.index("start_process api") < up.index("start_process worker")
