@@ -53,8 +53,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["depends_on_id"], ["artifacts.id"]),
         sa.UniqueConstraint("artifact_id", "depends_on_id", name="uq_artifact_deps_edge"),
     )
-    op.create_index("ix_artifact_deps_artifact", "artifact_deps", ["artifact_id"])
-    op.create_index("ix_artifact_deps_dependency", "artifact_deps", ["depends_on_id"])
+    op.create_index("ix_artifact_deps_artifact_id", "artifact_deps", ["artifact_id"])
+    op.create_index("ix_artifact_deps_depends_on_id", "artifact_deps", ["depends_on_id"])
 
     op.create_table(
         "edit_log",
@@ -84,8 +84,8 @@ def downgrade() -> None:
     op.drop_index("ix_edit_log_scope_type", table_name="edit_log")
     op.drop_index("ix_edit_log_created_at", table_name="edit_log")
     op.drop_table("edit_log")
-    op.drop_index("ix_artifact_deps_dependency", table_name="artifact_deps")
-    op.drop_index("ix_artifact_deps_artifact", table_name="artifact_deps")
+    op.drop_index("ix_artifact_deps_depends_on_id", table_name="artifact_deps")
+    op.drop_index("ix_artifact_deps_artifact_id", table_name="artifact_deps")
     op.drop_table("artifact_deps")
     for index in ("ix_artifacts_stage_job_id", "ix_artifacts_scope", "ix_artifacts_case_type",
                   "ix_artifacts_status", "ix_artifacts_type", "ix_artifacts_language",

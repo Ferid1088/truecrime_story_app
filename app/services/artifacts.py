@@ -1,10 +1,9 @@
 """Write/read service for the shadow artifact graph."""
 from __future__ import annotations
 
-import json
 from collections import defaultdict, deque
+from collections.abc import Iterable
 from pathlib import PurePath
-from typing import Iterable
 
 from sqlalchemy.orm import Session
 
@@ -111,7 +110,9 @@ class ArtifactRegistry:
         self.db.commit()
         grouped: dict[str, list[str]] = defaultdict(list)
         for artifact_id in sorted(affected):
-            grouped[self.db.get(Artifact, artifact_id).type].append(artifact_id)
+            row = self.db.get(Artifact, artifact_id)
+            if row is not None:
+                grouped[row.type].append(artifact_id)
         return dict(grouped)
 
     def scope_preview(self, artifact_ids: Iterable[str]) -> dict:

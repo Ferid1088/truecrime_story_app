@@ -11,7 +11,7 @@ def test_shadow_registration_is_best_effort_and_write_only(db_session, monkeypat
     db_session.add(job)
     db_session.commit()
     register_stage_outputs(db_session, job, "blueprint", None, {"blueprint_id": 1}, {})
-    row = db_session.query(Artifact).one()
+    row = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).one()
     assert row.type == "beats" and row.input_hash and json.loads(row.scope_json)["language"] is None
 
 

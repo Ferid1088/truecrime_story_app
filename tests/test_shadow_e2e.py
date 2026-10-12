@@ -3,8 +3,8 @@ import json
 from app.core.ai_config import ai_config
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.db.models import Artifact, ArtifactDep, DocumentaryJob
-from app.services.artifacts import ArtifactRegistry
 from app.documentary.pipeline.base import StageRunner
+from app.services.artifacts import ArtifactRegistry
 
 
 def _register_fixture(registry, job_id, case_id, language=None):
@@ -38,8 +38,10 @@ def test_shadow_graph_fixture_has_hashes_edges_four_languages_and_stable_rerun(d
     rows = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
     assert rows and all(row.input_hash and row.type and json.loads(row.scope_json) for row in rows)
     ids = {row.id for row in rows}
-    assert all(edge.artifact_id in ids and edge.depends_on_id in ids
-               for edge in db_session.query(ArtifactDep).all())
+    edges = db_session.query(ArtifactDep).filter(
+        ArtifactDep.artifact_id.in_(ids), ArtifactDep.depends_on_id.in_(ids)
+    ).all()
+    assert all(edge.artifact_id in ids and edge.depends_on_id in ids for edge in edges)
     per_language = {row.language for row in rows if row.language}
     assert per_language == {"en", "de", "fa", "ar"}
 

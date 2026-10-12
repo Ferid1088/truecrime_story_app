@@ -1039,8 +1039,6 @@ class ArtifactDep(Base):
     __tablename__ = "artifact_deps"
     __table_args__ = (
         UniqueConstraint("artifact_id", "depends_on_id", name="uq_artifact_deps_edge"),
-        Index("ix_artifact_deps_artifact", "artifact_id"),
-        Index("ix_artifact_deps_dependency", "depends_on_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
