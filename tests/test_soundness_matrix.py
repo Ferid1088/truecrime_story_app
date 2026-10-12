@@ -3,7 +3,7 @@ import json
 from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.fingerprint import FINGERPRINT_VOLATILE_FIELDS, canonical_json
 from app.db.models import Artifact, ArtifactDep
-from app.services.skip_policy import SOUNDNESS
+from app.services.skip_policy import SOUNDNESS, load_soundness_status
 from app.services.soundness import (
     SNAPSHOT_EXCLUDED_FIELDS,
     changed_artifacts,
@@ -59,4 +59,20 @@ def test_all_registered_types_are_named_in_soundness_sources():
     assert len(sources) == 15
     assert set(ARTIFACT_DEPENDENCIES)
     assert set(SOUNDNESS) == set(ARTIFACT_DEPENDENCIES)
-    assert {status for status in SOUNDNESS.values()} == {"SOUND", "UNPROVEN"}
+    assert load_soundness_status() == SOUNDNESS
+    assert set(SOUNDNESS.values()) == {"UNPROVEN"}
+
+
+def test_actual_snapshot_does_not_read_registry_output_hash(db_session):
+    from app.db.models import Case, DocumentaryJob
+    from app.services.soundness import artifact_snapshot
+
+    case = Case(canonical_title="snapshot", slug="snapshot-no-registry", language="en")
+    db_session.add(case)
+    db_session.flush()
+    job = DocumentaryJob(case_id=case.id, stages_json="[]")
+    db_session.add(job)
+    db_session.commit()
+    # Existing fixture rows may share the generated case id; their snapshots
+    # are still computed from saved content, never from output_hash.
+    assert all(value == "" for value in artifact_snapshot(db_session, case.id).values())

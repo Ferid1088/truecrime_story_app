@@ -1,12 +1,13 @@
 """Read-only helpers for proving the shadow graph's prediction boundary."""
 from __future__ import annotations
 
+import json
 from collections import defaultdict, deque
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Artifact, ArtifactDep
-from app.services.artifact_shadow import registry_consistency
+from app.db.models import Artifact, ArtifactDep, DocumentaryJob
+from app.services.artifact_shadow import _output_hash, _stage_detail
 
 SNAPSHOT_EXCLUDED_FIELDS = frozenset({
     "id", "card_id", "piece_id", "created_at", "updated_at", "timestamp",
@@ -15,18 +16,26 @@ SNAPSHOT_EXCLUDED_FIELDS = frozenset({
 
 
 def artifact_snapshot(db: Session, case_id: int) -> dict[str, str]:
-    """Return hashes of the currently saved, registered outputs.
+    """Hash saved outputs directly, without consulting registry hashes.
 
-    The consistency check recomputes row/file content; a drifted artifact is
-    represented by its recomputed hash so the comparison cannot trust the
-    registry's stored output hash alone.
+    This is the ``actual`` side of the soundness harness.  It deliberately
+    does not call ``registry_consistency`` and never falls back to
+    ``Artifact.output_hash``; otherwise prediction and observation would be
+    circular.
     """
-    drift = {item["artifact_id"]: item.get("expected")
-             for item in registry_consistency(db, case_id=case_id)
-             if item.get("expected")}
     snapshot: dict[str, str] = {}
     for row in db.query(Artifact).filter(Artifact.case_id == case_id).all():
-        snapshot[row.id] = str(drift.get(row.id) or row.output_hash or "")
+        if row.stage_job_id is None:
+            snapshot[row.id] = ""
+            continue
+        job = db.get(DocumentaryJob, row.stage_job_id)
+        if job is None:
+            snapshot[row.id] = ""
+            continue
+        scope = json.loads(row.scope_json or "{}")
+        stage = scope.get("stage") or ""
+        detail = _stage_detail(job, stage, row.language)
+        snapshot[row.id] = _output_hash(db, job, stage, row.language, detail, row.type)
     return snapshot
 
 
