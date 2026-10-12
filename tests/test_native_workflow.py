@@ -209,6 +209,7 @@ def test_searxng_dir_is_configured_only_in_ignored_local_file(tmp_path):
     script = (ROOT / "scripts/searxng_up.sh").read_text()
     assert "SEARXNG_DIR" in script and ".env.local" in script
     assert "--set-dir" in script
+    assert '"$ROOT/scripts/detached_exec.py"' in script
 
 
 def test_dev_up_records_pid_only_after_readiness_and_cleans_failed_start():

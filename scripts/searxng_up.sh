@@ -80,7 +80,8 @@ fi
 
 TRUECRIME_SEARXNG_URL="$SEARCH_URL" \
 SEARXNG_SETTINGS_PATH="$SETTINGS" \
-nohup "$RUNNER" >"$LOGFILE" 2>&1 &
+nohup "$ROOT/.venv/bin/python" "$ROOT/scripts/detached_exec.py" "$RUNNER" \
+  </dev/null >"$LOGFILE" 2>&1 &
 new_pid=$!
 ready=0
 for _ in {1..40}; do
