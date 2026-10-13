@@ -43,7 +43,7 @@ def test_apply_live_success_uses_only_a_copy(tmp_path, monkeypatch):
 
     assert backup.exists()
     with sqlite3.connect(live) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0014"
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0015"
         assert all(connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0] == 0
                    for table in db_reconcile.NEW_TABLES)
 
@@ -59,7 +59,7 @@ def test_service_start_failure_after_apply_does_not_rollback(tmp_path, monkeypat
         raise RuntimeError("simulated service start failure")
 
     with sqlite3.connect(live) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0014"
+            assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0015"
     assert backup.exists()
 
 

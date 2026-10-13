@@ -326,7 +326,8 @@ async def apply_short_form_action(case_id: int, preview_id: int, db: Session = D
             script.captions_json = json.dumps(cues, ensure_ascii=False)
             script.content_hash = hashlib.sha256(json.dumps({
                 "hook": script.hook, "body": script.body, "cta": script.cta,
-                "captions": script.captions_json, "language": script.language,
+                "caption_text": script.caption_text, "captions": script.captions_json,
+                "language": script.language,
             }, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
             db.commit()
             pipeline.run_one(db, row.id, force=True)

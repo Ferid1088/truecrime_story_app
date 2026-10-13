@@ -19,6 +19,7 @@ from app.db.models import (
     DocumentaryJob,
     EditLog,
     EditorialBlueprint,
+    ShortCandidate,
     StoryVersion,
     Video,
 )
@@ -192,9 +193,13 @@ def test_caption_edit_scope_rebuilds_only_one_language_short(db_session, tmp_pat
     target = (db_session.query(pipeline.RenderedShort)
               .filter_by(film_job_id=job.id, language="de").first())
     assert target is not None
-    artifact = (db_session.query(Artifact)
-                .filter_by(stage_job_id=job.id, type="short_render", language="de")
-                .first())
+    candidate = db_session.get(ShortCandidate, target.candidate_id)
+    assert candidate is not None
+    artifacts = (db_session.query(Artifact)
+                 .filter_by(stage_job_id=job.id, type="short_render", language="de")
+                 .all())
+    artifact = next((row for row in artifacts
+                     if json.loads(row.scope_json or "{}").get("short_id") == candidate.stable_key), None)
     assert artifact is not None
     before = {row.id: row.content_hash for row in db_session.query(pipeline.RenderedShort)
               .filter_by(film_job_id=job.id).all()}
@@ -226,7 +231,7 @@ def _run_queued_selection(db_session, job, monkeypatch):
     assert claimed == selection.id
     assert pipeline.run_short_queue_job(claimed) ["status"] == "queued"
     return db_session.query(pipeline.ShortProductionJob).filter_by(
-        film_job_id=job.id, stage="script_render").all()
+        film_job_id=job.id, stage="script_render").order_by(pipeline.ShortProductionJob.id).all()
 
 
 def test_provider_adapter_counter_and_native_language_payload(db_session, tmp_path, monkeypatch):

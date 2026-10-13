@@ -358,6 +358,7 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         db.add(row)
         db.flush()
     render_input = {"candidate": candidate.content_hash, "script": script.content_hash,
+                    "caption_text": script.caption_text,
                     "film": film.file_path if film else None,
                     "language": script.language, "config": ai_config.short_form.production.model_dump()}
     content_hash = _hash(render_input)
@@ -746,6 +747,7 @@ def _update_scoped_stage(db: Session, edit: EditLog) -> dict:
             if isinstance(cta, str) and cta.strip():
                 script.cta = cta.strip()
             script.content_hash = _hash({"hook": script.hook, "body": script.body,
+                                         "caption_text": script.caption_text,
                                          "cta": script.cta, "captions": script.captions_json,
                                          "language": script.language})
             db.commit()
