@@ -92,6 +92,12 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
   }
 
   const current = list.data?.find((t) => t.status === "approved") ?? list.data?.[0] ?? null;
+  const selectedOutfit = outfit || options.data?.outfit_id || "";
+  const composeBlockReason = !selectedOutfit
+    ? "Choose a host outfit first."
+    : !options.data?.host_poses.length
+      ? "An approved host pose is required first."
+      : null;
 
   return (
     <div className="space-y-4">
@@ -117,8 +123,8 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
           {options.data && (
             <>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={options.data.outfit_id ? "accent" : "warning"}>
-                  host outfit: {options.data.outfit_id ?? "unknown"}
+                <Badge variant={selectedOutfit ? "accent" : "warning"}>
+                  Host outfit: {selectedOutfit || "not chosen"}
                 </Badge>
                 <Badge variant="outline">{options.data.host_poses.length} approved poses</Badge>
                 <Badge variant="outline">{options.data.usable.length} usable real pictures</Badge>
@@ -126,7 +132,7 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
                   <Select
                     aria-label="Host outfit"
                     className="ml-2 w-56"
-                    value={outfit || options.data.outfit_id || ""}
+                    value={selectedOutfit}
                     disabled={busy === "outfit"}
                     onChange={(event) => void changeOutfit(event.target.value)}
                   >
@@ -208,6 +214,8 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
                 <Button
                   size="sm"
                   loading={busy === "compose"}
+                  disabled={!!composeBlockReason}
+                  title={composeBlockReason ?? "Compose using the selected outfit and approved pose."}
                   onClick={() =>
                     run("compose", () =>
                       api.composeThumbnail(caseId, {
@@ -222,6 +230,7 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
                 >
                   <ImageIcon className="size-3.5" /> Compose thumbnail
                 </Button>
+                {composeBlockReason && <p className="text-xs text-muted-foreground">{composeBlockReason}</p>}
               </div>
               {message && <p className="text-rose-600 dark:text-rose-400">{message}</p>}
             </>

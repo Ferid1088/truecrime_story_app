@@ -167,7 +167,7 @@ class StageControlService:
                             "language": row.language,
                             "stage": json.loads(row.scope_json or "{}").get("stage"),
                             "will_change": row.id in {root.id for root in roots},
-                           "may_change": SOUNDNESS.get(row.type) != "SOUND"}
+                           "may_change": row.id not in {root.id for root in roots}}
                            for row in scope]
         if action != "run_automatically" and not estimated_scope and stage_name in {"research", "master_story"}:
             stages = [item["name"] for item in json.loads(job.stages_json or "[]")]

@@ -70,9 +70,8 @@ function stageGroup(name: string): string {
   return STAGE_GROUPS.find((group) => group.bases.includes(stageBase(name)))?.label ?? "Render";
 }
 
-function artifactLabel(type: string): string {
+function artifactLabel(type: string, language: string | null): string {
   const labels: Record<string, string> = {
-    spoken_version: "Narration",
     audio_blocks: "Audio plan",
     chapter_cards: "Chapter cards",
     timeline_cards: "Timeline cards",
@@ -80,6 +79,8 @@ function artifactLabel(type: string): string {
     production_script: "Production script",
     render: "Final film",
   };
+  if (type === "spoken_version" && language) return `${langLabel(language)} narration`;
+  if (type === "spoken_version") return "Narration";
   return labels[type] ?? type.replaceAll("_", " ");
 }
 
@@ -155,7 +156,7 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
                 {preview.estimated_scope.map((item) => (
                   <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
                     <span className="min-w-0">
-                      <span className="font-medium">{artifactLabel(item.type)}</span>
+                      <span className="font-medium">{artifactLabel(item.type, item.language)}</span>
                       <span className="text-muted-foreground"> · {item.stage ? stageLabel(item.stage) : "—"}</span>
                     </span>
                     <span className="flex items-center gap-2">
@@ -297,6 +298,7 @@ export function ActionPanel({ caseId, jobId, state, expanded, onPreview, onAutom
         <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
           <label className="block text-xs font-medium" htmlFor={`prompt-${state.stage}`}>Prompt</label>
           <Textarea id={`prompt-${state.stage}`} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="What should change?" rows={3} />
+          {!prompt.trim() && <p className="text-xs text-amber-700 dark:text-amber-400">Enter what should change before preparing a preview.</p>}
           <Button size="sm" onClick={() => requestPreview("redo_with_prompt")} disabled={!prompt.trim()} loading={busy === "redo_with_prompt"}>Preview</Button>
         </div>
       )}
@@ -475,7 +477,7 @@ export function StageList({ caseId, job, language, onPreview, unavailableStages 
   })).filter((group) => group.stages.length > 0);
   return (
     <div className="space-y-4">
-      {job && <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">This run contains {job.stages.length} enabled stages. The pipeline map also shows stages that are represented elsewhere or not part of this run.</p>}
+      {job && <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">This run contains {job.stages.length}/{stages.length} pipeline stages. The overview and this tab use the saved run stages as their source.</p>}
       {job && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"><div><p className="text-sm font-medium">Run the whole case automatically</p><p className="text-xs text-muted-foreground">After each successful stage, continue to the next available stage.</p></div><Checkbox disabled={automaticBusy} onChange={(event) => void setAllAutomatic(event.target.checked)} label={automaticBusy ? "Updating" : "Run automatically"} /></div>}
       {grouped.map((group) => <section key={group.label} aria-labelledby={`stage-group-${group.label}`}>
         <h3 id={`stage-group-${group.label}`} className="mb-2 text-sm font-semibold">{group.label}</h3>
@@ -494,14 +496,14 @@ interface AuditTimelineProps { caseId: number; jobId?: number; stages: string[];
 export function StageAuditTimeline({ caseId, jobId, stages, language }: AuditTimelineProps) {
   const [stage, setStage] = useState("");
   const [showAll, setShowAll] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const audit = useApi(
     () => api.stageControlAudit(caseId, stage || undefined, language === "all" ? undefined : language, jobId),
     [caseId, jobId, language, stage],
     { keepPrevious: true },
   );
   return (
-    <Card>
+    <Card id="stage-audit">
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Audit timeline</CardTitle>
         <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
@@ -537,7 +539,13 @@ export function StageControlResultView({ operation }: { operation: StageControlO
         <Metric label="Executed" value={result.executed_artifact_ids.length} />
         <Metric label="Changed outside scope" value={outside.length ? `${outside.length} artifact${outside.length === 1 ? "" : "s"}` : "None"} />
         {result.error && <p role="alert" className="sm:col-span-3 text-rose-600 dark:text-rose-400">{result.error}</p>}
+        <div className="sm:col-span-3">
+          <p className="font-medium">Changed artifacts</p>
+          <p className="text-muted-foreground">{result.executed_artifact_ids.length ? result.executed_artifact_ids.join(", ") : "None recorded yet."}</p>
+          <a className="mt-1 inline-block text-primary underline" href="#stage-audit">Open audit entry</a>
+        </div>
         {result.status === "queued" && <p className="sm:col-span-3 text-muted-foreground">Queued — following the job</p>}
+        {failed && <Button size="sm" variant="outline" className="sm:col-span-3" onClick={() => window.location.reload()}>Retry this stage</Button>}
       </CardContent>
     </Card>
   );

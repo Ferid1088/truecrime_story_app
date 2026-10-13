@@ -179,6 +179,15 @@ async def evaluate_titles(db: Session, case: Case, language: str, titles: list[s
 
 def _store(db: Session, case: Case, language: str, v: Verdict, *, round_no: int, family: str,
            concept: str | None, origin: str = "generated") -> CaseTitleCandidate:
+    # Recorded provider payloads may repeat a title across retries. Keep one
+    # durable verdict per case/language/title instead of duplicating rejects.
+    existing = (db.query(CaseTitleCandidate)
+                .filter(CaseTitleCandidate.case_id == case.id,
+                        CaseTitleCandidate.language == language,
+                        CaseTitleCandidate.title_norm == norm_title(v.title))
+                .first())
+    if existing is not None:
+        return existing
     sc, col = v.scores, v.col
     row = CaseTitleCandidate(
         case_id=case.id, language=language, title=v.title, title_norm=norm_title(v.title),

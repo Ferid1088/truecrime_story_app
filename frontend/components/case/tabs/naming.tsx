@@ -90,7 +90,7 @@ export function NamingTab({ caseId }: { caseId: number }) {
           )}
           <p className="text-xs text-muted-foreground">
             Collision checks use the app&apos;s own cases, titles and already-collected research titles. They are
-            not verified against the open internet. Corpus:{" "}
+            not verified against the open internet. Title library:{" "}
             {Object.entries(data.corpus)
               .map(([k, n]) => `${n} ${k.replace(/_/g, " ")}`)
               .join(" · ") || "empty"}
@@ -152,7 +152,7 @@ function LanguageCard({
             loading={busy === `gen-${lang.code}`}
             onClick={() => run(`gen-${lang.code}`, () => api.generateNaming(caseId, [lang.code]))}
           >
-            {state.candidates.length ? "Refill to 7" : "Generate"}
+            {state.candidates.length ? "Find more titles" : "Generate titles"}
           </Button>
         </div>
       </CardHeader>
@@ -265,7 +265,7 @@ function LanguageCard({
 
         {state.rejected.length > 0 && (
           <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer">{state.rejected.length} rejected (kept so they are not proposed again)</summary>
+            <summary className="cursor-pointer">{state.rejected.length} declined (kept so they are not proposed again)</summary>
             <ul className="mt-2 space-y-1">
               {state.rejected.map((c) => (
                 <li key={c.id}>

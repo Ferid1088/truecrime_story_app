@@ -87,8 +87,7 @@ def outfit_for_episode(db: Session, case_id: int, language: str, identity=None) 
             return registry.resolve(ai_config.thumbnail.default_outfit_id).outfit_id
         except (KeyError, ValueError) as exc:
             raise HostMissing(f"outfit {ai_config.thumbnail.default_outfit_id!r} is not registered") from exc
-    raise HostMissing("the video's host outfit is unknown — set it on the episode identity "
-                      "or configure thumbnail.default_outfit_id")
+    raise HostMissing("Choose a host outfit for this language before composing a thumbnail.")
 
 
 def hosts_for_outfit(outfit_id: str) -> list[HostAsset]:
@@ -99,7 +98,7 @@ def hosts_for_outfit(outfit_id: str) -> list[HostAsset]:
     found = [a for a in load_assets() if a.outfit_id == canonical and a.approved
              and a.path.exists()]
     if not found:
-        raise HostMissing(f"no approved host reference image for outfit {outfit_id}")
+        raise HostMissing(f"This host outfit has no approved pose image yet: {outfit_id}.")
     return found
 
 
