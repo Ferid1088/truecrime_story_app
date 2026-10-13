@@ -12,7 +12,7 @@ trafilatura==2.3.0
 pypdf>=6.19,<7
 rank-bm25==0.2.2
 numpy>=1.26
-Pillow>=10.3
+Pillow>=12.3.0
 pysbd==0.3.4
 python-multipart==0.0.32
 psycopg[binary]==3.3.6
