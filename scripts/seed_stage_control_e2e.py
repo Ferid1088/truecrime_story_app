@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from sqlalchemy import inspect, text
+
 from app.db.base import SessionLocal
 from app.db.models import (
     Artifact,
@@ -18,9 +20,19 @@ from app.db.models import (
 
 def main() -> None:
     with SessionLocal() as db:
+        bind = db.get_bind()
+        if bind.dialect.name != "postgresql" or bind.url.database != "truecrime_e2e":
+            raise RuntimeError("stage-control E2E seed is restricted to PostgreSQL database truecrime_e2e")
+        tables = [name for name in inspect(bind).get_table_names() if name != "alembic_version"]
+        if tables:
+            quoted = ", ".join(f'"{name.replace(chr(34), chr(34) * 2)}"' for name in tables)
+            db.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+            db.commit()
         db.query(ArtifactDep).delete()
         db.query(Artifact).delete()
         db.query(DocumentaryJob).delete()
+        db.query(ChapterPlan).delete()
+        db.query(EditorialBlueprint).delete()
         db.query(StoryVersion).delete()
         db.query(Case).delete()
         case = Case(canonical_title="Stage control E2E case", slug="stage-control-e2e",

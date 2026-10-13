@@ -2032,6 +2032,7 @@ class ShortFormProductionConfig(BaseModel):
     default_visibility: Literal["private", "draft"] = "private"
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_redos: int = Field(default=2, ge=0, le=2)
+    max_cost_usd_per_case: float = Field(default=2.0, gt=0.0)
     ffmpeg_bin: str = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
     ffprobe_bin: str = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
 

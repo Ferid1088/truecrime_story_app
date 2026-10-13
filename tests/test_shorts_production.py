@@ -2,6 +2,11 @@
 
 import hashlib
 import json
+import os
+import signal
+import subprocess
+import sys
+import time
 from datetime import timedelta
 from pathlib import Path
 
@@ -18,6 +23,7 @@ from app.db.models import (
     Video,
 )
 from app.documentary.jobs import plan_stages
+from app.providers.generation.base import GenerationResult
 from app.shortform import export, pipeline
 from app.shortform.agents import MockShortsTextAdapter
 from app.shortform.selection import evaluate_candidate
@@ -313,3 +319,171 @@ def test_durable_failure_isolated_from_film_and_other_language(db_session, tmp_p
     assert hashlib.sha256(long_film.read_bytes()).hexdigest() == before
     assert db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id, language="en", status="done").count() > 0
     assert db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id, language="de", status="failed").count() > 0
+
+
+class _RecordedProvider:
+    """Recorded structured responses used to exercise the provider adapter offline."""
+
+    name = "recorded-provider"
+
+    def __init__(self, writer, auditor, *, cost=0.01):
+        self.writer = writer
+        self.auditor = auditor
+        self.cost = cost
+        self.calls = []
+
+    def is_configured(self):
+        return True
+
+    async def check_health(self):
+        return True
+
+    async def generate_text(self, role, system, user, images=None):  # pragma: no cover - structured only
+        raise AssertionError(f"unexpected text generation for {role}")
+
+    async def generate_structured(self, role, system, user, images=None):
+        self.calls.append(role)
+        payload = self.writer if role == "chapter_writer" else self.auditor
+        return payload, GenerationResult(
+            text=json.dumps(payload), model="recorded-model", provider=self.name,
+            input_tokens=100, output_tokens=50, total_tokens=150, cost_usd=self.cost,
+            generation_id=f"recorded-{len(self.calls)}",
+        )
+
+
+def _recorded_queue_row(db_session, tmp_path, provider, monkeypatch, *, cap=None, language=None):
+    job = _job(db_session, tmp_path)
+    if cap is not None:
+        from app.db.models import AppSetting
+
+        db_session.add(AppSetting(key=f"shorts:cost_cap:{job.case_id}",
+                                  value_json=json.dumps({"max_cost_usd": cap})))
+        db_session.commit()
+    monkeypatch.setattr(pipeline.ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(pipeline.storage, "rel", lambda path: str(Path(path).resolve().relative_to(tmp_path)))
+    monkeypatch.setattr(pipeline, "build_export_package", _fake_export)
+    rows = _run_queued_selection(db_session, job, monkeypatch)
+    row = next(row for row in rows if language is None or row.language == language)
+    from app.utils import utc_now
+
+    row.status, row.worker_id, row.attempts = "running", "recorded-worker", row.attempts + 1
+    row.heartbeat_at = row.lease_until = utc_now()
+    db_session.commit()
+    result = pipeline._process_short_job(
+        db_session, db_session.get(pipeline.ShortProductionJob, row.id),
+        adapter=pipeline.ProviderShortsTextAdapter(provider),
+    )
+    db_session.refresh(row)
+    db_session.refresh(job)
+    return job, row, result
+
+
+def test_recorded_provider_empty_answer_is_failed_with_persisted_reason(db_session, tmp_path, monkeypatch):
+    provider = _RecordedProvider({}, {"approved": True})
+    _, row, result = _recorded_queue_row(db_session, tmp_path, provider, monkeypatch, language="en")
+    assert result["status"] == row.status == "failed"
+    assert "incomplete" in row.error
+    assert row.provider_cost_usd == pytest.approx(0.03)
+    assert row.provider_call_count == 3
+
+
+def test_recorded_provider_wrong_language_is_failed_with_persisted_reason(db_session, tmp_path, monkeypatch):
+    writer = {
+        "hook": "What happened next?",
+        "body": "The evidence shows the final timeline and the record contradicts the first account clearly.",
+        "cta": "Watch the full story.",
+        "captions": [{"start": 0.1, "end": 4.0, "text": "The evidence shows the final timeline."}],
+    }
+    provider = _RecordedProvider(writer, {"approved": True})
+    job, row, result = _recorded_queue_row(db_session, tmp_path, provider, monkeypatch)
+    assert result["status"] == row.status == "failed"
+    assert "requested language de" in row.error
+    assert job.status == "completed"
+
+
+def test_recorded_provider_over_length_answer_is_failed_with_persisted_reason(db_session, tmp_path, monkeypatch):
+    body = " ".join(["evidence"] * 106)
+    writer = {
+        "hook": "What happened next?", "body": body, "cta": "Watch the full story.",
+        "captions": [{"start": 0.1, "end": 4.0, "text": "Evidence."}],
+    }
+    provider = _RecordedProvider(writer, {"approved": True})
+    _, row, result = _recorded_queue_row(
+        db_session, tmp_path, provider, monkeypatch, language="en"
+    )
+    assert result["status"] == row.status == "failed"
+    assert "over-length" in row.error
+
+
+def test_provider_cost_cap_skips_short_without_blocking_long_film(db_session, tmp_path, monkeypatch):
+    writer = {
+        "hook": "What happened next?",
+        "body": "The evidence shows the final timeline and the record contradicts the first account clearly.",
+        "cta": "Watch the full story.",
+        "captions": [{"start": 0.1, "end": 4.0, "text": "The evidence shows the final timeline."}],
+    }
+    provider = _RecordedProvider(writer, {"approved": True}, cost=0.01)
+    job, row, result = _recorded_queue_row(
+        db_session, tmp_path, provider, monkeypatch, cap=0.015, language="en"
+    )
+    assert result["status"] == row.status == "skipped", row.error
+    assert "cost cap reached" in row.error
+    assert row.provider_cost_usd == pytest.approx(0.02)
+    assert row.provider_call_count == 2
+    assert job.status == "completed"
+    assert db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id, status="done").count() == 0
+
+
+def test_postgres_worker_death_requeues_and_renders_once(db_session, tmp_path, monkeypatch):
+    from app.db.base import engine
+
+    if engine.dialect.name != "postgresql":
+        pytest.skip("requires PostgreSQL row-locking and a real worker process")
+    job = _job(db_session, tmp_path)
+    monkeypatch.setattr(pipeline.ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(pipeline.storage, "rel", lambda path: str(Path(path).resolve().relative_to(tmp_path)))
+    monkeypatch.setattr(pipeline, "build_export_package", _fake_export)
+    monkeypatch.setattr(pipeline, "ProviderShortsTextAdapter", lambda: MockShortsTextAdapter())
+    rows = _run_queued_selection(db_session, job, monkeypatch)
+    queue = rows[0]
+
+    database_url = engine.url.render_as_string(hide_password=False)
+    child_code = f"""
+import os, sys, time
+sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r})
+os.environ['TRUECRIME_DATABASE_URL'] = {database_url!r}
+os.environ['DATABASE_URL'] = {database_url!r}
+from app.db.base import SessionLocal
+from app.shortform.pipeline import claim_next_short_job
+db = SessionLocal()
+claimed = claim_next_short_job(db, 'doomed-process', lease_seconds=0.2, film_job_id={job.id})
+print(f'CLAIMED {{claimed}}', flush=True)
+time.sleep(600)
+"""
+    env = os.environ.copy()
+    env["TRUECRIME_DATABASE_URL"] = database_url
+    env["DATABASE_URL"] = database_url
+    proc = subprocess.Popen(
+        [sys.executable, "-c", child_code], cwd=Path(__file__).resolve().parents[1],
+        env=env, stdout=subprocess.PIPE, text=True,
+    )
+    try:
+        assert proc.stdout.readline().strip() == f"CLAIMED {queue.id}"
+        os.kill(proc.pid, signal.SIGKILL)
+        proc.wait(timeout=10)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    db_session.expire_all()
+    db_session.refresh(queue)
+    assert queue.status == "running" and queue.attempts == 1
+    time.sleep(0.35)
+    assert pipeline.reap_short_jobs(db_session, lease_seconds=0.1) == [queue.id]
+    assert pipeline.claim_next_short_job(db_session, "rescued-process", lease_seconds=1, film_job_id=job.id) == queue.id
+    outcome = pipeline.run_short_queue_job(queue.id)
+    db_session.refresh(queue)
+    assert outcome["status"] == queue.status == "done"
+    assert queue.attempts == 2
+    assert db_session.query(pipeline.RenderedShort).filter_by(
+        film_job_id=job.id, candidate_id=queue.candidate_id, language=queue.language
+    ).count() == 1

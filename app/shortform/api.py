@@ -24,6 +24,7 @@ from app.documentary import storage
 from app.shortform import pipeline
 from app.shortform.director import ShortFormDirectorAgent, candidate_table
 from app.shortform.metrics import concept_type_comparison
+from app.utils import utc_now
 
 router = APIRouter(tags=["short-form"])
 
@@ -32,6 +33,7 @@ class ShortFormSettingsPatch(BaseModel):
     distribution: dict[str, ShortFormPlatformConfig]
     language_mode: str = "episode"
     shorts_enabled: bool | None = None
+    cost_cap_usd: float | None = None
 
 
 @router.get("/api/short-form/settings")
@@ -141,7 +143,21 @@ def short_form_case_workspace(case_id: int, db: Session = Depends(get_db)):
 def update_case_short_form_settings(case_id: int, payload: ShortFormSettingsPatch, db: Session = Depends(get_db)):
     if payload.shorts_enabled is not None:
         pipeline.set_enabled(db, case_id, payload.shorts_enabled)
-    return {"case_id": case_id, "shorts_enabled": payload.shorts_enabled if payload.shorts_enabled is not None else pipeline._enabled(db, case_id)}
+    if payload.cost_cap_usd is not None:
+        if payload.cost_cap_usd <= 0:
+            raise HTTPException(status_code=400, detail="cost_cap_usd must be positive")
+        setting = db.get(AppSetting, f"shorts:cost_cap:{case_id}")
+        if setting is None:
+            setting = AppSetting(key=f"shorts:cost_cap:{case_id}")
+            db.add(setting)
+        setting.value_json = json.dumps({"max_cost_usd": payload.cost_cap_usd})
+        setting.updated_at = utc_now()
+        db.commit()
+    return {
+        "case_id": case_id,
+        "shorts_enabled": payload.shorts_enabled if payload.shorts_enabled is not None else pipeline._enabled(db, case_id),
+        "cost_cap_usd": pipeline._short_cost_cap(db, case_id),
+    }
 
 
 @router.post("/api/short-form/{case_id}/candidates/{candidate_id}/preview")

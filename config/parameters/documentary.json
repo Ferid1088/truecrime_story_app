@@ -161,6 +161,7 @@
       "default_visibility": "private",
       "languages": ["en", "de", "fa", "ar"],
       "max_redos": 2,
+      "max_cost_usd_per_case": 2.0,
       "ffmpeg_bin": "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg",
       "ffprobe_bin": "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
     },

@@ -47,13 +47,17 @@ from app.shortform.agents import MockShortsTextAdapter, ProviderShortsTextAdapte
 from app.shortform.director import ShortFormDirectorAgent
 from app.shortform.export import build_export_package
 from app.shortform.selection import evaluate_candidate, select_candidates
-from app.utils import utc_now
+from app.utils import detect_language, language_quality, utc_now
 
 log = logging.getLogger(__name__)
 SHORT_QUEUE_LEASE_SECONDS = 120
 
 
 class ShortsAuditRejected(RuntimeError):
+    pass
+
+
+class ShortsCostCapReached(RuntimeError):
     pass
 
 
@@ -73,6 +77,47 @@ def _enabled(db: Session, case_id: int) -> bool:
         return bool(json.loads(setting.value_json).get("enabled", True))
     except (TypeError, ValueError):
         return True
+
+
+def _short_cost_cap(db: Session, case_id: int) -> float:
+    setting = db.get(AppSetting, f"shorts:cost_cap:{case_id}")
+    if setting is not None:
+        try:
+            value = json.loads(setting.value_json or "{}")
+            configured = value.get("max_cost_usd", value.get("cost_cap_usd"))
+            if configured is not None and float(configured) > 0:
+                return float(configured)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+    return float(ai_config.short_form.production.max_cost_usd_per_case)
+
+
+def _case_provider_spend(db: Session, case_id: int) -> float:
+    from sqlalchemy import func
+
+    total = db.query(func.coalesce(func.sum(ShortProductionJob.provider_cost_usd), 0.0)).filter(
+        ShortProductionJob.case_id == case_id
+    ).scalar()
+    return float(total or 0.0)
+
+
+def _record_provider_result(db: Session, queue: ShortProductionJob,
+                            result: Any) -> None:
+    if result is None:
+        return
+    queue.provider_call_count = int(queue.provider_call_count or 0) + 1
+    reported = getattr(result, "cost_usd", None)
+    if reported is not None:
+        queue.provider_cost_usd = round(
+            float(queue.provider_cost_usd or 0.0) + max(0.0, float(reported)), 8
+        )
+    queue.updated_at = utc_now()
+    db.commit()
+    cap = queue.cost_cap_usd
+    if cap is not None and _case_provider_spend(db, queue.case_id) >= cap:
+        raise ShortsCostCapReached(
+            f"provider cost cap reached (${_case_provider_spend(db, queue.case_id):.4f} / ${cap:.4f})"
+        )
 
 
 def set_enabled(db: Session, case_id: int, enabled: bool) -> None:
@@ -218,7 +263,8 @@ def _spoken_text(db: Session, job: DocumentaryJob, language: str) -> str:
 
 
 def _write_script(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
-                  language: str, adapter: ShortsTextAdapter) -> tuple[ShortFormScript, dict]:
+                  language: str, adapter: ShortsTextAdapter,
+                  on_provider_result=None) -> tuple[ShortFormScript, dict]:
     """Call the native-language writer and independent auditor."""
     spoken_text = _spoken_text(db, job, language)
     if not spoken_text.strip():
@@ -231,7 +277,9 @@ def _write_script(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         "claims": json.loads(candidate.claims_json or "[]"),
         "target_duration": target,
     }
-    draft, _ = adapter.write(db, job.case_id, writer_payload)
+    draft, writer_result = adapter.write(db, job.case_id, writer_payload)
+    if on_provider_result is not None:
+        on_provider_result(writer_result)
     draft = draft if isinstance(draft, dict) else {}
     hook = str(draft.get("hook") or candidate.hook).strip()
     body = str(draft.get("body") or "").strip()
@@ -239,9 +287,21 @@ def _write_script(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
     captions = draft.get("captions") or []
     if not hook or not body or not isinstance(captions, list):
         raise RuntimeError("short writer returned an incomplete script")
-    audit, _ = adapter.audit(db, job.case_id, {
+    combined_text = " ".join([hook, body, cta] + [str(c.get("text", "")) for c in captions])
+    detected, confidence = detect_language(combined_text, min_chars=30)
+    if detected is not None and detected != language and confidence >= 0.6:
+        raise RuntimeError(f"short writer returned {detected} text for requested language {language}")
+    quality = ai_config.language_quality_for(language)
+    if quality is not None and not language_quality(combined_text, language, quality)["pass"]:
+        raise RuntimeError(f"short writer returned text outside the {language} language-quality limits")
+    max_words = max(30, target * 3)
+    if len(body.split()) > max_words:
+        raise RuntimeError(f"short writer returned over-length body ({len(body.split())} words; max {max_words})")
+    audit, audit_result = adapter.audit(db, job.case_id, {
         **writer_payload, "draft": {"hook": hook, "body": body, "cta": cta, "captions": captions},
     })
+    if on_provider_result is not None:
+        on_provider_result(audit_result)
     if not bool(audit.get("approved", audit.get("ok", False))):
         reasons = "; ".join(str(reason) for reason in (audit.get("reasons") or ["auditor rejected script"]))
         raise ShortsAuditRejected(reasons[:500])
@@ -494,19 +554,37 @@ def _process_short_job(db: Session, queue: ShortProductionJob, *, adapter: Short
                   .one_or_none())
     if render is None:
         raise RuntimeError("short queue item has no rendered-short row")
+    queue.cost_cap_usd = queue.cost_cap_usd or _short_cost_cap(db, job.case_id)
+    if _case_provider_spend(db, job.case_id) >= queue.cost_cap_usd:
+        reason = (
+            f"provider cost cap reached (${_case_provider_spend(db, job.case_id):.4f} / "
+            f"${queue.cost_cap_usd:.4f})"
+        )
+        render.status, render.error = "skipped", reason
+        queue.status, queue.error = "skipped", reason
+        db.commit()
+        _refresh_language_stage(db, job, queue.language)
+        return {"status": "skipped", "error": reason}
     script = None
     last_error: Exception | None = None
     for _attempt in range(ai_config.short_form.production.max_redos + 1):
         try:
-            script, script_payload = _write_script(db, job, candidate, queue.language, adapter)
+            script, script_payload = _write_script(
+                db, job, candidate, queue.language, adapter,
+                on_provider_result=lambda result: _record_provider_result(db, queue, result),
+            )
             _register(db, job, "short_script_captions", language=queue.language,
                       short_id=candidate.stable_key, inputs=script_payload,
                       output_ref=None, output_hash=script.content_hash)
             break
         except Exception as exc:
             last_error = exc
+            if isinstance(exc, ShortsCostCapReached):
+                break
     if script is None:
-        render.status = "skipped" if isinstance(last_error, ShortsAuditRejected) else "failed"
+        render.status = "skipped" if isinstance(
+            last_error, (ShortsAuditRejected, ShortsCostCapReached)
+        ) else "failed"
         render.error = f"{type(last_error).__name__}: {last_error}"[:1000]
         queue.status, queue.error = render.status, render.error
         db.commit()
