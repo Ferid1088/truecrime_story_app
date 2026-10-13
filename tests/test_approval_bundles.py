@@ -72,3 +72,28 @@ def test_exclude_and_re_review_are_item_scoped(client, db_session, tmp_path):
     payload = client.get(f"/api/cases/{case.id}/approval-bundles/en").json()
     assert payload["status"] == "draft"
     assert next(item for item in payload["items"] if item["item_type"] == "short")["status"] == "pending"
+
+
+def test_upload_is_private_sandbox_and_fails_closed_on_changed_hash(client, db_session, tmp_path):
+    case, film, _short = _bundle_fixture(db_session, tmp_path)
+    payload = client.get(f"/api/cases/{case.id}/approval-bundles/en").json()
+    for item in payload["items"]:
+        assert client.post(
+            f"/api/cases/{case.id}/approval-bundles/en/items/{item['item_type']}/{item['item_id']}/approve"
+        ).status_code == 200
+    uploaded = client.post(f"/api/cases/{case.id}/approval-bundles/en/upload").json()
+    assert uploaded["visibility"] == "private"
+    assert uploaded["upload_id"].startswith("sandbox-bundle-")
+    assert uploaded["bundle"]["upload_status"] == "uploaded"
+
+    film.title = "Edited after approval"
+    db_session.commit()
+    rejected = client.post(f"/api/cases/{case.id}/approval-bundles/en/upload")
+    assert rejected.status_code == 409
+    assert "approved" in rejected.json()["detail"]
+
+    release = client.post(
+        f"/api/cases/{case.id}/approval-bundles/en/upload",
+        json={"release_now": True},
+    )
+    assert release.status_code == 409

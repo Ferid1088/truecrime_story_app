@@ -8,8 +8,9 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.db.models import ApprovalBundle, ApprovalBundleItem, RenderedShort, Video
+from app.db.models import ApprovalBundle, ApprovalBundleItem, PolicyEvent, RenderedShort, Video
 from app.documentary import storage
+from app.services.upload_adapter import SandboxUploadAdapter
 from app.utils import utc_now
 
 
@@ -137,3 +138,37 @@ def decide_item(db: Session, bundle: ApprovalBundle, item_type: str, item_id: in
     db.commit()
     db.refresh(bundle)
     return bundle
+
+
+def upload_bundle(db: Session, bundle: ApprovalBundle, *, visibility: str = "private",
+                  release_now: bool = False) -> dict:
+    if visibility not in {"private", "draft"}:
+        raise ValueError("Uploads must be private or draft")
+    sync_bundle(db, bundle)
+    if bundle.status != "approved":
+        bundle.upload_status = "failed"
+        bundle.upload_error = "bundle is not fully approved"
+        db.commit()
+        raise ValueError("Every included item must be approved or excluded")
+    if release_now and not bundle.account_connected:
+        bundle.upload_status = "failed"
+        bundle.upload_error = "release now requires a connected account"
+        db.commit()
+        raise ValueError("Release now requires a connected account")
+    receipt = SandboxUploadAdapter().upload(
+        bundle_id=bundle.id, bundle_hash=bundle.bundle_hash or "", visibility=visibility,
+    )
+    bundle.visibility = receipt.visibility
+    bundle.release_now = release_now
+    bundle.upload_status, bundle.upload_id = "uploaded", receipt.upload_id
+    bundle.upload_error, bundle.uploaded_at = None, utc_now()
+    db.add(PolicyEvent(
+        case_id=bundle.case_id, language=bundle.language,
+        policy="approval_bundle_upload", decision="uploaded", reason="sandbox adapter",
+        context_json=json.dumps({"bundle_id": bundle.id, "bundle_hash": bundle.bundle_hash,
+                                 "visibility": visibility, "release_now": release_now}, sort_keys=True),
+    ))
+    db.commit()
+    db.refresh(bundle)
+    return {"bundle": bundle_dict(db, bundle), "upload_id": receipt.upload_id,
+            "visibility": receipt.visibility}

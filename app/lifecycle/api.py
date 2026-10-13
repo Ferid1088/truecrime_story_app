@@ -81,6 +81,25 @@ def approve_approval_bundle(case_id: int, language: str, db: Session = Depends(g
     return approval_bundles.bundle_dict(db, bundle)
 
 
+class ApprovalBundleUploadRequest(BaseModel):
+    visibility: Literal["private", "draft"] = "private"
+    release_now: bool = False
+
+
+@router.post("/api/cases/{case_id}/approval-bundles/{language}/upload")
+def upload_approval_bundle(case_id: int, language: str, payload: ApprovalBundleUploadRequest | None = None,
+                           db: Session = Depends(get_db)):
+    _case(db, case_id)
+    bundle = approval_bundles.bundle_for(db, case_id, language)
+    payload = payload or ApprovalBundleUploadRequest()
+    try:
+        return approval_bundles.upload_bundle(
+            db, bundle, visibility=payload.visibility, release_now=payload.release_now,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 # ---------------------------------------------------------------------------
 # resolution status
 # ---------------------------------------------------------------------------

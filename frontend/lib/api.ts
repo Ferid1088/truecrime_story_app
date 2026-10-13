@@ -346,6 +346,8 @@ export const api = {
     post<ApprovalBundle>(`/api/cases/${caseId}/approval-bundles/${language}/items/${itemType}/${itemId}/${decision}`),
   approveApprovalBundle: (caseId: number, language: string) =>
     post<ApprovalBundle>(`/api/cases/${caseId}/approval-bundles/${language}/approve`),
+  uploadApprovalBundle: (caseId: number, language: string, payload?: { visibility?: "private" | "draft"; release_now?: boolean }) =>
+    post<{ bundle: ApprovalBundle; upload_id: string; visibility: string }>(`/api/cases/${caseId}/approval-bundles/${language}/upload`, payload ?? {}),
   archive: (status: ArchiveFilter = "ALL") =>
     request<ArchiveResponse>(`/api/archive${query({ status })}`),
   videoCostSummary: () => request<VideoCostSummary>("/api/costs/videos"),

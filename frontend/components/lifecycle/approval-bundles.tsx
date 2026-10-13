@@ -35,6 +35,12 @@ function BundleCard({ bundle, onChanged }: { bundle: ApprovalBundle; onChanged: 
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(null); }
   }
+  async function upload() {
+    setBusy("upload"); setError(null);
+    try { await api.uploadApprovalBundle(bundle.case_id, bundle.language); onChanged(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(null); }
+  }
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -54,7 +60,7 @@ function BundleCard({ bundle, onChanged }: { bundle: ApprovalBundle; onChanged: 
           </div>
         ))}
         {error && <p className="text-rose-500">{error}</p>}
-        <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Visibility: {bundle.visibility}</span><Button size="sm" disabled={bundle.status !== "approved"} loading={busy === "bundle"} onClick={approve}>Approve bundle</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-muted-foreground">Visibility: {bundle.visibility} · Upload: {bundle.upload_status}</span><div className="flex gap-2"><Button size="sm" disabled={bundle.status !== "approved"} loading={busy === "bundle"} onClick={approve}>Approve bundle</Button><Button size="sm" disabled={bundle.status !== "approved"} loading={busy === "upload"} onClick={upload}>Approve and upload</Button></div></div>
       </CardContent>
     </Card>
   );
