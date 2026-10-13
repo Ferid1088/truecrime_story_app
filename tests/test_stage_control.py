@@ -65,8 +65,8 @@ def test_stage_control_actions_and_exact_language_scope(db_session, monkeypatch)
     monkeypatch.setattr("app.documentary.jobs.launch", lambda _job_id: None)
     result = service.apply(preview["preview_id"])
     assert result["status"] == "queued"
-    assert db_session.query(StoryVersion).filter_by(language="de").one().story_text == "new German text"
-    assert {db_session.query(StoryVersion).filter_by(language=language).one().story_text
+    assert db_session.query(StoryVersion).filter_by(case_id=case.id, language="de").one().story_text == "new German text"
+    assert {db_session.query(StoryVersion).filter_by(case_id=case.id, language=language).one().story_text
             for language in ("en", "fa", "ar")} == {"old en", "old fa", "old ar"}
     assert {language: db_session.get(Artifact, roots[language].id).output_hash
             for language in ("en", "fa", "ar")} == untouched_hashes
