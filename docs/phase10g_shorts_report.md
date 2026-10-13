@@ -110,6 +110,12 @@ and `app/core/ai_config.py`):
 
 ## Release evidence
 
-- Commit: pending final commit/restart verification.
-- Process commit proof: pending final restart verification.
+- Implementation commit verified with `git rev-parse HEAD`: 
+  `6140556ddf2a5ffaac15342cf53fdaed2d244792`.
+- At verification time, API/worker/frontend were running from the repository
+  checkout at `/Users/feri/truecrime_story_app`; `ps` and `lsof` showed the
+  expected commands and checkout CWDs, and the tree was clean.
+- API health returned `{"status":"ok"}`; the live Short-Form route returned
+  HTTP 200. Final release-evidence commit and its matching restart are recorded
+  in the handoff after this report update.
 - Live DB state: `cases=0`, Alembic head `0011` before final restart.
