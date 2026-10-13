@@ -26,10 +26,13 @@ available actions, blocked reasons, automatic mode, and artifact state.
 artifact ids, input/output hashes, predicted scope, and estimated calls. The
 shared predictor is `app/services/soundness.py:349-365`.
 `POST .../stage-control/apply` refuses changed hashes or pending user edits,
-marks only the stored scope stale, queues the existing job runner, and writes a
-policy audit event. `POST .../stage-control/automatic` persists the mode in
-`AppSetting`.
+marks only the stored scope stale, and queues the runner with the preview's
+artifact ids, stage names, and languages. The runner executes only that
+explicit scope. Its result reports `previewed_artifact_ids`,
+`executed_artifact_ids`, and `changed_outside_scope`; a non-empty outside set
+fails the job and writes an audit event. `POST .../stage-control/automatic`
+persists the mode in `AppSetting`.
 
-The preview is the binding: apply cannot silently expand it. The existing job
-runner may still conservatively rebuild unproven downstream types, as required
-by the incremental policy; the control service never overwrites a user edit.
+The preview is the binding: apply cannot silently expand it. A German edit can
+therefore only execute the German stages and preview-listed dependents; shared
+artifacts execute only when explicitly present in the preview.

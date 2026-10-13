@@ -61,11 +61,15 @@ class Stage:
 
 
 class StageRunner:
-    def __init__(self, db, job: DocumentaryJob):
+    def __init__(self, db, job: DocumentaryJob, execution_scope: dict | None = None):
         self.db = db
         self.job = job
         self.stages = json.loads(job.stages_json or "[]")
         self.result = json.loads(job.result_json or "{}")
+        self.execution_scope = execution_scope or {}
+        self._scoped_execution = execution_scope is not None
+        self._allowed_stage_names = set(self.execution_scope.get("stage_names", []))
+        self.executed_stage_names: list[str] = []
         self.running: list[str] = []
         self.lang_errors: dict[str, str] = {}
         self._reran_artifact_types: set[str] = set()
@@ -102,6 +106,12 @@ class StageRunner:
         degraded (the film went on without that part; the reason is on
         the stage and in the job result) — a new run redoes it."""
         st = self._entry(name)
+        if self._scoped_execution and name not in self._allowed_stage_names:
+            st["status"] = "skipped"
+            st["detail"] = {"skipped": True,
+                            "reason": "outside stage-control preview"}
+            self._save()
+            return st["detail"]
         skip_result = None
         from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES
 
@@ -152,6 +162,7 @@ class StageRunner:
         st["started_at"] = utc_now().isoformat()
         st.pop("finished_at", None)
         self.running.append(name)
+        self.executed_stage_names.append(name)
         self._save()
         try:
             language = None

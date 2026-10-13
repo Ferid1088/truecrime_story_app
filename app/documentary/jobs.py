@@ -50,13 +50,22 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.agents.stages import get_stage_agent
 from app.agents.story import MASTER_ROLES, stored_sections
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, slot
+from app.core.policy import PolicyDecision
 from app.db.models import (
-    Case, DocumentaryJob, Fact, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
+    Artifact,
+    Case,
+    DocumentaryJob,
+    EditLog,
+    Fact,
+    ProductionScript,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
 )
-from app.agents.stages import get_stage_agent
 from app.documentary.audio_director import latest_audio_plan
 from app.documentary.blueprint import latest_blueprint
 from app.utils import utc_now
@@ -70,6 +79,7 @@ RESEARCH_MAX_HOURS = 6.0
 
 from app.documentary.pipeline.base import StageRunner  # noqa: E402
 from app.documentary.pipeline.errors import JobCancelled, LanguageFailed, SpokenRejected  # noqa: E402,F401
+from app.services.policy_events import record_decision  # noqa: E402
 from app.services.retry_policy import ExhaustedAction, RetryAuditPolicy  # noqa: E402
 
 
@@ -848,7 +858,10 @@ async def run_job(job_id: int, session_factory=None):
             job.error = None
             db.commit()
             _set_case_state(db, job.case_id, "producing")
-            pipeline = DocumentaryPipeline(db, job)
+            scope_edit, execution_scope = _stage_control_scope(db, job.id)
+            before_snapshot = _artifact_snapshot(db, job.id) if execution_scope else None
+            pipeline = DocumentaryPipeline(db, job, execution_scope=execution_scope)
+            pipeline_error = None
             try:
                 result = await pipeline.run() or {}
                 if ai_config.artifacts.shadow_mode:
@@ -856,20 +869,47 @@ async def run_job(job_id: int, session_factory=None):
 
                     ArtifactRegistry(db).reconcile(
                         job.case_id, stage_job_id=job.id, repair=True)
+                if (scope_edit is not None and execution_scope is not None
+                        and scope_edit.status == "applied"):
+                    outcome = _finish_stage_control_scope(
+                        db, job, scope_edit, execution_scope, before_snapshot or {},
+                        pipeline.executed_stage_names, None)
+                    if outcome["changed_outside_scope"]:
+                        pipeline_error = RuntimeError(
+                            "stage-control execution escaped preview scope: "
+                            + ", ".join(outcome["changed_outside_scope"]))
                 # Equivalent to completed_with_warnings, within the existing
                 # DocumentaryJob.status String(20) column.
+                if pipeline_error is not None:
+                    raise pipeline_error
                 job.status = status_for_result(result or {})
                 _set_case_state(db, job.case_id,
                                 "rendered" if (result or {}).get("renders") else "story_ready")
                 if job.status == "partial":
                     job.error = "; ".join(f"{l}: {e}" for l, e in result["errors"].items())[:1000]
             except JobCancelled:
+                if (scope_edit is not None and execution_scope is not None
+                        and scope_edit.status == "applied"):
+                    db.rollback()
+                    job = db.get(DocumentaryJob, job_id)
+                    assert job is not None
+                    _finish_stage_control_scope(
+                        db, job, scope_edit, execution_scope, before_snapshot or {},
+                        getattr(pipeline, "executed_stage_names", []), "cancelled")
                 job.status = "cancelled"
                 _set_case_state(db, job.case_id, "story_ready")
             except Exception as e:  # recorded on the job, visible in the UI
                 log.error("documentary job %s failed: %s", job_id, traceback.format_exc())
                 db.rollback()
                 job = db.get(DocumentaryJob, job_id)
+                assert job is not None
+                if (scope_edit is not None and execution_scope is not None
+                        and scope_edit.status == "applied"):
+                    _finish_stage_control_scope(
+                        db, job, scope_edit, execution_scope, before_snapshot or {},
+                        getattr(pipeline, "executed_stage_names", []), str(e))
+                    job = db.get(DocumentaryJob, job_id)
+                    assert job is not None
                 _set_case_state(db, job.case_id, "story_ready")
                 job.status = "failed"
                 job.error = f"{type(e).__name__}: {e}"[:1000]
@@ -880,6 +920,66 @@ async def run_job(job_id: int, session_factory=None):
     finally:
         db.close()
         _running.pop(job_id, None)
+
+
+def _stage_control_scope(db: Session, job_id: int) -> tuple[EditLog | None, dict | None]:
+    """Load the one applied preview that authorizes this queued run."""
+    for edit in db.query(EditLog).filter(EditLog.status == "applied").order_by(EditLog.id.desc()):
+        try:
+            payload = json.loads(edit.scope_preview_json or "{}")
+            result = json.loads(edit.result_json or "{}")
+        except (TypeError, ValueError):
+            continue
+        if payload.get("job_id") == job_id and result.get("status") == "queued":
+            return edit, payload
+    return None, None
+
+
+def _artifact_snapshot(db: Session, job_id: int) -> dict[str, dict]:
+    return {
+        row.id: {name: getattr(row, name) for name in (
+            "input_hash", "output_hash", "output_ref", "status", "version", "scope_json")}
+        for row in db.query(Artifact).filter(Artifact.stage_job_id == job_id).all()
+    }
+
+
+def _finish_stage_control_scope(db: Session, job: DocumentaryJob, edit: EditLog,
+                                payload: dict, before: dict, executed_stages: list[str],
+                                error: str | None) -> dict:
+    after = _artifact_snapshot(db, job.id)
+    previewed = set(payload.get("artifact_ids", []))
+    changed = {artifact_id for artifact_id in set(before) | set(after)
+               if before.get(artifact_id) != after.get(artifact_id)}
+    outside = sorted(changed - previewed)
+    inside = sorted(changed & previewed)
+    result = json.loads(edit.result_json or "{}")
+    result.update({
+        "status": "failed" if error or outside else "completed",
+        "previewed_artifact_ids": sorted(previewed),
+        "executed_artifact_ids": inside,
+        "executed_stage_names": sorted(set(executed_stages)),
+        "changed_outside_scope": outside,
+        **({"error": error} if error else {}),
+    })
+    edit.result_json = json.dumps(result, ensure_ascii=False, sort_keys=True)
+    edit.status = "failed" if error or outside else "completed"
+    reason = ("changed artifacts outside preview scope" if outside else
+              error or "stage-control scope completed")
+    record_decision(
+        db,
+        PolicyDecision(policy="stage_control",
+                       decision="blocked" if outside else ("failed" if error else "applied"),
+                       reason=reason, rule_id="STAGE_CONTROL_SCOPE_CHECKED",
+                       severity="error" if outside or error else "info",
+                       recoverable=True, actions=("review",),
+                       context={"preview_id": edit.id,
+                                "previewed_artifact_ids": sorted(previewed),
+                                "executed_artifact_ids": inside,
+                                "changed_outside_scope": outside}),
+        case_id=job.case_id, production_id=job.id,
+    )
+    db.commit()
+    return result
 
 
 def launch(job_id: int) -> None:

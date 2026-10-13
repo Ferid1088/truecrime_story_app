@@ -110,10 +110,18 @@ class StageControlService:
         for row in scope:
             stage = json.loads(row.scope_json or "{}").get("stage", "unknown")
             by_stage[f"{stage}:{row.language}" if row.language else stage] += 1
+        stage_names = sorted({
+            f"{json.loads(row.scope_json or '{}').get('stage')}:{row.language}"
+            if row.language else json.loads(row.scope_json or "{}").get("stage", "unknown")
+            for row in scope
+        })
+        languages = sorted({row.language for row in scope if row.language})
         return {
             "case_id": job.case_id, "job_id": job.id, "stage": stage_name,
             "action": action, "prompt": prompt, "edit": edit or {},
             "artifact_ids": [row.id for row in scope],
+            "stage_names": stage_names,
+            "languages": languages,
             "estimated_scope": [{"id": row.id, "type": row.type,
                                  "language": row.language,
                                  "stage": json.loads(row.scope_json or "{}").get("stage")}
@@ -235,24 +243,29 @@ class StageControlService:
                 artifact.status = "stale"
                 artifact.updated_at = utc_now()
         stages = json.loads(job.stages_json or "[]")
-        scope_stages = {item.get("stage") for item in payload.get("estimated_scope", [])}
+        scope_stages = set(payload.get("stage_names", []))
         for stage in stages:
-            base, _language = self._base_stage(stage.get("name", ""))
-            if base in scope_stages or stage.get("name") in scope_stages:
+            if stage.get("name") in scope_stages:
                 stage["status"] = "pending"
                 stage["detail"] = None
         job.stages_json = json.dumps(stages, ensure_ascii=False)
         job.status, job.error = "queued", None
         row.status = "applied"
-        row.result_json = json.dumps({"artifact_ids": payload.get("artifact_ids", []),
-                                      "status": "queued"})
+        row.result_json = json.dumps({
+            "status": "queued",
+            "previewed_artifact_ids": payload.get("artifact_ids", []),
+            "executed_artifact_ids": [],
+            "executed_stage_names": [],
+            "changed_outside_scope": [],
+        })
         self.db.commit()
         self._audit(job, payload["action"], "applied", "stage action queued",
                     {"preview_id": preview_id, "artifact_ids": payload.get("artifact_ids", [])})
         from app.documentary import jobs as documentary_jobs
         documentary_jobs.launch(job.id)
         return {"preview_id": preview_id, "job_id": job.id,
-                "status": "queued", "artifact_ids": payload.get("artifact_ids", [])}
+                "status": "queued", "previewed_artifact_ids": payload.get("artifact_ids", []),
+                "executed_artifact_ids": [], "changed_outside_scope": []}
 
     def set_automatic(self, case_id: int, stage_name: str, enabled: bool) -> dict:
         job = self._job(case_id)
