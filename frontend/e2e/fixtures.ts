@@ -386,6 +386,11 @@ export const fixtures = {
       caption_text: "The log fixes the last known time.", cta: "Watch the full evidence-led story.",
       video_url: "/api/short-form/files/201/video", cover_url: "/api/short-form/files/201/cover",
       captions_url: "/api/short-form/files/201/captions", gate_results: { RightsChecker: { passed: true } }, error: null,
+    }, {
+      id: 202, candidate_id: 101, language: "de", status: "done", approval_state: "pending",
+      caption_text: "Das Protokoll legt die letzte bekannte Zeit fest.", cta: "Sieh die vollständige faktenbasierte Geschichte.",
+      video_url: "/api/short-form/files/202/video", cover_url: "/api/short-form/files/202/cover",
+      captions_url: "/api/short-form/files/202/captions", gate_results: { RightsChecker: { passed: true } }, error: null,
     }],
   },
   shortFormMetrics: {
@@ -625,9 +630,9 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       return json(route, fixtures.shortFormSettings);
     if (path === "/api/short-form/workspace" && method === "GET")
       return json(route, fixtures.shortFormWorkspace);
-    if (path === "/api/short-form/files/201/video" && method === "GET")
+    if ((path === "/api/short-form/files/201/video" || path === "/api/short-form/files/202/video") && method === "GET")
       return route.fulfill({ status: 200, contentType: "video/mp4", path: SHORT_101_VIDEO });
-    if (path === "/api/short-form/files/201/cover" && method === "GET")
+    if ((path === "/api/short-form/files/201/cover" || path === "/api/short-form/files/202/cover") && method === "GET")
       return route.fulfill({ status: 200, contentType: "image/png", path: SHORT_101_COVER });
     if (/^\/api\/short-form\/1\/candidates\/101\/preview$/.test(path) && method === "POST")
       return json(route, { preview_id: 901, action: "approve", target_id: 101, scope: [] });

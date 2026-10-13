@@ -2032,6 +2032,8 @@ class ShortFormProductionConfig(BaseModel):
     default_visibility: Literal["private", "draft"] = "private"
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_redos: int = Field(default=2, ge=0, le=2)
+    ffmpeg_bin: str = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
+    ffprobe_bin: str = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
 
     @model_validator(mode="after")
     def _validate(self):

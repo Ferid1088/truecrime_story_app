@@ -15,20 +15,28 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from app.core.ai_config import ai_config
+from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 
 WIDTH = ai_config.short_form.production.width
 HEIGHT = ai_config.short_form.production.height
 SAFE_X = 96
 SAFE_TOP = 180
 SAFE_BOTTOM = 330
-FONT_PATHS = {
-    "en": "/System/Library/Fonts/SFNS.ttf",
-    "fa": "/System/Library/Fonts/GeezaPro.ttc",
-    "ar": "/System/Library/Fonts/GeezaPro.ttc",
+FONT_FALLBACKS = {
+    "en": ("/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"),
+    "de": ("/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"),
+    "fa": ("/System/Library/Fonts/GeezaPro.ttc", "/System/Library/Fonts/SFArabic.ttf",
+           "/System/Library/Fonts/Supplemental/Nadeem.ttc",
+           "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
+    "ar": ("/System/Library/Fonts/GeezaPro.ttc", "/System/Library/Fonts/SFArabic.ttf",
+           "/System/Library/Fonts/Supplemental/Nadeem.ttc",
+           "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
 }
+FONT_FAMILIES = {"fa": "Geeza Pro", "ar": "Geeza Pro", "en": "Arial", "de": "Arial"}
 FFMPEG_FULL_HINT = (
-    "FFmpeg lacks libass/subtitles; install Homebrew ffmpeg-full and put it first on PATH: "
-    "brew install ffmpeg-full && export PATH=\"$(brew --prefix ffmpeg-full)/bin:$PATH\""
+    "FFmpeg lacks libass/subtitles; install Homebrew ffmpeg-full, then configure "
+    "FFMPEG_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg and "
+    "FFPROBE_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffprobe (without changing PATH)"
 )
 
 
@@ -38,35 +46,46 @@ class FFmpegCapabilityError(RuntimeError):
 
 def ffmpeg_caption_capability() -> dict:
     """Inspect the executable that production rendering will invoke."""
-    executable = shutil.which("ffmpeg")
+    executable = ffmpeg_bin()
+    probe = ffprobe_bin()
     if executable is None:
-        return {"available": False, "executable": None, "subtitles_filter": False,
+        return {"available": False, "executable": None, "ffprobe": probe,
+                "subtitles_filter": False, "ass_filter": False,
                 "libass": False, "reason": "ffmpeg is not installed",
                 "fix": FFMPEG_FULL_HINT}
     try:
-        filters = subprocess.run(
-            [executable, "-filters"], capture_output=True, text=True, check=True,
-        ).stdout
+        filters = subprocess.run([executable, "-filters"], capture_output=True, text=True, check=True).stdout
         version = subprocess.run(
             [executable, "-version"], capture_output=True, text=True, check=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError) as exc:
-        return {"available": False, "executable": executable, "subtitles_filter": False,
+        return {"available": False, "executable": executable, "ffprobe": probe,
+                "subtitles_filter": False, "ass_filter": False,
                 "libass": False, "reason": f"ffmpeg capability probe failed: {exc}",
                 "fix": FFMPEG_FULL_HINT}
-    subtitles_filter = any(
-        line.split(None, 3)[1:2] == ["subtitles"]
-        for line in filters.splitlines()
-        if line.strip()
-    )
+    subtitles_filter = any(" subtitles " in f" {line} " for line in filters.splitlines())
+    ass_filter = any(" ass " in f" {line} " for line in filters.splitlines())
     libass = "--enable-libass" in version
+    harfbuzz = "--enable-libharfbuzz" in version
+    dependency_text = ""
+    libass_path = Path(executable).parents[3] / "opt/libass/lib/libass.dylib"
+    if libass_path.is_file() and shutil.which("otool"):
+        dependency_text = subprocess.run(
+            ["otool", "-L", str(libass_path)], capture_output=True, text=True, check=False,
+        ).stdout
+    fribidi = "fribidi" in dependency_text
+    available = subtitles_filter and ass_filter and libass and harfbuzz and fribidi and bool(probe)
     return {
-        "available": subtitles_filter and libass,
+        "available": available,
         "executable": executable,
+        "ffprobe": probe,
         "subtitles_filter": subtitles_filter,
+        "ass_filter": ass_filter,
         "libass": libass,
-        "reason": None if subtitles_filter and libass else "FFmpeg lacks libass/subtitles",
-        "fix": None if subtitles_filter and libass else FFMPEG_FULL_HINT,
+        "harfbuzz": harfbuzz,
+        "fribidi": fribidi,
+        "reason": None if available else "FFmpeg caption capability or RTL shaping dependency is unavailable",
+        "fix": None if available else FFMPEG_FULL_HINT,
     }
 
 
@@ -93,7 +112,7 @@ def subtitle_layout(language: str, cues: list[SubtitleCue]) -> dict:
     return {
         "language": language,
         "direction": "rtl" if rtl else "ltr",
-        "font": FONT_PATHS.get(language, FONT_PATHS["en"]),
+        "font": str(_font_path(language)),
         "safe_area": {"left": SAFE_X, "right": WIDTH - SAFE_X,
                       "top": SAFE_TOP, "bottom": HEIGHT - SAFE_BOTTOM},
         "cues": [cue.__dict__ for cue in cues],
@@ -101,11 +120,29 @@ def subtitle_layout(language: str, cues: list[SubtitleCue]) -> dict:
 
 
 def _font(language: str, size: int):
-    path = FONT_PATHS.get(language, FONT_PATHS["en"])
+    path = _font_path(language)
     try:
-        return ImageFont.truetype(path, size, index=0 if path.endswith(".ttc") else 0)
+        return ImageFont.truetype(str(path), size, index=0 if path.suffix.lower() == ".ttc" else 0)
     except OSError:
         return ImageFont.load_default()
+
+
+def _font_path(language: str) -> Path:
+    """Resolve a checked font with glyph coverage for the caption language."""
+    candidates = FONT_FALLBACKS.get(language, FONT_FALLBACKS["en"])
+    for candidate in candidates:
+        path = Path(candidate)
+        if path.is_file():
+            return path
+    raise FFmpegCapabilityError(
+        f"No checked caption font with {language} coverage is available; "
+        "install/configure a font and retry"
+    )
+
+
+def _caption_font_family(language: str) -> str:
+    _font_path(language)  # fail closed before FFmpeg is invoked
+    return FONT_FAMILIES.get(language, "Arial")
 
 
 def _write_cover(path: Path, title: str, language: str,
@@ -172,7 +209,8 @@ def build_export_package(
     captions_burned_in: bool | None = None,
 ) -> dict:
     """Build a small, inspectable, watchable pilot package offline."""
-    if shutil.which("ffmpeg") is None:
+    executable = ffmpeg_bin()
+    if executable is None:
         raise RuntimeError("ffmpeg is required for short-form export")
     if duration_seconds <= 0 or duration_seconds > 60:
         raise ValueError("duration_seconds must be between 0 and 60")
@@ -209,7 +247,7 @@ def build_export_package(
         raise FileNotFoundError(f"long-film source is missing: {source}")
     if source and source.is_file() and burned:
         require_caption_capability()
-    inputs = ["ffmpeg", "-y", "-v", "error"]
+    inputs = [executable, "-y", "-v", "error"]
     if source and source.is_file():
         if source_start_seconds > 0:
             inputs += ["-ss", str(source_start_seconds)]
@@ -225,7 +263,8 @@ def build_export_package(
             # capability check above makes this a fail-closed requirement.
             escaped = (str(subtitles).replace("\\", "\\\\").replace(":", "\\:")
                        .replace("'", "\\'"))
-            video_filter += f",subtitles=filename='{escaped}'"
+            force_style = f"FontName={_caption_font_family(language)},Alignment=2,FontSize=44"
+            video_filter += f",subtitles=filename='{escaped}':force_style='{force_style}'"
         command = inputs + ["-t", str(duration_seconds), "-vf", video_filter,
                             "-map", "0:v:0", "-map", "1:a:0" if separate_audio else "0:a:0",
                             "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
@@ -236,7 +275,7 @@ def build_export_package(
         # Shorts render. It has no claim of burned-in captions.
         burned = False
         subprocess.run([
-            "ffmpeg", "-y", "-v", "error", "-loop", "1", "-i", str(cover),
+            executable, "-y", "-v", "error", "-loop", "1", "-i", str(cover),
             "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
             "-t", str(duration_seconds), "-r", "30",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(video),

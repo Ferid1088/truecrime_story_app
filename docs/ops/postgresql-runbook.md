@@ -21,6 +21,27 @@ URL; a PostgreSQL failure is fatal and never falls back to SQLite
 (`scripts/dev_up.sh:254-261`). `pg_down.sh` stops PostgreSQL only when
 `pg_up.sh` created the `data/dev/postgresql.started` marker.
 
+## Keg-only FFmpeg for Shorts
+
+Production Shorts require the Homebrew `ffmpeg-full` build so captions are
+burned with libass. It is intentionally not linked into PATH. Configure the
+absolute tools for both API and worker processes with either environment
+variables or the typed production config:
+
+```sh
+export FFMPEG_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
+export FFPROBE_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffprobe
+scripts/dev_up.sh --first-run-safe
+```
+
+`config/parameters/documentary.json` carries the same defaults, and
+`scripts/dev_up.sh` passes them to API/worker when the keg exists. The
+exporters and health check resolve these paths through
+`app/core/media_tools.py`; they do not modify PATH and do not run `brew link`.
+A missing `subtitles`/`ass` filter, libass, HarfBuzz, FriBidi, or ffprobe fails
+a production short closed with a diagnostic instead of producing an
+uncaptioned video.
+
 ## Back up and verify a dump
 
 ```sh

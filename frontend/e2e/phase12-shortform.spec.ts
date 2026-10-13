@@ -9,7 +9,7 @@ test.describe("Phase 12 short-form workspace", () => {
     await page.goto("/short-form");
     await expect(page.getByTestId("short-form-workspace")).toBeVisible();
     for (const tab of TABS) await expect(page.getByRole("tab", { name: tab, exact: true })).toBeVisible();
-    await expect(page.getByText("1 persisted candidates · 1 language renders")).toBeVisible();
+    await expect(page.getByText("1 persisted candidates · 2 language renders")).toBeVisible();
     await expect(page.getByTestId("candidate-101")).toBeVisible();
     await expect(page.getByText("Shorts stages")).toBeVisible();
   });
@@ -27,7 +27,7 @@ test.describe("Phase 12 short-form workspace", () => {
     await mockApi(page);
     await page.goto("/short-form");
     await page.getByRole("tab", { name: "Rendered shorts", exact: true }).click();
-    await expect(page.locator("video")).toBeVisible();
+    await expect(page.locator("video")).toHaveCount(1);
     const media = await page.locator("video").evaluate((node) => {
       const video = node as HTMLVideoElement;
       return new Promise((resolve) => {
@@ -45,5 +45,14 @@ test.describe("Phase 12 short-form workspace", () => {
     await expect.poll(() => page.locator("video").evaluate((node) => (node as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
     await expect(page.getByText("1080 × 1920")).toBeVisible();
     await expect(page.getByText("The log fixes the last known time.")).toBeVisible();
+    await page.getByRole("button", { name: "Short 101" }).nth(1).click();
+    await expect(page.getByText("DE · Short 101")).toBeVisible();
+    await expect(page.locator("video")).toBeVisible();
+    await page.locator("video").evaluate(async (node) => {
+      const video = node as HTMLVideoElement;
+      video.muted = true;
+      await video.play();
+    });
+    await expect.poll(() => page.locator("video").evaluate((node) => (node as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
   });
 });

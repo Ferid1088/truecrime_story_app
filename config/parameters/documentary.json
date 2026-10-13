@@ -160,7 +160,9 @@
       "captions_burned_in": true,
       "default_visibility": "private",
       "languages": ["en", "de", "fa", "ar"],
-      "max_redos": 2
+      "max_redos": 2,
+      "ffmpeg_bin": "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg",
+      "ffprobe_bin": "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
     },
     "candidate_multiplier": 1.75,
     "publish_target": 8,

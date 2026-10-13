@@ -51,9 +51,18 @@ load_if_unset() {
 }
 
 for key in TRUECRIME_DATABASE_URL DATABASE_URL TRUECRIME_SEARXNG_URL SEARXNG_DIR \
-  TRUECRIME_API_PORT TRUECRIME_FRONTEND_PORT; do
+  TRUECRIME_API_PORT TRUECRIME_FRONTEND_PORT FFMPEG_BIN FFPROBE_BIN; do
   load_if_unset "$key"
 done
+
+# ffmpeg-full is keg-only. Pass its absolute tools to API/worker processes;
+# deliberately do not alter PATH or link the keg.
+if [[ -z "${FFMPEG_BIN:-}" && -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ]]; then
+  export FFMPEG_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
+fi
+if [[ -z "${FFPROBE_BIN:-}" && -x /opt/homebrew/opt/ffmpeg-full/bin/ffprobe ]]; then
+  export FFPROBE_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffprobe
+fi
 
 DATABASE_URL_VALUE="${TRUECRIME_DATABASE_URL:-${DATABASE_URL:-postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime}}"
 if [[ "$DATABASE_URL_VALUE" == postgresql* || "$DATABASE_URL_VALUE" == postgres* ]]; then

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from app.core import media_tools
 from app.db.models import (
     Artifact,
     Case,
@@ -117,6 +118,25 @@ def test_real_film_render_fails_closed_without_caption_capability(tmp_path, monk
         export.build_export_package(
             tmp_path / "short", source_video=source, narration=["Caption required"],
         )
+
+
+def test_caption_capability_health_reports_binary_and_filters(monkeypatch):
+    expected = {
+        "available": True, "executable": "/configured/ffmpeg", "ffprobe": "/configured/ffprobe",
+        "subtitles_filter": True, "ass_filter": True, "libass": True,
+        "harfbuzz": True, "fribidi": True, "reason": None, "fix": None,
+    }
+    monkeypatch.setattr(export, "ffmpeg_caption_capability", lambda: expected)
+    from app.api.system import health
+
+    assert health()["short_form"]["caption_burn_in"] == expected
+
+
+def test_media_tool_environment_overrides_typed_config(monkeypatch):
+    monkeypatch.setenv("FFMPEG_BIN", "/tmp/test-ffmpeg")
+    monkeypatch.setenv("FFPROBE_BIN", "/tmp/test-ffprobe")
+    assert media_tools.ffmpeg_bin() == "/tmp/test-ffmpeg"
+    assert media_tools.ffprobe_bin() == "/tmp/test-ffprobe"
 
 
 def test_caption_capability_failure_marks_each_language_short_failed(db_session, tmp_path, monkeypatch):
