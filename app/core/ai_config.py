@@ -1785,7 +1785,6 @@ class ThumbnailConfig(BaseModel):
     width: int = 1280
     height: int = 720
     max_file_bytes: int = 2_000_000          # YouTube limit
-    host_manifest: str = "data/host/manifest.json"
     default_outfit_id: str | None = None
     # images: 1 primary, an optional secondary; more is rejected
     max_case_images: int = Field(default=2, ge=1, le=3)

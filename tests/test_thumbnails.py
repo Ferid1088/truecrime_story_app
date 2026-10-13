@@ -10,8 +10,14 @@ import pytest
 from PIL import Image, ImageDraw
 
 from app.core.ai_config import ai_config
-from app.db.models import (Case, EditorialBlueprint, EpisodeIdentity, StoryVersion, Thumbnail,
-                           VisualAsset)
+from app.db.models import (
+    Case,
+    EditorialBlueprint,
+    EpisodeIdentity,
+    StoryVersion,
+    Thumbnail,
+    VisualAsset,
+)
 from app.documentary import storage
 from app.identity import titles as T
 from app.lifecycle.status import set_resolution
@@ -27,7 +33,7 @@ _codes = itertools.count(1)
 def env(tmp_path, monkeypatch, db_session):
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     monkeypatch.setattr(ai_config.thumbnail, "storage_dir", str(tmp_path / "thumbs"))
-    monkeypatch.setattr(ai_config.thumbnail, "host_manifest", str(tmp_path / "host" / "manifest.json"))
+    monkeypatch.setattr(H, "OUTFIT_ROOT", tmp_path / "outfits")
     db_session.query(Thumbnail).delete()
     db_session.query(EpisodeIdentity).delete()
     db_session.commit()
@@ -35,23 +41,18 @@ def env(tmp_path, monkeypatch, db_session):
 
 
 def make_hosts(tmp, outfits=("OUTFIT_TC_03", "OUTFIT_TC_01")):
-    d = tmp / "host"
+    d = tmp / "outfits"
     d.mkdir(parents=True, exist_ok=True)
-    assets = []
     for o in outfits:
-        for facing in ("left", "right"):
+        outfit = d / o
+        outfit.mkdir(parents=True, exist_ok=True)
+        for role in ("front", "full_body"):
             im = Image.new("RGBA", (700, 1300), (0, 0, 0, 0))
             dr = ImageDraw.Draw(im)
             dr.ellipse((250, 40, 450, 260), fill=(205, 170, 140, 255))
             dr.rectangle((150, 260, 550, 1250), fill=(40, 52, 80, 255) if o.endswith("03")
                          else (90, 40, 40, 255))
-            fn = f"{o}_{facing}.png"
-            im.save(d / fn)
-            assets.append({"id": f"HOST_{o[-5:]}_{facing[0]}", "outfit_id": o,
-                           "pose": f"calm_{facing}", "facing": facing, "file": fn,
-                           "approved": True})
-    (d / "manifest.json").write_text(json.dumps({"assets": assets}))
-    return assets
+            im.save(outfit / f"{role}.png")
 
 
 def make_case(db, name, status="UNSOLVED", title="Der verschwundene Kreis", lang="de", outfit="OUTFIT_TC_03"):
@@ -111,8 +112,9 @@ def test_host_outfit_matches_the_episode_and_faces_the_picture(env, db_session):
     make_asset(db_session, case)
     brief = B.build_brief(db_session, case, "de", side="left")
     assert brief["host"]["outfit_id"] == "OUTFIT_TC_03" and brief["host"]["person"] == "Fereidoun"
-    assert brief["host"]["reference_asset"].endswith("_r")        # left host faces right
-    assert B.build_brief(db_session, case, "de", side="right")["host"]["reference_asset"].endswith("_l")
+    assert brief["host"]["reference_asset"].endswith(("_front", "_full_body"))
+    assert B.build_brief(db_session, case, "de", side="right")["host"]["reference_asset"].endswith(
+        ("_front", "_full_body"))
     with pytest.raises(H.HostMissing):
         B.build_brief(db_session, case, "de", pose="calm_nonexistent")
 

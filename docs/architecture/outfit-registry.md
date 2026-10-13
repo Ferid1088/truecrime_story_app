@@ -1,12 +1,44 @@
 # Outfit registry
 
-The live thumbnail host loader is `app/thumbnails/hosts.py:46-63`: it reads
-the approved-asset manifest configured by `app/core/ai_config.py:1788-1789`
-(`data/host/manifest.json`) and resolves each manifest file relative to that
-manifest. The new generated-pose registry is `app/outfits/registry.py:26-75`;
-it reads `data/outfits/<slug>`, validates PNG files and required poses, and
-returns `Outfit(outfit_id, label, poses)` records. The validation test is
-`tests/test_outfit_registry.py:7-26`; no image files were changed.
+The sole live thumbnail source is `app/outfits/registry.py:34-112`; it reads
+`data/outfits/<slug>` and validates PNG files and required poses. The host
+adapter at `app/thumbnails/hosts.py:43-61` consumes those registry records and
+does not read a manifest. The old `data/host/manifest.json` is retained as
+user data and historical evidence only; no application loader reads it. The
+validation and compatibility tests are `tests/test_outfit_registry.py:8-31`;
+no image files were changed.
+
+## Exact legacy manifest mapping
+
+`data/host/manifest.json:6-537` contains 102 entries under `OUTFIT_01` through
+`OUTFIT_17`; every entry has `avatar_look_ids: []`. The registry keeps those
+ids as aliases, with this exact mapping:
+
+| manifest id | registry outfit id | manifest name |
+|---|---|---|
+| `OUTFIT_01` | `rust_overshirt_chinos` | Rust Overshirt |
+| `OUTFIT_02` | `navy_suit` | Navy Suit |
+| `OUTFIT_03` | `navy_cord_blazer_vest` | Corduroy Three-Piece |
+| `OUTFIT_04` | `grey_blazer_jeans` | Grey Blazer & Jeans |
+| `OUTFIT_05` | `navy_blazer_beige_chinos` | Navy Blazer & Chinos |
+| `OUTFIT_06` | `navy_quarterzip_tie` | Navy Quarter-Zip |
+| `OUTFIT_07` | `white_tee_beige_sweater` | Beige Knit Shoulders |
+| `OUTFIT_08` | `thobe_ghutra_sunglasses` | Thobe & Ghutra (Sunglasses) |
+| `OUTFIT_09` | `thobe_ghutra` | Thobe & Ghutra |
+| `OUTFIT_10` | `thobe_mandarin_sneakers` | White Thobe |
+| `OUTFIT_11` | `lightblue_polo_cream_sweater` | Polo & Cream Knit |
+| `OUTFIT_12` | `olive_sweater_beige_chinos` | Olive Sweater & Chinos |
+| `OUTFIT_13` | `navy_polo_beige_pleated` | Navy Polo & Beige Trousers |
+| `OUTFIT_14` | `navy_fieldjacket_turtleneck` | Turtleneck & Navy Jacket |
+| `OUTFIT_15` | `black_shirt_dark_trousers` | Casual Navy |
+| `OUTFIT_16` | `brown_sweater_navy_chinos` | Brown Crewneck Sweater |
+| `OUTFIT_17` | `lightblue_shirt_white_tee` | Oxford Shirt & Chinos |
+
+The repository contains the HeyGen provider at `app/providers/avatar/heygen.py`,
+but no imported HeyGen look-id data. The only look-id field in the manifest is
+empty for all 102 entries, so the registry's `heygen_look_ids` fields are
+empty. Neither `navy_shirt` nor `rust_shirt` occurs in the manifest or import;
+they are not silently invented as ids.
 
 ## Existing HeyGen-look overlap
 

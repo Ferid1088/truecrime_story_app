@@ -16,7 +16,6 @@ or a different costume)."""
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +23,9 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import HostScene
-from app.documentary.storage import ROOT
+from app.outfits import OutfitRegistry
+
+OUTFIT_ROOT = Path(__file__).resolve().parents[2] / "data" / "outfits"
 
 
 class HostMissing(ValueError):
@@ -42,23 +43,14 @@ class HostAsset:
     avatar_look_ids: tuple[str, ...]
 
 
-def manifest_path() -> Path:
-    p = Path(ai_config.thumbnail.host_manifest)
-    return p if p.is_absolute() else ROOT / p
-
-
 def load_assets() -> list[HostAsset]:
-    mp = manifest_path()
-    if not mp.exists():
-        return []
-    raw = json.loads(mp.read_text(encoding="utf-8"))
-    out = []
-    for a in raw.get("assets", []):
-        out.append(HostAsset(
-            id=a["id"], outfit_id=a["outfit_id"], pose=a.get("pose", "default"),
-            facing=a.get("facing", "front"), path=mp.parent / a["file"],
-            approved=bool(a.get("approved")), avatar_look_ids=tuple(a.get("avatar_look_ids", ())),
-        ))
+    out: list[HostAsset] = []
+    for outfit in OutfitRegistry(OUTFIT_ROOT).all():
+        out.extend(HostAsset(
+            id=f"HOST_{outfit.outfit_id}_{pose.role}", outfit_id=outfit.outfit_id,
+            pose=pose.role, facing="front", path=pose.path, approved=True,
+            avatar_look_ids=outfit.heygen_look_ids,
+        ) for pose in outfit.poses.values())
     return out
 
 
@@ -66,8 +58,12 @@ def outfit_for_episode(db: Session, case_id: int, language: str, identity=None) 
     """The outfit of the video: the identity's stored outfit, else the one
     matching the avatar look the host scenes were rendered with, else the
     configured default. HostMissing when none can be determined."""
+    registry = OutfitRegistry(OUTFIT_ROOT)
     if identity is not None and identity.host_outfit_id:
-        return identity.host_outfit_id
+        try:
+            return registry.resolve(identity.host_outfit_id).outfit_id
+        except (KeyError, ValueError) as exc:
+            raise HostMissing(f"outfit {identity.host_outfit_id!r} is not registered") from exc
     assets = load_assets()
     scenes = (db.query(HostScene).filter(HostScene.case_id == case_id,
                                          HostScene.language == language)
@@ -78,13 +74,20 @@ def outfit_for_episode(db: Session, case_id: int, language: str, identity=None) 
             if look and look in a.avatar_look_ids:
                 return a.outfit_id
     if ai_config.thumbnail.default_outfit_id:
-        return ai_config.thumbnail.default_outfit_id
+        try:
+            return registry.resolve(ai_config.thumbnail.default_outfit_id).outfit_id
+        except (KeyError, ValueError) as exc:
+            raise HostMissing(f"outfit {ai_config.thumbnail.default_outfit_id!r} is not registered") from exc
     raise HostMissing("the video's host outfit is unknown — set it on the episode identity "
                       "or configure thumbnail.default_outfit_id")
 
 
 def hosts_for_outfit(outfit_id: str) -> list[HostAsset]:
-    found = [a for a in load_assets() if a.outfit_id == outfit_id and a.approved
+    try:
+        canonical = OutfitRegistry(OUTFIT_ROOT).resolve(outfit_id).outfit_id
+    except (KeyError, ValueError) as exc:
+        raise HostMissing(f"outfit {outfit_id!r} is not registered") from exc
+    found = [a for a in load_assets() if a.outfit_id == canonical and a.approved
              and a.path.exists()]
     if not found:
         raise HostMissing(f"no approved host reference image for outfit {outfit_id}")

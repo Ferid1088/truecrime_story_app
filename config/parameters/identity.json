@@ -193,7 +193,6 @@
     "width": 1280,
     "height": 720,
     "max_file_bytes": 2000000,
-    "host_manifest": "data/host/manifest.json",
     "default_outfit_id": null,
     "max_case_images": 2,
     "max_text_words": 4,
