@@ -67,7 +67,7 @@ The exact installed-build checks were:
 
 ```text
 ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
-configuration: --prefix=/opt/homebrew/Cellar/ffmpeg-full/9.0.2 ... --enable-libharfbuzz ... --enable-libass ... --enable-libfontconfig --enable-libfreetype ...
+configuration: --prefix=/opt/homebrew/Cellar/ffmpeg-full/9.0.2 --enable-shared --enable-pthreads --enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gnutls --enable-gpl --enable-libaom --enable-libaribb24 --enable-libbluray --enable-libdav1d --enable-libharfbuzz --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-libqrencode --enable-librav1e --enable-librist --enable-librubberband --enable-libsnappy --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libtesseract --enable-libtheora --enable-libvidstab --enable-libvmaf --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libxvid --enable-lzma --enable-libfontconfig --enable-libfreetype --enable-frei0r --enable-libass --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-libspeex --enable-libsoxr --enable-libzmq --enable-libzimg --enable-whisper --disable-libjack --disable-indev=jack --enable-videotoolbox --enable-audiotoolbox --enable-neon
  .. ass               V->V       Render ASS subtitles onto input video using the libass library.
  .. subtitles         V->V       Render text subtitles onto input video using the libass library.
 ```
