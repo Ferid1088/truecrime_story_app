@@ -325,6 +325,10 @@ def test_api_flow(env, client, db_session, monkeypatch):
     make_asset(db_session, case, rights="do_not_use")
     opts = client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": "de"}).json()
     assert opts["outfit_id"] == "OUTFIT_TC_03" and len(opts["host_poses"]) == 2
+    changed = client.patch(f"/api/cases/{case.id}/thumbnails/outfit",
+                           json={"language": "de", "outfit_id": "OUTFIT_TC_01"})
+    assert changed.status_code == 200, changed.text
+    assert client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": "de"}).json()["outfit_id"] == "OUTFIT_TC_01"
     assert [u["asset_id"] for u in opts["usable"]] == [asset.id] and len(opts["rejected"]) == 1
     r = client.post(f"/api/cases/{case.id}/thumbnails", json={"language": "de", "side": "right"})
     assert r.status_code == 200, r.text

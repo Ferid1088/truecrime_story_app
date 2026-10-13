@@ -54,6 +54,7 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
   const [pose, setPose] = useState("");
   const [primary, setPrimary] = useState<number | null>(null);
   const [text, setText] = useState("");
+  const [outfit, setOutfit] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -68,6 +69,21 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
     try {
       await fn();
       setTick((t) => t + 1);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function changeOutfit(value: string) {
+    setOutfit(value);
+    setBusy("outfit");
+    setMessage(null);
+    try {
+      await api.setThumbnailOutfit(caseId, lang, value);
+      setTick((t) => t + 1);
+      setMessage("Outfit saved and audited. Re-compose the thumbnail to use it.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     } finally {
@@ -106,6 +122,17 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
                 </Badge>
                 <Badge variant="outline">{options.data.host_poses.length} approved poses</Badge>
                 <Badge variant="outline">{options.data.usable.length} usable real pictures</Badge>
+                {options.data.outfits.length > 0 && <label className="text-xs font-medium">Outfit
+                  <Select
+                    aria-label="Host outfit"
+                    className="ml-2 w-56"
+                    value={outfit || options.data.outfit_id || ""}
+                    disabled={busy === "outfit"}
+                    onChange={(event) => void changeOutfit(event.target.value)}
+                  >
+                    {options.data.outfits.map((item) => <option key={item.id} value={item.id}>{item.label} · {item.pose_count} poses</option>)}
+                  </Select>
+                </label>}
               </div>
               {options.data.host_error && (
                 <p className="text-amber-600 dark:text-amber-400">{options.data.host_error}</p>

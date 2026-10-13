@@ -196,6 +196,8 @@ test.describe("Case workspace", () => {
     await page.goto("/cases/1");
     await page.getByRole("button", { name: "Thumbnail", exact: true }).click();
     await expect(page.getByTestId("thumbnail-preview")).toBeVisible();
+    await page.getByLabel("Host outfit").selectOption("OUTFIT_TC_04");
+    await expect(page.getByText("Outfit saved and audited")).toBeVisible();
     await expect(page.getByText("badge: Unsolved")).toBeVisible();
     await expect(page.getByText("host outfit: OUTFIT_TC_03")).toBeVisible();
     await expect(page.getByTestId("scorecard").getByText("Automation feel (risk)")).toBeVisible();

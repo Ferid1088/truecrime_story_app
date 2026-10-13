@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from app.core.files import serve as serve_file
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.files import serve as serve_file
 from app.db.base import get_db
-from app.db.models import Case, Thumbnail
+from app.db.models import AppSetting, Case, PolicyEvent, Thumbnail
 from app.thumbnails import brief as B
 from app.thumbnails import hosts as H
 from app.thumbnails import selection as S
 from app.thumbnails import service as SV
+from app.utils import utc_now
 
 router = APIRouter(tags=["thumbnails"])
 Lang = Literal["en", "de", "fa", "ar"]
@@ -53,6 +55,11 @@ class DecisionRequest(BaseModel):
     override: bool = False
 
 
+class OutfitRequest(BaseModel):
+    language: Lang
+    outfit_id: str
+
+
 @router.get("/api/cases/{case_id}/thumbnails")
 def list_thumbnails(case_id: int, language: Lang | None = None, db: Session = Depends(get_db)):
     case = _case(db, case_id)
@@ -80,9 +87,39 @@ def thumbnail_options(case_id: int, language: Lang, db: Session = Depends(get_db
                       "title": r["asset"].title, "rights": r["asset"].rights_status,
                       "tier": r["asset"].relevance_tier,
                       "thumb": f"/api/visuals/{r['asset'].id}/file?thumb=1"}
-    return {"outfit_id": outfit, "host_poses": poses, "host_error": host_error,
+    from app.outfits import OutfitRegistry
+    registry = OutfitRegistry(H.OUTFIT_ROOT)
+    outfits = [{"id": item.outfit_id, "label": item.label, "pose_count": len(item.poses)}
+               for item in registry.all()]
+    return {"outfit_id": outfit, "outfits": outfits, "host_poses": poses, "host_error": host_error,
             "usable": [pick(r) for r in ok],
             "rejected": [{**pick(r), "reason": r["reason"]} for r in bad]}
+
+
+@router.patch("/api/cases/{case_id}/thumbnails/outfit")
+def set_thumbnail_outfit(case_id: int, req: OutfitRequest, db: Session = Depends(get_db)):
+    case = _case(db, case_id)
+    try:
+        outfit = H.OutfitRegistry(H.OUTFIT_ROOT).resolve(req.outfit_id)
+        H.hosts_for_outfit(outfit.outfit_id)
+    except (KeyError, ValueError, H.HostMissing) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    key = f"thumbnail:outfit:{case.id}:{req.language}"
+    setting = db.get(AppSetting, key)
+    old = None
+    if setting is None:
+        setting = AppSetting(key=key)
+        db.add(setting)
+    else:
+        old = json.loads(setting.value_json or "{}").get("outfit_id")
+    setting.value_json = json.dumps({"outfit_id": outfit.outfit_id})
+    setting.updated_at = utc_now()
+    db.add(PolicyEvent(case_id=case.id, language=req.language, policy="thumbnail",
+                       rule_id="THUMBNAIL_OUTFIT_SELECTED", decision="applied",
+                       reason="per-case host outfit changed",
+                       context_json=json.dumps({"old": old, "new": outfit.outfit_id})))
+    db.commit()
+    return {"case_id": case.id, "language": req.language, "outfit_id": outfit.outfit_id}
 
 
 @router.post("/api/cases/{case_id}/thumbnails")

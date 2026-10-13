@@ -16,13 +16,14 @@ or a different costume)."""
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import HostScene
+from app.db.models import AppSetting, HostScene
 from app.outfits import OutfitRegistry
 
 OUTFIT_ROOT = Path(__file__).resolve().parents[2] / "data" / "outfits"
@@ -59,6 +60,14 @@ def outfit_for_episode(db: Session, case_id: int, language: str, identity=None) 
     matching the avatar look the host scenes were rendered with, else the
     configured default. HostMissing when none can be determined."""
     registry = OutfitRegistry(OUTFIT_ROOT)
+    setting = db.get(AppSetting, f"thumbnail:outfit:{case_id}:{language}")
+    if setting is not None:
+        try:
+            selected = json.loads(setting.value_json or "{}").get("outfit_id")
+            if selected:
+                return registry.resolve(selected).outfit_id
+        except (KeyError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise HostMissing(f"selected outfit is invalid for {language}") from exc
     if identity is not None and identity.host_outfit_id:
         try:
             return registry.resolve(identity.host_outfit_id).outfit_id
