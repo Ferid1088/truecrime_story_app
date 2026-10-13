@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STATE="$ROOT/data/dev"
 mkdir -p "$STATE"
+export TRUECRIME_PROCESS_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 
 usage() {
   cat <<'EOF'
