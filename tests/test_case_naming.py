@@ -114,6 +114,18 @@ def test_rejected_title_is_not_regenerated(db_session):
     assert row.status == "rejected" and "previously rejected" in row.rejection_reason
 
 
+def test_one_recorded_generate_payload_deduplicates_rejected_titles(db_session):
+    case = _case(db_session, "Celle recorded payload")
+    verdict = A.Verdict("The Same Title", reasons=["not case-specific"])
+    first = A._store(db_session, case, "en", verdict, round_no=1, family="TF_one",
+                     concept="one", origin="generated")
+    second = A._store(db_session, case, "en", verdict, round_no=2, family="TF_one",
+                      concept="one", origin="generated")
+    db_session.commit()
+    assert first.id == second.id
+    assert db_session.query(CaseTitleCandidate).filter_by(case_id=case.id).count() == 1
+
+
 @pytest.mark.parametrize("title,language,reason", [
     ("The Dark Secret", "en", "generic"),
     ("A Very Long Title That Keeps On Going Forever", "en", "too long"),

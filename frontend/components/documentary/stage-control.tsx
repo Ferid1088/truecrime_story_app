@@ -426,6 +426,11 @@ function fullPipelineStages(job: DocumentaryJob): DocumentaryStage[] {
   });
 }
 
+/** Single display source shared by the case overview and Pipeline tab. */
+export function pipelineStageSource(job: DocumentaryJob): DocumentaryStage[] {
+  return fullPipelineStages(job);
+}
+
 export function StageList({ caseId, job, language, onPreview, unavailableStages = [] }: StageListProps) {
   const stages = useMemo(() => job ? fullPipelineStages(job) : unavailableStages, [job, unavailableStages]);
   const stageNames = useMemo(() => job?.stages.map((stage) => stage.name) ?? [], [job?.stages]);

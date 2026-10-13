@@ -7,6 +7,7 @@ import { useApi } from "@/lib/hooks";
 import { formatDate, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { pipelineStageSource } from "@/components/documentary/stage-control";
 
 type StageState = "waiting" | "running" | "complete" | "failed";
 
@@ -47,8 +48,9 @@ export function OverviewTab({ caseData, jobs = [] }: { caseData: CaseDetail; job
     },
   ];
   const current = jobs[0];
-  const stages: { label: string; state: StageState }[] = current?.stages?.length
-    ? current.stages.map((stage) => ({
+  const pipelineSource = current?.stages?.length ? pipelineStageSource(current) : null;
+  const stages: { label: string; state: StageState }[] = pipelineSource?.length
+    ? pipelineSource.map((stage) => ({
         label: stage.name.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
         state: stageState(stage.status === "done", stage.status === "running", stage.status === "failed"),
       }))
