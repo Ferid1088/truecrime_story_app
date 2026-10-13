@@ -137,6 +137,7 @@ def _metrics(db: Session, case: Case, target_minutes: float | None,
     }
     words_to_tokens = float(assumptions["tokenization"]["words_to_tokens"])
     result["tokens"] = {
+        "story_tokens": {key: result["story_words"][key] * words_to_tokens for key in SCENARIOS},
         "research_input": {key: result["source_words"][key] * words_to_tokens for key in SCENARIOS},
         "research_output": {key: result["source_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
         "master_story_input": {key: result["source_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
@@ -206,8 +207,8 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
 
     if any(language != "en" for language in languages):
         lines.append(_llm_line(pricing, "translation", "writer",
-                               _scale(story, "story_words", 1.1),
-                               _scale(story, "story_words", 1.05)))
+                               {key: tokens["story_tokens"][key] * 1.1 for key in SCENARIOS},
+                               {key: tokens["story_tokens"][key] * 1.05 for key in SCENARIOS}))
     else:
         lines.append(_single_unit_line(pricing, "translation", "skipped",
                                        "English is the canonical language; no translation call.",
@@ -215,7 +216,7 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
 
     short_count = int(assumptions["short_count"])
     lines.append(_llm_line(pricing, "short_selection", "writer",
-                           _scale(story, "story_words", 1.0),
+                           tokens["story_tokens"],
                            {key: 1200 * float(assumptions["range_multipliers"][key])
                             for key in SCENARIOS}))
     lines.append(_single_unit_line(

@@ -41,3 +41,27 @@ def test_budget_records_euro_call_cost_without_double_counting(db_session):
     ledger.record(case_id=case.id, stage="master_story", model="fake-writer",
                   units=100, cost_usd=1.0, cost_eur=2.0)
     assert ledger.snapshot(case.id).spent_eur == pytest.approx(2.0)
+
+
+def test_actual_provider_usage_stops_the_next_stage_at_cap(db_session):
+    """A provider response larger than the estimate must govern the next gate."""
+    case = _case(db_session)
+    case.total_cost_cap_eur = 1.0
+    db_session.commit()
+    ledger = BudgetService(db_session)
+    estimated = ledger.record(case_id=case.id, stage="research", model="fake",
+                              units=100, cost_eur=0.10, estimated=True)
+    actual = ledger.record(case_id=case.id, stage="master_story", model="fake",
+                           units=1000, cost_eur=1.25, estimated=False)
+    assert actual.cost_eur > estimated.cost_eur
+    with pytest.raises(BudgetStopped, match="remaining"):
+        ledger.check(case.id, "spoken", 0.01)
+
+
+def test_missing_provider_usage_is_explicitly_estimated(db_session):
+    case = _case(db_session)
+    row = BudgetService(db_session).record(
+        case_id=case.id, stage="research", model="unknown", units=None,
+        cost_eur=0.05, estimated=True,
+    )
+    assert row.estimated is True
