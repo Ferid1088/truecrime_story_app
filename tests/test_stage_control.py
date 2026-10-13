@@ -101,6 +101,7 @@ def test_stage_control_refuses_changed_inputs_and_pending_lock(db_session):
         "artifact_ids": [roots["de"].id],
     }), status="previewed"))
     db_session.commit()
+    assert service.state(case.id, "spoken:de")["blocked_actions"]["continue"] == "pending user edit or lock"
     with pytest.raises(StageControlError, match="pending user edit"):
         service.preview(case.id, "spoken:de", "redo_with_prompt")
 

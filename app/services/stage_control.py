@@ -130,7 +130,8 @@ class StageControlService:
         rows = self._rows(job, stage_name)
         pending = self._pending(rows)
         blocked = {
-            "continue": "stage is currently running" if entry.get("status") == "running" else None,
+            "continue": "pending user edit or lock" if pending else (
+                "stage is currently running" if entry.get("status") == "running" else None),
             "redo_with_prompt": "pending user edit or lock" if pending else (
                 "stage is currently running" if entry.get("status") == "running" else None),
             "edit": "stage is currently running" if entry.get("status") == "running" else None,
