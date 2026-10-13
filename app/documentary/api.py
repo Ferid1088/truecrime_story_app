@@ -66,7 +66,7 @@ class StageAutomaticRequest(BaseModel):
 class CaseControlPreviewRequest(BaseModel):
     action: Literal[
         "naming_approve", "thumbnail_approve", "thumbnail_reject",
-        "localization_regenerate",
+        "localization_approve", "localization_regenerate",
     ]
     target_id: int
 

@@ -15,6 +15,7 @@ DB_URL="${TRUECRIME_DATABASE_URL:?TRUECRIME_DATABASE_URL is required}"
 export E2E_DB_NAME="$DB_NAME"
 export E2E_DB_URL="$DB_URL"
 MOCK_WORKER_PID=""
+SHORTS_WORKER_PID=""
 
 "$ROOT/.venv/bin/python" - <<'PY'
 import os
@@ -43,6 +44,8 @@ cleanup() {
   set +e
   kill "$MOCK_WORKER_PID" 2>/dev/null || true
   wait "$MOCK_WORKER_PID" 2>/dev/null || true
+  kill "$SHORTS_WORKER_PID" 2>/dev/null || true
+  wait "$SHORTS_WORKER_PID" 2>/dev/null || true
   [[ -n "${FRONTEND_PID:-}" ]] && kill "$FRONTEND_PID" 2>/dev/null
   [[ -n "${API_PID:-}" ]] && kill "$API_PID" 2>/dev/null
   wait "${FRONTEND_PID:-}" 2>/dev/null || true
@@ -92,6 +95,9 @@ API_PID=$!
 PYTHONPATH="$ROOT" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" DATABASE_URL="$E2E_DATABASE_URL" \
   "$ROOT/.venv/bin/python" "$ROOT/scripts/e2e_stage_control_worker.py" >"$ROOT/data/e2e-stage-control-worker.log" 2>&1 &
 MOCK_WORKER_PID=$!
+PYTHONPATH="$ROOT" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" DATABASE_URL="$E2E_DATABASE_URL" \
+  "$ROOT/.venv/bin/python" "$ROOT/scripts/e2e_shorts_worker.py" >"$ROOT/data/e2e-shorts-worker.log" 2>&1 &
+SHORTS_WORKER_PID=$!
 n=0
 until curl -fsS "http://127.0.0.1:${API_PORT}/health" >/dev/null; do
   n=$((n + 1)); [[ "$n" -lt 60 ]] || { cat "$ROOT/data/e2e-api.log"; exit 1; }

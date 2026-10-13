@@ -4,7 +4,7 @@ import { useState } from "react";
 import { GitCompare, Languages } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import type { LocalizationCompare, StoryMeta } from "@/lib/types";
+import type { CaseControlApplyResult, LocalizationCompare, StoryMeta } from "@/lib/types";
 import { langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ export function Localizations({
   const [busy, setBusy] = useState<string | null>(null);
   const [compare, setCompare] = useState<LocalizationCompare | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
 
   const latestByLang = new Map<string, StoryMeta>();
   (locs ?? []).forEach((l) => {
@@ -136,6 +137,15 @@ export function Localizations({
                       targetId={v.id}
                       onApplied={() => refetch()}
                     />}
+                    {masterReady && v.status !== "approved" && <CaseActionPreview
+                      caseId={caseId}
+                      action="localization_approve"
+                      targetId={v.id}
+                      onApplied={(result: CaseControlApplyResult) => {
+                        setFeedback((current) => ({...current, [v.language]: "Applied; changed outside scope: " + (result.changed_outside_scope.length ? result.changed_outside_scope.join(", ") : "none")}));
+                        refetch();
+                      }}
+                    />}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -161,6 +171,7 @@ export function Localizations({
                   </Button>
                 )}
               </div>
+              {feedback[lang] && <p role="status" className="mt-1 text-[11px] text-emerald-700">{feedback[lang]}</p>}
             </div>
           );
         })}

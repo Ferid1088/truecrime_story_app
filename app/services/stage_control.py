@@ -484,7 +484,7 @@ class StageControlService:
 
     def preview_case_action(self, case_id: int, action: str, target_id: int) -> dict:
         allowed = {"naming_approve", "thumbnail_approve", "thumbnail_reject",
-                   "localization_regenerate"}
+                   "localization_approve", "localization_regenerate"}
         if action not in allowed:
             raise StageControlError(f"unsupported case action {action!r}")
         target, language = self._case_action_target(case_id, action, target_id)
@@ -563,6 +563,11 @@ class StageControlService:
                 if master is None:
                     raise StageControlError("no master story found")
                 await LocalizationPipeline().localize(self.db, case, master, target.language)
+            elif action == "localization_approve":
+                assert isinstance(target, StoryVersion)
+                target.status = "approved"
+                target.is_best = True
+                self.db.commit()
             else:
                 raise StageControlError(f"unsupported case action {action!r}")
         except StageControlError:

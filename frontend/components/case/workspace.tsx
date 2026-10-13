@@ -178,7 +178,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
             )}
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={runResearch} loading={busy === "research"}>
             <FlaskConical className="size-3.5" /> Run Research
           </Button>

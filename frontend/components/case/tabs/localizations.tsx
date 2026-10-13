@@ -51,7 +51,11 @@ export function LocalizationsTab({ caseId }: { caseId: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
       <MasterCard master={data.master} />
-      <Localizations caseId={caseId} masterReady={data.master.status === "ready"} onOpen={openVersion} />
+      <Localizations
+        caseId={caseId}
+        masterReady={["ready", "approved", "complete", "completed"].includes(data.master.status)}
+        onOpen={openVersion}
+      />
 
       <Sheet
         open={!!openStory}

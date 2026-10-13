@@ -379,6 +379,7 @@ export type StoryStatus =
   | "draft"
   | "needs_revision"
   | "ready"
+  | "approved"
   | "outdated"
   | "failed";
 
@@ -1494,6 +1495,7 @@ export type CaseControlAction =
   | "naming_approve"
   | "thumbnail_approve"
   | "thumbnail_reject"
+  | "localization_approve"
   | "localization_regenerate";
 
 export interface CaseControlPreview {

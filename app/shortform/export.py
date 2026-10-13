@@ -290,6 +290,7 @@ def build_export_package(
         "duration_seconds": duration_seconds,
         "language": language,
         "subtitle_layout": layout,
+        "captions_burned_in": burned,
         "subtitle_render_mode": "burned_in_plus_timed_srt" if burned else "static_preview_plus_timed_srt",
         "disclosure": {"required": True, "label": "AI-assisted narration",
                         "platforms": ["youtube", "tiktok", "meta"]},
