@@ -895,6 +895,7 @@ async def run_job(job_id: int, session_factory=None):
             before_snapshot = _artifact_snapshot(db, job.id) if execution_scope else None
             pipeline = DocumentaryPipeline(db, job, execution_scope=execution_scope)
             pipeline_error = None
+            result = {}
             try:
                 result = await pipeline.run() or {}
                 if ai_config.artifacts.shadow_mode:

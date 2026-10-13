@@ -1153,10 +1153,18 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr("app.providers.generation.get_generation_provider", lambda: gen)
     tts = FakeTTS()
     gen.tts = tts
+    # Host scenes resolve their provider dynamically, unlike the production
+    # audio module whose VoiceRenderer is replaced below. Keep this entire
+    # pipeline hermetic: the fixture promises fake voice and sound providers.
+    monkeypatch.setattr("app.providers.voice.get_voice_provider", lambda: tts)
     monkeypatch.setattr(
         "app.documentary.production.audio.VoiceRenderer",
         lambda: VoiceRenderer(provider=tts, asr=FakeASR()),
     )
+    # LanguageChain imports VoiceRenderer lazily; patch the provider lookup
+    # used by that class rather than relying on a module-level class symbol.
+    monkeypatch.setattr("app.documentary.voice_render.get_voice_provider", lambda: tts)
+    monkeypatch.setattr("app.documentary.voice_render.get_asr", lambda: FakeASR())
     monkeypatch.setattr(
         "app.documentary.production.audio.DocumentaryMixer",
         lambda: DocumentaryMixer(MusicLibrary(provider=FakeSound())),

@@ -117,6 +117,10 @@ def test_unknown_json_keys_are_reported_without_being_rejected(tmp_path: Path):
 
 def test_unknown_truecrime_environment_names_are_reported(monkeypatch):
     monkeypatch.delenv("TrueCrime_OPENROUTER_API_KEY", raising=False)
+    # The test validates unknown-name reporting, not PostgreSQL connectivity.
+    # Do not let a developer's real database credential from .env.local alter
+    # the expected set or make this test depend on a credential file.
+    monkeypatch.delenv("TRUECRIME_PG_PASSWORD", raising=False)
     monkeypatch.setenv("TRUECRIME_TEST_UNKNOWN", "1")
     assert unknown_truecrime_env_vars({}) == ["TRUECRIME_TEST_UNKNOWN"]
 
