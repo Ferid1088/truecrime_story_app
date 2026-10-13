@@ -113,6 +113,13 @@ async function openFixtureStageControl(page: import("@playwright/test").Page, st
 }
 
 test.describe("stage-control", () => {
+  test.beforeEach(async ({ page }) => {
+    const apiBase = "http://127.0.0.1:" + (process.env.E2E_API_PORT ?? "8011");
+    const response = await page.request.post(apiBase + "/api/e2e/reset-stage-control");
+    expect(response.ok()).toBeTruthy();
+    expect((await response.json()).database).toBe("truecrime_e2e");
+  });
+
   test("fixture-only stale hash state keeps Apply disabled", async ({ page }) => {
     await openFixtureStageControl(page, true);
     const spoken = page.getByTestId("stage-card-spoken:de");

@@ -74,8 +74,21 @@ app = FastAPI(
 )
 app.add_exception_handler(PolicyError, policy_exception_handler)  # type: ignore[arg-type]
 
+from app.api import (  # noqa: E402
+    background_jobs,
+    cases,
+    costs,
+    discovery,
+    masters,
+    ops,
+    research,
+    stories,
+    system,
+)
 from app.api import backup as backup_api  # noqa: E402
-from app.api import background_jobs, cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
+
+if os.environ.get("TC_TEST_NO_NETWORK") == "1":
+    from app.api import e2e  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
@@ -86,6 +99,7 @@ from app.thumbnails.api import router as thumbnail_router  # noqa: E402
 
 # The stage routers first (same precedence as before the split), then the case-level API.
 for _router in (
+    *( (e2e.router,) if os.environ.get("TC_TEST_NO_NETWORK") == "1" else () ),
     background_jobs.router,
     documentary_router,
         lifecycle_router,

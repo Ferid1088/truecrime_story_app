@@ -108,6 +108,11 @@ done
 
 echo "E2E isolated stack: api=http://127.0.0.1:${API_PORT} frontend=http://127.0.0.1:${WEB_PORT} db=${DB_NAME}"
 (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line ${E2E_PLAYWRIGHT_ARGS:-})
+# The isolated backend check intentionally monkeypatches job launching. Stop
+# the real worker first so it cannot claim that test's queued fixture job.
+kill "$MOCK_WORKER_PID" 2>/dev/null || true
+wait "$MOCK_WORKER_PID" 2>/dev/null || true
+MOCK_WORKER_PID=""
 TC_COPY_DATABASE_URL="$E2E_DATABASE_URL" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" \
   PYTHONPATH="$ROOT:$ROOT/tests" "$ROOT/.venv/bin/pytest" -q \
   "$ROOT/tests/test_stage_control_isolated.py"
