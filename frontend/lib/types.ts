@@ -50,7 +50,7 @@ export type DocumentaryDryRunResult = {
   price_warnings: { stage: string; reason: string }[];
   token_assumptions: Record<string, Record<string, number>>;
   token_formulas: Record<string, string | number>;
-  metrics: Record<string, Record<string, number>>;
+  metrics: Record<string, Record<string, number> | number | string | boolean>;
   stages: Array<{
     stage: string;
     prompt: string;

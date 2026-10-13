@@ -3,12 +3,12 @@
   "last_verified": "2026-10-13",
   "verification_policy": "Every configured price carries provider source, assumed tier, currency, and verification status. Unverified prices are surfaced as dry-run warnings by stage.",
   "exchange_rates": {
-    "usd_to_eur": 0.92,
+    "usd_to_eur": 0.8938,
     "currency": "EUR",
-    "source_url": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html",
-    "plan_or_tier": "Budget conversion assumption; provider invoices remain in USD",
+    "source_url": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/eurofxref-graph-usd.en.html",
+    "plan_or_tier": "ECB euro reference rate on 2026-10-13: 1 EUR = 1.1188 USD; USD→EUR is the reciprocal",
     "last_verified": "2026-10-13",
-    "verification_status": "unverified"
+    "verification_status": "verified"
   },
   "models": {
     "cheap": {
@@ -46,8 +46,9 @@
     "eleven_v3": {
       "provider_model": "eleven_v3",
       "usd_per_1k_characters": 0.08,
-      "eur_per_1m_characters": 73.6,
-      "currency": "USD",
+      "eur_per_1m_characters": 71.504,
+      "currency": "EUR",
+      "derived_currency": "EUR",
       "source_url": "https://elevenlabs.io/pricing/api",
       "plan_or_tier": "ElevenAPI pay-as-you-go, Text to Speech v3; $0.08 per 1,000 characters",
       "last_verified": "2026-10-13",
@@ -58,7 +59,8 @@
     "thumbnail": {
       "provider_model": "unconfigured image provider",
       "eur_per_image": 0.08,
-      "currency": "EUR",
+      "currency": "USD",
+      "derived_currency": "EUR",
       "source_url": "https://platform.openai.com/pricing",
       "plan_or_tier": "No provider/model is configured for thumbnail generation",
       "last_verified": "2026-10-13",
@@ -69,8 +71,9 @@
   "heygen": {
     "provider_model": "HeyGen Avatar III",
     "usd_per_minute": 1.0,
-    "eur_per_minute": 0.92,
+    "eur_per_minute": 0.8938,
     "currency": "USD",
+    "derived_currency": "EUR",
     "source_url": "https://help.heygen.com/en/articles/10060327-heygen-api-pricing-explained",
     "plan_or_tier": "HeyGen API pay-as-you-go, Avatar III, 720p/1080p, charged by generated seconds",
     "last_verified": "2026-10-13",
@@ -88,13 +91,14 @@
       "words_to_tokens": 1.3,
       "story_tokens": "story_words * words_to_tokens",
       "research_source_text_read": "source_words * words_to_tokens",
-      "research_notes_written": "source_words * 0.45 * words_to_tokens",
+      "research_notes_written": "target_story_words * 0.45 * words_to_tokens",
       "master_story_input": "research_notes_tokens",
       "master_story_output": "target_minutes * words_per_minute * words_to_tokens",
       "spoken_input": "story_tokens * 1.2",
       "spoken_output": "story_tokens * 1.05",
       "performance_input": "story_tokens * 1.1",
-      "performance_output": "900"
+      "performance_output": "target_story_words * 0.09 * words_to_tokens",
+      "short_selection_output": "story_words / story_words_floor * 1200"
     },
     "range_multipliers": {"low": 0.8, "expected": 1.0, "high": 1.25}
   }

@@ -145,8 +145,8 @@ export function RunTab({
               <span className="font-medium text-foreground">
                 {range.min}–{range.max} minutes
               </span>
-              . A pilot renders only the opening of that full-length film — narration, pictures,
-              music and subtitles — so you can judge it before producing the whole film.
+              . A pilot sets the research notes, master story, narration, performance, pictures,
+              music and Shorts selection to its selected length before producing the whole film.
             </p>
 
             {noMaster ? (
@@ -340,13 +340,16 @@ function EstimateCard({ estimate }: { estimate: DocumentaryDryRunResult }) {
         Low {money(estimate.estimate_range_eur.low)} · expected {money(estimate.estimate_range_eur.expected)} · high {money(estimate.estimate_range_eur.high)}
       </p>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        Tokens are input/output separately: research source text → notes; master input = notes → 60-minute story;
-        spoken story × 1.2 → × 1.05; performance story × 1.1 → 900 output tokens.
+        Tokens are input/output separately: research source text → notes; master input = notes → the selected pilot length;
+        spoken story × 1.2 → × 1.05; performance story × 1.1 → output scaled to that length.
       </p>
       {estimate.price_warnings.length > 0 && (
-        <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
-          Verify before paying: {estimate.price_warnings.map((warning) => warning.stage).join(", ")}
-        </p>
+        <div className="mt-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300" role="alert">
+          <p className="font-semibold">Verify before paying</p>
+          {estimate.price_warnings.map((warning) => (
+            <p key={`${warning.stage}-${warning.reason}`}>{warning.stage}: {warning.reason}</p>
+          ))}
+        </div>
       )}
       <div className="mt-2 overflow-x-auto">
         <Table>
