@@ -177,10 +177,11 @@ New isolated-stack screenshots:
   E2E: **3 passed**. `truecrime_e2e` was dropped afterward.
 - No Docker and no OpenRouter were used.
 
-Implementation commit verified by `git rev-parse HEAD` before this report:
-`f361a23dbd0dbd318dd2c8a94680228b06b76f2b`. Previous Shorts implementation
-commit: `c1254625bcff20a0945761af259613b71ef2ac82`. The report commit and final
-restart hash are recorded below after the report is committed.
+Implementation commit: `f361a23dbd0dbd318dd2c8a94680228b06b76f2b`.
+Report commit: `264294975a9bb55b3690bd97339593cf693da738`.
+Screenshot refresh commit: `bc8f816fab3050cd32cc9672f02f2c2887e09198`.
+Previous Shorts implementation commit:
+`c1254625bcff20a0945761af259613b71ef2ac82`.
 
 ## H. Not done / honest boundary
 
