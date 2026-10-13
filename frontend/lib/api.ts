@@ -49,6 +49,7 @@ import type {
   DocumentaryJob,
   DocumentaryJobListItem,
   DocumentaryJobRequest,
+  DocumentaryDryRunResult,
   DocumentaryOverview,
   DocumentaryScheduler,
   DocumentarySettings,
@@ -517,6 +518,8 @@ export const api = {
   caseDocumentaryJobs: (caseId: number) =>
     request<DocumentaryJob[]>(`/api/cases/${caseId}/documentary/jobs`),
   documentaryJob: (jobId: number) => request<DocumentaryJob>(`/api/documentary/jobs/${jobId}`),
+  documentaryDryRun: (caseId: number, languages = ["en"]) =>
+    post<DocumentaryDryRunResult>(`/api/cases/${caseId}/documentary/dry-run`, { languages }),
   stageControlState: (caseId: number, stage: string, jobId?: number) =>
     request<StageControlState>(
       `/api/documentary/${caseId}/stage-control/${encodeURIComponent(stage)}${jobQuery(jobId)}`,

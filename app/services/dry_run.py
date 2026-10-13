@@ -32,6 +32,7 @@ def documentary_dry_run(case: Case, languages: list[str] | None = None) -> dict:
     rows = []
     total = 0.0
     charged: set[str] = set()
+    stop_stage_if_cap_hit = None
     for stage in stages:
         name = stage["name"]
         key = _budget_key(name)
@@ -39,6 +40,8 @@ def documentary_dry_run(case: Case, languages: list[str] | None = None) -> dict:
         if key and cost:
             charged.add(key)
         total += cost
+        if stop_stage_if_cap_hit is None and total > float(case.total_cost_cap_eur or ai_config.budget.total_cap_eur):
+            stop_stage_if_cap_hit = name
         rows.append({
             "stage": name,
             "prompt": f"Prepare {name.replace('_', ' ')} for case: {case.canonical_title}",
@@ -53,6 +56,7 @@ def documentary_dry_run(case: Case, languages: list[str] | None = None) -> dict:
         "cap_eur": cap,
         "estimated_cost_eur": round(total, 2),
         "within_cap": total <= cap,
+        "stop_stage_if_cap_hit": stop_stage_if_cap_hit,
         "provider_calls": len([row for row in rows if row["estimated_cost_eur"] > 0]),
         "stages": rows,
         "sent": False,

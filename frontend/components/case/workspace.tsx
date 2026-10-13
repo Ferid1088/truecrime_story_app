@@ -7,7 +7,7 @@ import { Archive, ArrowLeft, CalendarDays, Clapperboard, FlaskConical, MapPin, P
 import { api, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDateTime } from "@/lib/format";
-import type { DocumentaryJob } from "@/lib/types";
+import type { DocumentaryDryRunResult, DocumentaryJob } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
 import { ErrorState } from "@/components/state";
@@ -281,14 +281,42 @@ function CasePipelineTab({
   onRetry: () => void;
 }) {
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [dryRunEnabled, setDryRunEnabled] = useState(false);
+  const [dryRun, setDryRun] = useState<DocumentaryDryRunResult | null>(null);
+  const [dryRunBusy, setDryRunBusy] = useState(false);
+  const [dryRunError, setDryRunError] = useState<string | null>(null);
   const selected = jobs.find((job) => job.id === (selectedJobId ?? jobs[0]?.id)) ?? jobs[0] ?? null;
   if (loading) return <Skeleton className="h-96" />;
   if (error) return <ErrorState message={error} onRetry={onRetry} />;
-  if (!selected) return <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-sm font-medium">No documentary run exists for this case.</p><p className="mt-1 text-xs text-muted-foreground">Start a documentary run to control its pipeline stages here.</p></div>;
+  const runDryRun = async () => {
+    setDryRunBusy(true); setDryRunError(null);
+    try { setDryRun(await api.documentaryDryRun(caseId, ["en"])); }
+    catch (cause) { setDryRunError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setDryRunBusy(false); }
+  };
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={dryRunEnabled} onChange={(event) => setDryRunEnabled(event.target.checked)} />
+            Dry run — English only, no provider calls
+          </label>
+          <Button size="sm" onClick={() => void runDryRun()} disabled={!dryRunEnabled} loading={dryRunBusy}>Run dry run</Button>
+        </div>
+        {dryRunError && <p role="alert" className="mt-2 text-xs text-rose-600">{dryRunError}</p>}
+        {dryRun && <div className="mt-3 space-y-2 text-xs" data-testid="dry-run-result">
+          <p className="font-medium">Dry run complete — nothing was sent.</p>
+          <p>Estimated total: €{dryRun.estimated_cost_eur.toFixed(2)} / €{dryRun.cap_eur.toFixed(2)} cap · {dryRun.provider_calls} paid calls</p>
+          <p>Cap stop point: {dryRun.stop_stage_if_cap_hit ?? "none; the estimate fits"}</p>
+          <ul className="grid gap-1 sm:grid-cols-2">{dryRun.stages.filter((row) => row.estimated_cost_eur > 0).map((row) => <li key={row.stage}>{row.stage}: €{row.estimated_cost_eur.toFixed(2)}</li>)}</ul>
+        </div>}
+      </div>
+      {!selected && <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-sm font-medium">No documentary run exists for this case.</p><p className="mt-1 text-xs text-muted-foreground">Start a documentary run to control its pipeline stages here.</p></div>}
+      {!selected ? null : <>
       {jobs.length > 1 && <label className="block max-w-md text-xs font-medium">Pipeline run<Select value={String(selected.id)} onChange={(event) => setSelectedJobId(Number(event.target.value))} className="mt-1">{jobs.map((job) => <option key={job.id} value={job.id}>{job.mode === "full" ? "Full film" : "Pilot"} · {job.status} · {formatDateTime(job.created_at)}</option>)}</Select></label>}
       <StageControlPanel caseId={caseId} job={selected} />
+      </>}
     </div>
   );
 }

@@ -22,4 +22,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    raise RuntimeError("0016 is not reversible in place; restore the backup instead.")
+    op.drop_index("ix_provider_calls_stage", table_name="provider_calls")
+    op.drop_index("ix_provider_calls_case_id", table_name="provider_calls")
+    op.drop_column("provider_calls", "cost_eur")
+    op.drop_column("provider_calls", "units")
+    op.drop_column("provider_calls", "model")
+    op.drop_column("provider_calls", "stage")
+    op.drop_column("provider_calls", "case_id")
+    op.drop_column("cases", "budget_stop_reason")
+    op.drop_column("cases", "total_cost_cap_eur")

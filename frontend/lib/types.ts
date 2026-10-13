@@ -34,6 +34,19 @@ export type CaseCostPanel = {
   }>;
 };
 
+export type DocumentaryDryRunResult = {
+  dry_run: boolean;
+  case_id: number;
+  languages: string[];
+  cap_eur: number;
+  estimated_cost_eur: number;
+  within_cap: boolean;
+  stop_stage_if_cap_hit: string | null;
+  provider_calls: number;
+  sent: boolean;
+  stages: Array<{ stage: string; prompt: string; estimated_cost_eur: number; sends: boolean }>;
+};
+
 export type RunStatus = "waiting" | "running" | "completed" | "failed";
 
 /**
