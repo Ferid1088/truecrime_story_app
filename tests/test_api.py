@@ -13,7 +13,9 @@ client = TestClient(app)
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+    body = r.json()
+    assert body["status"] == "ok"
+    assert {"available", "subtitles_filter", "libass", "fix"} <= set(body["short_form"]["caption_burn_in"])
 
 
 def test_case_crud_flow():

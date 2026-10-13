@@ -28,6 +28,21 @@ test.describe("Phase 12 short-form workspace", () => {
     await page.goto("/short-form");
     await page.getByRole("tab", { name: "Rendered shorts", exact: true }).click();
     await expect(page.locator("video")).toBeVisible();
+    const media = await page.locator("video").evaluate((node) => {
+      const video = node as HTMLVideoElement;
+      return new Promise((resolve) => {
+      const ready = () => resolve({ readyState: video.readyState, width: video.videoWidth, height: video.videoHeight });
+      if (video.readyState >= 2) ready();
+      else video.addEventListener("loadeddata", ready, { once: true });
+      });
+    });
+    expect(media).toEqual({ readyState: expect.any(Number), width: 1080, height: 1920 });
+    await page.locator("video").evaluate(async (node) => {
+      const video = node as HTMLVideoElement;
+      video.muted = true;
+      await video.play();
+    });
+    await expect.poll(() => page.locator("video").evaluate((node) => (node as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
     await expect(page.getByText("1080 × 1920")).toBeVisible();
     await expect(page.getByText("The log fixes the last known time.")).toBeVisible();
   });

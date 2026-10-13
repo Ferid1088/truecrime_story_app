@@ -334,7 +334,10 @@ def produce_for_job(db: Session, job: DocumentaryJob) -> dict:
         "selection_hash": _hash(selection),
     })
     selected = [row for row in rows if row.stable_key in selected_ids]
-    result = {"status": "completed", "candidates": len(rows), "selected": len(selected), "renders": 0, "errors": {}}
+    result: dict[str, Any] = {
+        "status": "completed", "candidates": len(rows), "selected": len(selected),
+        "renders": 0, "errors": {},
+    }
     for language in languages:
         lang_failed = False
         rendered = 0

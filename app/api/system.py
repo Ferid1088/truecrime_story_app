@@ -3,32 +3,34 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.db.base import get_db
-from app.db.models import (
-    Case,
-    Source,
-    Fact,
-    Contradiction,
-    StoryVersion,
-    DiscoveryCandidate,
-    AgentRun,
-)
-from app.core.config import settings
-from app.core.ai_config import ai_config
-from app.core.policy import warning_for
-
-
-from app.lifecycle.api import resolution_dict
+from app.api import deps
 from app.api.deps import get_case_or_404
 from app.api.serializers import agent_run_dict, case_stats
-from app.api import deps
+from app.core.ai_config import ai_config
+from app.core.config import settings
+from app.core.policy import warning_for
+from app.db.base import get_db
+from app.db.models import (
+    AgentRun,
+    Case,
+    Contradiction,
+    DiscoveryCandidate,
+    Fact,
+    Source,
+    StoryVersion,
+)
+from app.lifecycle.api import resolution_dict
 
 router = APIRouter()
 
 
 @router.get("/health")
 def health():
-    return {"status": "ok"}
+    from app.shortform.export import ffmpeg_caption_capability
+
+    return {"status": "ok", "short_form": {
+        "caption_burn_in": ffmpeg_caption_capability(),
+    }}
 
 
 @router.get("/api/agents")

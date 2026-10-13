@@ -23,7 +23,7 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, ErrorState } from "@/components/state";
-import { stageLabel, summarizeDetail } from "./shared";
+import { plainReason, stageLabel, summarizeDetail } from "./shared";
 
 const ACTIONS: StageControlAction[] = ["continue", "redo_with_prompt", "edit"];
 
@@ -86,7 +86,7 @@ function artifactLabel(type: string): string {
 function stageActionReason(reason: string): string {
   if (reason === "pending user edit or lock") return "A pending edit is locking this stage.";
   if (reason === "stage is currently running") return "This stage is running.";
-  return reason;
+  return plainReason(reason);
 }
 
 function auditSentence(decision: string): string {
@@ -103,7 +103,7 @@ function auditReason(reason: string): string {
   if (reason === "stage action applied") return "The previewed change was applied.";
   if (reason === "pending user edit or lock") return "A pending edit is waiting for the user.";
   if (reason === "inputs changed since preview") return "The inputs changed, so the preview must be prepared again.";
-  return reason.endsWith(".") ? reason : `${reason}.`;
+  return plainReason(reason);
 }
 
 function actionLabel(action: StageControlAction): string {
@@ -465,17 +465,16 @@ export function StageList({ caseId, job, language, onPreview, unavailableStages 
     ...group,
     stages: stages.filter((stage) => stageGroup(stage.name) === group.label),
   })).filter((group) => group.stages.length > 0);
-  const represented = stages.filter((stage) => !stageNames.includes(stage.name) && !!DISPLAY_ONLY_STAGES[stage.name]);
   return (
     <div className="space-y-4">
       {job && <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">This run contains {job.stages.length} enabled stages. The pipeline map also shows stages that are represented elsewhere or not part of this run.</p>}
       {job && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"><div><p className="text-sm font-medium">Run the whole case automatically</p><p className="text-xs text-muted-foreground">After each successful stage, continue to the next available stage.</p></div><Checkbox disabled={automaticBusy} onChange={(event) => void setAllAutomatic(event.target.checked)} label={automaticBusy ? "Updating" : "Run automatically"} /></div>}
-      {represented.length > 0 && <div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground"><button type="button" className="font-medium text-foreground underline-offset-2 hover:underline" onClick={() => setShowRepresented((value) => !value)}>{showRepresented ? "Hide" : "Show"} {represented.length} represented stages</button><span className="ml-2">{represented.map((stage) => stageLabel(stage.name)).join(" · ")}</span></div>}
       {grouped.map((group) => <section key={group.label} aria-labelledby={`stage-group-${group.label}`}>
         <h3 id={`stage-group-${group.label}`} className="mb-2 text-sm font-semibold">{group.label}</h3>
         <div className="grid gap-3 xl:grid-cols-2">
-          {group.stages.filter((stage) => filtered.includes(stage) && (showRepresented || !represented.some((item) => item.name === stage.name))).map((stage) => <StageCard key={stage.name} stage={stage} state={states[stage.name] ?? null} error={errors[stage.name] ?? null} loading={stateRequest.loading && !stateRequest.data} caseId={caseId} onPreview={onPreview} onAutomatic={setAutomatic} onPrimary={previewPrimary} onRetry={stateRequest.refetch} />)}
+          {group.stages.filter((stage) => filtered.includes(stage) && (showRepresented || stageNames.includes(stage.name))).map((stage) => <StageCard key={stage.name} stage={stage} state={states[stage.name] ?? null} error={errors[stage.name] ?? null} loading={stateRequest.loading && !stateRequest.data} caseId={caseId} onPreview={onPreview} onAutomatic={setAutomatic} onPrimary={previewPrimary} onRetry={stateRequest.refetch} />)}
         </div>
+        {group.stages.filter((stage) => filtered.includes(stage) && !stageNames.includes(stage.name)).length > 0 && <button type="button" className="mt-2 rounded-md border border-dashed border-border px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowRepresented((value) => !value)}>{group.stages.filter((stage) => filtered.includes(stage) && !stageNames.includes(stage.name)).length} stages not in this run — {showRepresented ? "hide" : "show"}</button>}
       </section>)}
       {!filtered.length && <EmptyState title="No stages match this language." />}
     </div>

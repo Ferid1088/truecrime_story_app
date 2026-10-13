@@ -26,6 +26,55 @@ FONT_PATHS = {
     "fa": "/System/Library/Fonts/GeezaPro.ttc",
     "ar": "/System/Library/Fonts/GeezaPro.ttc",
 }
+FFMPEG_FULL_HINT = (
+    "FFmpeg lacks libass/subtitles; install Homebrew ffmpeg-full and put it first on PATH: "
+    "brew install ffmpeg-full && export PATH=\"$(brew --prefix ffmpeg-full)/bin:$PATH\""
+)
+
+
+class FFmpegCapabilityError(RuntimeError):
+    """Raised when a production render cannot burn its required captions."""
+
+
+def ffmpeg_caption_capability() -> dict:
+    """Inspect the executable that production rendering will invoke."""
+    executable = shutil.which("ffmpeg")
+    if executable is None:
+        return {"available": False, "executable": None, "subtitles_filter": False,
+                "libass": False, "reason": "ffmpeg is not installed",
+                "fix": FFMPEG_FULL_HINT}
+    try:
+        filters = subprocess.run(
+            [executable, "-filters"], capture_output=True, text=True, check=True,
+        ).stdout
+        version = subprocess.run(
+            [executable, "-version"], capture_output=True, text=True, check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        return {"available": False, "executable": executable, "subtitles_filter": False,
+                "libass": False, "reason": f"ffmpeg capability probe failed: {exc}",
+                "fix": FFMPEG_FULL_HINT}
+    subtitles_filter = any(
+        line.split(None, 3)[1:2] == ["subtitles"]
+        for line in filters.splitlines()
+        if line.strip()
+    )
+    libass = "--enable-libass" in version
+    return {
+        "available": subtitles_filter and libass,
+        "executable": executable,
+        "subtitles_filter": subtitles_filter,
+        "libass": libass,
+        "reason": None if subtitles_filter and libass else "FFmpeg lacks libass/subtitles",
+        "fix": None if subtitles_filter and libass else FFMPEG_FULL_HINT,
+    }
+
+
+def require_caption_capability() -> dict:
+    capability = ffmpeg_caption_capability()
+    if not capability["available"]:
+        raise FFmpegCapabilityError(capability["reason"] + ". " + capability["fix"])
+    return capability
 
 
 @dataclass(frozen=True)
@@ -156,6 +205,10 @@ def build_export_package(
     audio = Path(audio_source) if audio_source else None
     burned = bool(ai_config.short_form.production.captions_burned_in
                   if captions_burned_in is None else captions_burned_in)
+    if source is not None and not source.is_file():
+        raise FileNotFoundError(f"long-film source is missing: {source}")
+    if source and source.is_file() and burned:
+        require_caption_capability()
     inputs = ["ffmpeg", "-y", "-v", "error"]
     if source and source.is_file():
         if source_start_seconds > 0:
@@ -168,9 +221,8 @@ def build_export_package(
             audio = source
         video_filter = f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT}"
         if burned:
-            # libass handles Arabic/Persian shaping and bidi ordering.  If a
-            # local FFmpeg lacks the subtitles filter, retry without it and
-            # keep the timed SRT as the canonical caption artifact.
+            # libass handles Arabic/Persian shaping and bidi ordering. The
+            # capability check above makes this a fail-closed requirement.
             escaped = (str(subtitles).replace("\\", "\\\\").replace(":", "\\:")
                        .replace("'", "\\'"))
             video_filter += f",subtitles=filename='{escaped}'"
@@ -178,18 +230,11 @@ def build_export_package(
                             "-map", "0:v:0", "-map", "1:a:0" if separate_audio else "0:a:0",
                             "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                             "-c:a", "aac", "-shortest", str(video)]
-        try:
-            subprocess.run(command, check=True)
-        except subprocess.CalledProcessError:
-            if burned:
-                fallback_filter = video_filter.split(",subtitles=", 1)[0]
-                fallback = command.copy()
-                fallback[fallback.index("-vf") + 1] = fallback_filter
-                subprocess.run(fallback, check=True)
-                burned = False
-            else:
-                raise
+        subprocess.run(command, check=True)
     else:
+        # This is a package-level preview with no film source, not a production
+        # Shorts render. It has no claim of burned-in captions.
+        burned = False
         subprocess.run([
             "ffmpeg", "-y", "-v", "error", "-loop", "1", "-i", str(cover),
             "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",

@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { join } from "node:path";
 
 /**
  * Deterministic API fixtures. Route interception happens at the browser
@@ -30,6 +31,8 @@ const CASE = {
     estimated_cost_usd: 0.42,
   },
 };
+const SHORT_101_VIDEO = join(process.cwd(), "e2e/assets/short-101.mp4");
+const SHORT_101_COVER = join(process.cwd(), "e2e/assets/short-101.png");
 
 export const fixtures = {
   dashboard: {
@@ -622,6 +625,10 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       return json(route, fixtures.shortFormSettings);
     if (path === "/api/short-form/workspace" && method === "GET")
       return json(route, fixtures.shortFormWorkspace);
+    if (path === "/api/short-form/files/201/video" && method === "GET")
+      return route.fulfill({ status: 200, contentType: "video/mp4", path: SHORT_101_VIDEO });
+    if (path === "/api/short-form/files/201/cover" && method === "GET")
+      return route.fulfill({ status: 200, contentType: "image/png", path: SHORT_101_COVER });
     if (/^\/api\/short-form\/1\/candidates\/101\/preview$/.test(path) && method === "POST")
       return json(route, { preview_id: 901, action: "approve", target_id: 101, scope: [] });
     if (/^\/api\/short-form\/1\/renders\/201\/preview$/.test(path) && method === "POST")

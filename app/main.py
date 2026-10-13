@@ -29,6 +29,13 @@ async def _lifespan(_app):
     from app.db.base import SessionLocal
     from app.documentary.recovery import recover_after_restart
     from app.lifecycle import scheduler
+    from app.shortform.export import ffmpeg_caption_capability
+
+    caption_capability = ffmpeg_caption_capability()
+    if not caption_capability["available"]:
+        logging.getLogger(__name__).warning(
+            "Shorts disabled for production renders: %s", caption_capability["reason"]
+        )
 
     db = SessionLocal()
     try:

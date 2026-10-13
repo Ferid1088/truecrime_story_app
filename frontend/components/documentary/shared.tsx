@@ -190,10 +190,19 @@ function detailValue(value: unknown): string | null {
   return null;
 }
 
+export function plainReason(reason: string): string {
+  const copy: Record<string, string> = {
+    "no finished language film": "No finished language film is available yet.",
+    "shorts disabled for case": "Shorts are turned off for this case.",
+    "long film is not finished": "The long film must finish before Shorts can start.",
+  };
+  return copy[reason] ?? (reason.endsWith(".") ? reason : `${reason}.`);
+}
+
 /** One readable line for a stage's detail (result object or failure text). */
 export function summarizeDetail(detail: unknown): string | null {
   if (detail == null) return null;
-  if (typeof detail === "string") return detail;
+  if (typeof detail === "string") return plainReason(detail);
   if (typeof detail !== "object" || Array.isArray(detail)) return detailValue(detail);
   const record = detail as Record<string, unknown>;
   if (record.skipped === true && record.reason === "outside stage-control preview") {
@@ -203,7 +212,7 @@ export function summarizeDetail(detail: unknown): string | null {
     .filter(([key]) => !["skipped", "reused", "reuse_decision", "mock_provider_calls"].includes(key))
     .filter(([key]) => !/(^|_)ids?$/.test(key))
     .map(([k, v]) => {
-      const s = detailValue(v);
+      const s = k === "reason" && typeof v === "string" ? plainReason(v) : detailValue(v);
       return s == null ? null : `${humanize(k)}: ${s}`;
     })
     .filter(Boolean);
@@ -293,7 +302,7 @@ export function WarningList({ warnings }: { warnings: DocumentaryWarning[] }) {
           <li key={`${warning.stage}-${warning.language ?? ""}-${index}`} className="break-words">
             <span className="font-medium">
               {stageLabel(warning.stage)}{warning.language ? ` · ${langLabel(warning.language)}` : ""}:
-            </span>{" "}{warning.reason}
+            </span>{" "}{plainReason(warning.reason)}
             {warning.actions?.length ? (
               <span className="mt-1 flex flex-wrap gap-1.5">
                 {warning.actions.map((action) => (
