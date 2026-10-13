@@ -52,7 +52,8 @@ def test_all_languages_use_v3_with_the_new_voices():
 def test_elevenlabs_body_language_code_and_context():
     from app.providers.voice.elevenlabs import ElevenLabsVoiceProvider
 
-    p = ElevenLabsVoiceProvider()
+    p = object.__new__(ElevenLabsVoiceProvider)
+    p.cfg = ai_config.voice.elevenlabs
     v3 = p._body(VoiceRequest(text="[pause] Salaam.", voice_id="x", model_id="eleven_v3",
                               settings={}, previous_text="a", language_code="fa"))
     assert v3["language_code"] == "fa" and "previous_text" not in v3
@@ -64,7 +65,8 @@ def test_elevenlabs_body_language_code_and_context():
 def test_elevenlabs_waits_when_too_many_requests_run(monkeypatch):
     from app.providers.voice.elevenlabs import ElevenLabsVoiceProvider
 
-    p = ElevenLabsVoiceProvider()
+    p = object.__new__(ElevenLabsVoiceProvider)
+    p.cfg = ai_config.voice.elevenlabs
     p.api_key = "k"
     calls = []
 

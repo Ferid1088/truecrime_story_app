@@ -15,10 +15,10 @@ _real_async_send = httpx.AsyncClient.send
 
 async def _guarded_async_send(self, request, *args, **kwargs):
     transport = getattr(self, "_transport", None)
-    if transport.__class__.__name__ != "MockTransport":
+    if transport.__class__.__name__ not in {"MockTransport", "ASGITransport"}:
         raise RealProviderUseError(
             "Tests forbid real provider HTTP: AsyncClient.send would reach an "
-            "external service. Use a fake or httpx.MockTransport."
+            "external service. Use a fake, httpx.MockTransport, or an in-process ASGI transport."
         )
     return await _real_async_send(self, request, *args, **kwargs)
 

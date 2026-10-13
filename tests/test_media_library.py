@@ -800,7 +800,10 @@ def test_geocode_returns_granularity_and_bbox(media_env, monkeypatch):
         return R()
 
     monkeypatch.setattr(MAPS, "_polite_get", fake_get)
-    geo = asyncio.run(MAPS.geocode("St. Marien, Stendal"))
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
+            return await MAPS.geocode("St. Marien, Stendal", client=client)
+    geo = asyncio.run(run())
     assert geo["granularity"] == "building" and geo["bbox"] == [52.6046, 52.6052, 11.858, 11.8592]
     assert (geo["addresstype"], geo["osm_class"], geo["osm_type"]) == (
         "amenity", "amenity", "place_of_worship")

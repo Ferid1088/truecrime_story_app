@@ -513,7 +513,6 @@ export const api = {
     request<DocumentaryOverview>(
       `/api/cases/${caseId}/documentary${versionId != null ? `?version_id=${versionId}` : ""}`,
     ),
-  caseCosts: (caseId: number) => request<CaseCostPanel>(`/api/cases/${caseId}/costs`),
   startDocumentaryJob: (caseId: number, payload: DocumentaryJobRequest) =>
     post<DocumentaryJob>(`/api/cases/${caseId}/documentary/jobs`, payload),
   caseDocumentaryJobs: (caseId: number) =>

@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import pytest
+import httpx
 from PIL import Image
 from test_blueprint_performance import PACK, SECTIONS, _good, _no_contradiction, _story
 
@@ -1866,10 +1867,17 @@ def test_ambiguous_place_names_resolve_near_the_case(tmp_path, monkeypatch):
         return R()
 
     monkeypatch.setattr(MAPS, "_polite_get", fake_get)
-    far = asyncio.run(MAPS.geocode("Wilhelmshof"))
-    near = asyncio.run(MAPS.geocode("Wilhelmshof", near=(52.54, 11.59)))
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
+            far = await MAPS.geocode("Wilhelmshof", client=client)
+            near = await MAPS.geocode("Wilhelmshof", client=client, near=(52.54, 11.59))
+            return far, near
+    far, near = asyncio.run(run())
     assert far["display_name"].endswith("Harzgerode")
     assert near["display_name"].endswith("Uchtspringe")
     assert len(calls) == 1 and calls[0]["limit"] == 5  # cached
     # a result that is not that place is no map at all
-    assert asyncio.run(MAPS.geocode("Wilhelmshof 188")) is None
+    async def missing():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
+            return await MAPS.geocode("Wilhelmshof 188", client=client)
+    assert asyncio.run(missing()) is None

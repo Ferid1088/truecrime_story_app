@@ -141,7 +141,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
     async def provider_status(self) -> dict:
         """Settings-page health (Part 50): backend + fetcher + LLM +
         embedding — no vendor-specific fields."""
-        if os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1":
+        if (os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1"
+                and self.searxng.__class__.__module__.startswith("app.research_engine")):
             searx = {"backend": "searxng", "healthy": False,
                      "reason": "test provider guard"}
         else:
