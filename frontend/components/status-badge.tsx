@@ -15,6 +15,7 @@ const CASE_STATUS: Record<CaseStatus, { label: string; variant: "default" | "suc
   completed: { label: "Completed", variant: "success" },
   rejected: { label: "Rejected", variant: "outline" },
   archived: { label: "Archived", variant: "outline" },
+  "budget stopped": { label: "Budget stopped", variant: "danger" },
 };
 
 const RUN_STATUS: Record<RunStatus, { label: string; variant: "default" | "success" | "warning" | "danger" | "info" }> = {

@@ -18,6 +18,7 @@ from app.core.policy import PolicyDecision, warning_for
 from app.db.models import Artifact, DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
 from app.services.tracking import documentary_run_context
+from app.services.budget import BudgetService, BudgetStopped
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -157,6 +158,26 @@ class StageRunner:
         if st["status"] in ("done", "skipped", "degraded"):
             return st.get("detail")
         self._check_cancel()
+        budget_stage = (
+            "translation" if pipeline_stage == "spoken" else
+            "tts" if pipeline_stage in {"performance", "voice"} else
+            "heygen" if pipeline_stage.startswith("host") else
+            "shorts" if pipeline_stage.startswith("short") else
+            pipeline_stage
+        )
+        estimate = float(ai_config.budget.stage_estimate_eur.get(budget_stage, 0.0))
+        try:
+            BudgetService(self.db).check(self.job.case_id, budget_stage, estimate)
+        except BudgetStopped as exc:
+            st["status"] = "failed"
+            st["detail"] = {"budget_stopped": True, "reason": exc.reason}
+            st["error_type"] = type(exc).__name__
+            st["finished_at"] = utc_now().isoformat()
+            self.result["budget_stopped"] = {"stage": name, "reason": exc.reason}
+            if name in self.running:
+                self.running.remove(name)
+            self._save()
+            raise
         st["status"] = "running"
         st["attempts"] = int(st.get("attempts") or 0) + 1
         st["started_at"] = utc_now().isoformat()
@@ -173,7 +194,7 @@ class StageRunner:
                     language = candidate
                     pipeline_stage = name[:-len(suffix)]
                     break
-            with documentary_run_context(self.job.id, language, pipeline_stage):
+            with documentary_run_context(self.job.id, self.job.case_id, language, pipeline_stage):
                 detail = await fn()
         except Exception as e:
             st["status"] = "failed"

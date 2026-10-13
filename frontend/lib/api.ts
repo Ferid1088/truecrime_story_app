@@ -12,6 +12,7 @@ import type {
   ArchiveResponse,
   CaseAudit,
   CaseDetail,
+  CaseCostPanel,
   CaseResolution,
   CreateCasePayload,
   CreatedCase,
@@ -111,6 +112,11 @@ export class ApiError extends Error {
     this.data = data ?? null;
   }
 }
+
+export const caseCosts = (caseId: number) =>
+  request<CaseCostPanel>(`/api/cases/${caseId}/costs`);
+export const setCaseBudget = (caseId: number, cap_eur: number) =>
+  patch<CaseCostPanel>(`/api/cases/${caseId}/budget`, { cap_eur });
 
 /**
  * The duplicate checker's verdict when a create/investigate call was
@@ -233,6 +239,9 @@ export interface AddSourcePayload {
 }
 
 export const api = {
+  caseCosts: (caseId: number) => request<CaseCostPanel>(`/api/cases/${caseId}/costs`),
+  setCaseBudget: (caseId: number, cap_eur: number) =>
+    patch<CaseCostPanel>(`/api/cases/${caseId}/budget`, { cap_eur }),
   dashboard: () => request<DashboardResponse>("/api/dashboard"),
   shortFormSettings: () => request<unknown>("/api/short-form/settings"),
   shortFormMetrics: (caseId = 6) => request<unknown>(`/api/short-form/metrics?case_id=${caseId}`),

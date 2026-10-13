@@ -21,6 +21,7 @@ from datetime import timedelta
 import httpx
 
 from app.core.config import settings
+from app.core.ai_config import ai_config
 from app.utils import utc_now
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
@@ -161,6 +162,11 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
                 tin, tout, cost = _usage(response)
                 size = size if size is not None else len(response.content)
         rid = request_id_var.get()
+        try:
+            from app.services.tracking import _documentary_metadata
+            metadata = _documentary_metadata()
+        except Exception:  # observability must never affect the provider call
+            metadata = {}
         row = dict(
             host=request.url.host[:120], method=request.method[:10], path=request.url.path[:300],
             status=status, ok=error is None and status is not None and status < 400,
@@ -168,6 +174,11 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
             tokens_in=tin, tokens_out=tout, cost_usd=cost,
             error=(type(error).__name__ if error is not None else None),
             request_id=None if rid == "-" else rid,
+            case_id=metadata.get("case_id"),
+            stage=metadata.get("pipeline_stage"),
+            units=(tin or 0) + (tout or 0) if tin is not None or tout is not None else None,
+            cost_eur=(cost * ai_config.budget.usd_to_eur
+                      if cost is not None else None),
         )
         _ensure_thread()
         _queue.put_nowait(row)

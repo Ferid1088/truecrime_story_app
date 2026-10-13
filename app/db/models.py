@@ -51,6 +51,8 @@ class Case(Base):
     identifiers_json: Mapped[str] = mapped_column(Text, default="[]")
     # discovery | manual | follow_up
     origin: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    total_cost_cap_eur: Mapped[float] = mapped_column(Float, default=20.0, server_default="20")
+    budget_stop_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sources = relationship("Source", back_populates="case", cascade="all, delete-orphan")
     facts = relationship("Fact", back_populates="case", cascade="all, delete-orphan")
@@ -1920,6 +1922,11 @@ class ProviderCall(Base):
     cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     error: Mapped[str | None] = mapped_column(String(200), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    stage: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    units: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class PolicyEvent(Base):

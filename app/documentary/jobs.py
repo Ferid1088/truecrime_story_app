@@ -81,6 +81,7 @@ from app.documentary.pipeline.base import StageRunner  # noqa: E402
 from app.documentary.pipeline.errors import JobCancelled, LanguageFailed, SpokenRejected  # noqa: E402,F401
 from app.services.policy_events import record_decision  # noqa: E402
 from app.services.retry_policy import ExhaustedAction, RetryAuditPolicy  # noqa: E402
+from app.services.budget import BudgetStopped  # noqa: E402
 
 
 async def approve_master(db: Session, case: Case, v: StoryVersion,
@@ -924,6 +925,26 @@ async def run_job(job_id: int, session_factory=None):
                         getattr(pipeline, "executed_stage_names", []), "cancelled")
                 job.status = "cancelled"
                 _set_case_state(db, job.case_id, "story_ready")
+            except BudgetStopped as e:
+                db.rollback()
+                job = db.get(DocumentaryJob, job_id)
+                assert job is not None
+                if (scope_edit is not None and execution_scope is not None
+                        and scope_edit.status == "applied"):
+                    _finish_stage_control_scope(
+                        db, job, scope_edit, execution_scope, before_snapshot or {},
+                        getattr(pipeline, "executed_stage_names", []), e.reason)
+                    job = db.get(DocumentaryJob, job_id)
+                    assert job is not None
+                case = db.get(Case, job.case_id)
+                if case is not None:
+                    case.status = "budget stopped"
+                    case.budget_stop_reason = e.reason[:1000]
+                job.status = "failed"
+                job.error = e.reason[:1000]
+                result = json.loads(job.result_json or "{}")
+                result["budget_stopped"] = {"stage": e.stage, "reason": e.reason}
+                job.result_json = json.dumps(result, ensure_ascii=False)
             except Exception as e:  # recorded on the job, visible in the UI
                 log.error("documentary job %s failed: %s", job_id, traceback.format_exc())
                 db.rollback()

@@ -7,6 +7,7 @@ import { useApi } from "@/lib/hooks";
 import { formatDate, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { pipelineStageSource } from "@/components/documentary/stage-control";
 
 type StageState = "waiting" | "running" | "complete" | "failed";
@@ -61,6 +62,7 @@ export function OverviewTab({ caseData, jobs = [] }: { caseData: CaseDetail; job
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
+        <BudgetPanel caseId={caseData.id} />
         <Card>
           <CardHeader>
             <CardTitle>Case Summary</CardTitle>
@@ -136,6 +138,35 @@ export function OverviewTab({ caseData, jobs = [] }: { caseData: CaseDetail; job
       </Card>
     </div>
   );
+}
+
+function BudgetPanel({ caseId }: { caseId: number }) {
+  const { data, loading, refetch } = useApi(() => api.caseCosts(caseId), [caseId]);
+  if (loading && !data) return <Card><CardContent className="p-4 text-sm text-muted-foreground">Loading cost panel…</CardContent></Card>;
+  if (!data) return null;
+  const stopped = data.status === "budget stopped" || Boolean(data.stop_reason);
+  return (
+    <Card data-testid="case-budget-panel">
+      <CardHeader><CardTitle>Case budget</CardTitle></CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <Money label="Cap" value={data.cap_eur} />
+          <Money label="Spent" value={data.spent_eur} />
+          <Money label="Remaining" value={data.remaining_eur} />
+        </div>
+        {stopped && <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700">{data.stop_reason || "The budget stopped this case."}</p>}
+        <div className="flex flex-wrap gap-2">
+          {stopped && <Button size="sm" onClick={async () => { await api.setCaseBudget(caseId, data.cap_eur); refetch(); }}>Continue</Button>}
+          <Button size="sm" variant="outline" onClick={async () => { await api.setCaseBudget(caseId, data.cap_eur + 20); refetch(); }}>Raise cap by €20</Button>
+        </div>
+        {data.calls.length > 0 && <p className="text-xs text-muted-foreground">{data.calls.length} provider calls recorded.</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Money({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-md border border-border p-2"><p className="font-semibold tabular-nums">€{value.toFixed(2)}</p><p className="text-xs text-muted-foreground">{label}</p></div>;
 }
 
 function ResearchLanguages({ caseId }: { caseId: number }) {

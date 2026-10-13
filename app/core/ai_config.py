@@ -507,6 +507,17 @@ class CostControlConfig(BaseModel):
     max_master_cost_usd: float = Field(gt=0.0)
 
 
+class BudgetConfig(BaseModel):
+    """One case-wide spend policy, expressed in euros."""
+
+    total_cap_eur: float = Field(default=20.0, gt=0.0)
+    usd_to_eur: float = Field(default=0.92, gt=0.0)
+    stage_estimate_eur: dict[str, float] = Field(default_factory=lambda: {
+        "research": 0.50, "master_story": 1.00, "translation": 0.50,
+        "tts": 2.00, "heygen": 2.00, "thumbnails": 0.20, "shorts": 2.00,
+    })
+
+
 class ResearchDepthConfig(BaseModel):
     """Depth-weighted narrative capacity — deliberately conservative:
     full-text depth and evidence diversity drive the estimate, not raw
@@ -1272,6 +1283,7 @@ class DocumentaryConfig(BaseModel):
     # minute), used to estimate film length before anything is rendered.
     speech_wpm: dict[str, int] = {"en": 150, "de": 128, "fa": 116, "ar": 104}
     storage_dir: str = "data/cases"
+    dry_run: bool = False
 
     def wpm(self, language: str) -> int:
         return self.speech_wpm.get(language) or 140
@@ -2121,6 +2133,7 @@ class AIConfig(BaseModel):
     localization: LocalizationConfig
     master_generation: MasterGenerationConfig
     cost_control: CostControlConfig
+    budget: BudgetConfig = Field(default_factory=BudgetConfig)
     research_depth: ResearchDepthConfig
     source_chunking: SourceChunkingConfig
     evidence_strength: EvidenceStrengthConfig

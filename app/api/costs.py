@@ -8,16 +8,50 @@ shown once and language-specific work can be opened per video.
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
 from app.api.serializers import agent_run_dict
 from app.db.base import get_db
-from app.db.models import AgentRun, Case, DocumentaryJob, Video
+from app.db.models import AgentRun, Case, DocumentaryJob, ProviderCall, Video
+from app.services.budget import BudgetService
 from app.lifecycle.videos import video_dict
 
 
 router = APIRouter(tags=["costs"])
+
+
+class BudgetUpdate(BaseModel):
+    cap_eur: float = Field(gt=0, le=100000)
+
+
+@router.get("/api/cases/{case_id}/costs")
+def case_costs(case_id: int, db: Session = Depends(get_db)):
+    case = db.get(Case, case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    snapshot = BudgetService(db).snapshot(case_id)
+    calls = (db.query(ProviderCall).filter(ProviderCall.case_id == case_id)
+             .order_by(ProviderCall.created_at.desc(), ProviderCall.id.desc()).all())
+    return {
+        **snapshot,
+        "stop_reason": case.budget_stop_reason,
+        "calls": [{
+            "id": call.id, "stage": call.stage, "model": call.model,
+            "units": call.units, "tokens_in": call.tokens_in,
+            "tokens_out": call.tokens_out, "cost_eur": call.cost_eur,
+            "cost_usd": call.cost_usd, "ok": call.ok, "error": call.error,
+            "created_at": call.created_at,
+        } for call in calls],
+    }
+
+
+@router.patch("/api/cases/{case_id}/budget")
+def update_case_budget(case_id: int, payload: BudgetUpdate, db: Session = Depends(get_db)):
+    if db.get(Case, case_id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return BudgetService(db).set_cap(case_id, payload.cap_eur)
 
 
 ARCHIVE_STATES = ("published", "archived")

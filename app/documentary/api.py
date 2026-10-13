@@ -34,9 +34,24 @@ from app.documentary.blueprint import blueprint_dict, latest_blueprint
 from app.documentary.visuals import rights as R
 from app.services.artifacts import ArtifactRegistry
 from app.services.stage_control import StageControlError, StageControlService
+from app.services.dry_run import documentary_dry_run
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["documentary"])
+
+
+class DryRunRequest(BaseModel):
+    languages: list[str] = Field(default_factory=lambda: ["en"])
+
+
+@router.post("/api/cases/{case_id}/documentary/dry-run")
+def documentary_dry_run_endpoint(case_id: int, payload: DryRunRequest,
+                                  db: Session = Depends(get_db)):
+    case = _case(db, case_id)
+    try:
+        return documentary_dry_run(case, payload.languages)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class ArtifactScopePreview(BaseModel):

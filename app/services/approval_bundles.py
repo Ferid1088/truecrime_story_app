@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import ApprovalBundle, ApprovalBundleItem, PolicyEvent, RenderedShort, Video
 from app.documentary import storage
-from app.services.upload_adapter import SandboxUploadAdapter
+from app.services.upload_adapter import SandboxUploadAdapter, UploadAdapterError, YouTubeUploadAdapter
 from app.utils import utc_now
 
 
@@ -141,7 +141,8 @@ def decide_item(db: Session, bundle: ApprovalBundle, item_type: str, item_id: in
 
 
 def upload_bundle(db: Session, bundle: ApprovalBundle, *, visibility: str = "private",
-                  release_now: bool = False) -> dict:
+                  release_now: bool = False,
+                  adapter: YouTubeUploadAdapter | None = None) -> dict:
     if visibility not in {"private", "draft"}:
         raise ValueError("Uploads must be private or draft")
     sync_bundle(db, bundle)
@@ -155,9 +156,17 @@ def upload_bundle(db: Session, bundle: ApprovalBundle, *, visibility: str = "pri
         bundle.upload_error = "release now requires a connected account"
         db.commit()
         raise ValueError("Release now requires a connected account")
-    receipt = SandboxUploadAdapter().upload(
-        bundle_id=bundle.id, bundle_hash=bundle.bundle_hash or "", visibility=visibility,
-    )
+    try:
+        receipt = (adapter or SandboxUploadAdapter()).upload(
+            bundle_id=bundle.id, bundle_hash=bundle.bundle_hash or "", visibility=visibility,
+        )
+    except UploadAdapterError as exc:
+        # Approval is deliberately retained: quota/token/partial failures are
+        # transport failures, not content-review failures, and can be retried.
+        bundle.upload_status = "retryable"
+        bundle.upload_error = str(exc)[:500]
+        db.commit()
+        raise
     bundle.visibility = receipt.visibility
     bundle.release_now = release_now
     bundle.upload_status, bundle.upload_id = "uploaded", receipt.upload_id

@@ -9,7 +9,30 @@ export type CaseStatus =
   | "published"
   | "completed"
   | "rejected"
-  | "archived";
+  | "archived"
+  | "budget stopped";
+
+export type CaseCostPanel = {
+  case_id: number;
+  cap_eur: number;
+  spent_eur: number;
+  remaining_eur: number;
+  status: string;
+  stop_reason: string | null;
+  calls: Array<{
+    id: number;
+    stage: string | null;
+    model: string | null;
+    units: number | null;
+    tokens_in: number;
+    tokens_out: number;
+    cost_eur: number | null;
+    cost_usd: number | null;
+    ok: boolean;
+    error: string | null;
+    created_at: string;
+  }>;
+};
 
 export type RunStatus = "waiting" | "running" | "completed" | "failed";
 

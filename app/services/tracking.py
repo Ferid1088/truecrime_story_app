@@ -15,6 +15,7 @@ _run_context: ContextVar[dict | None] = ContextVar("agent_run_context", default=
 @contextmanager
 def documentary_run_context(
     documentary_job_id: int | None = None,
+    case_id: int | None = None,
     language: str | None = None,
     pipeline_stage: str | None = None,
 ):
@@ -25,6 +26,7 @@ def documentary_run_context(
     """
     token = _run_context.set({
         "documentary_job_id": documentary_job_id,
+        "case_id": case_id,
         "language": language,
         "pipeline_stage": pipeline_stage,
     })

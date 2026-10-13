@@ -20,7 +20,7 @@ that their values are not printed.
 | Database and isolation | PostgreSQL | `TRUECRIME_DATABASE_URL` | must resolve to the approved disposable database |
 
 The first run must also set `TC_TEST_NO_NETWORK=0`, an explicit API base, and a
-case-level cost cap. It must fail before any provider request if the database
+case-level total cap of EUR 20 (the configured default). It must fail before any provider request if the database
 is the live database, a required key is missing, the selected model is not
 configured, or the cap is absent.
 
@@ -47,19 +47,27 @@ These are preflight ceilings and planning estimates, not invoices. Actual
 vendor prices and token usage must be recorded from the provider response and
 compared with the cap before the next stage starts.
 
+All stages share one configurable per-case cap expressed in EUR. Provider USD
+prices are converted with the configured `usd_to_eur` rate before the ledger is
+checked. The default cap is EUR 20; the existing Shorts cap remains an
+additional Shorts-specific guard.
+
 | Stage | Calls/units to budget | Planning envelope per case |
 | --- | --- | ---: |
-| Research | search/fetch plus configured LLM query planning, reranking and evaluation | `$0.20` fast, `$0.50` low-cost, `$1.50` deep; use the selected profile ceiling |
-| Naming | writer candidates plus title critics | `$0.05–$0.30` |
-| Master story | director, writer, grounding/consistency/engagement/final-edit passes and capped repairs | `<= $1.50` configured master ceiling |
-| Localization | one writer plus quality/grounding/engagement/final-edit passes per language | `$0.20–$0.80` per language; confirm before enabling all three |
-| Thumbnail approval | critic/vision calls and any thumbnail redo | `$0.05–$0.30` |
-| Shorts writing/audit | two calls per short, plus at most two redos; 4 selected shorts × enabled languages | include in the case cap; default production cap is `$2.00` |
-| Narration | ElevenLabs characters/minutes per language | vendor quote required; reserve separately from LLM cap |
+| Research | search/fetch plus configured LLM query planning, reranking and evaluation | `€0.50` estimate |
+| Naming | writer candidates plus title critics | included in the cap |
+| Master story | director, writer, grounding/consistency/engagement/final-edit passes and capped repairs | `€1.00` estimate |
+| Localization | one writer plus quality/grounding/engagement/final-edit passes per language | `€0.50` per language stage |
+| Thumbnail approval | critic/vision calls and any thumbnail redo | `€0.20` estimate |
+| Shorts writing/audit | two calls per short, plus at most two redos; 4 selected shorts × enabled languages | `€2.00` estimate plus Shorts cap |
+| Narration | ElevenLabs characters/minutes per language | `€2.00` estimate |
 | Local render/package | FFmpeg, captions, cover and manifest | `$0` provider spend; local CPU/disk budget only |
 
-The hard stop is the configured per-case Shorts cap (`max_cost_usd_per_case`
-currently `$2.00`, overridable by the case setting). Provider spend is recorded
+The hard stop is the total case cap, checked before every paid stage. The case
+is persisted as `budget stopped` with a retry/raise-cap action when the next
+estimate would exceed the remaining amount. The configured per-case Shorts cap
+(`max_cost_usd_per_case` currently `$2.00`, overridable by the case setting)
+remains an additional guard. Provider spend is recorded
 per Shorts queue item. When the cap would be exceeded, the Shorts item is
 skipped with a persisted reason and the long film remains completed. The first
 real run should use a lower operator-selected cap until the payload and billing
@@ -99,9 +107,21 @@ ledger have been reviewed.
     dimensions, caption-burn flag, subtitle direction, output hash, and queue
     cost before any release action.
 13. Keep default visibility `private`/`draft`. Do not use `release now` during
-    the first run. Upload only through the sandbox adapter until a separate
-    channel approval exists.
+   the first run. Upload only through the YouTube adapter contract: connect
+   OAuth separately for each language channel, then use resumable private/draft
+   upload, scheduling, quota retry and token-reconnect handling. The recorded
+   adapter fake covers quota exceeded, token expiry, partial upload and success;
+   no live call is part of this plan.
 14. Save the final evidence: commit, database revision, job IDs, provider-call
     ledger, per-stage cost, cap decisions, hashes, output file checks, and all
-    skipped/not-run reasons. Do not label the run done if any evidence is
-    missing.
+   skipped/not-run reasons. Do not label the run done if any evidence is
+   missing.
+
+## Recorded dry-run result
+
+The no-send endpoint runs the same stage planner for one tiny English-only
+case, builds a prompt record for every planned stage, de-duplicates the shared
+paid-stage estimates, and returns the real configured EUR cap and estimate.
+It sends no provider request and writes no upload. With the default stage
+estimates, the English first-run estimate is EUR 6.00, below the EUR 20 cap;
+the returned result includes `sent: false` and `within_cap: true`.
