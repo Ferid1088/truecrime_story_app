@@ -397,9 +397,16 @@ def test_dev_down_never_stops_external_healthy_searxng(tmp_path):
     env["TRUECRIME_SEARXNG_URL"] = f"http://127.0.0.1:{_free_port()}"
     external = subprocess.Popen([str(runner)], cwd=root, env=env)
     try:
-        time.sleep(0.4)
-        assert subprocess.run(["curl", "-fsS", f"{env['TRUECRIME_SEARXNG_URL']}/search?q=test&format=json"],
-                              check=False, stdout=subprocess.DEVNULL).returncode == 0
+        health = None
+        for _ in range(50):
+            health = subprocess.run(
+                ["curl", "-fsS", f"{env['TRUECRIME_SEARXNG_URL']}/search?q=test&format=json"],
+                check=False, stdout=subprocess.DEVNULL,
+            )
+            if health.returncode == 0:
+                break
+            time.sleep(0.1)
+        assert health is not None and health.returncode == 0
         down = subprocess.run(
             ["bash", str(root / "scripts/dev_down.sh")],
             cwd=root, env=env, capture_output=True, text=True, check=False,

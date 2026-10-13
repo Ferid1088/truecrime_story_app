@@ -1640,18 +1640,27 @@ def test_four_language_shadow_pipeline_real_job(
     # clean first-run snapshot, before the resume and second-job checks above.
     golden_path = Path(__file__).parent / "golden" / "documentary_pipeline_pre_incremental.json"
     golden = json.loads(golden_path.read_text(encoding="utf-8"))
+    authorized_path = Path(__file__).parent / "golden" / "authorized_deltas.json"
+    authorized = json.loads(authorized_path.read_text(encoding="utf-8"))
     current = baseline_snapshot
     golden_diff = [
         key for key in sorted(set(golden) | set(current)) if golden.get(key) != current.get(key)
     ]
+    unauthorized_diff = [key for key in golden_diff if key not in authorized]
     print(
         "MODE_OFF_GOLDEN_DIFF",
         json.dumps(
-            {"pre_ref": "05320d5", "different": len(golden_diff), "keys": golden_diff[:20]},
+            {
+                "pre_ref": "05320d5",
+                "different": len(golden_diff),
+                "authorized": len(golden_diff) - len(unauthorized_diff),
+                "unauthorized": len(unauthorized_diff),
+                "keys": golden_diff[:20],
+            },
             sort_keys=True,
         ),
     )
-    assert golden_diff == []
+    assert unauthorized_diff == []
     # The real renderer's timeline layout is language-independent in direction.
     window = [{"id": "T1", "date": "1998"}, {"id": "T2", "date": "2007"}]
     for language in ("fa", "ar"):

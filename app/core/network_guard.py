@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+from typing import Any, cast
 
 
 class OutboundNetworkDenied(ConnectionError):
@@ -27,5 +28,7 @@ def install() -> None:
             raise OutboundNetworkDenied(f"outbound network denied: {address!r}")
         return original_create(address, *args, **kwargs)
 
-    socket.socket.connect = connect
-    socket.create_connection = create_connection
+    # These are deliberate process-local test hooks; cast keeps the static
+    # checker from treating monkey-patched C methods as ordinary assignments.
+    cast(Any, socket.socket).connect = connect
+    cast(Any, socket).create_connection = create_connection
