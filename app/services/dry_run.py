@@ -1,4 +1,4 @@
-"""No-send documentary preflight for one small, English-only case."""
+"""No-send documentary preflight with the same language scope as a run."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from app.services.cost_model import documentary_estimate
 
 def documentary_dry_run(db: Session, case: Case, languages: list[str] | None = None,
                         pilot_seconds: float | None = None) -> dict:
-    langs = [language for language in (languages or ["en"]) if language == "en"]
-    if not langs:
-        raise ValueError("The first dry run supports English only")
+    langs = list(dict.fromkeys(languages or ["en"]))
+    if "en" not in langs:
+        raise ValueError("English is required as the canonical master language")
     estimate = documentary_estimate(db, case, langs, pilot_seconds=pilot_seconds)
     cap = float(case.total_cost_cap_eur or 20.0)
     rows = [{**line, "prompt": f"Prepare {line['stage'].replace('_', ' ')} for case: {case.canonical_title}", "sends": False}

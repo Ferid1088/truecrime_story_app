@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, PenLine, Play, RotateCcw, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTime, formatTimecode, humanize, langLabel } from "@/lib/format";
-import type { CostReport, DocumentaryDryRunResult, DocumentaryJob, FilmMinutesRange } from "@/lib/types";
+import type { CaseCostPanel, CostReport, DocumentaryDryRunResult, DocumentaryJob, FilmMinutesRange } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,6 +68,7 @@ export function RunTab({
   const [error, setError] = useState<string | null>(null);
   const [viewJobId, setViewJobId] = useState<number | null>(null);
   const [estimate, setEstimate] = useState<DocumentaryDryRunResult | null>(null);
+  const [costs, setCosts] = useState<CaseCostPanel | null>(null);
   const ids = useId();
 
   const noMaster = overview.masters.length === 0;
@@ -100,6 +101,14 @@ export function RunTab({
       .catch(() => { if (!cancelled) setEstimate(null); });
     return () => { cancelled = true; };
   }, [caseId, options.mode, options.pilotSeconds, pilotLength, languageKey, options.languages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.caseCosts(caseId)
+      .then((next) => { if (!cancelled) setCosts(next); })
+      .catch(() => { if (!cancelled) setCosts(null); });
+    return () => { cancelled = true; };
+  }, [caseId]);
 
   const shown =
     viewJobId != null && viewJobId !== job?.id
@@ -219,6 +228,8 @@ export function RunTab({
             {options.mode === "pilot" && Number.isFinite(pilotLength) && pilotLength >= 11 && pilotLength <= 1800 && estimate && (
               <EstimateCard estimate={estimate} />
             )}
+
+            <BudgetSummary costs={costs} estimate={estimate} />
 
             <Button
               className="w-full"
@@ -362,6 +373,28 @@ function EstimateCard({ estimate }: { estimate: DocumentaryDryRunResult }) {
           ))}</TBody>
         </Table>
       </div>
+    </div>
+  );
+}
+
+function BudgetSummary({ costs, estimate }: { costs: CaseCostPanel | null; estimate: DocumentaryDryRunResult | null }) {
+  const warnings = estimate?.price_warnings ?? [];
+  return (
+    <div className="rounded-md border border-border bg-subtle px-3 py-2.5" data-testid="preflight-budget">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold">Budget gate</p>
+        <span className="text-[11px] tabular-nums">cap {costs ? money(costs.cap_eur) : "—"}</span>
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Spent so far {costs ? money(costs.spent_eur) : "—"} · remaining {costs ? money(costs.remaining_eur) : "—"}
+      </p>
+      <div className="mt-1 text-[11px]" role="status">
+        <span className="font-medium">Warnings:</span>{" "}
+        {warnings.length === 0 ? "none" : warnings.map((warning) => `${warning.stage}: ${warning.reason}`).join("; ")}
+      </div>
+      {costs?.stop_reason && (
+        <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">Budget status: {costs.stop_reason}</p>
+      )}
     </div>
   );
 }

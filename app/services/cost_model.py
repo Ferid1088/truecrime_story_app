@@ -202,10 +202,11 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                            tokens["research_input"], tokens["research_output"]))
     lines.append(_llm_line(pricing, "master_story", "writer",
                            tokens["master_story_input"], tokens["master_story_output"]))
-    lines.append(_llm_line(pricing, "spoken:en", "premium",
-                           tokens["spoken_input"], tokens["spoken_output"]))
-    lines.append(_llm_line(pricing, "performance:en", "premium",
-                           tokens["performance_input"], tokens["performance_output"]))
+    for language in languages:
+        lines.append(_llm_line(pricing, f"spoken:{language}", "premium",
+                               tokens["spoken_input"], tokens["spoken_output"]))
+        lines.append(_llm_line(pricing, f"performance:{language}", "premium",
+                               tokens["performance_input"], tokens["performance_output"]))
     tts_price = float(pricing["tts"]["eleven_v3"]["eur_per_1m_characters"])
     if pilot_seconds:
         chars = {key: float(pilot_seconds) / 60 * float(assumptions["words_per_minute"])
@@ -213,11 +214,12 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                  * float(assumptions["range_multipliers"][key]) for key in SCENARIOS}
     else:
         chars = _scale(story, "story_words", float(assumptions["narration_characters_per_word"]))
-    lines.append(_single_unit_line(
-        pricing, "tts:en", "run", None,
-        {"characters": chars["expected"]}, {"eur_per_1m_characters": tts_price},
-        {key: chars[key] / 1_000_000 * tts_price for key in SCENARIOS},
-        pricing["tts"]["eleven_v3"].get("provider_model")))
+    for language in languages:
+        lines.append(_single_unit_line(
+            pricing, f"tts:{language}", "run", None,
+            {"characters": chars["expected"]}, {"eur_per_1m_characters": tts_price},
+            {key: chars[key] / 1_000_000 * tts_price for key in SCENARIOS},
+            pricing["tts"]["eleven_v3"].get("provider_model")))
     lines.append(_single_unit_line(
         pricing, "thumbnail", "skipped",
         "Thumbnail generation is local; no provider charge is included.",
@@ -225,16 +227,18 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
 
     if ai_config.host.enabled and ai_config.avatar.enabled:
         host_price = float(pricing["heygen"]["eur_per_minute"])
-        lines.append(_single_unit_line(
-            pricing, "host:en", "run", None,
-            {"minutes": float(assumptions["host_minutes"]["expected"])},
-            {"eur_per_minute": host_price},
-            {key: float(assumptions["host_minutes"][key]) * host_price for key in SCENARIOS},
-            pricing["heygen"].get("provider_model")))
+        for language in languages:
+            lines.append(_single_unit_line(
+                pricing, f"host:{language}", "run", None,
+                {"minutes": float(assumptions["host_minutes"]["expected"])},
+                {"eur_per_minute": host_price},
+                {key: float(assumptions["host_minutes"][key]) * host_price for key in SCENARIOS},
+                pricing["heygen"].get("provider_model")))
     else:
-        lines.append(_single_unit_line(pricing, "host:en", "skipped",
-                                       "Host/HeyGen is disabled in configuration.", {}, {},
-                                       {key: 0.0 for key in SCENARIOS}))
+        for language in languages:
+            lines.append(_single_unit_line(pricing, f"host:{language}", "skipped",
+                                           "Host/HeyGen is disabled in configuration.", {}, {},
+                                           {key: 0.0 for key in SCENARIOS}))
 
     if any(language != "en" for language in languages):
         lines.append(_llm_line(pricing, "translation", "writer",
@@ -249,13 +253,14 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
     lines.append(_llm_line(pricing, "short_selection", "writer",
                            tokens["story_tokens"],
                            tokens["short_selection_output"]))
-    lines.append(_single_unit_line(
-        pricing, "short_render:en", "skipped",
-        "FFmpeg short render is local; no provider charge is included.",
-        {"renders": short_count}, {}, {key: 0.0 for key in SCENARIOS}, "local FFmpeg"))
-    lines.append(_single_unit_line(pricing, "render:en", "skipped",
-                                   "FFmpeg render is local and has no provider charge.",
-                                   {}, {}, {key: 0.0 for key in SCENARIOS}))
+    for language in languages:
+        lines.append(_single_unit_line(
+            pricing, f"short_render:{language}", "skipped",
+            "FFmpeg short render is local; no provider charge is included.",
+            {"renders": short_count}, {}, {key: 0.0 for key in SCENARIOS}, "local FFmpeg"))
+        lines.append(_single_unit_line(pricing, f"render:{language}", "skipped",
+                                       "FFmpeg render is local and has no provider charge.",
+                                       {}, {}, {key: 0.0 for key in SCENARIOS}))
     return lines, metrics
 
 
