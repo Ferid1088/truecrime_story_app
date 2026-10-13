@@ -32,6 +32,8 @@ class VisualResearchAgent:
         self._client = client
 
     def _new_client(self) -> httpx.AsyncClient:
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider("image search", "construct an HTTP client")
         return httpx.AsyncClient(
             timeout=self.cfg.request_timeout_s, follow_redirects=True,
             headers={"User-Agent": self.cfg.user_agent})

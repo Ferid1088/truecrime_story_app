@@ -24,7 +24,8 @@ def get_generation_provider() -> GenerationProvider:
     readable in stored rows; they are not active provider registrations.
     The instance reports configured=False when its credentials are missing.
     """
-    if os.environ.get("TC_TEST_NO_NETWORK") == "1":
+    if (os.environ.get("TC_TEST_NO_NETWORK") == "1"
+            or os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1"):
         return RecordedE2EGenerationProvider()
     name = ai_config.providers.generation
     cls = _PROVIDERS.get(name)

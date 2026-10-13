@@ -303,6 +303,8 @@ class FasterWhisperASR:
     _models: dict = {}
 
     def __init__(self, cfg: ASRCheckConfig | None = None):
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider("faster-whisper ASR")
         self.cfg = cfg or ai_config.asr_check
         if importlib.util.find_spec("faster_whisper") is None:
             raise ASRUnavailable(

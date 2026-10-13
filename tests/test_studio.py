@@ -485,6 +485,8 @@ def test_heygen_client_uses_own_audio_transparent_output_and_idempotency(tmp_pat
     monkeypatch.delenv("HEYGEN_API_KEY")
     from app.providers.avatar.base import AvatarProviderError
 
+    missing_key_provider = HeyGenAvatarProvider(
+        transport=httpx.MockTransport(lambda request: httpx.Response(500)))
     with pytest.raises(AvatarProviderError) as e:
-        asyncio.run(HeyGenAvatarProvider().upload_asset(audio, "audio/mpeg"))
+        asyncio.run(missing_key_provider.upload_asset(audio, "audio/mpeg"))
     assert e.value.kind == "missing_credentials"

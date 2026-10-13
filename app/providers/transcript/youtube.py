@@ -22,6 +22,10 @@ log = logging.getLogger(__name__)
 class YouTubeTranscriptProvider(TranscriptProvider):
     name = "youtube_transcript_api"
 
+    def __init__(self):
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider(self.name)
+
     def _fetch_sync(
         self, video_id: str, preferred: list[str]
     ) -> TranscriptResult:

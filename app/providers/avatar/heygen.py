@@ -30,6 +30,9 @@ class HeyGenAvatarProvider(AvatarProvider):
     name = "heygen"
 
     def __init__(self, key_env: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
+        if transport is None:
+            from app.core.provider_guard import guard_real_provider
+            guard_real_provider(self.name)
         self.cfg = ai_config.avatar
         self.key_env = key_env or self.cfg.secret_env
         self.api_key = env_value(self.key_env) or ""

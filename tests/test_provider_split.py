@@ -111,8 +111,11 @@ def test_role_sets_are_disjoint_and_complete():
 
 
 def test_generation_provider_is_apimaster():
+    from app.providers.generation.recorded import RecordedE2EGenerationProvider
+
     provider = get_generation_provider()
-    assert isinstance(provider, APIMasterGenerationProvider)
+    assert isinstance(provider, RecordedE2EGenerationProvider)
+    assert APIMasterGenerationProvider.name == "apimaster"
 
 
 def test_research_roles_absent_from_generation_section():
@@ -152,7 +155,8 @@ def test_generation_routing_unknown_alias_fails():
 
 
 def _provider() -> APIMasterGenerationProvider:
-    p = APIMasterGenerationProvider()
+    p = object.__new__(APIMasterGenerationProvider)
+    p.base_url = ai_config.generation_provider().base_url.rstrip("/")
     p.api_key = "apk-test-key"
     return p
 
@@ -173,7 +177,7 @@ def test_apimaster_health_ok():
 
 
 def test_apimaster_missing_key():
-    provider = APIMasterGenerationProvider()
+    provider = _provider()
     provider.api_key = ""
     status = asyncio.run(provider.provider_status())
     assert status["status"] == "missing_key"

@@ -310,7 +310,9 @@ def _el(monkeypatch, responses):
     from app.providers.voice.elevenlabs import ElevenLabsVoiceProvider
 
     monkeypatch.setenv(ai_config.voice.elevenlabs.secret_env, "test-key")
-    p = ElevenLabsVoiceProvider()
+    p = object.__new__(ElevenLabsVoiceProvider)
+    p.cfg = ai_config.voice.elevenlabs
+    p.api_key = "test-key"
     sent = []
 
     async def fake_post(url, body):
@@ -370,8 +372,11 @@ def test_elevenlabs_without_key(monkeypatch):
     monkeypatch.delenv(ai_config.voice.elevenlabs.secret_env, raising=False)
     monkeypatch.delenv("TrueCrime_ELEVENLABS_API_KEY", raising=False)
     monkeypatch.delenv("TRUECRIME_ELEVENLABS_API_KEY", raising=False)
+    provider = object.__new__(ElevenLabsVoiceProvider)
+    provider.cfg = ai_config.voice.elevenlabs
+    provider.api_key = ""
     with pytest.raises(VoiceProviderError) as e:
-        asyncio.run(ElevenLabsVoiceProvider().synthesize(REQ))
+        asyncio.run(provider.synthesize(REQ))
     assert e.value.kind == "missing_credentials"
 
 

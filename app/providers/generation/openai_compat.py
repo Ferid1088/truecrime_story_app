@@ -46,6 +46,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
     chat_path = "/chat/completions"
 
     def __init__(self):
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider(self.name)
         provider_cfg = ai_config.generation_provider()
         self.base_url = provider_cfg.base_url.rstrip("/")
         self.api_key = env_value(provider_cfg.secret_env)

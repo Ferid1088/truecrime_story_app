@@ -245,6 +245,9 @@ async def geocode(place: str, client: httpx.AsyncClient | None = None,
         res = json.loads(f.read_text())
     else:
         own = client is None
+        if own:
+            from app.core.provider_guard import guard_real_provider
+            guard_real_provider("map/geocoder", "construct an HTTP client")
         client = client or httpx.AsyncClient(
             timeout=25, headers={"User-Agent": ai_config.visual_search.user_agent})
         try:

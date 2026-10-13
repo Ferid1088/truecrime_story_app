@@ -2,6 +2,29 @@ import os
 import sys
 import tempfile
 
+# This is deliberately independent of credentials and network availability.
+# Production provider constructors and non-mock HTTP are blocked for every test.
+os.environ["TRUECRIME_TEST_NO_REAL_PROVIDERS"] = "1"
+
+import httpx  # noqa: E402
+
+from app.core.provider_guard import RealProviderUseError  # noqa: E402
+
+_real_async_send = httpx.AsyncClient.send
+
+
+async def _guarded_async_send(self, request, *args, **kwargs):
+    transport = getattr(self, "_transport", None)
+    if transport.__class__.__name__ != "MockTransport":
+        raise RealProviderUseError(
+            "Tests forbid real provider HTTP: AsyncClient.send would reach an "
+            "external service. Use a fake or httpx.MockTransport."
+        )
+    return await _real_async_send(self, request, *args, **kwargs)
+
+
+httpx.AsyncClient.send = _guarded_async_send  # type: ignore[method-assign]
+
 _PG_URL = os.environ.get("TC_TEST_DATABASE_URL")
 _COPY_URL = os.environ.get("TC_COPY_DATABASE_URL")
 _PG_ADMIN_URL = os.environ.get("TRUECRIME_TEST_ADMIN_URL")

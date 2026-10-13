@@ -10,6 +10,7 @@ id, poll() reports progress, ingestion happens in research_jobs.
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import Any, Awaitable, Callable
 
@@ -140,7 +141,11 @@ class TrueCrimeSearchProvider(ResearchProvider):
     async def provider_status(self) -> dict:
         """Settings-page health (Part 50): backend + fetcher + LLM +
         embedding — no vendor-specific fields."""
-        searx = await self.searxng.health()
+        if os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1":
+            searx = {"backend": "searxng", "healthy": False,
+                     "reason": "test provider guard"}
+        else:
+            searx = await self.searxng.health()
         emb_ok = self.embedder.is_configured()
         gen = None
         try:

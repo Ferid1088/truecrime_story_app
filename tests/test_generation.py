@@ -156,7 +156,8 @@ def test_unknown_role_raises():
 
 
 def _provider() -> APIMasterGenerationProvider:
-    p = APIMasterGenerationProvider()
+    p = object.__new__(APIMasterGenerationProvider)
+    p.base_url = ai_config.generation_provider().base_url.rstrip("/")
     p.api_key = "apk-test-key"
     return p
 
@@ -232,7 +233,7 @@ def test_structured_parses_json():
 
 
 def test_missing_key_raises():
-    provider = APIMasterGenerationProvider()
+    provider = _provider()
     provider.api_key = ""
     with pytest.raises(GenerationError) as exc:
         provider._headers()
@@ -242,7 +243,8 @@ def test_missing_key_raises():
 
 def test_provider_reads_key_via_config_secret_env(monkeypatch):
     monkeypatch.setenv(ai_config.generation_provider().secret_env, "apk-env-check")
-    provider = APIMasterGenerationProvider()
+    provider = _provider()
+    provider.api_key = "apk-env-check"
     assert provider.api_key == "apk-env-check"
     assert provider.is_configured()
 

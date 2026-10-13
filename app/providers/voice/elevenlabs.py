@@ -34,6 +34,8 @@ class ElevenLabsVoiceProvider(VoiceProvider):
     name = "elevenlabs"
 
     def __init__(self):
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider(self.name)
         self.cfg = ai_config.voice.elevenlabs
         self.api_key = env_value(self.cfg.secret_env) or ""
 
@@ -162,6 +164,8 @@ class ElevenLabsSoundProvider:
     name = "elevenlabs_sound"
 
     def __init__(self):
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider(self.name)
         self.cfg = ai_config.voice.elevenlabs
         self.api_key = env_value(self.cfg.secret_env) or ""
 

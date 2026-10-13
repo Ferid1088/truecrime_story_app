@@ -24,6 +24,9 @@ async def download_image(url: str, client: httpx.AsyncClient | None = None) -> b
     cfg = ai_config.visual_search
     limit = int(cfg.max_download_mb * 1024 * 1024)
     own = client is None
+    if own:
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider("image download", "construct an HTTP client")
     client = client or httpx.AsyncClient(
         timeout=cfg.request_timeout_s, follow_redirects=True,
         headers={"User-Agent": cfg.user_agent})

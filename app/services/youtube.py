@@ -5,6 +5,10 @@ from app.core.config import settings
 class YouTubeSearchService:
     BASE = "https://www.googleapis.com/youtube/v3/search"
 
+    def __init__(self):
+        from app.core.provider_guard import guard_real_provider
+        guard_real_provider("YouTube Data API")
+
     async def search(self, query: str, max_results: int = 10) -> list[dict]:
         if not settings.youtube_api_key:
             return []
