@@ -1661,11 +1661,18 @@ def test_four_language_shadow_pipeline_real_job(
     golden = json.loads(golden_path.read_text(encoding="utf-8"))
     authorized_path = Path(__file__).parent / "golden" / "authorized_deltas.json"
     authorized = json.loads(authorized_path.read_text(encoding="utf-8"))
+    pilot_authorized_path = Path(__file__).parent / "golden" / "pilot_authorized_deltas.json"
+    pilot_authorized = set(json.loads(pilot_authorized_path.read_text(encoding="utf-8")).get("keys", []))
     current = baseline_snapshot
     golden_diff = [
         key for key in sorted(set(golden) | set(current)) if golden.get(key) != current.get(key)
     ]
-    unauthorized_diff = [key for key in golden_diff if key not in authorized]
+    # Prompt 18 changes the pilot's editorial target, so the intentionally
+    # shorter spoken/performance/audio outputs have a separate exact-key
+    # authorization list. The regular golden remains strict for everything
+    # outside those declared pilot outputs.
+    unauthorized_diff = [key for key in golden_diff
+                         if key not in authorized and key not in pilot_authorized]
     print(
         "MODE_OFF_GOLDEN_DIFF",
         json.dumps(

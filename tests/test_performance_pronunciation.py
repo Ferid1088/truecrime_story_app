@@ -496,7 +496,10 @@ def test_batch_api_starts_one_job_per_case(client, db_session, monkeypatch):
     assert body["rejected"] == [{"case_id": 999999, "reason": "case not found"}]
     fresh = next(j for j in body["jobs"] if j["case_id"] == c3.id)
     assert fresh["from_zero"] and fresh["master_version_id"] is None
-    assert fresh["stages"][0]["name"] == "research" and fresh["target_minutes"] == 50
+    # In pilot mode the pilot is the editorial target too: 180 seconds is a
+    # three-minute master target, even when the batch item supplied the old
+    # full-film target field.
+    assert fresh["stages"][0]["name"] == "research" and fresh["target_minutes"] == 3.0
     batch = client.get(f"/api/documentary/batches/{body['batch_id']}").json()
     assert len(batch["jobs"]) == 3 and batch["statuses"] == {"queued": 3}
     sched = client.get("/api/documentary/scheduler").json()

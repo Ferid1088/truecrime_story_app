@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const apiBase = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://127.0.0.1:8011";
+const apiBase = process.env.PLAYWRIGHT_API_BASE_URL
+  ?? `http://127.0.0.1:${process.env.E2E_API_PORT ?? "8011"}`;
 
 test.beforeEach(async ({ request }) => {
   const response = await request.post(`${apiBase}/api/e2e/reset-approval-flow`);

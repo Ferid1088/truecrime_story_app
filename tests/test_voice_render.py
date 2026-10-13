@@ -401,8 +401,8 @@ def test_voice_render_api(client, db_session, workdir, monkeypatch):
     # the endpoint renders through production.audio — patch it there, or
     # a configured key would make real (paid) TTS calls from the test
     fake = type("R", (VoiceRenderer,), {
-        "__init__": lambda self: VoiceRenderer.__init__(
-            self, provider=FakeTTS(), asr=FakeASR())
+        "__init__": lambda self, **kwargs: VoiceRenderer.__init__(
+            self, provider=FakeTTS(), asr=FakeASR(), **kwargs)
     })
     import app.api.stories as main_mod
     monkeypatch.setattr(main_mod, "VoiceRenderer", fake)
