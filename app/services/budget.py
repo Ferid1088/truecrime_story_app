@@ -49,10 +49,16 @@ class BudgetService:
 
     def check(self, case_id: int, stage: str, estimated_cost_eur: float) -> BudgetSnapshot:
         current = self.snapshot(case_id)
-        if estimated_cost_eur > current.remaining_eur + 1e-9:
+        actual_stage = self.db.query(func.coalesce(func.sum(ProviderCall.cost_eur), 0.0)).filter(
+            ProviderCall.case_id == case_id, ProviderCall.stage == stage,
+            ProviderCall.cost_eur.is_not(None), ProviderCall.estimated.is_(False),
+        ).scalar() or 0.0
+        required = max(float(estimated_cost_eur), float(actual_stage))
+        if required > current.remaining_eur + 1e-9:
             case = self.db.get(Case, case_id)
             assert case is not None
-            reason = (f"Budget stopped before {stage}: estimated €{estimated_cost_eur:.2f} "
+            reason = (f"Budget stopped before {stage}: max(estimate €{estimated_cost_eur:.2f}, "
+                      f"actual so far €{float(actual_stage):.2f}) = €{required:.2f} "
                       f"would exceed the remaining €{current.remaining_eur:.2f}.")
             case.status = "budget stopped"
             case.budget_stop_reason = reason
@@ -64,7 +70,8 @@ class BudgetService:
                units: float | None, cost_usd: float | None = None,
                cost_eur: float | None = None, tokens_in: int | None = None,
                tokens_out: int | None = None, ok: bool = True,
-               error: str | None = None) -> ProviderCall:
+               error: str | None = None, estimated: bool = False,
+               documentary_job_id: int | None = None) -> ProviderCall:
         converted = cost_eur
         if converted is None and cost_usd is not None:
             converted = float(cost_usd) * ai_config.budget.usd_to_eur
@@ -72,7 +79,8 @@ class BudgetService:
                            path=f"/{stage}", status=200 if ok else 402, ok=ok,
                            duration_ms=0, tokens_in=tokens_in, tokens_out=tokens_out,
                            cost_usd=cost_usd, error=error, case_id=case_id,
-                           stage=stage, model=model, units=units, cost_eur=converted)
+                           stage=stage, model=model, units=units, cost_eur=converted,
+                           estimated=estimated, documentary_job_id=documentary_job_id)
         self.db.add(row)
         self.db.commit()
         return row

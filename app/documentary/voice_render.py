@@ -170,12 +170,22 @@ def select_blocks(blocks: list[dict], max_seconds: float | None) -> list[dict]:
 
 class VoiceRenderer:
     def __init__(self, provider: VoiceProvider | None = None, asr=None,
-                 use_asr: bool = True, listener=None, use_listener: bool = True):
+                 use_asr: bool = True, listener=None, use_listener: bool = True,
+                 db=None, budget_case_id: int | None = None,
+                 budget_stage: str | None = None,
+                 documentary_job_id: int | None = None,
+                 budget_pilot_seconds: float | None = None):
         self.cfg = ai_config.voice
         self.loud = ai_config.loudness
         self.asr_cfg = ai_config.asr_check
         self.pron_cfg = ai_config.pronunciation
         self.provider = provider or get_voice_provider()
+        self.db = db
+        self.budget_case_id = budget_case_id
+        self.budget_stage = budget_stage
+        self.documentary_job_id = documentary_job_id
+        self.budget_pilot_seconds = budget_pilot_seconds
+        self._budget_usage_missing = False
         self.asr_error: str | None = None
         # phoneme listener for the pronunciation loop (loaded when needed)
         self._listener = listener
@@ -252,6 +262,23 @@ class VoiceRenderer:
         cache_hit = meta is not None
         if not cache_hit:
             res = await self.provider.synthesize(req)
+            if res.character_cost is None:
+                self._budget_usage_missing = True
+            if self.db is not None and self.budget_case_id is not None and res.character_cost is not None:
+                from app.services.budget import BudgetService
+
+                from app.services.cost_model import load_pricing
+
+                price = float(load_pricing()["tts"]["eleven_v3"]["eur_per_1m_characters"])
+                BudgetService(self.db).record(
+                    case_id=self.budget_case_id,
+                    stage=self.budget_stage or f"tts:{language}",
+                    model=res.model_id,
+                    units=res.character_cost,
+                    cost_eur=float(res.character_cost) / 1_000_000 * price,
+                    estimated=False,
+                    documentary_job_id=self.documentary_job_id,
+                )
             # the audio first, the sidecar last: a take counts as saved
             # only when both exist, and neither is ever half written
             storage.write_atomic(raw, res.audio)
@@ -635,4 +662,16 @@ class VoiceRenderer:
         }
         storage.write_atomic(out / "manifest.json",
                              json.dumps(manifest, ensure_ascii=False, indent=2))
+        if self.db is not None and self.budget_case_id is not None and self._budget_usage_missing:
+            from app.services.budget import BudgetService
+            from app.services.cost_model import estimate_stage_eur
+
+            BudgetService(self.db).record(
+                case_id=self.budget_case_id, stage=self.budget_stage or f"tts:{language}",
+                model=lang_cfg.model_id, units=None,
+                cost_eur=estimate_stage_eur(self.db, self.budget_case_id,
+                                             self.budget_stage or f"tts:{language}",
+                                             self.budget_pilot_seconds),
+                estimated=True, documentary_job_id=self.documentary_job_id,
+            )
         return manifest

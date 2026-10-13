@@ -103,7 +103,52 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
         row.status = "completed"
         row.completed_at = utc_now()
         row.duration_ms = int((time.monotonic() - monotonic) * 1000)
+        _record_provider_call(db, row)
         db.commit()
+
+
+def _record_provider_call(db: Session, run: AgentRun) -> None:
+    """Copy provider-reported usage into the EUR budget ledger.
+
+    A provider that omits usage is still represented once for the stage with
+    its configured estimate and ``estimated=true``. This keeps the budget
+    gate conservative without inventing provider usage numbers.
+    """
+    if run.case_id is None or run.provider is None:
+        return
+    from app.db.models import ProviderCall
+    from app.services.budget import BudgetService
+    from app.services.cost_model import estimate_stage_eur, model_cost_eur
+
+    stage = run.pipeline_stage or run.agent_name
+    reported = run.estimated_cost_usd is not None or (
+        run.input_tokens is not None and run.output_tokens is not None)
+    cost_eur = None
+    cost_usd = run.estimated_cost_usd
+    if cost_usd is not None:
+        cost_eur = float(cost_usd) * ai_config.budget.usd_to_eur
+    elif reported:
+        cost_eur = model_cost_eur(run.model, run.input_tokens, run.output_tokens)
+    estimated = cost_eur is None
+    if estimated:
+        # Do not multiply a stage estimate by every usage-less retry.
+        already_estimated = db.query(ProviderCall.id).filter(
+            ProviderCall.case_id == run.case_id,
+            ProviderCall.stage == stage,
+            ProviderCall.estimated.is_(True),
+        ).first()
+        if already_estimated:
+            cost_eur = 0.0
+        else:
+            cost_eur = estimate_stage_eur(db, run.case_id, stage)
+    BudgetService(db).record(
+        case_id=run.case_id, stage=stage, model=run.model,
+        units=(run.total_tokens or ((run.input_tokens or 0) + (run.output_tokens or 0))),
+        cost_usd=cost_usd if not estimated else None,
+        cost_eur=cost_eur, tokens_in=run.input_tokens, tokens_out=run.output_tokens,
+        estimated=estimated,
+        documentary_job_id=run.documentary_job_id,
+    )
 
 
 def stamp_run(

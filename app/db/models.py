@@ -1927,6 +1927,12 @@ class ProviderCall(Base):
     model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     units: Mapped[float | None] = mapped_column(Float, nullable=True)
     cost_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # True when the provider returned no usage and the configured stage
+    # estimate was recorded as a conservative ledger placeholder.
+    estimated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    documentary_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documentary_jobs.id"), nullable=True, index=True
+    )
 
 
 class PolicyEvent(Base):

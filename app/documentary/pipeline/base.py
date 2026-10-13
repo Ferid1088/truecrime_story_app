@@ -166,7 +166,10 @@ class StageRunner:
             "shorts" if pipeline_stage.startswith("short") else
             pipeline_stage
         )
-        estimate = estimate_stage_eur(self.db, self.job.case_id, name)
+        estimate = estimate_stage_eur(
+            self.db, self.job.case_id, name,
+            self.job.pilot_seconds if self.job.mode == "pilot" else None,
+        )
         try:
             BudgetService(self.db).check(self.job.case_id, budget_stage, estimate)
         except BudgetStopped as exc:

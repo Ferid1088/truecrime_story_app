@@ -23,7 +23,10 @@ async def render_documentary_audio(
     The mix chooses tracks from the shared music library and records each
     placement (MusicUsage); it uses `db` when given, else its own session
     — so callers without a session (the job pipeline) keep working."""
-    renderer = renderer or VoiceRenderer()
+    renderer = renderer or VoiceRenderer(
+        db=db, budget_case_id=case_id, budget_stage=f"tts:{plan.get('language', 'en')}",
+        budget_pilot_seconds=max_seconds,
+    )
     manifest = await renderer.render(
         plan, case_id=case_id, story_version_id=story_version_id,
         max_seconds=max_seconds, style=style, force_block_ids=force_block_ids,
