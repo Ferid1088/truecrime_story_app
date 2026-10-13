@@ -199,7 +199,7 @@ test.describe("Case workspace", () => {
     await page.getByLabel("Host outfit").selectOption("OUTFIT_TC_04");
     await expect(page.getByText("Outfit saved and audited")).toBeVisible();
     await expect(page.getByText("badge: Unsolved")).toBeVisible();
-    await expect(page.getByText("host outfit: OUTFIT_TC_03")).toBeVisible();
+    await expect(page.getByText("Host outfit: OUTFIT_TC_04")).toBeVisible();
     await expect(page.getByTestId("scorecard").getByText("Automation feel (risk)")).toBeVisible();
     await page.getByText("1 pictures not usable").click();
     await expect(page.getByText("needs editorial approval")).toBeVisible();

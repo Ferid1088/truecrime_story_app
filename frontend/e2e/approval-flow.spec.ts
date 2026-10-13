@@ -11,7 +11,7 @@ test.beforeEach(async ({ request }) => {
 test("recorded naming succeeds, thumbnail approval applies, and localization approval applies", async ({ page }) => {
   await page.goto("/cases/1");
   await page.getByRole("button", { name: "Naming", exact: true }).click();
-  await page.getByRole("button", { name: "Generate", exact: true }).first().click();
+  await page.getByRole("button", { name: /Generate 7 titles per language/ }).click();
   await expect(page.getByText("The Harbor Ledger 1").first()).toBeVisible({ timeout: 20_000 });
 
   await page.getByRole("button", { name: "Thumbnail", exact: true }).click();

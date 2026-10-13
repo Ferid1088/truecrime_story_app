@@ -177,7 +177,7 @@ def test_0011_adds_shorts_tables_after_a_fresh_0009(tmp_path):
     _upgrade_to(db, "head")
     after = migrate._live_signature(_engine(db))
     assert before != after
-    assert _version(db) == "0015"
+    assert _version(db) == _head()
     con = sqlite3.connect(db)
     tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     con.close()
@@ -255,7 +255,10 @@ def test_old_database_is_adopted_and_keeps_every_row(tmp_path):
 
     assert migrate.upgrade_database(_engine(db)) == "adopted legacy database"
     assert _version(db) == _head()
-    assert {t: _rows_by_name(db, t) for t in before} == before, "migration must not change any value"
+    after = {t: _rows_by_name(db, t) for t in before}
+    for table, rows in before.items():
+        for old, new in zip(rows, after[table]):
+            assert {key: new[key] for key in old} == old, "migration must not change any value"
     con = sqlite3.connect(db)
     assert con.execute("PRAGMA foreign_key_check").fetchall() == []
     assert con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"

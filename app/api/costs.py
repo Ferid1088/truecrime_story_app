@@ -35,7 +35,11 @@ def case_costs(case_id: int, db: Session = Depends(get_db)):
     calls = (db.query(ProviderCall).filter(ProviderCall.case_id == case_id)
              .order_by(ProviderCall.created_at.desc(), ProviderCall.id.desc()).all())
     return {
-        **snapshot,
+        "case_id": case_id,
+        "cap_eur": snapshot.cap_eur,
+        "spent_eur": snapshot.spent_eur,
+        "remaining_eur": snapshot.remaining_eur,
+        "status": snapshot.status,
         "stop_reason": case.budget_stop_reason,
         "calls": [{
             "id": call.id, "stage": call.stage, "model": call.model,

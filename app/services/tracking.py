@@ -54,9 +54,10 @@ def record_run(
     duration = None
     if started_at and completed:
         duration = int((completed - ensure_utc(started_at)).total_seconds() * 1000)
+    metadata = {k: v for k, v in _documentary_metadata().items() if k != "case_id"}
     row = AgentRun(
         case_id=case_id,
-        **_documentary_metadata(),
+        **metadata,
         agent_name=agent_name,
         status=status,
         started_at=ensure_utc(started_at) or utc_now(),
@@ -77,9 +78,10 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
     """Context manager that records an AgentRun around a block of work."""
     started = utc_now()
     monotonic = time.monotonic()
+    metadata = {k: v for k, v in _documentary_metadata().items() if k != "case_id"}
     row = AgentRun(
         case_id=case_id,
-        **_documentary_metadata(),
+        **metadata,
         agent_name=agent_name,
         status="running",
         started_at=started,
