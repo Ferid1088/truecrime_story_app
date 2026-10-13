@@ -42,8 +42,8 @@ class CostLine:
             "reason": self.reason,
             "units": {key: round(value, 2) for key, value in self.units.items()},
             "unit_price_eur": {key: round(value, 8) for key, value in self.unit_price_eur.items()},
-            "eur": {key: round(value, 2) for key, value in self.eur.items()},
-            "estimated_cost_eur": round(self.expected, 2),
+            "eur": {key: round(value, 4) for key, value in self.eur.items()},
+            "estimated_cost_eur": round(self.expected, 4),
             "model": self.model,
         }
 

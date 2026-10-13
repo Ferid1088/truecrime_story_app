@@ -310,7 +310,7 @@ function CasePipelineTab({
           <p>Estimate: low €{dryRun.estimate_range_eur.low.toFixed(2)} · expected €{dryRun.estimate_range_eur.expected.toFixed(2)} · high €{dryRun.estimate_range_eur.high.toFixed(2)} / €{dryRun.cap_eur.toFixed(2)} cap · {dryRun.provider_calls} paid calls</p>
           <p>Cap stop point: {dryRun.stop_stage_if_cap_hit ?? "none; the estimate fits"} · prices verified {dryRun.pricing_last_verified}</p>
           <ul className="grid gap-1 sm:grid-cols-2">{dryRun.stages.map((row) => <li key={row.stage} className={row.status === "skipped" ? "text-muted-foreground" : undefined}>
-            <span className="font-medium">{row.stage}</span>: {row.status === "skipped" ? `skipped — ${row.reason}` : `€${row.eur.expected.toFixed(2)} expected (low €${row.eur.low.toFixed(2)}, high €${row.eur.high.toFixed(2)})`}
+            <span className="font-medium">{row.stage}</span>: {row.status === "skipped" ? `skipped — ${row.reason}` : `€${row.eur.expected < 0.01 ? row.eur.expected.toFixed(4) : row.eur.expected.toFixed(2)} expected (low €${row.eur.low < 0.01 ? row.eur.low.toFixed(4) : row.eur.low.toFixed(2)}, high €${row.eur.high < 0.01 ? row.eur.high.toFixed(4) : row.eur.high.toFixed(2)})`}
           </li>)}</ul>
         </div>}
       </div>

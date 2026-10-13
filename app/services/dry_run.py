@@ -34,7 +34,7 @@ def documentary_dry_run(db: Session, case: Case, languages: list[str] | None = N
         "pricing_last_verified": estimate["pricing_last_verified"],
         "within_cap": total <= cap,
         "stop_stage_if_cap_hit": stop_stage_if_cap_hit,
-        "provider_calls": len([row for row in rows if row["status"] == "run" and row["estimated_cost_eur"] > 0]),
+        "provider_calls": len([row for row in rows if row["status"] == "run"]),
         "stages": rows,
         "sent": False,
     }
