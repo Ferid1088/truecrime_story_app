@@ -22,6 +22,15 @@ def test_dev_up_first_run_safe_status_prints_both_guards():
     assert "TRUECRIME_DISABLE_SCHEDULER=1" in result.stdout
 
 
+def test_dev_up_normalizes_localhost_without_starting_a_second_search_service():
+    env = {**os.environ, "TRUECRIME_SEARXNG_URL": "http://localhost:8085"}
+    result = subprocess.run(
+        [str(ROOT / "scripts" / "dev_up.sh"), "--status"],
+        cwd=ROOT, check=True, capture_output=True, text=True, env=env,
+    )
+    assert "searxng: running (external" in result.stdout
+
+
 def test_first_run_safe_worker_makes_no_calls_or_job_changes_for_one_minute(tmp_path, monkeypatch):
     database = tmp_path / "safe-start.db"
     command.upgrade(migrate.alembic_config(f"sqlite:///{database}"), "head")

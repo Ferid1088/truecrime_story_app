@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, Clock3, Lock, PenLine, Play, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { langLabel } from "@/lib/format";
@@ -131,6 +132,7 @@ interface ActionPanelProps {
 }
 
 export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPanelProps) {
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [chapterText, setChapterText] = useState("");
   const [chapterIndex, setChapterIndex] = useState("0");
@@ -162,13 +164,16 @@ export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPan
   };
 
   const editArtifact = state.artifacts[0];
-  const editable = new Set(["spoken_version", "chapter_plan", "chapter_cards", "timeline_cards", "audio_blocks", "naming", "visual_asset"]);
+  const editable = new Set(["spoken_version", "chapter_plan", "chapter_cards", "timeline_cards"]);
   const canEdit = !!editArtifact && editable.has(editArtifact.type);
   const editTitle = editArtifact?.type === "naming" ? "Edit naming" :
     editArtifact?.type === "visual_asset" ? "Edit thumbnail brief" :
     editArtifact?.type === "audio_blocks" ? "Edit audio plan" :
     editArtifact?.type === "chapter_cards" || editArtifact?.type === "chapter_plan" || editArtifact?.type === "timeline_cards" ? "Edit chapter cards" :
     "Edit spoken chapter text";
+  const structuredEditor = editArtifact?.type === "naming" ? { href: `/cases/${caseId}?tab=Naming`, label: "Open naming editor" } :
+    editArtifact?.type === "visual_asset" ? { href: `/cases/${caseId}?tab=Thumbnail`, label: "Open thumbnail editor" } :
+    editArtifact?.type === "audio_blocks" ? { href: `/documentary/${caseId}`, label: "Open audio plan editor" } : null;
   const changeAutomatic = async (enabled: boolean) => {
     setAutomaticBusy(true);
     setError(null);
@@ -223,6 +228,8 @@ export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPan
               <Textarea aria-label="Edit text" value={chapterText} onChange={(event) => setChapterText(event.target.value)} placeholder="Enter the edited chapter text" rows={5} />
               <Button size="sm" onClick={() => requestPreview("edit")} disabled={!chapterText.trim()} loading={busy === "edit"}>Save edit and preview</Button>
             </>
+          ) : structuredEditor ? (
+            <div className="space-y-2"><p className="text-xs text-muted-foreground">Structured edits are not accepted as free text. Open the specialized editor; its save must return through preview and apply.</p><Button size="sm" variant="outline" onClick={() => router.push(structuredEditor.href)}>{structuredEditor.label}</Button></div>
           ) : <p className="text-xs text-muted-foreground">This artifact has no supported editor.</p>}
         </div>
       )}
@@ -265,7 +272,7 @@ export function StageCard({ stage, state, error, loading, caseId, onPreview, onA
         {loading && <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-4 w-2/3" /></div>}
         {error && <ErrorState message={error} />}
         {!loading && !error && state && <ActionPanel caseId={caseId} state={state} onPreview={onPreview} onAutomatic={(enabled) => onAutomatic(state.stage, enabled)} />}
-        {!loading && !error && !state && <p className="text-xs text-muted-foreground">No pipeline stages are available yet.</p>}
+        {!loading && !error && !state && <p className="text-xs text-muted-foreground">{typeof stage.detail === "string" ? stage.detail : "No pipeline stages are available yet."}</p>}
       </CardContent>
     </Card>
   );
@@ -276,11 +283,12 @@ interface StageListProps {
   job: DocumentaryJob | null;
   language: string;
   onPreview: (preview: StageControlPreview) => void;
+  unavailableStages?: DocumentaryStage[];
 }
 
-export function StageList({ caseId, job, language, onPreview }: StageListProps) {
-  const stages = useMemo(() => job?.stages ?? [], [job?.stages]);
-  const stageNames = useMemo(() => stages.map((stage) => stage.name), [stages]);
+export function StageList({ caseId, job, language, onPreview, unavailableStages = [] }: StageListProps) {
+  const stages = useMemo(() => job?.stages ?? unavailableStages, [job?.stages, unavailableStages]);
+  const stageNames = useMemo(() => job?.stages.map((stage) => stage.name) ?? [], [job?.stages]);
   const [automaticBusy, setAutomaticBusy] = useState(false);
   const stateRequest = useApi(
     () => Promise.all(stageNames.map(async (name) => {
@@ -310,13 +318,13 @@ export function StageList({ caseId, job, language, onPreview }: StageListProps) 
     finally { setAutomaticBusy(false); }
   };
 
-  if (!job || !stages.length) return <EmptyState title="No pipeline stages are available yet." description="Preview the exact rebuild scope before applying any stage action." />;
+  if (!stages.length) return <EmptyState title="No pipeline stages are available yet." description="Preview the exact rebuild scope before applying any stage action." />;
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+      {job && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
         <div><p className="text-sm font-medium">Run the whole case automatically</p><p className="text-xs text-muted-foreground">Preview the exact rebuild scope before applying any stage action.</p></div>
         <Checkbox disabled={automaticBusy} onChange={(event) => void setAllAutomatic(event.target.checked)} label={automaticBusy ? "Loading" : "Run automatically"} />
-      </div>
+      </div>}
       <div className="grid gap-3 xl:grid-cols-2">
         {filtered.map((stage) => <StageCard key={stage.name} stage={stage} state={states[stage.name] ?? null} error={errors[stage.name] ?? null} loading={stateRequest.loading && !stateRequest.data} caseId={caseId} onPreview={onPreview} onAutomatic={setAutomatic} />)}
       </div>

@@ -51,10 +51,16 @@ artifacts execute only when explicitly present in the preview.
 |---|---|---|
 | `spoken_version` | spoken chapter text | edit → preview → apply |
 | `chapter_plan`, `chapter_cards`, `timeline_cards` | chapter-card editor | edit → preview → apply |
-| `audio_blocks` | audio-plan editor | edit → preview → apply |
-| `naming` | naming editor | edit → preview → apply |
-| `visual_asset` | thumbnail brief editor | edit → preview → apply |
+| `audio_blocks` | ActionPanel opens the documentary audio-plan editor; free-text editing is disabled | editor integration remains a documented gap |
+| `naming` | ActionPanel opens the case Naming editor; title approval uses case-control preview/apply | custom-title save remains on the legacy editor path |
+| `visual_asset` | ActionPanel opens the case Thumbnail editor; approval/rejection uses case-control preview/apply | compose save remains on the legacy editor path |
 
 The Run tab is the only stage-control surface. Naming, thumbnail, blueprint and
 music tabs remain read/edit views for their domain data; their pipeline action
 is represented by the corresponding artifact card in the Run-tab ActionPanel.
+Case-level title approval, thumbnail approval/rejection, and localization
+regeneration use `POST /api/cases/{case_id}/control/preview` followed by
+`POST /api/cases/{case_id}/control/apply`; the preview binds the target content
+hash and the apply result reports an empty outside-scope set. Structured editor
+saves not listed as preview/apply above are intentionally retained as a
+follow-up gap and are not represented as free-text stage edits.

@@ -18,13 +18,12 @@ test.describe("Phase 12 short-form workspace", () => {
     await expect(page.getByTestId("candidate-C6-S01")).toBeVisible();
   });
 
-  test("candidate actions update the review state", async ({ page }) => {
+  test("pilot-only candidate actions are visibly unavailable", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
-    await page.getByRole("button", { name: "Approve" }).first().click();
-    await expect(page.getByRole("status")).toContainText("C6-S01");
+    await expect(page.getByText("Not implemented yet — candidate approve, edit, regenerate, and reject actions have no persisted backend.")).toBeVisible();
     await page.getByRole("tab", { name: "Approved", exact: true }).click();
-    await expect(page.getByText("C6-S01").last()).toBeVisible();
+    await expect(page.getByText("Local gate passes are not persisted approvals.")).toBeVisible();
     await page.getByRole("tab", { name: "Publishing Plan", exact: true }).click();
     await expect(page.getByText("Day 14")).toBeVisible();
     await expect(page.getByText("Round-robin concept IDs are dry-run placeholders.")).toBeVisible();

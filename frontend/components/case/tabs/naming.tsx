@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, Sparkles } from "lucide-react";
+import { Pencil, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { CaseNaming, NamingLanguage, TitleCandidate } from "@/lib/types";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/state";
+import { CaseActionPreview } from "@/components/case-action-preview";
 
 const LANGS: { code: NamingLanguage; name: string; rtl: boolean }[] = [
   { code: "en", name: "English", rtl: false },
@@ -199,8 +200,8 @@ function LanguageCard({
                         setEditing(null);
                       })
                     }
-                    onApprove={() => run(`ok-${c.id}`, () => api.approveTitle(caseId, c.id, !!ident?.published))}
                     busy={busy}
+                    caseId={caseId}
                   />
                 ))}
               </tbody>
@@ -274,8 +275,8 @@ function CandidateRow({
   onEdit,
   onCancel,
   onSave,
-  onApprove,
   busy,
+  caseId,
 }: {
   c: TitleCandidate;
   dir: "ltr" | "rtl";
@@ -285,8 +286,8 @@ function CandidateRow({
   onEdit: () => void;
   onCancel: () => void;
   onSave: () => void;
-  onApprove: () => void;
   busy: string | null;
+  caseId: number;
 }) {
   return (
     <tr className="border-t border-border align-top">
@@ -328,15 +329,8 @@ function CandidateRow({
             <Button size="sm" variant="outline" onClick={onEdit} aria-label={`Edit ${c.title}`}>
               <Pencil className="size-3.5" />
             </Button>{" "}
-            <Button
-              size="sm"
-              variant={c.status === "selected" ? "secondary" : "default"}
-              loading={busy === `ok-${c.id}`}
-              disabled={c.status === "selected"}
-              onClick={onApprove}
-            >
-              <Check className="size-3.5" /> Approve
-            </Button>
+            {c.status === "selected" ? <Button size="sm" variant="secondary" disabled>Approved</Button> :
+              <CaseActionPreview caseId={caseId} action="naming_approve" targetId={c.id} />}
           </>
         )}
       </td>
