@@ -69,7 +69,10 @@ trap cleanup EXIT INT TERM
 E2E_DATABASE_URL="$("$ROOT/.venv/bin/python" - <<'PY'
 import os
 from sqlalchemy.engine import make_url
-print(make_url(os.environ["E2E_DB_URL"]).set(database=os.environ["E2E_DB_NAME"]).render_as_string(hide_password=False))
+url = make_url(os.environ["E2E_DB_URL"]).set(database=os.environ["E2E_DB_NAME"])
+from app.core.test_database_guard import assert_safe_test_database
+assert_safe_test_database(url.render_as_string(hide_password=False))
+print(url.render_as_string(hide_password=False))
 PY
 )"
 export TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL"

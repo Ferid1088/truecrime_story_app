@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from sqlalchemy.engine import make_url
 
 
@@ -22,6 +20,7 @@ def is_safe_test_database_url(url: str) -> bool:
     return (
         name.endswith("_test")
         or name.endswith("_tests")
+        or name.endswith("_e2e")
         or name.startswith("test_")
         or "_tmp_" in name
         or name.endswith("_tmp")
@@ -29,10 +28,7 @@ def is_safe_test_database_url(url: str) -> bool:
 
 
 def assert_safe_test_database(url: str) -> None:
-    """Reject live/non-disposable targets unless explicitly overridden."""
-
-    if os.environ.get("TRUECRIME_ALLOW_LIVE_TESTS") == "1":
-        return
+    """Reject live/non-disposable targets with no live-DB override."""
     if not is_safe_test_database_url(url):
         parsed = make_url(url)
         raise RuntimeError(
