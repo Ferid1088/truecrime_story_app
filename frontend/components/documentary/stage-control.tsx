@@ -138,6 +138,12 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
             <Metric label="Languages" value={preview.languages.map(langLabel).join(", ") || "—"} />
             <Metric label="Estimated provider calls" value={preview.estimated_provider_calls.total} />
           </div>
+          {preview.prompt && (
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+              <p className="font-medium">Redo prompt</p>
+              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{preview.prompt}</p>
+            </div>
+          )}
           <div>
             <p className="mb-2 text-xs font-medium">Exact preview scope</p>
             {preview.estimated_scope.length === 0 ? (
@@ -177,7 +183,7 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
           {error && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button onClick={onApply} disabled={stale} loading={applying} data-testid="apply-preview">
+            <Button onClick={onApply} disabled={stale || preview.estimated_scope.length === 0 || (preview.action === "redo_with_prompt" && !preview.prompt?.trim())} loading={applying} data-testid="apply-preview">
               <Check /> Apply
             </Button>
           </div>

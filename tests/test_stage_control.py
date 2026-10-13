@@ -113,6 +113,33 @@ def test_stage_control_automatic_mode_is_persistent(db_session):
     assert service.state(case.id, "spoken:de")["automatic"] is True
 
 
+@pytest.mark.parametrize("stage", ["research", "master_story"])
+def test_pre_artifact_redo_has_prompt_and_downstream_scope(db_session, monkeypatch, stage):
+    case = Case(canonical_title=f"From zero {stage}", slug=f"from-zero-{stage}", language="en")
+    db_session.add(case)
+    db_session.flush()
+    job = DocumentaryJob(
+        case_id=case.id, from_zero=True, status="completed",
+        stages_json=json.dumps([
+            {"name": "research", "status": "done", "detail": None},
+            {"name": "master_story", "status": "done", "detail": None},
+            {"name": "spoken:en", "status": "done", "detail": None},
+        ]),
+    )
+    db_session.add(job)
+    db_session.commit()
+    service = StageControlService(db_session)
+    preview = service.preview(case.id, stage, "redo_with_prompt", prompt="Focus on the timeline.")
+    assert preview["prompt"] == "Focus on the timeline."
+    assert preview["estimated_scope"]
+    assert any(item["will_change"] for item in preview["estimated_scope"])
+    assert any(item["may_change"] for item in preview["estimated_scope"])
+    monkeypatch.setattr("app.documentary.jobs.launch", lambda _job_id: None)
+    result = service.apply(preview["preview_id"])
+    assert result["status"] == "queued"
+    assert result["changed_outside_scope"] == []
+
+
 def test_stage_control_api_contract(db_session, client, monkeypatch):
     case, _job, _roots = _fixture(db_session)
     preview = client.post(f"/api/documentary/{case.id}/stage-control/preview", json={

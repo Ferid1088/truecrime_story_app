@@ -132,10 +132,6 @@ class StageControlService:
                          prompt: str | None, edit: dict[str, Any] | None) -> dict:
         roots = self._rows(job, stage_name)
         scope = self._scope(job, roots) if action != "run_automatically" else []
-        by_stage: dict[str, int] = defaultdict(int)
-        for row in scope:
-            stage = json.loads(row.scope_json or "{}").get("stage", "unknown")
-            by_stage[f"{stage}:{row.language}" if row.language else stage] += 1
         stage_names = sorted({
             f"{json.loads(row.scope_json or '{}').get('stage')}:{row.language}"
             + (f":{json.loads(row.scope_json or '{}').get('short_id')}"
@@ -144,18 +140,74 @@ class StageControlService:
             for row in scope
         })
         languages = sorted({row.language for row in scope if row.language})
+        # Research and master-story can be valid redo targets before their
+        # root artifact exists. Include the real downstream artifacts in the
+        # scope when they exist; otherwise retain a virtual stage boundary.
+        if action != "run_automatically" and not scope and stage_name in {"research", "master_story"}:
+            stages = [item["name"] for item in json.loads(job.stages_json or "[]")]
+            try:
+                selected = stages[stages.index(stage_name):]
+            except ValueError:
+                selected = [stage_name]
+            selected_set = set(selected)
+            all_rows = self.db.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
+            scope = [row for row in all_rows if (
+                (lambda detail: (
+                    f"{detail.get('stage')}:{row.language}" if row.language else detail.get('stage')
+                ))(json.loads(row.scope_json or "{}")) in selected_set
+            )]
+            stage_names = selected
+            languages = sorted({row.language for row in scope if row.language})
+        estimated_scope = [{"id": row.id, "type": row.type,
+                            "language": row.language,
+                            "stage": json.loads(row.scope_json or "{}").get("stage"),
+                            "will_change": row.id in {root.id for root in roots},
+                            "may_change": SOUNDNESS.get(row.type) != "SOUND"}
+                           for row in scope]
+        if action != "run_automatically" and not estimated_scope and stage_name in {"research", "master_story"}:
+            stages = [item["name"] for item in json.loads(job.stages_json or "[]")]
+            try:
+                start = stages.index(stage_name)
+            except ValueError:
+                start = 0
+            selected = stages[start:]
+            for name in selected:
+                base = name.split(":", 1)[0]
+                language = name.rsplit(":", 1)[1] if ":" in name else None
+                estimated_scope.append({
+                    "id": f"stage:{job.id}:{name}",
+                    "type": STAGE_ARTIFACT_TYPES.get(base, (base,))[0],
+                    "language": language,
+                    "stage": name,
+                    "will_change": name == stage_name,
+                    "may_change": name != stage_name,
+                })
+                stage_names.append(name)
+                if language:
+                    languages.append(language)
+            stage_names = list(dict.fromkeys(stage_names))
+            languages = sorted(set(languages))
+        if (action != "run_automatically" and stage_name in {"research", "master_story"}
+                and estimated_scope and not any(item.get("stage") == stage_name for item in estimated_scope)):
+            base = stage_name.split(":", 1)[0]
+            estimated_scope.insert(0, {
+                "id": f"stage:{job.id}:{stage_name}",
+                "type": STAGE_ARTIFACT_TYPES.get(base, (base,))[0],
+                "language": None, "stage": stage_name,
+                "will_change": True, "may_change": False,
+            })
+        by_stage: dict[str, int] = defaultdict(int)
+        for row in scope:
+            detail = json.loads(row.scope_json or "{}")
+            stage = detail.get("stage", "unknown")
+            by_stage[f"{stage}:{row.language}" if row.language else stage] += 1
         return {
             "case_id": job.case_id, "job_id": job.id, "stage": stage_name,
             "action": action, "prompt": prompt, "edit": edit or {},
             "artifact_ids": [row.id for row in scope],
             "stage_names": stage_names,
             "languages": languages,
-            "estimated_scope": [{"id": row.id, "type": row.type,
-                                 "language": row.language,
-                                 "stage": json.loads(row.scope_json or "{}").get("stage"),
-                                 "will_change": row.id in {root.id for root in roots},
-                                 "may_change": SOUNDNESS.get(row.type) != "SOUND"}
-                                for row in scope],
+            "estimated_scope": estimated_scope,
             "estimated_provider_calls": {"total": len(scope), "by_stage": dict(sorted(by_stage.items()))},
             "bound_hashes": {row.id: {"input_hash": row.input_hash,
                                       "output_hash": row.output_hash}
@@ -206,6 +258,8 @@ class StageControlService:
         if action == "edit" and not edit:
             raise StageControlError("edit action requires an edit payload")
         payload = self._preview_payload(job, stage_name, action, prompt, edit)
+        if action != "run_automatically" and not payload["estimated_scope"]:
+            raise StageControlError("no change scope is available; Apply is disabled")
         row = EditLog(actor="api", scope_type="stage", scope_id=(payload["artifact_ids"] or [stage_name])[0],
                       instruction_text=prompt, intent_json=json.dumps({"action": action}),
                       scope_preview_json=json.dumps(payload, ensure_ascii=False, sort_keys=True),

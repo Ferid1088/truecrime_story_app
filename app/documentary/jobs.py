@@ -627,7 +627,16 @@ async def research_case(db: Session, case: Case, check_cancel,
 
         job = await start_update_research(db, case, doc_job.follow_up_id)
     if job is None:
-        job = await research_jobs.start_research_job(db, case)
+        objective = None
+        if doc_job is not None:
+            try:
+                objective = json.loads(doc_job.result_json or "{}").get("stage_control_prompt")
+            except (TypeError, ValueError):
+                pass
+        if objective:
+            job = await research_jobs.start_research_job(db, case, objective=objective)
+        else:
+            job = await research_jobs.start_research_job(db, case)
     waited = 0.0
     while job.status in ("queued", "running"):
         check_cancel()
@@ -708,10 +717,16 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
     if status in ("incomplete_evidence", "failed", "insufficient_research"):
         raise RuntimeError(
             f"Master story blocked ({status}): {report['master_readiness'].get('reason')}")
+    instruction = None
+    try:
+        instruction = json.loads(job.result_json or "{}").get("stage_control_prompt")
+    except (TypeError, ValueError):
+        pass
     story = await StoryPipeline(roles=MASTER_ROLES).run(
         db=db, case=case, target_minutes=minutes, language=canonical,
         tone=defaults.tone, iterations=defaults.iterations, kind="master",
-        words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up)
+        words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up,
+        instruction=instruction)
     struct = json.loads(story.narrative_structure or "{}")
     return {"master_version_id": story.id, "minutes": minutes, "status": story.status,
             "opening_strategy": struct.get("opening_strategy"),
@@ -864,6 +879,11 @@ async def run_job(job_id: int, session_factory=None):
             db.commit()
             _set_case_state(db, job.case_id, "producing")
             scope_edit, execution_scope = _stage_control_scope(db, job.id)
+            if scope_edit is not None and execution_scope is not None:
+                result = json.loads(job.result_json or "{}")
+                result["stage_control_prompt"] = scope_edit.instruction_text
+                job.result_json = json.dumps(result, ensure_ascii=False)
+                db.commit()
             before_snapshot = _artifact_snapshot(db, job.id) if execution_scope else None
             pipeline = DocumentaryPipeline(db, job, execution_scope=execution_scope)
             pipeline_error = None
@@ -948,6 +968,7 @@ def _stage_control_scope(db: Session, job_id: int) -> tuple[EditLog | None, dict
         except (TypeError, ValueError):
             continue
         if payload.get("job_id") == job_id and result.get("status") == "queued":
+            payload["prompt"] = edit.instruction_text
             return edit, payload
     return None, None
 

@@ -871,6 +871,7 @@ class StoryPipeline:
         kind: str = "direct",
         words_per_minute: int | None = None,
         follow_up: dict | None = None,
+        instruction: str | None = None,
     ) -> StoryVersion:
         facts = db.query(Fact).filter(Fact.case_id == case.id).all()
         contradictions = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
@@ -894,6 +895,8 @@ class StoryPipeline:
         db.commit()
         try:
             context = editorial_context(db, case, follow_up)
+            if instruction:
+                context["user_instruction"] = instruction
             with track_run(db, case.id, "Story Director") as run:
                 plan, res = await self.director.design(
                     case, pack, target_minutes, language,
