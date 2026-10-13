@@ -7,12 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/state";
 import { FilmList } from "@/components/lifecycle/films";
+import { ApprovalBundles } from "@/components/lifecycle/approval-bundles";
 
 /** The films made of this case (one per language), with publish/archive. */
 export function FilmsTab({ caseId }: { caseId: number }) {
   const { data, error, loading, refetch } = useApi(() => api.listFilms({ case_id: caseId }), [caseId], {
     keepPrevious: true,
   });
+  const bundles = useApi(() => api.approvalBundles(caseId), [caseId], { keepPrevious: true });
 
   if (!data && loading) return <TableSkeleton rows={3} cols={4} />;
   if (!data && error) return <ErrorState message={error} onRetry={refetch} />;
@@ -42,6 +44,7 @@ export function FilmsTab({ caseId }: { caseId: number }) {
         {error && <p className="px-4 pt-3 text-xs text-rose-500">Could not refresh: {error}</p>}
         <FilmList films={data} onChanged={refetch} />
       </CardContent>
+      {bundles.data && <ApprovalBundles bundles={bundles.data} onChanged={bundles.refetch} />}
     </Card>
   );
 }

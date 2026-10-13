@@ -1529,6 +1529,55 @@ class Video(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class ApprovalBundle(Base):
+    """Per-language approval gate for one long film and its Shorts."""
+
+    __tablename__ = "approval_bundles"
+    __table_args__ = (UniqueConstraint("case_id", "language", name="uq_approval_bundle_case_language"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    visibility: Mapped[str] = mapped_column(String(20), default="private")
+    account_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    bundle_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    upload_status: Mapped[str] = mapped_column(String(20), default="not_started")
+    upload_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    upload_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    release_now: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+    items = relationship("ApprovalBundleItem", back_populates="bundle", cascade="all, delete-orphan")
+
+
+class ApprovalBundleItem(Base):
+    """One hash-bound film or short inside an approval bundle."""
+
+    __tablename__ = "approval_bundle_items"
+    __table_args__ = (
+        UniqueConstraint("bundle_id", "item_type", "item_id", name="uq_approval_bundle_item"),
+        Index("ix_approval_bundle_items_bundle_status", "bundle_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bundle_id: Mapped[int] = mapped_column(ForeignKey("approval_bundles.id"), index=True)
+    item_type: Mapped[str] = mapped_column(String(20))
+    item_id: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(500))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    approved_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+    bundle = relationship("ApprovalBundle", back_populates="items")
+
+
 class FollowUpCandidate(Base):
     """A case covered while UNSOLVED that has since been solved: waits
     for the user's decision; nothing is produced before approval."""

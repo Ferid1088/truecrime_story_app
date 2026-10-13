@@ -765,6 +765,34 @@ export interface FilmListItem extends Film {
   case_status: ResolutionStatus;
 }
 
+export interface ApprovalBundleItem {
+  id: number;
+  item_type: "film" | "short";
+  item_id: number;
+  label: string;
+  content_hash: string;
+  approved_hash: string | null;
+  status: "pending" | "approved" | "excluded" | "needs_review";
+  reviewed_at: string | null;
+}
+
+export interface ApprovalBundle {
+  id: number;
+  case_id: number;
+  language: string;
+  status: "draft" | "approved";
+  visibility: "private" | "draft";
+  account_connected: boolean;
+  bundle_hash: string | null;
+  approved_at: string | null;
+  upload_status: string;
+  upload_id: string | null;
+  upload_error: string | null;
+  uploaded_at: string | null;
+  release_now: boolean;
+  items: ApprovalBundleItem[];
+}
+
 export interface PublishFilmPayload {
   episode_number?: number | null;
   youtube_url?: string | null;

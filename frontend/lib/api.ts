@@ -18,6 +18,7 @@ import type {
   DuplicateConflict,
   Film,
   FilmListItem,
+  ApprovalBundle,
   FollowUpCandidate,
   FollowUpState,
   MonitorRun,
@@ -338,6 +339,13 @@ export const api = {
     post<FilmListItem & { follow_ups: Film[] }>(`/api/films/${videoId}/publish`, payload),
   archiveFilm: (videoId: number) =>
     post<FilmListItem & { follow_ups: Film[] }>(`/api/films/${videoId}/archive`),
+  approvalBundles: (caseId: number) => request<ApprovalBundle[]>(`/api/cases/${caseId}/approval-bundles`),
+  approvalBundle: (caseId: number, language: string) =>
+    request<ApprovalBundle>(`/api/cases/${caseId}/approval-bundles/${language}`),
+  decideApprovalBundleItem: (caseId: number, language: string, itemType: string, itemId: number, decision: string) =>
+    post<ApprovalBundle>(`/api/cases/${caseId}/approval-bundles/${language}/items/${itemType}/${itemId}/${decision}`),
+  approveApprovalBundle: (caseId: number, language: string) =>
+    post<ApprovalBundle>(`/api/cases/${caseId}/approval-bundles/${language}/approve`),
   archive: (status: ArchiveFilter = "ALL") =>
     request<ArchiveResponse>(`/api/archive${query({ status })}`),
   videoCostSummary: () => request<VideoCostSummary>("/api/costs/videos"),

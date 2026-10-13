@@ -16,9 +16,10 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import RESOLUTION_STATUSES, ai_config
 from app.db.base import get_db
 from app.db.models import (
-    Case, CaseStatusCheck, DiscoveryCandidate, DocumentaryJob, FollowUpCandidate, MediaUsage,
+    ApprovalBundle, ApprovalBundleItem, Case, CaseStatusCheck, DiscoveryCandidate, DocumentaryJob, FollowUpCandidate, MediaUsage,
     MonitorRun, MusicTrack, MusicUsage, ProductionScript, VisualAsset, VisualPlan, Video,
 )
+from app.services import approval_bundles
 from app.lifecycle import followups as F
 from app.lifecycle import scheduler as S
 from app.lifecycle import videos as V
@@ -42,6 +43,42 @@ def _loads(text, default):
         return json.loads(text) if text else default
     except (TypeError, ValueError):
         return default
+
+
+@router.get("/api/cases/{case_id}/approval-bundles")
+def list_approval_bundles(case_id: int, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    languages = sorted({row.language for row in db.query(Video).filter(Video.case_id == case_id,
+                                                                        Video.state != "archived").all()})
+    return [approval_bundles.bundle_dict(db, approval_bundles.bundle_for(db, case_id, language))
+            for language in languages]
+
+
+@router.get("/api/cases/{case_id}/approval-bundles/{language}")
+def get_approval_bundle(case_id: int, language: str, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    return approval_bundles.bundle_dict(db, approval_bundles.bundle_for(db, case_id, language))
+
+
+@router.post("/api/cases/{case_id}/approval-bundles/{language}/items/{item_type}/{item_id}/{decision}")
+def decide_approval_bundle_item(case_id: int, language: str, item_type: str, item_id: int,
+                                decision: str, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    bundle = approval_bundles.bundle_for(db, case_id, language)
+    try:
+        result = approval_bundles.decide_item(db, bundle, item_type, item_id, decision)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return approval_bundles.bundle_dict(db, result)
+
+
+@router.post("/api/cases/{case_id}/approval-bundles/{language}/approve")
+def approve_approval_bundle(case_id: int, language: str, db: Session = Depends(get_db)):
+    _case(db, case_id)
+    bundle = approval_bundles.bundle_for(db, case_id, language)
+    if bundle.status != "approved":
+        raise HTTPException(status_code=409, detail="Every included item must be approved or excluded")
+    return approval_bundles.bundle_dict(db, bundle)
 
 
 # ---------------------------------------------------------------------------
