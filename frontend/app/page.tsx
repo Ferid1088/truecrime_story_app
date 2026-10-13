@@ -122,6 +122,14 @@ export default function DashboardPage() {
             </section>
           )}
 
+          {data.stats.total_cases === 0 && (
+            <section className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-5" data-testid="dashboard-empty-guidance">
+              <h2 className="font-semibold">Start with a case</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Use discovery to find a case, or open Cases to add one manually. The pipeline will guide research, story, film and Shorts work from there.</p>
+              <div className="mt-3 flex flex-wrap gap-3 text-sm"><Link href="/discover" className="text-primary hover:underline">Open Discover</Link><Link href="/cases" className="text-primary hover:underline">Open Cases</Link></div>
+            </section>
+          )}
+
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <Stat icon={FolderOpen} label="Total Cases" value={data.stats.total_cases} />
             <Stat icon={FlaskConical} label="Researched" value={data.stats.cases_researched} />

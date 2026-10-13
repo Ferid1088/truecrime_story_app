@@ -230,7 +230,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
         ))}
       </div>
 
-      {tab === "Overview" && <OverviewTab caseData={caseData} />}
+      {tab === "Overview" && <OverviewTab caseData={caseData} jobs={caseJobs.data ?? []} />}
       {tab === "Pipeline" && <CasePipelineTab caseId={caseId} jobs={caseJobs.data ?? []} loading={caseJobs.loading && !caseJobs.data} error={caseJobs.error} onRetry={caseJobs.refetch} />}
       {tab === "Status" && <StatusTab caseData={caseData} onChanged={refetch} />}
       {tab === "Naming" && <NamingTab caseId={caseId} />}

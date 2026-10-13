@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, CircleDashed, Loader2, X } from "lucide-react";
-import type { CaseDetail } from "@/lib/types";
+import type { CaseDetail, DocumentaryJob } from "@/lib/types";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDate, langLabel } from "@/lib/format";
@@ -16,11 +16,11 @@ function stageState(done: boolean, active: boolean, failed = false): StageState 
   return done ? "complete" : "waiting";
 }
 
-export function OverviewTab({ caseData }: { caseData: CaseDetail }) {
+export function OverviewTab({ caseData, jobs = [] }: { caseData: CaseDetail; jobs?: DocumentaryJob[] }) {
   const researched = ["researched", "writing", "story_ready", "producing", "rendered", "published", "completed"].includes(caseData.status);
   const hasStory = caseData.story_versions > 0;
 
-  const stages: { label: string; state: StageState }[] = [
+  const legacyStages: { label: string; state: StageState }[] = [
     { label: "Discovery", state: "complete" },
     { label: "Sources", state: stageState(caseData.sources > 0, false) },
     {
@@ -46,6 +46,13 @@ export function OverviewTab({ caseData }: { caseData: CaseDetail }) {
       state: stageState(["completed", "story_ready", "producing", "rendered", "published"].includes(caseData.status), false),
     },
   ];
+  const current = jobs[0];
+  const stages: { label: string; state: StageState }[] = current?.stages?.length
+    ? current.stages.map((stage) => ({
+        label: stage.name.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        state: stageState(stage.status === "done", stage.status === "running", stage.status === "failed"),
+      }))
+    : legacyStages;
 
   const done = stages.filter((s) => s.state === "complete").length;
 
