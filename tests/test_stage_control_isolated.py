@@ -109,6 +109,67 @@ def test_redo_with_prompt_runs_only_previewed_stage_and_dependents(
     assert _call_counts(counter) == Counter({"spoken": 1, "voice": 1})
 
 
+def test_research_redo_increments_result_reaches_prompt_and_stays_in_scope(
+    db_session, client, monkeypatch
+):
+    case = _fixture(db_session)[0]
+    job = DocumentaryJob(
+        case_id=case.id, from_zero=True, status="completed", languages_json='["en"]',
+        stages_json=json.dumps([
+            {"name": "research", "status": "done", "detail": {}},
+            {"name": "master_story", "status": "done", "detail": {}},
+        ]),
+    )
+    db_session.add(job)
+    db_session.flush()
+    research = Artifact(
+        id=f"research-{case.id}", case_id=case.id, stage_job_id=job.id,
+        type="research_result", scope_json=json.dumps({"stage": "research"}),
+        output_hash="before", output_ref="old prompt", version=1, status="fresh",
+    )
+    db_session.add(research)
+    db_session.commit()
+    prompt = "Focus on the timeline and separate confirmed facts from claims."
+    preview = client.post(f"/api/documentary/{case.id}/stage-control/preview", json={
+        "stage": "research", "action": "redo_with_prompt", "prompt": prompt,
+        "job_id": job.id,
+    })
+    assert preview.status_code == 200, preview.text
+    assert research.id in preview.json()["artifact_ids"]
+    monkeypatch.setattr("app.documentary.jobs.launch", lambda _job_id: None)
+    applied = client.post(f"/api/documentary/{case.id}/stage-control/apply", json={
+        "preview_id": preview.json()["preview_id"],
+    })
+    assert applied.status_code == 200, applied.text
+
+    class ResearchFixturePipeline(StageRunner):
+        async def run(self):
+            async def rerun_research():
+                row = self.db.get(Artifact, research.id)
+                row.version += 1
+                row.output_ref = self.result["stage_control_prompt"]
+                row.output_hash = "after"
+                return {"prompt": self.result["stage_control_prompt"]}
+
+            await self._stage("research", rerun_research)
+            await self._stage("master_story", lambda: {"reused": True})
+            return self.result
+
+    monkeypatch.setattr(documentary_jobs, "DocumentaryPipeline", ResearchFixturePipeline)
+    monkeypatch.setattr(
+        "app.services.artifact_shadow.register_stage_outputs", lambda *args, **kwargs: None
+    )
+    factory = sessionmaker(bind=db_session.get_bind(), expire_on_commit=False)
+    asyncio.run(documentary_jobs.run_job(job.id, session_factory=factory))
+    db_session.expire_all()
+    result = json.loads(db_session.query(EditLog).order_by(EditLog.id.desc()).first().result_json)
+    updated = db_session.get(Artifact, research.id)
+    assert updated.version == 2
+    assert updated.output_ref == prompt
+    assert result["changed_outside_scope"] == []
+    assert set(result["previewed_artifact_ids"]) == set(result["executed_artifact_ids"])
+
+
 def test_scope_invariant_detects_injected_outside_dependency_then_passes(
     db_session, client, monkeypatch, tmp_path
 ):
