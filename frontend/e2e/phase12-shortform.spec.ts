@@ -1,7 +1,7 @@
 import { test, expect } from "./test-base";
 import { mockApi } from "./fixtures";
 
-const TABS = ["Candidates", "Rendered shorts", "Settings", "Test Report"];
+const TABS = ["Candidates", "Rendered shorts", "Settings", "Mock run"];
 
 test.describe("Phase 12 short-form workspace", () => {
   test("renders persisted candidates and production defaults", async ({ page }) => {

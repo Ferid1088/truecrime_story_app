@@ -12,15 +12,15 @@ from app.core.files import serve as serve_file
 from app.db.base import get_db
 from app.db.models import (
     AppSetting,
+    Case,
     DocumentaryJob,
     EditLog,
     EditorialBlueprint,
     RenderedShort,
     ShortCandidate,
     ShortFormScript,
-    Video,
-    Case,
     ShortProductionJob,
+    Video,
 )
 from app.documentary import storage
 from app.shortform import pipeline
@@ -79,6 +79,7 @@ class ShortFormAction(BaseModel):
 
 class CreateShortsRequest(BaseModel):
     film_job_id: int | None = None
+    language: str | None = None
 
 
 def _candidate_hash(row: ShortCandidate) -> str:
@@ -99,6 +100,7 @@ def _render_payload(db: Session, row: RenderedShort) -> dict:
         "manifest_url": f"/api/short-form/files/{row.id}/manifest" if row.manifest_path else None,
         "content_hash": row.content_hash, "gate_results": json.loads(row.gate_results_json or "{}"),
         "error": row.error, "film_job_id": row.film_job_id,
+        "render_source": "real" if row.video_path else "pending",
     }
 
 
@@ -161,7 +163,16 @@ def create_shorts(case_id: int, payload: CreateShortsRequest | None = None,
     job = query.order_by(DocumentaryJob.id.desc()).first()
     if job is None:
         raise HTTPException(status_code=409, detail="No completed film is available for Shorts")
-    queue = pipeline.enqueue_for_finished_job(db, job.id)
+    if payload and payload.language:
+        finished_languages = {
+            film.language for film in db.query(Video).filter(
+                Video.job_id == job.id, Video.state == "rendered").all()
+        }
+        if payload.language not in finished_languages:
+            raise HTTPException(status_code=409, detail="That language film is not finished")
+    queue = pipeline.enqueue_for_finished_job(
+        db, job.id, language=payload.language if payload else None
+    )
     if queue is None:
         raise HTTPException(status_code=409, detail="Film is not finished")
     return {"queue_id": queue.id, "film_job_id": job.id, "status": queue.status}
@@ -180,6 +191,20 @@ def short_form_queue(case_id: int, db: Session = Depends(get_db)):
         "error": row.error, "provider_cost_usd": row.provider_cost_usd,
         "created_at": row.created_at, "updated_at": row.updated_at,
     } for row in rows]
+
+
+@router.post("/api/short-form/{case_id}/queue/{queue_id}/retry")
+def retry_short_form_queue(case_id: int, queue_id: int, db: Session = Depends(get_db)):
+    row = db.get(ShortProductionJob, queue_id)
+    if row is None or row.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Shorts queue item not found")
+    if row.status not in ("failed", "skipped"):
+        raise HTTPException(status_code=409, detail="Only failed or skipped Shorts jobs can be retried")
+    row.status, row.error = "queued", None
+    row.worker_id, row.lease_until, row.heartbeat_at = None, None, None
+    row.updated_at = utc_now()
+    db.commit()
+    return {"id": row.id, "status": row.status, "language": row.language}
 
 
 @router.patch("/api/short-form/{case_id}/settings")

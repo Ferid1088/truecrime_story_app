@@ -427,12 +427,13 @@ def _queue(db: Session, *, job: DocumentaryJob, stage: str, unique_key: str,
     return row
 
 
-def enqueue_for_finished_job(db: Session, job_id: int) -> ShortProductionJob | None:
+def enqueue_for_finished_job(db: Session, job_id: int, language: str | None = None) -> ShortProductionJob | None:
     """Persist the post-film selection task; this never runs work in-process."""
     job = db.get(DocumentaryJob, job_id)
     if job is None or job.status not in ("completed", "completed_warnings"):
         return None
-    row = _queue(db, job=job, stage="selection", unique_key=f"selection:{job.id}")
+    suffix = f":{language}" if language else ""
+    row = _queue(db, job=job, stage="selection", unique_key=f"selection:{job.id}{suffix}", language=language)
     db.commit()
     return row
 
@@ -483,7 +484,7 @@ def reap_short_jobs(db: Session, *, lease_seconds: float = SHORT_QUEUE_LEASE_SEC
     return ids
 
 
-def _prepare_for_job(db: Session, job: DocumentaryJob) -> dict:
+def _prepare_for_job(db: Session, job: DocumentaryJob, language: str | None = None) -> dict:
     if job.status not in ("completed", "completed_warnings"):
         return {"status": "skipped", "reason": "long film is not finished"}
     if not _enabled(db, job.case_id):
@@ -493,6 +494,8 @@ def _prepare_for_job(db: Session, job: DocumentaryJob) -> dict:
         _set_stage(db, job, "short_selection", "skipped", {"reason": "shorts disabled for case"})
         return {"status": "skipped", "reason": "shorts disabled for case"}
     films = _finished_films(db, job)
+    if language is not None:
+        films = [film for film in films if film.language == language]
     languages = [film.language for film in films if film.language in ai_config.short_form.production.languages]
     if not films or not languages:
         _set_stage(db, job, "short_selection", "skipped", {"reason": "no finished language film"})
@@ -665,7 +668,7 @@ def run_short_queue_job(queue_id: int, session_factory=SessionLocal) -> dict:
             db.commit()
             return {"status": "skipped", "reason": "long film is not finished"}
         if queue.stage == "selection":
-            result = _prepare_for_job(db, job)
+            result = _prepare_for_job(db, job, language=queue.language)
             queue.status = "done" if result.get("status") == "queued" else result.get("status", "skipped")
             queue.output_hash = _hash(result)
             db.commit()

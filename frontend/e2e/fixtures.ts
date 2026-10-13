@@ -466,6 +466,7 @@ export const thumbnailFixture = {
 };
 export const thumbnailOptionsFixture = {
   outfit_id: "OUTFIT_TC_03", host_error: null,
+  outfits: [{ id: "OUTFIT_TC_03", label: "Studio Outfit", pose_count: 2 }, { id: "OUTFIT_TC_04", label: "Field Jacket", pose_count: 3 }],
   host_poses: [{ id: "HOST_TC_03_l", pose: "calm_left", facing: "left" }, { id: "HOST_TC_03_r", pose: "calm_right", facing: "right" }],
   usable: [{ asset_id: 7, code: "VIS_007", kind: "victim", title: "Portrait", rights: "public_domain", tier: 2, thumb: "/api/visuals/7/file?thumb=1" }],
   rejected: [{ asset_id: 8, code: "VIS_008", kind: "place", title: "Harbor", rights: "unknown", tier: 3, thumb: "/api/visuals/8/file?thumb=1", reason: "rights: unknown (needs editorial approval)" }],
@@ -492,6 +493,9 @@ export interface MockOptions {
  */
 export async function mockApi(page: Page, opts: MockOptions = {}) {
   const jobCalls = new Map<string, number>();
+  let shortQueueCalls = 0;
+  let shortManualStarted = false;
+  let shortManualPolls = 0;
   const backup = {
     settings: { enabled: false, dir: "", every_hours: 24, start_time: "02:00", keep_last: 14 },
     runs: [] as Record<string, unknown>[],
@@ -591,6 +595,8 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
         ],
       });
     if (path === "/api/cases/1/thumbnails/options") return json(route, thumbnailOptionsFixture);
+    if (path === "/api/cases/1/thumbnails/outfit" && method === "PATCH")
+      return json(route, { case_id: 1, language: "en", outfit_id: route.request().postDataJSON().outfit_id });
     if (path === "/api/cases/1/thumbnails" && method === "GET") return json(route, [thumbnailFixture]);
     if (path === "/api/thumbnails/1/image") return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
     if (path.startsWith("/api/visuals/")) return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
@@ -630,6 +636,19 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       return json(route, fixtures.shortFormSettings);
     if (path === "/api/short-form/workspace" && method === "GET")
       return json(route, fixtures.shortFormWorkspace);
+    if (path === "/api/short-form/1/queue" && method === "GET") {
+      shortQueueCalls += 1;
+      if (!shortManualStarted) return json(route, []);
+      shortManualPolls += 1;
+      const status = shortManualPolls === 1 ? "queued" : shortManualPolls === 2 ? "running" : "done";
+      return json(route, [{ id: 501, film_job_id: 42, language: "en", stage: "selection", status, attempts: 1, error: null, provider_cost_usd: 0.01, created_at: "2026-10-13T10:00:00Z", updated_at: "2026-10-13T10:00:01Z" }]);
+    }
+    if (path === "/api/short-form/1/create" && method === "POST") {
+      shortManualStarted = true;
+      return json(route, { queue_id: 501, film_job_id: 42, status: "queued" });
+    }
+    if (path === "/api/short-form/1/queue/501/retry" && method === "POST")
+      return json(route, { id: 501, language: "en", status: "queued" });
     if ((path === "/api/short-form/files/201/video" || path === "/api/short-form/files/202/video") && method === "GET")
       return route.fulfill({ status: 200, contentType: "video/mp4", path: SHORT_101_VIDEO });
     if ((path === "/api/short-form/files/201/cover" || path === "/api/short-form/files/202/cover") && method === "GET")

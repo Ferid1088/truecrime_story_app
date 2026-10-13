@@ -2595,8 +2595,22 @@ export interface ThumbnailAssetOption {
 
 export interface ThumbnailOptions {
   outfit_id: string | null;
+  outfits: { id: string; label: string; pose_count: number }[];
   host_poses: { id: string; pose: string; facing: string }[];
   host_error: string | null;
   usable: ThumbnailAssetOption[];
   rejected: ThumbnailAssetOption[];
+}
+
+export interface ShortQueueItem {
+  id: number;
+  film_job_id: number;
+  language: string | null;
+  stage: string;
+  status: "queued" | "running" | "done" | "failed" | "skipped";
+  attempts: number;
+  error: string | null;
+  provider_cost_usd: number;
+  created_at: string;
+  updated_at: string;
 }

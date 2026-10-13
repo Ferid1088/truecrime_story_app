@@ -95,6 +95,7 @@ import type {
   CaseControlAction,
   CaseControlApplyResult,
   CaseControlPreview,
+  ShortQueueItem,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -236,6 +237,11 @@ export const api = {
   shortFormMetrics: (caseId = 6) => request<unknown>(`/api/short-form/metrics?case_id=${caseId}`),
   shortFormWorkspace: (caseId?: number) =>
     request<unknown>(`/api/short-form/workspace${caseId == null ? "" : `?case_id=${caseId}`}`),
+  shortFormQueue: (caseId: number) => request<ShortQueueItem[]>(`/api/short-form/${caseId}/queue`),
+  createShorts: (caseId: number, payload: { film_job_id?: number; language?: string }) =>
+    post<{ queue_id: number; film_job_id: number; status: string }>(`/api/short-form/${caseId}/create`, payload),
+  retryShortsQueue: (caseId: number, queueId: number) =>
+    post<{ id: number; language: string | null; status: string }>(`/api/short-form/${caseId}/queue/${queueId}/retry`),
   shortFormCandidatePreview: (caseId: number, candidateId: number, payload: unknown) =>
     post<unknown>(`/api/short-form/${caseId}/candidates/${candidateId}/preview`, payload),
   shortFormRenderPreview: (caseId: number, renderId: number, payload: unknown) =>
@@ -295,6 +301,8 @@ export const api = {
     request<ThumbnailRecord[]>(`/api/cases/${caseId}/thumbnails${query({ language })}`),
   thumbnailOptions: (caseId: number, language: NamingLanguage) =>
     request<ThumbnailOptions>(`/api/cases/${caseId}/thumbnails/options${query({ language })}`),
+  setThumbnailOutfit: (caseId: number, language: NamingLanguage, outfit_id: string) =>
+    patch<{ case_id: number; language: NamingLanguage; outfit_id: string }>(`/api/cases/${caseId}/thumbnails/outfit`, { language, outfit_id }),
   composeThumbnail: (
     caseId: number,
     payload: {
