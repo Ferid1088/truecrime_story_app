@@ -62,7 +62,11 @@ test("production Shorts worker renders a 1080x1920 captioned Persian-safe packag
 
 test("phone viewport has no horizontal overflow on the main screens", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", "/cases/1", "/short-form", "/documentary/1"]) {
+  for (const path of [
+    "/", "/discover", "/cases", "/research", "/studio", "/documentary",
+    "/short-form", "/archive", "/database", "/ops", "/settings",
+    "/cases/1", "/documentary/1",
+  ]) {
     await page.goto(path);
     await expect(page.locator(".animate-pulse")).toHaveCount(0, { timeout: 20_000 });
     const widths = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: window.innerWidth }));
