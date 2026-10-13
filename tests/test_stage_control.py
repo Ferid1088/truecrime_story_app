@@ -70,7 +70,7 @@ def test_stage_control_actions_and_exact_language_scope(db_session, monkeypatch)
             for language in ("en", "fa", "ar")} == {"old en", "old fa", "old ar"}
     assert {language: db_session.get(Artifact, roots[language].id).output_hash
             for language in ("en", "fa", "ar")} == untouched_hashes
-    assert {db_session.query(Artifact).filter_by(language=language).one().status
+    assert {db_session.query(Artifact).filter_by(case_id=case.id, language=language).one().status
             for language in ("en", "fa", "ar")} == {"fresh"}
 
 
