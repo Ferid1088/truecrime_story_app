@@ -1,0 +1,53 @@
+{
+  "currency": "EUR",
+  "last_verified": "2026-10-13",
+  "exchange_rates": {
+    "usd_to_eur": 0.92
+  },
+  "models": {
+    "cheap": {
+      "provider_model": "gpt-5.6-luna",
+      "input_usd_per_1m_tokens": 0.2,
+      "output_usd_per_1m_tokens": 0.8
+    },
+    "writer": {
+      "provider_model": "gemini-3.8-flash",
+      "input_usd_per_1m_tokens": 0.4,
+      "output_usd_per_1m_tokens": 1.5
+    },
+    "premium": {
+      "provider_model": "claude-sonnet-5-5",
+      "input_usd_per_1m_tokens": 3.0,
+      "output_usd_per_1m_tokens": 15.0
+    }
+  },
+  "tts": {
+    "eleven_v3": {
+      "provider_model": "eleven_v3",
+      "eur_per_1m_characters": 30.0
+    }
+  },
+  "image": {
+    "thumbnail": {
+      "provider_model": "configured image provider",
+      "eur_per_image": 0.08
+    },
+    "short_render": {
+      "provider_model": "configured short renderer",
+      "eur_per_render": 0.18
+    }
+  },
+  "heygen": {
+    "provider_model": "configured HeyGen host",
+    "eur_per_minute": 0.55
+  },
+  "assumptions": {
+    "target_minutes": {"low": 45, "expected": 60, "high": 90},
+    "words_per_minute": 130,
+    "short_count": 4,
+    "source_words_floor": 1200,
+    "story_words_floor": 7800,
+    "narration_characters_per_word": 6.0,
+    "range_multipliers": {"low": 0.8, "expected": 1.0, "high": 1.25}
+  }
+}

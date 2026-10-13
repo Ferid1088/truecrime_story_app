@@ -41,27 +41,40 @@ name with every provider call.
 HeyGen is out of scope for the first run. FFmpeg and ffprobe are local tools,
 not provider spend, and must remain the render authority.
 
-## Estimated cost envelope
+## Configured cost model and estimate envelope
 
-These are preflight ceilings and planning estimates, not invoices. Actual
-vendor prices and token usage must be recorded from the provider response and
-compared with the cap before the next stage starts.
+These are computed preflight estimates, not invoices. The single source of
+truth is `config/parameters/pricing.json` (`last_verified: 2026-10-13`). It
+contains the model input/output prices, ElevenLabs character price, image
+prices, HeyGen minute price, and the USD→EUR exchange rate. Units come from
+the case's source words, story words, target film minutes, full narration
+characters, one thumbnail, and four short renders. Actual vendor prices and
+token usage are still recorded from the provider response.
 
 All stages share one configurable per-case cap expressed in EUR. Provider USD
 prices are converted with the configured `usd_to_eur` rate before the ledger is
 checked. The default cap is EUR 20; the existing Shorts cap remains an
 additional Shorts-specific guard.
 
-| Stage | Calls/units to budget | Planning envelope per case |
-| --- | --- | ---: |
-| Research | search/fetch plus configured LLM query planning, reranking and evaluation | `€0.50` estimate |
-| Naming | writer candidates plus title critics | included in the cap |
-| Master story | director, writer, grounding/consistency/engagement/final-edit passes and capped repairs | `€1.00` estimate |
-| Localization | one writer plus quality/grounding/engagement/final-edit passes per language | `€0.50` per language stage |
-| Thumbnail approval | critic/vision calls and any thumbnail redo | `€0.20` estimate |
-| Shorts writing/audit | two calls per short, plus at most two redos; 4 selected shorts × enabled languages | `€2.00` estimate plus Shorts cap |
-| Narration | ElevenLabs characters/minutes per language | `€2.00` estimate |
-| Local render/package | FFmpeg, captions, cover and manifest | `$0` provider spend; local CPU/disk budget only |
+| Stage | Units used | Unit price from config | Estimate shown |
+| --- | --- | --- | --- |
+| Research | source words → input/output tokens | cheap model input/output €/1M | low / expected / high |
+| Master story | source words and target story words → input/output tokens | writer model input/output €/1M | low / expected / high |
+| Spoken version | full story words → input/output tokens | premium model input/output €/1M | low / expected / high |
+| Performance / voice direction | story words plus direction output tokens | premium model input/output €/1M | low / expected / high |
+| ElevenLabs TTS | full narration characters | €/1M characters | low / expected / high |
+| Thumbnail | one image | €/image | low / expected / high |
+| HeyGen / host | target film minutes | €/minute | skipped when host is disabled |
+| Translation | story words per non-English language | writer model input/output €/1M | skipped for English-only |
+| Shorts selection | story words → input/output tokens | writer model input/output €/1M | low / expected / high |
+| Shorts renders | four renders | €/render | low / expected / high |
+| Local render/package | FFmpeg, captions, cover and manifest | no provider price | skipped: local CPU/disk only |
+
+The dry-run response includes each row's units, both LLM input/output unit
+prices where applicable, low/expected/high EUR, and the cap decision. Expected
+and high are checked independently against the EUR 20 case cap; if a range
+would cross the cap, the first paid row whose cumulative estimate crosses it is
+reported as `stop_stage_if_cap_hit`.
 
 The hard stop is the total case cap, checked before every paid stage. The case
 is persisted as `budget stopped` with a retry/raise-cap action when the next
@@ -119,12 +132,15 @@ ledger have been reviewed.
 
 ## Recorded dry-run result
 
-The no-send endpoint runs the same stage planner for one tiny English-only
-case, builds a prompt record for every planned stage, de-duplicates the shared
-paid-stage estimates, and returns the real configured EUR cap and estimate.
-It sends no provider request and writes no upload. With the default stage
-estimates, the English first-run estimate is EUR 6.00, below the EUR 20 cap;
-the returned result includes `sent: false` and `within_cap: true`.
+The no-send endpoint runs the same cost model used by stage-control previews
+and the pre-call budget gate. It builds prompts for every finished-film stage,
+including research, master story, spoken version, performance direction, full
+ElevenLabs narration, thumbnail, optional host, translation status, Shorts
+selection and Shorts renders. It sends no provider request and writes no
+upload. The response includes `estimate_range_eur`, `metrics`, `units`,
+`unit_price_eur`, `pricing_last_verified`, `sent: false`, and the cap stop
+stage. Changing the configured price or the narration length changes both this
+estimate and the redo-preview cost.
 
 The recorded upload contract also preserves an approved bundle after quota,
 token, or resumable transport errors, so retrying transport never silently

@@ -307,9 +307,11 @@ function CasePipelineTab({
         {dryRunError && <p role="alert" className="mt-2 text-xs text-rose-600">{dryRunError}</p>}
         {dryRun && <div className="mt-3 space-y-2 text-xs" data-testid="dry-run-result">
           <p className="font-medium">Dry run complete — nothing was sent.</p>
-          <p>Estimated total: €{dryRun.estimated_cost_eur.toFixed(2)} / €{dryRun.cap_eur.toFixed(2)} cap · {dryRun.provider_calls} paid calls</p>
-          <p>Cap stop point: {dryRun.stop_stage_if_cap_hit ?? "none; the estimate fits"}</p>
-          <ul className="grid gap-1 sm:grid-cols-2">{dryRun.stages.filter((row) => row.estimated_cost_eur > 0).map((row) => <li key={row.stage}>{row.stage}: €{row.estimated_cost_eur.toFixed(2)}</li>)}</ul>
+          <p>Estimate: low €{dryRun.estimate_range_eur.low.toFixed(2)} · expected €{dryRun.estimate_range_eur.expected.toFixed(2)} · high €{dryRun.estimate_range_eur.high.toFixed(2)} / €{dryRun.cap_eur.toFixed(2)} cap · {dryRun.provider_calls} paid calls</p>
+          <p>Cap stop point: {dryRun.stop_stage_if_cap_hit ?? "none; the estimate fits"} · prices verified {dryRun.pricing_last_verified}</p>
+          <ul className="grid gap-1 sm:grid-cols-2">{dryRun.stages.map((row) => <li key={row.stage} className={row.status === "skipped" ? "text-muted-foreground" : undefined}>
+            <span className="font-medium">{row.stage}</span>: {row.status === "skipped" ? `skipped — ${row.reason}` : `€${row.eur.expected.toFixed(2)} expected (low €${row.eur.low.toFixed(2)}, high €${row.eur.high.toFixed(2)})`}
+          </li>)}</ul>
         </div>}
       </div>
       {!selected && <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-sm font-medium">No documentary run exists for this case.</p><p className="mt-1 text-xs text-muted-foreground">Start a documentary run to control its pipeline stages here.</p></div>}

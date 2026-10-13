@@ -40,11 +40,24 @@ export type DocumentaryDryRunResult = {
   languages: string[];
   cap_eur: number;
   estimated_cost_eur: number;
+  estimate_range_eur: { low: number; expected: number; high: number };
   within_cap: boolean;
   stop_stage_if_cap_hit: string | null;
   provider_calls: number;
   sent: boolean;
-  stages: Array<{ stage: string; prompt: string; estimated_cost_eur: number; sends: boolean }>;
+  pricing_last_verified: string;
+  metrics: Record<string, Record<string, number>>;
+  stages: Array<{
+    stage: string;
+    prompt: string;
+    status: "run" | "skipped";
+    reason: string | null;
+    units: Record<string, number>;
+    unit_price_eur: Record<string, number>;
+    eur: { low: number; expected: number; high: number };
+    estimated_cost_eur: number;
+    sends: boolean;
+  }>;
 };
 
 export type RunStatus = "waiting" | "running" | "completed" | "failed";

@@ -24,6 +24,7 @@ from app.db.models import (
     Thumbnail,
 )
 from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES, _stage_detail
+from app.services.cost_model import estimate_stage_eur
 from app.services.policy_events import record_decision
 from app.services.skip_policy import SOUNDNESS
 from app.services.soundness import predicted_change_keys
@@ -201,18 +202,19 @@ class StageControlService:
                 "language": None, "stage": stage_name,
                 "will_change": True, "may_change": False,
             })
-        # Keep cost estimates explicit and stable.  These are preflight
-        # estimates only; the provider ledger remains the source of truth for
-        # actual spend.
+        # Use the same configured model as the dry-run and the budget gate.
+        # Split a stage reservation across its artifact rows so downstream
+        # outputs do not multiply the provider estimate.
         cost_by_stage: dict[str, float] = defaultdict(float)
+        count_by_stage: dict[str, int] = defaultdict(int)
+        for item in estimated_scope:
+            count_by_stage[str(item.get("stage") or "unknown")] += 1
         for item in estimated_scope:
             stage = str(item.get("stage") or "unknown")
-            item["estimated_cost_eur"] = 0.10
+            stage_cost = estimate_stage_eur(self.db, job.case_id, stage)
+            item["estimated_cost_eur"] = round(stage_cost / max(count_by_stage[stage], 1), 6)
             cost_by_stage[stage] += item["estimated_cost_eur"]
-        by_stage: dict[str, int] = defaultdict(int)
-        for item in estimated_scope:
-            stage = item.get("stage") or "unknown"
-            by_stage[str(stage)] += 1
+        by_stage = count_by_stage
         return {
             "case_id": job.case_id, "job_id": job.id, "stage": stage_name,
             "action": action, "prompt": prompt, "edit": edit or {},

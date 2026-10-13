@@ -19,6 +19,7 @@ from app.db.models import Artifact, DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
 from app.services.tracking import documentary_run_context
 from app.services.budget import BudgetService, BudgetStopped
+from app.services.cost_model import estimate_stage_eur
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -165,7 +166,7 @@ class StageRunner:
             "shorts" if pipeline_stage.startswith("short") else
             pipeline_stage
         )
-        estimate = float(ai_config.budget.stage_estimate_eur.get(budget_stage, 0.0))
+        estimate = estimate_stage_eur(self.db, self.job.case_id, name)
         try:
             BudgetService(self.db).check(self.job.case_id, budget_stage, estimate)
         except BudgetStopped as exc:

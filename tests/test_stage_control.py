@@ -6,6 +6,7 @@ import pytest
 
 from app.db.models import Artifact, ArtifactDep, Case, DocumentaryJob, EditLog, StoryVersion
 from app.services.stage_control import StageControlError, StageControlService
+from app.services.cost_model import estimate_stage_eur
 
 
 def _fixture(db):
@@ -62,6 +63,12 @@ def test_stage_control_actions_and_exact_language_scope(db_session, monkeypatch)
     untouched_hashes = {language: roots[language].output_hash for language in ("en", "fa", "ar")}
     assert {item["language"] for item in preview["estimated_scope"]} == {"de"}
     assert preview["estimated_provider_calls"]["total"] == 2
+    expected_preview_cost = round(sum(
+        estimate_stage_eur(db_session, case.id, stage)
+        for stage in ("spoken:de", "voice:de")
+    ), 2)
+    assert preview["estimated_provider_calls"]["total_cost_eur"] == expected_preview_cost
+    assert all(item["estimated_cost_eur"] != 0.10 for item in preview["estimated_scope"])
     monkeypatch.setattr("app.documentary.jobs.launch", lambda _job_id: None)
     result = service.apply(preview["preview_id"])
     assert result["status"] == "queued"
