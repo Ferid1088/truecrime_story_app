@@ -43,6 +43,7 @@
   },
   "assumptions": {
     "target_minutes": {"low": 45, "expected": 60, "high": 90},
+    "host_minutes": {"low": 1.5, "expected": 2.5, "high": 3.0},
     "words_per_minute": 130,
     "short_count": 4,
     "source_words_floor": 1200,

@@ -156,9 +156,10 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
     if ai_config.host.enabled and ai_config.avatar.enabled:
         host_price = float(pricing["heygen"]["eur_per_minute"])
         lines.append(_single_unit_line(
-            pricing, "host:en", "run", None, {"minutes": metrics["target_minutes"]["expected"]},
+            pricing, "host:en", "run", None,
+            {"minutes": float(assumptions["host_minutes"]["expected"])},
             {"eur_per_minute": host_price},
-            {key: metrics["target_minutes"][key] * host_price for key in SCENARIOS},
+            {key: float(assumptions["host_minutes"][key]) * host_price for key in SCENARIOS},
             pricing["heygen"].get("provider_model")))
     else:
         lines.append(_single_unit_line(pricing, "host:en", "skipped",

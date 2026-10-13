@@ -599,6 +599,16 @@ class DocumentaryPipeline(StageRunner):
             raise
         except Exception as e:
             log.warning("optional stage %s failed: %s", name, e)
+            # A cap refusal is an intentional, retryable outcome rather than
+            # a provider failure. Keep the persisted reason, but mark this
+            # optional stage skipped so a disabled/over-cap host cannot make
+            # the otherwise valid film look failed.
+            if isinstance(e, BudgetStopped):
+                entry = self._entry(name)
+                entry["status"] = "skipped"
+                entry["detail"] = {"budget_stopped": True, "reason": e.reason}
+                entry["error_type"] = type(e).__name__
+                self._save()
             from app.documentary.pipeline.base import record_warning
 
             record_warning(self.result, name, f"{type(e).__name__}: {e}")
