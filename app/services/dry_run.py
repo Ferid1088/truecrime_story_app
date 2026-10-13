@@ -8,11 +8,12 @@ from app.db.models import Case
 from app.services.cost_model import documentary_estimate
 
 
-def documentary_dry_run(db: Session, case: Case, languages: list[str] | None = None) -> dict:
+def documentary_dry_run(db: Session, case: Case, languages: list[str] | None = None,
+                        pilot_seconds: float | None = None) -> dict:
     langs = [language for language in (languages or ["en"]) if language == "en"]
     if not langs:
         raise ValueError("The first dry run supports English only")
-    estimate = documentary_estimate(db, case, langs)
+    estimate = documentary_estimate(db, case, langs, pilot_seconds=pilot_seconds)
     cap = float(case.total_cost_cap_eur or 20.0)
     rows = [{**line, "prompt": f"Prepare {line['stage'].replace('_', ' ')} for case: {case.canonical_title}", "sends": False}
             for line in estimate["lines"]]
@@ -32,6 +33,10 @@ def documentary_dry_run(db: Session, case: Case, languages: list[str] | None = N
         "estimate_range_eur": estimate["totals"],
         "metrics": estimate["metrics"],
         "pricing_last_verified": estimate["pricing_last_verified"],
+        "pilot_seconds": pilot_seconds,
+        "price_warnings": estimate["price_warnings"],
+        "token_assumptions": estimate["metrics"].get("tokens", {}),
+        "token_formulas": estimate["token_formulas"],
         "within_cap": total <= cap,
         "stop_stage_if_cap_hit": stop_stage_if_cap_hit,
         "provider_calls": len([row for row in rows if row["status"] == "run"]),

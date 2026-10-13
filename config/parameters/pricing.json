@@ -1,54 +1,100 @@
 {
   "currency": "EUR",
   "last_verified": "2026-10-13",
+  "verification_policy": "Every configured price carries provider source, assumed tier, currency, and verification status. Unverified prices are surfaced as dry-run warnings by stage.",
   "exchange_rates": {
-    "usd_to_eur": 0.92
+    "usd_to_eur": 0.92,
+    "currency": "EUR",
+    "source_url": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html",
+    "plan_or_tier": "Budget conversion assumption; provider invoices remain in USD",
+    "last_verified": "2026-10-13",
+    "verification_status": "unverified"
   },
   "models": {
     "cheap": {
       "provider_model": "gpt-5.6-luna",
       "input_usd_per_1m_tokens": 0.2,
-      "output_usd_per_1m_tokens": 0.8
+      "output_usd_per_1m_tokens": 1.2,
+      "currency": "USD",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      "plan_or_tier": "Standard API, direct OpenAI list price; uncached input/output",
+      "last_verified": "2026-10-13",
+      "verification_status": "verified"
     },
     "writer": {
       "provider_model": "gemini-3.8-flash",
-      "input_usd_per_1m_tokens": 0.4,
-      "output_usd_per_1m_tokens": 1.5
+      "input_usd_per_1m_tokens": 0.75,
+      "output_usd_per_1m_tokens": 3.75,
+      "currency": "USD",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "plan_or_tier": "Standard paid tier; introductory rate through 2026-12-31",
+      "last_verified": "2026-10-13",
+      "verification_status": "verified"
     },
     "premium": {
       "provider_model": "claude-sonnet-5-5",
-      "input_usd_per_1m_tokens": 3.0,
-      "output_usd_per_1m_tokens": 15.0
+      "input_usd_per_1m_tokens": 2.0,
+      "output_usd_per_1m_tokens": 10.0,
+      "currency": "USD",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "plan_or_tier": "Claude API standard token pricing; global routing, no batch/caching modifier",
+      "last_verified": "2026-10-13",
+      "verification_status": "verified"
     }
   },
   "tts": {
     "eleven_v3": {
       "provider_model": "eleven_v3",
-      "eur_per_1m_characters": 30.0
+      "usd_per_1k_characters": 0.08,
+      "eur_per_1m_characters": 73.6,
+      "currency": "USD",
+      "source_url": "https://elevenlabs.io/pricing/api",
+      "plan_or_tier": "ElevenAPI pay-as-you-go, Text to Speech v3; $0.08 per 1,000 characters",
+      "last_verified": "2026-10-13",
+      "verification_status": "verified"
     }
   },
   "image": {
     "thumbnail": {
-      "provider_model": "configured image provider",
-      "eur_per_image": 0.08
-    },
-    "short_render": {
-      "provider_model": "configured short renderer",
-      "eur_per_render": 0.18
+      "provider_model": "unconfigured image provider",
+      "eur_per_image": 0.08,
+      "currency": "EUR",
+      "source_url": "https://platform.openai.com/pricing",
+      "plan_or_tier": "No provider/model is configured for thumbnail generation",
+      "last_verified": "2026-10-13",
+      "verification_status": "unverified",
+      "verification_note": "The current thumbnail is deterministic/local; no official paid image price can be assigned until an image provider and model are configured."
     }
   },
   "heygen": {
-    "provider_model": "configured HeyGen host",
-    "eur_per_minute": 0.55
+    "provider_model": "HeyGen Avatar III",
+    "usd_per_minute": 1.0,
+    "eur_per_minute": 0.92,
+    "currency": "USD",
+    "source_url": "https://help.heygen.com/en/articles/10060327-heygen-api-pricing-explained",
+    "plan_or_tier": "HeyGen API pay-as-you-go, Avatar III, 720p/1080p, charged by generated seconds",
+    "last_verified": "2026-10-13",
+    "verification_status": "verified"
   },
   "assumptions": {
     "target_minutes": {"low": 45, "expected": 60, "high": 90},
     "host_minutes": {"low": 1.5, "expected": 2.5, "high": 3.0},
-    "words_per_minute": 130,
-    "short_count": 4,
+    "words_per_minute": 150,
+    "short_count": 0,
     "source_words_floor": 1200,
     "story_words_floor": 7800,
     "narration_characters_per_word": 6.0,
+    "tokenization": {
+      "words_to_tokens": 1.3,
+      "research_source_text_read": "source_words * words_to_tokens",
+      "research_notes_written": "source_words * 0.45 * words_to_tokens",
+      "master_story_input": "research_notes_tokens",
+      "master_story_output": "target_minutes * words_per_minute * words_to_tokens",
+      "spoken_input": "story_tokens * 1.2",
+      "spoken_output": "story_tokens * 1.05",
+      "performance_input": "story_tokens * 1.1",
+      "performance_output": "900"
+    },
     "range_multipliers": {"low": 0.8, "expected": 1.0, "high": 1.25}
   }
 }
