@@ -30,9 +30,9 @@ const state = (stage: string, pending = false, automatic = false) => ({
     : [{ id: 101, type: stage === "master_story" ? "master_story" : "audio_blocks", language: null, status: "ready" }],
 });
 
-async function mockStageControlApi(page: import("@playwright/test").Page, staleApply = false) {
+async function mockStageControlApi(page: import("@playwright/test").Page, staleApply = false, resultSequence = ["completed"]) {
   let previewCount = 0;
-  let resultStatus = "queued";
+  let resultCalls = 0;
   const automaticStages = new Set<string>();
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -80,9 +80,9 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
     }
     if (path === "/api/documentary/1/stage-control/preview" && method === "POST") {
       previewCount += 1;
-      const payload = route.request().postDataJSON() as { stage: string; action: string };
+      const payload = route.request().postDataJSON() as { stage: string; action: string; prompt?: string };
       return json({
-        case_id: 1, job_id: 12, stage: payload.stage, action: payload.action, prompt: null, edit: {},
+        case_id: 1, job_id: 12, stage: payload.stage, action: payload.action, prompt: payload.prompt ?? null, edit: {},
         artifact_ids: [201], stage_names: ["spoken:de", "voice:de"], languages: ["de"],
         estimated_scope: [{ id: 201, type: "spoken_version", language: "de", stage: "spoken", will_change: true }, { id: 202, type: "audio_blocks", language: "de", stage: "voice", may_change: true }],
         estimated_provider_calls: { total: 2, by_stage: { "spoken:de": 1, "voice:de": 1 } },
@@ -91,10 +91,12 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
     }
     if (path === "/api/documentary/1/stage-control/apply" && method === "POST") {
       if (staleApply) return json({ detail: "inputs changed since preview" }, 409);
-      resultStatus = "completed";
       return json({ preview_id: 1, job_id: 12, status: "queued", previewed_artifact_ids: [201, 202], executed_artifact_ids: [], changed_outside_scope: [] });
     }
-    if (path.match(/\/stage-control\/result\/\d+$/)) return json({ preview_id: 1, case_id: 1, status: "completed", preview: {}, result: { status: resultStatus, previewed_artifact_ids: [201, 202], executed_artifact_ids: [201, 202], executed_stage_names: ["spoken:de", "voice:de"], changed_outside_scope: [] } });
+    if (path.match(/\/stage-control\/result\/\d+$/)) {
+      const status = resultSequence[Math.min(resultCalls++, resultSequence.length - 1)];
+      return json({ preview_id: 1, case_id: 1, status, preview: {}, result: { status, previewed_artifact_ids: [201, 202], executed_artifact_ids: status === "completed" ? [201, 202] : [], executed_stage_names: ["spoken:de", "voice:de"], changed_outside_scope: [], error: status === "failed" ? "Recorded provider failed." : undefined } });
+    }
     if (path === "/api/documentary/1/stage-control/automatic" && method === "POST") {
       const payload = route.request().postDataJSON() as { stage: string; enabled: boolean };
       if (payload.enabled) automaticStages.add(payload.stage); else automaticStages.delete(payload.stage);
@@ -104,8 +106,8 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
   });
 }
 
-async function openFixtureStageControl(page: import("@playwright/test").Page, staleApply = false) {
-  await mockStageControlApi(page, staleApply);
+async function openFixtureStageControl(page: import("@playwright/test").Page, staleApply = false, resultSequence?: string[]) {
+  await mockStageControlApi(page, staleApply, resultSequence);
   await page.goto("/cases/1");
   await page.getByRole("button", { name: "Pipeline", exact: true }).click();
   await expect(page.getByTestId("stage-control-panel")).toBeVisible();
@@ -211,5 +213,42 @@ test.describe("stage-control", () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: "../docs/ui/pipeline-shorts-phone.png", fullPage: true });
+  });
+
+  test("Apply card shows queued, running, and done states", async ({ page }) => {
+    await openFixtureStageControl(page, false, ["queued", "running", "completed"]);
+    const spoken = page.getByTestId("stage-card-spoken:de");
+    await spoken.getByRole("button", { name: "Actions" }).click();
+    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
+    await spoken.getByLabel("Prompt").fill("Make the wording more precise.");
+    await spoken.getByRole("button", { name: "Preview" }).click();
+    await page.getByRole("button", { name: "Apply" }).click();
+    const result = page.getByTestId("stage-control-result");
+    await expect(result).toContainText("queued");
+    await expect(result).toContainText("running");
+    await expect(result).toContainText("completed");
+  });
+
+  test("failed Apply card shows the reason and retry", async ({ page }) => {
+    await openFixtureStageControl(page, false, ["failed"]);
+    const spoken = page.getByTestId("stage-card-spoken:de");
+    await spoken.getByRole("button", { name: "Actions" }).click();
+    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
+    await spoken.getByLabel("Prompt").fill("Retry this wording.");
+    await spoken.getByRole("button", { name: "Preview" }).click();
+    await page.getByRole("button", { name: "Apply" }).click();
+    const result = page.getByTestId("stage-control-result");
+    await expect(result).toContainText("failed");
+    await expect(result).toContainText("Recorded provider failed.");
+    await expect(result.getByRole("button", { name: "Retry this stage" })).toBeVisible();
+  });
+
+  test("empty redo prompt shows a visible message and disables Preview", async ({ page }) => {
+    await openFixtureStageControl(page);
+    const spoken = page.getByTestId("stage-card-spoken:de");
+    await spoken.getByRole("button", { name: "Actions" }).click();
+    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
+    await expect(spoken).toContainText("Enter what should change before preparing a preview.");
+    await expect(spoken.getByRole("button", { name: "Preview" })).toBeDisabled();
   });
 });

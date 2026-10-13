@@ -570,14 +570,22 @@ export function StageControlPanel({ caseId, job }: { caseId: number; job: Docume
     if (!preview) return;
     setApplying(true); setError(null); setStale(false);
     try {
-      await api.stageControlApply(caseId, preview.preview_id);
+      const queued = await api.stageControlApply(caseId, preview.preview_id);
+      setOperation({
+        preview_id: preview.preview_id,
+        case_id: caseId,
+        status: "queued",
+        preview,
+        result: queued,
+      });
+      setPreview(null);
       let latest = await api.stageControlResult(caseId, preview.preview_id);
-      for (let i = 0; i < 30 && latest.result.status === "queued"; i += 1) {
+      for (let i = 0; i < 30 && ["queued", "running"].includes(latest.result.status); i += 1) {
+        setOperation(latest);
         await new Promise((resolve) => setTimeout(resolve, 500));
         latest = await api.stageControlResult(caseId, preview.preview_id);
       }
       setOperation(latest);
-      setPreview(null);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(message);
