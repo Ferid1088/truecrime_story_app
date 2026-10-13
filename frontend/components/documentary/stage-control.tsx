@@ -72,7 +72,7 @@ function stageGroup(name: string): string {
 
 function artifactLabel(type: string): string {
   const labels: Record<string, string> = {
-    spoken_version: "German narration",
+    spoken_version: "Narration",
     audio_blocks: "Audio plan",
     chapter_cards: "Chapter cards",
     timeline_cards: "Timeline cards",
@@ -162,6 +162,7 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
                       {item.language && <Badge variant="outline">{langLabel(item.language)}</Badge>}
                       {item.will_change && <Badge variant="success">will change</Badge>}
                       {item.may_change && !item.will_change && <Badge variant="warning">may change</Badge>}
+                      {item.estimated_cost_eur != null && <span className="text-muted-foreground">€{item.estimated_cost_eur.toFixed(2)}</span>}
                     </span>
                   </li>
                 ))}
@@ -173,9 +174,10 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
               <p className="font-medium">Estimated provider calls</p>
               <p className="mt-1 text-muted-foreground">
                 {Object.entries(preview.estimated_provider_calls.by_stage)
-                  .map(([stage, calls]) => `${stageLabel(stage)} (${calls} call${calls === 1 ? "" : "s"})`)
+                  .map(([stage, calls]) => `${stageLabel(stage)} (${calls} call${calls === 1 ? "" : "s"} · €${(preview.estimated_provider_calls.cost_eur_by_stage?.[stage] ?? 0).toFixed(2)})`)
                   .join(" · ")}
               </p>
+              <p className="mt-1 font-medium">Estimated total: €{(preview.estimated_provider_calls.total_cost_eur ?? 0).toFixed(2)}</p>
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">“Will change” is the stage you selected. “May change” is a conservative downstream inclusion.</p>

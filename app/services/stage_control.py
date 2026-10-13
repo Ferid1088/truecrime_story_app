@@ -122,9 +122,14 @@ class StageControlService:
     def _scope(self, job: DocumentaryJob, roots: list[Artifact]) -> list[Artifact]:
         predicted = predicted_change_keys(self.db, [row.id for row in roots])
         all_rows = self.db.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
+        # A root must be part of the stored scope even when the soundness
+        # prediction only proves its downstream closure.  Without this union
+        # a research redo could display a virtual root while applying only
+        # the eight downstream voice artifacts.
+        root_ids = {row.id for row in roots}
         return sorted(
             [row for row in all_rows
-             if f"{row.type}:{row.language or 'shared'}" in predicted],
+             if row.id in root_ids or f"{row.type}:{row.language or 'shared'}" in predicted],
             key=lambda row: row.id,
         )
 
@@ -162,7 +167,7 @@ class StageControlService:
                             "language": row.language,
                             "stage": json.loads(row.scope_json or "{}").get("stage"),
                             "will_change": row.id in {root.id for root in roots},
-                            "may_change": SOUNDNESS.get(row.type) != "SOUND"}
+                           "may_change": SOUNDNESS.get(row.type) != "SOUND"}
                            for row in scope]
         if action != "run_automatically" and not estimated_scope and stage_name in {"research", "master_story"}:
             stages = [item["name"] for item in json.loads(job.stages_json or "[]")]
@@ -196,11 +201,18 @@ class StageControlService:
                 "language": None, "stage": stage_name,
                 "will_change": True, "may_change": False,
             })
+        # Keep cost estimates explicit and stable.  These are preflight
+        # estimates only; the provider ledger remains the source of truth for
+        # actual spend.
+        cost_by_stage: dict[str, float] = defaultdict(float)
+        for item in estimated_scope:
+            stage = str(item.get("stage") or "unknown")
+            item["estimated_cost_eur"] = 0.10
+            cost_by_stage[stage] += item["estimated_cost_eur"]
         by_stage: dict[str, int] = defaultdict(int)
-        for row in scope:
-            detail = json.loads(row.scope_json or "{}")
-            stage = detail.get("stage", "unknown")
-            by_stage[f"{stage}:{row.language}" if row.language else stage] += 1
+        for item in estimated_scope:
+            stage = item.get("stage") or "unknown"
+            by_stage[str(stage)] += 1
         return {
             "case_id": job.case_id, "job_id": job.id, "stage": stage_name,
             "action": action, "prompt": prompt, "edit": edit or {},
@@ -208,7 +220,12 @@ class StageControlService:
             "stage_names": stage_names,
             "languages": languages,
             "estimated_scope": estimated_scope,
-            "estimated_provider_calls": {"total": len(scope), "by_stage": dict(sorted(by_stage.items()))},
+            "estimated_provider_calls": {
+                "total": len(estimated_scope),
+                "by_stage": dict(sorted(by_stage.items())),
+                "cost_eur_by_stage": {key: round(value, 2) for key, value in sorted(cost_by_stage.items())},
+                "total_cost_eur": round(sum(cost_by_stage.values()), 2),
+            },
             "bound_hashes": {row.id: {"input_hash": row.input_hash,
                                       "output_hash": row.output_hash}
                              for row in roots},

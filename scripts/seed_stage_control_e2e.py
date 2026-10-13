@@ -105,6 +105,11 @@ def main() -> None:
             audit_json="{}",
         ))
         db.flush()
+        db.add(Artifact(id=f"research-{case.id}", case_id=case.id, stage_job_id=job.id,
+                        type="research_result", language=None,
+                        scope_json=json.dumps({"stage": "research", "language": None}),
+                        input_hash="input-research", output_hash="output-research-v1",
+                        status="fresh", version=1))
         roots: dict[str, Artifact] = {}
         for language in ("en", "de", "fa", "ar"):
             root = Artifact(id=f"spoken-{language}-{case.id}", case_id=case.id,

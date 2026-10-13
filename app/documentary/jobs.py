@@ -986,13 +986,29 @@ def _finish_stage_control_scope(db: Session, job: DocumentaryJob, edit: EditLog,
     changed = {artifact_id for artifact_id in set(before) | set(after)
                if before.get(artifact_id) != after.get(artifact_id)}
     outside = sorted(changed - previewed)
-    inside = sorted(changed & previewed)
+    # "executed" describes the artifacts belonging to stages that actually
+    # ran, not only artifacts whose hash happened to change.  This makes the
+    # audit useful for redo correctness and keeps it equal to the previewed
+    # scope for a fully scoped run.
+    executed_stage_names = set(executed_stages)
+    executed = set(changed & previewed)
+    for artifact_id, snapshot in after.items():
+        try:
+            detail = json.loads(snapshot.get("scope_json") or "{}")
+        except (TypeError, ValueError):
+            detail = {}
+        stage = detail.get("stage")
+        language = detail.get("language")
+        name = f"{stage}:{language}" if language else stage
+        if name in executed_stage_names and artifact_id in previewed:
+            executed.add(artifact_id)
+    inside = sorted(executed)
     result = json.loads(edit.result_json or "{}")
     result.update({
         "status": "failed" if error or outside else "completed",
         "previewed_artifact_ids": sorted(previewed),
         "executed_artifact_ids": inside,
-        "executed_stage_names": sorted(set(executed_stages)),
+        "executed_stage_names": sorted(executed_stage_names),
         "changed_outside_scope": outside,
         **({"error": error} if error else {}),
     })

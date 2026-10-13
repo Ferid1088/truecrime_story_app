@@ -1443,6 +1443,7 @@ export interface StageControlPreviewItem {
   may_change?: boolean;
   /** The edited stage/root artifact is always included in the requested change. */
   will_change?: boolean;
+  estimated_cost_eur?: number;
 }
 
 export interface StageControlPreview {
@@ -1456,7 +1457,12 @@ export interface StageControlPreview {
   stage_names: string[];
   languages: string[];
   estimated_scope: StageControlPreviewItem[];
-  estimated_provider_calls: { total: number; by_stage: Record<string, number> };
+  estimated_provider_calls: {
+    total: number;
+    by_stage: Record<string, number>;
+    cost_eur_by_stage?: Record<string, number>;
+    total_cost_eur?: number;
+  };
   bound_hashes: Record<string, { input_hash: string | null; output_hash: string | null }>;
   preview_id: number;
 }

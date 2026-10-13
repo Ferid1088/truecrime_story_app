@@ -160,3 +160,30 @@ def test_stage_control_api_contract(db_session, client, monkeypatch):
     audit = client.get(f"/api/documentary/{case.id}/stage-control/audit")
     assert audit.status_code == 200, audit.text
     assert any(item["rule_id"] == "STAGE_CONTROL_APPLIED" for item in audit.json())
+
+
+def test_research_redo_scope_includes_selected_stage(db_session):
+    case = Case(canonical_title="Research redo", slug="research-redo", language="en")
+    db_session.add(case)
+    db_session.flush()
+    job = DocumentaryJob(case_id=case.id, languages_json='["en"]', status="completed",
+                         stages_json=json.dumps([
+                             {"name": "research", "status": "done", "detail": {}},
+                             {"name": "master_story", "status": "done", "detail": {}},
+                         ]))
+    db_session.add(job)
+    db_session.flush()
+    root = Artifact(id="research-root", case_id=case.id, stage_job_id=job.id,
+                    type="research_result", scope_json=json.dumps({"stage": "research"}),
+                    input_hash="in", output_hash="out", status="fresh", version=2)
+    child = Artifact(id="master-child", case_id=case.id, stage_job_id=job.id,
+                     type="master_story", scope_json=json.dumps({"stage": "master_story"}),
+                     input_hash="in2", output_hash="out2", status="fresh", version=1)
+    db_session.add_all([root, child])
+    db_session.add(ArtifactDep(artifact_id=child.id, depends_on_id=root.id))
+    db_session.commit()
+    preview = StageControlService(db_session).preview(case.id, "research", "redo_with_prompt",
+                                                      prompt="Focus on the timeline.")
+    assert "research-root" in preview["artifact_ids"]
+    assert any(item["id"] == "research-root" and item["will_change"]
+               for item in preview["estimated_scope"])
