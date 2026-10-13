@@ -183,8 +183,9 @@ Screenshots:
 ## G. Commits, restart, and honest not-done list
 
 Previous implementation commit: `6140556ddf2a5ffaac15342cf53fdaed2d244792`.
-The final report/code commit is verified with `git rev-parse HEAD` after the
-final gate and services restart; the handoff records that final hash.
+Final implementation/proof commit verified with `git rev-parse HEAD`:
+`e7894c78a4f5f4be2b72e0aa927e4679136f5cae`. The final documentation commit
+and matching restart are recorded in the handoff.
 
 Not done / explicit blockers:
 
