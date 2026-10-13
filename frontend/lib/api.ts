@@ -196,6 +196,8 @@ const patch = <T>(path: string, body: unknown) =>
 const put = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "PUT", body: JSON.stringify(body) });
 
+const jobQuery = (jobId?: number) => jobId == null ? "" : `?job_id=${jobId}`;
+
 /** "?a=1&b=2" from the set values, "" when none is set. */
 function query(params: Record<string, string | number | null | undefined>): string {
   const qs = new URLSearchParams();
@@ -465,12 +467,16 @@ export const api = {
     ),
   startDocumentaryJob: (caseId: number, payload: DocumentaryJobRequest) =>
     post<DocumentaryJob>(`/api/cases/${caseId}/documentary/jobs`, payload),
+  caseDocumentaryJobs: (caseId: number) =>
+    request<DocumentaryJob[]>(`/api/cases/${caseId}/documentary/jobs`),
   documentaryJob: (jobId: number) => request<DocumentaryJob>(`/api/documentary/jobs/${jobId}`),
-  stageControlState: (caseId: number, stage: string) =>
-    request<StageControlState>(`/api/documentary/${caseId}/stage-control/${encodeURIComponent(stage)}`),
+  stageControlState: (caseId: number, stage: string, jobId?: number) =>
+    request<StageControlState>(
+      `/api/documentary/${caseId}/stage-control/${encodeURIComponent(stage)}${jobQuery(jobId)}`,
+    ),
   stageControlPreview: (
     caseId: number,
-    payload: { stage: string; action: StageControlAction; prompt?: string; edit?: Record<string, unknown> },
+    payload: { stage: string; action: StageControlAction; prompt?: string; edit?: Record<string, unknown>; job_id?: number },
   ) => post<StageControlPreview>(`/api/documentary/${caseId}/stage-control/preview`, payload),
   stageControlApply: (caseId: number, previewId: number) =>
     post<StageControlApplyResult>(`/api/documentary/${caseId}/stage-control/apply`, { preview_id: previewId }),
@@ -478,10 +484,11 @@ export const api = {
     request<StageControlOperationResult>(
       `/api/documentary/${caseId}/stage-control/result/${previewId}`,
     ),
-  stageControlAudit: (caseId: number, stage?: string, language?: string) => {
+  stageControlAudit: (caseId: number, stage?: string, language?: string, jobId?: number) => {
     const params = new URLSearchParams();
     if (stage) params.set("stage", stage);
     if (language) params.set("language", language);
+    if (jobId != null) params.set("job_id", String(jobId));
     const suffix = params.toString() ? `?${params}` : "";
     return request<StageControlAuditEvent[]>(
       `/api/documentary/${caseId}/stage-control/audit${suffix}`,
@@ -494,10 +501,10 @@ export const api = {
     }),
   caseControlApply: (caseId: number, previewId: number) =>
     post<CaseControlApplyResult>(`/api/cases/${caseId}/control/apply`, { preview_id: previewId }),
-  setStageAutomatic: (caseId: number, stage: string, enabled: boolean) =>
+  setStageAutomatic: (caseId: number, stage: string, enabled: boolean, jobId?: number) =>
     post<{ case_id: number; stage: string; automatic: boolean; mode: string }>(
       `/api/documentary/${caseId}/stage-control/automatic`,
-      { stage, enabled },
+      { stage, enabled, job_id: jobId },
     ),
   listDocumentaryJobs: (limit = 20) =>
     request<DocumentaryJobListItem[]>(`/api/documentary/jobs?limit=${limit}`),

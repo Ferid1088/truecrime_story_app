@@ -532,6 +532,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/cases" && method === "GET") return json(route, fixtures.cases);
     if (path === "/api/cases" && method === "POST") return json(route, { id: 2, canonical_title: "New", slug: "new" });
     if (path === "/api/cases/1" && method === "GET") return json(route, fixtures.caseDetail);
+    if (path === "/api/cases/1/documentary/jobs" && method === "GET") return json(route, []);
     if (path === "/api/cases/1" && method === "PATCH") return json(route, { id: 1, status: "archived" });
     if (path === "/api/cases/1/sources" && method === "GET") return json(route, fixtures.sources);
     if (path === "/api/cases/1/corpus-search" && method === "GET")

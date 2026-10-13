@@ -50,6 +50,7 @@ class StageControlPreviewRequest(BaseModel):
     action: Literal["continue", "redo_with_prompt", "edit", "run_automatically"]
     prompt: str | None = None
     edit: dict = Field(default_factory=dict)
+    job_id: int | None = None
 
 
 class StageControlApplyRequest(BaseModel):
@@ -59,6 +60,7 @@ class StageControlApplyRequest(BaseModel):
 class StageAutomaticRequest(BaseModel):
     stage: str
     enabled: bool = True
+    job_id: int | None = None
 
 
 class CaseControlPreviewRequest(BaseModel):
@@ -105,18 +107,21 @@ def stage_control_result(case_id: int, preview_id: int, db: Session = Depends(ge
 
 @router.get("/api/documentary/{case_id}/stage-control/audit")
 def stage_control_audit(case_id: int, stage: str | None = None,
-                        language: str | None = None, db: Session = Depends(get_db)):
+                        language: str | None = None, job_id: int | None = None,
+                        db: Session = Depends(get_db)):
     try:
-        StageControlService(db)._job(case_id)
-        return StageControlService(db).audit(case_id, stage=stage, language=language)
+        StageControlService(db)._job(case_id, job_id)
+        return StageControlService(db).audit(case_id, stage=stage, language=language,
+                                             job_id=job_id)
     except StageControlError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/api/documentary/{case_id}/stage-control/{stage_name:path}")
-def stage_control_state(case_id: int, stage_name: str, db: Session = Depends(get_db)):
+def stage_control_state(case_id: int, stage_name: str, job_id: int | None = None,
+                        db: Session = Depends(get_db)):
     try:
-        return StageControlService(db).state(case_id, stage_name)
+        return StageControlService(db).state(case_id, stage_name, job_id=job_id)
     except StageControlError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -126,7 +131,7 @@ def stage_control_preview(case_id: int, req: StageControlPreviewRequest,
                           db: Session = Depends(get_db)):
     try:
         return StageControlService(db).preview(
-            case_id, req.stage, req.action, req.prompt, req.edit or None)
+            case_id, req.stage, req.action, req.prompt, req.edit or None, req.job_id)
     except StageControlError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -144,7 +149,7 @@ async def stage_control_apply(case_id: int, req: StageControlApplyRequest,
 def stage_control_automatic(case_id: int, req: StageAutomaticRequest,
                             db: Session = Depends(get_db)):
     try:
-        return StageControlService(db).set_automatic(case_id, req.stage, req.enabled)
+        return StageControlService(db).set_automatic(case_id, req.stage, req.enabled, req.job_id)
     except StageControlError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

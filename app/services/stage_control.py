@@ -41,18 +41,20 @@ class StageControlService:
 
     A preview stores the exact artifact ids and content hashes in ``EditLog``.
     Apply refuses stale previews, marks only that stored scope stale, and
-    queues the existing job runner.  The runner remains responsible for
-    producer execution and conservative treatment of unproven artifacts.
+    queues the existing job runner. The runner receives and executes only the
+    stored scope; any conservative inclusion is visible in the preview first.
     """
 
     def __init__(self, db: Session):
         self.db = db
 
-    def _job(self, case_id: int) -> DocumentaryJob:
-        job = (self.db.query(DocumentaryJob).filter(DocumentaryJob.case_id == case_id)
-               .order_by(DocumentaryJob.id.desc()).first())
+    def _job(self, case_id: int, job_id: int | None = None) -> DocumentaryJob:
+        query = self.db.query(DocumentaryJob).filter(DocumentaryJob.case_id == case_id)
+        if job_id is not None:
+            query = query.filter(DocumentaryJob.id == job_id)
+        job = query.order_by(DocumentaryJob.id.desc()).first()
         if job is None:
-            raise StageControlError("case has no documentary job")
+            raise StageControlError("selected run is not available for this case")
         return job
 
     @staticmethod
@@ -137,6 +139,7 @@ class StageControlService:
             "estimated_scope": [{"id": row.id, "type": row.type,
                                  "language": row.language,
                                  "stage": json.loads(row.scope_json or "{}").get("stage"),
+                                 "will_change": row.id in {root.id for root in roots},
                                  "may_change": SOUNDNESS.get(row.type) != "SOUND"}
                                 for row in scope],
             "estimated_provider_calls": {"total": len(scope), "by_stage": dict(sorted(by_stage.items()))},
@@ -145,35 +148,45 @@ class StageControlService:
                              for row in roots},
         }
 
-    def state(self, case_id: int, stage_name: str) -> dict:
-        job = self._job(case_id)
+    def state(self, case_id: int, stage_name: str, job_id: int | None = None) -> dict:
+        job = self._job(case_id, job_id)
         entry = self._entry(job, stage_name)
         rows = self._rows(job, stage_name)
         pending = self._pending(rows)
+        status = entry.get("status", "unknown")
+        if status == "running":
+            allowed: tuple[str, ...] = ()
+        elif status == "failed":
+            allowed = ("continue", "redo_with_prompt", "run_automatically")
+        elif status in ("done", "skipped", "degraded"):
+            allowed = ("redo_with_prompt", "edit", "run_automatically")
+        else:
+            allowed = ("continue", "run_automatically")
         blocked = {
             "continue": "pending user edit or lock" if pending else (
-                "stage is currently running" if entry.get("status") == "running" else None),
+                "stage is currently running" if status == "running" else None),
             "redo_with_prompt": "pending user edit or lock" if pending else (
-                "stage is currently running" if entry.get("status") == "running" else None),
-            "edit": "stage is currently running" if entry.get("status") == "running" else None,
+                "stage is currently running" if status == "running" else None),
+            "edit": "stage is currently running" if status == "running" else None,
             "run_automatically": None,
         }
-        available = [action for action in ACTIONS if blocked[action] is None]
+        available = [action for action in allowed if blocked[action] is None]
         setting = self.db.get(AppSetting, f"stage_control:auto:{case_id}:{stage_name}")
         automatic = json.loads(setting.value_json).get("enabled", False) if setting else False
         return {"case_id": case_id, "job_id": job.id, "stage": stage_name,
-                "status": entry.get("status", "unknown"),
+                "status": status,
                 "available_actions": available, "blocked_actions": blocked,
                 "pending_user_edit": pending, "automatic": automatic,
                 "artifacts": [{"id": row.id, "type": row.type, "language": row.language,
                                "status": row.status} for row in rows]}
 
     def preview(self, case_id: int, stage_name: str, action: str,
-                prompt: str | None = None, edit: dict[str, Any] | None = None) -> dict:
+                prompt: str | None = None, edit: dict[str, Any] | None = None,
+                job_id: int | None = None) -> dict:
         if action not in ACTIONS:
             raise StageControlError(f"unsupported stage action {action!r}")
-        job = self._job(case_id)
-        state = self.state(case_id, stage_name)
+        job = self._job(case_id, job_id)
+        state = self.state(case_id, stage_name, job_id=job.id)
         if action in state["blocked_actions"] and state["blocked_actions"][action]:
             raise StageControlError(state["blocked_actions"][action])
         if action == "edit" and not edit:
@@ -193,7 +206,7 @@ class StageControlService:
                      "artifact_ids": payload["artifact_ids"]})
         return payload
 
-    def _apply_edit(self, payload: dict) -> None:
+    def _apply_edit(self, payload: dict, job: DocumentaryJob) -> None:
         edit = payload.get("edit") or {}
         applied = False
         for artifact in payload.get("estimated_scope", []):
@@ -209,7 +222,7 @@ class StageControlService:
             row = self.db.get(Artifact, artifact["id"])
             if row is None:
                 continue
-            detail = _stage_detail(self._job(payload["case_id"]), "spoken", artifact["language"])
+            detail = _stage_detail(job, "spoken", artifact["language"])
             version_id = detail.get("version_id")
             version = self.db.get(StoryVersion, version_id) if version_id else None
             if version is None or artifact["language"] != edit.get("language", artifact["language"]):
@@ -217,6 +230,18 @@ class StageControlService:
             text = edit.get("story_text", edit.get("text"))
             chapter_text = edit.get("chapter_text")
             chapter_index = edit.get("chapter_index")
+            chapter_title = edit.get("chapter_title")
+            if chapter_text is not None and isinstance(chapter_title, str) and chapter_title:
+                try:
+                    structure = json.loads(version.narrative_structure or "{}")
+                    sections = structure["sections"]
+                    chapter_index = next(
+                        index for index, section in enumerate(sections)
+                        if section.get("title") == chapter_title
+                        or section.get("heading") == chapter_title
+                    )
+                except (KeyError, StopIteration, TypeError, ValueError) as exc:
+                    raise StageControlError("chapter title does not match the spoken structure") from exc
             if chapter_text is not None and isinstance(chapter_index, int):
                 try:
                     structure = json.loads(version.narrative_structure or "{}")
@@ -242,7 +267,7 @@ class StageControlService:
         payload = json.loads(row.scope_preview_json or "{}")
         if case_id is not None and int(payload["case_id"]) != case_id:
             raise StageControlError("preview does not belong to case")
-        job = self._job(int(payload["case_id"]))
+        job = self._job(int(payload["case_id"]), int(payload["job_id"]))
         roots: list[Artifact] = []
         for artifact_id in payload.get("artifact_ids", []):
             artifact = self.db.get(Artifact, artifact_id)
@@ -260,7 +285,7 @@ class StageControlService:
                         {"preview_id": preview_id})
             raise StageControlError("pending user edit or lock")
         if payload["action"] == "edit":
-            self._apply_edit(payload)
+            self._apply_edit(payload, job)
         for artifact_id in payload.get("artifact_ids", []):
             artifact = self.db.get(Artifact, artifact_id)
             if artifact is not None:
@@ -291,8 +316,9 @@ class StageControlService:
                 "status": "queued", "previewed_artifact_ids": payload.get("artifact_ids", []),
                 "executed_artifact_ids": [], "changed_outside_scope": []}
 
-    def set_automatic(self, case_id: int, stage_name: str, enabled: bool) -> dict:
-        job = self._job(case_id)
+    def set_automatic(self, case_id: int, stage_name: str, enabled: bool,
+                      job_id: int | None = None) -> dict:
+        job = self._job(case_id, job_id)
         key = f"stage_control:auto:{case_id}:{stage_name}"
         row = self.db.get(AppSetting, key)
         if row is None:
@@ -472,13 +498,15 @@ class StageControlService:
         return {"preview_id": preview_id, "case_id": actual_case_id, **result}
 
     def audit(self, case_id: int, *, stage: str | None = None,
-              language: str | None = None) -> list[dict]:
+              language: str | None = None, job_id: int | None = None) -> list[dict]:
         """Read stage-control audit records for the case timeline."""
-        rows = (self.db.query(PolicyEvent)
+        production_id = job_id if job_id is not None and self._job(case_id, job_id) else None
+        query = (self.db.query(PolicyEvent)
                 .filter(PolicyEvent.case_id == case_id,
-                        PolicyEvent.rule_id.like("STAGE_CONTROL_%"))
-                .order_by(desc(PolicyEvent.created_at), desc(PolicyEvent.id))
-                .limit(200).all())
+                        PolicyEvent.rule_id.like("STAGE_CONTROL_%")))
+        if production_id is not None:
+            query = query.filter(PolicyEvent.production_id == production_id)
+        rows = query.order_by(desc(PolicyEvent.created_at), desc(PolicyEvent.id)).limit(200).all()
         events = []
         for row in rows:
             try:

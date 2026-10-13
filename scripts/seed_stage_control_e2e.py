@@ -5,7 +5,15 @@ from __future__ import annotations
 import json
 
 from app.db.base import SessionLocal
-from app.db.models import Artifact, ArtifactDep, Case, DocumentaryJob, StoryVersion
+from app.db.models import (
+    Artifact,
+    ArtifactDep,
+    Case,
+    ChapterPlan,
+    DocumentaryJob,
+    EditorialBlueprint,
+    StoryVersion,
+)
 
 
 def main() -> None:
@@ -22,15 +30,21 @@ def main() -> None:
         versions: dict[str, StoryVersion] = {}
         master = StoryVersion(case_id=case.id, version=1, kind="master", language="en",
                               narrative_angle="angle", story_text="A stable master story.",
-                              narrative_structure=json.dumps({"sections": [{"text": "A stable German chapter."}]}),
+                              narrative_structure=json.dumps({"sections": [{
+                                  "title": "Arrival", "text": "A stable master chapter."
+                              }]}),
                               status="approved", text_hash="master-hash")
         db.add(master)
         db.flush()
         for language in ("en", "de", "fa", "ar"):
+            titles = {"en": "Arrival", "de": "Ankunft", "fa": "ورود", "ar": "الوصول"}
             version = StoryVersion(case_id=case.id, version=1, kind="localized", language=language,
                                    master_version_id=master.id, narrative_angle="angle",
                                    story_text=f"Original {language} chapter",
-                                   narrative_structure=json.dumps({"sections": [{"text": f"Original {language} chapter"}]}),
+                                   narrative_structure=json.dumps({"sections": [{
+                                       "title": titles[language],
+                                       "text": f"Original {language} chapter",
+                                   }]}),
                                    status="approved", text_hash=f"story-{language}")
             db.add(version)
             versions[language] = version
@@ -49,6 +63,35 @@ def main() -> None:
                              render_profile="preview", status="completed", progress=1.0,
                              stages_json=json.dumps(stages), result_json="{}")
         db.add(job)
+        db.flush()
+        blueprint = EditorialBlueprint(
+            case_id=case.id,
+            story_version_id=master.id,
+            status="valid",
+            blueprint_json=json.dumps({"acts": [{"id": "act-1", "title": "Arrival"}]}),
+        )
+        db.add(blueprint)
+        db.flush()
+        db.add(ChapterPlan(
+            case_id=case.id,
+            blueprint_id=blueprint.id,
+            version=1,
+            status="approved",
+            languages_json=json.dumps(["en", "de", "fa", "ar"]),
+            plan_json=json.dumps({
+                "languages": ["en", "de", "fa", "ar"],
+                "film_title": {language: "Stage control" for language in ("en", "de", "fa", "ar")},
+                "chapters": [{
+                    "act_id": "act-1",
+                    "number": 1,
+                    "first_beat": "b1",
+                    "last_beat": "b1",
+                    "title": {"en": "Arrival", "de": "Ankunft", "fa": "ورود", "ar": "الوصول"},
+                }],
+                "events": [],
+            }, ensure_ascii=False),
+            audit_json="{}",
+        ))
         db.flush()
         roots: dict[str, Artifact] = {}
         for language in ("en", "de", "fa", "ar"):

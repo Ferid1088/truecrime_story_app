@@ -162,6 +162,7 @@ test.describe("Case workspace", () => {
     for (const tab of [
       "Naming",
       "Thumbnail",
+      "Pipeline",
       "Sources",
       "Corpus Search",
       "Facts",

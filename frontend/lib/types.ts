@@ -1395,6 +1395,8 @@ export interface StageControlPreviewItem {
   stage: string | null;
   /** The backend may flag conservative/unproven scope members. */
   may_change?: boolean;
+  /** The edited stage/root artifact is always included in the requested change. */
+  will_change?: boolean;
 }
 
 export interface StageControlPreview {

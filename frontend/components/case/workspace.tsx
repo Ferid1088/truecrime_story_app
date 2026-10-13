@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Archive, ArrowLeft, CalendarDays, Clapperboard, FlaskConical, MapPin, PenLine } from "lucide-react";
 import { api, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { formatDateTime } from "@/lib/format";
+import type { DocumentaryJob } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
 import { ErrorState } from "@/components/state";
@@ -28,9 +30,12 @@ import { FilmsTab } from "./tabs/films";
 import { AuditTab } from "./tabs/audit";
 import { NamingTab } from "./tabs/naming";
 import { ThumbnailTab } from "./tabs/thumbnail";
+import { StageControlPanel } from "@/components/documentary/stage-control";
+import { Select } from "@/components/ui/select";
 
 const TABS = [
   "Overview",
+  "Pipeline",
   "Status",
   "Naming",
   "Thumbnail",
@@ -71,6 +76,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
     refetch,
   } = useApi(() => api.getCase(caseId), [caseId, researchTick], { keepPrevious: true });
   const caseData = loadedCase && loadedCase.id === caseId ? loadedCase : null;
+  const caseJobs = useApi(() => api.caseDocumentaryJobs(caseId), [caseId], { keepPrevious: true });
 
   useEffect(() => () => pollAbort.current?.abort(), []);
 
@@ -225,6 +231,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       </div>
 
       {tab === "Overview" && <OverviewTab caseData={caseData} />}
+      {tab === "Pipeline" && <CasePipelineTab caseId={caseId} jobs={caseJobs.data ?? []} loading={caseJobs.loading && !caseJobs.data} error={caseJobs.error} onRetry={caseJobs.refetch} />}
       {tab === "Status" && <StatusTab caseData={caseData} onChanged={refetch} />}
       {tab === "Naming" && <NamingTab caseId={caseId} />}
       {tab === "Thumbnail" && <ThumbnailTab caseId={caseId} />}
@@ -256,6 +263,32 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
           </Button>
         </div>
       </Dialog>
+    </div>
+  );
+}
+
+function CasePipelineTab({
+  caseId,
+  jobs,
+  loading,
+  error,
+  onRetry,
+}: {
+  caseId: number;
+  jobs: DocumentaryJob[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const selected = jobs.find((job) => job.id === (selectedJobId ?? jobs[0]?.id)) ?? jobs[0] ?? null;
+  if (loading) return <Skeleton className="h-96" />;
+  if (error) return <ErrorState message={error} onRetry={onRetry} />;
+  if (!selected) return <div className="rounded-lg border border-dashed border-border p-8 text-center"><p className="text-sm font-medium">No documentary run exists for this case.</p><p className="mt-1 text-xs text-muted-foreground">Start a documentary run to control its pipeline stages here.</p></div>;
+  return (
+    <div className="space-y-4">
+      {jobs.length > 1 && <label className="block max-w-md text-xs font-medium">Pipeline run<Select value={String(selected.id)} onChange={(event) => setSelectedJobId(Number(event.target.value))} className="mt-1">{jobs.map((job) => <option key={job.id} value={job.id}>{job.mode === "full" ? "Full film" : "Pilot"} · {job.status} · {formatDateTime(job.created_at)}</option>)}</Select></label>}
+      <StageControlPanel caseId={caseId} job={selected} />
     </div>
   );
 }

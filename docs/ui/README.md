@@ -6,13 +6,20 @@ the real API and deterministic mock-producer worker in the disposable
 component state.
 
 - `stage-control-stage-list-desktop.png` / `stage-control-stage-list-phone.png`
-  — the single Run-tab stage-control surface.
+  — the case-level Pipeline tab, grouped into Story, Audio, Visual, Render, and
+  Shorts. The isolated fixture has 10 enabled stages; the UI still shows the
+  complete pipeline map.
 - `stage-control-preview-desktop.png` / `stage-control-preview-phone.png`
   — the exact German-only preview.
 - `stage-control-result-desktop.png` / `stage-control-result-phone.png`
   — the apply result with the outside-scope set shown.
 - `shorts-view-desktop.png` / `shorts-view-phone.png`
   — the Shorts pilot boundary, unavailable controls, and shared not-available stages.
+
+The phone captures use one collapsed stage per row and a collapsed audit timeline
+with “Show more”. The preview distinguishes the edited stage (“will change”) from
+conservative downstream items (“may change”). Captures come from the isolated
+stack and use only the existing design system.
 
 All captures are English-only and use the existing design system at desktop and
 390px phone width.

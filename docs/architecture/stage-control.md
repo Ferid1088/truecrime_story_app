@@ -55,12 +55,31 @@ artifacts execute only when explicitly present in the preview.
 | `naming` | ActionPanel opens the case Naming editor; title approval uses case-control preview/apply | custom-title save remains on the legacy editor path |
 | `visual_asset` | ActionPanel opens the case Thumbnail editor; approval/rejection uses case-control preview/apply | compose save remains on the legacy editor path |
 
-The Run tab is the only stage-control surface. Naming, thumbnail, blueprint and
-music tabs remain read/edit views for their domain data; their pipeline action
-is represented by the corresponding artifact card in the Run-tab ActionPanel.
+The case workspace's Pipeline tab is the single stage-control surface. It selects
+the latest run by default and can select another run for the same case. The Run
+tab no longer renders a second control list. Naming, thumbnail, blueprint and
+music tabs remain read/edit views for their domain data; their pipeline action is
+represented by the corresponding artifact card in the case-level ActionPanel.
 Case-level title approval, thumbnail approval/rejection, and localization
 regeneration use `POST /api/cases/{case_id}/control/preview` followed by
 `POST /api/cases/{case_id}/control/apply`; the preview binds the target content
 hash and the apply result reports an empty outside-scope set. Structured editor
 saves not listed as preview/apply above are intentionally retained as a
 follow-up gap and are not represented as free-text stage edits.
+
+## Pipeline map
+
+The case view renders the complete ordered map, grouped as Story, Audio, Visual,
+Render, and Shorts. It includes research, master story, approval, blueprint,
+chapters, naming, audio plan, spoken/voice/performance/mix, visual planning and
+pieces, production script, intro, host, music, captions, final render, and the
+Shorts boundary. A run may have fewer enabled stages: the deterministic isolated
+fixture has 10 enabled stages (research, master story, four spoken stages, and
+four voice stages); represented or unavailable stages remain visible in the map
+with an honest explanation and no executable action.
+
+On narrow screens each card is one row and starts collapsed. The audit timeline
+also starts collapsed. Language chips are deduplicated and language filtering
+applies to the map. A preview marks the selected stage's artifacts “will change”
+and conservative downstream artifacts “may change”; that distinction is shown
+before Apply.

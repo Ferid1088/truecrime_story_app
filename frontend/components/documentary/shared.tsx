@@ -80,10 +80,14 @@ export function jobProgressTone(status: DocumentaryJobStatus): string | undefine
 const STAGE_LABELS: Record<string, string> = {
   research: "Research",
   master_story: "Master story",
+  master_approval: "Master story approval",
   blueprint: "Editorial blueprint",
   audio_plan: "Audio plan",
   chapters: "Chapters & timeline",
+  naming: "Naming",
   spoken: "Spoken version",
+  host_plan: "Host plan",
+  host: "Host",
   film_length: "Film length check",
   visual_needs: "Visual needs",
   visual_research: "Visual research",
@@ -95,7 +99,15 @@ const STAGE_LABELS: Record<string, string> = {
   production: "Production script",
   critique: "Critique & fixes",
   visual_audit: "Picture audit",
-  render: "Render",
+  render: "Final render",
+  intro: "Channel intro",
+  captions: "Captions",
+  pieces: "Visual pieces",
+  final_render: "Final render",
+  shorts: "Shorts",
+  short_selection: "Shorts moment selection",
+  short_script: "Shorts script & captions",
+  short_render: "Shorts vertical render",
 };
 
 /** "spoken:fa" → "Spoken version · Persian" */
@@ -182,7 +194,13 @@ export function summarizeDetail(detail: unknown): string | null {
   if (detail == null) return null;
   if (typeof detail === "string") return detail;
   if (typeof detail !== "object" || Array.isArray(detail)) return detailValue(detail);
+  const record = detail as Record<string, unknown>;
+  if (record.skipped === true && record.reason === "outside stage-control preview") {
+    return "Not part of this change.";
+  }
   const parts = Object.entries(detail as Record<string, unknown>)
+    .filter(([key]) => !["skipped", "reused", "reuse_decision", "mock_provider_calls"].includes(key))
+    .filter(([key]) => !/(^|_)ids?$/.test(key))
     .map(([k, v]) => {
       const s = detailValue(v);
       return s == null ? null : `${humanize(k)}: ${s}`;

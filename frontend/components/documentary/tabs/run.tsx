@@ -15,7 +15,6 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/state";
 import { cn } from "@/lib/utils";
 import { ProductionTypeBadge } from "@/components/lifecycle/shared";
-import { StageControlPanel } from "../stage-control";
 import {
   DEFAULT_TARGET_MINUTES,
   RunOptionsFields,
@@ -234,7 +233,6 @@ export function RunTab({
       <div className="min-w-0 space-y-4">
         {shown ? (
           <JobPanel
-            caseId={caseId}
             job={shown}
             isCurrent={shown.id === job?.id}
             busy={busy}
@@ -381,7 +379,6 @@ function FilmLengthCard({
 }
 
 function JobPanel({
-  caseId,
   job,
   isCurrent,
   busy,
@@ -389,7 +386,6 @@ function JobPanel({
   onCancel,
   onResume,
 }: {
-  caseId: number;
   job: DocumentaryJob;
   isCurrent: boolean;
   busy: "start" | "cancel" | "resume" | null;
@@ -485,9 +481,6 @@ function JobPanel({
           )
         )}
         <WarningList warnings={job.result.warnings ?? []} />
-      </CardContent>
-      <CardContent className="pt-0">
-        <StageControlPanel caseId={caseId} job={job} />
       </CardContent>
     </Card>
   );

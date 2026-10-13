@@ -53,7 +53,7 @@ def test_stage_control_actions_and_exact_language_scope(db_session, monkeypatch)
     service = StageControlService(db_session)
     state = service.state(case.id, "spoken:de")
     assert state["status"] == "done"
-    assert set(("continue", "redo_with_prompt", "edit", "run_automatically")) <= set(
+    assert set(("redo_with_prompt", "edit", "run_automatically")) == set(
         state["available_actions"])
 
     preview = service.preview(case.id, "spoken:de", "edit",

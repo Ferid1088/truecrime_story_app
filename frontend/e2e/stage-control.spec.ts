@@ -57,6 +57,19 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
         created_at: "2026-10-13T08:00:00Z", updated_at: "2026-10-13T08:01:00Z", completed_at: "2026-10-13T08:01:00Z" }],
       visual_counts: {},
     });
+    if (path === "/api/cases/1/documentary/jobs") return json([{
+      id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: ["en", "de", "fa", "ar"],
+      pilot_seconds: null, render_profile: "preview", refresh_visuals: false, from_zero: false,
+      target_minutes: null, batch_id: null, production_type: "new", follow_up_id: null,
+      status: "completed", stage: null, progress: 1, stages, result: {}, error: null,
+      created_at: "2026-10-13T08:00:00Z", updated_at: "2026-10-13T08:01:00Z", completed_at: "2026-10-13T08:01:00Z",
+    }]);
+    if (path === "/api/cases/1/documentary/chapters") return json({
+      id: 7, version: 1, status: "approved", blueprint_id: 3, languages: ["en", "de", "fa", "ar"],
+      plan: { languages: ["en", "de", "fa", "ar"], cold_open: true, film_title: {},
+        chapters: [{ act_id: "act-1", number: 1, first_beat: "b1", last_beat: "b2", title: { en: "Arrival", de: "Ankunft", fa: "ورود", ar: "الوصول" } }], events: [] },
+      audit: { rounds: [], left_out: [], error: null, max_redos: 1 }, created_at: "2026-10-13T08:00:00Z",
+    });
     if (path === "/api/documentary/1/stage-control/audit") return json([]);
     if (path.startsWith("/api/documentary/1/stage-control/") && method === "GET" && !path.includes("/result/")) {
       const name = decodeURIComponent(path.split("/stage-control/")[1]);
@@ -68,7 +81,7 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
       return json({
         case_id: 1, job_id: 12, stage: payload.stage, action: payload.action, prompt: null, edit: {},
         artifact_ids: [201], stage_names: ["spoken:de", "voice:de"], languages: ["de"],
-        estimated_scope: [{ id: 201, type: "spoken_version", language: "de", stage: "spoken" }, { id: 202, type: "audio_blocks", language: "de", stage: "voice", may_change: true }],
+        estimated_scope: [{ id: 201, type: "spoken_version", language: "de", stage: "spoken", will_change: true }, { id: 202, type: "audio_blocks", language: "de", stage: "voice", may_change: true }],
         estimated_provider_calls: { total: 2, by_stage: { "spoken:de": 1, "voice:de": 1 } },
         bound_hashes: { "201": { input_hash: "a", output_hash: "b" } }, preview_id: previewCount,
       });
@@ -90,7 +103,8 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
 
 async function openFixtureStageControl(page: import("@playwright/test").Page, staleApply = false) {
   await mockStageControlApi(page, staleApply);
-  await page.goto("/documentary/1");
+  await page.goto("/cases/1");
+  await page.getByRole("button", { name: "Pipeline", exact: true }).click();
   await expect(page.getByTestId("stage-control-panel")).toBeVisible();
   await expect(page.getByTestId("stage-card-spoken:de")).toBeVisible();
 }
@@ -99,7 +113,9 @@ test.describe("stage-control", () => {
   test("fixture-only stale hash state keeps Apply disabled", async ({ page }) => {
     await openFixtureStageControl(page, true);
     const spoken = page.getByTestId("stage-card-spoken:de");
+    await spoken.getByRole("button", { name: "Actions" }).click();
     await spoken.getByRole("button", { name: "Edit" }).click();
+    await spoken.getByLabel("Chapter title").selectOption({ label: "Ankunft" });
     await spoken.getByLabel("Edit text").fill("A changed German chapter.");
     await spoken.getByRole("button", { name: "Save edit and preview" }).click();
     await page.getByRole("button", { name: "Apply" }).click();
@@ -114,10 +130,18 @@ test.describe("stage-control", () => {
     const before = (await beforeResponse.json()) as Array<{ language: string | null; output_hash: string | null }>;
     const untouched = Object.fromEntries(before.filter((row) => ["en", "fa", "ar"].includes(row.language ?? "")).map((row) => [row.language, row.output_hash]));
 
-    await page.goto("/documentary/1");
+    await page.goto("/cases/1");
+    await page.getByRole("button", { name: "Pipeline", exact: true }).click();
     await expect(page.getByTestId("stage-control-panel")).toBeVisible();
+    for (const group of ["Story", "Audio", "Visual", "Render", "Shorts"]) {
+      await expect(page.getByRole("heading", { name: group, exact: true })).toBeVisible();
+    }
+    await expect(page.getByText("Preview ID")).toHaveCount(0);
+    await expect(page.getByText("outside stage-control preview")).toHaveCount(0);
     const spoken = page.getByTestId("stage-card-spoken:de");
+    await spoken.getByRole("button", { name: "Actions" }).click();
     await spoken.getByRole("button", { name: "Edit" }).click();
+    await spoken.getByLabel("Chapter title").selectOption({ label: "Ankunft" });
     await spoken.getByLabel("Edit text").fill("A revised German chapter from the real UI.");
     await spoken.getByRole("button", { name: "Save edit and preview" }).click();
     const preview = page.getByTestId("preview-dialog");
@@ -138,9 +162,14 @@ test.describe("stage-control", () => {
     const after = (await afterResponse.json()) as Array<{ language: string | null; output_hash: string | null }>;
     expect(Object.fromEntries(after.filter((row) => ["en", "fa", "ar"].includes(row.language ?? "")).map((row) => [row.language, row.output_hash]))).toEqual(untouched);
 
-    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
-    await spoken.getByLabel("Prompt").fill("Make the transition more precise.");
-    await spoken.getByRole("button", { name: "Preview" }).click();
+    // The edit is queued through the German stage.  Exercise redo on the
+    // independent completed master stage so the test does not race the
+    // worker's legitimate German-stage transition to running.
+    const master = page.getByTestId("stage-card-master_story");
+    await master.getByRole("button", { name: "Actions" }).click();
+    await master.getByRole("button", { name: "Redo with prompt" }).click();
+    await master.getByLabel("Prompt").fill("Make the transition more precise.");
+    await master.getByRole("button", { name: "Preview" }).click();
     await expect(preview).toContainText("Exact preview scope");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: "../docs/ui/stage-control-preview-phone.png", fullPage: true });
@@ -148,21 +177,27 @@ test.describe("stage-control", () => {
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(result).toContainText("None");
     await page.reload();
+    await page.getByRole("button", { name: "Pipeline", exact: true }).click();
     await expect(page.getByTestId("stage-control-panel")).toBeVisible();
-    await spoken.getByLabel("Run automatically").click();
-    await expect(spoken.getByLabel("Run automatically")).toBeChecked();
+    await master.getByRole("button", { name: "Actions" }).click();
+    await master.getByLabel("Run automatically").click();
+    await expect(master.getByLabel("Run automatically")).toBeChecked();
     await page.getByText("Run the whole case automatically").locator("..").locator("..").getByRole("checkbox").check();
 
     await page.screenshot({ path: "../docs/ui/stage-control-stage-list-desktop.png", fullPage: true });
 
-    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
-    await spoken.getByLabel("Prompt").fill("Leave a pending lock.");
-    await spoken.getByRole("button", { name: "Preview" }).click();
-    await page.getByRole("button", { name: "Cancel" }).click();
+    const pendingPreview = await page.request.post(apiBase + "/api/documentary/1/stage-control/preview", {
+      data: { stage: "spoken:de", action: "redo_with_prompt", prompt: "Leave a pending lock.", job_id: 1 },
+    });
+    expect(pendingPreview.ok()).toBeTruthy();
+    const pendingState = await page.request.get(apiBase + "/api/documentary/1/stage-control/spoken%3Ade?job_id=1");
+    expect(pendingState.ok()).toBeTruthy();
+    expect((await pendingState.json()).blocked_actions.continue).toBe("pending user edit or lock");
     await page.reload();
+    await page.getByRole("button", { name: "Pipeline", exact: true }).click();
     const blockedSpoken = page.getByTestId("stage-card-spoken:de");
-    await expect(blockedSpoken.getByText("pending user edit or lock").first()).toBeVisible();
-    await expect(blockedSpoken.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await blockedSpoken.getByRole("button", { name: "Actions" }).click();
+    await expect(blockedSpoken.getByText("A pending edit is locking this stage.").first()).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: "../docs/ui/stage-control-stage-list-phone.png", fullPage: true });
