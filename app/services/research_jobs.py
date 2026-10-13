@@ -197,7 +197,8 @@ async def start_discovery_job(db: Session, payload) -> ResearchJob:
     return job
 
 
-async def start_research_job(db: Session, case: Case) -> ResearchJob:
+async def start_research_job(db: Session, case: Case, job: ResearchJob | None = None,
+                             objective: str | None = None) -> ResearchJob:
     provider = get_research_provider()
     if not provider.is_configured():
         raise ProviderError(
@@ -205,12 +206,13 @@ async def start_research_job(db: Session, case: Case) -> ResearchJob:
             "Research engine is not configured — set TRUECRIME_SEARXNG_URL or search_engine.searxng_url.",
         )
 
-    job = create_job(
-        db,
-        job_type="research",
-        case_id=case.id,
-        input_data={"case_title": case.canonical_title, "language": case.language},
-    )
+    if job is None:
+        job = create_job(
+            db,
+            job_type="research",
+            case_id=case.id,
+            input_data={"case_title": case.canonical_title, "language": case.language},
+        )
     research_languages = ai_config.multilingual.research_languages
     job.input_json = json.dumps(
         {
@@ -251,10 +253,13 @@ async def start_research_job(db: Session, case: Case) -> ResearchJob:
             ],
         },
     }
+    if objective:
+        context["user_instruction"] = objective
     try:
         external_id = await provider.start_case_research(
             case_title=case.canonical_title,
             language=case.language,
+            objective=objective,
             research_languages=research_languages,
             context=context,
         )

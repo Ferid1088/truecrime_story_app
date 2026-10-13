@@ -177,7 +177,7 @@ def test_0011_adds_shorts_tables_after_a_fresh_0009(tmp_path):
     _upgrade_to(db, "head")
     after = migrate._live_signature(_engine(db))
     assert before != after
-    assert _version(db) == "0013"
+    assert _version(db) == "0014"
     con = sqlite3.connect(db)
     tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     con.close()

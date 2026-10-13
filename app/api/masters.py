@@ -61,68 +61,43 @@ async def generate_master_story(
     case = get_case_or_404(db, case_id)
     canonical = ai_config.multilingual.canonical_language
 
-    # Layered preflight: provider → sources → evidence → capacity. Each
-    # failure maps to its own code so the UI can say *why* generation is
-    # blocked instead of showing a misleading "ready".
+    # Keep the cheap readiness gate synchronous; only the provider-backed
+    # generation itself is moved behind the durable job boundary.
     provider_status = await deps.require_generation_authorized()
-    report = build_readiness(
-        db, case.id, payload.target_minutes,
-        provider_status=provider_status or {},
-    )
+    report = build_readiness(db, case.id, payload.target_minutes,
+                             provider_status=provider_status or {})
     master = report["master_readiness"]
     if master["status"] == "provider_blocked":
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "code": "provider_unauthorized",
-                "provider_status": provider_status,
-                "message": master["reason"],
-            },
-        )
+        raise HTTPException(status_code=503, detail={
+            "code": "provider_unauthorized", "provider_status": provider_status,
+            "message": master["reason"],
+        })
     if master["status"] in ("incomplete_evidence", "failed"):
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "evidence_incomplete",
-                "message": (
-                    "Evidence extraction is incomplete "
-                    f"({master['reason']}). Re-run research once the "
-                    "provider is healthy before generating."
-                ),
-                "evidence_readiness": report["evidence_readiness"],
-                "capacity": report["narrative_capacity"],
-            },
-        )
+        raise HTTPException(status_code=409, detail={
+            "code": "evidence_incomplete",
+            "message": f"Evidence extraction is incomplete ({master['reason']}).",
+            "evidence_readiness": report["evidence_readiness"],
+            "capacity": report["narrative_capacity"],
+        })
     if master["status"] == "insufficient_research":
         capacity = report["narrative_capacity"]
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "insufficient_research",
-                "message": (
-                    "Evidence supports approximately "
-                    f"{capacity['estimated_supported_minutes']} minutes — "
-                    "more research is recommended for the requested duration."
-                ),
-                "capacity": capacity,
-                "source_readiness": report["source_readiness"],
-            },
-        )
+        raise HTTPException(status_code=409, detail={
+            "code": "insufficient_research",
+            "message": (
+                "Evidence supports approximately "
+                f"{capacity['estimated_supported_minutes']} minutes — more research is recommended."
+            ),
+            "capacity": capacity, "source_readiness": report["source_readiness"],
+        })
 
-    try:
-        story = await StoryPipeline(roles=MASTER_ROLES).run(
-            db=db,
-            case=case,
-            target_minutes=payload.target_minutes,
-            language=canonical,
-            tone=payload.tone,
-            iterations=payload.iterations,
-            kind="master",
-            words_per_minute=ai_config.words_per_minute_for(canonical),
-        )
-        return story_full_dict(story)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    from app.services import background_jobs
+
+    job = background_jobs.create_job(
+        db, case_id=case.id, kind="master_story_generate",
+        input_data={**payload.model_dump(), "language": canonical}, timeout_seconds=300,
+    )
+    background_jobs.launch(job.id)
+    return {"job_id": job.id, "status": job.status}
 
 
 @router.post("/api/cases/{case_id}/localizations/generate")

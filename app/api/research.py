@@ -41,10 +41,30 @@ router = APIRouter()
 async def run_research(case_id: int, db: Session = Depends(get_db)):
     case = get_case_or_404(db, case_id)
     await deps.require_search_available()
-    try:
-        job = await research_jobs.start_research_job(db, case)
-    except ProviderError as e:
-        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}") from e
+    job = research_jobs.create_job(
+        db, job_type="research", case_id=case.id,
+        input_data={"case_title": case.canonical_title, "language": case.language},
+    )
+    from app.db.base import SessionLocal
+
+    async def _run(job_id: int):
+        bg = SessionLocal()
+        try:
+            j = bg.get(ResearchJob, job_id)
+            c = bg.get(Case, case_id)
+            await research_jobs.start_research_job(bg, c, job=j)
+        except Exception as e:
+            j = bg.get(ResearchJob, job_id)
+            if j:
+                j.status = "failed"
+                j.current_stage = "failed"
+                j.error = str(e)[:500]
+                j.completed_at = utc_now()
+                bg.commit()
+        finally:
+            bg.close()
+
+    spawn(_run(job.id), name=f"research:{job.id}")
     return {"job_id": job.id, "status": job.status}
 
 

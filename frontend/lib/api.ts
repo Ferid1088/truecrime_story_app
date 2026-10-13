@@ -57,6 +57,7 @@ import type {
   StudioValidation,
   Fact,
   JobStartResponse,
+  BackgroundJob,
   LocalizationCompare,
   MasterStoryResponse,
   MusicTrack,
@@ -275,10 +276,15 @@ export const api = {
     request<StatusCheck[]>(`/api/cases/${caseId}/status-checks`),
   caseAudit: (caseId: number) => request<CaseAudit>(`/api/cases/${caseId}/audit`),
 
+  backgroundJob: (jobId: number) => request<BackgroundJob>(`/api/jobs/${jobId}`),
+  retryBackgroundJob: (jobId: number) => post<BackgroundJob>(`/api/jobs/${jobId}/retry`),
+
   // Case naming + episode identity
   caseNaming: (caseId: number) => request<CaseNaming>(`/api/cases/${caseId}/naming`),
-  generateNaming: (caseId: number, languages?: NamingLanguage[]) =>
-    post<unknown>(`/api/cases/${caseId}/naming/generate`, { languages: languages ?? null }),
+  generateNaming: async (caseId: number, languages?: NamingLanguage[]) => {
+    const started = await post<JobStartResponse>(`/api/cases/${caseId}/naming/generate`, { languages: languages ?? null });
+    return (await pollBackgroundJob(started.job_id, { timeoutMs: 120_000 })).result;
+  },
   manualTitle: (caseId: number, language: NamingLanguage, title: string) =>
     post<TitleCandidate>(`/api/cases/${caseId}/naming/manual`, { language, title }),
   approveTitle: (caseId: number, candidateId: number, revise = false) =>
@@ -374,11 +380,12 @@ export const api = {
   listContradictions: (caseId: number) =>
     request<Contradiction[]>(`/api/cases/${caseId}/contradictions`),
 
-  generateStory: (
+  generateStory: async (
     caseId: number,
     payload: { target_minutes: number; language: string; tone: string; iterations?: number },
-  ) =>
-    post<{
+  ) => {
+    const started = await post<JobStartResponse>(`/api/cases/${caseId}/generate-story`, payload);
+    return (await pollBackgroundJob(started.job_id, { timeoutMs: 6 * 60_000 })).result as {
       story_version_id: number;
       version: number;
       engagement_score: number;
@@ -386,7 +393,8 @@ export const api = {
       similarity_status: string;
       status: string;
       story_text: string;
-    }>(`/api/cases/${caseId}/generate-story`, payload),
+    };
+  },
   improveStory: (caseId: number, storyVersionId: number, instruction: string) =>
     post<StoryFull>(`/api/cases/${caseId}/improve-story`, {
       story_version_id: storyVersionId,
@@ -415,11 +423,13 @@ export const api = {
     ),
   getMasterStory: (caseId: number) =>
     request<MasterStoryResponse>(`/api/cases/${caseId}/master-story`),
-  generateMasterStory: (
+  generateMasterStory: async (
     caseId: number,
     payload: { target_minutes: number; language: string; tone: string; iterations?: number },
-  ) =>
-    post<StoryFull>(`/api/cases/${caseId}/master-story/generate`, payload),
+  ) => {
+    const started = await post<JobStartResponse>(`/api/cases/${caseId}/master-story/generate`, payload);
+    return (await pollBackgroundJob(started.job_id, { timeoutMs: 6 * 60_000 })).result as unknown as StoryFull;
+  },
   listLocalizations: (caseId: number) =>
     request<StoryMeta[]>(`/api/cases/${caseId}/localizations`),
   generateLocalization: (caseId: number, language: string, targetMinutes?: number) =>
@@ -641,6 +651,30 @@ export async function pollResearchJob(
         { once: true },
       );
     });
+  }
+}
+
+export interface BackgroundPollOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+  onUpdate?: (job: BackgroundJob) => void;
+}
+
+export async function pollBackgroundJob(
+  jobId: number | null | undefined,
+  { intervalMs = 1000, timeoutMs = 10 * 60 * 1000, onUpdate }: BackgroundPollOptions = {},
+): Promise<BackgroundJob> {
+  if (jobId == null) throw new ApiError(0, "The server did not return a background job id.");
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const job = await api.backgroundJob(jobId);
+    onUpdate?.(job);
+    if (job.status === "done") return job;
+    if (job.status === "failed") {
+      throw new ApiError(500, job.error ?? "Background job failed.", job);
+    }
+    if (Date.now() > deadline) throw new ApiError(0, "Background job timed out. Retry it from the job status.");
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
 

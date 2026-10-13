@@ -40,6 +40,7 @@ async def _lifespan(_app):
     db = SessionLocal()
     try:
         from app.core.config import settings
+        from app.services.background_jobs import recover_after_restart
 
         recover_after_restart(db, include_documentary_jobs=settings.job_runner != "external")
     except Exception as e:  # never block the app from starting
@@ -74,7 +75,7 @@ app = FastAPI(
 app.add_exception_handler(PolicyError, policy_exception_handler)  # type: ignore[arg-type]
 
 from app.api import backup as backup_api  # noqa: E402
-from app.api import cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
+from app.api import background_jobs, cases, costs, discovery, masters, ops, research, stories, system  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
@@ -85,6 +86,7 @@ from app.thumbnails.api import router as thumbnail_router  # noqa: E402
 
 # The stage routers first (same precedence as before the split), then the case-level API.
 for _router in (
+    background_jobs.router,
     documentary_router,
         lifecycle_router,
         longform_router,

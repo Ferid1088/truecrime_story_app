@@ -112,12 +112,17 @@ def get_naming(case_id: int, db: Session = Depends(get_db)):
 @router.post("/api/cases/{case_id}/naming/generate")
 async def generate_naming(case_id: int, req: GenerateRequest | None = None,
                           db: Session = Depends(get_db)):
-    """Fill every language up to exactly 7 eligible titles. Stored data
-    only: no search backend is called."""
+    """Queue title generation; provider work never blocks this request."""
     case = _case(db, case_id)
-    result = await A.generate_case_titles(db, case, _gen(), _embedder(),
-                                          list(req.languages) if req and req.languages else None)
-    return {**result, "state": naming_state(db, case)}
+    from app.services import background_jobs
+
+    job = background_jobs.create_job(
+        db, case_id=case.id, kind="naming_generate",
+        input_data={"languages": list(req.languages) if req and req.languages else None},
+        timeout_seconds=20,
+    )
+    background_jobs.launch(job.id)
+    return {"job_id": job.id, "status": job.status}
 
 
 @router.post("/api/cases/{case_id}/naming/manual")

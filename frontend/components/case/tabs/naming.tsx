@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Pencil, Sparkles } from "lucide-react";
-import { api } from "@/lib/api";
+import { ApiError, api, pollBackgroundJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { CaseNaming, NamingLanguage, TitleCandidate } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ export function NamingTab({ caseId }: { caseId: number }) {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [failedJobId, setFailedJobId] = useState<number | null>(null);
   const { data, error, loading, refetch } = useApi(() => api.caseNaming(caseId), [caseId, tick], {
     keepPrevious: true,
   });
@@ -43,11 +44,16 @@ export function NamingTab({ caseId }: { caseId: number }) {
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
     setMessage(null);
+    setFailedJobId(null);
     try {
       await fn();
       setTick((t) => t + 1);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
+      if (e instanceof ApiError && e.data && typeof e.data === "object" && "id" in e.data) {
+        const id = (e.data as { id?: unknown }).id;
+        if (typeof id === "number") setFailedJobId(id);
+      }
     } finally {
       setBusy(null);
     }
@@ -91,6 +97,14 @@ export function NamingTab({ caseId }: { caseId: number }) {
             .
           </p>
           {message && <p className="text-rose-600 dark:text-rose-400">{message}</p>}
+          {failedJobId != null && (
+            <Button size="sm" variant="outline" onClick={() => run("retry", async () => {
+              const retry = await api.retryBackgroundJob(failedJobId);
+              await pollBackgroundJob(retry.id, { timeoutMs: 120_000 });
+            })} loading={busy === "retry"}>
+              Retry generation
+            </Button>
+          )}
         </CardContent>
       </Card>
 

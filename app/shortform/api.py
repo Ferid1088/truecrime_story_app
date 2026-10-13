@@ -19,6 +19,8 @@ from app.db.models import (
     ShortCandidate,
     ShortFormScript,
     Video,
+    Case,
+    ShortProductionJob,
 )
 from app.documentary import storage
 from app.shortform import pipeline
@@ -73,6 +75,10 @@ class ShortFormAction(BaseModel):
     action: str
     prompt: str | None = None
     edit: dict = {}
+
+
+class CreateShortsRequest(BaseModel):
+    film_job_id: int | None = None
 
 
 def _candidate_hash(row: ShortCandidate) -> str:
@@ -137,6 +143,43 @@ def short_form_workspace(case_id: int | None = None, db: Session = Depends(get_d
 @router.get("/api/short-form/{case_id}/workspace")
 def short_form_case_workspace(case_id: int, db: Session = Depends(get_db)):
     return short_form_workspace(case_id, db)
+
+
+@router.post("/api/short-form/{case_id}/create")
+def create_shorts(case_id: int, payload: CreateShortsRequest | None = None,
+                  db: Session = Depends(get_db)):
+    """Manually enqueue Shorts selection for one completed film."""
+    if db.get(Case, case_id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    film_job_id = payload.film_job_id if payload else None
+    query = db.query(DocumentaryJob).filter(
+        DocumentaryJob.case_id == case_id,
+        DocumentaryJob.status.in_(("completed", "completed_warnings")),
+    )
+    if film_job_id is not None:
+        query = query.filter(DocumentaryJob.id == film_job_id)
+    job = query.order_by(DocumentaryJob.id.desc()).first()
+    if job is None:
+        raise HTTPException(status_code=409, detail="No completed film is available for Shorts")
+    queue = pipeline.enqueue_for_finished_job(db, job.id)
+    if queue is None:
+        raise HTTPException(status_code=409, detail="Film is not finished")
+    return {"queue_id": queue.id, "film_job_id": job.id, "status": queue.status}
+
+
+@router.get("/api/short-form/{case_id}/queue")
+def short_form_queue(case_id: int, db: Session = Depends(get_db)):
+    if db.get(Case, case_id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    rows = db.query(ShortProductionJob).filter(
+        ShortProductionJob.case_id == case_id,
+    ).order_by(ShortProductionJob.id.desc()).limit(100).all()
+    return [{
+        "id": row.id, "film_job_id": row.film_job_id, "language": row.language,
+        "stage": row.stage, "status": row.status, "attempts": row.attempts,
+        "error": row.error, "provider_cost_usd": row.provider_cost_usd,
+        "created_at": row.created_at, "updated_at": row.updated_at,
+    } for row in rows]
 
 
 @router.patch("/api/short-form/{case_id}/settings")

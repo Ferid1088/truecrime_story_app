@@ -1060,6 +1060,23 @@ export interface JobStartResponse {
   result?: Record<string, unknown>;
 }
 
+export type BackgroundJobStatus = "queued" | "running" | "done" | "failed";
+
+export interface BackgroundJob {
+  id: number;
+  case_id: number | null;
+  kind: string;
+  status: BackgroundJobStatus;
+  result: Record<string, unknown>;
+  error: string | null;
+  timeout_seconds: number;
+  attempts: number;
+  created_at: string;
+  started_at: string | null;
+  updated_at: string;
+  completed_at: string | null;
+}
+
 export interface ResearchLanguageStats {
   searched: boolean;
   queries: string[];
@@ -1389,7 +1406,7 @@ export interface StageControlState {
 }
 
 export interface StageControlPreviewItem {
-  id: number;
+  id: number | string;
   type: string;
   language: string | null;
   stage: string | null;

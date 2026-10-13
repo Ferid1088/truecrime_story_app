@@ -51,28 +51,14 @@ router = APIRouter()
 @router.post("/api/cases/{case_id}/generate-story")
 async def generate_story(case_id: int, payload: GenerateStoryRequest, db: Session = Depends(get_db)):
     case = get_case_or_404(db, case_id)
-    await deps.require_generation_authorized()
+    from app.services import background_jobs
 
-    try:
-        story = await StoryPipeline().run(
-            db=db,
-            case=case,
-            target_minutes=payload.target_minutes,
-            language=payload.language,
-            tone=payload.tone,
-            iterations=payload.iterations,
-        )
-        return {
-            "story_version_id": story.id,
-            "version": story.version,
-            "engagement_score": story.engagement_score,
-            "similarity_score": story.similarity_score,
-            "similarity_status": story.similarity_status,
-            "status": story.status,
-            "story_text": story.story_text,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    job = background_jobs.create_job(
+        db, case_id=case.id, kind="story_generate", input_data=payload.model_dump(),
+        timeout_seconds=300,
+    )
+    background_jobs.launch(job.id)
+    return {"job_id": job.id, "status": job.status}
 
 
 @router.post("/api/cases/{case_id}/improve-story")

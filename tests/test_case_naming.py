@@ -220,8 +220,11 @@ def test_api_flow(client, db_session, monkeypatch):
     gen = ScriptedGen({"en": EN, "de": DE, "fa": FA, "ar": AR})
     monkeypatch.setattr(N, "_gen", lambda: gen)
     monkeypatch.setattr(N, "_embedder", lambda: None)
-    r = client.post(f"/api/cases/{case.id}/naming/generate", json={}).json()
-    assert all(r["languages"][l]["eligible"] == 7 for l in ("en", "de", "fa", "ar"))
+    started = client.post(f"/api/cases/{case.id}/naming/generate", json={}).json()
+    assert started["status"] == "queued" and started["job_id"]
+    r = client.get(f"/api/jobs/{started['job_id']}").json()
+    assert r["status"] == "done"
+    assert all(r["result"]["languages"][l]["eligible"] == 7 for l in ("en", "de", "fa", "ar"))
     state = client.get(f"/api/cases/{case.id}/naming").json()
     assert state["externally_verified"] is False and state["title_family_id"]
     fa = state["languages"]["fa"]["candidates"]
