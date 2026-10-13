@@ -107,7 +107,11 @@ until curl -fsS "http://127.0.0.1:${WEB_PORT}" >/dev/null; do
 done
 
 echo "E2E isolated stack: api=http://127.0.0.1:${API_PORT} frontend=http://127.0.0.1:${WEB_PORT} db=${DB_NAME}"
-(cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line ${E2E_PLAYWRIGHT_ARGS:-})
+if [[ "${E2E_PLAYWRIGHT_RANDOM:-0}" == "1" ]]; then
+  (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" node e2e/run-random.mjs)
+else
+  (cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line ${E2E_PLAYWRIGHT_ARGS:-})
+fi
 # The isolated backend check intentionally monkeypatches job launching. Stop
 # the real worker first so it cannot claim that test's queued fixture job.
 kill "$MOCK_WORKER_PID" 2>/dev/null || true
