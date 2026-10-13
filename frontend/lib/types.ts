@@ -1367,6 +1367,82 @@ export interface DocumentaryStage {
   errors?: DocumentaryStageError[];
 }
 
+export type StageControlAction = "continue" | "redo_with_prompt" | "edit" | "run_automatically";
+
+export interface StageControlArtifact {
+  id: number;
+  type: string;
+  language: string | null;
+  status: string;
+}
+
+export interface StageControlState {
+  case_id: number;
+  job_id: number;
+  stage: string;
+  status: string;
+  available_actions: StageControlAction[];
+  blocked_actions: Record<StageControlAction, string | null>;
+  pending_user_edit: boolean;
+  automatic: boolean;
+  artifacts: StageControlArtifact[];
+}
+
+export interface StageControlPreviewItem {
+  id: number;
+  type: string;
+  language: string | null;
+  stage: string | null;
+  /** The backend may flag conservative/unproven scope members. */
+  may_change?: boolean;
+}
+
+export interface StageControlPreview {
+  case_id: number;
+  job_id: number;
+  stage: string;
+  action: StageControlAction;
+  prompt: string | null;
+  edit: Record<string, unknown>;
+  artifact_ids: number[];
+  stage_names: string[];
+  languages: string[];
+  estimated_scope: StageControlPreviewItem[];
+  estimated_provider_calls: { total: number; by_stage: Record<string, number> };
+  bound_hashes: Record<string, { input_hash: string | null; output_hash: string | null }>;
+  preview_id: number;
+}
+
+export interface StageControlApplyResult {
+  preview_id: number;
+  job_id: number;
+  status: string;
+  previewed_artifact_ids: number[];
+  executed_artifact_ids: number[];
+  executed_stage_names?: string[];
+  changed_outside_scope: number[];
+  error?: string;
+}
+
+export interface StageControlOperationResult {
+  preview_id: number;
+  case_id: number;
+  status: string;
+  preview: StageControlPreview;
+  result: StageControlApplyResult;
+}
+
+export interface StageControlAuditEvent {
+  id: number;
+  created_at: string;
+  stage: string | null;
+  language: string | null;
+  rule_id: string;
+  decision: string;
+  reason: string;
+  context: Record<string, unknown>;
+}
+
 export interface DocumentaryJob {
   id: number;
   case_id: number;

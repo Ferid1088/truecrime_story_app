@@ -125,3 +125,11 @@ def test_stage_control_api_contract(db_session, client, monkeypatch):
         "preview_id": preview.json()["preview_id"],
     })
     assert applied.status_code == 200, applied.text
+    preview_id = preview.json()["preview_id"]
+    result = client.get(f"/api/documentary/{case.id}/stage-control/result/{preview_id}")
+    assert result.status_code == 200, result.text
+    assert result.json()["result"]["status"] == "queued"
+    assert "may_change" in result.json()["preview"]["estimated_scope"][0]
+    audit = client.get(f"/api/documentary/{case.id}/stage-control/audit")
+    assert audit.status_code == 200, audit.text
+    assert any(item["rule_id"] == "STAGE_CONTROL_APPLIED" for item in audit.json())

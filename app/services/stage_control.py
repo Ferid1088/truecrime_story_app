@@ -7,13 +7,15 @@ import json
 from collections import defaultdict
 from typing import Any
 
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.artifact_dependencies import ARTIFACT_SCOPES
 from app.core.policy import PolicyDecision
-from app.db.models import AppSetting, Artifact, DocumentaryJob, EditLog, StoryVersion
+from app.db.models import AppSetting, Artifact, DocumentaryJob, EditLog, PolicyEvent, StoryVersion
 from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES, _stage_detail
 from app.services.policy_events import record_decision
+from app.services.skip_policy import SOUNDNESS
 from app.services.soundness import predicted_change_keys
 from app.utils import utc_now
 
@@ -124,7 +126,8 @@ class StageControlService:
             "languages": languages,
             "estimated_scope": [{"id": row.id, "type": row.type,
                                  "language": row.language,
-                                 "stage": json.loads(row.scope_json or "{}").get("stage")}
+                                 "stage": json.loads(row.scope_json or "{}").get("stage"),
+                                 "may_change": SOUNDNESS.get(row.type) != "SOUND"}
                                 for row in scope],
             "estimated_provider_calls": {"total": len(scope), "by_stage": dict(sorted(by_stage.items()))},
             "bound_hashes": {row.id: {"input_hash": row.input_hash,
@@ -281,3 +284,58 @@ class StageControlService:
                     {"stage": stage_name, "enabled": enabled})
         return {"case_id": case_id, "stage": stage_name, "automatic": enabled,
                 "mode": "auto_continue"}
+
+    def result(self, case_id: int, preview_id: int) -> dict:
+        """Return the durable result of one preview/apply operation.
+
+        Applying a preview queues the job, so the browser needs a read-only
+        endpoint for the runner's eventual scope check.  The result is kept
+        on the EditLog together with the original preview and is therefore
+        stable across page reloads.
+        """
+        row = self.db.get(EditLog, preview_id)
+        if row is None:
+            raise StageControlError("preview not found")
+        payload = json.loads(row.scope_preview_json or "{}")
+        if int(payload.get("case_id", -1)) != case_id:
+            raise StageControlError("preview does not belong to case")
+        result = json.loads(row.result_json or "{}")
+        return {
+            "preview_id": preview_id,
+            "case_id": case_id,
+            "status": row.status,
+            "preview": payload,
+            "result": result,
+        }
+
+    def audit(self, case_id: int, *, stage: str | None = None,
+              language: str | None = None) -> list[dict]:
+        """Read stage-control audit records for the case timeline."""
+        rows = (self.db.query(PolicyEvent)
+                .filter(PolicyEvent.case_id == case_id,
+                        PolicyEvent.rule_id.like("STAGE_CONTROL_%"))
+                .order_by(desc(PolicyEvent.created_at), desc(PolicyEvent.id))
+                .limit(200).all())
+        events = []
+        for row in rows:
+            try:
+                context = json.loads(row.context_json or "{}")
+            except (TypeError, ValueError):
+                context = {}
+            event_stage = context.get("stage")
+            event_language = row.language or context.get("language")
+            if stage and event_stage != stage:
+                continue
+            if language and event_language != language:
+                continue
+            events.append({
+                "id": row.id,
+                "created_at": row.created_at,
+                "stage": event_stage,
+                "language": event_language,
+                "rule_id": row.rule_id,
+                "decision": row.decision,
+                "reason": row.reason,
+                "context": context,
+            })
+        return events

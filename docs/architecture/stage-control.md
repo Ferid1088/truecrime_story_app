@@ -33,6 +33,14 @@ explicit scope. Its result reports `previewed_artifact_ids`,
 fails the job and writes an audit event. `POST .../stage-control/automatic`
 persists the mode in `AppSetting`.
 
+`GET .../stage-control/result/{preview_id}` exposes the durable runner result;
+`GET .../stage-control/audit` exposes `STAGE_CONTROL_*` events for the case
+timeline. The UI uses one reusable `StageList`/`StageCard`/`ActionPanel` /
+`PreviewDialog` set in `frontend/components/documentary/stage-control.tsx`.
+Preview items with `may_change=true` are conservative/unproven scope members;
+the UI labels them before apply. The result view requires
+`changed_outside_scope=[]` and reports a failure otherwise.
+
 The preview is the binding: apply cannot silently expand it. A German edit can
 therefore only execute the German stages and preview-listed dependents; shared
 artifacts execute only when explicitly present in the preview.

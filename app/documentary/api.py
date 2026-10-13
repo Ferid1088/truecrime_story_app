@@ -87,6 +87,24 @@ def artifact_scope_preview(case_id: int, req: ArtifactScopePreview, db: Session 
     )
 
 
+@router.get("/api/documentary/{case_id}/stage-control/result/{preview_id}")
+def stage_control_result(case_id: int, preview_id: int, db: Session = Depends(get_db)):
+    try:
+        return StageControlService(db).result(case_id, preview_id)
+    except StageControlError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/api/documentary/{case_id}/stage-control/audit")
+def stage_control_audit(case_id: int, stage: str | None = None,
+                        language: str | None = None, db: Session = Depends(get_db)):
+    try:
+        StageControlService(db)._job(case_id)
+        return StageControlService(db).audit(case_id, stage=stage, language=language)
+    except StageControlError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/api/documentary/{case_id}/stage-control/{stage_name:path}")
 def stage_control_state(case_id: int, stage_name: str, db: Session = Depends(get_db)):
     try:

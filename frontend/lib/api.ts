@@ -85,6 +85,12 @@ import type {
   VoicePerformance,
   VideoCostDetail,
   VideoCostSummary,
+  StageControlAction,
+  StageControlApplyResult,
+  StageControlAuditEvent,
+  StageControlOperationResult,
+  StageControlPreview,
+  StageControlState,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -457,6 +463,32 @@ export const api = {
   startDocumentaryJob: (caseId: number, payload: DocumentaryJobRequest) =>
     post<DocumentaryJob>(`/api/cases/${caseId}/documentary/jobs`, payload),
   documentaryJob: (jobId: number) => request<DocumentaryJob>(`/api/documentary/jobs/${jobId}`),
+  stageControlState: (caseId: number, stage: string) =>
+    request<StageControlState>(`/api/documentary/${caseId}/stage-control/${encodeURIComponent(stage)}`),
+  stageControlPreview: (
+    caseId: number,
+    payload: { stage: string; action: StageControlAction; prompt?: string; edit?: Record<string, unknown> },
+  ) => post<StageControlPreview>(`/api/documentary/${caseId}/stage-control/preview`, payload),
+  stageControlApply: (caseId: number, previewId: number) =>
+    post<StageControlApplyResult>(`/api/documentary/${caseId}/stage-control/apply`, { preview_id: previewId }),
+  stageControlResult: (caseId: number, previewId: number) =>
+    request<StageControlOperationResult>(
+      `/api/documentary/${caseId}/stage-control/result/${previewId}`,
+    ),
+  stageControlAudit: (caseId: number, stage?: string, language?: string) => {
+    const params = new URLSearchParams();
+    if (stage) params.set("stage", stage);
+    if (language) params.set("language", language);
+    const suffix = params.toString() ? `?${params}` : "";
+    return request<StageControlAuditEvent[]>(
+      `/api/documentary/${caseId}/stage-control/audit${suffix}`,
+    );
+  },
+  setStageAutomatic: (caseId: number, stage: string, enabled: boolean) =>
+    post<{ case_id: number; stage: string; automatic: boolean; mode: string }>(
+      `/api/documentary/${caseId}/stage-control/automatic`,
+      { stage, enabled },
+    ),
   listDocumentaryJobs: (limit = 20) =>
     request<DocumentaryJobListItem[]>(`/api/documentary/jobs?limit=${limit}`),
   startDocumentaryBatch: (payload: DocumentaryBatchRequest) =>
