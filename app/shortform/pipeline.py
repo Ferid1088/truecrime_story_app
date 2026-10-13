@@ -15,9 +15,11 @@ import logging
 import os
 import shutil
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -34,19 +36,25 @@ from app.db.models import (
     ShortCandidate,
     ShortFormConcept,
     ShortFormScript,
+    ShortProductionJob,
     StoryVersion,
     Video,
     VisualAsset,
 )
 from app.documentary import storage
 from app.services.artifacts import ArtifactRegistry
+from app.shortform.agents import MockShortsTextAdapter, ProviderShortsTextAdapter, ShortsTextAdapter
 from app.shortform.director import ShortFormDirectorAgent
 from app.shortform.export import build_export_package
 from app.shortform.selection import evaluate_candidate, select_candidates
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
-_running: dict[int, asyncio.Task] = {}
+SHORT_QUEUE_LEASE_SECONDS = 120
+
+
+class ShortsAuditRejected(RuntimeError):
+    pass
 
 
 def _json(value: Any) -> str:
@@ -191,20 +199,55 @@ def _set_stage(db: Session, job: DocumentaryJob, name: str, status: str,
     db.commit()
 
 
+def _spoken_text(db: Session, job: DocumentaryJob, language: str) -> str:
+    """Return only the finished film's own spoken text for ``language``."""
+    rows = (db.query(StoryVersion)
+            .filter(StoryVersion.case_id == job.case_id,
+                    StoryVersion.language == language,
+                    StoryVersion.status.in_(("approved", "complete", "completed")))
+            .order_by(StoryVersion.is_best.desc(), StoryVersion.version.desc(), StoryVersion.id.desc())
+            .all())
+    if rows:
+        return rows[0].story_text or ""
+    # The master is the source of the English branch only.  Never use it to
+    # silently populate a non-English short.
+    if language == "en":
+        master = db.get(StoryVersion, job.master_version_id)
+        return master.story_text if master and master.status in ("approved", "complete", "completed") else ""
+    return ""
+
+
 def _write_script(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
-                  language: str) -> tuple[ShortFormScript, dict]:
-    """Writer + independent auditor adapter; both are deterministic offline."""
-    hook = candidate.hook
-    localized = hook if language == "en" else f"[{language}] {hook}"
-    body = localized
-    cta = candidate.cta or "Watch the full evidence-led story."
+                  language: str, adapter: ShortsTextAdapter) -> tuple[ShortFormScript, dict]:
+    """Call the native-language writer and independent auditor."""
+    spoken_text = _spoken_text(db, job, language)
+    if not spoken_text.strip():
+        raise RuntimeError(f"finished film has no approved spoken text for {language}")
     target = ai_config.short_form.production.target_seconds
-    sentences = [part.strip() for part in f"{localized}. {cta}".split(".") if part.strip()]
-    step = target / max(1, len(sentences))
-    cues = [{"start": max(0.1, i * step), "end": min(target - 0.1, (i + 1) * step),
-             "text": sentence[:42]} for i, sentence in enumerate(sentences)]
-    payload = {"candidate": candidate.id, "language": language, "hook": localized,
-               "body": body, "cta": cta, "target": target, "cues": cues}
+    writer_payload = {
+        "candidate": candidate.id, "language": language, "hook": candidate.hook,
+        "spoken_text": spoken_text, "allowed_reveals": json.loads(candidate.gate_results_json or "{}").get(
+            "RevealFirewall", {}).get("metadata", {}).get("allowed_reveals", []),
+        "claims": json.loads(candidate.claims_json or "[]"),
+        "target_duration": target,
+    }
+    draft, _ = adapter.write(db, job.case_id, writer_payload)
+    draft = draft if isinstance(draft, dict) else {}
+    hook = str(draft.get("hook") or candidate.hook).strip()
+    body = str(draft.get("body") or "").strip()
+    cta = str(draft.get("cta") or candidate.cta or "Watch the full evidence-led story.").strip()
+    captions = draft.get("captions") or []
+    if not hook or not body or not isinstance(captions, list):
+        raise RuntimeError("short writer returned an incomplete script")
+    audit, _ = adapter.audit(db, job.case_id, {
+        **writer_payload, "draft": {"hook": hook, "body": body, "cta": cta, "captions": captions},
+    })
+    if not bool(audit.get("approved", audit.get("ok", False))):
+        reasons = "; ".join(str(reason) for reason in (audit.get("reasons") or ["auditor rejected script"]))
+        raise ShortsAuditRejected(reasons[:500])
+    payload = {"candidate": candidate.id, "language": language, "hook": hook,
+               "body": body, "cta": cta, "target": target, "captions": captions,
+               "spoken_text_hash": _hash(spoken_text)}
     digest = _hash(payload)
     existing = (db.query(ShortFormScript)
                 .filter(ShortFormScript.candidate_id == candidate.id,
@@ -221,16 +264,20 @@ def _write_script(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         db.flush()
         existing = ShortFormScript(
             concept_id=concept.id, candidate_id=candidate.id, language=language,
-            hook=localized, body=body, cta=cta, target_duration=target,
-            caption_text=localized, captions_json=_json(cues), content_hash=digest,
-            audit_json=_json({"passed": True, "writer_adapter": "offline", "auditor_adapter": "offline"}),
+            hook=hook, body=body, cta=cta, target_duration=target,
+            caption_text=" ".join(str(c.get("text", "")) for c in captions),
+            captions_json=_json(captions), content_hash=digest,
+            audit_json=_json({"passed": True, "writer_adapter": type(adapter).__name__,
+                              "auditor_adapter": type(adapter).__name__}),
             status="approved", approval_state="pending")
         db.add(existing)
     else:
-        existing.hook, existing.body, existing.cta = localized, body, cta
-        existing.caption_text, existing.captions_json = localized, _json(cues)
+        existing.hook, existing.body, existing.cta = hook, body, cta
+        existing.caption_text = " ".join(str(c.get("text", "")) for c in captions)
+        existing.captions_json = _json(captions)
         existing.content_hash, existing.status = digest, "approved"
-        existing.audit_json = _json({"passed": True, "writer_adapter": "offline", "auditor_adapter": "offline"})
+        existing.audit_json = _json({"passed": True, "writer_adapter": type(adapter).__name__,
+                                     "auditor_adapter": type(adapter).__name__})
     db.flush()
     return existing, payload
 
@@ -258,8 +305,12 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         return row
     run_root = storage.case_dir(job.case_id) / "shorts" / f"job_{job.id}"
     final_dir = run_root / script.language / candidate.stable_key / content_hash[:16]
-    run_root.mkdir(parents=True, exist_ok=True)
-    temp_dir = Path(tempfile.mkdtemp(prefix="short-", dir=str(run_root)))
+    work_root = final_dir.parent
+    work_root.mkdir(parents=True, exist_ok=True)
+    for orphan in work_root.glob("short-*"):
+        if orphan.is_dir():
+            shutil.rmtree(orphan, ignore_errors=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix="short-", dir=str(work_root)))
     row.status, row.error, row.retry_count = "running", None, row.retry_count + 1
     db.commit()
     try:
@@ -299,7 +350,80 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def produce_for_job(db: Session, job: DocumentaryJob) -> dict:
+def _queue(db: Session, *, job: DocumentaryJob, stage: str, unique_key: str,
+           candidate_id: int | None = None, rendered_short_id: int | None = None,
+           language: str | None = None, input_hash: str | None = None) -> ShortProductionJob:
+    row = db.query(ShortProductionJob).filter_by(unique_key=unique_key).one_or_none()
+    if row is None:
+        row = ShortProductionJob(unique_key=unique_key, case_id=job.case_id,
+                                 film_job_id=job.id, candidate_id=candidate_id,
+                                 rendered_short_id=rendered_short_id, language=language,
+                                 stage=stage, input_hash=input_hash)
+        db.add(row)
+    elif row.status in ("failed", "skipped"):
+        row.status, row.error = "queued", None
+        row.worker_id, row.lease_until, row.heartbeat_at = None, None, None
+    db.flush()
+    return row
+
+
+def enqueue_for_finished_job(db: Session, job_id: int) -> ShortProductionJob | None:
+    """Persist the post-film selection task; this never runs work in-process."""
+    job = db.get(DocumentaryJob, job_id)
+    if job is None or job.status not in ("completed", "completed_warnings"):
+        return None
+    row = _queue(db, job=job, stage="selection", unique_key=f"selection:{job.id}")
+    db.commit()
+    return row
+
+
+def claim_next_short_job(db: Session, worker_id: str, *, lease_seconds: float = SHORT_QUEUE_LEASE_SECONDS,
+                         film_job_id: int | None = None) -> int | None:
+    now = utc_now()
+    query = (db.query(ShortProductionJob.id)
+             .filter(ShortProductionJob.status == "queued", ShortProductionJob.worker_id.is_(None)))
+    if film_job_id is not None:
+        query = query.filter(ShortProductionJob.film_job_id == film_job_id)
+    candidates = (query
+                  .order_by(ShortProductionJob.id).limit(10).all())
+    for (job_id,) in candidates:
+        result = db.execute(update(ShortProductionJob).where(
+            ShortProductionJob.id == job_id,
+            ShortProductionJob.status == "queued",
+            ShortProductionJob.worker_id.is_(None),
+        ).values(status="running", worker_id=worker_id, attempts=ShortProductionJob.attempts + 1,
+                 heartbeat_at=now, lease_until=now + timedelta(seconds=lease_seconds), updated_at=now))
+        db.commit()
+        if result.rowcount == 1:
+            return job_id
+    return None
+
+
+def beat_short_jobs(db: Session, worker_id: str, *, lease_seconds: float = SHORT_QUEUE_LEASE_SECONDS) -> int:
+    now = utc_now()
+    result = db.execute(update(ShortProductionJob).where(
+        ShortProductionJob.worker_id == worker_id, ShortProductionJob.status == "running",
+    ).values(heartbeat_at=now, lease_until=now + timedelta(seconds=lease_seconds), updated_at=now))
+    db.commit()
+    return result.rowcount
+
+
+def reap_short_jobs(db: Session, *, lease_seconds: float = SHORT_QUEUE_LEASE_SECONDS) -> list[int]:
+    cutoff = utc_now() - timedelta(seconds=lease_seconds)
+    stale = (db.query(ShortProductionJob)
+             .filter(ShortProductionJob.status == "running",
+                     ShortProductionJob.heartbeat_at < cutoff).all())
+    ids = []
+    for row in stale:
+        row.status, row.worker_id, row.lease_until, row.heartbeat_at = "queued", None, None, None
+        row.error = "worker lease expired; safely requeued"
+        row.updated_at = utc_now()
+        ids.append(row.id)
+    db.commit()
+    return ids
+
+
+def _prepare_for_job(db: Session, job: DocumentaryJob) -> dict:
     if job.status not in ("completed", "completed_warnings"):
         return {"status": "skipped", "reason": "long film is not finished"}
     if not _enabled(db, job.case_id):
@@ -334,76 +458,158 @@ def produce_for_job(db: Session, job: DocumentaryJob) -> dict:
         "selection_hash": _hash(selection),
     })
     selected = [row for row in rows if row.stable_key in selected_ids]
-    result: dict[str, Any] = {
-        "status": "completed", "candidates": len(rows), "selected": len(selected),
-        "renders": 0, "errors": {},
-    }
+    queue_ids = []
     for language in languages:
-        lang_failed = False
-        rendered = 0
-        _set_stage(db, job, f"short_script:{language}", "running", None)
-        _set_stage(db, job, f"short_render:{language}", "running", None)
+        _set_stage(db, job, f"short_script:{language}", "queued", None)
+        _set_stage(db, job, f"short_render:{language}", "queued", None)
         for candidate in selected:
-            script_stage = f"short_script:{language}:{candidate.stable_key}"
-            render_stage = f"short_render:{language}:{candidate.stable_key}"
-            _set_stage(db, job, script_stage, "running", None)
-            _set_stage(db, job, render_stage, "running", None)
-            try:
-                script = None
-                script_payload = None
-                last_error = None
-                for _attempt in range(ai_config.short_form.production.max_redos + 1):
-                    try:
-                        script, script_payload = _write_script(db, job, candidate, language)
-                        break
-                    except Exception as exc:
-                        last_error = exc
-                if script is None or script_payload is None:
-                    raise last_error or RuntimeError("short script production failed")
-                _register(db, job, "short_script_captions", language=language, short_id=candidate.stable_key,
-                          inputs=script_payload, output_ref=None, output_hash=script.content_hash)
-                film = film_by_lang.get(language)
-                _render_one(db, job, candidate, script, film)
+            render = (db.query(RenderedShort)
+                      .filter_by(candidate_id=candidate.id, language=language).one_or_none())
+            if render is None:
+                render = RenderedShort(case_id=job.case_id, candidate_id=candidate.id,
+                                       film_job_id=job.id, film_version_id=film_by_lang[language].id,
+                                       language=language, status="queued")
+                db.add(render)
+                db.flush()
+            queue = _queue(db, job=job, stage="script_render",
+                           unique_key=f"render:{job.id}:{candidate.stable_key}:{language}",
+                           candidate_id=candidate.id, rendered_short_id=render.id,
+                           language=language, input_hash=candidate.content_hash)
+            queue_ids.append(queue.id)
+    db.commit()
+    return {"status": "queued", "candidates": len(rows), "selected": len(selected),
+            "queue_ids": queue_ids, "renders": 0, "errors": {}}
+
+
+def _process_short_job(db: Session, queue: ShortProductionJob, *, adapter: ShortsTextAdapter) -> dict:
+    job = db.get(DocumentaryJob, queue.film_job_id)
+    candidate = db.get(ShortCandidate, queue.candidate_id) if queue.candidate_id else None
+    if job is None or candidate is None or queue.language is None:
+        raise RuntimeError("short queue item is missing its production input")
+    film = (db.query(Video).filter_by(job_id=job.id, language=queue.language, state="rendered")
+            .order_by(Video.id.desc()).first())
+    render = db.get(RenderedShort, queue.rendered_short_id) if queue.rendered_short_id else None
+    if render is None:
+        render = (db.query(RenderedShort).filter_by(candidate_id=candidate.id, language=queue.language)
+                  .one_or_none())
+    if render is None:
+        raise RuntimeError("short queue item has no rendered-short row")
+    script = None
+    last_error: Exception | None = None
+    for _attempt in range(ai_config.short_form.production.max_redos + 1):
+        try:
+            script, script_payload = _write_script(db, job, candidate, queue.language, adapter)
+            _register(db, job, "short_script_captions", language=queue.language,
+                      short_id=candidate.stable_key, inputs=script_payload,
+                      output_ref=None, output_hash=script.content_hash)
+            break
+        except Exception as exc:
+            last_error = exc
+    if script is None:
+        render.status = "skipped" if isinstance(last_error, ShortsAuditRejected) else "failed"
+        render.error = f"{type(last_error).__name__}: {last_error}"[:1000]
+        queue.status, queue.error = render.status, render.error
+        db.commit()
+        _refresh_language_stage(db, job, queue.language)
+        return {"status": render.status, "error": render.error}
+    _render_one(db, job, candidate, script, film)
+    queue.rendered_short_id = render.id
+    queue.output_hash = render.content_hash
+    queue.status, queue.error = "done", None
+    db.commit()
+    _refresh_language_stage(db, job, queue.language)
+    _set_stage(db, job, f"short_script:{queue.language}:{candidate.stable_key}", "done",
+               {"candidate_id": candidate.id})
+    _set_stage(db, job, f"short_render:{queue.language}:{candidate.stable_key}", "done",
+               {"rendered_short_id": render.id, "isolated": True})
+    return {"status": "done", "rendered_short_id": render.id}
+
+
+def _refresh_language_stage(db: Session, job: DocumentaryJob, language: str) -> None:
+    rows = (db.query(ShortProductionJob)
+            .filter(ShortProductionJob.film_job_id == job.id,
+                    ShortProductionJob.language == language,
+                    ShortProductionJob.stage == "script_render").all())
+    if not rows:
+        return
+    statuses = {row.status for row in rows}
+    status = ("failed" if "failed" in statuses else
+              "skipped" if "skipped" in statuses else
+              "done" if statuses == {"done"} else "running")
+    detail = {"queue_items": len(rows), "done": sum(row.status == "done" for row in rows),
+              "failed": sum(row.status == "failed" for row in rows),
+              "skipped": sum(row.status == "skipped" for row in rows), "isolated": True}
+    _set_stage(db, job, f"short_script:{language}", status, detail)
+    _set_stage(db, job, f"short_render:{language}", status, detail)
+
+
+def produce_for_job(db: Session, job: DocumentaryJob, *, adapter: ShortsTextAdapter | None = None) -> dict:
+    """Synchronous composition entry point used by unit tests and operators.
+
+    Production uses the durable queue and ``ProviderShortsTextAdapter``;
+    callers that explicitly invoke this helper may inject a test adapter.
+    """
+    result = _prepare_for_job(db, job)
+    if result.get("status") != "queued":
+        return result
+    adapter = adapter or MockShortsTextAdapter()
+    errors: dict[str, str] = {}
+    rendered = 0
+    for queue_id in result.get("queue_ids", []):
+        queue = db.get(ShortProductionJob, queue_id)
+        if queue is None:
+            continue
+        queue.status, queue.worker_id = "running", "direct"
+        queue.attempts += 1
+        db.commit()
+        try:
+            outcome = _process_short_job(db, queue, adapter=adapter)
+            if outcome["status"] == "done":
                 rendered += 1
-                result["renders"] += 1
-                _set_stage(db, job, script_stage, "done", {"candidate_id": candidate.id})
-                _set_stage(db, job, render_stage, "done", {"rendered_short_id": candidate.id})
-            except Exception as exc:
-                lang_failed = True
-                result["errors"][f"{language}:{candidate.stable_key}"] = f"{type(exc).__name__}: {exc}"[:400]
-                _set_stage(db, job, script_stage, "failed", {"error": str(exc)[:400]})
-                _set_stage(db, job, render_stage, "failed", {"error": str(exc)[:400]})
-        _set_stage(db, job, f"short_script:{language}", "failed" if lang_failed else "done",
-                   {"rendered": rendered, "selected": len(selected)})
-        _set_stage(db, job, f"short_render:{language}", "failed" if lang_failed else "done",
-                   {"rendered": rendered, "selected": len(selected), "isolated": True})
-    return result
+            elif outcome.get("error"):
+                errors[f"{queue.language}:{queue.candidate_id}"] = outcome["error"]
+        except Exception as exc:
+            queue.status, queue.error = "failed", f"{type(exc).__name__}: {exc}"[:1000]
+            db.commit()
+            errors[f"{queue.language}:{queue.candidate_id}"] = queue.error
+    return {**result, "status": "completed", "renders": rendered, "errors": errors}
 
 
-async def run_for_job(job_id: int, session_factory=SessionLocal) -> dict:
+def run_short_queue_job(queue_id: int, session_factory=SessionLocal) -> dict:
     db = session_factory()
     try:
-        job = db.get(DocumentaryJob, job_id)
-        if job is None:
-            return {"status": "skipped", "reason": "job missing"}
-        try:
-            return produce_for_job(db, job)
-        except Exception as exc:
-            # Shorts failures are recorded against Shorts only.  The long-film
-            # job is intentionally not touched here.
-            log.exception("shorts job %s failed", job_id)
-            return {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+        queue = db.get(ShortProductionJob, queue_id)
+        if queue is None:
+            return {"status": "skipped", "reason": "short queue item missing"}
+        job = db.get(DocumentaryJob, queue.film_job_id)
+        if job is None or job.status not in ("completed", "completed_warnings"):
+            queue.status, queue.error = "skipped", "long film is not finished"
+            db.commit()
+            return {"status": "skipped", "reason": "long film is not finished"}
+        if queue.stage == "selection":
+            result = _prepare_for_job(db, job)
+            queue.status = "done" if result.get("status") == "queued" else result.get("status", "skipped")
+            queue.output_hash = _hash(result)
+            db.commit()
+            return result
+        return _process_short_job(db, queue, adapter=ProviderShortsTextAdapter())
+    except Exception as exc:
+        log.exception("shorts queue item %s failed", queue_id)
+        if 'queue' in locals() and queue is not None:
+            queue.status, queue.error = "failed", f"{type(exc).__name__}: {exc}"[:1000]
+            db.commit()
+        return {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
     finally:
         db.close()
-        _running.pop(job_id, None)
 
 
-def launch_for_finished_job(job_id: int) -> asyncio.Task | None:
-    if job_id in _running:
-        return _running[job_id]
-    task = asyncio.create_task(run_for_job(job_id), name=f"shorts:{job_id}")
-    _running[job_id] = task
-    return task
+def launch_for_finished_job(job_id: int):
+    """Compatibility wrapper: enqueue only; it never starts an asyncio task."""
+    db = SessionLocal()
+    try:
+        return enqueue_for_finished_job(db, job_id)
+    finally:
+        db.close()
 
 
 def run_one(db: Session, rendered_id: int, *, force: bool = True) -> RenderedShort:

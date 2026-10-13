@@ -3,15 +3,15 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from alembic.autogenerate import compare_metadata
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
+import app.db.models  # noqa: F401
 from app.db import migrate
 from app.db.base import Base
-import app.db.models  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -177,7 +177,7 @@ def test_0011_adds_shorts_tables_after_a_fresh_0009(tmp_path):
     _upgrade_to(db, "head")
     after = migrate._live_signature(_engine(db))
     assert before != after
-    assert _version(db) == "0011"
+    assert _version(db) == "0012"
     con = sqlite3.connect(db)
     tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     con.close()

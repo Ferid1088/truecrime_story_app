@@ -1,8 +1,8 @@
 """Offline production-worker proofs for Prompt 10G's isolation contract."""
 
-import asyncio
 import hashlib
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -19,6 +19,8 @@ from app.db.models import (
 )
 from app.documentary.jobs import plan_stages
 from app.shortform import export, pipeline
+from app.shortform.agents import MockShortsTextAdapter
+from app.shortform.selection import evaluate_candidate
 
 
 def _job(db, tmp_path, status="completed"):
@@ -30,6 +32,9 @@ def _job(db, tmp_path, status="completed"):
                          language="en", story_text="A finished evidence-led story.", status="approved")
     db.add(story)
     db.flush()
+    db.add(StoryVersion(case_id=case.id, version=1, kind="localized", language="de",
+                        narrative_angle="evidence", story_text="Die Akte legt die letzte Zeit fest.",
+                        status="approved"))
     job = DocumentaryJob(case_id=case.id, master_version_id=story.id, languages_json='["en", "de"]',
                          status=status, stages_json=json.dumps(plan_stages(["en", "de"])))
     db.add(job)
@@ -62,9 +67,10 @@ def test_finished_film_starts_isolated_language_shorts(db_session, tmp_path, mon
     result = pipeline.produce_for_job(db_session, job)
 
     assert result["status"] == "completed"
-    assert result["renders"] == len(db_session.query(pipeline.RenderedShort).all())
-    assert {row.language for row in db_session.query(pipeline.RenderedShort).all()} == {"en", "de"}
-    assert all((tmp_path / row.video_path).exists() for row in db_session.query(pipeline.RenderedShort).all())
+    rows = db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id).all()
+    assert result["renders"] == len(rows)
+    assert {row.language for row in rows} == {"en", "de"}
+    assert all((tmp_path / row.video_path).exists() for row in rows)
     stages = {row["name"]: row for row in json.loads(job.stages_json)}
     assert stages["short_selection"]["status"] == "done"
     assert stages["short_render:en"]["status"] == "done"
@@ -162,22 +168,13 @@ def test_caption_capability_failure_marks_each_language_short_failed(db_session,
     assert job.status == original_status == "completed"
 
 
-def test_finished_job_launcher_queues_the_isolated_worker(monkeypatch):
-    seen = []
-
-    async def fake_run(job_id):
-        seen.append(job_id)
-        return {"status": "completed"}
-
-    monkeypatch.setattr(pipeline, "run_for_job", fake_run)
-
-    async def exercise():
-        task = pipeline.launch_for_finished_job(701)
-        assert task is not None
-        await task
-
-    asyncio.run(exercise())
-    assert seen == [701]
+def test_finished_job_is_persisted_in_durable_queue(db_session):
+    job = _job(db_session, Path("/tmp"))
+    row = pipeline.enqueue_for_finished_job(db_session, job.id)
+    assert row is not None
+    assert row.stage == "selection"
+    assert row.status == "queued"
+    assert db_session.query(pipeline.ShortProductionJob).filter_by(film_job_id=job.id).count() == 1
 
 
 def test_caption_edit_scope_rebuilds_only_one_language_short(db_session, tmp_path, monkeypatch):
@@ -214,3 +211,105 @@ def test_caption_edit_scope_rebuilds_only_one_language_short(db_session, tmp_pat
     assert {key: value for key, value in after.items() if key != target.id} == {
         key: value for key, value in before.items() if key != target.id
     }
+
+
+def _run_queued_selection(db_session, job, monkeypatch):
+    selection = pipeline.enqueue_for_finished_job(db_session, job.id)
+    assert selection is not None
+    claimed = pipeline.claim_next_short_job(db_session, "test-selection", film_job_id=job.id)
+    assert claimed == selection.id
+    assert pipeline.run_short_queue_job(claimed) ["status"] == "queued"
+    return db_session.query(pipeline.ShortProductionJob).filter_by(
+        film_job_id=job.id, stage="script_render").all()
+
+
+def test_provider_adapter_counter_and_native_language_payload(db_session, tmp_path, monkeypatch):
+    job = _job(db_session, tmp_path)
+    monkeypatch.setattr(pipeline.ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(pipeline.storage, "rel", lambda path: str(Path(path).resolve().relative_to(tmp_path)))
+    monkeypatch.setattr(pipeline, "build_export_package", _fake_export)
+    adapter = MockShortsTextAdapter()
+
+    result = pipeline.produce_for_job(db_session, job, adapter=adapter)
+
+    assert result["status"] == "completed"
+    assert adapter.call_counts["shorts.write"] == adapter.call_counts["shorts.audit"]
+    assert adapter.call_counts["shorts.write"] == result["renders"]
+    scripts = db_session.query(pipeline.ShortFormScript).filter(
+        pipeline.ShortFormScript.language == "de").all()
+    assert scripts and all("Die Akte" in script.body for script in scripts)
+
+
+def test_reveal_firewall_rejects_a_short_that_spoils(db_session):
+    result = evaluate_candidate({
+        "allowed_reveals": ["last-known-time"],
+        "text_reveals": ["case-outcome"],
+        "claims": [], "asset_details": [], "hook": "What happened?", "cta": "Learn more",
+        "duration": 30,
+    })
+    assert result["passed_hard_gates"] is False
+    assert result["gate_results"]["RevealFirewall"]["passed"] is False
+
+
+def test_durable_queue_auto_start_and_restart_reuses_rows(db_session, tmp_path, monkeypatch):
+    job = _job(db_session, tmp_path)
+    monkeypatch.setattr(pipeline.ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(pipeline.storage, "rel", lambda path: str(Path(path).resolve().relative_to(tmp_path)))
+    monkeypatch.setattr(pipeline, "build_export_package", _fake_export)
+    adapter = MockShortsTextAdapter()
+    monkeypatch.setattr(pipeline, "ProviderShortsTextAdapter", lambda: adapter)
+
+    queue_rows = _run_queued_selection(db_session, job, monkeypatch)
+    first = queue_rows[0]
+    assert pipeline.claim_next_short_job(db_session, "test-crashed-worker", film_job_id=job.id) == first.id
+    db_session.refresh(first)
+    first.heartbeat_at = first.updated_at - timedelta(seconds=pipeline.SHORT_QUEUE_LEASE_SECONDS + 1)
+    db_session.commit()
+    assert pipeline.reap_short_jobs(db_session, lease_seconds=1) == [first.id]
+    reclaimed = pipeline.claim_next_short_job(db_session, "test-restarted-worker", film_job_id=job.id)
+    assert reclaimed == first.id
+    assert pipeline.run_short_queue_job(reclaimed)["status"] == "done"
+    for row in queue_rows[1:]:
+        assert pipeline.claim_next_short_job(db_session, "test-worker", film_job_id=job.id) == row.id
+        assert pipeline.run_short_queue_job(row.id)["status"] == "done"
+    db_session.expire_all()
+    assert db_session.query(pipeline.ShortProductionJob).filter_by(film_job_id=job.id, status="done").count() == len(queue_rows) + 1
+    assert db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id).count() == len(queue_rows)
+    assert len({row.content_hash for row in db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id)}) == len(queue_rows)
+
+
+def test_running_or_failed_film_never_enqueues_shorts(db_session, tmp_path):
+    for status in ("running", "failed"):
+        job = _job(db_session, tmp_path, status=status)
+        assert pipeline.enqueue_for_finished_job(db_session, job.id) is None
+        assert db_session.query(pipeline.ShortProductionJob).filter_by(film_job_id=job.id).count() == 0
+
+
+def test_durable_failure_isolated_from_film_and_other_language(db_session, tmp_path, monkeypatch):
+    job = _job(db_session, tmp_path)
+    film = db_session.query(Video).filter_by(job_id=job.id, language="en").one()
+    long_film = tmp_path / "finished-long-film.mp4"
+    long_film.write_bytes(b"immutable long-film bytes")
+    before = hashlib.sha256(long_film.read_bytes()).hexdigest()
+    film.file_path = str(long_film)
+    db_session.commit()
+    monkeypatch.setattr(pipeline.ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(pipeline.storage, "rel", lambda path: str(Path(path).resolve().relative_to(tmp_path)))
+    def fail_german(output_dir: Path, **kwargs):
+        if kwargs["language"] == "de":
+            raise RuntimeError("injected durable Shorts failure")
+        return _fake_export(output_dir, **kwargs)
+    monkeypatch.setattr(pipeline, "build_export_package", fail_german)
+    adapter = MockShortsTextAdapter()
+    monkeypatch.setattr(pipeline, "ProviderShortsTextAdapter", lambda: adapter)
+
+    queue_rows = _run_queued_selection(db_session, job, monkeypatch)
+    for row in queue_rows:
+        assert pipeline.claim_next_short_job(db_session, "failure-test-worker", film_job_id=job.id) == row.id
+        pipeline.run_short_queue_job(row.id)
+
+    db_session.refresh(job)
+    assert job.status == "completed"
+    assert hashlib.sha256(long_film.read_bytes()).hexdigest() == before
+    assert db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id, language="en", status="done").count() > 0
+    assert db_session.query(pipeline.RenderedShort).filter_by(film_job_id=job.id, language="de", status="failed").count() > 0

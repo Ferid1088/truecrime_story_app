@@ -14,12 +14,13 @@ Restarting the API no longer stops a running film. The worker
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
+import contextlib
 import logging
 import os
 import signal
 import socket
 import uuid
+from pathlib import Path
 
 from sqlalchemy import update
 from sqlalchemy.orm import Session
@@ -118,6 +119,7 @@ class Worker:
         self.max_parallel = max_parallel
         self.stop = asyncio.Event()
         self.tasks: dict[int, asyncio.Task] = {}
+        self.short_tasks: dict[int, asyncio.Task] = {}
         self.alive_file = alive_file or settings.worker_alive_file
 
     def _db(self) -> Session:
@@ -125,25 +127,38 @@ class Worker:
 
     def _touch_alive(self) -> None:
         """Local status checks look at this file's age: a stuck loop stops refreshing it."""
-        try:
+        with contextlib.suppress(OSError):
             Path(self.alive_file).touch()
-        except OSError:
-            pass
 
     async def tick(self) -> None:
         """One round: tidy up, report in, take work if there is room."""
         db = self._db()
         try:
             reap_stale_jobs(db, lease_seconds=self.lease, max_auto_resumes=self.max_auto)
+            from app.shortform.pipeline import (
+                beat_short_jobs,
+                claim_next_short_job,
+                reap_short_jobs,
+            )
+
+            reap_short_jobs(db, lease_seconds=self.lease)
             finish_orphan_cancels(db)
             beat(db, self.worker_id)
+            beat_short_jobs(db, self.worker_id, lease_seconds=self.lease)
             self.tasks = {i: t for i, t in self.tasks.items() if not t.done()}
+            self.short_tasks = {i: t for i, t in self.short_tasks.items() if not t.done()}
             while len(self.tasks) < self.max_parallel and not self.stop.is_set():
                 job_id = claim_next_job(db, self.worker_id)
                 if job_id is None:
                     break
                 log.info("worker %s took job %s", self.worker_id, job_id)
                 self.tasks[job_id] = asyncio.create_task(self._run(job_id))
+            while len(self.tasks) + len(self.short_tasks) < self.max_parallel and not self.stop.is_set():
+                short_id = claim_next_short_job(db, self.worker_id, lease_seconds=self.lease)
+                if short_id is None:
+                    break
+                log.info("worker %s took Shorts job %s", self.worker_id, short_id)
+                self.short_tasks[short_id] = asyncio.create_task(self._run_short(short_id))
         finally:
             db.close()
 
@@ -165,18 +180,41 @@ class Worker:
             finally:
                 db.close()
 
+    async def _run_short(self, short_id: int) -> None:
+        from app.shortform.pipeline import run_short_queue_job
+
+        try:
+            await asyncio.to_thread(run_short_queue_job, short_id, self.session_factory)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("Shorts queue job %s crashed the runner", short_id)
+        finally:
+            db = self._db()
+            try:
+                from app.db.models import ShortProductionJob
+
+                row = db.get(ShortProductionJob, short_id)
+                if row is not None and row.worker_id == self.worker_id and row.status == "running":
+                    row.status, row.worker_id = "queued", None
+                    row.lease_until, row.heartbeat_at = None, None
+                    row.error = "worker stopped before acknowledging Shorts completion"
+                    db.commit()
+            finally:
+                db.close()
+
     async def _heartbeat_loop(self) -> None:
         interval = max(0.05, min(self.lease / 3, 30.0))
         while not self.stop.is_set():
             db = self._db()
             try:
                 beat(db, self.worker_id)
+                from app.shortform.pipeline import beat_short_jobs
+                beat_short_jobs(db, self.worker_id, lease_seconds=self.lease)
             finally:
                 db.close()
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self.stop.wait(), timeout=interval)
-            except asyncio.TimeoutError:
-                pass
 
     async def run(self) -> None:
         heart = asyncio.create_task(self._heartbeat_loop())
@@ -184,23 +222,35 @@ class Worker:
             while not self.stop.is_set():
                 await self.tick()
                 self._touch_alive()
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(self.stop.wait(), timeout=self.poll)
-                except asyncio.TimeoutError:
-                    pass
         finally:
             for t in self.tasks.values():
                 t.cancel()
-            await asyncio.gather(*self.tasks.values(), return_exceptions=True)
+            for t in self.short_tasks.values():
+                t.cancel()
+            await asyncio.gather(*self.tasks.values(), *self.short_tasks.values(), return_exceptions=True)
             self.stop.set()
             await heart
             db = self._db()
             try:
                 released = release_held_jobs(db, self.worker_id)
+                from app.db.models import ShortProductionJob
+                short_released = []
+                for row in db.query(ShortProductionJob).filter(
+                        ShortProductionJob.worker_id == self.worker_id,
+                        ShortProductionJob.status == "running").all():
+                    row.status, row.worker_id = "queued", None
+                    row.lease_until, row.heartbeat_at = None, None
+                    row.error = "the worker was stopped; Shorts item requeued"
+                    short_released.append(row.id)
+                db.commit()
             finally:
                 db.close()
             if released:
                 log.info("worker %s handed back jobs %s", self.worker_id, released)
+            if short_released:
+                log.info("worker %s handed back Shorts jobs %s", self.worker_id, short_released)
 
 
 def main() -> None:

@@ -1214,6 +1214,42 @@ class RenderedShort(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
 
+class ShortProductionJob(Base):
+    """Durable queue item for one Shorts selection or language render.
+
+    Queue state is separate from the long-film job.  A worker may lose a
+    lease at any point; the unique key and content hash make retrying safe.
+    """
+
+    __tablename__ = "short_production_jobs"
+    __table_args__ = (
+        UniqueConstraint("unique_key", name="uq_short_production_job_key"),
+        Index("ix_short_production_jobs_queue", "status", "lease_until"),
+        Index("ix_short_production_jobs_film_language", "film_job_id", "language"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    unique_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    film_job_id: Mapped[int] = mapped_column(ForeignKey("documentary_jobs.id"), index=True)
+    candidate_id: Mapped[int | None] = mapped_column(
+        ForeignKey("short_candidates.id"), nullable=True, index=True)
+    rendered_short_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rendered_shorts.id"), nullable=True, index=True)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+    stage: Mapped[str] = mapped_column(String(30), nullable=False)  # selection | script_render
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    worker_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    lease_until: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    input_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    output_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class PlatformVariant(Base):
     __tablename__ = "platform_variants"
 

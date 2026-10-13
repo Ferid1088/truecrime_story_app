@@ -273,6 +273,20 @@
       "description": "Approve or reject card texts.",
       "used_by": "app/agents/chapters.py"
     },
+    "shorts.write": {
+      "role": "chapter_writer",
+      "prompt": "shortform/writer",
+      "output": "json",
+      "description": "Write one native-language Shorts script.",
+      "used_by": "app/shortform/agents.py"
+    },
+    "shorts.audit": {
+      "role": "chapter_auditor",
+      "prompt": "shortform/auditor",
+      "output": "json",
+      "description": "Independently audit one Shorts script.",
+      "used_by": "app/shortform/agents.py"
+    },
     "documentary.pronunciation": {
       "role": "pronunciation_editor",
       "prompt": "documentary/pronunciation/editor_system",

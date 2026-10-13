@@ -926,14 +926,14 @@ async def run_job(job_id: int, session_factory=None):
             job.completed_at = utc_now()
             job.updated_at = utc_now()
             db.commit()
-            # Post-film Shorts are fire-and-forget and have their own error
+            # Post-film Shorts are durable queue work with their own error
             # boundary.  A failure here must never alter the completed film.
             if job.status in ("completed", "completed_warnings"):
                 try:
-                    from app.shortform.pipeline import launch_for_finished_job
-                    launch_for_finished_job(job.id)
+                    from app.shortform.pipeline import enqueue_for_finished_job
+                    enqueue_for_finished_job(db, job.id)
                 except Exception:  # noqa: BLE001
-                    log.exception("could not launch isolated Shorts job %s", job.id)
+                    log.exception("could not enqueue isolated Shorts job %s", job.id)
     finally:
         db.close()
         _running.pop(job_id, None)

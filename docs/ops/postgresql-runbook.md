@@ -42,6 +42,16 @@ A missing `subtitles`/`ass` filter, libass, HarfBuzz, FriBidi, or ffprobe fails
 a production short closed with a diagnostic instead of producing an
 uncaptioned video.
 
+## Durable Shorts queue
+
+When a documentary job reaches `completed` or `completed_warnings`, the API
+only inserts the selection row in `short_production_jobs`. The normal external
+worker (`TRUECRIME_JOB_RUNNER=external python -m app.worker`) claims selection
+and per-language script/render rows with a lease and heartbeat. A worker
+restart requeues an expired lease; the candidate/language unique key and render
+content hash prevent duplicate rows or output directories. Shorts failures are
+recorded on their own queue/render rows and never change the finished film job.
+
 ## Back up and verify a dump
 
 ```sh
