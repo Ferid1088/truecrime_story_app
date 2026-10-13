@@ -14,6 +14,7 @@ WEB_PORT="${E2E_WEB_PORT:-3011}"
 DB_URL="${TRUECRIME_DATABASE_URL:?TRUECRIME_DATABASE_URL is required}"
 export E2E_DB_NAME="$DB_NAME"
 export E2E_DB_URL="$DB_URL"
+MOCK_WORKER_PID=""
 
 "$ROOT/.venv/bin/python" - <<'PY'
 import os
@@ -40,6 +41,8 @@ cleanup() {
   [[ "${CLEANED_UP:-0}" == 1 ]] && return
   CLEANED_UP=1
   set +e
+  kill "$MOCK_WORKER_PID" 2>/dev/null || true
+  wait "$MOCK_WORKER_PID" 2>/dev/null || true
   [[ -n "${FRONTEND_PID:-}" ]] && kill "$FRONTEND_PID" 2>/dev/null
   [[ -n "${API_PID:-}" ]] && kill "$API_PID" 2>/dev/null
   wait "${FRONTEND_PID:-}" 2>/dev/null || true
@@ -72,13 +75,20 @@ PY
 export TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL"
 export DATABASE_URL="$E2E_DATABASE_URL"
 export TRUECRIME_DISABLE_SCHEDULER=1
+export TRUECRIME_JOB_RUNNER=external
 export TRUECRIME_SEARXNG_URL="http://127.0.0.1:9"
 export TC_TEST_NO_NETWORK=1
 export NEXT_DIST_DIR=".next-e2e"
+export NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:${API_PORT}"
+export TRUECRIME_CORS_ORIGINS="http://127.0.0.1:${WEB_PORT}"
 
 "$ROOT/.venv/bin/python" -m alembic upgrade head
+PYTHONPATH="$ROOT" "$ROOT/.venv/bin/python" "$ROOT/scripts/seed_stage_control_e2e.py"
 "$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >"$ROOT/data/e2e-api.log" 2>&1 &
 API_PID=$!
+PYTHONPATH="$ROOT" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" DATABASE_URL="$E2E_DATABASE_URL" \
+  "$ROOT/.venv/bin/python" "$ROOT/scripts/e2e_stage_control_worker.py" >"$ROOT/data/e2e-stage-control-worker.log" 2>&1 &
+MOCK_WORKER_PID=$!
 n=0
 until curl -fsS "http://127.0.0.1:${API_PORT}/health" >/dev/null; do
   n=$((n + 1)); [[ "$n" -lt 60 ]] || { cat "$ROOT/data/e2e-api.log"; exit 1; }
@@ -94,7 +104,7 @@ until curl -fsS "http://127.0.0.1:${WEB_PORT}" >/dev/null; do
 done
 
 echo "E2E isolated stack: api=http://127.0.0.1:${API_PORT} frontend=http://127.0.0.1:${WEB_PORT} db=${DB_NAME}"
-(cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line)
+(cd "$ROOT/frontend" && PLAYWRIGHT_BASE_URL="http://127.0.0.1:${WEB_PORT}" npx playwright test --reporter=line ${E2E_PLAYWRIGHT_ARGS:-})
 TC_COPY_DATABASE_URL="$E2E_DATABASE_URL" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" \
   PYTHONPATH="$ROOT:$ROOT/tests" "$ROOT/.venv/bin/pytest" -q \
   "$ROOT/tests/test_stage_control_isolated.py"

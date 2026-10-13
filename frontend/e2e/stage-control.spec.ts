@@ -27,33 +27,6 @@ const state = (stage: string, pending = false, automatic = false) => ({
     : [{ id: 101, type: stage === "master_story" ? "master_story" : "audio_blocks", language: null, status: "ready" }],
 });
 
-const overview = {
-  masters: [{ id: 41, version: 1, language: "en", status: "approved", words: 900, kind: "master" }],
-  master_version_id: 41,
-  film_minutes: { min: 45, max: 120 },
-  blueprint: null,
-  audio_plan: null,
-  languages: { en: null, de: null, fa: null, ar: null },
-  visual_plan: null,
-  jobs: [{
-    id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: ["en", "de", "fa", "ar"],
-    pilot_seconds: null, render_profile: "preview", refresh_visuals: false, from_zero: false,
-    target_minutes: null, batch_id: null, production_type: "new", follow_up_id: null,
-    status: "completed", stage: null, progress: 1, stages, result: {}, error: null,
-    created_at: "2026-10-13T08:00:00Z", updated_at: "2026-10-13T08:01:00Z", completed_at: "2026-10-13T08:01:00Z",
-  }],
-  visual_counts: {},
-};
-
-const settings = {
-  languages: ["en", "de", "fa", "ar"], film_minutes: { min: 45, max: 120 }, pilot_seconds: 60,
-  voices: {}, pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },
-  voice_performance: { enabled: false, level_tags: {}, level_styles: {} },
-  concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
-  styles: {}, render: { profile: "preview", width: 1280, height: 720, fps: 25, crf: 23, preset: "fast", burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 6, show_credits: true },
-  rights_profiles: {}, dynamic_eq: {},
-};
-
 async function mockStageControlApi(page: import("@playwright/test").Page, staleApply = false) {
   let previewCount = 0;
   let resultStatus = "queued";
@@ -65,8 +38,25 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (path === "/api/auth/session") return json({ authenticated: true, auth_required: false });
     if (path === "/api/cases/1" && method === "GET") return json(fixtures.caseDetail);
-    if (path === "/api/documentary/settings") return json(settings);
-    if (path === "/api/cases/1/documentary") return json(overview);
+    if (path === "/api/documentary/settings") return json({
+      languages: ["en", "de", "fa", "ar"], film_minutes: { min: 45, max: 120 }, pilot_seconds: 60,
+      voices: {}, pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },
+      voice_performance: { enabled: false, level_tags: {}, level_styles: {} },
+      concurrency: { llm: 1, vision: 1, elevenlabs_tts: 1, elevenlabs_sound: 1, asr: 1, render: 1, downloads: 1, jobs: 1, languages: 1 },
+      styles: {}, render: { profile: "preview", width: 1280, height: 720, fps: 25, crf: 23, preset: "fast", burn_subtitles: true, subtitle_max_chars: 42, subtitle_max_seconds: 6, show_credits: true },
+      rights_profiles: {}, dynamic_eq: {},
+    });
+    if (path === "/api/cases/1/documentary") return json({
+      masters: [{ id: 41, version: 1, language: "en", status: "approved", words: 900, kind: "master" }],
+      master_version_id: 41, film_minutes: { min: 45, max: 120 }, blueprint: null, audio_plan: null,
+      languages: { en: null, de: null, fa: null, ar: null }, visual_plan: null,
+      jobs: [{ id: 12, case_id: 1, master_version_id: 41, mode: "full", languages: ["en", "de", "fa", "ar"],
+        pilot_seconds: null, render_profile: "preview", refresh_visuals: false, from_zero: false,
+        target_minutes: null, batch_id: null, production_type: "new", follow_up_id: null,
+        status: "completed", stage: null, progress: 1, stages, result: {}, error: null,
+        created_at: "2026-10-13T08:00:00Z", updated_at: "2026-10-13T08:01:00Z", completed_at: "2026-10-13T08:01:00Z" }],
+      visual_counts: {},
+    });
     if (path === "/api/documentary/1/stage-control/audit") return json([]);
     if (path.startsWith("/api/documentary/1/stage-control/") && method === "GET" && !path.includes("/result/")) {
       const name = decodeURIComponent(path.split("/stage-control/")[1]);
@@ -94,54 +84,20 @@ async function mockStageControlApi(page: import("@playwright/test").Page, staleA
       if (payload.enabled) automaticStages.add(payload.stage); else automaticStages.delete(payload.stage);
       return json({ case_id: 1, stage: payload.stage, automatic: payload.enabled, mode: "auto_continue" });
     }
-    if (path === "/api/documentary/jobs/12") return json(overview.jobs[0]);
-    return json({ detail: `unmocked ${method} ${path}` }, 404);
+    return json({ detail: "unmocked " + method + " " + path }, 404);
   });
 }
 
-async function openStageControl(page: import("@playwright/test").Page, staleApply = false) {
+async function openFixtureStageControl(page: import("@playwright/test").Page, staleApply = false) {
   await mockStageControlApi(page, staleApply);
   await page.goto("/documentary/1");
-  await page.getByRole("tab", { name: "Stage Control" }).click();
   await expect(page.getByTestId("stage-control-panel")).toBeVisible();
   await expect(page.getByTestId("stage-card-spoken:de")).toBeVisible();
 }
 
-test.describe("stage-control components", () => {
-  test("StageCard, ActionPanel and PreviewDialog cover edit, blocked and may-change states", async ({ page }) => {
-    await openStageControl(page);
-    const spoken = page.getByTestId("stage-card-spoken:de");
-    await expect(spoken.getByRole("button", { name: "Edit" })).toBeVisible();
-    await spoken.getByRole("button", { name: "Edit" }).click();
-    await spoken.getByLabel("Edit text").fill("A changed German chapter.");
-    await spoken.getByRole("button", { name: "Save edit and preview" }).click();
-    await expect(page.getByTestId("preview-dialog")).toContainText("German");
-    await expect(page.getByTestId("preview-dialog")).toContainText("spoken_version");
-    await expect(page.getByTestId("preview-dialog")).toContainText("may change");
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByTestId("stage-card-master_story").getByText("pending user edit or lock").first()).toBeVisible();
-  });
-
-  test("German edit apply, redo-with-prompt and automatic mode are visible and scoped", async ({ page }) => {
-    await openStageControl(page);
-    const spoken = page.getByTestId("stage-card-spoken:de");
-    await spoken.getByRole("button", { name: "Edit" }).click();
-    await spoken.getByLabel("Edit text").fill("A changed German chapter.");
-    await spoken.getByRole("button", { name: "Save edit and preview" }).click();
-    await page.getByRole("button", { name: "Apply" }).click();
-    await expect(page.getByTestId("stage-control-result")).toContainText("Changed outside scope");
-    await expect(page.getByTestId("stage-control-result")).toContainText("None");
-    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
-    await spoken.getByLabel("Prompt").fill("Make the transition more precise.");
-    await spoken.getByRole("button", { name: "Preview" }).click();
-    await expect(page.getByTestId("preview-dialog")).toContainText("German");
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await spoken.getByLabel("Run automatically").click();
-    await expect(spoken.getByLabel("Run automatically")).toBeChecked();
-  });
-
-  test("stale hash keeps Apply disabled and asks for a fresh preview", async ({ page }) => {
-    await openStageControl(page, true);
+test.describe("stage-control", () => {
+  test("fixture-only stale hash state keeps Apply disabled", async ({ page }) => {
+    await openFixtureStageControl(page, true);
     const spoken = page.getByTestId("stage-card-spoken:de");
     await spoken.getByRole("button", { name: "Edit" }).click();
     await spoken.getByLabel("Edit text").fill("A changed German chapter.");
@@ -151,10 +107,64 @@ test.describe("stage-control components", () => {
     await expect(page.getByTestId("apply-preview")).toBeDisabled();
   });
 
-  test("responsive screenshots document the desktop and phone states", async ({ page }) => {
-    await openStageControl(page);
-    await page.screenshot({ path: "../docs/ui/stage-control-desktop.png", fullPage: true });
+  test("real API edit, redo, automatic mode, pending lock, and scope result", async ({ page }) => {
+    const apiBase = "http://127.0.0.1:" + (process.env.E2E_API_PORT ?? "8011");
+    const beforeResponse = await page.request.get(apiBase + "/api/documentary/1/artifacts");
+    expect(beforeResponse.ok()).toBeTruthy();
+    const before = (await beforeResponse.json()) as Array<{ language: string | null; output_hash: string | null }>;
+    const untouched = Object.fromEntries(before.filter((row) => ["en", "fa", "ar"].includes(row.language ?? "")).map((row) => [row.language, row.output_hash]));
+
+    await page.goto("/documentary/1");
+    await expect(page.getByTestId("stage-control-panel")).toBeVisible();
+    const spoken = page.getByTestId("stage-card-spoken:de");
+    await spoken.getByRole("button", { name: "Edit" }).click();
+    await spoken.getByLabel("Edit text").fill("A revised German chapter from the real UI.");
+    await spoken.getByRole("button", { name: "Save edit and preview" }).click();
+    const preview = page.getByTestId("preview-dialog");
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText("German");
+    await expect(preview).not.toContainText("English");
+    await page.screenshot({ path: "../docs/ui/stage-control-preview-desktop.png", fullPage: true });
+    await page.getByRole("button", { name: "Apply" }).click();
+    const result = page.getByTestId("stage-control-result");
+    await expect(result).toContainText("Changed outside scope");
+    await expect(result).toContainText("None");
+    await page.screenshot({ path: "../docs/ui/stage-control-result-desktop.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: "../docs/ui/stage-control-phone.png", fullPage: true });
+    await page.screenshot({ path: "../docs/ui/stage-control-result-phone.png", fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+
+    const afterResponse = await page.request.get(apiBase + "/api/documentary/1/artifacts");
+    const after = (await afterResponse.json()) as Array<{ language: string | null; output_hash: string | null }>;
+    expect(Object.fromEntries(after.filter((row) => ["en", "fa", "ar"].includes(row.language ?? "")).map((row) => [row.language, row.output_hash]))).toEqual(untouched);
+
+    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
+    await spoken.getByLabel("Prompt").fill("Make the transition more precise.");
+    await spoken.getByRole("button", { name: "Preview" }).click();
+    await expect(preview).toContainText("Exact preview scope");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: "../docs/ui/stage-control-preview-phone.png", fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(result).toContainText("None");
+    await page.reload();
+    await expect(page.getByTestId("stage-control-panel")).toBeVisible();
+    await spoken.getByLabel("Run automatically").click();
+    await expect(spoken.getByLabel("Run automatically")).toBeChecked();
+    await page.getByText("Run the whole case automatically").locator("..").locator("..").getByRole("checkbox").check();
+
+    await page.screenshot({ path: "../docs/ui/stage-control-stage-list-desktop.png", fullPage: true });
+
+    await spoken.getByRole("button", { name: "Redo with prompt" }).click();
+    await spoken.getByLabel("Prompt").fill("Leave a pending lock.");
+    await spoken.getByRole("button", { name: "Preview" }).click();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.reload();
+    const blockedSpoken = page.getByTestId("stage-card-spoken:de");
+    await expect(blockedSpoken.getByText("pending user edit or lock").first()).toBeVisible();
+    await expect(blockedSpoken.getByRole("button", { name: "Continue" })).toBeDisabled();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: "../docs/ui/stage-control-stage-list-phone.png", fullPage: true });
   });
 });

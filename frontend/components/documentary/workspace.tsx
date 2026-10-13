@@ -27,7 +27,6 @@ import { MusicTab } from "./tabs/music";
 import { ProductionScriptTab } from "./tabs/production-script";
 import { CritiqueTab } from "./tabs/critique";
 import { RenderTab } from "./tabs/render";
-import { StageControlPanel } from "./stage-control";
 
 const TABS = [
   "Run",
@@ -42,7 +41,6 @@ const TABS = [
   "Production Script",
   "Critique",
   "Render",
-  "Stage Control",
 ] as const;
 
 type Tab = (typeof TABS)[number];
@@ -189,7 +187,6 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
         {tab === "Production Script" && <ProductionScriptTab {...languageProps} />}
         {tab === "Critique" && <CritiqueTab {...languageProps} />}
         {tab === "Render" && <RenderTab {...common} job={job} />}
-        {tab === "Stage Control" && <StageControlPanel caseId={caseId} job={job} />}
       </div>
     </div>
   );

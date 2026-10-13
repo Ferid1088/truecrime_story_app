@@ -15,6 +15,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/state";
 import { cn } from "@/lib/utils";
 import { ProductionTypeBadge } from "@/components/lifecycle/shared";
+import { StageControlPanel } from "../stage-control";
 import {
   DEFAULT_TARGET_MINUTES,
   RunOptionsFields,
@@ -28,13 +29,10 @@ import {
   type DocumentaryTabProps,
   InlineAlert,
   JobStatusBadge,
-  StageIcon,
   filmLengthIssue,
   isJobActive,
   jobActivity,
   jobProgressTone,
-  stageLabel,
-  summarizeDetail,
   WarningList,
 } from "../shared";
 
@@ -236,6 +234,7 @@ export function RunTab({
       <div className="min-w-0 space-y-4">
         {shown ? (
           <JobPanel
+            caseId={caseId}
             job={shown}
             isCurrent={shown.id === job?.id}
             busy={busy}
@@ -382,6 +381,7 @@ function FilmLengthCard({
 }
 
 function JobPanel({
+  caseId,
   job,
   isCurrent,
   busy,
@@ -389,6 +389,7 @@ function JobPanel({
   onCancel,
   onResume,
 }: {
+  caseId: number;
   job: DocumentaryJob;
   isCurrent: boolean;
   busy: "start" | "cancel" | "resume" | null;
@@ -484,55 +485,9 @@ function JobPanel({
           )
         )}
         <WarningList warnings={job.result.warnings ?? []} />
-        <ol className="divide-y divide-border rounded-md border border-border">
-          {job.stages.map((s) => {
-            const detail = summarizeDetail(s.detail);
-            const lastError = s.errors?.length ? s.errors[s.errors.length - 1] : null;
-            const retried = (s.attempts ?? 0) > 1;
-            return (
-              <li key={s.name} className="flex items-start gap-2.5 px-3 py-2">
-                <span className="mt-0.5">
-                  <StageIcon status={s.status} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(
-                      "text-sm",
-                      (s.status === "pending" || s.status === "blocked") && "text-muted-foreground",
-                    )}
-                  >
-                    {stageLabel(s.name)}
-                  </p>
-                  {detail && (
-                    <p
-                      className={cn(
-                        "mt-0.5 break-words text-[11px] leading-4",
-                        s.status === "failed" || s.status === "blocked"
-                          ? "text-rose-600 dark:text-rose-400"
-                          : s.status === "degraded"
-                            ? "text-amber-700 dark:text-amber-400"
-                            : "text-muted-foreground",
-                      )}
-                    >
-                      {detail}
-                    </p>
-                  )}
-                  {(retried || (lastError && s.status !== "failed")) && (
-                    <p
-                      className="mt-0.5 break-words text-[11px] leading-4 text-muted-foreground"
-                      title={s.errors?.map((e) => `${e.at} · ${e.type}: ${e.message}`).join("\n")}
-                    >
-                      {retried && `${s.attempts} attempts`}
-                      {lastError &&
-                        s.status !== "failed" &&
-                        `${retried ? " · " : ""}earlier: ${lastError.type} — ${lastError.message}`}
-                    </p>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+      </CardContent>
+      <CardContent className="pt-0">
+        <StageControlPanel caseId={caseId} job={job} />
       </CardContent>
     </Card>
   );

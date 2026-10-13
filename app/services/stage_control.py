@@ -185,8 +185,16 @@ class StageControlService:
 
     def _apply_edit(self, payload: dict) -> None:
         edit = payload.get("edit") or {}
+        applied = False
         for artifact in payload.get("estimated_scope", []):
             if artifact["type"] != "spoken_version":
+                row = self.db.get(Artifact, artifact["id"])
+                text = edit.get("text") or edit.get("chapter_text")
+                if row is not None and isinstance(text, str) and text:
+                    row.output_ref = text
+                    row.output_hash = hashlib.sha256(text.encode()).hexdigest()
+                    row.status = "fresh"
+                    applied = True
                 continue
             row = self.db.get(Artifact, artifact["id"])
             if row is None:
@@ -213,6 +221,9 @@ class StageControlService:
                 raise StageControlError("spoken edit requires non-empty story_text or chapter_text")
             version.story_text = text
             version.text_hash = hashlib.sha256(text.encode()).hexdigest()
+            applied = True
+        if not applied:
+            raise StageControlError("edit did not target a supported artifact")
 
     def apply(self, preview_id: int, *, case_id: int | None = None) -> dict:
         row = self.db.get(EditLog, preview_id)

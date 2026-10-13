@@ -44,3 +44,17 @@ the UI labels them before apply. The result view requires
 The preview is the binding: apply cannot silently expand it. A German edit can
 therefore only execute the German stages and preview-listed dependents; shared
 artifacts execute only when explicitly present in the preview.
+
+## UI editor paths
+
+| artifact type | editor opened by ActionPanel | save path |
+|---|---|---|
+| `spoken_version` | spoken chapter text | edit → preview → apply |
+| `chapter_plan`, `chapter_cards`, `timeline_cards` | chapter-card editor | edit → preview → apply |
+| `audio_blocks` | audio-plan editor | edit → preview → apply |
+| `naming` | naming editor | edit → preview → apply |
+| `visual_asset` | thumbnail brief editor | edit → preview → apply |
+
+The Run tab is the only stage-control surface. Naming, thumbnail, blueprint and
+music tabs remain read/edit views for their domain data; their pipeline action
+is represented by the corresponding artifact card in the Run-tab ActionPanel.

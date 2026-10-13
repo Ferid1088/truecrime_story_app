@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Check, Clock3, Lock, PenLine, Play, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { langLabel } from "@/lib/format";
-import { useUiMessages } from "@/lib/i18n";
 import { useApi } from "@/lib/hooks";
 import type {
   DocumentaryJob,
@@ -40,11 +39,11 @@ function stageLanguage(stage: string): string | null {
   return index > -1 ? stage.slice(index + 1) : null;
 }
 
-function actionLabel(action: StageControlAction, t: ReturnType<typeof useUiMessages>): string {
-  if (action === "continue") return t("continue");
-  if (action === "redo_with_prompt") return t("redo");
-  if (action === "edit") return t("edit");
-  return t("automaticStage");
+function actionLabel(action: StageControlAction): string {
+  if (action === "continue") return "Continue";
+  if (action === "redo_with_prompt") return "Redo with prompt";
+  if (action === "edit") return "Edit";
+  return "Run automatically";
 }
 
 interface PreviewDialogProps {
@@ -57,28 +56,27 @@ interface PreviewDialogProps {
 }
 
 export function PreviewDialog({ preview, stale, applying, error, onApply, onClose }: PreviewDialogProps) {
-  const t = useUiMessages();
   return (
     <Dialog
       open={preview != null}
       onClose={onClose}
-      title={t("exactScope")}
-      description={preview ? `${stageLabel(preview.stage)} · ${actionLabel(preview.action, t)}` : undefined}
+      title="Exact preview scope"
+      description={preview ? `${stageLabel(preview.stage)} · ${actionLabel(preview.action)}` : undefined}
       className="max-h-[88vh] overflow-y-auto"
     >
       {preview && (
         <div className="space-y-4" data-testid="preview-dialog">
           <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-            <Metric label={t("artifacts")} value={preview.estimated_scope.length} />
-            <Metric label={t("languages")} value={preview.languages.map(langLabel).join(", ") || "—"} />
-            <Metric label={t("providerCalls")} value={preview.estimated_provider_calls.total} />
-            <Metric label={t("previewId")} value={preview.preview_id} />
+            <Metric label="Artifacts" value={preview.estimated_scope.length} />
+            <Metric label="Languages" value={preview.languages.map(langLabel).join(", ") || "—"} />
+            <Metric label="Estimated provider calls" value={preview.estimated_provider_calls.total} />
+            <Metric label="Preview ID" value={preview.preview_id} />
           </div>
           <div>
-            <p className="mb-2 text-xs font-medium">{t("exactScope")}</p>
+            <p className="mb-2 text-xs font-medium">Exact preview scope</p>
             {preview.estimated_scope.length === 0 ? (
               <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
-                {t("noStages")}
+                No pipeline stages are available yet.
               </p>
             ) : (
               <ul className="max-h-56 divide-y divide-border overflow-y-auto rounded-md border border-border">
@@ -90,7 +88,7 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
                     </span>
                     <span className="flex items-center gap-2">
                       {item.language && <Badge variant="outline">{langLabel(item.language)}</Badge>}
-                      {item.may_change && <Badge variant="warning">{t("mayChange")}</Badge>}
+                      {item.may_change && <Badge variant="warning">may change</Badge>}
                     </span>
                   </li>
                 ))}
@@ -99,7 +97,7 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
           </div>
           {Object.keys(preview.estimated_provider_calls.by_stage).length > 0 && (
             <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
-              <p className="font-medium">{t("providerCalls")}</p>
+              <p className="font-medium">Estimated provider calls</p>
               <p className="mt-1 text-muted-foreground">
                 {Object.entries(preview.estimated_provider_calls.by_stage)
                   .map(([stage, calls]) => `${stage}: ${calls}`)
@@ -107,12 +105,12 @@ export function PreviewDialog({ preview, stale, applying, error, onApply, onClos
               </p>
             </div>
           )}
-          {stale && <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">{t("stalePreview")}</p>}
+          {stale && <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">inputs changed — preview again</p>}
           {error && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="ghost" onClick={onClose}>{t("cancel")}</Button>
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button onClick={onApply} disabled={stale} loading={applying} data-testid="apply-preview">
-              <Check /> {t("apply")}
+              <Check /> Apply
             </Button>
           </div>
         </div>
@@ -133,7 +131,6 @@ interface ActionPanelProps {
 }
 
 export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPanelProps) {
-  const t = useUiMessages();
   const [prompt, setPrompt] = useState("");
   const [chapterText, setChapterText] = useState("");
   const [chapterIndex, setChapterIndex] = useState("0");
@@ -148,7 +145,7 @@ export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPan
     setError(null);
     try {
       const edit = action === "edit"
-        ? { language: editLanguage, chapter_index: Number(chapterIndex), chapter_text: chapterText }
+        ? { language: editLanguage, chapter_index: Number(chapterIndex), chapter_text: chapterText, text: chapterText, artifact_type: state.artifacts[0]?.type }
         : undefined;
       const preview = await api.stageControlPreview(caseId, {
         stage: state.stage,
@@ -164,7 +161,14 @@ export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPan
     }
   };
 
-  const spoken = state.artifacts.some((artifact) => artifact.type === "spoken_version");
+  const editArtifact = state.artifacts[0];
+  const editable = new Set(["spoken_version", "chapter_plan", "chapter_cards", "timeline_cards", "audio_blocks", "naming", "visual_asset"]);
+  const canEdit = !!editArtifact && editable.has(editArtifact.type);
+  const editTitle = editArtifact?.type === "naming" ? "Edit naming" :
+    editArtifact?.type === "visual_asset" ? "Edit thumbnail brief" :
+    editArtifact?.type === "audio_blocks" ? "Edit audio plan" :
+    editArtifact?.type === "chapter_cards" || editArtifact?.type === "chapter_plan" || editArtifact?.type === "timeline_cards" ? "Edit chapter cards" :
+    "Edit spoken chapter text";
   const changeAutomatic = async (enabled: boolean) => {
     setAutomaticBusy(true);
     setError(null);
@@ -193,7 +197,7 @@ export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPan
                 {action === "continue" && <Play />}
                 {action === "redo_with_prompt" && <RotateCcw />}
                 {action === "edit" && <PenLine />}
-                {actionLabel(action, t)}
+                {actionLabel(action)}
               </Button>
               {blocked && <p className="mt-1 flex items-start gap-1 text-[10px] text-muted-foreground"><Lock className="mt-0.5 size-3 shrink-0" />{blocked}</p>}
             </div>
@@ -202,28 +206,28 @@ export function ActionPanel({ caseId, state, onPreview, onAutomatic }: ActionPan
       </div>
       {openAction === "redo_with_prompt" && (
         <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-          <label className="block text-xs font-medium" htmlFor={`prompt-${state.stage}`}>{t("prompt")}</label>
-          <Textarea id={`prompt-${state.stage}`} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("promptPlaceholder")} rows={3} />
-          <Button size="sm" onClick={() => requestPreview("redo_with_prompt")} disabled={!prompt.trim()} loading={busy === "redo_with_prompt"}>{t("preview")}</Button>
+          <label className="block text-xs font-medium" htmlFor={`prompt-${state.stage}`}>Prompt</label>
+          <Textarea id={`prompt-${state.stage}`} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="What should change?" rows={3} />
+          <Button size="sm" onClick={() => requestPreview("redo_with_prompt")} disabled={!prompt.trim()} loading={busy === "redo_with_prompt"}>Preview</Button>
         </div>
       )}
       {openAction === "edit" && (
         <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-          <p className="text-xs text-muted-foreground">{t("editRequiresSpoken")}</p>
-          {spoken ? (
+          <p className="text-xs text-muted-foreground">{canEdit ? `${editTitle}. Preview the exact downstream scope before applying it.` : "This stage has no supported editor."}</p>
+          {canEdit ? (
             <>
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="text-xs font-medium">{t("languages")}<Select value={editLanguage} onChange={(event) => setEditLanguage(event.target.value)} className="mt-1"><option value="de">{langLabel("de")}</option><option value="en">{langLabel("en")}</option><option value="fa">{langLabel("fa")}</option><option value="ar">{langLabel("ar")}</option></Select></label>
-                <label className="text-xs font-medium">{t("chapter")}<input className="mt-1 flex h-8 w-full rounded-md border border-border bg-transparent px-3 text-sm" type="number" min="0" value={chapterIndex} onChange={(event) => setChapterIndex(event.target.value)} /></label>
+                <label className="text-xs font-medium">Language<Select value={editLanguage} onChange={(event) => setEditLanguage(event.target.value)} className="mt-1"><option value="de">{langLabel("de")}</option><option value="en">{langLabel("en")}</option><option value="fa">{langLabel("fa")}</option><option value="ar">{langLabel("ar")}</option></Select></label>
+                <label className="text-xs font-medium">Chapter<input className="mt-1 flex h-8 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm" type="number" min="0" value={chapterIndex} onChange={(event) => setChapterIndex(event.target.value)} /></label>
               </div>
-              <Textarea aria-label={t("editText")} value={chapterText} onChange={(event) => setChapterText(event.target.value)} placeholder={t("editPlaceholder")} rows={5} />
-              <Button size="sm" onClick={() => requestPreview("edit")} disabled={!chapterText.trim()} loading={busy === "edit"}>{t("saveAndPreview")}</Button>
+              <Textarea aria-label="Edit text" value={chapterText} onChange={(event) => setChapterText(event.target.value)} placeholder="Enter the edited chapter text" rows={5} />
+              <Button size="sm" onClick={() => requestPreview("edit")} disabled={!chapterText.trim()} loading={busy === "edit"}>Save edit and preview</Button>
             </>
-          ) : <p className="text-xs text-muted-foreground">{t("editRequiresSpoken")}</p>}
+          ) : <p className="text-xs text-muted-foreground">This artifact has no supported editor.</p>}
         </div>
       )}
-      {error && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{t("actionError")} {error}</p>}
-      <Checkbox checked={state.automatic} disabled={automaticBusy} onChange={(event) => void changeAutomatic(event.target.checked)} label={t("automaticStage")} />
+      {error && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">The action could not be prepared. {error}</p>}
+      <Checkbox checked={state.automatic} disabled={automaticBusy} onChange={(event) => void changeAutomatic(event.target.checked)} label="Run automatically" />
     </div>
   );
 }
@@ -239,7 +243,6 @@ interface StageCardProps {
 }
 
 export function StageCard({ stage, state, error, loading, caseId, onPreview, onAutomatic }: StageCardProps) {
-  const t = useUiMessages();
   const language = stageLanguage(stage.name);
   const detail = summarizeDetail(stage.detail);
   return (
@@ -262,7 +265,7 @@ export function StageCard({ stage, state, error, loading, caseId, onPreview, onA
         {loading && <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-4 w-2/3" /></div>}
         {error && <ErrorState message={error} />}
         {!loading && !error && state && <ActionPanel caseId={caseId} state={state} onPreview={onPreview} onAutomatic={(enabled) => onAutomatic(state.stage, enabled)} />}
-        {!loading && !error && !state && <p className="text-xs text-muted-foreground">{t("noStages")}</p>}
+        {!loading && !error && !state && <p className="text-xs text-muted-foreground">No pipeline stages are available yet.</p>}
       </CardContent>
     </Card>
   );
@@ -276,7 +279,6 @@ interface StageListProps {
 }
 
 export function StageList({ caseId, job, language, onPreview }: StageListProps) {
-  const t = useUiMessages();
   const stages = useMemo(() => job?.stages ?? [], [job?.stages]);
   const stageNames = useMemo(() => stages.map((stage) => stage.name), [stages]);
   const [automaticBusy, setAutomaticBusy] = useState(false);
@@ -308,18 +310,18 @@ export function StageList({ caseId, job, language, onPreview }: StageListProps) 
     finally { setAutomaticBusy(false); }
   };
 
-  if (!job || !stages.length) return <EmptyState title={t("noStages")} description={t("stageControlDescription")} />;
+  if (!job || !stages.length) return <EmptyState title="No pipeline stages are available yet." description="Preview the exact rebuild scope before applying any stage action." />;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
-        <div><p className="text-sm font-medium">{t("automaticCase")}</p><p className="text-xs text-muted-foreground">{t("stageControlDescription")}</p></div>
-        <Checkbox disabled={automaticBusy} onChange={(event) => void setAllAutomatic(event.target.checked)} label={automaticBusy ? t("loading") : t("automaticStage")} />
+        <div><p className="text-sm font-medium">Run the whole case automatically</p><p className="text-xs text-muted-foreground">Preview the exact rebuild scope before applying any stage action.</p></div>
+        <Checkbox disabled={automaticBusy} onChange={(event) => void setAllAutomatic(event.target.checked)} label={automaticBusy ? "Loading" : "Run automatically"} />
       </div>
       <div className="grid gap-3 xl:grid-cols-2">
         {filtered.map((stage) => <StageCard key={stage.name} stage={stage} state={states[stage.name] ?? null} error={errors[stage.name] ?? null} loading={stateRequest.loading && !stateRequest.data} caseId={caseId} onPreview={onPreview} onAutomatic={setAutomatic} />)}
       </div>
-      {!filtered.length && <EmptyState title={t("noStages")} />}
-      <Button variant="ghost" size="sm" onClick={stateRequest.refetch} loading={stateRequest.loading}><RotateCcw />{t("retry")}</Button>
+      {!filtered.length && <EmptyState title="No pipeline stages are available yet." />}
+      <Button variant="ghost" size="sm" onClick={stateRequest.refetch} loading={stateRequest.loading}><RotateCcw />Retry</Button>
     </div>
   );
 }
@@ -327,7 +329,6 @@ export function StageList({ caseId, job, language, onPreview }: StageListProps) 
 interface AuditTimelineProps { caseId: number; stages: string[]; language: string; }
 
 export function StageAuditTimeline({ caseId, stages, language }: AuditTimelineProps) {
-  const t = useUiMessages();
   const [stage, setStage] = useState("");
   const audit = useApi(
     () => api.stageControlAudit(caseId, stage || undefined, language === "all" ? undefined : language),
@@ -336,11 +337,11 @@ export function StageAuditTimeline({ caseId, stages, language }: AuditTimelinePr
   );
   return (
     <Card>
-      <CardHeader><CardTitle>{t("audit")}</CardTitle><Select aria-label={t("filterStage")} value={stage} onChange={(event) => setStage(event.target.value)} className="max-w-52"><option value="">{t("allLanguages")}</option>{stages.map((name) => <option key={name} value={name}>{stageLabel(name)}</option>)}</Select></CardHeader>
+      <CardHeader><CardTitle>Audit timeline</CardTitle><Select aria-label="Stage" value={stage} onChange={(event) => setStage(event.target.value)} className="max-w-52"><option value="">All stages</option>{stages.map((name) => <option key={name} value={name}>{stageLabel(name)}</option>)}</Select></CardHeader>
       <CardContent>
         {audit.loading && <div className="space-y-2"><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-4/5" /></div>}
         {audit.error && <ErrorState message={audit.error} onRetry={audit.refetch} />}
-        {!audit.loading && !audit.error && !audit.data?.length && <p className="text-xs text-muted-foreground">{t("noAudit")}</p>}
+        {!audit.loading && !audit.error && !audit.data?.length && <p className="text-xs text-muted-foreground">No stage-control events yet.</p>}
         {!audit.loading && !audit.error && audit.data && audit.data.length > 0 && <ol className="space-y-3 border-l border-border pl-4">{audit.data.map((event) => <li key={event.id} className="relative text-xs"><span className="absolute -left-[1.35rem] top-0.5 size-2 rounded-full bg-primary" /><p className="font-medium">{event.rule_id} · {event.decision}</p><p className="text-muted-foreground">{event.reason}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{event.stage ?? "—"}{event.language ? ` · ${langLabel(event.language)}` : ""} · {new Date(event.created_at).toLocaleString()}</p></li>)}</ol>}
       </CardContent>
     </Card>
@@ -348,26 +349,24 @@ export function StageAuditTimeline({ caseId, stages, language }: AuditTimelinePr
 }
 
 export function StageControlResultView({ operation }: { operation: StageControlOperationResult }) {
-  const t = useUiMessages();
   const result = operation.result;
   const outside = result.changed_outside_scope ?? [];
   const failed = result.status === "failed" || outside.length > 0;
   return (
     <Card data-testid="stage-control-result" className={failed ? "border-rose-500/40" : undefined}>
-      <CardHeader><CardTitle className="flex items-center gap-2">{failed ? <AlertTriangle className="size-4 text-rose-500" /> : <Check className="size-4 text-emerald-500" />}{t("result")}</CardTitle><Badge variant={failed ? "danger" : "success"}>{result.status}</Badge></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2">{failed ? <AlertTriangle className="size-4 text-rose-500" /> : <Check className="size-4 text-emerald-500" />}Apply result</CardTitle><Badge variant={failed ? "danger" : "success"}>{result.status}</Badge></CardHeader>
       <CardContent className="grid gap-2 text-xs sm:grid-cols-3">
-        <Metric label={t("previewed")} value={result.previewed_artifact_ids.length} />
-        <Metric label={t("executed")} value={result.executed_artifact_ids.length} />
-        <Metric label={t("outside")} value={outside.length ? outside.join(", ") : t("noOutside")} />
+        <Metric label="Previewed" value={result.previewed_artifact_ids.length} />
+        <Metric label="Executed" value={result.executed_artifact_ids.length} />
+        <Metric label="Changed outside scope" value={outside.length ? outside.join(", ") : "None"} />
         {result.error && <p role="alert" className="sm:col-span-3 text-rose-600 dark:text-rose-400">{result.error}</p>}
-        {result.status === "queued" && <p className="sm:col-span-3 text-muted-foreground">{t("applyQueued")}</p>}
+        {result.status === "queued" && <p className="sm:col-span-3 text-muted-foreground">Queued — following the job</p>}
       </CardContent>
     </Card>
   );
 }
 
 export function StageControlPanel({ caseId, job }: { caseId: number; job: DocumentaryJob | null }) {
-  const t = useUiMessages();
   const [language, setLanguage] = useState("all");
   const [preview, setPreview] = useState<StageControlPreview | null>(null);
   const [operation, setOperation] = useState<StageControlOperationResult | null>(null);
@@ -399,8 +398,8 @@ export function StageControlPanel({ caseId, job }: { caseId: number; job: Docume
   return (
     <div className="space-y-5" data-testid="stage-control-panel">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">{t("stageControl")}</h2><p className="mt-1 text-xs text-muted-foreground">{t("stageControlDescription")}</p></div>
-        <label className="min-w-40 text-xs font-medium">{t("languageFilter")}<Select value={language} onChange={(event) => setLanguage(event.target.value)} className="mt-1"><option value="all">{t("allLanguages")}</option>{languages.map((code) => <option key={code} value={code}>{langLabel(code)}</option>)}</Select></label>
+        <div><h2 className="text-lg font-semibold">Stage control</h2><p className="mt-1 text-xs text-muted-foreground">Preview the exact rebuild scope before applying any stage action.</p></div>
+        <label className="min-w-40 text-xs font-medium">Language<Select value={language} onChange={(event) => setLanguage(event.target.value)} className="mt-1"><option value="all">All languages</option>{languages.map((code) => <option key={code} value={code}>{langLabel(code)}</option>)}</Select></label>
       </div>
       {error && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       <StageList caseId={caseId} job={job} language={language} onPreview={(next) => { setError(null); setStale(false); setOperation(null); setPreview(next); }} />
