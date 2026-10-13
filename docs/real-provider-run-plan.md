@@ -45,11 +45,11 @@ not provider spend, and must remain the render authority.
 
 These are computed preflight estimates, not invoices. The single source of
 truth is `config/parameters/pricing.json` (`last_verified: 2026-10-13`). It
-contains the model input/output prices, ElevenLabs character price, image
-prices, HeyGen minute price, and the USD→EUR exchange rate. Units come from
-the case's source words, story words, target film minutes, full narration
-characters, one thumbnail, and four short renders. Actual vendor prices and
-token usage are still recorded from the provider response.
+contains the model input/output prices, ElevenLabs character price, HeyGen
+minute price, and the USD→EUR exchange rate. Units come from the case's
+source words, story words, target film minutes, and full narration characters.
+Thumbnails and FFmpeg renders are local and carry no provider charge. Actual
+vendor prices and token usage are still recorded from the provider response.
 
 All stages share one configurable per-case cap expressed in EUR. Provider USD
 prices are converted with the configured `usd_to_eur` rate before the ledger is
@@ -63,11 +63,11 @@ additional Shorts-specific guard.
 | Spoken version | full story words → input/output tokens | premium model input/output €/1M | low / expected / high |
 | Performance / voice direction | story words plus direction output tokens | premium model input/output €/1M | low / expected / high |
 | ElevenLabs TTS | full narration characters | €/1M characters | low / expected / high |
-| Thumbnail | one image | €/image | low / expected / high |
+| Thumbnail | local deterministic image | no provider price | skipped: local CPU/disk only |
 | HeyGen / host | target film minutes | €/minute | skipped when host is disabled |
 | Translation | story words per non-English language | writer model input/output €/1M | skipped for English-only |
 | Shorts selection | story words → input/output tokens | writer model input/output €/1M | low / expected / high |
-| Shorts renders | four renders | €/render | low / expected / high |
+| Shorts renders | local FFmpeg | no provider price | skipped: local CPU/disk only |
 | Local render/package | FFmpeg, captions, cover and manifest | no provider price | skipped: local CPU/disk only |
 
 The dry-run response includes each row's units, both LLM input/output unit
@@ -135,9 +135,9 @@ ledger have been reviewed.
 The no-send endpoint runs the same cost model used by stage-control previews
 and the pre-call budget gate. It builds prompts for every finished-film stage,
 including research, master story, spoken version, performance direction, full
-ElevenLabs narration, thumbnail, optional host, translation status, Shorts
-selection and Shorts renders. It sends no provider request and writes no
-upload. The response includes `estimate_range_eur`, `metrics`, `units`,
+ElevenLabs narration, local thumbnail status, optional host, translation
+status, Shorts selection and local Shorts renders. It sends no provider
+request and writes no upload. The response includes `estimate_range_eur`, `metrics`, `units`,
 `unit_price_eur`, `pricing_last_verified`, `sent: false`, and the cap stop
 stage. Changing the configured price or the narration length changes both this
 estimate and the redo-preview cost.

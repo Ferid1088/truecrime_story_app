@@ -102,7 +102,8 @@ def _single_unit_line(pricing: dict[str, Any], stage: str, status: str,
     if stage.startswith("tts"):
         spec = pricing["tts"].get("eleven_v3")
     elif stage == "thumbnail":
-        spec = pricing["image"].get("thumbnail")
+        # Thumbnails are deterministic/local; they have no provider price.
+        spec = None
     elif stage.startswith("host"):
         spec = pricing.get("heygen")
     price_status, warning = (("verified", None) if status == "skipped" and spec is None
@@ -217,10 +218,10 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
         {"characters": chars["expected"]}, {"eur_per_1m_characters": tts_price},
         {key: chars[key] / 1_000_000 * tts_price for key in SCENARIOS},
         pricing["tts"]["eleven_v3"].get("provider_model")))
-    image_price = float(pricing["image"]["thumbnail"]["eur_per_image"])
     lines.append(_single_unit_line(
-        pricing, "thumbnail", "run", None, {"images": 1}, {"eur_per_image": image_price},
-        {key: image_price for key in SCENARIOS}, pricing["image"]["thumbnail"].get("provider_model")))
+        pricing, "thumbnail", "skipped",
+        "Thumbnail generation is local; no provider charge is included.",
+        {"images": 0}, {}, {key: 0.0 for key in SCENARIOS}, "local thumbnail"))
 
     if ai_config.host.enabled and ai_config.avatar.enabled:
         host_price = float(pricing["heygen"]["eur_per_minute"])

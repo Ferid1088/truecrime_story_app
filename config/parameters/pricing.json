@@ -55,19 +55,6 @@
       "verification_status": "verified"
     }
   },
-  "image": {
-    "thumbnail": {
-      "provider_model": "unconfigured image provider",
-      "eur_per_image": 0.08,
-      "currency": "USD",
-      "derived_currency": "EUR",
-      "source_url": "https://platform.openai.com/pricing",
-      "plan_or_tier": "No provider/model is configured for thumbnail generation",
-      "last_verified": "2026-10-13",
-      "verification_status": "unverified",
-      "verification_note": "The current thumbnail is deterministic/local; no official paid image price can be assigned until an image provider and model are configured."
-    }
-  },
   "heygen": {
     "provider_model": "HeyGen Avatar III",
     "usd_per_minute": 1.0,
