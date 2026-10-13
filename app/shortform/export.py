@@ -14,8 +14,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from app.core.ai_config import ai_config
 
-WIDTH, HEIGHT = 1080, 1920
+WIDTH = ai_config.short_form.production.width
+HEIGHT = ai_config.short_form.production.height
 SAFE_X = 96
 SAFE_TOP = 180
 SAFE_BOTTOM = 330
@@ -65,16 +67,30 @@ def _write_cover(path: Path, title: str, language: str,
                    outline=(211, 164, 78), width=4)
     draw.text((SAFE_X + 48, SAFE_TOP + 60), "TRUECRIME / SHORT",
               fill=(211, 164, 78), font=_font("en", 38))
-    draw.multiline_text((SAFE_X + 48, 620), title, fill=(245, 241, 231),
-                        font=_font(language, 78), spacing=16,
-                        direction="rtl" if language in {"fa", "ar"} else None)
+    _multiline(draw, (SAFE_X + 48, 620), title, fill=(245, 241, 231),
+               font=_font(language, 78), spacing=16, language=language)
     draw.text((SAFE_X + 48, HEIGHT - SAFE_BOTTOM - 80), "AI-assisted narration",
               fill=(180, 186, 198), font=_font("en", 30))
     if subtitle_preview:
-        draw.multiline_text((SAFE_X + 48, 1260), subtitle_preview,
-                            fill=(245, 241, 231), font=_font(language, 42),
-                            spacing=12, direction="rtl" if language in {"fa", "ar"} else None)
+        _multiline(draw, (SAFE_X + 48, 1260), subtitle_preview,
+                   fill=(245, 241, 231), font=_font(language, 42),
+                   spacing=12, language=language)
     image.save(path)
+
+
+def _multiline(draw: ImageDraw.ImageDraw, xy, text: str, *, fill, font,
+               spacing: int, language: str) -> None:
+    """Draw RTL cover text when Pillow has libraqm, with a safe local fallback."""
+    kwargs = {"fill": fill, "font": font, "spacing": spacing}
+    if language in {"fa", "ar"}:
+        kwargs["direction"] = "rtl"
+    try:
+        draw.multiline_text(xy, text, **kwargs)
+    except (KeyError, ValueError):
+        # The video captions still go through libass in FFmpeg; this fallback
+        # keeps package generation working on minimal Pillow installations.
+        kwargs.pop("direction", None)
+        draw.multiline_text(xy, text, **kwargs)
 
 
 def _write_srt(path: Path, cues: list[SubtitleCue]) -> None:
@@ -101,6 +117,10 @@ def build_export_package(
     rights_status: str = "cleared",
     rights_source: str = "synthetic pilot background",
     rights_human_signoff: bool = False,
+    source_video: str | Path | None = None,
+    audio_source: str | Path | None = None,
+    source_start_seconds: float = 0.0,
+    captions_burned_in: bool | None = None,
 ) -> dict:
     """Build a small, inspectable, watchable pilot package offline."""
     if shutil.which("ffmpeg") is None:
@@ -132,14 +152,50 @@ def build_export_package(
     video = output_dir / "short.mp4"
     _write_cover(cover, title, language, "\n".join(cue.text for cue in cues))
     _write_srt(subtitles, cues)
-    # The bundled macOS FFmpeg may not include libass. The cover carries a
-    # static subtitle proof while the timed SRT remains the canonical track.
-    subprocess.run([
-        "ffmpeg", "-y", "-v", "error", "-loop", "1", "-i", str(cover),
-        "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-        "-t", str(duration_seconds), "-r", "30",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(video),
-    ], check=True)
+    source = Path(source_video) if source_video else None
+    audio = Path(audio_source) if audio_source else None
+    burned = bool(ai_config.short_form.production.captions_burned_in
+                  if captions_burned_in is None else captions_burned_in)
+    inputs = ["ffmpeg", "-y", "-v", "error"]
+    if source and source.is_file():
+        if source_start_seconds > 0:
+            inputs += ["-ss", str(source_start_seconds)]
+        inputs += ["-i", str(source)]
+        separate_audio = bool(audio and audio.is_file() and audio.resolve() != source.resolve())
+        if separate_audio:
+            inputs += ["-i", str(audio)]
+        else:
+            audio = source
+        video_filter = f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT}"
+        if burned:
+            # libass handles Arabic/Persian shaping and bidi ordering.  If a
+            # local FFmpeg lacks the subtitles filter, retry without it and
+            # keep the timed SRT as the canonical caption artifact.
+            escaped = (str(subtitles).replace("\\", "\\\\").replace(":", "\\:")
+                       .replace("'", "\\'"))
+            video_filter += f",subtitles=filename='{escaped}'"
+        command = inputs + ["-t", str(duration_seconds), "-vf", video_filter,
+                            "-map", "0:v:0", "-map", "1:a:0" if separate_audio else "0:a:0",
+                            "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                            "-c:a", "aac", "-shortest", str(video)]
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError:
+            if burned:
+                fallback_filter = video_filter.split(",subtitles=", 1)[0]
+                fallback = command.copy()
+                fallback[fallback.index("-vf") + 1] = fallback_filter
+                subprocess.run(fallback, check=True)
+                burned = False
+            else:
+                raise
+    else:
+        subprocess.run([
+            "ffmpeg", "-y", "-v", "error", "-loop", "1", "-i", str(cover),
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+            "-t", str(duration_seconds), "-r", "30",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(video),
+        ], check=True)
     manifest = {
         "schema": "short-form-export-v1",
         "video": video.name,
@@ -150,13 +206,15 @@ def build_export_package(
         "duration_seconds": duration_seconds,
         "language": language,
         "subtitle_layout": layout,
-        "subtitle_render_mode": "static_preview_plus_timed_srt",
+        "subtitle_render_mode": "burned_in_plus_timed_srt" if burned else "static_preview_plus_timed_srt",
         "disclosure": {"required": True, "label": "AI-assisted narration",
                         "platforms": ["youtube", "tiktok", "meta"]},
         "rights": {"status": rights_status, "source": rights_source,
                     "human_signoff": rights_human_signoff},
-        "audio": {"status": "synthetic_silence", "original_media_segments": 0,
-                   "narrator_audio": "unavailable"},
+        "audio": {"status": "language_source" if source and source.is_file() else "synthetic_silence",
+                   "original_media_segments": 1 if source and source.is_file() else 0,
+                   "narrator_audio": str(audio) if audio and audio.is_file() else "unavailable",
+                   "language": language},
         "review": {"status": "pending", "caption": title,
                    "cta": "Watch the full evidence-led story.",
                    "destination": "episode://pilot"},

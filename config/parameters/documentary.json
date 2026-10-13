@@ -148,6 +148,20 @@
     "repeat_overlay_seconds": 150.0
   },
   "short_form": {
+    "production": {
+      "min_count": 3,
+      "max_count": 5,
+      "target_count": 4,
+      "min_seconds": 20,
+      "max_seconds": 60,
+      "target_seconds": 35,
+      "width": 1080,
+      "height": 1920,
+      "captions_burned_in": true,
+      "default_visibility": "private",
+      "languages": ["en", "de", "fa", "ar"],
+      "max_redos": 2
+    },
     "candidate_multiplier": 1.75,
     "publish_target": 8,
     "distribution": {

@@ -6,6 +6,9 @@ const stages = [
   { name: "master_story", status: "done", detail: { summary: "Master story saved" } },
   { name: "spoken:de", status: "done", detail: { summary: "German spoken text" } },
   { name: "voice:de", status: "pending", detail: null },
+  { name: "short_selection", status: "done", detail: { selected: 4 } },
+  { name: "short_script:en", status: "done", detail: { rendered: 4 } },
+  { name: "short_render:en", status: "done", detail: { rendered: 4 } },
 ];
 
 const state = (stage: string, pending = false, automatic = false) => ({
@@ -184,7 +187,7 @@ test.describe("stage-control", () => {
     await expect(master.getByLabel("Run automatically")).toBeChecked();
     await page.getByText("Run the whole case automatically").locator("..").locator("..").getByRole("checkbox").check();
 
-    await page.screenshot({ path: "../docs/ui/stage-control-stage-list-desktop.png", fullPage: true });
+    await page.screenshot({ path: "../docs/ui/pipeline-shorts-desktop.png", fullPage: true });
 
     const pendingPreview = await page.request.post(apiBase + "/api/documentary/1/stage-control/preview", {
       data: { stage: "spoken:de", action: "redo_with_prompt", prompt: "Leave a pending lock.", job_id: 1 },
@@ -200,6 +203,6 @@ test.describe("stage-control", () => {
     await expect(blockedSpoken.getByText("A pending edit is locking this stage.").first()).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: "../docs/ui/stage-control-stage-list-phone.png", fullPage: true });
+    await page.screenshot({ path: "../docs/ui/pipeline-shorts-phone.png", fullPage: true });
   });
 });

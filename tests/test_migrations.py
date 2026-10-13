@@ -170,14 +170,18 @@ def test_upgrade_is_idempotent(tmp_path):
     assert _version(db) == _head()
 
 
-def test_0010_is_a_noop_after_a_fresh_0009(tmp_path):
+def test_0011_adds_shorts_tables_after_a_fresh_0009(tmp_path):
     db = tmp_path / "fresh-0009.db"
     _upgrade_to(db, "0009")
     before = migrate._live_signature(_engine(db))
     _upgrade_to(db, "head")
     after = migrate._live_signature(_engine(db))
-    assert before == after
-    assert _version(db) == "0010"
+    assert before != after
+    assert _version(db) == "0011"
+    con = sqlite3.connect(db)
+    tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    con.close()
+    assert {"short_candidates", "rendered_shorts"} <= tables
 
 
 def test_reconcile_drifted_copy_preserves_rows_and_only_keeps_allowlist(tmp_path):

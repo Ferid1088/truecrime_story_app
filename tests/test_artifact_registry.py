@@ -48,9 +48,16 @@ def test_every_artifact_declares_config_inputs_and_logo_is_precise():
     from app.core.artifact_dependencies import predicted_for_config
 
     logo = predicted_for_config({"logo_bytes"})
-    assert logo == {"intro:en", "intro:de", "intro:fa", "intro:ar",
-                    "final_render:en", "final_render:de",
-                    "final_render:fa", "final_render:ar"}
+    assert {"intro:en", "intro:de", "intro:fa", "intro:ar",
+            "final_render:en", "final_render:de",
+            "final_render:fa", "final_render:ar"} <= logo
+    assert {"short_moment_selection:shared", "short_script_captions:en",
+            "short_script_captions:de", "short_script_captions:fa", "short_script_captions:ar",
+            "short_render:en", "short_render:de", "short_render:fa", "short_render:ar"} <= logo
+    shorts = predicted_for_config({"short_form"})
+    assert {"short_moment_selection:shared", "short_script_captions:en",
+            "short_script_captions:de", "short_script_captions:fa", "short_script_captions:ar",
+            "short_render:en", "short_render:de", "short_render:fa", "short_render:ar"} <= shorts
     assert "music_cues:shared" in predicted_for_config({"music"})
     assert {"intro:en", "intro:de", "intro:fa", "intro:ar"} <= predicted_for_config({"render"})
 

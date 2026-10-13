@@ -360,6 +360,31 @@ export const fixtures = {
       tiktok_video: { enabled: true, count: 8, min_seconds: 15, target_seconds: 28, max_seconds: 45 },
     },
   },
+  shortFormWorkspace: {
+    defaults: {
+      min_count: 3, max_count: 5, target_count: 4,
+      min_seconds: 20, max_seconds: 60, target_seconds: 35,
+      width: 1080, height: 1920, captions_burned_in: true,
+      default_visibility: "private", languages: ["en", "de"],
+    },
+    shorts_enabled: true,
+    case: { id: 1, title: CASE.title, job_id: 42, film_status: "completed" },
+    languages: ["en", "de"],
+    candidates: [{
+      id: 101, stable_key: "SFC_demo_01", concept_type: "DOCUMENT_MOMENT",
+      source_beat_ids: ["B001"], source_chapter_ids: [], source_start_seconds: 12,
+      source_end_seconds: 42, hook: "The log fixes the last known time.",
+      cta: "Watch the full evidence-led story.", status: "selected",
+      approval_state: "pending", rejection_reason: null,
+      gate_results: { RevealFirewall: { passed: true }, EpistemicChecker: { passed: true }, RightsChecker: { passed: true } },
+    }],
+    renders: [{
+      id: 201, candidate_id: 101, language: "en", status: "done", approval_state: "pending",
+      caption_text: "The log fixes the last known time.", cta: "Watch the full evidence-led story.",
+      video_url: "/api/short-form/files/201/video", cover_url: "/api/short-form/files/201/cover",
+      captions_url: "/api/short-form/files/201/captions", gate_results: { RightsChecker: { passed: true } }, error: null,
+    }],
+  },
   shortFormMetrics: {
     metric_rows: 15,
     comparison_basis: "concept_type",
@@ -595,6 +620,17 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/settings/status") return json(route, fixtures.settings);
     if (path === "/api/short-form/settings" && method === "GET")
       return json(route, fixtures.shortFormSettings);
+    if (path === "/api/short-form/workspace" && method === "GET")
+      return json(route, fixtures.shortFormWorkspace);
+    if (/^\/api\/short-form\/1\/candidates\/101\/preview$/.test(path) && method === "POST")
+      return json(route, { preview_id: 901, action: "approve", target_id: 101, scope: [] });
+    if (/^\/api\/short-form\/1\/renders\/201\/preview$/.test(path) && method === "POST")
+      return json(route, { preview_id: 902, action: "approve", target_id: 201, scope: [] });
+    if (/^\/api\/short-form\/1\/operations\/\d+\/apply$/.test(path) && method === "POST")
+      return json(route, { status: "completed", preview_id: 901, changed_outside_scope: [] });
+    if (path === "/api/short-form/1/settings" && method === "PATCH") {
+      return json(route, { ...fixtures.shortFormWorkspace, shorts_enabled: true });
+    }
     if (path === "/api/short-form/settings" && method === "PATCH") {
       const body = JSON.parse(route.request().postData() || "{}");
       return json(route, {

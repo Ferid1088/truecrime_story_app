@@ -2017,7 +2017,35 @@ class ShortFormDynamicCountConfig(BaseModel):
         return self
 
 
+class ShortFormProductionConfig(BaseModel):
+    """Per-finished-film production defaults; publishing is configured separately."""
+
+    min_count: int = Field(default=3, ge=1, le=20)
+    max_count: int = Field(default=5, ge=1, le=20)
+    target_count: int = Field(default=4, ge=1, le=20)
+    min_seconds: int = Field(default=20, ge=1, le=60)
+    max_seconds: int = Field(default=60, ge=1, le=60)
+    target_seconds: int = Field(default=35, ge=1, le=60)
+    width: int = Field(default=1080, ge=1)
+    height: int = Field(default=1920, ge=1)
+    captions_burned_in: bool = True
+    default_visibility: Literal["private", "draft"] = "private"
+    languages: list[str] = ["en", "de", "fa", "ar"]
+    max_redos: int = Field(default=2, ge=0, le=2)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if self.min_count > self.target_count or self.target_count > self.max_count:
+            raise ValueError("short_form.production requires min_count <= target_count <= max_count")
+        if self.min_seconds > self.target_seconds or self.target_seconds > self.max_seconds:
+            raise ValueError("short_form.production requires min_seconds <= target_seconds <= max_seconds")
+        if self.width != 1080 or self.height != 1920:
+            raise ValueError("short_form.production is a vertical 1080x1920 profile")
+        return self
+
+
 class ShortFormConfig(BaseModel):
+    production: ShortFormProductionConfig = Field(default_factory=ShortFormProductionConfig)
     candidate_multiplier: float = Field(default=1.75, gt=0.0, le=10.0)
     publish_target: int = Field(default=8, ge=0, le=20)
     distribution: dict[str, ShortFormPlatformConfig] = Field(default_factory=lambda: {

@@ -67,6 +67,9 @@ class StageControlService:
 
     @staticmethod
     def _base_stage(stage_name: str) -> tuple[str, str | None]:
+        if stage_name.startswith(("short_selection", "short_script:", "short_render:")):
+            parts = stage_name.split(":")
+            return parts[0], parts[1] if len(parts) > 1 else None
         if ":" in stage_name:
             stage, language = stage_name.rsplit(":", 1)
             return stage, language
@@ -82,7 +85,16 @@ class StageControlService:
         if language:
             rows = [row for row in rows
                     if ARTIFACT_SCOPES[row.type] == "shared" or row.language == language]
+        short_id = self._short_id(stage_name)
+        if short_id:
+            rows = [row for row in rows
+                    if json.loads(row.scope_json or "{}").get("short_id") == short_id]
         return sorted(rows, key=lambda row: row.id)
+
+    @staticmethod
+    def _short_id(stage_name: str) -> str | None:
+        parts = stage_name.split(":")
+        return parts[2] if len(parts) > 2 and parts[0] in {"short_script", "short_render"} else None
 
     def _pending(self, rows: list[Artifact], *, exclude: int | None = None) -> bool:
         ids = {row.id for row in rows}
@@ -126,6 +138,8 @@ class StageControlService:
             by_stage[f"{stage}:{row.language}" if row.language else stage] += 1
         stage_names = sorted({
             f"{json.loads(row.scope_json or '{}').get('stage')}:{row.language}"
+            + (f":{json.loads(row.scope_json or '{}').get('short_id')}"
+               if json.loads(row.scope_json or "{}").get("short_id") else "")
             if row.language else json.loads(row.scope_json or "{}").get("stage", "unknown")
             for row in scope
         })
@@ -291,6 +305,23 @@ class StageControlService:
             if artifact is not None:
                 artifact.status = "stale"
                 artifact.updated_at = utc_now()
+        if str(payload.get("stage", "")).startswith("short_"):
+            row.status = "applied"
+            row.result_json = json.dumps({
+                "status": "queued",
+                "previewed_artifact_ids": payload.get("artifact_ids", []),
+                "executed_artifact_ids": [],
+                "executed_stage_names": [],
+                "changed_outside_scope": [],
+            })
+            self.db.commit()
+            self._audit(job, payload["action"], "applied", "short stage action queued",
+                        {"preview_id": preview_id, "artifact_ids": payload.get("artifact_ids", [])})
+            from app.shortform.pipeline import launch_stage_control
+            launch_stage_control(preview_id)
+            return {"preview_id": preview_id, "job_id": job.id, "status": "queued",
+                    "previewed_artifact_ids": payload.get("artifact_ids", []),
+                    "executed_artifact_ids": [], "changed_outside_scope": []}
         stages = json.loads(job.stages_json or "[]")
         scope_stages = set(payload.get("stage_names", []))
         for stage in stages:

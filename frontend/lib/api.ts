@@ -233,6 +233,16 @@ export const api = {
   dashboard: () => request<DashboardResponse>("/api/dashboard"),
   shortFormSettings: () => request<unknown>("/api/short-form/settings"),
   shortFormMetrics: (caseId = 6) => request<unknown>(`/api/short-form/metrics?case_id=${caseId}`),
+  shortFormWorkspace: (caseId?: number) =>
+    request<unknown>(`/api/short-form/workspace${caseId == null ? "" : `?case_id=${caseId}`}`),
+  shortFormCandidatePreview: (caseId: number, candidateId: number, payload: unknown) =>
+    post<unknown>(`/api/short-form/${caseId}/candidates/${candidateId}/preview`, payload),
+  shortFormRenderPreview: (caseId: number, renderId: number, payload: unknown) =>
+    post<unknown>(`/api/short-form/${caseId}/renders/${renderId}/preview`, payload),
+  shortFormOperationApply: (caseId: number, previewId: number) =>
+    post<unknown>(`/api/short-form/${caseId}/operations/${previewId}/apply`),
+  updateCaseShortFormSettings: (caseId: number, payload: unknown) =>
+    patch<unknown>(`/api/short-form/${caseId}/settings`, payload),
   updateShortFormSettings: (payload: unknown) =>
     patch<unknown>("/api/short-form/settings", payload),
 

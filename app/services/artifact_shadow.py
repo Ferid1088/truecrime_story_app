@@ -23,7 +23,10 @@ from app.db.models import (
     MusicTrack,
     MusicUsage,
     ProductionScript,
+    RenderedShort,
     ResearchResult,
+    ShortCandidate,
+    ShortFormScript,
     StoryVersion,
     VisualAsset,
     VisualPlan,
@@ -54,6 +57,9 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
         "captions", "production_script"), "critique": ("production_script",),
     "visual_audit": ("production_script",),
     "render": ("intro", "final_render"),
+    "short_selection": ("short_moment_selection",),
+    "short_script": ("short_script_captions",),
+    "short_render": ("short_render",),
 }
 
 # Kept as a compatibility alias for callers that imported the old private
@@ -409,6 +415,38 @@ def _output_hash(db, job, stage: str, language: str | None, detail: dict,
     return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
+def _short_output_hash(db, job, artifact: Artifact) -> str | None:
+    """Resolve a post-film Shorts artifact to its persisted output hash."""
+    try:
+        scope = json.loads(artifact.scope_json or "{}")
+    except (TypeError, ValueError):
+        scope = {}
+    short_id = scope.get("short_id")
+    if artifact.type == "short_moment_selection":
+        detail = _stage_detail(job, "short_selection", None)
+        return detail.get("selection_hash") if isinstance(detail, dict) else None
+    language = artifact.language
+    if not short_id or not language:
+        return None
+    candidate = (db.query(ShortCandidate)
+                 .filter(ShortCandidate.film_job_id == job.id,
+                         ShortCandidate.stable_key == short_id).first())
+    if candidate is None:
+        return None
+    if artifact.type == "short_script_captions":
+        row = (db.query(ShortFormScript)
+               .filter(ShortFormScript.candidate_id == candidate.id,
+                       ShortFormScript.language == language)
+               .order_by(ShortFormScript.id.desc()).first())
+        return row.content_hash if row is not None else None
+    if artifact.type == "short_render":
+        row = (db.query(RenderedShort)
+               .filter(RenderedShort.candidate_id == candidate.id,
+                       RenderedShort.language == language).first())
+        return row.content_hash if row is not None else None
+    return None
+
+
 def _stage_detail(job, stage: str, language: str | None) -> dict:
     try:
         entries = json.loads(job.stages_json or "[]")
@@ -466,7 +504,12 @@ def registry_consistency(db, stage_job_id: int | None = None,
             if asset is not None:
                 detail = {**detail, "asset_id": asset.id,
                           "asset_code": asset.asset_code}
-        expected = _output_hash(db, job, stage, artifact.language, detail, artifact.type)
+        expected = (_short_output_hash(db, job, artifact)
+                    if artifact.type in {"short_moment_selection", "short_script_captions",
+                                         "short_render"}
+                    else _output_hash(db, job, stage, artifact.language, detail, artifact.type))
+        if expected is None:
+            continue
         if expected != artifact.output_hash:
             mismatches.append({"artifact_id": artifact.id, "type": artifact.type,
                                "language": artifact.language, "stage": stage,

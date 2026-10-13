@@ -110,27 +110,24 @@ test.describe("Discover", () => {
 });
 
 test.describe("Short-Form settings", () => {
-  test("opens settings, edits a platform count, and saves the episode override", async ({ page }) => {
+  test("opens production settings and saves the case Shorts switch", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
-    await expect(page.getByRole("heading", { name: "Short-Form" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Short-Form Workspace" })).toBeVisible();
     await page.getByRole("tab", { name: "Settings", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Distribution settings" })).toBeVisible();
-    const youtubeCount = page.getByRole("spinbutton", { name: "YouTube Short count" });
-    await expect(youtubeCount).toHaveValue("5");
-    await youtubeCount.fill("6");
+    await expect(page.getByText("Production defaults")).toBeVisible();
+    await page.getByRole("checkbox").click();
     await page.getByRole("button", { name: /save/i }).click();
-    await expect(page.getByText("Saved episode override")).toBeVisible();
+    await expect(page.getByText("Saved case Shorts setting")).toBeVisible();
   });
 
-  test("pilot review makes unavailable actions explicit", async ({ page }) => {
+  test("review page plays a persisted short and exposes editable approval controls", async ({ page }) => {
+    await mockApi(page);
     await page.goto("/short-form/review");
-    await expect(page.getByRole("heading", { name: "Review EN YouTube Short" })).toBeVisible();
-    await expect(page.getByText(/not implemented yet/i)).toBeVisible();
-    await expect(page.getByLabel("Caption")).toBeDisabled();
-    await expect(page.getByLabel("CTA")).toBeDisabled();
-    await expect(page.getByRole("button", { name: /approve/i })).toBeDisabled();
-    await expect(page.getByRole("button", { name: /reject/i })).toBeDisabled();
+    await expect(page.getByRole("heading", { name: /Review EN Short 101/ })).toBeVisible();
+    await expect(page.locator("video")).toBeVisible();
+    await expect(page.getByLabel("Caption")).toBeEnabled();
+    await expect(page.getByRole("button", { name: /approve/i })).toBeEnabled();
   });
 });
 

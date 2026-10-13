@@ -158,7 +158,8 @@ def test_full_four_language_preview_contains_snapshot_diff_for_eight_perturbatio
         for language in target_languages:
             target_row = rows[(target, language)]
             for dependency in dependencies:
-                dep_language = language if ARTIFACT_SCOPES[dependency] == "per_language" else None
+                dep_language = (language if ARTIFACT_SCOPES[target] == "per_language" else "en") \
+                    if ARTIFACT_SCOPES[dependency] == "per_language" else None
                 db_session.add(ArtifactDep(
                     artifact_id=target_row.id,
                     depends_on_id=rows[(dependency, dep_language)].id,

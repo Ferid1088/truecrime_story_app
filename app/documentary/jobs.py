@@ -228,6 +228,11 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         names += ([f"host:{l}"] if host else []) + [
             f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
             f"visual_audit:{l}", f"render:{l}"]
+    # Shorts are real post-film stages.  They remain pending while the film
+    # runs and are claimed only after the documentary job is finished.
+    names += ["short_selection"]
+    names += [f"short_script:{l}" for l in languages]
+    names += [f"short_render:{l}" for l in languages]
     return [{"name": n, "status": "pending", "detail": None} for n in names]
 
 
@@ -883,6 +888,10 @@ async def run_job(job_id: int, session_factory=None):
                 if pipeline_error is not None:
                     raise pipeline_error
                 job.status = status_for_result(result or {})
+                # The long film is complete at this boundary. Shorts are
+                # post-film work and must not hold the film's progress at a
+                # partial value while their isolated worker runs.
+                job.progress = 1.0
                 _set_case_state(db, job.case_id,
                                 "rendered" if (result or {}).get("renders") else "story_ready")
                 if job.status == "partial":
@@ -917,6 +926,14 @@ async def run_job(job_id: int, session_factory=None):
             job.completed_at = utc_now()
             job.updated_at = utc_now()
             db.commit()
+            # Post-film Shorts are fire-and-forget and have their own error
+            # boundary.  A failure here must never alter the completed film.
+            if job.status in ("completed", "completed_warnings"):
+                try:
+                    from app.shortform.pipeline import launch_for_finished_job
+                    launch_for_finished_job(job.id)
+                except Exception:  # noqa: BLE001
+                    log.exception("could not launch isolated Shorts job %s", job.id)
     finally:
         db.close()
         _running.pop(job_id, None)

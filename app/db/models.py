@@ -1,8 +1,20 @@
 from datetime import datetime
-from sqlalchemy import (Boolean, CheckConstraint, Float, ForeignKey, Integer, String, Text,
-                        UniqueConstraint,
-                        Index, event, select)
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    event,
+    select,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db.base import Base
 from app.db.types import UTCDateTime
 from app.utils import new_case_uid, utc_now
@@ -1110,11 +1122,49 @@ class ShortFormConcept(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class ShortCandidate(Base):
+    """A rights- and reveal-gated moment selected from one finished film.
+
+    Selection is shared across languages.  Language-specific script, caption,
+    render and approval state live on :class:`RenderedShort` (and its script
+    row), so a failed German short cannot mutate the English branch.
+    """
+
+    __tablename__ = "short_candidates"
+    __table_args__ = (
+        UniqueConstraint("film_job_id", "stable_key", name="uq_short_candidate_film_key"),
+        Index("ix_short_candidates_case_status", "case_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    film_job_id: Mapped[int] = mapped_column(ForeignKey("documentary_jobs.id"), index=True)
+    film_version_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id"), nullable=True, index=True)
+    stable_key: Mapped[str] = mapped_column(String(120), index=True)
+    concept_type: Mapped[str] = mapped_column(String(60), default="MYSTERY_HOOK")
+    source_beat_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    source_chapter_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    source_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hook: Mapped[str] = mapped_column(Text, default="")
+    cta: Mapped[str] = mapped_column(Text, default="")
+    gate_results_json: Mapped[str] = mapped_column(Text, default="{}")
+    claims_json: Mapped[str] = mapped_column(Text, default="[]")
+    selection_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(30), default="generated", index=True)
+    approval_state: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class ShortFormScript(Base):
     __tablename__ = "short_form_scripts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     concept_id: Mapped[int] = mapped_column(ForeignKey("short_form_concepts.id"), index=True)
+    candidate_id: Mapped[int | None] = mapped_column(ForeignKey("short_candidates.id"), nullable=True, index=True)
     language: Mapped[str] = mapped_column(String(10), index=True)
     hook: Mapped[str] = mapped_column(Text)
     body: Mapped[str] = mapped_column(Text)
@@ -1122,8 +1172,46 @@ class ShortFormScript(Base):
     target_duration: Mapped[float] = mapped_column(Float)
     visual_requirements_json: Mapped[str] = mapped_column(Text, default="[]")
     original_audio_opportunity_json: Mapped[str] = mapped_column(Text, default="{}")
+    caption_text: Mapped[str] = mapped_column(Text, default="")
+    captions_json: Mapped[str] = mapped_column(Text, default="[]")
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    audit_json: Mapped[str] = mapped_column(Text, default="{}")
+    approval_state: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class RenderedShort(Base):
+    """One language-specific short render and its review state."""
+
+    __tablename__ = "rendered_shorts"
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "language", name="uq_rendered_short_candidate_language"),
+        Index("ix_rendered_shorts_case_language", "case_id", "language"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("short_candidates.id"), index=True)
+    film_job_id: Mapped[int] = mapped_column(ForeignKey("documentary_jobs.id"), index=True)
+    film_version_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id"), nullable=True, index=True)
+    script_id: Mapped[int | None] = mapped_column(ForeignKey("short_form_scripts.id"), nullable=True, index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="queued", index=True)
+    approval_state: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    caption_text: Mapped[str] = mapped_column(Text, default="")
+    cta: Mapped[str] = mapped_column(Text, default="")
+    captions_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cover_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    manifest_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    files_json: Mapped[str] = mapped_column(Text, default="{}")
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    gate_results_json: Mapped[str] = mapped_column(Text, default="{}")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
 
 class PlatformVariant(Base):

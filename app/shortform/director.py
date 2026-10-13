@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import hashlib
 import itertools
 import json
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import EditorialBlueprint, ShortFormConcept, VisualAsset
 from app.shortform.assets import UNSELECTABLE_VERIFICATION_STATUSES
-
 
 CONCEPT_TYPES = [
     "MYSTERY_HOOK",
@@ -38,6 +37,9 @@ class BeatMaterial:
     allowed_reveals: list[str] = field(default_factory=list)
     forbidden_reveals: list[str] = field(default_factory=list)
     visual_priority: str = ""
+    start_seconds: float | None = None
+    end_seconds: float | None = None
+    chapter_ids: list[str] = field(default_factory=list)
 
 
 class ShortFormDirectorAgent:
@@ -81,6 +83,9 @@ class ShortFormDirectorAgent:
                 "asset_ids": asset_ids,
                 "allowed_reveals": beat.allowed_reveals,
                 "forbidden_reveals": beat.forbidden_reveals,
+                "source_start_seconds": beat.start_seconds,
+                "source_end_seconds": beat.end_seconds,
+                "source_chapter_ids": beat.chapter_ids,
                 "claims": [
                     {"source_claim_id": eid, "modality": "ESTABLISHED"}
                     for eid in beat.evidence_ids
@@ -164,8 +169,18 @@ def extract_beats(blueprint: dict) -> list[BeatMaterial]:
             allowed_reveals=[str(x) for x in beat.get("allowed_reveals", beat.get("reveals_so_far", []))],
             forbidden_reveals=[str(x) for x in beat.get("forbidden_reveals", [])],
             visual_priority=str(beat.get("visual_priority") or beat.get("visual") or ""),
+            start_seconds=_number_or_none(beat.get("start_seconds", beat.get("start"))),
+            end_seconds=_number_or_none(beat.get("end_seconds", beat.get("end"))),
+            chapter_ids=[str(x) for x in (beat.get("chapter_ids") or [])],
         ))
     return beats
+
+
+def _number_or_none(value) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def choose_concept_type(beat: BeatMaterial, index: int) -> str:

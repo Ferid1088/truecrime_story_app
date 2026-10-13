@@ -83,6 +83,7 @@ const STAGE_LABELS: Record<string, string> = {
   master_approval: "Master story approval",
   blueprint: "Editorial blueprint",
   audio_plan: "Audio plan",
+  music: "Music",
   chapters: "Chapters & timeline",
   naming: "Naming",
   spoken: "Spoken version",

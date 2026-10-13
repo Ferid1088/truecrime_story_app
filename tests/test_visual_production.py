@@ -1257,7 +1257,10 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     assert job.progress == 1.0
-    assert all(s["status"] in ("done", "skipped") for s in stages.values())
+    assert all(
+        s["status"] in ("done", "skipped") or name.startswith("short_")
+        for name, s in stages.items()
+    )
     film = stages["film_length"]["detail"]
     assert film["warning"] and set(film["estimated_minutes"]) == {"en", "de"}
     assert stages["visual_check"]["detail"]["verified"] == 2
@@ -1477,7 +1480,13 @@ def test_four_language_shadow_pipeline_real_job(
                 xs = [label["x"] for label in shot["timeline"].get("labels") or []]
                 assert xs == sorted(xs)
         assert stages[f"render:{language}"]["status"] == "done"
-    per_language = {name for name, scope in ARTIFACT_SCOPES.items() if scope == "per_language"}
+    # Shorts are a post-film worker and may still be running when the long
+    # film's completion assertions execute; exclude those deliberately async
+    # artifact types from the long-film shadow invariant.
+    per_language = {
+        name for name, scope in ARTIFACT_SCOPES.items()
+        if scope == "per_language" and name not in {"short_script_captions", "short_render"}
+    }
     rows = db_session.query(Artifact).filter(Artifact.stage_job_id == job.id).all()
     counts = {
         language: {row.type: 0 for row in rows if row.language == language}
@@ -1543,6 +1552,8 @@ def test_four_language_shadow_pipeline_real_job(
         while changed:
             changed = False
             for artifact_type, deps in ARTIFACT_DEPENDENCIES.items():
+                if artifact_type in {"short_moment_selection", "short_script_captions", "short_render"}:
+                    continue
                 if artifact_type not in found and set(deps) & found:
                     found.add(artifact_type)
                     changed = True

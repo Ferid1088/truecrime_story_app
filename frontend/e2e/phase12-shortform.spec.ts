@@ -1,41 +1,34 @@
 import { test, expect } from "./test-base";
 import { mockApi } from "./fixtures";
 
-const TABS = [
-  "Candidates", "Approved", "YouTube Shorts", "Instagram Reels",
-  "Facebook Reels", "TikTok", "Settings", "Publishing Plan",
-  "Performance", "Test Report",
-];
+const TABS = ["Candidates", "Rendered shorts", "Settings", "Test Report"];
 
 test.describe("Phase 12 short-form workspace", () => {
-  test("renders the complete tab surface and real-data boundary", async ({ page }) => {
+  test("renders persisted candidates and production defaults", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
     await expect(page.getByTestId("short-form-workspace")).toBeVisible();
     for (const tab of TABS) await expect(page.getByRole("tab", { name: tab, exact: true })).toBeVisible();
-    await expect(page.getByText("Verification data only")).toBeVisible();
-    await expect(page.getByText("5 unpersisted candidates")).toBeVisible();
-    await expect(page.getByTestId("candidate-C6-S01")).toBeVisible();
+    await expect(page.getByText("1 persisted candidates · 1 language renders")).toBeVisible();
+    await expect(page.getByTestId("candidate-101")).toBeVisible();
+    await expect(page.getByText("Shorts stages")).toBeVisible();
   });
 
-  test("pilot-only candidate actions are visibly unavailable", async ({ page }) => {
+  test("candidate actions use preview then apply", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
-    await expect(page.getByText("Not implemented yet — candidate approve, edit, regenerate, and reject actions have no persisted backend.")).toBeVisible();
-    await page.getByRole("tab", { name: "Approved", exact: true }).click();
-    await expect(page.getByText("Local gate passes are not persisted approvals.")).toBeVisible();
-    await page.getByRole("tab", { name: "Publishing Plan", exact: true }).click();
-    await expect(page.getByText("Day 14")).toBeVisible();
-    await expect(page.getByText("Round-robin concept IDs are dry-run placeholders.")).toBeVisible();
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(page.getByTestId("short-form-preview")).toBeVisible();
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(page.getByText("Applied to the selected short only.")).toBeVisible();
   });
 
-  test("platform preview exposes safe areas and audio gap", async ({ page }) => {
+  test("rendered short is playable and shows cover/caption metadata", async ({ page }) => {
     await mockApi(page);
     await page.goto("/short-form");
-    await page.getByRole("tab", { name: "TikTok", exact: true }).click();
-    await expect(page.getByText("Safe areas")).toBeVisible();
-    await expect(page.getByText("1080 x 1920")).toBeVisible();
-    await expect(page.getByText("Original audio").last()).toBeVisible();
-    await expect(page.getByText("Unavailable", { exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Rendered shorts", exact: true }).click();
+    await expect(page.locator("video")).toBeVisible();
+    await expect(page.getByText("1080 × 1920")).toBeVisible();
+    await expect(page.getByText("The log fixes the last known time.")).toBeVisible();
   });
 });

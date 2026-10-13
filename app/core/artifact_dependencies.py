@@ -38,6 +38,9 @@ ARTIFACT_SCOPES: dict[str, ArtifactScope] = {
     "host_segments": "per_language",
     "naming": "shared",
     "film_length": "per_language",
+    "short_moment_selection": "shared",
+    "short_script_captions": "per_language",
+    "short_render": "per_language",
 }
 
 
@@ -77,6 +80,9 @@ ARTIFACT_DEPENDENCIES: dict[str, list[str]] = {
     "host_segments": ["host_plan", "spoken_version"],
     "naming": ["master_story"],
     "film_length": ["spoken_version", "audio_blocks"],
+    "short_moment_selection": ["final_render", "master_story"],
+    "short_script_captions": ["short_moment_selection", "final_render", "master_story"],
+    "short_render": ["short_script_captions", "final_render"],
 }
 
 # Configuration is an input at the stage that reads it; it is not a reason to
@@ -117,6 +123,9 @@ ARTIFACT_CONFIG_INPUTS: dict[str, set[str]] = {
     "host_segments": {"host", "language_profile", "channel_identity", "agent_model_routing"},
     "naming": {"documentary"},
     "film_length": {"audio", "voice"},
+    "short_moment_selection": {"short_form", "documentary"},
+    "short_script_captions": {"short_form", "language_profile", "agent_model_routing"},
+    "short_render": {"short_form", "render", "language_profile"},
 }
 
 

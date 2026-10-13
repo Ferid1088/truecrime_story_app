@@ -70,6 +70,9 @@
     "visual_plan": "UNPROVEN",
     "visual_shots": "UNPROVEN",
     "voice_takes": "UNPROVEN"
+    ,"short_moment_selection": "UNPROVEN"
+    ,"short_script_captions": "UNPROVEN"
+    ,"short_render": "UNPROVEN"
   },
   "strong_records": [
     {
@@ -162,6 +165,9 @@
     }
   ],
   "unproven_types": [
+    "short_moment_selection",
+    "short_script_captions",
+    "short_render",
     "audio_blocks",
     "audio_timing",
     "beats",
