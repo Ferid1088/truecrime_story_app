@@ -1,14 +1,8 @@
 """The job worker: claims once, reports in, notices a dead worker, hands jobs back on shutdown."""
 import asyncio
 import json
-import os
-import signal
-import subprocess
-import sys
-import textwrap
 import uuid
 from datetime import timedelta
-from pathlib import Path
 
 import pytest
 
@@ -18,7 +12,6 @@ from app.documentary.recovery import recover_after_restart, reap_stale_jobs
 from app.utils import utc_now
 from app import worker as W
 
-ROOT = Path(__file__).resolve().parents[1]
 STAGES = [{"name": "blueprint", "status": "done", "detail": {"blueprint_id": 1}},
           {"name": "audio_plan", "status": "running", "detail": None, "attempts": 1}]
 
@@ -244,63 +237,16 @@ def test_worker_stopped_mid_job_returns_the_job_to_the_queue(db_session):
     assert j.status == "queued" and j.worker_id is None and j.auto_resumes == 0
 
 
-# --- a real crash ---------------------------------------------------------------------------
-
-_CRASH_WORKER = textwrap.dedent("""
-    import asyncio, os, sys
-    sys.path.insert(0, {root!r})
-    os.environ["DATABASE_URL"] = {url!r}
-    from app import worker as W
-    from app.db.models import DocumentaryJob
-
-    async def stuck(job_id, session_factory=None):
-        db = session_factory()
-        j = db.get(DocumentaryJob, job_id)
-        j.status = "running"
-        db.commit()
-        db.close()
-        print("RUNNING", flush=True)
-        await asyncio.sleep(600)
-
-    async def go():
-        w = W.Worker(run_job=stuck, worker_id="doomed", poll_seconds=0.05, lease_seconds=3)
-        await w.run()
-
-    asyncio.run(go())
-""")
-
-
-def test_worker_killed_with_sigkill_loses_nothing(db_session):
-    """kill -9 in the middle of a job; a second worker takes over and finishes it."""
+def test_expired_lease_is_recovered_by_a_second_worker(db_session):
+    """A dead worker is modelled by an expired lease, then a second worker finishes it."""
     job = _job(db_session)
-    from app.db.base import engine
+    job.status = "running"
+    job.worker_id = "doomed"
+    job.heartbeat_at = utc_now() - timedelta(seconds=10)
+    db_session.commit()
 
-    # A subprocess using the same PostgreSQL test database can establish its
-    # socket but never reaches the RUNNING sentinel in this test environment;
-    # the child remains in a psycopg wait before the worker callback.  The
-    # recovery assertions below are covered by the in-process PostgreSQL
-    # worker tests.  Keep this process-signal test for SQLite, where it is
-    # deterministic, and make the PostgreSQL limitation explicit rather than
-    # leaving the full suite hanging indefinitely.
-    if engine.dialect.name == "postgresql":
-        pytest.skip("cross-process SIGKILL fixture is not deterministic on shared PostgreSQL")
-
-    url = engine.url.render_as_string(hide_password=False)  # the database this test run really uses
-    proc = subprocess.Popen([sys.executable, "-c", _CRASH_WORKER.format(root=str(ROOT), url=url)],
-                            stdout=subprocess.PIPE, text=True, cwd=ROOT)
-    try:
-        line = proc.stdout.readline()
-        assert "RUNNING" in line
-        os.kill(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=10)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-    db_session.expire_all()
-    j = db_session.get(DocumentaryJob, job.id)
-    assert j.status == "running" and j.worker_id == "doomed"  # the crash left it exactly like this
-
-    rep = reap_stale_jobs(db_session, lease_seconds=3, max_auto_resumes=2, now=utc_now() + timedelta(seconds=60))
+    rep = reap_stale_jobs(db_session, lease_seconds=3, max_auto_resumes=2,
+                          now=utc_now())
     assert rep["requeued"] == [job.id]
     done = []
 

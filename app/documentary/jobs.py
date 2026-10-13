@@ -633,10 +633,7 @@ async def research_case(db: Session, case: Case, check_cancel,
                 objective = json.loads(doc_job.result_json or "{}").get("stage_control_prompt")
             except (TypeError, ValueError):
                 pass
-        if objective:
-            job = await research_jobs.start_research_job(db, case, objective=objective)
-        else:
-            job = await research_jobs.start_research_job(db, case)
+        job = await research_jobs.start_research_job(db, case, objective=objective)
     waited = 0.0
     while job.status in ("queued", "running"):
         check_cancel()

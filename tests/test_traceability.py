@@ -203,7 +203,7 @@ def test_research_that_saved_no_facts_stops_before_the_story(db_session, monkeyp
     from app.documentary.jobs import research_case
     from app.services import research_jobs
 
-    async def start(db, case):
+    async def start(db, case, objective=None):
         return SimpleNamespace(id=99, status="completed", error=None, sources_accepted=0)
 
     monkeypatch.setattr(research_jobs, "start_research_job", start)
