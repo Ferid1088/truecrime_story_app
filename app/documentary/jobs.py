@@ -970,6 +970,13 @@ async def run_job(job_id: int, session_factory=None):
                 _set_case_state(db, job.case_id, "story_ready")
                 job.status = "failed"
                 job.error = f"{type(e).__name__}: {e}"[:1000]
+            from app.services.cost_model import estimate_vs_actual_report
+
+            # Persist the per-case estimate-vs-actual ledger for this run
+            # before the UI sees the terminal job state.
+            result = result or json.loads(job.result_json or "{}")
+            result["cost_report"] = estimate_vs_actual_report(db, job)
+            job.result_json = json.dumps(result, ensure_ascii=False, default=str)
             job.stage = None
             job.completed_at = utc_now()
             job.updated_at = utc_now()

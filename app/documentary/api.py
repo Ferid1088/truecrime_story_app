@@ -42,6 +42,7 @@ router = APIRouter(tags=["documentary"])
 
 class DryRunRequest(BaseModel):
     languages: list[str] = Field(default_factory=lambda: ["en"])
+    pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
 
 
 @router.post("/api/cases/{case_id}/documentary/dry-run")
@@ -49,7 +50,7 @@ def documentary_dry_run_endpoint(case_id: int, payload: DryRunRequest,
                                   db: Session = Depends(get_db)):
     case = _case(db, case_id)
     try:
-        return documentary_dry_run(db, case, payload.languages)
+        return documentary_dry_run(db, case, payload.languages, payload.pilot_seconds)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

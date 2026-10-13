@@ -1,11 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, PenLine, Play, RotateCcw, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTime, formatTimecode, humanize, langLabel } from "@/lib/format";
-import type { DocumentaryJob, FilmMinutesRange } from "@/lib/types";
+import type { CostReport, DocumentaryDryRunResult, DocumentaryJob, FilmMinutesRange } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -67,6 +67,7 @@ export function RunTab({
   const [busy, setBusy] = useState<"start" | "cancel" | "resume" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewJobId, setViewJobId] = useState<number | null>(null);
+  const [estimate, setEstimate] = useState<DocumentaryDryRunResult | null>(null);
   const ids = useId();
 
   const noMaster = overview.masters.length === 0;
@@ -86,6 +87,19 @@ export function RunTab({
         .join(", ")} ${outOfRange.length === 1 ? "falls" : "fall"} outside. Run a pilot, or write a longer master story.`,
     );
   if (isJobActive(job)) blockers.push(`Job #${job?.id} is still running.`);
+
+  const pilotLength = Number(options.pilotSeconds);
+  const languageKey = options.languages.join(",");
+  useEffect(() => {
+    if (options.mode !== "pilot" || !Number.isFinite(pilotLength) || pilotLength < 11 || pilotLength > 1800) {
+      return;
+    }
+    let cancelled = false;
+    api.documentaryDryRun(caseId, options.languages, pilotLength)
+      .then((next) => { if (!cancelled) setEstimate(next); })
+      .catch(() => { if (!cancelled) setEstimate(null); });
+    return () => { cancelled = true; };
+  }, [caseId, options.mode, options.pilotSeconds, pilotLength, languageKey, options.languages]);
 
   const shown =
     viewJobId != null && viewJobId !== job?.id
@@ -202,6 +216,10 @@ export function RunTab({
 
             <RunOptionsFields settings={settings} value={options} onChange={setOptions} />
 
+            {options.mode === "pilot" && Number.isFinite(pilotLength) && pilotLength >= 11 && pilotLength <= 1800 && estimate && (
+              <EstimateCard estimate={estimate} />
+            )}
+
             <Button
               className="w-full"
               onClick={start}
@@ -302,6 +320,44 @@ export function RunTab({
             </CardContent>
           </Card>
         )}
+      </div>
+    </div>
+  );
+}
+
+function money(value: number): string {
+  return value < 0.01 ? `€${value.toFixed(4)}` : `€${value.toFixed(2)}`;
+}
+
+function EstimateCard({ estimate }: { estimate: DocumentaryDryRunResult }) {
+  return (
+    <div className="rounded-md border border-sky-500/30 bg-sky-500/5 px-3 py-2.5" data-testid="pilot-estimate">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold">No-send estimate · {estimate.pilot_seconds}s pilot</p>
+        <span className="text-[10px] text-muted-foreground">prices {estimate.pricing_last_verified}</span>
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Low {money(estimate.estimate_range_eur.low)} · expected {money(estimate.estimate_range_eur.expected)} · high {money(estimate.estimate_range_eur.high)}
+      </p>
+      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+        Tokens are input/output separately: research source text → notes; master input = notes → 60-minute story;
+        spoken story × 1.2 → × 1.05; performance story × 1.1 → 900 output tokens.
+      </p>
+      {estimate.price_warnings.length > 0 && (
+        <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+          Verify before paying: {estimate.price_warnings.map((warning) => warning.stage).join(", ")}
+        </p>
+      )}
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <THead><TR className="hover:bg-transparent"><TH>Stage</TH><TH>Low</TH><TH>Expected</TH><TH>High</TH></TR></THead>
+          <TBody>{estimate.stages.map((row) => (
+            <TR key={row.stage} className="text-[11px]">
+              <TD className="whitespace-nowrap font-medium">{row.stage}{row.price_status === "unverified" && " · verify"}</TD>
+              <TD>{money(row.eur.low)}</TD><TD>{money(row.eur.expected)}</TD><TD>{money(row.eur.high)}</TD>
+            </TR>
+          ))}</TBody>
+        </Table>
       </div>
     </div>
   );
@@ -481,7 +537,34 @@ function JobPanel({
           )
         )}
         <WarningList warnings={job.result.warnings ?? []} />
+        {job.result.cost_report && <CostReportCard report={job.result.cost_report} />}
       </CardContent>
     </Card>
+  );
+}
+
+function CostReportCard({ report }: { report: CostReport }) {
+  return (
+    <div className="rounded-md border border-border" data-testid="cost-report">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
+        <p className="text-xs font-semibold">Estimate vs actual</p>
+        <p className="text-[11px] text-muted-foreground tabular-nums">
+          estimated {money(report.totals.estimated_eur)} · actual {money(report.totals.actual_eur)}
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <THead><TR className="hover:bg-transparent"><TH>Stage</TH><TH>Estimated EUR</TH><TH>Actual EUR</TH><TH>Difference</TH><TH>Flag</TH></TR></THead>
+          <TBody>{report.rows.map((row) => (
+            <TR key={row.stage} className="text-[11px]">
+              <TD className="whitespace-nowrap font-medium">{row.stage}</TD>
+              <TD>{money(row.estimated_eur)}</TD><TD>{money(row.actual_eur)}</TD>
+              <TD>{row.difference_percent == null ? "—" : `${row.difference_percent.toFixed(1)}%`}</TD>
+              <TD>{row.estimated ? <span className="text-amber-700 dark:text-amber-400">estimated</span> : "reported"}</TD>
+            </TR>
+          ))}</TBody>
+        </Table>
+      </div>
+    </div>
   );
 }

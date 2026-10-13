@@ -46,6 +46,10 @@ export type DocumentaryDryRunResult = {
   provider_calls: number;
   sent: boolean;
   pricing_last_verified: string;
+  pilot_seconds: number | null;
+  price_warnings: { stage: string; reason: string }[];
+  token_assumptions: Record<string, Record<string, number>>;
+  token_formulas: Record<string, string | number>;
   metrics: Record<string, Record<string, number>>;
   stages: Array<{
     stage: string;
@@ -57,6 +61,8 @@ export type DocumentaryDryRunResult = {
     eur: { low: number; expected: number; high: number };
     estimated_cost_eur: number;
     sends: boolean;
+    price_status?: "verified" | "unverified" | string;
+    price_warning?: string | null;
   }>;
 };
 
@@ -1604,12 +1610,27 @@ export interface DocumentaryJob {
     degraded?: Record<string, string>;
     warnings?: DocumentaryWarning[];
     renders?: Record<string, JobRender>;
+    cost_report?: CostReport;
     [key: string]: unknown;
   };
   error: string | null;
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
+}
+
+export interface CostReport {
+  rows: Array<{
+    stage: string;
+    estimated_eur: number;
+    actual_eur: number;
+    difference_percent: number | null;
+    estimated: boolean;
+    status: string;
+    reason: string | null;
+  }>;
+  totals: { estimated_eur: number; actual_eur: number };
+  pricing_last_verified?: string;
 }
 
 export interface DocumentaryWarning {

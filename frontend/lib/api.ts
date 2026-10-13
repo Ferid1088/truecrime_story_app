@@ -518,8 +518,11 @@ export const api = {
   caseDocumentaryJobs: (caseId: number) =>
     request<DocumentaryJob[]>(`/api/cases/${caseId}/documentary/jobs`),
   documentaryJob: (jobId: number) => request<DocumentaryJob>(`/api/documentary/jobs/${jobId}`),
-  documentaryDryRun: (caseId: number, languages = ["en"]) =>
-    post<DocumentaryDryRunResult>(`/api/cases/${caseId}/documentary/dry-run`, { languages }),
+  documentaryDryRun: (caseId: number, languages = ["en"], pilot_seconds?: number) =>
+    post<DocumentaryDryRunResult>(`/api/cases/${caseId}/documentary/dry-run`, {
+      languages,
+      ...(pilot_seconds != null ? { pilot_seconds } : {}),
+    }),
   stageControlState: (caseId: number, stage: string, jobId?: number) =>
     request<StageControlState>(
       `/api/documentary/${caseId}/stage-control/${encodeURIComponent(stage)}${jobQuery(jobId)}`,
