@@ -33,6 +33,7 @@ from app.documentary.audio_director import audio_plan_dict, latest_audio_plan
 from app.documentary.blueprint import blueprint_dict, latest_blueprint
 from app.documentary.visuals import rights as R
 from app.services.artifacts import ArtifactRegistry
+from app.services.stage_control import StageControlError, StageControlService
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["documentary"])
@@ -42,6 +43,22 @@ class ArtifactScopePreview(BaseModel):
     artifact_ids: list[str] = Field(default_factory=list)
     changed_artifact_ids: list[str] = Field(default_factory=list)
     changed_config_sections: list[str] = Field(default_factory=list)
+
+
+class StageControlPreviewRequest(BaseModel):
+    stage: str
+    action: Literal["continue", "redo_with_prompt", "edit", "run_automatically"]
+    prompt: str | None = None
+    edit: dict = Field(default_factory=dict)
+
+
+class StageControlApplyRequest(BaseModel):
+    preview_id: int
+
+
+class StageAutomaticRequest(BaseModel):
+    stage: str
+    enabled: bool = True
 
 
 @router.get("/api/documentary/{case_id}/artifacts")
@@ -68,6 +85,42 @@ def artifact_scope_preview(case_id: int, req: ArtifactScopePreview, db: Session 
         req.artifact_ids, req.changed_artifact_ids,
         changed_config_sections=req.changed_config_sections,
     )
+
+
+@router.get("/api/documentary/{case_id}/stage-control/{stage_name:path}")
+def stage_control_state(case_id: int, stage_name: str, db: Session = Depends(get_db)):
+    try:
+        return StageControlService(db).state(case_id, stage_name)
+    except StageControlError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/documentary/{case_id}/stage-control/preview")
+def stage_control_preview(case_id: int, req: StageControlPreviewRequest,
+                          db: Session = Depends(get_db)):
+    try:
+        return StageControlService(db).preview(
+            case_id, req.stage, req.action, req.prompt, req.edit or None)
+    except StageControlError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/documentary/{case_id}/stage-control/apply")
+async def stage_control_apply(case_id: int, req: StageControlApplyRequest,
+                              db: Session = Depends(get_db)):
+    try:
+        return StageControlService(db).apply(req.preview_id, case_id=case_id)
+    except StageControlError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/documentary/{case_id}/stage-control/automatic")
+def stage_control_automatic(case_id: int, req: StageAutomaticRequest,
+                            db: Session = Depends(get_db)):
+    try:
+        return StageControlService(db).set_automatic(case_id, req.stage, req.enabled)
+    except StageControlError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _case(db: Session, case_id: int) -> Case:
