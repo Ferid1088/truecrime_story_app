@@ -3,7 +3,6 @@ from __future__ import annotations
 import socket
 
 import pytest
-
 from no_network import OutboundNetworkDenied, install
 
 
