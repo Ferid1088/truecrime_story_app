@@ -125,3 +125,7 @@ paid-stage estimates, and returns the real configured EUR cap and estimate.
 It sends no provider request and writes no upload. With the default stage
 estimates, the English first-run estimate is EUR 6.00, below the EUR 20 cap;
 the returned result includes `sent: false` and `within_cap: true`.
+
+The recorded upload contract also preserves an approved bundle after quota,
+token, or resumable transport errors, so retrying transport never silently
+reopens content approval.
