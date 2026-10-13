@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ImageIcon, X } from "lucide-react";
+import { ImageIcon } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/state";
+import { CaseActionPreview } from "@/components/case-action-preview";
 
 const LANGS: { code: NamingLanguage; name: string }[] = [
   { code: "en", name: "English · ClueVera" },
@@ -208,14 +209,10 @@ export function ThumbnailTab({ caseId }: { caseId: number }) {
               Version {current.version} <Badge variant={current.status === "approved" ? "success" : "outline"}>{current.status}</Badge>
             </CardTitle>
             <div className="flex gap-2">
-              <Button size="sm" loading={busy === "approve"} disabled={current.status === "approved"}
-                onClick={() => run("approve", () => api.decideThumbnail(current.id, true, current.critic.verdict === "fail"))}>
-                <Check className="size-3.5" /> {current.critic.verdict === "fail" ? "Approve anyway" : "Approve"}
-              </Button>
-              <Button size="sm" variant="outline" loading={busy === "reject"} disabled={current.status === "rejected"}
-                onClick={() => run("reject", () => api.decideThumbnail(current.id, false))}>
-                <X className="size-3.5" /> Reject
-              </Button>
+              {current.status === "approved" ? <Button size="sm" variant="secondary" disabled>Approved</Button> :
+                <CaseActionPreview caseId={caseId} action="thumbnail_approve" targetId={current.id} />}
+              {current.status === "rejected" ? <Button size="sm" variant="secondary" disabled>Rejected</Button> :
+                <CaseActionPreview caseId={caseId} action="thumbnail_reject" targetId={current.id} />}
             </div>
           </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-2">

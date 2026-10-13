@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GitCompare, Languages, RefreshCw } from "lucide-react";
+import { GitCompare, Languages } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { LocalizationCompare, StoryMeta } from "@/lib/types";
@@ -9,6 +9,7 @@ import { langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CaseActionPreview } from "@/components/case-action-preview";
 
 const TARGET_LANGUAGES = ["de", "fa", "ar"];
 
@@ -40,20 +41,6 @@ export function Localizations({
     try {
       const v = await api.generateLocalization(caseId, lang);
       onOpen(v);
-      refetch();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function improve(v: StoryMeta) {
-    setBusy(v.language);
-    setError(null);
-    try {
-      const nv = await api.improveLocalization(v.id);
-      onOpen(nv);
       refetch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -143,17 +130,12 @@ export function Localizations({
                     >
                       Open v{v.version}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      disabled={!masterReady || busy !== null}
-                      loading={busy === v.language}
-                      onClick={() => improve(v)}
-                      title="Regenerate from the same master — new version"
-                    >
-                      <RefreshCw className="size-3" />
-                    </Button>
+                    {masterReady && busy === null && <CaseActionPreview
+                      caseId={caseId}
+                      action="localization_regenerate"
+                      targetId={v.id}
+                      onApplied={() => refetch()}
+                    />}
                     <Button
                       size="sm"
                       variant="ghost"

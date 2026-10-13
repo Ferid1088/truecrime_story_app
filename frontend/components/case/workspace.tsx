@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Archive, ArrowLeft, CalendarDays, Clapperboard, FlaskConical, MapPin, PenLine } from "lucide-react";
 import { api, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
@@ -52,7 +52,9 @@ type Tab = (typeof TABS)[number];
 
 export function CaseWorkspace({ caseId }: { caseId: number }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("Overview");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(() => requestedTab && TABS.includes(requestedTab) ? requestedTab : "Overview");
   const [busy, setBusy] = useState<"research" | "archive" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [researchTick, setResearchTick] = useState(0);

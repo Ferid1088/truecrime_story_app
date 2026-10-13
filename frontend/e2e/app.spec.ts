@@ -123,13 +123,14 @@ test.describe("Short-Form settings", () => {
     await expect(page.getByText("Saved episode override")).toBeVisible();
   });
 
-  test("pilot review supports editing and approval", async ({ page }) => {
+  test("pilot review makes unavailable actions explicit", async ({ page }) => {
     await page.goto("/short-form/review");
     await expect(page.getByRole("heading", { name: "Review EN YouTube Short" })).toBeVisible();
-    await page.getByLabel("Caption").fill("Updated pilot caption");
-    await page.getByLabel("CTA").fill("Open the full story.");
-    await page.getByRole("button", { name: /approve/i }).click();
-    await expect(page.getByText("Approved")).toBeVisible();
+    await expect(page.getByText(/not implemented yet/i)).toBeVisible();
+    await expect(page.getByLabel("Caption")).toBeDisabled();
+    await expect(page.getByLabel("CTA")).toBeDisabled();
+    await expect(page.getByRole("button", { name: /approve/i })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /reject/i })).toBeDisabled();
   });
 });
 

@@ -1443,6 +1443,31 @@ export interface StageControlAuditEvent {
   context: Record<string, unknown>;
 }
 
+export type CaseControlAction =
+  | "naming_approve"
+  | "thumbnail_approve"
+  | "thumbnail_reject"
+  | "localization_regenerate";
+
+export interface CaseControlPreview {
+  case_id: number;
+  action: CaseControlAction;
+  target_id: number;
+  scope: { id: string; type: string; language: string; may_change: boolean }[];
+  estimated_provider_calls: { total: number; by_stage: Record<string, number> };
+  bound_hashes: Record<string, string>;
+  preview_id: number;
+}
+
+export interface CaseControlApplyResult {
+  preview_id: number;
+  case_id: number;
+  status: string;
+  previewed_scope: CaseControlPreview["scope"];
+  executed_scope: CaseControlPreview["scope"];
+  changed_outside_scope: string[];
+}
+
 export interface DocumentaryJob {
   id: number;
   case_id: number;

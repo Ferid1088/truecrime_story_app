@@ -11,6 +11,8 @@ component state.
   — the exact German-only preview.
 - `stage-control-result-desktop.png` / `stage-control-result-phone.png`
   — the apply result with the outside-scope set shown.
+- `shorts-view-desktop.png` / `shorts-view-phone.png`
+  — the Shorts pilot boundary, unavailable controls, and shared not-available stages.
 
 All captures are English-only and use the existing design system at desktop and
 390px phone width.

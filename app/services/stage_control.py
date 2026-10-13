@@ -12,7 +12,17 @@ from sqlalchemy.orm import Session
 
 from app.core.artifact_dependencies import ARTIFACT_SCOPES
 from app.core.policy import PolicyDecision
-from app.db.models import AppSetting, Artifact, DocumentaryJob, EditLog, PolicyEvent, StoryVersion
+from app.db.models import (
+    AppSetting,
+    Artifact,
+    Case,
+    CaseTitleCandidate,
+    DocumentaryJob,
+    EditLog,
+    PolicyEvent,
+    StoryVersion,
+    Thumbnail,
+)
 from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES, _stage_detail
 from app.services.policy_events import record_decision
 from app.services.skip_policy import SOUNDNESS
@@ -318,6 +328,148 @@ class StageControlService:
             "preview": payload,
             "result": result,
         }
+
+    # ------------------------------------------------------------------
+    # Case-level editorial actions.  These use the same preview/apply
+    # contract as documentary stages, but do not require a documentary job.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _case_action_hash(row: object, action: str) -> str:
+        if action.startswith("naming_"):
+            assert isinstance(row, CaseTitleCandidate)
+            payload = {"id": row.id, "title": row.title, "status": row.status,
+                       "critic": row.critic_json, "language": row.language}
+        elif action.startswith("thumbnail_"):
+            assert isinstance(row, Thumbnail)
+            payload = {"id": row.id, "status": row.status, "sha256": row.sha256,
+                       "critic": row.critic_json, "language": row.language}
+        else:
+            assert isinstance(row, StoryVersion)
+            payload = {"id": row.id, "version": row.version, "status": row.status,
+                       "text_hash": row.text_hash, "story_text": row.story_text,
+                       "language": row.language}
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _case_action_target(self, case_id: int, action: str, target_id: int) -> tuple[object, str]:
+        case = self.db.get(Case, case_id)
+        if case is None:
+            raise StageControlError("case not found")
+        if action.startswith("naming_"):
+            row = self.db.get(CaseTitleCandidate, target_id)
+            if row is None or row.case_id != case_id:
+                raise StageControlError("naming candidate does not belong to case")
+            return row, row.language
+        if action.startswith("thumbnail_"):
+            row = self.db.get(Thumbnail, target_id)
+            if row is None or row.case_id != case_id:
+                raise StageControlError("thumbnail does not belong to case")
+            return row, row.language
+        row = self.db.get(StoryVersion, target_id)
+        if row is None or row.case_id != case_id or row.kind != "localized":
+            raise StageControlError("localization does not belong to case")
+        return row, row.language
+
+    def preview_case_action(self, case_id: int, action: str, target_id: int) -> dict:
+        allowed = {"naming_approve", "thumbnail_approve", "thumbnail_reject",
+                   "localization_regenerate"}
+        if action not in allowed:
+            raise StageControlError(f"unsupported case action {action!r}")
+        target, language = self._case_action_target(case_id, action, target_id)
+        scope_id = f"{action}:{target_id}"
+        payload = {
+            "case_id": case_id,
+            "action": action,
+            "target_id": target_id,
+            "scope": [{"id": scope_id, "type": action, "language": language,
+                       "may_change": False}],
+            "estimated_provider_calls": {
+                "total": 1 if action == "localization_regenerate" else 0,
+                "by_stage": {"localization": 1} if action == "localization_regenerate" else {},
+            },
+            "bound_hashes": {scope_id: self._case_action_hash(target, action)},
+        }
+        row = EditLog(
+            actor="api", scope_type="case_action", scope_id=scope_id,
+            intent_json=json.dumps({"action": action, "target_id": target_id}),
+            scope_preview_json=json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            status="previewed",
+        )
+        self.db.add(row)
+        self.db.flush()
+        payload["preview_id"] = row.id
+        row.scope_preview_json = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        self.db.commit()
+        self._audit_case(case_id, action, "previewed", "case action previewed", payload)
+        return payload
+
+    def _audit_case(self, case_id: int, action: str, decision: str, reason: str,
+                    context: dict[str, Any]) -> None:
+        record_decision(
+            self.db,
+            PolicyDecision(policy="stage_control", decision=decision, reason=reason,
+                           rule_id=f"STAGE_CONTROL_{decision.upper()}", severity="info",
+                           recoverable=True, actions=("continue", "redo", "review"),
+                           context={"action": action, **context}),
+            case_id=case_id,
+        )
+
+    async def apply_case_action(self, preview_id: int, *, case_id: int | None = None) -> dict:
+        row = self.db.get(EditLog, preview_id)
+        if row is None or row.status != "previewed" or row.scope_type != "case_action":
+            raise StageControlError("case action preview is missing or already applied")
+        payload = json.loads(row.scope_preview_json or "{}")
+        actual_case_id = int(payload["case_id"])
+        if case_id is not None and actual_case_id != case_id:
+            raise StageControlError("preview does not belong to case")
+        action = str(payload["action"])
+        target, _language = self._case_action_target(actual_case_id, action, int(payload["target_id"]))
+        scope_id = next(iter(payload.get("bound_hashes", {})), "")
+        if self._case_action_hash(target, action) != payload.get("bound_hashes", {}).get(scope_id):
+            self._audit_case(actual_case_id, action, "blocked", "inputs changed since preview", payload)
+            raise StageControlError("inputs changed since preview")
+        try:
+            if action == "naming_approve":
+                from app.naming import agent as naming_agent
+                case = self.db.get(Case, actual_case_id)
+                assert case is not None
+                naming_agent.approve_candidate(self.db, case, int(payload["target_id"]))
+            elif action in {"thumbnail_approve", "thumbnail_reject"}:
+                from app.thumbnails import service as thumbnail_service
+                assert isinstance(target, Thumbnail)
+                thumbnail_service.decide(
+                    self.db, target, action == "thumbnail_approve",
+                    override=action == "thumbnail_approve" and
+                    json.loads(target.critic_json or "{}").get("verdict") == "fail",
+                )
+            elif action == "localization_regenerate":
+                from app.agents.localization import LocalizationPipeline
+                from app.api.masters import best_master
+                case = self.db.get(Case, actual_case_id)
+                assert case is not None and isinstance(target, StoryVersion)
+                master = best_master(self.db, actual_case_id)
+                if master is None:
+                    raise StageControlError("no master story found")
+                await LocalizationPipeline().localize(self.db, case, master, target.language)
+            else:
+                raise StageControlError(f"unsupported case action {action!r}")
+        except StageControlError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._audit_case(actual_case_id, action, "failed", str(exc), payload)
+            raise StageControlError(str(exc)) from exc
+        result = {
+            "status": "completed",
+            "previewed_scope": payload.get("scope", []),
+            "executed_scope": payload.get("scope", []),
+            "changed_outside_scope": [],
+        }
+        row.status = "applied"
+        row.result_json = json.dumps(result, ensure_ascii=False, sort_keys=True)
+        self.db.commit()
+        self._audit_case(actual_case_id, action, "applied", "case action completed", result)
+        return {"preview_id": preview_id, "case_id": actual_case_id, **result}
 
     def audit(self, case_id: int, *, stage: str | None = None,
               language: str | None = None) -> list[dict]:

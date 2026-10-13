@@ -62,6 +62,12 @@ else
   DB_KIND=sqlite
 fi
 SEARXNG_URL="${TRUECRIME_SEARXNG_URL:-http://127.0.0.1:8085}"
+# macOS may resolve localhost to an address that does not match the listener's
+# loopback family. Probe the explicit IPv4 loopback so an already-running
+# user's SearXNG is recognised and never duplicated by the native fallback.
+case "$SEARXNG_URL" in
+  http://localhost*|https://localhost*) SEARXNG_URL="${SEARXNG_URL/localhost/127.0.0.1}" ;;
+esac
 SEARXNG_PORT="$(printf '%s' "$SEARXNG_URL" | sed -nE 's#^[^:]+://[^:/]+:([0-9]+).*#\1#p')"
 SEARXNG_PORT="${SEARXNG_PORT:-8085}"
 API_PORT="${TRUECRIME_API_PORT:-8001}"

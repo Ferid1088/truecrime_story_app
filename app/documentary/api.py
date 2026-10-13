@@ -61,6 +61,14 @@ class StageAutomaticRequest(BaseModel):
     enabled: bool = True
 
 
+class CaseControlPreviewRequest(BaseModel):
+    action: Literal[
+        "naming_approve", "thumbnail_approve", "thumbnail_reject",
+        "localization_regenerate",
+    ]
+    target_id: int
+
+
 @router.get("/api/documentary/{case_id}/artifacts")
 def list_artifacts(case_id: int, type: str | None = None, language: str | None = None,
                    status: str | None = None, db: Session = Depends(get_db)):
@@ -137,6 +145,24 @@ def stage_control_automatic(case_id: int, req: StageAutomaticRequest,
                             db: Session = Depends(get_db)):
     try:
         return StageControlService(db).set_automatic(case_id, req.stage, req.enabled)
+    except StageControlError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/cases/{case_id}/control/preview")
+def case_control_preview(case_id: int, req: CaseControlPreviewRequest,
+                         db: Session = Depends(get_db)):
+    try:
+        return StageControlService(db).preview_case_action(case_id, req.action, req.target_id)
+    except StageControlError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/cases/{case_id}/control/apply")
+async def case_control_apply(case_id: int, req: StageControlApplyRequest,
+                             db: Session = Depends(get_db)):
+    try:
+        return await StageControlService(db).apply_case_action(req.preview_id, case_id=case_id)
     except StageControlError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

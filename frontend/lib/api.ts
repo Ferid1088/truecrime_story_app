@@ -91,6 +91,9 @@ import type {
   StageControlOperationResult,
   StageControlPreview,
   StageControlState,
+  CaseControlAction,
+  CaseControlApplyResult,
+  CaseControlPreview,
 } from "./types";
 
 import { API_BASE } from "./config";
@@ -484,6 +487,13 @@ export const api = {
       `/api/documentary/${caseId}/stage-control/audit${suffix}`,
     );
   },
+  caseControlPreview: (caseId: number, action: CaseControlAction, targetId: number) =>
+    post<CaseControlPreview>(`/api/cases/${caseId}/control/preview`, {
+      action,
+      target_id: targetId,
+    }),
+  caseControlApply: (caseId: number, previewId: number) =>
+    post<CaseControlApplyResult>(`/api/cases/${caseId}/control/apply`, { preview_id: previewId }),
   setStageAutomatic: (caseId: number, stage: string, enabled: boolean) =>
     post<{ case_id: number; stage: string; automatic: boolean; mode: string }>(
       `/api/documentary/${caseId}/stage-control/automatic`,

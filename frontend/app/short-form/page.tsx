@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, CheckCircle2, Edit3, FileCheck2, Image as ImageIcon, RefreshCw, Save, ShieldAlert, Sparkles, X } from "lucide-react";
+import { CheckCircle2, FileCheck2, Image as ImageIcon, Save, ShieldAlert, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,6 +11,8 @@ import { ErrorState } from "@/components/state";
 import { TabBar } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { StageList } from "@/components/documentary/stage-control";
+import type { DocumentaryStage } from "@/lib/types";
 
 type PlatformSettings = { enabled: boolean; count: number; min_seconds: number; target_seconds: number; max_seconds: number };
 type Settings = { candidate_multiplier: number; publish_target: number; hard_max_seconds: number; distribution: Record<string, PlatformSettings>; candidate_count: number };
@@ -28,22 +30,30 @@ const CANDIDATES: Candidate[] = [
 const PLAN: readonly [number, string, string][] = [
   [1, "Facebook Reels", "C6-S01"], [1, "Instagram Reels", "C6-S02"], [2, "TikTok", "C6-S03"], [2, "YouTube Shorts", "C6-S04"], [3, "Facebook Reels", "C6-S05"], [3, "Instagram Reels", "C6-S01"], [4, "TikTok", "C6-S02"], [5, "YouTube Shorts", "C6-S03"], [5, "Facebook Reels", "C6-S04"], [6, "Instagram Reels", "C6-S05"], [6, "TikTok", "C6-S01"], [7, "YouTube Shorts", "C6-S02"], [8, "Facebook Reels", "C6-S03"], [8, "Instagram Reels", "C6-S04"], [9, "TikTok", "C6-S05"], [9, "YouTube Shorts", "C6-S01"], [10, "Facebook Reels", "C6-S02"], [10, "Instagram Reels", "C6-S03"], [11, "TikTok", "C6-S04"], [12, "YouTube Shorts", "C6-S05"], [12, "Instagram Reels", "C6-S01"], [13, "TikTok", "C6-S02"], [13, "TikTok", "C6-S03"], [14, "TikTok", "C6-S04"],
 ];
+const SHORTS_STAGES: DocumentaryStage[] = [
+  { name: "short_selection", status: "pending", detail: "Not available — Shorts moment selection is not implemented yet." },
+  ...["en", "de", "fa", "ar"].flatMap((language) => [
+    { name: `short_script:${language}`, status: "pending" as const, detail: "Not available — Shorts script and caption production is not implemented yet." },
+    { name: `short_render:${language}`, status: "pending" as const, detail: "Not available — Shorts vertical rendering is not implemented yet." },
+  ]),
+];
 
 export default function ShortFormPage() {
   const { data, error, loading, refetch } = useApi(() => api.shortFormSettings() as Promise<Settings>);
   const [tab, setTab] = useState<(typeof TABS)[number]>("Candidates");
-  const [candidates, setCandidates] = useState(CANDIDATES);
-  const [notice, setNotice] = useState("");
+  const [candidates] = useState(CANDIDATES);
   if (loading && !data) return <Skeleton className="h-[620px]" />;
   if (error && !data) return <ErrorState message={error} onRetry={refetch} />;
-  const approve = (id: string) => { setCandidates((rows) => rows.map((row) => row.id === id ? { ...row, gate: "PASS" } : row)); setNotice(`${id} marked ready for human approval.`); };
-  const reject = (id: string) => { setCandidates((rows) => rows.filter((row) => row.id !== id)); setNotice(`${id} rejected from this review batch.`); };
   return <div className="space-y-5" data-testid="short-form-workspace">
     <PageHeader title="Short-Form Workspace" description="Case 6 review surface for gated vertical clips." actions={<span className="rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700">Verification data only</span>} />
+    <section className="space-y-3 rounded-lg border border-border bg-card p-4" data-testid="shorts-stage-list">
+      <div><h2 className="text-lg font-semibold">Shorts stages</h2><p className="text-sm text-muted-foreground">Shorts are per-language and remain isolated from the long film. They start only after a finished long film when the production pipeline is implemented.</p></div>
+      <StageList caseId={6} job={null} language="all" unavailableStages={SHORTS_STAGES} onPreview={() => undefined} />
+    </section>
     <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3 text-sm"><div className="flex items-center gap-3"><span className="font-medium">Case 6</span><span className="text-muted-foreground">Karmelo Anthony Murder Case</span><span className="text-xs text-muted-foreground">5 unpersisted candidates</span></div><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldAlert className="size-4 text-amber-600" /> Original audio: unavailable</div></div>
     <TabBar tabs={TABS} value={tab} onChange={setTab} idPrefix="shortform" label="Short-form workspace views" />
     <div id="shortform-panel" role="tabpanel" aria-label={tab}>
-      {tab === "Candidates" && <CandidatesPanel candidates={candidates} onApprove={approve} onReject={reject} onNotice={setNotice} />}
+      {tab === "Candidates" && <CandidatesPanel candidates={candidates} />}
       {tab === "Approved" && <ApprovedPanel candidates={candidates} />}
       {tab === "Settings" && data && <SettingsPanel initial={data} />}
       {tab === "Publishing Plan" && <PlanPanel />}
@@ -54,16 +64,15 @@ export default function ShortFormPage() {
       {tab === "Facebook Reels" && <PreviewPanel platform="Facebook Reels" duration={35} candidate={candidates[2]} />}
       {tab === "TikTok" && <PreviewPanel platform="TikTok" duration={28} candidate={candidates[3]} />}
     </div>
-    {notice && <div role="status" className="border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700">{notice}</div>}
   </div>;
 }
 
-function CandidatesPanel({ candidates, onApprove, onReject, onNotice }: { candidates: Candidate[]; onApprove: (id: string) => void; onReject: (id: string) => void; onNotice: (text: string) => void }) {
-  return <section className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Candidate queue</h2><p className="text-sm text-muted-foreground">Real case-6 beats and asset IDs; records are not persisted yet.</p></div><Button variant="outline" onClick={() => onNotice("Regeneration is queued for human review.")}><RefreshCw /> Regenerate batch</Button></div>{candidates.length === 0 && <EmptyPanel icon={FileCheck2} title="No candidates in this batch" body="Rejected candidates are removed from this local review state." />}<div className="grid gap-3 xl:grid-cols-2">{candidates.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} onApprove={onApprove} onReject={onReject} onEdit={() => onNotice(`${candidate.id} is ready for editing.`)} />)}</div></section>;
+function CandidatesPanel({ candidates }: { candidates: Candidate[] }) {
+  return <section className="space-y-4"><div><h2 className="text-lg font-semibold">Candidate queue</h2><p className="text-sm text-muted-foreground">Real case-6 beats and asset IDs; records are not persisted yet.</p></div><p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-800">Not implemented yet — candidate approve, edit, regenerate, and reject actions have no persisted backend.</p>{candidates.length === 0 && <EmptyPanel icon={FileCheck2} title="No candidates in this batch" body="There are no persisted candidates." />}<div className="grid gap-3 xl:grid-cols-2">{candidates.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} />)}</div></section>;
 }
 
-function CandidateCard({ candidate, onApprove, onReject, onEdit }: { candidate: Candidate; onApprove: (id: string) => void; onReject: (id: string) => void; onEdit: () => void }) {
-  return <article className="border border-border bg-card p-4" data-testid={`candidate-${candidate.id}`}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{candidate.id}</h3><span className={`rounded px-2 py-0.5 text-[11px] ${candidate.gate === "PASS" ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700"}`}>{candidate.gate === "PASS" ? "Gates pass" : "Review required"}</span></div><p className="mt-1 text-xs text-muted-foreground">Source {candidate.sourceBeat} · reveal {candidate.reveal} · visual {candidate.visual}</p></div><button type="button" aria-label={`Edit ${candidate.id}`} onClick={onEdit} className="rounded p-1.5 text-muted-foreground hover:bg-muted"><Edit3 className="size-4" /></button></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Gate label="Reveal firewall" value="Pass" /><Gate label="Epistemic checker" value="Pass" /><Gate label="Rights" value={candidate.visual === "VIS_000013" ? "Review" : "Editorial review"} /><Gate label="Automation feel" value="Pass" /></div><div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground"><div className="flex justify-between"><span>Hook</span><span className="font-medium text-foreground">{candidate.hook}</span></div><div className="mt-1 flex justify-between"><span>CTA</span><span className="max-w-[70%] text-right font-medium text-foreground">{candidate.cta}</span></div><div className="mt-1 flex justify-between"><span>Host pose</span><span className="font-medium text-foreground">{candidate.pose}</span></div></div><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" onClick={() => onApprove(candidate.id)}><Check /> Approve</Button><Button size="sm" variant="outline" onClick={onEdit}><Edit3 /> Edit</Button><Button size="sm" variant="outline" onClick={onEdit}><RefreshCw /> Regenerate</Button><Button size="sm" variant="ghost" onClick={() => onReject(candidate.id)}><X /> Reject</Button></div></article>;
+function CandidateCard({ candidate }: { candidate: Candidate }) {
+  return <article className="border border-border bg-card p-4" data-testid={`candidate-${candidate.id}`}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{candidate.id}</h3><span className={`rounded px-2 py-0.5 text-[11px] ${candidate.gate === "PASS" ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700"}`}>{candidate.gate === "PASS" ? "Gates pass" : "Review required"}</span></div><p className="mt-1 text-xs text-muted-foreground">Source {candidate.sourceBeat} · reveal {candidate.reveal} · visual {candidate.visual}</p></div></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Gate label="Reveal firewall" value="Pass" /><Gate label="Epistemic checker" value="Pass" /><Gate label="Rights" value={candidate.visual === "VIS_000013" ? "Review" : "Editorial review"} /><Gate label="Automation feel" value="Pass" /></div><div className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground"><div className="flex justify-between"><span>Hook</span><span className="font-medium text-foreground">{candidate.hook}</span></div><div className="mt-1 flex justify-between"><span>CTA</span><span className="max-w-[70%] text-right font-medium text-foreground">{candidate.cta}</span></div><div className="mt-1 flex justify-between"><span>Host pose</span><span className="font-medium text-foreground">{candidate.pose}</span></div></div></article>;
 }
 
 function Gate({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between bg-muted/50 px-2 py-1.5"><span className="text-muted-foreground">{label}</span><span className="flex items-center gap-1 font-medium"><CheckCircle2 className="size-3 text-emerald-600" />{value}</span></div>; }

@@ -77,3 +77,26 @@ Review Approve and Reject `works (local UI)` / no API.
 This audit is the baseline for the repair; the dead controls must be disabled
 with “Not implemented yet” until their real backend path exists, rather than
 being presented as persisted workflow actions.
+
+## Repair-state rerun
+
+After the audit commit, the candidate and review-only actions were removed or
+disabled. The rerun passed five Shorts-related Playwright tests: 3 existing
+short-form tests, the click-through audit, and the desktop/phone screenshot
+capture. The final audit test recorded candidate
+Regenerate batch, candidate header Edit, Approve, Edit, Regenerate, and Reject
+as `removed (not implemented yet)`; Review Caption, Destination, CTA, Approve,
+and Reject as `disabled (not implemented yet)`; Settings Save as working via
+`PATCH /api/short-form/settings`; and Performance as working via
+`GET /api/short-form/metrics` (observed twice during view loading). This makes
+the unavailable pilot boundary visible without leaving a clickable dead action.
+
+## Stage-control boundary
+
+The Shorts workspace now renders the shared `StageList` with one selection stage
+and per-language script/caption and vertical-render stages. Each card is visibly
+not available rather than hidden; no preview or execution is offered because
+there is no Shorts runner or artifact scope to preview. The long film therefore
+cannot be blocked by Shorts, and no automatic start is claimed. The intended
+future contract is per-language start only after a completed long-film render,
+with isolated short failures.
