@@ -67,17 +67,19 @@ test("Films approval bundle approves, excludes, and invalidates only an edited s
   const created = await request.post(`${apiBase}/api/short-form/1/create`, { data: { language: "en" } });
   expect(created.ok()).toBeTruthy();
   const deadline = Date.now() + 90_000;
-  let workspace: { renders: { id: number; language: string; render_source: string }[] } | null = null;
+  type ShortWorkspace = { renders: { id: number; language: string; render_source: string }[] };
+  let workspace: ShortWorkspace | undefined;
   while (Date.now() < deadline) {
     const rows = await (await request.get(`${apiBase}/api/short-form/1/queue`)).json() as { stage: string; status: string }[];
     if (rows.some((row) => row.stage === "script_render") && rows.filter((row) => row.stage === "script_render").every((row) => row.status === "done")) {
-      workspace = await (await request.get(`${apiBase}/api/short-form/1/workspace`)).json() as typeof workspace;
+      workspace = await (await request.get(`${apiBase}/api/short-form/1/workspace`)).json() as ShortWorkspace;
       break;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  expect(workspace?.renders.length).toBeGreaterThanOrEqual(3);
-  const renders = workspace!.renders.filter((render) => render.language === "en");
+  if (!workspace) throw new Error("short render workspace was not created before the deadline");
+  expect(workspace.renders.length).toBeGreaterThanOrEqual(3);
+  const renders = workspace.renders.filter((render) => render.language === "en");
   await page.goto("/cases/1");
   await page.getByRole("button", { name: "Films", exact: true }).click();
   await expect(page.getByText("Approval bundles", { exact: true })).toBeVisible();

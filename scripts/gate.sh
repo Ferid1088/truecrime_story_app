@@ -59,7 +59,9 @@ fi
 
 if [ "$run_frontend" = 1 ]; then
   check "Frontend: route types"   in_frontend npx next typegen
-  check "Frontend: typecheck"     in_frontend npx tsc --noEmit
+  # Keep the TypeScript compiler in the frontend gate; eslint cannot catch
+  # Playwright fixture narrowing errors such as an optional workspace.
+  check "Frontend: tsc --noEmit"  in_frontend npx tsc --noEmit
   check "Frontend: eslint"        in_frontend npx eslint .
   check "Frontend: production build" in_frontend npx next build
   if [ "$run_e2e" = 1 ]; then
