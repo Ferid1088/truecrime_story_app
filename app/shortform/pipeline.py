@@ -502,8 +502,23 @@ def _prepare_for_job(db: Session, job: DocumentaryJob, language: str | None = No
         _set_stage(db, job, "short_selection", "skipped", {"reason": "no finished language film"})
         return {"status": "skipped", "reason": "no finished language film"}
     blueprint = _latest_blueprint(db, job)
+    blueprint_data = json.loads(blueprint.blueprint_json or "{}")
+    if job.mode == "pilot":
+        # Shorts selection is part of the pilot editorial target: candidates
+        # must come from the same opening beats shown by the film, not from the
+        # full master story that the pilot deliberately did not narrate.
+        from app.documentary.jobs import pilot_beats
+
+        focus = set(pilot_beats(
+            blueprint_data, job.pilot_seconds or ai_config.documentary.pilot_seconds
+        ))
+        blueprint_data = {
+            **blueprint_data,
+            "beats": [b for b in blueprint_data.get("beats") or []
+                      if b.get("id") in focus],
+        }
     candidates = ShortFormDirectorAgent().generate_from_blueprint(
-        json.loads(blueprint.blueprint_json or "{}"), assets=db.query(VisualAsset).filter(VisualAsset.case_id == job.case_id).all())
+        blueprint_data, assets=db.query(VisualAsset).filter(VisualAsset.case_id == job.case_id).all())
     evaluated = [_candidate_payload(db, c, _asset_details(db, job.case_id)) for c in candidates]
     selection = select_candidates(evaluated, target_count=ai_config.short_form.production.target_count)
     selected_ids = {c.get("id") for c in selection["selected"]}
@@ -513,7 +528,8 @@ def _prepare_for_job(db: Session, job: DocumentaryJob, language: str | None = No
     db.commit()
     _register(db, job, "short_moment_selection", language=None, short_id=None,
               inputs={"film_job_id": job.id, "film_ids": [f.id for f in films],
-                      "blueprint_id": blueprint.id, "selection": selection,
+                      "blueprint_id": blueprint.id, "pilot_beat_ids": sorted(focus)
+                      if job.mode == "pilot" else None, "selection": selection,
                       "config": ai_config.short_form.production.model_dump()},
               output_ref=None, output_hash=_hash(selection))
     _set_stage(db, job, "short_selection", "done", {

@@ -115,23 +115,48 @@ def _words(text: str | None) -> int:
     return len((text or "").split())
 
 
+def _source_words(source) -> int:
+    """Count the collected page text, with summary/notes as the fallback.
+
+    Research pages may be persisted as normalized SourceChunk rows rather than
+    in Source.raw_text; using those chunks keeps the estimate tied to what was
+    actually collected instead of silently applying the fixed assumption.
+    """
+    if source.raw_text:
+        return _words(source.raw_text)
+    chunks = sum(_words(chunk.text) for chunk in (source.chunks or []))
+    return chunks or _words(source.summary or source.notes)
+
+
 def _metrics(db: Session, case: Case, target_minutes: float | None,
-             pricing: dict[str, Any]) -> dict[str, Any]:
+             pricing: dict[str, Any], pilot_seconds: float | None = None) -> dict[str, Any]:
     assumptions = pricing["assumptions"]
     multipliers = assumptions["range_multipliers"]
-    source_words = sum(_words(source.raw_text or source.summary or source.notes)
-                       for source in case.sources)
+    source_words = sum(_source_words(source) for source in case.sources)
     stories = [row for row in case.stories if row.story_text]
     story_words = max((_words(row.story_text) for row in stories), default=0)
-    expected_minutes = float(target_minutes or assumptions["target_minutes"]["expected"])
-    expected_source = max(source_words, int(assumptions["source_words_floor"]))
-    expected_story = max(story_words, int(assumptions["story_words_floor"]),
-                         int(expected_minutes * assumptions["words_per_minute"]))
+    pilot_minutes = float(pilot_seconds) / 60 if pilot_seconds else None
+    expected_minutes = float(pilot_minutes or target_minutes or
+                             assumptions["target_minutes"]["expected"])
+    source_fallback = int(assumptions["source_words_floor"])
+    source_basis = "collected_source_pages" if source_words else "assumed"
+    expected_source = source_words or source_fallback
+    target_story_words = max(1, int(round(expected_minutes * assumptions["words_per_minute"])))
+    # A pilot is a genuinely shorter editorial target. It must not inherit the
+    # full-film floor merely because the case already has a long master.
+    expected_story = (target_story_words if pilot_minutes is not None else
+                      max(story_words, int(assumptions["story_words_floor"]),
+                          target_story_words))
     result: dict[str, Any] = {
-        "target_minutes": {key: float(target_minutes or value)
-                            for key, value in assumptions["target_minutes"].items()},
+        "target_minutes": {key: expected_minutes for key in SCENARIOS},
+        "source_pages": len(case.sources),
+        "source_words_basis": source_basis,
+        "source_words_assumed": not bool(source_words),
+        "source_words_observed": source_words,
         "source_words": {key: expected_source * float(multipliers[key])
                          for key in SCENARIOS},
+        "target_story_words": {key: target_story_words * float(multipliers[key])
+                                for key in SCENARIOS},
         "story_words": {key: expected_story * float(multipliers[key])
                          for key in SCENARIOS},
     }
@@ -139,13 +164,18 @@ def _metrics(db: Session, case: Case, target_minutes: float | None,
     result["tokens"] = {
         "story_tokens": {key: result["story_words"][key] * words_to_tokens for key in SCENARIOS},
         "research_input": {key: result["source_words"][key] * words_to_tokens for key in SCENARIOS},
-        "research_output": {key: result["source_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
-        "master_story_input": {key: result["source_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
+        "research_output": {key: result["target_story_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
+        "master_story_input": {key: result["target_story_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
         "master_story_output": {key: result["story_words"][key] * words_to_tokens for key in SCENARIOS},
         "spoken_input": {key: result["story_words"][key] * 1.2 * words_to_tokens for key in SCENARIOS},
         "spoken_output": {key: result["story_words"][key] * 1.05 * words_to_tokens for key in SCENARIOS},
         "performance_input": {key: result["story_words"][key] * 1.1 * words_to_tokens for key in SCENARIOS},
-        "performance_output": {key: 900 * float(multipliers[key]) for key in SCENARIOS},
+        "performance_output": {key: result["story_words"][key] * 0.09 * words_to_tokens
+                                for key in SCENARIOS},
+        "short_selection_output": {
+            key: result["story_words"][key] / max(float(assumptions["story_words_floor"]), 1)
+            * 1200 for key in SCENARIOS
+        },
     }
     return result
 
@@ -160,7 +190,7 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                    pricing: dict[str, Any] | None = None) -> tuple[list[CostLine], dict[str, dict[str, float]]]:
     pricing = pricing or load_pricing()
     languages = languages or ["en"]
-    metrics = _metrics(db, case, target_minutes, pricing)
+    metrics = _metrics(db, case, target_minutes, pricing, pilot_seconds)
     source = metrics["source_words"]
     story = metrics["story_words"]
     assumptions = pricing["assumptions"]
@@ -217,8 +247,7 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
     short_count = int(assumptions["short_count"])
     lines.append(_llm_line(pricing, "short_selection", "writer",
                            tokens["story_tokens"],
-                           {key: 1200 * float(assumptions["range_multipliers"][key])
-                            for key in SCENARIOS}))
+                           tokens["short_selection_output"]))
     lines.append(_single_unit_line(
         pricing, "short_render:en", "skipped",
         "FFmpeg short render is local; no provider charge is included.",

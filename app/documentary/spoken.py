@@ -267,6 +267,11 @@ def spoken_blueprint(db: Session, version: StoryVersion) -> dict | None:
     blueprint = json.loads(row.blueprint_json or "{}")
     sections = stored_sections(version)
     beats = blueprint.get("beats") or []
+    section_ids = {s["id"] for s in sections}
+    # Pilot spoken versions intentionally contain only the opening beats. The
+    # stored source sections therefore form a strict ordered subset of the
+    # master blueprint, not a malformed full blueprint.
+    beats = [b for b in beats if b.get("id") in section_ids]
     if not sections or [s["id"] for s in sections] != [b["id"] for b in beats]:
         return None
     adapted = []

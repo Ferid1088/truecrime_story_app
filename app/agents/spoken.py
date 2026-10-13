@@ -236,7 +236,8 @@ class SpokenNarrator:
     # ------------------------------------------------------------------
 
     async def create(self, db: Session, case: Case, master: StoryVersion,
-                     language: str) -> StoryVersion:
+                     language: str, beat_ids: set[str] | None = None,
+                     pilot_seconds: float | None = None) -> StoryVersion:
         if language not in self.cfg.languages:
             raise ValueError(f"Language {language!r} is not configured for spoken narration.")
         row = latest_blueprint(db, master.id)
@@ -249,6 +250,10 @@ class SpokenNarrator:
             )
         blueprint = json.loads(row.blueprint_json or "{}")
         source = beat_sections(version_sections(master), blueprint)
+        if beat_ids:
+            source = [section for section in source if section["id"] in beat_ids]
+        if not source:
+            raise RuntimeError("The selected pilot has no story beats to narrate.")
         pack = build_evidence_pack(
             db.query(Fact).filter(Fact.case_id == case.id).all(),
             db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
@@ -330,6 +335,8 @@ class SpokenNarrator:
             extra_structure={
                 "blueprint_id": row.id, "source_version_id": master.id,
                 "beat_sections": True,
+                "pilot_seconds": pilot_seconds,
+                "pilot_beat_ids": sorted(beat_ids) if beat_ids else None,
                 "evidence_fingerprint": row.evidence_fingerprint,
             },
         )

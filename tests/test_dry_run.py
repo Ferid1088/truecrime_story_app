@@ -41,6 +41,24 @@ def test_dry_run_changes_when_story_length_changes(db_session):
         next(row for row in short["stages"] if row["stage"] == "tts:en")["units"]["characters"]
 
 
+def test_120_second_pilot_scales_the_editorial_token_target(db_session):
+    case = Case(canonical_title="Pilot length", slug=f"pilot-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    from app.db.models import StoryVersion
+
+    # A pre-existing long master must not make the pilot estimate a full film.
+    db_session.add(StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+                                narrative_angle="angle", story_text="word " * 12000,
+                                status="approved"))
+    db_session.commit()
+    result = documentary_dry_run(db_session, case, ["en"], pilot_seconds=120)
+    assert result["metrics"]["target_minutes"]["expected"] == 2.0
+    assert result["metrics"]["story_words"]["expected"] == 300.0
+    assert result["token_assumptions"]["master_story_output"]["expected"] == 390.0
+    assert result["metrics"]["source_words_basis"] == "assumed"
+
+
 def test_price_change_changes_estimate_and_redo_uses_same_stage_model(db_session):
     case = Case(canonical_title="Price sensitivity", slug=f"price-{uuid4().hex[:8]}", language="en")
     db_session.add(case)

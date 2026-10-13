@@ -324,13 +324,22 @@ class DocumentaryPipeline(StageRunner):
         async def spoken_branch(lang: str):
             async def make_spoken():
                 current = latest_spoken(db, master, lang, bp_row.id)
+                if pilot and current is not None:
+                    saved = json.loads(current.narrative_structure or "{}")
+                    same_pilot = (
+                        float(saved.get("pilot_seconds") or 0) == float(pilot_seconds)
+                        and set(saved.get("pilot_beat_ids") or []) == set(focus_beats or [])
+                    )
+                    if not same_pilot:
+                        current = None
                 history = []
 
                 async def produce(feedback):
                     nonlocal current
                     if current is None or feedback["reasons"]:
                         current = await get_stage_agent("spoken").create(
-                            db, case, master, lang)
+                            db, case, master, lang, beat_ids=set(focus_beats or []),
+                            pilot_seconds=pilot_seconds if pilot else None)
                     return current
 
                 async def audit(version):
@@ -826,10 +835,12 @@ def create_job(db: Session, case: Case, master: StoryVersion | None, languages: 
                ) -> DocumentaryJob:
     if master is None and not from_zero:
         raise ValueError("A job needs a master story unless it starts from zero.")
+    effective_target_minutes = (float(pilot_seconds) / 60.0
+                                if mode == "pilot" and pilot_seconds else target_minutes)
     job = DocumentaryJob(
         case_id=case.id, master_version_id=master.id if master else None, mode=mode,
         refresh_visuals=refresh_visuals, from_zero=from_zero,
-        target_minutes=target_minutes, batch_id=batch_id,
+        target_minutes=effective_target_minutes, batch_id=batch_id,
         languages_json=json.dumps(languages), pilot_seconds=pilot_seconds,
         render_profile=profile, status="queued",
         stages_json=json.dumps(plan_stages(languages, from_zero)),
