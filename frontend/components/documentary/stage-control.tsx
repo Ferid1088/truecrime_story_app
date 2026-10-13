@@ -516,7 +516,7 @@ export function StageAuditTimeline({ caseId, jobId, stages, language }: AuditTim
       <CardContent>
         {audit.loading && <div className="space-y-2"><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-4/5" /></div>}
         {audit.error && <ErrorState message={audit.error} onRetry={audit.refetch} />}
-        {!audit.loading && !audit.error && !audit.data?.length && <p className="text-xs text-muted-foreground">No stage-control events yet.</p>}
+        {!audit.loading && !audit.error && !audit.data?.length && <p role="status" className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">No stage-control events yet. Previews and applies will appear here.</p>}
         {!audit.loading && !audit.error && audit.data && audit.data.length > 0 && <>
           <ol className="space-y-3 border-l border-border pl-4">{(showAll ? audit.data : audit.data.slice(0, 3)).map((event) => <li key={event.id} className="relative text-xs"><span className="absolute -left-[1.35rem] top-0.5 size-2 rounded-full bg-primary" /><p className="font-medium">{auditSentence(event.decision)}</p><p className="text-muted-foreground">{auditReason(event.reason)}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{event.stage ? stageLabel(event.stage) : "Case"}{event.language ? ` · ${langLabel(event.language)}` : ""} · {new Date(event.created_at).toLocaleString()}</p></li>)}</ol>
           {audit.data.length > 3 && <Button variant="ghost" size="sm" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show less" : "Show more"}</Button>}
@@ -527,7 +527,7 @@ export function StageAuditTimeline({ caseId, jobId, stages, language }: AuditTim
   );
 }
 
-export function StageControlResultView({ operation }: { operation: StageControlOperationResult }) {
+export function StageControlResultView({ operation, onRetry }: { operation: StageControlOperationResult; onRetry: () => void }) {
   const result = operation.result;
   const outside = result.changed_outside_scope ?? [];
   const failed = result.status === "failed" || outside.length > 0;
@@ -545,7 +545,7 @@ export function StageControlResultView({ operation }: { operation: StageControlO
           <a className="mt-1 inline-block text-primary underline" href="#stage-audit">Open audit entry</a>
         </div>
         {result.status === "queued" && <p className="sm:col-span-3 text-muted-foreground">Queued — following the job</p>}
-        {failed && <Button size="sm" variant="outline" className="sm:col-span-3" onClick={() => window.location.reload()}>Retry this stage</Button>}
+        {failed && <Button size="sm" variant="outline" className="sm:col-span-3" onClick={onRetry}>Retry this stage</Button>}
       </CardContent>
     </Card>
   );
@@ -588,7 +588,7 @@ export function StageControlPanel({ caseId, job }: { caseId: number; job: Docume
       </div>
       {error && <p role="alert" className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       <StageList caseId={caseId} job={job} language={language} onPreview={(next) => { setError(null); setStale(false); setOperation(null); setPreview(next); }} />
-      {operation && <StageControlResultView operation={operation} />}
+      {operation && <StageControlResultView operation={operation} onRetry={() => { setPreview(operation.preview); setOperation(null); setError(null); setStale(false); }} />}
       <StageAuditTimeline caseId={caseId} jobId={job?.id} stages={stages} language={language} />
       <PreviewDialog preview={preview} stale={stale} applying={applying} error={error} onApply={() => void apply()} onClose={() => { if (!applying) setPreview(null); }} />
     </div>
