@@ -195,6 +195,30 @@ def _case(db: Session, case_id: int) -> Case:
     return case
 
 
+def _research_preflight(case: Case) -> dict:
+    aliases = json.loads(case.aliases_json or "[]")
+    people = json.loads(case.people_json or "[]")
+    title = (case.canonical_title or "").strip()
+    placeholder = bool(__import__("re").search(
+        r"(^|\s)(dry\s*run|test|sample|placeholder|untitled|unknown)(\s|$)",
+        title.lower(),
+    ))
+    queries = []
+    for value in [title, *aliases[:3], *people[:3], case.location or ""]:
+        value = " ".join(str(value).split())
+        if value and value not in queries:
+            queries.append(value)
+    needs_details = placeholder or not case.summary or not aliases or not case.location or not case.incident_date
+    return {
+        "needs_details": needs_details,
+        "warning": (
+            f"Research will search for: '{title}'. Add details for better results."
+            if needs_details else None
+        ),
+        "queries": queries,
+    }
+
+
 def _loads(text, default):
     try:
         return json.loads(text) if text else default
@@ -390,7 +414,7 @@ def update_dynamic_eq_settings(payload: DynamicEQPatch):
 @router.get("/api/cases/{case_id}/documentary")
 def documentary_overview(case_id: int, version_id: int | None = None,
                          db: Session = Depends(get_db)):
-    _case(db, case_id)
+    case = _case(db, case_id)
     masters = _masters(db, case_id)
     master = None
     try:
@@ -409,6 +433,7 @@ def documentary_overview(case_id: int, version_id: int | None = None,
                  .filter(DocumentaryJob.case_id == case_id)
                  .order_by(DocumentaryJob.id.desc()).limit(10).all()],
         "visual_counts": {},
+        "research_preflight": _research_preflight(case),
     }
     assets = db.query(VisualAsset).filter(VisualAsset.case_id == case_id).all()
     for a in assets:

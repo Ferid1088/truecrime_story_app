@@ -2072,6 +2072,11 @@ export interface DocumentaryOverview {
   jobs: DocumentaryJob[];
   /** Visual assets of the case by verification status. */
   visual_counts: Record<string, number>;
+  research_preflight: {
+    needs_details: boolean;
+    warning: string | null;
+    queries: string[];
+  };
 }
 
 export type AssetRole = "evidence" | "context" | "illustration";

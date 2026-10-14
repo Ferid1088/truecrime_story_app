@@ -223,6 +223,16 @@ export function RunTab({
               )}
             </div>
 
+            {fromZero && overview.research_preflight.needs_details && (
+              <div className="rounded-md border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" data-testid="research-preflight-warning">
+                <p className="font-medium">{overview.research_preflight.warning}</p>
+                <p className="mt-1 font-medium">Search queries</p>
+                <ul className="list-disc pl-4">
+                  {overview.research_preflight.queries.map((query) => <li key={query}>{query}</li>)}
+                </ul>
+              </div>
+            )}
+
             <RunOptionsFields settings={settings} value={options} onChange={setOptions} />
 
             {options.mode === "pilot" && Number.isFinite(pilotLength) && pilotLength >= 11 && pilotLength <= 1800 && estimate && (
