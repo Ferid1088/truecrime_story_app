@@ -126,7 +126,10 @@ def _is_health_request(request: httpx.Request) -> bool:
     language/category parameters) remain in the ledger.
     """
     return (request.method == "GET" and request.url.path == "/search"
-            and dict(request.url.params) == {"q": "test", "format": "json"})
+            and dict(request.url.params) in (
+                {"q": "test", "format": "json"},
+                {"q": "true crime", "format": "json", "engines": "wikipedia"},
+            ))
 
 
 def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
