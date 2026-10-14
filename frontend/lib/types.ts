@@ -81,6 +81,8 @@ export interface ResolutionFields {
   resolution_confidence: number | null;
   resolution_summary: string | null;
   resolution_checked_at: string | null;
+  legal_risk: boolean;
+  legal_risk_reasons: string[];
 }
 
 /** How a case entered the system. */

@@ -164,6 +164,15 @@ def gate_solved(verdict: dict, min_confidence: float, min_sources: int) -> tuple
         return UNDER_REVIEW, (f"solved claim supported by {len(sites)} independent site(s) "
                               f"({', '.join(sites) or 'none'}); need {min_sources} or an "
                               "official source")
+    evidence = " ".join(
+        str(verdict.get(key) or "")
+        for key in ("reason", "latest_development", "solved_by", "resolution_evidence")
+    )
+    if re.search(r"\b(?:ongoing|pending|active)\s+(?:criminal\s+)?trial\b|"
+                 r"\btrial\s+(?:is\s+)?ongoing\b", evidence, re.I):
+        return UNDER_REVIEW, "trial is pending; a conviction has not been established"
+    if not _CONVICTION_TERMS.search(evidence):
+        return UNDER_REVIEW, "solved claim has no conviction evidence"
     support = (f"official source {site_of(official[0])}" if official
                else f"{len(sites)} independent sources ({', '.join(sites[:4])})")
     return SOLVED, f"{verdict.get('reason') or 'solved'} — {support}, confidence {conf:.2f}"
@@ -274,6 +283,22 @@ def legal_risk_flags(raw: dict, verdict: dict | None = None) -> list[str]:
     reasons = [label for label, pattern in _LEGAL_RISK_PATTERNS if pattern.search(text)]
     status = normalize_status(verification.get("status") or raw.get("resolution_status"))
     if status != SOLVED or (_SUSPECT_TERMS.search(text) and not _CONVICTION_TERMS.search(text)):
+        reasons.append("suspect not convicted")
+    return list(dict.fromkeys(reasons))
+
+
+def case_legal_risk_flags(case) -> list[str]:
+    """Apply the same editorial caution to manually created cases."""
+    raw = {
+        "title": getattr(case, "canonical_title", ""),
+        "rationale": getattr(case, "summary", "") or "",
+        "resolution_status": getattr(case, "resolution_status", None),
+        "resolution_evidence": getattr(case, "resolution_summary", "") or "",
+    }
+    reasons = legal_risk_flags(raw)
+    evidence = raw["resolution_evidence"] + " " + raw["rationale"]
+    if (normalize_status(raw.get("resolution_status")) == SOLVED
+            and not _CONVICTION_TERMS.search(evidence)):
         reasons.append("suspect not convicted")
     return list(dict.fromkeys(reasons))
 

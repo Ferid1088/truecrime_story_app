@@ -259,7 +259,8 @@ def test_recent_solved_unused_case_is_suggested_first(db_session):
 
 
 def test_unverified_solved_claim_is_not_solved():
-    v = {"status": "SOLVED", "confidence": 0.95, "supporting_urls": ["https://a.example/x"]}
+    v = {"status": "SOLVED", "confidence": 0.95, "reason": "convicted and sentenced",
+         "supporting_urls": ["https://a.example/x"]}
     status, why = gate_solved(v, 0.8, 2)
     assert status == "STATUS_UNDER_REVIEW" and "independent" in why
     v["supporting_urls"].append("https://polizei.example.de/presse/1")
@@ -406,7 +407,8 @@ def test_monitor_skips_solved_and_never_covered_cases_get_no_follow_up(db_sessio
         {"url": "https://b.example/ben", "title": "Ben Kraus verdict",
          "snippet": "found guilty of killing Ben Kraus", "published_at": _iso(1)}]})
     gen = FakeGen({case.canonical_title: {"status": "SOLVED", "confidence": 0.9,
-                                          "supporting_urls": "ALL"}})
+                                              "reason": "convicted and sentenced",
+                                              "supporting_urls": "ALL"}})
     asyncio.run(UnsolvedCaseMonitor(FakeProvider(reg), gen).check_case(db_session, case))
     db_session.refresh(case)
     assert case.resolution_status == "SOLVED"

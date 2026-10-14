@@ -62,8 +62,8 @@ const RESOLUTION: Record<
     icon: CircleHelp,
   },
   STATUS_UNDER_REVIEW: {
-    label: "UNDER REVIEW",
-    short: "Under review",
+    label: "UNRESOLVED / ONGOING",
+    short: "Unresolved / ongoing",
     variant: "warning",
     hint: "A development without resolution (arrest, charges, no verdict yet) or conflicting reports.",
     icon: Hourglass,

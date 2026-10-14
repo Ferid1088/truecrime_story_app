@@ -24,7 +24,7 @@ from app.lifecycle import followups as F
 from app.lifecycle import scheduler as S
 from app.lifecycle import videos as V
 from app.lifecycle.monitor import UnsolvedCaseMonitor, check_dict, run_dict
-from app.lifecycle.selection import candidate_dict
+from app.lifecycle.selection import candidate_dict, case_legal_risk_flags
 from app.lifecycle.status import history, history_dict, set_resolution
 
 router = APIRouter(tags=["lifecycle"])
@@ -106,12 +106,15 @@ def upload_approval_bundle(case_id: int, language: str, payload: ApprovalBundleU
 
 
 def resolution_dict(case: Case) -> dict:
+    legal_risk_reasons = case_legal_risk_flags(case)
     return {
         "case_uid": case.case_uid,
         "resolution_status": case.resolution_status or "UNKNOWN",
         "resolution_confidence": case.resolution_confidence,
         "resolution_summary": case.resolution_summary,
         "resolution_checked_at": case.resolution_checked_at,
+        "legal_risk": bool(legal_risk_reasons),
+        "legal_risk_reasons": legal_risk_reasons,
     }
 
 

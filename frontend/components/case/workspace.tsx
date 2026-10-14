@@ -9,6 +9,7 @@ import { useApi } from "@/lib/hooks";
 import { formatDateTime } from "@/lib/format";
 import type { DocumentaryDryRunResult, DocumentaryJob } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
 import { ErrorState } from "@/components/state";
 import { Dialog } from "@/components/ui/dialog";
@@ -162,6 +163,11 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
             >
               <ResolutionBadge status={caseData.resolution_status} confidence={caseData.resolution_confidence} />
             </button>
+            {caseData.legal_risk && (
+              <Badge variant="danger" title={caseData.legal_risk_reasons.join("; ")}>
+                Legal risk
+              </Badge>
+            )}
             <CaseStatusBadge status={caseData.status} />
             <span className="text-xs text-muted-foreground">Case #{caseData.id}</span>
             {caseData.location && (
