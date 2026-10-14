@@ -42,11 +42,19 @@ const NAV = [
 
 function ApiStatus() {
   const [ok, setOk] = useState<boolean | null>(null);
+  const [providerMode, setProviderMode] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     const check = () =>
       fetch(`${API_BASE}/health`, { credentials: "include" })
-        .then((r) => !cancelled && setOk(r.ok))
+        .then(async (r) => {
+          if (cancelled) return;
+          setOk(r.ok);
+          if (r.ok) {
+            const body = await r.json().catch(() => ({}));
+            setProviderMode(body.provider_mode ?? null);
+          }
+        })
         .catch(() => !cancelled && setOk(false));
     check();
     const t = setInterval(check, 15000);
@@ -56,14 +64,29 @@ function ApiStatus() {
     };
   }, []);
   return (
-    <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          ok === null ? "bg-muted-foreground" : ok ? "bg-emerald-500" : "bg-rose-500",
-        )}
-      />
-      {ok === null ? "Checking API…" : ok ? "API connected" : "API offline"}
+    <div className="space-y-1 px-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "size-1.5 rounded-full",
+            ok === null ? "bg-muted-foreground" : ok ? "bg-emerald-500" : "bg-rose-500",
+          )}
+        />
+        {ok === null ? "Checking API…" : ok ? "API connected" : "API offline"}
+      </div>
+      {providerMode && (
+        <span
+          className={cn(
+            "inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            providerMode === "recorded"
+              ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
+          )}
+          title={providerMode === "recorded" ? "Test providers are active" : "Live provider mode"}
+        >
+          Providers: {providerMode === "recorded" ? "RECORDED (test)" : "live"}
+        </span>
+      )}
     </div>
   );
 }

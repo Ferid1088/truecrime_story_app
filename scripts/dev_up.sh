@@ -56,6 +56,13 @@ for key in TRUECRIME_DATABASE_URL DATABASE_URL TRUECRIME_SEARXNG_URL SEARXNG_DIR
   load_if_unset "$key"
 done
 
+# This launcher is for the live local stack, never the disposable E2E stack.
+# Clear inherited test switches before any API/worker process is created.  In
+# particular, an E2E shell can otherwise leak recorded-e2e into the live DB.
+unset TC_TEST_NO_NETWORK TRUECRIME_TEST_NO_REAL_PROVIDERS TRUECRIME_PROVIDER_MODE \
+  E2E_DB_NAME E2E_DB_URL E2E_DATABASE_URL NEXT_DIST_DIR
+echo "effective provider mode: live"
+
 # ffmpeg-full is keg-only. Pass its absolute tools to API/worker processes;
 # deliberately do not alter PATH or link the keg.
 if [[ -z "${FFMPEG_BIN:-}" && -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ]]; then

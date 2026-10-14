@@ -3,6 +3,10 @@
 import logging
 import os
 
+from app.core.provider_mode import assert_safe_provider_mode
+
+assert_safe_provider_mode()
+
 if os.environ.get("TC_TEST_NO_NETWORK") == "1":
     from app.core.network_guard import install as _install_test_network_guard
 

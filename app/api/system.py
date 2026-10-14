@@ -27,8 +27,9 @@ router = APIRouter()
 @router.get("/health")
 def health():
     from app.shortform.export import ffmpeg_caption_capability
+    from app.core.provider_mode import provider_mode
 
-    return {"status": "ok", "short_form": {
+    return {"status": "ok", "provider_mode": provider_mode(), "short_form": {
         "caption_burn_in": ffmpeg_caption_capability(),
     }}
 

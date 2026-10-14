@@ -254,6 +254,9 @@ class Worker:
 
 
 def main() -> None:
+    from app.core.provider_mode import assert_safe_provider_mode
+
+    assert_safe_provider_mode()
     from app.core import observability
 
     observability.setup()
