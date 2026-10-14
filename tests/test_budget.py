@@ -43,6 +43,22 @@ def test_budget_records_euro_call_cost_without_double_counting(db_session):
     assert ledger.snapshot(case.id).spent_eur == pytest.approx(2.0)
 
 
+def test_budget_record_keeps_the_measured_call_duration(db_session):
+    # A writer call can legitimately take minutes (see
+    # tests/test_pilot_master_regressions.py); the ledger must keep that
+    # instead of silently recording every call as instantaneous, or nothing
+    # in the job/case can ever show real provider latency.
+    case = _case(db_session)
+    ledger = BudgetService(db_session)
+    row = ledger.record(case_id=case.id, stage="master_approval", model="fake-writer",
+                        units=100, cost_eur=0.03, duration_ms=334126)
+    assert row.duration_ms == 334126
+
+    no_duration = ledger.record(case_id=case.id, stage="master_approval", model="fake-writer",
+                                units=100, cost_eur=0.03)
+    assert no_duration.duration_ms == 0
+
+
 def test_actual_provider_usage_stops_the_next_stage_at_cap(db_session):
     """A provider response larger than the estimate must govern the next gate."""
     case = _case(db_session)

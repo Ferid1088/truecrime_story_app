@@ -244,6 +244,7 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
         estimated=estimated,
         is_test_data=(run.model == "recorded-e2e"),
         documentary_job_id=run.documentary_job_id,
+        duration_ms=run.duration_ms,
     )
     if run.documentary_job_id is None:
         return

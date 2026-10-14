@@ -190,9 +190,16 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             body["seed"] = gen.seed
         try:
             cfg = ai_config.generation_provider()
-            # This is an inactivity/read timeout, not a fixed per-call wall
-            # clock. A provider may take longer than 90 seconds overall, but
-            # must emit another response chunk within the configured window.
+            # The request below does not set "stream": true, so this is NOT
+            # a true per-token inactivity timeout — the provider can legally
+            # hold the connection open with no bytes at all until the whole
+            # completion is ready, then deliver it in one write. httpx's
+            # `read` timeout only resets on bytes actually received, so for
+            # a non-streaming call it is effectively a hard ceiling on total
+            # generation time. Measured master writer/rewriter calls take
+            # 330-400s end to end (see tests/test_pilot_master_regressions.py),
+            # so this must stay comfortably above that — not a short "idle"
+            # window — until real token streaming is implemented here.
             timeout = httpx.Timeout(
                 connect=30.0,
                 read=cfg.inactivity_timeout_s,

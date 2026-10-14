@@ -281,6 +281,75 @@ def _calibrated_master_story_line(
     }
 
 
+def _calibrated_master_approval_line(
+    db: Session, pilot_seconds: float | None,
+) -> tuple[CostLine | None, dict[str, Any]]:
+    """Estimate the approval gate from observed ledger usage.
+
+    A master is never put into production unaudited: at least one writer
+    (rewrite), grounding, consistency and engagement-critic call run under
+    the ``master_approval`` stage for every revision the gate asks for, and
+    none of that is the ``master_story`` line above (which prices only the
+    first draft). Those calls are real, paid, and previously had no
+    estimate line at all, so they never showed up in the estimate-vs-actual
+    report."""
+    rows = (db.query(ProviderCall)
+            .filter(ProviderCall.stage == "master_approval",
+                    ProviderCall.model.is_not(None),
+                    ProviderCall.tokens_in.is_not(None),
+                    ProviderCall.tokens_out.is_not(None),
+                    ProviderCall.estimated.is_(False),
+                    ProviderCall.is_test_data.is_(False))
+            .all())
+    costs: list[float] = []
+    inputs: list[int] = []
+    outputs: list[int] = []
+    for row in rows:
+        cost = row.cost_eur
+        if cost is None:
+            cost = model_cost_eur(row.model, row.tokens_in, row.tokens_out)
+        if cost is None:
+            continue
+        costs.append(float(cost))
+        inputs.append(int(row.tokens_in))
+        outputs.append(int(row.tokens_out))
+    if len(costs) < 3:
+        return None, {"source": "formula", "observations": len(costs)}
+
+    # One revision pass is a writer rewrite plus grounding, consistency and
+    # engagement-critic checks on the result — four provider calls.
+    calls_per_revision = 4
+    max_revisions = (
+        ai_config.master_generation.max_pilot_approval_revisions
+        if pilot_seconds else ai_config.documentary.max_redos
+    )
+    expected_calls = calls_per_revision * max(1, max_revisions)
+    mean_cost = statistics.fmean(costs)
+    mean_input = statistics.fmean(inputs)
+    mean_output = statistics.fmean(outputs)
+    eur = {
+        "low": _percentile(costs, 0.25) * expected_calls,
+        "expected": mean_cost * expected_calls,
+        "high": _percentile(costs, 0.75) * expected_calls,
+    }
+    line = CostLine(
+        "master_approval", "run", None,
+        {"input_tokens": mean_input * expected_calls,
+         "output_tokens": mean_output * expected_calls},
+        {"observed_eur_per_call": mean_cost,
+         "expected_calls": float(expected_calls)},
+        eur, "ledger-calibrated", "verified", None,
+    )
+    return line, {
+        "source": "provider_calls",
+        "observations": len(costs),
+        "expected_calls": expected_calls,
+        "mean_input_tokens_per_call": round(mean_input, 1),
+        "mean_output_tokens_per_call": round(mean_output, 1),
+        "mean_cost_eur_per_call": round(mean_cost, 6),
+    }
+
+
 def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                    target_minutes: float | None = None,
                    pilot_seconds: float | None = None,
@@ -303,6 +372,21 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
         tokens["master_story_input"], tokens["master_story_output"]
     ))
     metrics["master_story_calibration"] = calibration
+    approval_line, approval_calibration = _calibrated_master_approval_line(
+        db, pilot_seconds
+    )
+    max_revisions = (
+        ai_config.master_generation.max_pilot_approval_revisions
+        if pilot_seconds else ai_config.documentary.max_redos
+    )
+    lines.append(approval_line or _llm_line(
+        pricing, "master_approval", "writer",
+        _scale(tokens["master_story_input"], "master_story_input",
+               max(1, max_revisions) / max(1, ai_config.master_generation.max_revision_calls)),
+        _scale(tokens["master_story_output"], "master_story_output",
+               max(1, max_revisions) / max(1, ai_config.master_generation.max_revision_calls)),
+    ))
+    metrics["master_approval_calibration"] = approval_calibration
     for language in languages:
         lines.append(_llm_line(pricing, f"spoken:{language}", "premium",
                                tokens["spoken_input"], tokens["spoken_output"]))

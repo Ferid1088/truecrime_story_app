@@ -145,7 +145,7 @@ def test_config_layers_are_disjoint_and_complete():
     models = json.loads(config_files()[1].read_text())
     # connections hold endpoints and secret NAMES, models hold aliases and routing
     prov = conn["generation_providers"]["apimaster"]
-    assert set(prov) <= {"enabled", "base_url", "secret_env"}
+    assert set(prov) <= {"enabled", "base_url", "secret_env", "inactivity_timeout_s"}
     assert {"models", "routing"} <= set(models["generation_providers"]["apimaster"])
     assert "routing" not in prov and "base_url" not in models["generation_providers"]["apimaster"]
     assert raw["case_naming"] and raw["voice"] and raw["channels"]

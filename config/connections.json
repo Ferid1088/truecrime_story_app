@@ -15,7 +15,7 @@
       "enabled": true,
       "base_url": "https://apimaster.ai/v1",
       "secret_env": "TRUECRIME_APIMASTER_API_KEY",
-      "inactivity_timeout_s": 90
+      "inactivity_timeout_s": 600
     }
   },
   "search_engine": {

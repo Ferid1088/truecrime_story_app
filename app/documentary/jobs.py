@@ -154,19 +154,31 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
         }
 
     # A deterministic length miss cannot be repaired by a quality revision.
-    # Audit it before the retry policy starts so a pilot never spends another
-    # writer/validator/critic graph on a story that is already the wrong size.
-    initial = await audit(current)
-    if initial["terminal"]:
-        reasons = ", ".join(map(str, initial["reasons"])) or "quality gates failed"
-        detail = {
-            "reasons": list(initial["reasons"]),
-            "attempts": rejected,
-            "target_minutes": target_minutes,
-            "terminal": True,
-        }
+    # Check it before the retry policy starts so a pilot never spends another
+    # writer/validator/critic graph on a story that is already the wrong
+    # size. This reads `current`'s own stored notes directly rather than
+    # calling the shared `audit()` closure above: that closure also records
+    # the version into `rejected` as a side effect, and the retry policy's
+    # own first iteration below audits this same, unchanged version again
+    # (its first `produce()` call is a no-op with no revision reasons yet) —
+    # calling `audit()` here too would double-count that one version.
+    initial_notes = json.loads(current.critic_notes or "{}")
+    initial_quality_gates = initial_notes.get("quality_gates") or {}
+    initial_failures = initial_quality_gates.get("failures") or []
+    if current.status == "needs_revision" and "length_out_of_range" in initial_failures:
         raise MasterApprovalError(
-            f"Master story not approved after 0 revision(s): {reasons}", detail
+            f"Master story not approved after 0 revision(s): "
+            f"{', '.join(map(str, initial_failures)) or 'quality gates failed'}",
+            {
+                "reasons": list(initial_failures),
+                "attempts": [{
+                    "version_id": current.id,
+                    "failures": initial_failures,
+                    "quality_gates": initial_quality_gates,
+                }],
+                "target_minutes": target_minutes,
+                "terminal": True,
+            },
         )
 
     outcome = await RetryAuditPolicy(db, case_id=case.id).run_with_audit(

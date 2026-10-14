@@ -104,13 +104,14 @@ class BudgetService:
                tokens_out: int | None = None, ok: bool = True,
                error: str | None = None, estimated: bool = False,
                documentary_job_id: int | None = None,
-               is_test_data: bool = False) -> ProviderCall:
+               is_test_data: bool = False,
+               duration_ms: int | None = None) -> ProviderCall:
         converted = cost_eur
         if converted is None and cost_usd is not None:
             converted = float(cost_usd) * ai_config.budget.usd_to_eur
         row = ProviderCall(created_at=utc_now(), host="budget-ledger", method="CALL",
                            path=f"/{stage}", status=200 if ok else 402, ok=ok,
-                           duration_ms=0, tokens_in=tokens_in, tokens_out=tokens_out,
+                           duration_ms=duration_ms or 0, tokens_in=tokens_in, tokens_out=tokens_out,
                            cost_usd=cost_usd, error=error, case_id=case_id,
                            stage=stage, model=model, units=units, cost_eur=converted,
                            estimated=estimated, is_test_data=is_test_data,
