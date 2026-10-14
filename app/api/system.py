@@ -1,4 +1,6 @@
 
+import asyncio
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -25,13 +27,13 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health():
+def health():
     from app.shortform.export import ffmpeg_caption_capability
     from app.core.provider_mode import provider_mode
 
     search_ok = False
     try:
-        search_ok = await deps.research_provider().check_health()
+        search_ok = asyncio.run(deps.research_provider().check_health())
     except Exception:  # health must remain useful when a dependency is down
         search_ok = False
     return {"status": "ok", "provider_mode": provider_mode(),

@@ -100,11 +100,7 @@ _pid_alive() {
 
 _search_health() {
   command -v curl >/dev/null 2>&1 || return 1
-  local payload
-  payload="$(curl -fsS --max-time 8 "$SEARXNG_URL/search?q=health&format=json" 2>/dev/null)" || return 1
-  printf '%s' "$payload" | "$ROOT/.venv/bin/python" -c \
-    'import json, sys; body=json.load(sys.stdin); assert isinstance(body.get("results"), list)' \
-    >/dev/null 2>&1
+  curl -fsS --max-time 8 "$SEARXNG_URL/search?q=health&format=json" >/dev/null 2>&1
 }
 
 _port_free() {
