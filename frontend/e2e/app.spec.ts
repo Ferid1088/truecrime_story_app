@@ -105,7 +105,10 @@ test.describe("Discover", () => {
   test("offers the historical pre-2000 discovery theme", async ({ page }) => {
     await mockApi(page);
     await page.goto("/discover");
-    await expect(page.getByLabel("Theme").locator("option", { hasText: "Historical cases (before 2000)" })).toBeVisible();
+    const theme = page.getByLabel("Theme");
+    await expect(theme).toContainText("Historical cases (before 2000)");
+    await theme.selectOption("historical cases (before 2000)");
+    await expect(theme).toHaveValue("historical cases (before 2000)");
   });
 
   test("does not show completed when the returned job is missing from the API", async ({ page }) => {

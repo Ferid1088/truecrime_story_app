@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 from fastapi import APIRouter, HTTPException
 
@@ -33,7 +34,20 @@ def reset_approval_flow() -> dict:
         raise HTTPException(status_code=404, detail="E2E fixtures are disabled")
     from scripts.seed_approval_e2e import main
 
-    main()
+    # A prior browser page can still be finishing a read while Playwright
+    # starts the next test. PostgreSQL's TRUNCATE needs an AccessExclusiveLock
+    # on every business table, so retry the disposable fixture reset after a
+    # transient deadlock instead of leaking a false test failure.
+    from sqlalchemy.exc import OperationalError
+
+    for attempt in range(3):
+        try:
+            main()
+            break
+        except OperationalError as exc:
+            if "deadlock detected" not in str(exc).lower() or attempt == 2:
+                raise
+            time.sleep(0.5 * (attempt + 1))
     with SessionLocal() as db:
         case = db.query(__import__("app.db.models", fromlist=["Case"]).Case).first()
         return {"status": "reset", "database": db.get_bind().url.database,
