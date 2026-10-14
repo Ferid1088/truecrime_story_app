@@ -7,8 +7,10 @@ starts, honours cancellation, and skips stages that are already done."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import time
 from typing import ClassVar
 
 from app.core.ai_config import ai_config
@@ -17,8 +19,17 @@ from app.core.concurrency import gather_limited
 from app.core.policy import PolicyDecision, warning_for
 from app.db.models import Artifact, DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
-from app.services.budget import BudgetService, BudgetStopped, StageCostCeilingExceeded
-from app.services.cost_model import configured_stage_cost_ceiling_eur, estimate_stage_eur
+from app.services.budget import (
+    BudgetService,
+    BudgetStopped,
+    StageCostCeilingExceeded,
+    StageTimeBudgetExceeded,
+)
+from app.services.cost_model import (
+    configured_stage_cost_ceiling_eur,
+    configured_stage_time_budget_seconds,
+    estimate_stage_eur,
+)
 from app.services.tracking import documentary_run_context
 from app.utils import utc_now
 
@@ -166,12 +177,22 @@ class StageRunner:
             "shorts" if pipeline_stage.startswith("short") else
             pipeline_stage
         )
+        target_minutes = float(self.job.target_minutes or (
+            self.job.pilot_seconds / 60.0
+            if self.job.mode == "pilot" and self.job.pilot_seconds
+            else ai_config.story.default_target_minutes
+        ))
+        stage_budget_seconds = configured_stage_time_budget_seconds(
+            budget_stage, target_minutes
+        )
         estimate = estimate_stage_eur(
             self.db, self.job.case_id, name,
             self.job.pilot_seconds if self.job.mode == "pilot" else None,
         )
         try:
-            ceiling = configured_stage_cost_ceiling_eur(self.job.mode, budget_stage)
+            ceiling = configured_stage_cost_ceiling_eur(
+                self.job.mode, budget_stage, target_minutes
+            )
             if ceiling is not None and estimate > ceiling + 1e-9:
                 reason = (
                     f"Pilot {budget_stage} stopped before run: estimated cost "
@@ -223,8 +244,54 @@ class StageRunner:
                     language = candidate
                     pipeline_stage = name[:-len(suffix)]
                     break
-            with documentary_run_context(self.job.id, self.job.case_id, language, pipeline_stage):
-                detail = await fn()
+            stage_started_monotonic = time.monotonic()
+            # The context is entered once per stage, so nested provider calls
+            # can stop before starting another call when the target-scaled
+            # stage budget is exhausted.
+            with documentary_run_context(
+                self.job.id, self.job.case_id, language, pipeline_stage,
+                stage_budget_seconds, stage_started_monotonic,
+            ):
+                if stage_budget_seconds is None:
+                    detail = await fn()
+                else:
+                    try:
+                        async with asyncio.timeout(stage_budget_seconds):
+                            detail = await fn()
+                    except TimeoutError:
+                        elapsed = time.monotonic() - stage_started_monotonic
+                        reason = (
+                            f"Stage {pipeline_stage} stopped: time budget "
+                            f"{stage_budget_seconds:.1f}s exceeded "
+                            f"(elapsed {elapsed:.1f}s)."
+                        )
+                        raise StageTimeBudgetExceeded(
+                            self.job.case_id, pipeline_stage, reason,
+                            {
+                                "stage_time_budget_exceeded": True,
+                                "stage": pipeline_stage,
+                                "budget_seconds": stage_budget_seconds,
+                                "elapsed_seconds": round(elapsed, 1),
+                                "reason": reason,
+                            },
+                        ) from None
+            if (stage_budget_seconds is not None
+                    and time.monotonic() - stage_started_monotonic > stage_budget_seconds):
+                elapsed = time.monotonic() - stage_started_monotonic
+                reason = (
+                    f"Stage {pipeline_stage} stopped: time budget "
+                    f"{stage_budget_seconds:.1f}s exceeded (elapsed {elapsed:.1f}s)."
+                )
+                raise StageTimeBudgetExceeded(
+                    self.job.case_id, pipeline_stage, reason,
+                    {
+                        "stage_time_budget_exceeded": True,
+                        "stage": pipeline_stage,
+                        "budget_seconds": stage_budget_seconds,
+                        "elapsed_seconds": round(elapsed, 1),
+                        "reason": reason,
+                    },
+                )
         except Exception as e:
             st["status"] = "failed"
             # Some gates have measured diagnostics that the job page can

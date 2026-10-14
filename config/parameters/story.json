@@ -28,6 +28,7 @@
     "max_sections_per_revision_cycle": 2,
     "max_revision_cycles": 2,
     "max_revision_calls": 6,
+    "max_pilot_approval_revisions": 1,
     "minimum_engagement_improvement": 5,
     "min_act_budget_share": 0.08,
     "max_span_repairs_per_pass": 12
@@ -35,8 +36,25 @@
   "cost_control": {
     "max_master_tokens_per_case": 1500000,
     "max_master_cost_usd": 1.5,
+    "stage_time_budgets": {
+      "master_story": {
+        "base_seconds": 120,
+        "seconds_per_target_minute": 30
+      },
+      "master_approval": {
+        "base_seconds": 90,
+        "seconds_per_target_minute": 20
+      }
+    },
     "pilot_stage_cost_ceiling_eur": {
-      "master_story": 0.20
+      "master_story": {
+        "base_eur": 0.05,
+        "eur_per_target_minute": 0.05
+      },
+      "master_approval": {
+        "base_eur": 0.05,
+        "eur_per_target_minute": 0.05
+      }
     }
   },
   "research_depth": {

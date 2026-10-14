@@ -32,6 +32,7 @@ import {
   isJobActive,
   jobActivity,
   jobProgressTone,
+  stageLabel,
   WarningList,
 } from "../shared";
 
@@ -518,6 +519,7 @@ function JobPanel({
   const failures = Array.isArray(approvalDetail?.reasons)
     ? approvalDetail.reasons.map(String)
     : [];
+  const callProgress = job.result.call_progress;
 
   return (
     <Card>
@@ -577,6 +579,18 @@ function JobPanel({
             <Progress value={percent} barClassName={jobProgressTone(job.status)} />
           </div>
         </div>
+        {callProgress?.active && (
+          <div
+            className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs"
+            data-testid="provider-call-progress"
+            aria-live="polite"
+          >
+            <span className="font-medium">{stageLabel(callProgress.stage)}:</span>{" "}
+            call {callProgress.call_number} · {callProgress.provider} · {callProgress.elapsed_seconds.toFixed(1)}s elapsed
+            {callProgress.stage_budget_seconds != null &&
+              ` · stage budget ${callProgress.stage_budget_seconds.toFixed(1)}s`}
+          </div>
+        )}
         {languageErrors.length > 0 ? (
           <InlineAlert tone={job.status === "partial" ? "warning" : "error"}>
             <p className="font-medium">

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import uuid
 
 import pytest
@@ -166,3 +167,57 @@ def test_pilot_master_story_stage_ceiling_stops_after_recorded_spend(db_session)
     assert exc.value.detail["cost_ceiling_exceeded"] is True
     assert exc.value.detail["ceiling_eur"] == pytest.approx(0.20)
     assert exc.value.detail["spent_eur"] > 0.20
+
+
+def test_pilot_stage_limits_scale_with_target_and_timeout_is_inactivity_based():
+    from app.core.ai_config import ai_config
+    from app.services.cost_model import (
+        configured_stage_cost_ceiling_eur,
+        configured_stage_time_budget_seconds,
+    )
+
+    assert ai_config.generation_provider().inactivity_timeout_s == 90
+    assert configured_stage_time_budget_seconds("master_approval", 3) == pytest.approx(150)
+    assert configured_stage_time_budget_seconds("master_approval", 45) == pytest.approx(990)
+    assert configured_stage_cost_ceiling_eur("pilot", "master_approval", 3) == pytest.approx(0.20)
+    assert configured_stage_cost_ceiling_eur("pilot", "master_approval", 6) == pytest.approx(0.35)
+
+
+def test_stage_time_budget_error_is_structured_before_next_call():
+    from app.services.tracking import _stage_time_error
+
+    error = _stage_time_error({
+        "pipeline_stage": "master_approval",
+        "stage_budget_seconds": 150,
+        "stage_started_monotonic": time.monotonic() - 151,
+    }, 2)
+
+    assert error is not None
+    assert error.detail["stage_time_budget_exceeded"] is True
+    assert error.detail["budget_seconds"] == 150
+
+
+def test_job_payload_exposes_active_provider_call_progress(db_session):
+    from app.core.ai_config import ai_config
+    from app.documentary.jobs import job_dict
+    from app.services.tracking import documentary_run_context, track_run
+
+    case = _case(db_session)
+    job = DocumentaryJob(
+        case_id=case.id, mode="pilot", pilot_seconds=180,
+        target_minutes=3, status="running",
+    )
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(job)
+
+    with documentary_run_context(
+        job.id, case.id, None, "master_approval", 150, time.monotonic()
+    ), track_run(db_session, case.id, "Writer"):
+        progress = job_dict(db_session.get(DocumentaryJob, job.id))["result"]["call_progress"]
+        assert progress["call_number"] == 1
+        assert progress["provider"] == ai_config.providers.generation
+        assert progress["elapsed_seconds"] >= 0
+        assert progress["stage_budget_seconds"] == 150
+
+    assert "call_progress" not in job_dict(db_session.get(DocumentaryJob, job.id))["result"]

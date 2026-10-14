@@ -31,6 +31,19 @@ class StageCostCeilingExceeded(RuntimeError):
         }
 
 
+class StageTimeBudgetExceeded(RuntimeError):
+    """A target-scaled stage wall-clock budget stopped a job."""
+
+    def __init__(self, case_id: int, stage: str, reason: str, detail: dict | None = None):
+        super().__init__(reason)
+        self.case_id, self.stage, self.reason = case_id, stage, reason
+        self.detail = detail or {
+            "stage_time_budget_exceeded": True,
+            "stage": stage,
+            "reason": reason,
+        }
+
+
 @dataclass(frozen=True)
 class BudgetSnapshot:
     cap_eur: float

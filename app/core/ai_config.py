@@ -335,6 +335,9 @@ class GenerationProviderSection(BaseModel):
     enabled: bool
     base_url: str
     secret_env: str
+    # HTTP read/inactivity timeout: a provider call may run longer than this
+    # overall, but must emit another response chunk within this interval.
+    inactivity_timeout_s: float = Field(default=90.0, gt=0.0, le=900.0)
     models: dict[str, str]
     # Declared capabilities keyed by concrete model ID — never send a
     # server tool or parameter the model cannot use (Part 8).
@@ -501,18 +504,31 @@ class MasterGenerationConfig(BaseModel):
     # the total number of model-backed revision calls allowed by the master
     # writer's repair paths for one generation attempt.
     max_revision_calls: int = Field(default=6, ge=1, le=20)
+    max_pilot_approval_revisions: int = Field(default=1, ge=0, le=3)
     minimum_engagement_improvement: float = Field(ge=0.0, le=50.0)
     min_act_budget_share: float = Field(gt=0.0, le=0.5)
     max_span_repairs_per_pass: int = Field(ge=1, le=50)
 
 
+class ScaledStageTimeBudgetConfig(BaseModel):
+    base_seconds: float = Field(gt=0.0)
+    seconds_per_target_minute: float = Field(ge=0.0)
+
+
+class ScaledStageCostCeilingConfig(BaseModel):
+    base_eur: float = Field(ge=0.0)
+    eur_per_target_minute: float = Field(ge=0.0)
+
+
 class CostControlConfig(BaseModel):
     max_master_tokens_per_case: int = Field(gt=0)
     max_master_cost_usd: float = Field(gt=0.0)
-    # Per-stage hard stops for short pilot runs.  The map is intentionally
-    # extensible so another expensive pilot stage can be capped without
-    # adding another special-case setting.
-    pilot_stage_cost_ceiling_eur: dict[str, float] = Field(default_factory=dict)
+    stage_time_budgets: dict[str, ScaledStageTimeBudgetConfig] = Field(default_factory=dict)
+    # Per-stage hard stops for short pilot runs. The ceiling scales with the
+    # requested target length instead of being a fixed per-call allowance.
+    pilot_stage_cost_ceiling_eur: dict[str, ScaledStageCostCeilingConfig] = Field(
+        default_factory=dict
+    )
 
 
 class BudgetConfig(BaseModel):

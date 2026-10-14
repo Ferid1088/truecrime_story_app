@@ -1,3 +1,5 @@
+import asyncio
+import json
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -9,9 +11,11 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import AgentRun, DocumentaryJob, ProviderCall
 from app.providers.generation.base import GenerationResult
+from app.services.budget import BudgetService, StageCostCeilingExceeded, StageTimeBudgetExceeded
 from app.utils import ensure_utc, utc_now
 
 _run_context: ContextVar[dict | None] = ContextVar("agent_run_context", default=None)
+_AGENT_METADATA_KEYS = {"documentary_job_id", "language", "pipeline_stage"}
 
 
 @contextmanager
@@ -20,6 +24,8 @@ def documentary_run_context(
     case_id: int | None = None,
     language: str | None = None,
     pipeline_stage: str | None = None,
+    stage_budget_seconds: float | None = None,
+    stage_started_monotonic: float | None = None,
 ):
     """Attach documentary job metadata to every nested AgentRun.
 
@@ -31,6 +37,8 @@ def documentary_run_context(
         "case_id": case_id,
         "language": language,
         "pipeline_stage": pipeline_stage,
+        "stage_budget_seconds": stage_budget_seconds,
+        "stage_started_monotonic": stage_started_monotonic,
     })
     try:
         yield
@@ -56,7 +64,8 @@ def record_run(
     duration = None
     if started_at and completed:
         duration = int((completed - ensure_utc(started_at)).total_seconds() * 1000)
-    metadata = {k: v for k, v in _documentary_metadata().items() if k != "case_id"}
+    metadata = {k: v for k, v in _documentary_metadata().items()
+                if k in _AGENT_METADATA_KEYS}
     row = AgentRun(
         case_id=case_id,
         **metadata,
@@ -80,7 +89,8 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
     """Context manager that records an AgentRun around a block of work."""
     started = utc_now()
     monotonic = time.monotonic()
-    metadata = {k: v for k, v in _documentary_metadata().items() if k != "case_id"}
+    context = _documentary_metadata()
+    metadata = {k: v for k, v in context.items() if k in _AGENT_METADATA_KEYS}
     row = AgentRun(
         case_id=case_id,
         **metadata,
@@ -93,20 +103,104 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
     db.commit()
     db.refresh(row)
     try:
+        _check_stage_time_budget(context, case_id)
+        _set_call_progress(db, row, context, started)
         yield row
-    except Exception as e:
+    except (Exception, asyncio.CancelledError) as e:
         row.status = "failed"
         row.error = str(e)[:2000]
         row.completed_at = utc_now()
         row.duration_ms = int((time.monotonic() - monotonic) * 1000)
+        _clear_call_progress(db, context)
         db.commit()
         raise
     else:
         row.status = "completed"
         row.completed_at = utc_now()
         row.duration_ms = int((time.monotonic() - monotonic) * 1000)
-        _record_provider_call(db, row)
+        try:
+            _record_provider_call(db, row)
+            _check_stage_time_budget(context, case_id)
+        except Exception:
+            _clear_call_progress(db, context)
+            db.commit()
+            raise
+        _clear_call_progress(db, context)
         db.commit()
+
+
+def _stage_time_error(context: dict, case_id: int | None) -> StageTimeBudgetExceeded | None:
+    budget = context.get("stage_budget_seconds")
+    started = context.get("stage_started_monotonic")
+    stage = context.get("pipeline_stage")
+    if case_id is None or not stage or budget is None or started is None:
+        return None
+    elapsed = max(time.monotonic() - float(started), 0.0)
+    if elapsed <= float(budget) + 1e-9:
+        return None
+    reason = (
+        f"Stage {stage} stopped: time budget {float(budget):.1f}s exceeded "
+        f"(elapsed {elapsed:.1f}s)."
+    )
+    return StageTimeBudgetExceeded(
+        case_id, stage, reason,
+        {
+            "stage_time_budget_exceeded": True,
+            "stage": stage,
+            "budget_seconds": float(budget),
+            "elapsed_seconds": round(elapsed, 1),
+            "reason": reason,
+        },
+    )
+
+
+def _check_stage_time_budget(context: dict, case_id: int | None) -> None:
+    error = _stage_time_error(context, case_id)
+    if error is not None:
+        raise error
+
+
+def _set_call_progress(db: Session, row: AgentRun, context: dict, started: datetime) -> None:
+    job_id = row.documentary_job_id
+    stage = row.pipeline_stage
+    if job_id is None or not stage:
+        return
+    job = db.get(DocumentaryJob, job_id)
+    if job is None:
+        return
+    call_number = db.query(func.count(AgentRun.id)).filter(
+        AgentRun.documentary_job_id == job_id,
+        AgentRun.pipeline_stage == stage,
+        AgentRun.id <= row.id,
+    ).scalar() or 1
+    result = json.loads(job.result_json or "{}")
+    result["call_progress"] = {
+        "active": True,
+        "stage": stage,
+        "call_number": int(call_number),
+        "provider": ai_config.providers.generation,
+        "role": row.role,
+        "started_at": started.isoformat(),
+        "elapsed_seconds": 0.0,
+        "stage_budget_seconds": context.get("stage_budget_seconds"),
+    }
+    job.result_json = json.dumps(result, ensure_ascii=False, default=str)
+    job.updated_at = utc_now()
+    db.commit()
+
+
+def _clear_call_progress(db: Session, context: dict) -> None:
+    job_id = context.get("documentary_job_id")
+    if job_id is None:
+        return
+    job = db.get(DocumentaryJob, job_id)
+    if job is None:
+        return
+    result = json.loads(job.result_json or "{}")
+    if "call_progress" in result:
+        result.pop("call_progress", None)
+        job.result_json = json.dumps(result, ensure_ascii=False, default=str)
+        job.updated_at = utc_now()
 
 
 def _record_provider_call(db: Session, run: AgentRun) -> None:
@@ -118,7 +212,6 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     """
     if run.case_id is None or run.provider is None:
         return
-    from app.services.budget import BudgetService, StageCostCeilingExceeded
     from app.services.cost_model import (
         configured_stage_cost_ceiling_eur,
         estimate_stage_eur,
@@ -156,7 +249,9 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
         return
     job = db.get(DocumentaryJob, run.documentary_job_id)
     ceiling = configured_stage_cost_ceiling_eur(
-        job.mode if job else None, stage
+        job.mode if job else None,
+        stage,
+        float(job.target_minutes) if job and job.target_minutes else None,
     )
     if ceiling is None:
         return

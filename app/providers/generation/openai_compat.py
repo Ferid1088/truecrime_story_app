@@ -189,7 +189,17 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         if gen.seed is not None:
             body["seed"] = gen.seed
         try:
-            async with httpx.AsyncClient(timeout=300) as client:
+            cfg = ai_config.generation_provider()
+            # This is an inactivity/read timeout, not a fixed per-call wall
+            # clock. A provider may take longer than 90 seconds overall, but
+            # must emit another response chunk within the configured window.
+            timeout = httpx.Timeout(
+                connect=30.0,
+                read=cfg.inactivity_timeout_s,
+                write=30.0,
+                pool=30.0,
+            )
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 r = await client.post(
                     f"{self.base_url}{self.chat_path}",
                     headers=self._headers(),
@@ -240,7 +250,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             # Provider hiccups (empty body, truncation, transport errors)
             # deserve one retry on the same model before giving up or
             # falling back — they are not model-quality failures.
-            for attempt in range(2):
+            for _attempt in range(2):
                 try:
                     # Process-wide limit on parallel model calls (agents
                     # run in parallel inside and across documentaries).

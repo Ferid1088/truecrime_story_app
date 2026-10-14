@@ -22,13 +22,27 @@ PRICING_PATH = Path(__file__).resolve().parents[2] / "config" / "parameters" / "
 SCENARIOS = ("low", "expected", "high")
 
 
-def configured_stage_cost_ceiling_eur(mode: str | None, stage: str) -> float | None:
-    """Return the configured hard ceiling for a job stage, if any."""
+def configured_stage_time_budget_seconds(stage: str, target_minutes: float) -> float | None:
+    """Return the target-scaled wall-clock budget for a stage."""
+    base = stage.split(":", 1)[0]
+    spec = ai_config.cost_control.stage_time_budgets.get(base)
+    if spec is None:
+        return None
+    return float(spec.base_seconds + spec.seconds_per_target_minute * max(target_minutes, 0.0))
+
+
+def configured_stage_cost_ceiling_eur(
+    mode: str | None, stage: str, target_minutes: float | None = None
+) -> float | None:
+    """Return the target-scaled hard ceiling for a pilot stage, if any."""
     if mode != "pilot":
         return None
     base = stage.split(":", 1)[0]
-    ceiling = ai_config.cost_control.pilot_stage_cost_ceiling_eur.get(base)
-    return float(ceiling) if ceiling is not None else None
+    spec = ai_config.cost_control.pilot_stage_cost_ceiling_eur.get(base)
+    if spec is None:
+        return None
+    target = float(target_minutes or ai_config.documentary.pilot_seconds / 60.0)
+    return float(spec.base_eur + spec.eur_per_target_minute * max(target, 0.0))
 
 
 @dataclass(frozen=True)

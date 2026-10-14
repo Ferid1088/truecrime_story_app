@@ -1610,6 +1610,17 @@ export interface DocumentaryJob {
   stages: DocumentaryStage[];
   /** `errors`: failure per language of a "partial" job; `renders`: the film per language. */
   result: {
+    /** Current provider call, present only while a stage is actively calling. */
+    call_progress?: {
+      active: boolean;
+      stage: string;
+      call_number: number;
+      provider: string;
+      role?: string | null;
+      started_at: string;
+      elapsed_seconds: number;
+      stage_budget_seconds?: number | null;
+    };
     errors?: Record<string, string>;
     /** Stages that finished without part of their work, with the reason. */
     degraded?: Record<string, string>;

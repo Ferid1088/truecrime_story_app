@@ -48,6 +48,7 @@ import logging
 import re
 import traceback
 import uuid
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -69,7 +70,7 @@ from app.db.models import (
 )
 from app.documentary.audio_director import latest_audio_plan
 from app.documentary.blueprint import latest_blueprint
-from app.utils import utc_now
+from app.utils import ensure_utc, utc_now
 
 log = logging.getLogger(__name__)
 _running: dict[int, asyncio.Task] = {}
@@ -106,6 +107,9 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
     from app.agents.story import StoryPipeline
 
     limit = ai_config.documentary.max_redos if max_redos is None else max_redos
+    if (target_minutes is not None
+            and target_minutes < ai_config.story.min_target_minutes):
+        limit = min(limit, ai_config.master_generation.max_pilot_approval_revisions)
     current = v
     rejected: list[dict] = []
 
@@ -143,11 +147,27 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
         # A deterministic length miss is not made better by repeating the
         # same approval rewrite. The caller will surface the measured band.
         return {
-            "approved": version.status != "needs_revision",
+            "approved": version.status != "needs_revision" and not failures,
             "reasons": failures,
             "quality_gates": notes.get("quality_gates") or {},
             "terminal": "length_out_of_range" in failures,
         }
+
+    # A deterministic length miss cannot be repaired by a quality revision.
+    # Audit it before the retry policy starts so a pilot never spends another
+    # writer/validator/critic graph on a story that is already the wrong size.
+    initial = await audit(current)
+    if initial["terminal"]:
+        reasons = ", ".join(map(str, initial["reasons"])) or "quality gates failed"
+        detail = {
+            "reasons": list(initial["reasons"]),
+            "attempts": rejected,
+            "target_minutes": target_minutes,
+            "terminal": True,
+        }
+        raise MasterApprovalError(
+            f"Master story not approved after 0 revision(s): {reasons}", detail
+        )
 
     outcome = await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
         produce, audit, limit, ExhaustedAction.STOP, stage="master_story")
@@ -228,6 +248,21 @@ def latest_production(db: Session, version_id: int) -> ProductionScript | None:
 
 def job_dict(job: DocumentaryJob) -> dict:
     result = json.loads(job.result_json or "{}")
+    call_progress = result.get("call_progress")
+    if isinstance(call_progress, dict) and call_progress.get("active"):
+        started_at = call_progress.get("started_at")
+        if isinstance(started_at, str):
+            try:
+                started = ensure_utc(datetime.fromisoformat(started_at))
+                call_progress = {
+                    **call_progress,
+                    "elapsed_seconds": round(
+                        max((utc_now() - started).total_seconds(), 0.0), 1
+                    ),
+                }
+                result["call_progress"] = call_progress
+            except (TypeError, ValueError):
+                pass
     failure = result.get("failure") or {}
     return {
         "id": job.id, "case_id": job.case_id, "master_version_id": job.master_version_id,
