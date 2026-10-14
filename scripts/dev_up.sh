@@ -100,7 +100,7 @@ _pid_alive() {
 
 _search_health() {
   command -v curl >/dev/null 2>&1 || return 1
-  curl -fsS --max-time 8 "$SEARXNG_URL/search?q=health&format=json" >/dev/null 2>&1
+  curl -fsS --max-time 8 "$SEARXNG_URL/search?q=true+crime&format=json&engines=wikipedia" >/dev/null 2>&1
 }
 
 _port_free() {

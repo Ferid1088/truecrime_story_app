@@ -50,7 +50,8 @@ class SearXNGSearchBackend:
         try:
             async with httpx.AsyncClient(timeout=10) as c:
                 r = await c.get(f"{self.base_url}/search",
-                                params={"q": "test", "format": "json"})
+                                params={"q": "true crime", "format": "json",
+                                        "engines": "wikipedia"})
             ok = r.status_code == 200
             result = {"backend": self.name, "healthy": ok,
                       "status_code": r.status_code,
