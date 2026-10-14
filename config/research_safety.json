@@ -1,0 +1,17 @@
+{
+  "min_relevant_sources": 1,
+  "min_relevance_score": 0.12,
+  "blocked_domains": [
+    "tabootube.xxx",
+    "taboodude.com",
+    "pornhub.com",
+    "xvideos.com",
+    "xnxx.com",
+    "example.invalid"
+  ],
+  "blocked_keywords": {
+    "adult content": ["porn", "pornography", "xxx", "sex cam", "adult video", "nsfw"],
+    "malware/phishing": ["phishing", "malware", "ransomware", "credential theft", "free bitcoin"],
+    "junk": ["coupon", "casino", "essay mill", "horoscope", "download cracked"]
+  }
+}

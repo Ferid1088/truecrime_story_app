@@ -43,6 +43,7 @@ export function SourcesTab({ caseId, refreshKey }: { caseId: number; refreshKey:
     [caseId, refreshKey],
   );
   const { data: facts } = useApi(() => api.listFacts(caseId), [caseId, refreshKey]);
+  const { data: research } = useApi(() => api.research(caseId), [caseId, refreshKey]);
   const [selected, setSelected] = useState<Source | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -77,6 +78,19 @@ export function SourcesTab({ caseId, refreshKey }: { caseId: number; refreshKey:
 
       {loading && <TableSkeleton rows={5} cols={6} />}
       {error && <ErrorState message={error} onRetry={refetch} />}
+
+      {research?.safety && Object.values(research.safety.blocked ?? {}).some(Boolean) && (
+        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          {Object.entries(research.safety.blocked ?? {}).map(([reason, count]) => (
+            <span key={reason} className="mr-3">{count} source{count === 1 ? "" : "s"} blocked: {reason.replace(/^blocked_/, "").replaceAll("_", " ")}</span>
+          ))}
+        </div>
+      )}
+      {research?.research_error && (
+        <div className="mb-3 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200">
+          {research.research_error}
+        </div>
+      )}
 
       {sources && sources.length === 0 && (
         <EmptyState

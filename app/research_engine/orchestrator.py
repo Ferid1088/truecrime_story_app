@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from app.core.ai_config import ai_config
 from app.research_engine.dedupe import SourceFamilyDetector
+from app.research_engine.content_filter import inspect_result
 from app.research_engine.embeddings import cosine_matrix
 from app.research_engine.extractor import extract
 from app.research_engine.fetcher import DocumentFetcher
@@ -141,6 +142,8 @@ class ResearchOrchestrator:
         results_out: list[dict] = []
         sources_out: list[dict] = []
         language_stats: dict[str, dict] = {}
+        safety = {"blocked": {}, "dropped": {}, "accepted": 0}
+        case_context["_safety"] = safety
         all_gaps: list[str] = list(case_context.get("research_gaps") or [])
         contradictions: list[str] = []
         started = time.monotonic()
@@ -194,6 +197,7 @@ class ResearchOrchestrator:
             "research_gaps": all_gaps[:30],
             "possible_contradictions": contradictions[:30],
             "language_stats": language_stats,
+            "safety": safety,
             "_telemetry": tel,
         }
 
@@ -271,7 +275,7 @@ class ResearchOrchestrator:
                     raw, q_idx, lang, case_context, seen_canonical,
                     families, tel, results_out, sources_out, stats,
                     fetched_budget=lambda: self.cfg.max_fetches_per_language - stats["fetch_calls"],
-                    progress=progress)
+                    progress=progress, safety=case_context["_safety"])
                 if stats["fetch_calls"] >= self.cfg.max_fetches_per_language:
                     break
 
@@ -315,10 +319,37 @@ class ResearchOrchestrator:
     async def _process_results(
         self, raw, q_idx, lang, case_context, seen_canonical,
         families, tel, results_out, sources_out, stats,
-        fetched_budget, progress,
+        fetched_budget, progress, safety,
     ) -> int:
         """Rank -> accept/reject -> fetch top candidates -> extract."""
         similarity = None
+        safety.setdefault("blocked", {})
+        safety.setdefault("dropped", {})
+        safety.setdefault("accepted", 0)
+        safe_raw = []
+        for candidate in raw:
+            reason, relevance = inspect_result(candidate, case_context)
+            if reason:
+                bucket = safety["blocked"] if reason.startswith("blocked_") else safety["dropped"]
+                bucket[reason] = bucket.get(reason, 0) + 1
+                results_out.append({
+                    "query_idx": q_idx,
+                    "url": candidate.url,
+                    "canonical_url": candidate.canonical_url or candidate.url,
+                    "title": candidate.title,
+                    "snippet": candidate.snippet,
+                    "rank": candidate.rank,
+                    "result_language": candidate.detected_language or lang,
+                    "relevance": relevance,
+                    "accepted": False,
+                    "rejection_reason": reason,
+                    "fetch_status": "not_fetched",
+                })
+                stats["rejected"] += 1
+                continue
+            safe_raw.append(candidate)
+        raw = safe_raw
+        safety["accepted"] += len(raw)
         if self._corpus_vecs is not None and getattr(
                 self._corpus_vecs, "size", 0):
             try:

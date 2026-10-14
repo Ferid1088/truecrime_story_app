@@ -371,6 +371,7 @@ export const api = {
   dismissFollowUp: (id: number) => post<FollowUpCandidate>(`/api/follow-ups/${id}/dismiss`),
 
   listSources: (caseId: number) => request<Source[]>(`/api/cases/${caseId}/sources`),
+  research: (caseId: number) => request<{ safety?: { blocked?: Record<string, number>; dropped?: Record<string, number> }; research_error?: string | null }>(`/api/cases/${caseId}/research`),
   corpusSearch: (caseId: number, q: string, language?: string, limit = 10) => {
     const params = new URLSearchParams({ q, limit: String(limit) });
     if (language) params.set("language", language);

@@ -19,12 +19,14 @@ from app.db.models import (
     ResearchResult,
     ResearchSourceLink,
     Source,
+    StoryVersion,
 )
 from app.providers import get_research_provider
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 from app.utils import ensure_utc, utc_now
 from app.providers.base import ProviderError, ResearchProvider
+from app.research_engine.content_filter import minimum_relevant_sources
 
 def _job_timeout() -> timedelta:
     return timedelta(minutes=ai_config.research.job_timeout_minutes)
@@ -238,7 +240,8 @@ async def start_research_job(db: Session, case: Case, job: ResearchJob | None = 
     context = {
         "title": case.canonical_title,
         "summary": case.summary or "",
-        "location": "",
+        "location": case.location or "",
+        "aliases": json.loads(case.aliases_json or "[]"),
         "key_people": sorted(people)[:12],
         "corpus": {
             "canonical_urls": [
@@ -696,6 +699,23 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
             else:
                 job.current_stage = "deduplicating"
                 extra = _ingest_research(db, job, pjob.result)
+                case = db.get(Case, job.case_id)
+                existing_sources = db.query(Source).filter(Source.case_id == job.case_id).count()
+                if extra["sources_added"] < minimum_relevant_sources() and existing_sources == 0:
+                    title = case.canonical_title if case else "this case"
+                    job.status = "failed"
+                    job.current_stage = "failed"
+                    job.error_code = "no_relevant_sources"
+                    job.error = (
+                        f"No relevant sources found for '{title}'. Add a more specific case title, "
+                        "aliases, location or date."
+                    )[:500]
+                    job.result_summary = f"{job.result_summary} | safety={pjob.result.get('safety', {})}"[:500]
+                    if case and not db.query(StoryVersion).filter(StoryVersion.case_id == case.id).count():
+                        case.status = "new"
+                    _record_run(db, job, "Research Agent", output="", error=job.error)
+                    db.commit()
+                    return job
                 _record_run(db, job, "Research Agent", output=job.result_summary or "")
                 try:
                     norm = await _normalize_sources(db, job.case_id)

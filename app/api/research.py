@@ -75,6 +75,18 @@ def get_research(case_id: int, db: Session = Depends(get_db)):
     facts = db.query(Fact).filter(Fact.case_id == case_id).all()
     contradictions = db.query(Contradiction).filter(Contradiction.case_id == case_id).all()
     sources = db.query(Source).filter(Source.case_id == case_id).all()
+    latest_job = (
+        db.query(ResearchJob)
+        .filter(ResearchJob.case_id == case_id, ResearchJob.job_type == "research")
+        .order_by(ResearchJob.created_at.desc())
+        .first()
+    )
+    safety = {"blocked": {}, "dropped": {}, "accepted": 0}
+    if latest_job and latest_job.result_json:
+        try:
+            safety = json.loads(latest_job.result_json).get("safety") or safety
+        except (TypeError, ValueError):
+            pass
 
     return {
         "sources": [
@@ -109,6 +121,8 @@ def get_research(case_id: int, db: Session = Depends(get_db)):
             }
             for c in contradictions
         ],
+        "safety": safety,
+        "research_error": latest_job.error if latest_job and latest_job.status == "failed" else None,
     }
 
 
