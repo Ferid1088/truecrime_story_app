@@ -98,6 +98,28 @@ test.describe("Discover", () => {
     await expect(page.getByText("1 duplicate rejected")).toBeVisible();
   });
 
+  test("does not show completed when the returned job is missing from the API", async ({ page }) => {
+    await mockApi(page);
+    await page.route("**/api/topics/discover", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ job_id: 8, status: "queued" }),
+      }),
+    );
+    await page.route("**/api/research-jobs/8", (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Research job not found" }),
+      }),
+    );
+    await page.goto("/discover");
+    await page.getByRole("button", { name: /discover new cases/i }).click();
+    await expect(page.getByText(/Discovery job #8 is not available from the API/)).toBeVisible();
+    await expect(page.getByTestId("discovery-job-status")).toHaveCount(0);
+  });
+
   test("failed job surfaces an error, no infinite spinner", async ({ page }) => {
     await mockApi(page, {
       researchJob: () => jobBody("failed", null, "Research provider unreachable"),

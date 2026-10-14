@@ -138,6 +138,10 @@ class TrueCrimeSearchProvider(ResearchProvider):
         h = await self.searxng.health()
         return bool(h.get("healthy"))
 
+    async def health_status(self) -> dict:
+        """Return the discovery-style SearXNG probe, including result count."""
+        return await self.searxng.health()
+
     async def provider_status(self) -> dict:
         """Settings-page health (Part 50): backend + fetcher + LLM +
         embedding — no vendor-specific fields."""

@@ -17,6 +17,7 @@ _LANG_TO_SEARXNG = {
 }
 
 _health_cache: dict[str, tuple[float, dict]] = {}
+_HEALTH_QUERY = "recent true crime investigation case"
 
 
 class SearXNGSearchBackend:
@@ -51,12 +52,24 @@ class SearXNGSearchBackend:
         try:
             async with httpx.AsyncClient(timeout=10) as c:
                 r = await c.get(f"{self.base_url}/search",
-                                params={"q": "true crime", "format": "json",
-                                        "engines": "wikipedia"})
+                                params={"q": _HEALTH_QUERY, "format": "json",
+                                        "language": "en-US", "safesearch": "1"})
             ok = r.status_code == 200
-            result = {"backend": self.name, "healthy": ok,
+            result_count = 0
+            if ok:
+                try:
+                    result_count = len((r.json() or {}).get("results") or [])
+                except (TypeError, ValueError):
+                    result_count = 0
+            enough_results = result_count >= 3
+            result = {"backend": self.name, "healthy": ok and enough_results,
                       "status_code": r.status_code,
-                      "base_url": self.base_url}
+                      "base_url": self.base_url,
+                      "query": _HEALTH_QUERY,
+                      "result_count": result_count,
+                      "status": "ok" if ok and enough_results else ("degraded" if ok else "failing")}
+            if ok and not enough_results:
+                result["reason"] = "discovery probe returned fewer than 3 results"
         except httpx.HTTPError as e:
             result = {"backend": self.name, "healthy": False, "reason": str(e)}
         _health_cache[self.base_url] = (time.monotonic() + self.health_cache_seconds, result)

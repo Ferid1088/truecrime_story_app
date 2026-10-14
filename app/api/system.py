@@ -31,13 +31,24 @@ def health():
     from app.shortform.export import ffmpeg_caption_capability
     from app.core.provider_mode import provider_mode
 
-    search_ok = False
+    search_probe: dict = {}
     try:
-        search_ok = asyncio.run(deps.research_provider().check_health())
+        provider = deps.research_provider()
+        if hasattr(provider, "health_status"):
+            search_probe = asyncio.run(provider.health_status())
+        else:
+            search_probe = {"healthy": asyncio.run(provider.check_health())}
     except Exception:  # health must remain useful when a dependency is down
-        search_ok = False
+        search_probe = {"healthy": False, "status": "failing"}
+    search_state = search_probe.get("status")
+    if search_state not in {"ok", "degraded", "failing"}:
+        search_state = "ok" if search_probe.get("healthy") else "failing"
     return {"status": "ok", "provider_mode": provider_mode(),
-            "search": "ok" if search_ok else "failing", "short_form": {
+            "search": search_state,
+            "search_result_count": search_probe.get("result_count"),
+            "search_query": search_probe.get("query"),
+            "search_reason": search_probe.get("reason"),
+            "short_form": {
         "caption_burn_in": ffmpeg_caption_capability(),
     }}
 

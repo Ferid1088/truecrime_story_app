@@ -40,7 +40,9 @@ def test_searxng_health_is_cached(monkeypatch):
 
         async def get(self, *args, **kwargs):
             calls.append((args, kwargs))
-            return httpx.Response(200)
+            return httpx.Response(200, json={"results": [{"url": "https://one"},
+                                                          {"url": "https://two"},
+                                                          {"url": "https://three"}]})
 
     searxng._health_cache.clear()
     monkeypatch.setattr(searxng.httpx, "AsyncClient", lambda **kwargs: FakeClient())
@@ -48,6 +50,30 @@ def test_searxng_health_is_cached(monkeypatch):
     assert asyncio.run(backend.health())["healthy"]
     assert asyncio.run(backend.health())["healthy"]
     assert len(calls) == 1
+    params = calls[0][1]["params"]
+    assert params["q"] == "recent true crime investigation case"
+    assert "engines" not in params
+
+
+def test_searxng_health_is_degraded_with_fewer_than_three_results(monkeypatch):
+    from app.research_engine.search_adapters import searxng
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            return httpx.Response(200, json={"results": [{"url": "https://one"}]})
+
+    searxng._health_cache.clear()
+    monkeypatch.setattr(searxng.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    health = asyncio.run(searxng.SearXNGSearchBackend("http://search").health())
+    assert health["healthy"] is False
+    assert health["status"] == "degraded"
+    assert health["result_count"] == 1
 
 
 def _raw_config() -> dict:

@@ -12,7 +12,7 @@ export function SearchHealthWarning() {
       fetch(`${API_BASE}/health`, { credentials: "include" })
         .then(async (response) => {
           const body = await response.json().catch(() => ({}));
-          if (!cancelled) setFailed(!response.ok || body.search === "failing");
+          if (!cancelled) setFailed(!response.ok || body.search === "failing" || body.search === "degraded");
         })
         .catch(() => !cancelled && setFailed(true));
     check();

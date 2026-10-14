@@ -18,6 +18,26 @@ def test_health():
     assert {"available", "subtitles_filter", "libass", "fix"} <= set(body["short_form"]["caption_burn_in"])
 
 
+def test_health_reports_degraded_when_discovery_probe_has_too_few_results(monkeypatch):
+    from app.api import system
+
+    class FakeResearchProvider:
+        async def health_status(self):
+            return {
+                "healthy": False,
+                "status": "degraded",
+                "query": "recent true crime investigation case",
+                "result_count": 2,
+                "reason": "discovery probe returned fewer than 3 results",
+            }
+
+    monkeypatch.setattr(system.deps, "research_provider", lambda: FakeResearchProvider())
+    body = system.health()
+    assert body["search"] == "degraded"
+    assert body["search_result_count"] == 2
+    assert body["search_query"] == "recent true crime investigation case"
+
+
 def test_case_crud_flow():
     r = client.post("/api/cases", json={"canonical_title": "Test Case Alpha", "language": "en"})
     assert r.status_code == 200

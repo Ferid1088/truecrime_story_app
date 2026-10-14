@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Compass, Globe, History, MapPin, Sparkles, Users } from "lucide-react";
-import { api, duplicateConflict, pollResearchJob } from "@/lib/api";
+import { ApiError, api, duplicateConflict, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { DiscoveryCandidate, DuplicateConflict, ResearchJob, SelectionStats } from "@/lib/types";
 import { LANGUAGES, formatDateTime, humanize, langLabel } from "@/lib/format";
@@ -166,10 +166,17 @@ export default function DiscoverPage() {
   async function discover() {
     setRunning(true);
     setError(null);
+    setJobId(null);
+    setJobStatus(null);
+    setCandidates([]);
+    setRejected([]);
+    setStats(null);
+    setNoCandidatesReason(null);
     setJobStage("Starting discovery job…");
     pollAbort.current?.abort();
     const ctl = new AbortController();
     pollAbort.current = ctl;
+    let requestedJobId: number | null = null;
     try {
       const res = await api.discover({
         count,
@@ -183,8 +190,10 @@ export default function DiscoverPage() {
         include_unsolved: includeUnsolved,
       });
       if (res.job_id != null) {
+        requestedJobId = res.job_id;
         try { window.localStorage.setItem(DISCOVERY_JOB_KEY, String(res.job_id)); } catch { /* ignore */ }
         setJobId(res.job_id);
+        setJobStatus(res.status);
         await pollDiscovery(res.job_id, ctl.signal);
       } else {
         const result = res.result as { candidates?: DiscoveryCandidate[] } | undefined;
@@ -192,6 +201,7 @@ export default function DiscoverPage() {
         setRejected([]);
         setStats(null);
         setSkippedDupes(null);
+        setJobId(null);
         setJobStatus("completed");
         setNoCandidatesReason(result?.candidates?.length ? null : "the discovery response contained no candidates");
       }
@@ -200,7 +210,13 @@ export default function DiscoverPage() {
       setConflicts({});
     } catch (e) {
       if (!(e instanceof DOMException && e.name === "AbortError")) {
-        setError(e instanceof Error ? e.message : String(e));
+        if (e instanceof ApiError && e.status === 404 && requestedJobId != null) {
+          setJobStatus(null);
+          setError(`Discovery job #${requestedJobId} is not available from the API; no completion status is available.`);
+        } else {
+          setJobStatus((current) => current === "completed" ? null : current);
+          setError(e instanceof Error ? e.message : String(e));
+        }
       }
     } finally {
       if (pollAbort.current === ctl) {
@@ -337,7 +353,7 @@ export default function DiscoverPage() {
               <Sparkles className="size-4" />
               Discover New Cases
             </Button>
-            {jobStatus && (
+            {jobStatus && jobId != null && (
               <span className="text-xs text-muted-foreground" data-testid="discovery-job-status">
                 Discovery job #{jobId}: {jobStatus === "queued" ? "queued" : jobStatus}
                 {jobStatus === "failed" && error ? ` — ${error}` : ""}
