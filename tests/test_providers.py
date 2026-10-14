@@ -1,6 +1,6 @@
 """Tests for the research-provider layer and research jobs.
 
-Active research runs on the TrueCrime Search Engine (SearXNG +
+Active research runs on the TrueCrime Search Engine (Brave Search +
 fetcher); provider HTTP is mocked — no live requests."""
 import asyncio
 import json
@@ -413,7 +413,7 @@ def test_provider_name_is_truecrime():
 def test_provider_status_has_no_vendor_specific_fields():
     import asyncio
     provider = TrueCrimeSearchProvider()
-    provider.searxng = _FakeSearx(healthy=True)
+    provider.brave = _FakeBrave(healthy=True)
     status = asyncio.run(provider.provider_status())
     assert status["provider"] == "truecrime"
     assert status["engine"] == "truecrime_search_engine"
@@ -421,12 +421,15 @@ def test_provider_status_has_no_vendor_specific_fields():
     assert "authorized" not in status
 
 
-class _FakeSearx:
+class _FakeBrave:
     def __init__(self, healthy=True):
         self._h = healthy
 
+    def is_available(self):
+        return True
+
     async def health(self):
-        return {"backend": "searxng", "healthy": self._h}
+        return {"backend": "brave", "healthy": self._h}
 
 
 # --- URL canonicalization (Part 8) ------------------------------------------
@@ -497,7 +500,7 @@ def test_safety_accepts_public_https():
 
 def _mk_result(url, title, rank, snippet=""):
     return SearchResult(
-        backend="searxng", query="nannup four", language="en",
+        backend="brave", query="nannup four", language="en",
         rank=rank, url=url, title=title, snippet=snippet,
         canonical_url=canonicalize_url(url),
         domain=url.split("/")[2],

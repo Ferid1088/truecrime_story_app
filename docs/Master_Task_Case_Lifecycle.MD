@@ -25,7 +25,7 @@ Every automated decision stores the reason it was made.
 1. Read the code before changing it. Reuse the existing models and services
    (table below) and do not build a second version of anything.
 2. Keep providers behind the existing abstractions:
-   - search: `get_research_provider().registry` (SearXNG);
+   - search: `get_research_provider().registry` (Brave Search);
    - LLMs: `get_generation_provider()` with a role, routed in
      the `config/` layers;
    - voice and sound: `app/providers/voice`.
@@ -124,7 +124,7 @@ Discovery → Duplicate Checker → Status Verifier → Case Research
    default 84. It can also be started by hand, and every run is stored
    (`MonitorRun`).
 2. Stage 1, fast, for every UNSOLVED or STATUS_UNDER_REVIEW case:
-   - two SearXNG queries (case names plus signal words) limited to the time
+   - two Brave Search queries (case names plus signal words) limited to the time
      since the last check;
    - deterministic signal detection: arrest, suspect identified, remains
      identified, charges, confession, conviction, official update, case

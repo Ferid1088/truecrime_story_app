@@ -32,9 +32,9 @@ EOF
 fi
 [[ -z "${1:-}" ]] || { echo "Usage: scripts/dev_down.sh" >&2; exit 2; }
 
-_pidfile_for() { [[ "$1" == searxng ]] && echo "$ROOT/data/searxng/searxng.pid" || echo "$STATE/$1.pid"; }
+_pidfile_for() { echo "$STATE/$1.pid"; }
 
-for name in frontend worker api searxng; do
+for name in frontend worker api; do
   pidfile="$(_pidfile_for "$name")"
   if [[ -f "$pidfile" ]]; then
     pid="$(<"$pidfile")"

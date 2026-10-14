@@ -8,7 +8,6 @@ Providers (config visual_search.providers):
                    with captions. Most case-specific, editorial review.
   wikimedia      — Wikimedia Commons file search with license metadata
                    (places, buildings, landscapes, public figures).
-  searxng_images — the app's SearXNG instance, image category (optional).
 
 Search is by semantic need (entities from the visual requirement
 planner), never sentence by sentence. Nothing is trusted yet: the
@@ -37,7 +36,6 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.core.env import env_value
 from app.db.models import Case, Source, VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import images as IM
@@ -180,41 +178,6 @@ class WikimediaProvider:
                 credit=f"{artist or 'Unknown author'} / Wikimedia Commons",
                 source_name="Wikimedia Commons", found_for=query,
                 date=_clean(mv("DateTimeOriginal"), 40),
-            ))
-        return out
-
-
-class SearxngImagesProvider:
-    name = "searxng_images"
-
-    def __init__(self, client: httpx.AsyncClient):
-        self.client = client
-        se = ai_config.search_engine
-        self.base = env_value(se.searxng_url_env) or se.searxng_url
-
-    async def search(self, query: str, limit: int) -> list[Candidate]:
-        if not self.base:
-            return []
-        try:
-            r = await self.client.get(
-                f"{self.base.rstrip('/')}/search",
-                params={"q": query, "categories": "images", "format": "json"})
-            r.raise_for_status()
-            results = r.json().get("results") or []
-        except (httpx.HTTPError, ValueError) as e:
-            log.info("searxng images unavailable (%s)", type(e).__name__)
-            return []
-        out = []
-        for res in results[:limit]:
-            src = res.get("img_src")
-            if not src or not src.startswith("http"):
-                continue
-            out.append(Candidate(
-                url=src, page_url=res.get("url"), provider=self.name,
-                title=_clean(res.get("title"), 300),
-                caption=_clean(res.get("content")),
-                source_name=urlparse(res.get("url") or src).hostname,
-                found_for=query,
             ))
         return out
 

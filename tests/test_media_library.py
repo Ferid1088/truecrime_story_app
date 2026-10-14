@@ -108,8 +108,6 @@ def _search(word):
 def media_env(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     monkeypatch.setattr(ai_config.visual_search, "min_request_interval_s", 0.0)
-    monkeypatch.setattr(ai_config.search_engine, "searxng_url", "http://searx.test")
-    monkeypatch.delenv(ai_config.search_engine.searxng_url_env, raising=False)
     monkeypatch.setattr(MAPS, "cache_dir", lambda: tmp_path / "map_cache")
     (tmp_path / "map_cache").mkdir()
     monkeypatch.setattr("app.documentary.visuals.video_segmenter.get_generation_provider",
@@ -148,8 +146,6 @@ class OneMomentSegmenter:
     # a forest found by a context query: contextually accurate
     (("wikimedia", "context", "place", "context"), 4, "contextual"),
     (("wikimedia_video", "context", "building", "context"), 4, "contextual"),
-    # a generic illustration: last resort
-    (("searxng_images", "illustration", "place", "exact"), 5, "generic"),
     # generated material: maps show the exact place, cards quote the case
     (("generated", "context", "place", None), 3, "exact_place"),
     (("generated", "evidence", "document", None), 1, "exact_case"),
@@ -232,18 +228,12 @@ def _research_web():
                                            "Artist": {"value": "<a>Jane Doe</a>"},
                                            "ImageDescription": {"value": name}}}]}}}})
 
-    def searx(r):
-        return httpx.Response(200, json={"results": [
-            {"img_src": "https://pics.example/marien.jpg", "url": "https://pics.example/p",
-             "title": "Marienkirche"}]})
-
     page = ('<html><head><meta property="og:image" content="/img/scene.jpg">'
             '<meta property="og:title" content="Body found near the church"></head></html>')
-    images = {"/img/scene.jpg": 1, "/church.jpg": 2, "/forest.jpg": 3, "/marien.jpg": 4,
+    images = {"/img/scene.jpg": 1, "/church.jpg": 2, "/forest.jpg": 3,
               "/forest2.jpg": 5}
     return FakeWeb([
         (lambda r: r.url.host == "commons.wikimedia.org" and r.url.path == "/w/api.php", commons),
-        (_host("searx.test"), searx),
         (_host("news.example", "/story"), lambda r: httpx.Response(
             200, text=page, headers={"content-type": "text/html"})),
         (lambda r: r.url.path in images, lambda r: httpx.Response(
@@ -306,7 +296,7 @@ def test_research_stores_library_fields_and_context_queries_skip_source_pages(
                                                          found_during=found_during)
 
     stats = asyncio.run(go(queries))
-    assert stats["added"] == 4, stats
+    assert stats["added"] == 3, stats
     from app.shortform.assets import UnverifiedVisualAssetsError, require_verified_case_assets
 
     with pytest.raises(UnverifiedVisualAssetsError, match="unverified visual assets"):
@@ -324,14 +314,10 @@ def test_research_stores_library_fields_and_context_queries_skip_source_pages(
     assert church.source_url == "https://upload.wikimedia.org/church.jpg"
     assert church.source_name == "Wikimedia Commons" and church.created_at is not None
     assert church.credit == "Jane Doe / Wikimedia Commons"
-    web_find = assets["searxng_images:St. Marien Stendal"]
-    assert web_find.rights_status == "unknown" and web_find.relevance_tier == 3
     forest = assets["wikimedia:pine forest Altmark"]
     assert (forest.relevance_tier, forest.case_relevance) == (4, "contextual")
     assert forest.rights_status == "public_domain" and forest.entity_type == "place"
     # the context query asked only the rights-known library
-    searx_queries = [r.url.params.get("q") for r in web.requests if r.url.host == "searx.test"]
-    assert searx_queries == ["St. Marien Stendal"]
 
     # production-time search with a context query: no source page, no web search
     before = len(web.requests)
@@ -884,15 +870,16 @@ def test_materialize_passes_the_previous_map_place(db_session, media_env, monkey
     assert len(shots["B03"]["map_assets"]) == 3
 
 
-def test_image_search_results_on_news_pages_are_editorial_material():
+def test_source_page_images_on_news_pages_are_editorial_material():
     from app.documentary.visuals import rights as R
 
     for page in ("https://www.wdtn.com/news/ashley-flynn/x", "https://dayton247now.com/news/local/x",
                  "https://www.foxnews.com/us/x"):
-        assert R.classify("searxng_images", None, "https://cdn.example/a.jpg", page)[0] == \
+        assert R.classify("source_page", None, "https://cdn.example/a.jpg", page)[0] == \
             "editorial_review_required"
     for page in ("https://www.pinterest.com/pin/1/", "https://shop.example/product/flynn/"):
-        assert R.classify("searxng_images", None, "https://cdn.example/a.jpg", page)[0] == "unknown"
+        assert R.classify("source_page", None, "https://cdn.example/a.jpg", page)[0] == \
+            "editorial_review_required"
     # never allowed in a publish render without a human decision
     assert not R.allowed("editorial_review_required", "publish")
 

@@ -2,8 +2,7 @@
   "visual_search": {
     "providers": [
       "source_pages",
-      "wikimedia",
-      "searxng_images"
+      "wikimedia"
     ],
     "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
     "wikimedia_api": "https://commons.wikimedia.org/w/api.php",

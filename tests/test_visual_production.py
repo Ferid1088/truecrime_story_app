@@ -54,10 +54,8 @@ needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg req
             ("source_page", None, "https://abc.net.au/x.jpg", "https://abc.net.au/news"),
             "editorial_review_required",
         ),
-        (("searxng_images", None, "https://media.gettyimages.com/p.jpg"), "do_not_use"),
         (("upload",), "owned"),
         (("generated",), "owned"),
-        (("searxng_images", None, "https://example.org/a.jpg"), "unknown"),
     ],
 )
 def test_rights_classification(args, status):

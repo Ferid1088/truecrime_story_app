@@ -15,7 +15,6 @@ from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import (
     Candidate,
     RIGHTS_KNOWN_PROVIDERS,
-    SearxngImagesProvider,
     SourcePageProvider,
     WikimediaProvider,
     _KIND_ORDER,
@@ -70,8 +69,6 @@ class VisualResearchAgent:
             searchers = []
             if "wikimedia" in self.cfg.providers:
                 searchers.append(WikimediaProvider(client))
-            if "searxng_images" in self.cfg.providers:
-                searchers.append(SearxngImagesProvider(client))
             for q in queries[: self.cfg.max_queries]:
                 kind = query_kind(q)
                 ents = list(q.get("entities") or [])

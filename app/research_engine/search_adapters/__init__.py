@@ -1,4 +1,3 @@
-from app.research_engine.search_adapters.searxng import SearXNGSearchBackend
-from app.research_engine.search_adapters.youtube import YouTubeSearchBackend
+from app.research_engine.search_adapters.brave import BraveSearchBackend
 
-__all__ = ["SearXNGSearchBackend", "YouTubeSearchBackend"]
+__all__ = ["BraveSearchBackend"]

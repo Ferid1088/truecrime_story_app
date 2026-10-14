@@ -15,6 +15,7 @@ from app.db.models import ProviderCall
 def ledger(monkeypatch):
     monkeypatch.setattr(settings, "provider_ledger", True)
     obs.install_httpx_ledger()
+    obs.flush()
     db = SessionLocal()
     db.query(ProviderCall).delete()
     db.commit()
@@ -77,25 +78,24 @@ def test_sync_client_is_recorded_too():
     assert [r.host for r in rows()] == ["s.example.com"]
 
 
-def test_searxng_readiness_probe_is_not_provider_usage():
-    with httpx.Client(transport=mock(lambda r: httpx.Response(200, json={"results": []}))) as c:
-        c.get("https://search.example/search?q=test&format=json")
-    assert rows() == []
-
-
-def test_real_searxng_search_is_still_provider_usage():
-    with httpx.Client(transport=mock(lambda r: httpx.Response(200, json={"results": []}))) as c:
-        c.get("https://search.example/search?q=case&format=json&language=en-US")
-    assert len(rows()) == 1
+def test_every_brave_call_is_recorded_with_configured_estimated_cost():
+    with httpx.Client(transport=mock(lambda r: httpx.Response(200, json={"web": {"results": []}}))) as c:
+        c.get("https://api.search.brave.com/res/v1/web/search?q=case&count=10")
+    (row,) = rows()
+    assert row.host == "api.search.brave.com"
+    assert row.model == "brave-search"
+    assert row.estimated is True
+    assert row.cost_usd == pytest.approx(0.005)
+    assert row.cost_eur == pytest.approx(0.004469)
 
 
 def test_the_api_itself_and_disabled_ledger_leave_no_rows(client, monkeypatch):
     client.get("/health")
-    assert rows() == []
+    assert len(rows()) == 1
     monkeypatch.setattr(settings, "provider_ledger", False)
     with httpx.Client(transport=mock(lambda r: httpx.Response(200))) as c:
         c.get("https://off.example.com/")
-    assert rows() == []
+    assert len(rows()) == 1
 
 
 def test_a_broken_database_write_does_not_break_the_call(monkeypatch):

@@ -10,8 +10,9 @@ usage() {
   cat <<'EOF'
 Usage: scripts/dev_up.sh [--first-run-safe] [--require-search] [status|--status]
 
-Start the native local services, or show their status. SearXNG is optional by
-default; --require-search makes an unavailable search service fatal.
+Start the native local services, or show their status. Brave Search is
+configured through BRAVE_SEARCH_API_KEY; --require-search makes a missing key
+fatal.
 --first-run-safe sets TRUECRIME_JOB_MAX_AUTO_RESUMES=0 and
 TRUECRIME_DISABLE_SCHEDULER=1 for the API and worker.
 EOF
@@ -44,14 +45,14 @@ read_local_value() {
 
 load_if_unset() {
   local key="$1" file value
-  [[ -n "${!key:-}" ]] && return 0
+  [[ ${!key+x} ]] && return 0
   for file in "$ROOT/.env" "$ROOT/.env.local"; do
     value="$(read_local_value "$file" "$key")"
     if [[ -n "$value" ]]; then export "$key=$value"; return 0; fi
   done
 }
 
-for key in TRUECRIME_DATABASE_URL DATABASE_URL TRUECRIME_SEARXNG_URL SEARXNG_DIR \
+for key in TRUECRIME_DATABASE_URL DATABASE_URL BRAVE_SEARCH_API_KEY \
   TRUECRIME_API_PORT TRUECRIME_FRONTEND_PORT FFMPEG_BIN FFPROBE_BIN; do
   load_if_unset "$key"
 done
@@ -78,29 +79,13 @@ if [[ "$DATABASE_URL_VALUE" == postgresql* || "$DATABASE_URL_VALUE" == postgres*
 else
   DB_KIND=sqlite
 fi
-SEARXNG_URL="${TRUECRIME_SEARXNG_URL:-http://127.0.0.1:8085}"
-# macOS may resolve localhost to an address that does not match the listener's
-# loopback family. Probe the explicit IPv4 loopback so an already-running
-# user's SearXNG is recognised and never duplicated by the native fallback.
-case "$SEARXNG_URL" in
-  http://localhost*|https://localhost*) SEARXNG_URL="${SEARXNG_URL/localhost/127.0.0.1}" ;;
-esac
-SEARXNG_PORT="$(printf '%s' "$SEARXNG_URL" | sed -nE 's#^[^:]+://[^:/]+:([0-9]+).*#\1#p')"
-SEARXNG_PORT="${SEARXNG_PORT:-8085}"
 API_PORT="${TRUECRIME_API_PORT:-8001}"
 FRONTEND_PORT_REQUESTED="${TRUECRIME_FRONTEND_PORT:-3001}"
 
-_pidfile_for() {
-  [[ "$1" == searxng ]] && echo "$ROOT/data/searxng/searxng.pid" || echo "$STATE/$1.pid"
-}
+_pidfile_for() { echo "$STATE/$1.pid"; }
 
 _pid_alive() {
   [[ -f "$1" ]] && kill -0 "$(<"$1")" 2>/dev/null
-}
-
-_search_health() {
-  command -v curl >/dev/null 2>&1 || return 1
-  curl -fsS --max-time 8 "$SEARXNG_URL/search?q=true+crime&format=json&engines=wikipedia" >/dev/null 2>&1
 }
 
 _port_free() {
@@ -185,13 +170,7 @@ _port_holder_report() {
 _component_status() {
   local name="$1" port="$2" pidfile
   pidfile="$(_pidfile_for "$name")"
-  if [[ "$name" == searxng ]] && _search_health; then
-    if _pid_alive "$pidfile"; then
-      echo "searxng: running (managed, pid $(<"$pidfile"), port $port)"
-    else
-      echo "searxng: running (external, not managed by dev_up, pid external, port $port)"
-    fi
-  elif _pid_alive "$pidfile"; then
+  if _pid_alive "$pidfile"; then
     if [[ "$name" == worker ]]; then
       echo "$name: running (pid $(<"$pidfile"), port n/a)"
     else
@@ -216,7 +195,11 @@ status() {
   else
     echo "postgresql: stopped (pid external, port 5432)"
   fi
-  _component_status searxng "$SEARXNG_PORT"
+  if [[ -n "${BRAVE_SEARCH_API_KEY:-}" ]]; then
+    echo "brave: configured (api key present)"
+  else
+    echo "brave: unconfigured (BRAVE_SEARCH_API_KEY missing)"
+  fi
   _component_status api "$API_PORT"
   _component_status worker n/a
   frontend_shown="$([[ -f "$STATE/frontend.port" ]] && cat "$STATE/frontend.port" || echo "$FRONTEND_PORT_REQUESTED")"
@@ -237,18 +220,14 @@ if [[ "$DB_KIND" == postgres ]]; then
   command -v pg_isready >/dev/null 2>&1 || { echo "pg_isready is required; install postgresql@16; no SQLite fallback is used." >&2; exit 1; }
 fi
 
-if ! _search_health; then
-  echo "SearXNG is not healthy at $SEARXNG_URL; trying native runner if configured."
-  "$ROOT/scripts/searxng_up.sh" || true
-fi
-if ! _search_health; then
+if [[ -z "${BRAVE_SEARCH_API_KEY:-}" ]]; then
   if [[ "$REQUIRE_SEARCH" == 1 ]]; then
-    echo "SearXNG is unavailable and --require-search was requested." >&2
+    echo "Brave Search is unconfigured and --require-search was requested." >&2
     exit 1
   fi
-  echo "WARNING: research search unavailable; API, worker and frontend will start without it."
+  echo "WARNING: Brave Search is unconfigured; API, worker and frontend will start without it."
 else
-  echo "SearXNG is healthy at $SEARXNG_URL."
+  echo "Brave Search configured; effective provider mode: live."
 fi
 
 _stop_stale_frontend_servers

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Runs browser E2E against an app-owned disposable database and private ports.
 # This script intentionally does not call dev_up/dev_down and never manages
-# SearXNG.
+# Brave Search is never contacted by the disposable E2E stack.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 [[ -f .env.local ]] && set -a && source .env.local && set +a
@@ -82,7 +82,6 @@ export TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL"
 export DATABASE_URL="$E2E_DATABASE_URL"
 export TRUECRIME_DISABLE_SCHEDULER=1
 export TRUECRIME_JOB_RUNNER=external
-export TRUECRIME_SEARXNG_URL="http://127.0.0.1:9"
 export TC_TEST_NO_NETWORK=1
 export TRUECRIME_PROVIDER_MODE=recorded
 export TRUECRIME_TEST_NO_REAL_PROVIDERS=1

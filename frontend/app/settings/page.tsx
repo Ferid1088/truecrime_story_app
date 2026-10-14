@@ -87,12 +87,12 @@ export default function SettingsPage() {
                 engine == null
                   ? "—"
                   : engine.search_backend?.healthy
-                    ? `searxng · healthy`
-                    : `searxng · ${engine.search_backend?.reason ?? "unreachable"}`,
+                    ? `brave · healthy`
+                    : `brave · ${engine.search_backend?.reason ?? "unreachable"}`,
               ],
               [
-                "Backend URL",
-                engine?.search_backend?.base_url ?? "—",
+                "Provider",
+                "Brave Search API",
               ],
               [
                 "Fetcher",
@@ -117,10 +117,10 @@ export default function SettingsPage() {
             ]}
             hint={
               !engine?.configured
-                ? "Set TRUECRIME_SEARXNG_URL in .env"
+                ? "Set BRAVE_SEARCH_API_KEY in .env"
                 : !engine.reachable
-                  ? "SearXNG is not responding — research cannot run."
-                  : "Web discovery runs on our own SearXNG + fetcher + index. APIMaster supplies intelligence only."
+                  ? "Brave Search is not responding — research cannot run."
+                  : "Web discovery runs on Brave Search + fetcher + index. APIMaster supplies intelligence only."
             }
           />
           <StatusCard
@@ -255,7 +255,7 @@ export default function SettingsPage() {
             hint={
               data.search.configured
                 ? undefined
-                : "Set TRUECRIME_SEARXNG_URL in .env"
+                : "Set BRAVE_SEARCH_API_KEY in .env"
             }
           />
           <StatusCard

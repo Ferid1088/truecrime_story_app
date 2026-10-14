@@ -58,16 +58,6 @@ def classify(provider: str, license_name: str | None = None,
     if provider == "source_page":
         return ("editorial_review_required",
                 f"image from a case source ({_domain(page_url or url)})")
-    if provider == "searxng_images" and page_url:
-        # an image found on a news / official page is reporting material
-        # like a case source's own picture (a human decides before
-        # publishing); pins, shops and blogs stay unknown
-        from app.research_engine.source_quality import classify_source
-
-        kind = classify_source(page_url).source_type
-        if kind in _NEWS_OR_OFFICIAL or _news_page(page_url):
-            return ("editorial_review_required",
-                    f"image on a news/official page ({_domain(page_url)})")
     return "unknown", "no license information"
 
 

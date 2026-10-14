@@ -4,7 +4,7 @@ from app.research_engine.provider import TrueCrimeSearchProvider
 
 def get_research_provider() -> ResearchProvider:
     """Return the active research provider — the TrueCrime Search
-    Engine (SearXNG + fetcher + extractor + index), with APIMaster
+    Engine (Brave Search + fetcher + extractor + index), with APIMaster
     supplying bounded intelligence only.
 
     Search is not an LLM task: no AI vendor performs web discovery.

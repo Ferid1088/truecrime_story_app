@@ -87,7 +87,7 @@ async def _discover_youtube_api(case: Case) -> list[dict]:
 
 async def _discover_engine(db: Session, case: Case, job: ResearchJob) -> list[dict]:
     """TrueCrime Search Engine video-discovery — YouTube Data API or
-    SearXNG site-restricted search; no LLM performs discovery."""
+    Brave Search discovery; no LLM performs discovery."""
     import asyncio
 
     from app.providers import get_research_provider

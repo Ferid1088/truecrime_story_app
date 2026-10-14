@@ -88,7 +88,7 @@ def test_apply_live_aborts_when_a_service_is_running(tmp_path, monkeypatch):
     assert not (tmp_path / "backups").exists()
 
 
-def test_preflight_allows_running_frontend_and_searxng(tmp_path, monkeypatch, capsys):
+def test_preflight_allows_running_frontend(tmp_path, monkeypatch, capsys):
     live = tmp_path / "truecrime.db"
     _fresh_0009(live)
 
@@ -97,7 +97,7 @@ def test_preflight_allows_running_frontend_and_searxng(tmp_path, monkeypatch, ca
             return subprocess.CompletedProcess(
                 args, 0,
                 stdout=("postgresql: not used (sqlite)\n"
-                        "searxng: running (external, not managed by dev_up, pid external, port 8085)\n"
+                        "brave: configured (api key present)\n"
                         "api: stopped (pid none, port 8001)\n"
                         "worker: stopped (pid none, port n/a)\n"
                         "frontend: running (pid 123, port 3001)\n"),

@@ -55,6 +55,21 @@
       "verification_status": "verified"
     }
   },
+  "search": {
+    "brave_web": {
+      "provider_model": "Brave Search Web API",
+      "usd_per_1000_requests": 5.0,
+      "usd_per_request": 0.005,
+      "eur_per_1000_requests": 4.469,
+      "eur_per_request": 0.004469,
+      "currency": "USD",
+      "derived_currency": "EUR",
+      "source_url": "https://api-dashboard.search.brave.com/documentation/pricing",
+      "plan_or_tier": "Brave Search prepaid Search plan; $5 per 1,000 requests; monthly free credits excluded",
+      "last_verified": "2026-10-14",
+      "verification_status": "verified"
+    }
+  },
   "heygen": {
     "provider_model": "HeyGen Avatar III",
     "usd_per_minute": 1.0,

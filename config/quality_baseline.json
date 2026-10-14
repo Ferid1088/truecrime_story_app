@@ -319,7 +319,7 @@
     "app/agents/video_auditor.py:Argument 1 to \"frame_sheet\" has incompatible type \"Path | None\"; expected \"Path\"  [arg-type]",
     "app/agents/video_auditor.py:Argument 1 to \"grab_frames\" has incompatible type \"Path | None\"; expected \"Path\"  [arg-type]",
     "app/agents/visual_research.py:\"object\" has no attribute \"get\"  [attr-defined]",
-    "app/agents/visual_research.py:Argument 1 to \"append\" of \"list\" has incompatible type \"SearxngImagesProvider\"; expected \"WikimediaProvider\"  [arg-type]",
+    "app/agents/visual_research.py:visual providers are source_pages and wikimedia",
     "app/agents/visual_research.py:Unsupported operand types for + (\"object\" and \"int\")  [operator]",
     "app/agents/visual_research.py:Unsupported target for indexed assignment (\"object\")  [index]",
     "app/agents/visual_verification.py:Argument 1 to \"float\" has incompatible type \"Any | None\"; expected \"str | Buffer | SupportsFloat | SupportsIndex\"  [arg-type]",

@@ -23,7 +23,7 @@ from app.db.models import (
 )
 from app.providers import get_research_provider
 from app.providers.generation import get_generation_provider
-from app.services.tracking import stamp_run, track_run
+from app.services.tracking import documentary_run_context, stamp_run, track_run
 from app.utils import ensure_utc, utc_now
 from app.providers.base import ProviderError, ResearchProvider
 from app.research_engine.content_filter import minimum_relevant_sources
@@ -181,22 +181,23 @@ async def start_discovery_job(db: Session, payload, job: ResearchJob | None = No
         if not provider.is_configured():
             raise ProviderError(
                 "search_unconfigured",
-                "Research search is not configured — set TRUECRIME_SEARXNG_URL or search_engine.searxng_url.",
+                "Research search is not configured — set BRAVE_SEARCH_API_KEY.",
             )
         job.current_stage = "starting"
         db.commit()
         from app.lifecycle.identity import IdentityIndex
 
-        external_id = await provider.start_discovery(
-            count=_payload_value(payload, "count", 5),
-            languages=_payload_value(payload, "languages", ["en"]),
-            theme=_payload_value(payload, "theme", "true crime"),
-            prefer_undercovered=_payload_value(payload, "prefer_undercovered", True),
-            require_multiple_sources=_payload_value(payload, "require_multiple_sources", False),
-            existing_titles=known_case_titles(db),
-            known_identities=IdentityIndex.from_db(db).to_list(),
-            include_unsolved=bool(_payload_value(payload, "include_unsolved", False)),
-        )
+        with documentary_run_context(case_id=job.case_id, pipeline_stage="discovery"):
+            external_id = await provider.start_discovery(
+                count=_payload_value(payload, "count", 5),
+                languages=_payload_value(payload, "languages", ["en"]),
+                theme=_payload_value(payload, "theme", "true crime"),
+                prefer_undercovered=_payload_value(payload, "prefer_undercovered", True),
+                require_multiple_sources=_payload_value(payload, "require_multiple_sources", False),
+                existing_titles=known_case_titles(db),
+                known_identities=IdentityIndex.from_db(db).to_list(),
+                include_unsolved=bool(_payload_value(payload, "include_unsolved", False)),
+            )
     except Exception as e:
         job.status = "failed"
         job.current_stage = "failed"
@@ -245,7 +246,7 @@ async def start_research_job(db: Session, case: Case, job: ResearchJob | None = 
     if not provider.is_configured():
         raise ProviderError(
             "missing_key",
-            "Research engine is not configured — set TRUECRIME_SEARXNG_URL or search_engine.searxng_url.",
+            "Research engine is not configured — set BRAVE_SEARCH_API_KEY.",
         )
 
     if job is None:
@@ -299,13 +300,14 @@ async def start_research_job(db: Session, case: Case, job: ResearchJob | None = 
     if objective:
         context["user_instruction"] = objective
     try:
-        external_id = await provider.start_case_research(
-            case_title=case.canonical_title,
-            language=case.language,
-            objective=objective,
-            research_languages=research_languages,
-            context=context,
-        )
+        with documentary_run_context(case_id=case.id, pipeline_stage="research"):
+            external_id = await provider.start_case_research(
+                case_title=case.canonical_title,
+                language=case.language,
+                objective=objective,
+                research_languages=research_languages,
+                context=context,
+            )
     except Exception as e:
         job.status = "failed"
         job.error = str(e)[:500]

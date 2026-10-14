@@ -1,8 +1,8 @@
-"""Search backend interface + registry (Parts 2-3).
+"""Search backend interface.
 
-SearchBackends return raw results; they never fetch pages and never
-call an LLM. The registry provides fallback across adapters so no
-single search engine is a point of failure.
+SearchBackends return raw results; they never fetch pages and never call an
+LLM.  The registry is intentionally a single-provider boundary: search
+failures are fatal to the job and are never hidden by a fallback.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ class SearchBackend(Protocol):
 
 
 class SearchBackendRegistry:
-    """Ordered backends with per-call fallback (Part 3)."""
+    """One configured backend; retained as the existing search interface."""
 
     def __init__(self, backends: list[SearchBackend]):
         self.backends = list(backends)
@@ -65,25 +65,16 @@ class SearchBackendRegistry:
     async def search(self, query: str, language: str, limit: int = 10,
                      categories: list[str] | None = None,
                      time_range: str | None = None) -> list[SearchResult]:
-        """Try backends in order; merge results from the first that
-        returns anything. All failures are logged, never fatal."""
-        errors: list[str] = []
-        for backend in self.backends:
-            if not backend.is_available():
-                continue
-            try:
-                results = await backend.search(
-                    query, language,
-                    categories=categories, time_range=time_range,
-                    limit=limit,
-                )
-            except Exception as e:  # noqa: BLE001 - adapter isolation
-                errors.append(f"{backend.name}: {e}")
-                log.warning("search backend %s failed: %s", backend.name, e)
-                continue
-            if results:
-                return results
-        if errors and not self.available():
-            raise SearchError("registry", "all_backends_failed",
-                              "; ".join(errors))
-        return []
+        if not self.backends:
+            raise SearchError("registry", "search_unavailable",
+                              "search unavailable: no search provider configured")
+        backend = self.backends[0]
+        if not backend.is_available():
+            raise SearchError(backend.name, "not_configured",
+                              f"{backend.name.title()} Search API is not configured")
+        results = await backend.search(
+            query, language, categories=categories, time_range=time_range, limit=limit)
+        if not results:
+            raise SearchError(backend.name, "search_unavailable",
+                              "search unavailable: provider returned 0 results")
+        return results

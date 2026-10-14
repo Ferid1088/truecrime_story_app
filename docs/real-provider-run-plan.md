@@ -13,7 +13,7 @@ that their values are not printed.
 | Capability | Provider/config | Required key or setting | Current state |
 | --- | --- | --- | --- |
 | LLM generation, critics, naming, Shorts writer/auditor | APIMaster | `TRUECRIME_APIMASTER_API_KEY` | required |
-| Web search and fetch | local TrueCrime/SearXNG | `TRUECRIME_SEARXNG_URL` | required; no external key in this app |
+| Web search and fetch | Brave Search API | `BRAVE_SEARCH_API_KEY` | required; no fallback provider |
 | YouTube discovery/transcripts | YouTube adapter | `TRUECRIME_YOUTUBE_API_KEY` | required only if the selected discovery path uses YouTube API |
 | Narration/TTS | ElevenLabs | `TRUECRIME_ELEVENLABS_API_KEY` | required for narrated output |
 | Host/avatar video | HeyGen | `TRUECRIME_HEYGEN_API_KEY`, `TRUECRIME_AVATAR_ID_HEYGEN` | disabled by default; do not enable in the first run |
@@ -96,7 +96,7 @@ ledger have been reviewed.
 3. Verify the isolated API/frontend pair and worker health. Do not run
    `scripts/dev_up.sh` and do not touch ports 8001/3001.
 4. Verify key presence by variable name only. Never echo values. Verify the
-   APIMaster, ElevenLabs, SearXNG and optional YouTube endpoints with cheap
+   APIMaster, ElevenLabs, Brave Search and optional YouTube endpoints with cheap
    health checks, not a generation request.
 5. Resolve every requested agent role to a configured model and record the
    routing snapshot. Refuse unknown roles, fallback loops, or a missing price

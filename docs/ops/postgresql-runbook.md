@@ -116,7 +116,7 @@ scripts/e2e_stack.sh
 ```
 
 This creates and drops `truecrime_e2e`, uses API port 8011 and frontend port
-3011, and never calls `dev_up.sh`, `dev_down.sh`, or manages SearXNG.
+3011, and never calls `dev_up.sh` or `dev_down.sh`.
 
 The full suite has one intentional PostgreSQL-only skip for the cross-process
 SIGKILL fixture; the reason and limitation are recorded in

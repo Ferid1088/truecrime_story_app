@@ -1,7 +1,7 @@
 """TrueCrimeSearchProvider — the ResearchProvider backed by our own
 engine, not an LLM vendor.
 
-Search/discovery runs on local infrastructure (SearXNG + fetcher +
+Search/discovery runs on Brave Search + fetcher +
 extractor + index). APIMaster supplies only bounded intelligence
 (query planning, reranking, gap analysis, summaries). Job lifecycle
 is identical to the previous provider: start_* returns an external
@@ -29,10 +29,7 @@ from app.research_engine.orchestrator import (
 )
 from app.research_engine.ratelimit import DomainRateLimiter
 from app.research_engine.search import SearchBackendRegistry
-from app.research_engine.search_adapters import (
-    SearXNGSearchBackend,
-    YouTubeSearchBackend,
-)
+from app.research_engine.search_adapters import BraveSearchBackend
 
 log = logging.getLogger(__name__)
 
@@ -83,18 +80,14 @@ class TrueCrimeSearchProvider(ResearchProvider):
     name = "truecrime"
 
     def __init__(self):
-        self.searxng_url = (
-            env_value(ai_config.search_engine.searxng_url_env)
-            or ai_config.search_engine.searxng_url
-            or ""
-        ).rstrip("/")
-        self.searxng = SearXNGSearchBackend(
-            base_url=self.searxng_url or None,
-            timeout_s=ai_config.search_engine.request_timeout_s,
-            health_cache_seconds=ai_config.search_engine.health_cache_seconds)
-        self.youtube = YouTubeSearchBackend(searxng=self.searxng)
-        self.registry = SearchBackendRegistry([self.searxng])
         cfg = ai_config.search_engine
+        self.brave = BraveSearchBackend(
+            api_key=env_value(cfg.brave_api_key_env),
+            base_url=cfg.brave_base_url,
+            timeout_s=ai_config.search_engine.request_timeout_s,
+            health_cache_seconds=cfg.health_cache_seconds,
+            result_count=cfg.max_results_per_query)
+        self.registry = SearchBackendRegistry([self.brave])
         self.fetcher = DocumentFetcher(
             cache=FetchCache(max_age_s=cfg.fetch_cache_max_age_s),
             limiter=DomainRateLimiter(
@@ -132,25 +125,20 @@ class TrueCrimeSearchProvider(ResearchProvider):
     # ------------------------------------------------------------------
 
     def is_configured(self) -> bool:
-        return bool(self.searxng_url)
+        return self.brave.is_available()
 
     async def check_health(self) -> bool:
-        h = await self.searxng.health()
+        h = await self.brave.health()
         return bool(h.get("healthy"))
 
     async def health_status(self) -> dict:
-        """Return the discovery-style SearXNG probe, including result count."""
-        return await self.searxng.health()
+        """Return the discovery-style Brave probe, including result count."""
+        return await self.brave.health()
 
     async def provider_status(self) -> dict:
         """Settings-page health (Part 50): backend + fetcher + LLM +
         embedding — no vendor-specific fields."""
-        if (os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1"
-                and self.searxng.__class__.__module__.startswith("app.research_engine")):
-            searx = {"backend": "searxng", "healthy": False,
-                     "reason": "test provider guard"}
-        else:
-            searx = await self.searxng.health()
+        brave = await self.brave.health()
         emb_ok = self.embedder.is_configured()
         gen = None
         try:
@@ -161,11 +149,11 @@ class TrueCrimeSearchProvider(ResearchProvider):
             "provider": self.name,
             "engine": "truecrime_search_engine",
             "configured": self.is_configured(),
-            "reachable": bool(searx.get("healthy")),
-            "status": ("ok" if searx.get("healthy")
+            "reachable": bool(brave.get("healthy")),
+            "status": ("ok" if brave.get("healthy")
                        else ("missing_config" if not self.is_configured()
                              else "backend_unreachable")),
-            "search_backend": searx,
+            "search_backend": brave,
             "fetcher": {"configured": True},
             "embedding": {
                 "configured": emb_ok,
@@ -268,8 +256,7 @@ class TrueCrimeSearchProvider(ResearchProvider):
         async def run(p: _JobProgress):
             prog = Progress(stage_cb=p.stage, meta_cb=p.meta)
             result = await orch.discover_videos(
-                {"title": case_title}, languages or ["en"],
-                youtube_backend=self.youtube, progress=prog)
+                {"title": case_title}, languages or ["en"], progress=prog)
             p.live_telemetry(result.get("_telemetry") or {})
             return result
 

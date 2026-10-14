@@ -26,7 +26,7 @@ Der verschwundene Kreis (Ungelöst) | Fallspur
 Everything in `Master_Task_Case_Lifecycle.MD` §1 applies, plus:
 
 1. **No network for naming.** Collision checks read stored data only: no
-   SearXNG, no YouTube/podcast search, no LLM call whose purpose is "does
+   Brave Search, no YouTube/podcast search, no LLM call whose purpose is "does
    this title exist". A test patches every search backend to raise.
 2. **Deterministic gates, LLM opinions.** Collision, length, status,
    episode-number and rights checks are code. LLM scores (memorability,

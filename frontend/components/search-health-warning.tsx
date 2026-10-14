@@ -29,7 +29,7 @@ export function SearchHealthWarning() {
       role="alert"
       className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200"
     >
-      Search is unavailable or returned no results. Discovery and research may complete with no candidates until SearXNG is healthy.
+      Search is unavailable or returned no results. Discovery and research cannot complete until the Brave Search API is healthy.
     </div>
   );
 }

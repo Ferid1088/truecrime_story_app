@@ -14,6 +14,7 @@ import logging
 import queue
 import re
 import threading
+from pathlib import Path
 import time
 import uuid
 from datetime import timedelta
@@ -115,21 +116,18 @@ class RequestContextMiddleware:
 _queue: queue.Queue = queue.Queue(maxsize=10000)
 _thread: threading.Thread | None = None
 _lock = threading.Lock()
-_SKIP_HOSTS = {"testserver", "test"}  # in-process test clients, not outside services
+_SKIP_HOSTS = {"testserver", "test"}  # in-process app clients are not outside services
 
 
-def _is_health_request(request: httpx.Request) -> bool:
-    """Return true for the probe used by the research readiness check.
-
-    Readiness is polled by the UI and is not provider usage.  Keeping this
-    narrowly scoped means real SearXNG searches (which carry a user query and
-    language/category parameters) remain in the ledger.
-    """
-    return (request.method == "GET" and request.url.path == "/search"
-            and dict(request.url.params) in (
-                {"q": "test", "format": "json"},
-                {"q": "true crime", "format": "json", "engines": "wikipedia"},
-            ))
+def _brave_price() -> tuple[float, float]:
+    """Return the configured per-request USD/EUR Brave estimate."""
+    try:
+        path = Path(__file__).resolve().parents[2] / "config/parameters/pricing.json"
+        data = json.loads(path.read_text())
+        row = data["search"]["brave_web"]
+        return float(row["usd_per_request"]), float(row["eur_per_request"])
+    except (OSError, KeyError, TypeError, ValueError):
+        return 0.005, 0.004469
 
 
 def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
@@ -151,8 +149,7 @@ def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
 
 def record_call(request: httpx.Request, started: float, response: httpx.Response | None = None,
                 error: BaseException | None = None, stream: bool = False) -> None:
-    if (not settings.provider_ledger or request.url.host in _SKIP_HOSTS
-            or _is_health_request(request)):
+    if not settings.provider_ledger or request.url.host in _SKIP_HOSTS:
         return
     try:
         status = response.status_code if response is not None else None
@@ -170,18 +167,24 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
             metadata = _documentary_metadata()
         except Exception:  # observability must never affect the provider call
             metadata = {}
+        is_brave = request.url.host == "api.search.brave.com" and request.url.path == "/res/v1/web/search"
+        brave_usd, brave_eur = _brave_price()
         row = dict(
             host=request.url.host[:120], method=request.method[:10], path=request.url.path[:300],
             status=status, ok=error is None and status is not None and status < 400,
             duration_ms=round((time.perf_counter() - started) * 1000), bytes_in=size,
-            tokens_in=tin, tokens_out=tout, cost_usd=cost,
+            tokens_in=tin, tokens_out=tout,
             error=(type(error).__name__ if error is not None else None),
             request_id=None if rid == "-" else rid,
             case_id=metadata.get("case_id"),
             stage=metadata.get("pipeline_stage"),
-            units=(tin or 0) + (tout or 0) if tin is not None or tout is not None else None,
-            cost_eur=(cost * ai_config.budget.usd_to_eur
-                      if cost is not None else None),
+            model=("brave-search" if is_brave else None),
+            estimated=(is_brave and cost is None),
+            cost_usd=(brave_usd if is_brave and cost is None else cost),
+            cost_eur=(brave_eur if is_brave and cost is None else
+                      (cost * ai_config.budget.usd_to_eur if cost is not None else None)),
+            units=(1 if is_brave else
+                   ((tin or 0) + (tout or 0) if tin is not None or tout is not None else None)),
         )
         _ensure_thread()
         _queue.put_nowait(row)

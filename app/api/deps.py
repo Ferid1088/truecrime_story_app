@@ -123,12 +123,12 @@ def research_provider():
 
 
 async def require_search_available():
-    """Fail a new research request promptly when SearXNG is down."""
+    """Fail a new research request promptly when Brave Search is down."""
     provider = research_provider()
     if not provider.is_configured():
         raise PolicyError(
             "SEARCH_UNAVAILABLE",
-            "Research search is unavailable: SearXNG is not configured.",
+            "Research search is unavailable: Brave Search API is not configured.",
             {"provider": provider.name, "reason": "not_configured"},
             status_code=503,
         )
@@ -145,7 +145,7 @@ async def require_search_available():
     if not healthy:
         raise PolicyError(
             "SEARCH_UNAVAILABLE",
-            "Research search is unavailable: SearXNG did not pass its health check.",
+            "Research search is unavailable: Brave Search did not pass its health check.",
             {"provider": provider.name, "reason": reason},
             status_code=503,
         )

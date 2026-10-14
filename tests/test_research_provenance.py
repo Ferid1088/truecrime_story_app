@@ -2,7 +2,7 @@
 
 Covers multilingual provenance, language detection, relational
 query->result->source links, job telemetry, stop conditions, URL
-safety, backend fallback, and assembler integration — all against the
+safety, the single search-provider boundary, and assembler integration — all against the
 first-party research engine, never an LLM vendor's search.
 """
 
@@ -23,7 +23,7 @@ from app.research_engine.orchestrator import (
 )
 from app.research_engine.planner import PlannedQuery
 from app.research_engine.safety import UnsafeURLError, validate_url
-from app.research_engine.search import SearchBackendRegistry, SearchResult
+from app.research_engine.search import SearchBackendRegistry, SearchError, SearchResult
 from app.services.research_jobs import (
     _apply_job_telemetry, _ingest_research, create_job,
 )
@@ -566,10 +566,10 @@ def test_planner_empty_stop():
     assert result["language_stats"]["en"]["stop_reason"] == "planner_empty"
 
 
-# --- backend fallback -----------------------------------------------------------
+# --- single-provider boundary ---------------------------------------------------
 
 
-def test_registry_falls_back_to_next_backend():
+def test_registry_does_not_fall_back_to_next_backend():
     class FailBackend(FakeBackend):
         name = "fail"
 
@@ -581,13 +581,12 @@ def test_registry_falls_back_to_next_backend():
 
     good = FakeBackend([{"url": "https://a.example/1"}])
     reg = SearchBackendRegistry([FailBackend(), good])
-    out = asyncio.run(reg.search("q", "en"))
-    assert out and out[0].url == "https://a.example/1"
+    with pytest.raises(RuntimeError, match="backend down"):
+        asyncio.run(reg.search("q", "en"))
 
 
-def test_backend_failure_is_not_fatal():
-    """A failing search backend degrades to zero results, never crashes
-    the research run."""
+def test_backend_failure_is_fatal_to_research():
+    """A failed Brave request cannot be converted into a completed empty run."""
     class FailBackend(FakeBackend):
         name = "fail"
 
@@ -599,11 +598,8 @@ def test_backend_failure_is_not_fatal():
         outcome=_ok_outcome(),
         plans=[[_pq("q1", "en")]],
         max_rounds_per_language=1)
-    result = asyncio.run(orch.research_case({"title": "C"}, ["en"]))
-    stats = result["language_stats"]["en"]
-    assert stats["search_calls"] == 1
-    assert stats["sources_found"] == 0
-    assert result["queries"]
+    with pytest.raises(RuntimeError, match="backend down"):
+        asyncio.run(orch.research_case({"title": "C"}, ["en"]))
 
 
 # --- corpus dedupe against existing sources --------------------------------------
@@ -648,4 +644,3 @@ def test_historical_devin_job_renders(db_session, client):
     assert res.status_code == 200
     assert res.json()["provider"] == "devin"
     assert res.json()["status"] == "completed"
-

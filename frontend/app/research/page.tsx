@@ -103,7 +103,7 @@ export default function ResearchPage() {
       )}
       {noSearchResults && (
         <div role="alert" className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          The latest discovery search returned no results. Check SearXNG before starting more research.
+          The latest discovery search returned no results. Check the Brave Search API before starting more research.
         </div>
       )}
 

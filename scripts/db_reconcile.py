@@ -115,7 +115,7 @@ def ensure_live_quiescent(root: Path, live: Path) -> None:
     running = [line for line in report.splitlines()
                if any(line.startswith(f"{name}: running") for name in DATABASE_WRITER_SERVICES)]
     non_writers = [line for line in report.splitlines()
-                   if line.startswith("searxng: running") or line.startswith("frontend: running")]
+                   if line.startswith("frontend: running")]
     if non_writers:
         print("Pre-flight warning: non-database services do not block reconciliation: "
               + "; ".join(non_writers))

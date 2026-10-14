@@ -391,7 +391,7 @@ export default function DiscoverPage() {
       )}
       {jobStatus === "completed" && noCandidatesReason?.startsWith("search returned") && (
         <div role="alert" className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          Search returned no results for the discovery queries. Check SearXNG before trying again.
+          Search returned no results for the discovery queries. Check the Brave Search API before trying again.
         </div>
       )}
 

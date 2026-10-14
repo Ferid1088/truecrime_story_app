@@ -1,11 +1,11 @@
 """Provider-boundary verification.
 
-TrueCrime Search Engine = search/fetch/index (infrastructure, no LLM).
+TrueCrime Search Engine = Brave Search/fetch/index (infrastructure, no LLM).
 APIMaster               = ALL intelligence (generation/analysis/critique/
                           query-planning/reranking/embeddings).
 
 These tests pin the boundary: role routing, registry selection,
-fallbacks, telemetry stamping and cost split.
+                          no-fallback boundary, telemetry stamping and cost split.
 """
 import asyncio
 import json
@@ -26,8 +26,8 @@ from app.providers.generation.apimaster import APIMasterGenerationProvider
 from app.providers.generation.base import GenerationResult
 
 
-def test_searxng_health_is_cached(monkeypatch):
-    from app.research_engine.search_adapters import searxng
+def test_brave_health_is_cached(monkeypatch):
+    from app.research_engine.search_adapters import brave
 
     calls = []
 
@@ -40,23 +40,23 @@ def test_searxng_health_is_cached(monkeypatch):
 
         async def get(self, *args, **kwargs):
             calls.append((args, kwargs))
-            return httpx.Response(200, json={"results": [{"url": "https://one"},
+            return httpx.Response(200, json={"web": {"results": [{"url": "https://one"},
                                                           {"url": "https://two"},
-                                                          {"url": "https://three"}]})
+                                                          {"url": "https://three"}]}})
 
-    searxng._health_cache.clear()
-    monkeypatch.setattr(searxng.httpx, "AsyncClient", lambda **kwargs: FakeClient())
-    backend = searxng.SearXNGSearchBackend("http://search", health_cache_seconds=30)
+    brave._health_cache.clear()
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = brave.BraveSearchBackend("test-key", "https://search", health_cache_seconds=30)
     assert asyncio.run(backend.health())["healthy"]
     assert asyncio.run(backend.health())["healthy"]
     assert len(calls) == 1
     params = calls[0][1]["params"]
     assert params["q"] == "recent true crime investigation case"
-    assert "engines" not in params
+    assert "count" in params and params["q"] == "recent true crime investigation case"
 
 
-def test_searxng_health_is_degraded_with_fewer_than_three_results(monkeypatch):
-    from app.research_engine.search_adapters import searxng
+def test_brave_health_is_degraded_with_fewer_than_three_results(monkeypatch):
+    from app.research_engine.search_adapters import brave
 
     class FakeClient:
         async def __aenter__(self):
@@ -66,14 +66,55 @@ def test_searxng_health_is_degraded_with_fewer_than_three_results(monkeypatch):
             return None
 
         async def get(self, *args, **kwargs):
-            return httpx.Response(200, json={"results": [{"url": "https://one"}]})
+            return httpx.Response(200, json={"web": {"results": [{"url": "https://one"}]}})
 
-    searxng._health_cache.clear()
-    monkeypatch.setattr(searxng.httpx, "AsyncClient", lambda **kwargs: FakeClient())
-    health = asyncio.run(searxng.SearXNGSearchBackend("http://search").health())
+    brave._health_cache.clear()
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    health = asyncio.run(brave.BraveSearchBackend("test-key", "https://search").health())
     assert health["healthy"] is False
     assert health["status"] == "degraded"
     assert health["result_count"] == 1
+
+
+def test_brave_recorded_response_maps_web_results_and_never_logs_key(monkeypatch, caplog):
+    from app.research_engine.search_adapters import brave
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, url, **kwargs):
+            assert url.endswith("/res/v1/web/search")
+            assert self.kwargs["headers"]["X-Subscription-Token"] == "recorded-brave-key"
+            assert kwargs["params"]["count"] == 3
+            return httpx.Response(200, json={"web": {"results": [
+                {"title": "A case", "url": "https://news.example/case",
+                 "description": "A reported investigation"}]}})
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", FakeClient)
+    backend = brave.BraveSearchBackend("recorded-brave-key", result_count=3)
+    result = asyncio.run(backend.search("case", "en", limit=3))
+    assert result[0].backend == "brave"
+    assert result[0].title == "A case"
+    assert "recorded-brave-key" not in caplog.text
+
+
+def test_brave_retries_once_on_rate_limit_and_zero_results_are_unavailable(monkeypatch):
+    from app.research_engine.search_adapters import brave
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, *args, **kwargs):
+            calls.append(1)
+            return httpx.Response(429) if len(calls) == 1 else httpx.Response(200, json={"web": {"results": []}})
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    with pytest.raises(Exception, match="search unavailable"):
+        asyncio.run(brave.BraveSearchBackend("test-key").search("case", "en"))
+    assert len(calls) == 2
 
 
 def _raw_config() -> dict:
@@ -341,7 +382,7 @@ def test_env_example_declares_only_current_keys():
         Path(__file__).resolve().parents[1] / ".env.example"
     ).read_text()
     assert "TRUECRIME_APIMASTER_API_KEY" in env_example
-    assert "TRUECRIME_SEARXNG_URL" in env_example
+    assert "BRAVE_SEARCH_API_KEY" in env_example
     # No retired provider credentials (Part 51-52).
     assert "DEVIN_API_KEY" not in env_example
 

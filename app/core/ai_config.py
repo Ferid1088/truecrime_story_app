@@ -139,7 +139,7 @@ VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor", "video_seg
                 "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
-# (the TrueCrime Search Engine — SearXNG + fetcher + index), not an LLM
+# (the TrueCrime Search Engine — Brave Search + fetcher + index), not an LLM
 # vendor, so no LLM role routes to it. Every intelligence role resolves
 # through the GENERATION provider (APIMaster). The set is kept for the
 # symmetric section lookup — an LLM-backed research provider would add
@@ -254,7 +254,7 @@ class ResearchProviderSection(BaseModel):
     """The web-research provider.
 
     type="search_engine"  — first-party infrastructure (TrueCrime
-        Search Engine: SearXNG + fetcher + index). No LLM credentials,
+        Search Engine: Brave Search + fetcher + index). No LLM credentials,
         no model routing; intelligence roles live in the generation
         provider instead.
     type="llm"            — an LLM-vendor research provider; requires
@@ -600,18 +600,13 @@ class YouTubeResearchConfig(BaseModel):
 
 
 class SearchEngineConfig(BaseModel):
-    """TrueCrime Search Engine — the infrastructure research provider.
-
-    All bounds are config, never magic numbers in code: SearXNG
-    endpoint, iterative-loop budgets, fetcher limits, cache ages and
-    ranking thresholds."""
-    # SearXNG backend
-    searxng_url_env: str = "TRUECRIME_SEARXNG_URL"
-    searxng_url: str | None = None
-    request_timeout_s: int = Field(ge=5, le=120, default=25)
+    """Brave Search Web API plus the local fetch/ranking pipeline."""
+    brave_api_key_env: str = "BRAVE_SEARCH_API_KEY"
+    brave_base_url: str = "https://api.search.brave.com"
+    request_timeout_s: int = Field(ge=5, le=120, default=10)
     health_cache_seconds: float = Field(ge=0, le=300, default=10.0)
     # Iterative loop (Part 6/38)
-    max_results_per_query: int = Field(ge=1, le=25)
+    max_results_per_query: int = Field(ge=1, le=20)
     max_queries_per_language: int = Field(ge=1, le=20)
     max_rounds_per_language: int = Field(ge=1, le=8)
     max_fetches_per_language: int = Field(ge=0, le=50)
@@ -1290,7 +1285,7 @@ class DocumentaryConfig(BaseModel):
 
 
 class VisualSearchConfig(BaseModel):
-    providers: list[str] = ["source_pages", "wikimedia", "searxng_images"]
+    providers: list[str] = ["source_pages", "wikimedia"]
     user_agent: str = ("TrueCrimeStudio/1.0 (local documentary research tool; "
                        "https://github.com/Ferid1088/truecrime_story_app)")
     # Seconds between requests to public APIs (Wikimedia robot policy).
@@ -1614,7 +1609,7 @@ class CaseSelectionConfig(BaseModel):
     solved_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     # Best candidates checked by the status verifier (search + LLM).
     verify_top_n: int = Field(default=8, ge=0)
-    # SearXNG time range of discovery searches (day|week|month|year|"").
+    # Time range of Brave discovery searches (day|week|month|year|"").
     discovery_time_range: str = "year"
     # Search queries per language; {year} / {last_year} are filled in.
     seed_queries: dict[str, list[str]] = Field(default_factory=lambda: {

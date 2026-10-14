@@ -22,8 +22,8 @@ The final live read-only query after E2E reported `cases=323`,
 `documentary_jobs=44`, `provider_calls=10`, `policy_events=107`, no row for
 case id 1, and `Test Case Alpha` count zero.
 
-During the mandated restart, the configured SearXNG health check was initially
+During the mandated restart, the configured Brave Search health check was initially
 unavailable and `scripts/dev_up.sh` invoked its native fallback. This was an
-environmental setup event outside the application changes; no SearXNG code or
+environmental setup event outside the application changes; no Brave Search code or
 configuration was modified by this project. Subsequent restarts observed the
 external service as healthy and did not manage it.

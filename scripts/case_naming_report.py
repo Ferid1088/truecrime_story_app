@@ -33,17 +33,14 @@ def count_search_calls() -> list[int]:
             n[0] += 1
             return await _orig(self, *a, **k)
         cls.search = counted
-    try:
-        from app.research_engine.search_adapters.searxng import SearXNGSearchBackend
+    from app.research_engine.search_adapters.brave import BraveSearchBackend
 
-        orig2 = SearXNGSearchBackend.search
+    orig2 = BraveSearchBackend.search
 
-        async def counted2(self, *a, _orig=orig2, **k):
-            n[0] += 1
-            return await _orig(self, *a, **k)
-        SearXNGSearchBackend.search = counted2
-    except Exception:  # noqa: BLE001
-        pass
+    async def counted2(self, *a, _orig=orig2, **k):
+        n[0] += 1
+        return await _orig(self, *a, **k)
+    BraveSearchBackend.search = counted2
     return n
 
 

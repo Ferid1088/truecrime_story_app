@@ -39,7 +39,7 @@ _lock = asyncio.Lock()
 
 
 def time_range_since(last) -> str:
-    """SearXNG time range covering the time since the last check."""
+    """Search time range covering the time since the last check."""
     if last is None:
         return ai_config.case_monitor.first_check_time_range
     days = (utc_now() - ensure_utc(last)).total_seconds() / 86400

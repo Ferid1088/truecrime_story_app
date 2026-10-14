@@ -260,13 +260,9 @@ class ResearchOrchestrator:
                 prev_queries.append(pq.query)
                 stats["queries"] += 1
                 progress.stage(f"searching:{lang}")
-                try:
-                    raw = await self.registry.search(
-                        pq.query, pq.language,
-                        limit=self.cfg.max_results_per_query)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("search failed for %r: %s", pq.query, e)
-                    raw = []
+                raw = await self.registry.search(
+                    pq.query, pq.language,
+                    limit=self.cfg.max_results_per_query)
                 stats["search_calls"] += 1
                 tel["searches"] += 1
                 stats["sources_found"] += len(raw)
@@ -567,7 +563,7 @@ class ResearchOrchestrator:
                 else ("pypdf" if doc and doc.extractor == "pypdf"
                       else "http_fetch")),
             "retrieval_notes": (
-                f"engine=searxng extractor={doc.extractor if doc else 'none'} "
+                f"engine=brave extractor={doc.extractor if doc else 'none'} "
                 f"http={outcome.status_code} hops={outcome.redirect_hops} "
                 f"cache={'hit' if outcome.cache_hit else 'miss'}"),
             "source_family": None,
@@ -628,13 +624,7 @@ class ResearchOrchestrator:
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "case_identity",
                     "priority": "1", "round": 0, "time_range": time_range})
-                search_error = None
-                try:
-                    raw = await self.registry.search(q, lang, limit=10, time_range=time_range)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("discovery search failed: %s", e)
-                    raw = []
-                    search_error = str(e)
+                raw = await self.registry.search(q, lang, limit=10, time_range=time_range)
                 tel["searches"] += 1
                 diagnostic = {
                     "query": q,
@@ -651,14 +641,12 @@ class ResearchOrchestrator:
                         for item in raw[:3]
                     ],
                 }
-                if search_error:
-                    diagnostic["search_error"] = search_error
                 for backend in getattr(self.registry, "backends", []):
                     detail = getattr(backend, "last_search_diagnostics", None)
                     if isinstance(detail, dict) and detail.get("query") == q:
                         diagnostic.update({
                             "http_status": detail.get("http_status"),
-                            "unresponsive_engines": detail.get("unresponsive_engines") or [],
+                            "provider": detail.get("provider") or "brave",
                         })
                         break
                 search_diagnostics.append(diagnostic)
@@ -724,7 +712,6 @@ class ResearchOrchestrator:
 
     async def discover_videos(self, case_context: dict,
                               languages: list[str],
-                              youtube_backend=None,
                               progress: Progress | None = None) -> dict:
         progress = progress or Progress()
         tel = _telemetry()
@@ -740,7 +727,7 @@ class ResearchOrchestrator:
             "ar": ["{t} وثائقي قضية", "{t} جريمة", "{t}"],
         }
         queries_out: list[dict] = []
-        backend = youtube_backend or self.registry
+        backend = self.registry
         for lang in (languages or ["en"]):
             qs = [s.format(t=title)
                   for s in stems.get(lang, stems["en"])]

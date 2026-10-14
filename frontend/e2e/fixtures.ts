@@ -335,7 +335,7 @@ export const fixtures = {
     engine: "truecrime_search_engine",
     configured: true,
     reachable: true,
-    search_backend: { backend: "searxng", url: "http://localhost:8085", healthy: true },
+    search_backend: { backend: "brave", healthy: true },
     fetcher: { configured: true, rate_limited: true, cache_enabled: true },
     embedding: { model: "test-embed", configured: true },
     llm: { provider: "apimaster", configured: true },

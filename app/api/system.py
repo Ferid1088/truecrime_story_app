@@ -86,7 +86,7 @@ def settings_status(db: Session = Depends(get_db)):
             "routing": res_cfg.routing,
         },
         "search": {
-            "provider": "searxng",
+            "provider": "brave",
             "configured": deps.research_provider().is_configured(),
         },
         "youtube": {"configured": bool(settings.youtube_api_key)},
@@ -105,7 +105,7 @@ def settings_status(db: Session = Depends(get_db)):
 
 @router.get("/api/integrations/research/status")
 async def research_status():
-    """TrueCrime Search Engine status — SearXNG backend, fetcher,
+    """TrueCrime Search Engine status — Brave backend, fetcher,
     embedding and LLM-intelligence health."""
     provider = deps.research_provider()
     if hasattr(provider, "provider_status"):
