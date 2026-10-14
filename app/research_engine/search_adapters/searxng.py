@@ -35,6 +35,7 @@ class SearXNGSearchBackend:
         self.timeout_s = timeout_s
         self.max_response_bytes = max_response_bytes
         self.health_cache_seconds = health_cache_seconds
+        self.last_search_diagnostics: dict | None = None
 
     def is_available(self) -> bool:
         return bool(self.base_url)
@@ -94,6 +95,19 @@ class SearXNGSearchBackend:
                               f"HTTP {e.response.status_code}") from e
         except (httpx.HTTPError, ValueError) as e:
             raise SearchError(self.name, "request_failed", str(e)) from e
+
+        self.last_search_diagnostics = {
+            "query": query,
+            "http_status": r.status_code,
+            "result_count": len(data.get("results") or []),
+            "unresponsive_engines": data.get("unresponsive_engines") or [],
+            "engines": sorted({
+                engine
+                for item in data.get("results") or []
+                for engine in (item.get("engines") or [])
+                if engine
+            }),
+        }
 
         out: list[SearchResult] = []
         for i, raw in enumerate(data.get("results") or []):

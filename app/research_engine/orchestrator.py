@@ -628,13 +628,15 @@ class ResearchOrchestrator:
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "case_identity",
                     "priority": "1", "round": 0, "time_range": time_range})
+                search_error = None
                 try:
                     raw = await self.registry.search(q, lang, limit=10, time_range=time_range)
                 except Exception as e:  # noqa: BLE001
                     log.warning("discovery search failed: %s", e)
                     raw = []
+                    search_error = str(e)
                 tel["searches"] += 1
-                search_diagnostics.append({
+                diagnostic = {
                     "query": q,
                     "language": lang,
                     "result_count": len(raw),
@@ -648,7 +650,18 @@ class ResearchOrchestrator:
                         {"title": item.title, "url": item.url}
                         for item in raw[:3]
                     ],
-                })
+                }
+                if search_error:
+                    diagnostic["search_error"] = search_error
+                for backend in getattr(self.registry, "backends", []):
+                    detail = getattr(backend, "last_search_diagnostics", None)
+                    if isinstance(detail, dict) and detail.get("query") == q:
+                        diagnostic.update({
+                            "http_status": detail.get("http_status"),
+                            "unresponsive_engines": detail.get("unresponsive_engines") or [],
+                        })
+                        break
+                search_diagnostics.append(diagnostic)
                 for r in raw:
                     found.append({
                         "title": r.title, "snippet": r.snippet,
