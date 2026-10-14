@@ -263,6 +263,22 @@ def test_api_settings_roundtrip_and_validation(client):
     assert client.get("/api/backup").json()["settings"] == body          # a rejected save changes nothing
 
 
+def test_api_overview_reads_backups_created_by_backup_script(client, tmp_path, monkeypatch):
+    folder = tmp_path / "truecrime_backups"
+    folder.mkdir()
+    (folder / "truecrime_live_backup_20261014_070030.dump").touch()
+    dump = folder / "truecrime_live_backup_20261014_070020.dump"
+    dump.write_bytes(b"recorded pg dump")
+    monkeypatch.setenv("TRUECRIME_BACKUP_DIR", str(folder))
+
+    overview = client.get("/api/backup").json()
+
+    assert overview["script_backup_dir"] == str(folder)
+    assert overview["folder_backups"][0]["file_name"] == dump.name
+    assert overview["folder_backups"][0]["size_bytes"] == dump.stat().st_size
+    assert overview["folder_backups"][0]["sha256"] == B._sha256(dump)
+
+
 def test_api_run_now_with_a_folder_writes_a_backup_and_remembers_the_folder(client, tmp_path, pg_tools):
     drive = tmp_path / "usb"
     drive.mkdir()

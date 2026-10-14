@@ -44,6 +44,8 @@ def overview(db: Session = Depends(get_db)):
     return {
         "settings": asdict(s),
         "database": engine.dialect.name,
+        "script_backup_dir": str(B.script_backup_dir()),
+        "folder_backups": B.list_script_backups(),
         "next_run_at": nxt.isoformat() if nxt else None,
         "running": any(r.status == "running" for r in runs),
         "last_ok_at": ensure_utc(last_ok.started_at).isoformat() if last_ok else None,

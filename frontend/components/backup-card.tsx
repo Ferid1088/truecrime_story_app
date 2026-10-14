@@ -25,6 +25,7 @@ export function BackupCard() {
   if (error && !data) return null; // the rest of the dashboard already shows API errors
   if (!data) return null;
   const form: BackupSettings = { ...data.settings, ...edits };
+  const scriptBackups = data.folder_backups ?? [];
 
   const set = <K extends keyof BackupSettings>(k: K, v: BackupSettings[K]) => setEdits({ ...edits, [k]: v });
 
@@ -66,7 +67,11 @@ export function BackupCard() {
         <div className="flex items-center gap-2">
           <HardDriveDownload className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">Database backup</h2>
-          {data.last_ok_at ? (
+          {scriptBackups[0] ? (
+            <span className="text-xs text-muted-foreground">
+              latest script backup: {formatDateTime(scriptBackups[0].created_at)}
+            </span>
+          ) : data.last_ok_at ? (
             <span className="text-xs text-muted-foreground">last successful: {formatDateTime(data.last_ok_at)}</span>
           ) : (
             <Badge variant="warning">no backup yet</Badge>
@@ -88,6 +93,24 @@ export function BackupCard() {
             {busy === "run" ? "Backing up…" : "Back up now"}
           </Button>
         </div>
+
+        {scriptBackups.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Backups created by <code>scripts/backup_db.sh</code> ({data.script_backup_dir})
+            </p>
+            <ul className="divide-y divide-border text-xs" aria-label="Script database backups">
+              {scriptBackups.slice(0, 5).map((backup) => (
+                <li key={backup.file_path} className="flex flex-wrap items-center gap-2 py-1.5">
+                  <Badge variant="success">on disk</Badge>
+                  <span className="text-muted-foreground">{formatDateTime(backup.created_at)}</span>
+                  <span className="min-w-0 flex-1 truncate" title={backup.file_path}>{backup.file_name}</span>
+                  <span className="text-muted-foreground">{mb(backup.size_bytes)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex items-center gap-2 text-sm">

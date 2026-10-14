@@ -29,7 +29,9 @@ export interface RunOptionsState {
 
 export function initialRunOptions(settings: DocumentarySettings): RunOptionsState {
   return {
-    languages: settings.languages,
+    // English is the safe default; additional configured languages remain
+    // available as explicit checkboxes and are never removed from settings.
+    languages: settings.languages.includes("en") ? ["en"] : settings.languages.slice(0, 1),
     mode: "pilot",
     pilotSeconds: String(settings.pilot_seconds),
     profile: "preview",

@@ -783,9 +783,18 @@ export type BackupRunRow = {
   size_bytes: number | null;
   error: string | null;
 };
+export type ScriptBackup = {
+  file_name: string;
+  file_path: string;
+  size_bytes: number;
+  sha256: string;
+  created_at: string;
+};
 export type BackupOverview = {
   settings: BackupSettings;
   database: string;
+  script_backup_dir: string;
+  folder_backups: ScriptBackup[];
   next_run_at: string | null;
   running: boolean;
   last_ok_at: string | null;

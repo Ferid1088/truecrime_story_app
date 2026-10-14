@@ -49,6 +49,14 @@ async function selectEnglishOnly(page: import("@playwright/test").Page) {
 }
 
 test.describe("Documentary cost preflight", () => {
+  test("defaults the language selection to English only", async ({ page }) => {
+    await mockDocumentary(page);
+    await page.goto("/documentary/1");
+    await expect(page.getByRole("checkbox", { name: "English", exact: true })).toBeChecked();
+    for (const language of ["German", "Persian", "Arabic"])
+      await expect(page.getByRole("checkbox", { name: language, exact: true })).not.toBeChecked();
+  });
+
   test("shows cap, spent-so-far, warnings, and the 120-second estimate", async ({ page }) => {
     await mockDocumentary(page);
     await page.goto("/documentary/1");

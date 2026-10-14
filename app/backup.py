@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 
 SETTINGS_KEY = "backup"
 NAME_RE = re.compile(r"^truecrime-backup-\d{8}-\d{6}\.(db|dump)$")
+SCRIPT_NAME_RE = re.compile(r"^truecrime_live_backup_(\d{8})_(\d{6})\.dump$")
 RETRY_AFTER = timedelta(minutes=30)
 _run_lock = threading.Lock()
 
@@ -52,6 +53,51 @@ class BackupSettings:
     every_hours: int = 24
     start_time: str = "02:00"
     keep_last: int = 14
+
+
+def script_backup_dir() -> Path:
+    """The folder used by scripts/backup_db.sh.
+
+    The shell script deliberately has no dependency on application settings, so the
+    dashboard reads the same environment override and default directly.
+    """
+    return Path(os.environ.get("TRUECRIME_BACKUP_DIR") or (Path.home() / "truecrime_backups")).expanduser()
+
+
+def list_script_backups(folder: Path | None = None) -> list[dict]:
+    """Return verified-on-disk backups written by scripts/backup_db.sh.
+
+    This is intentionally independent of BackupRun: the script is also used before
+    the application starts and therefore cannot be represented by an app DB row.
+    """
+    dest = folder or script_backup_dir()
+    if not dest.is_dir():
+        return []
+    backups: list[dict] = []
+    for path in dest.iterdir():
+        match = SCRIPT_NAME_RE.fullmatch(path.name)
+        if not match or not path.is_file():
+            continue
+        try:
+            stat = path.stat()
+            # pg_dump creates its destination before it can fail.  A zero-byte
+            # artifact is an attempted backup, not a usable backup to present
+            # as the latest copy.
+            if stat.st_size <= 0:
+                continue
+            stamp = datetime.strptime("_".join(match.groups()), "%Y%m%d_%H%M%S").replace(
+                tzinfo=utc_now().tzinfo
+            )
+            backups.append({
+                "file_name": path.name,
+                "file_path": str(path),
+                "size_bytes": stat.st_size,
+                "sha256": _sha256(path),
+                "created_at": stamp.isoformat(),
+            })
+        except (OSError, ValueError):
+            log.warning("could not inspect script backup %s", path)
+    return sorted(backups, key=lambda item: item["created_at"], reverse=True)
 
 
 def validate(raw: dict) -> BackupSettings:
