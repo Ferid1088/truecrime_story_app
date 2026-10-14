@@ -24,7 +24,8 @@ from app.lifecycle import videos as V
 from app.lifecycle.identity import Identity, IdentityIndex, compare, raw_identity, skeleton
 from app.lifecycle.monitor import UnsolvedCaseMonitor, detect_signals
 from app.lifecycle.selection import (
-    gate_solved, ingest_candidates, parse_date, prepare_candidates, recency_score,
+    case_legal_risk_flags, gate_solved, ingest_candidates, parse_date,
+    prepare_candidates, recency_score,
 )
 from app.lifecycle.status import set_resolution
 from app.research_engine.fetcher import FetchOutcome
@@ -265,6 +266,13 @@ def test_unverified_solved_claim_is_not_solved():
     assert status == "STATUS_UNDER_REVIEW" and "independent" in why
     v["supporting_urls"].append("https://polizei.example.de/presse/1")
     assert gate_solved(v, 0.8, 2)[0] == "SOLVED"
+
+
+def test_manual_case_without_conviction_has_legal_risk_flag(db_session):
+    case = _case(db_session, "Manual pending trial", summary="The suspect is charged and trial is pending.")
+    case.resolution_status = "SOLVED"
+    case.resolution_summary = "The suspect is charged; trial is ongoing."
+    assert case_legal_risk_flags(case) == ["ongoing trial", "suspect not convicted"]
 
 
 def test_discovery_job_uses_recent_queries_and_identity_index(db_session):
