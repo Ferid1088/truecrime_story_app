@@ -128,17 +128,27 @@ class TrueCrimeSearchProvider(ResearchProvider):
         return self.brave.is_available()
 
     async def check_health(self) -> bool:
+        if os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1":
+            return False
         h = await self.brave.health()
         return bool(h.get("healthy"))
 
     async def health_status(self) -> dict:
         """Return the discovery-style Brave probe, including result count."""
+        if os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1":
+            return {"backend": "brave", "healthy": False, "status": "failing",
+                    "reason": "test provider guard", "result_count": 0}
         return await self.brave.health()
 
     async def provider_status(self) -> dict:
         """Settings-page health (Part 50): backend + fetcher + LLM +
         embedding — no vendor-specific fields."""
-        brave = await self.brave.health()
+        if os.environ.get("TRUECRIME_TEST_NO_REAL_PROVIDERS") == "1":
+            brave = {"backend": "brave", "healthy": False,
+                     "status": "failing", "reason": "test provider guard",
+                     "result_count": 0}
+        else:
+            brave = await self.brave.health()
         emb_ok = self.embedder.is_configured()
         gen = None
         try:
