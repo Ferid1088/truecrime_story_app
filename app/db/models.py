@@ -246,6 +246,8 @@ class DiscoveryCandidate(Base):
     source_urls_json: Mapped[str] = mapped_column(Text, default="[]")
     recency_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     rank_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    legal_risk: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    legal_risk_reasons_json: Mapped[str] = mapped_column(Text, default="[]")
     suggestion_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     duplicate_of_case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duplicate_of_candidate_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

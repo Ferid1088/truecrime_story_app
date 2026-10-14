@@ -799,6 +799,28 @@ def _discovery_queries(theme: str | None, language: str = "en") -> list[str]:
     from datetime import datetime, timezone
 
     year = datetime.now(timezone.utc).year
+    normalized_theme = " ".join((theme or "").strip().lower().split())
+    if normalized_theme in {
+        "historical cases (before 2000)",
+        "historical cases before 2000",
+    }:
+        historical = {
+            "en": [
+                "historical murder case before 2000",
+                "cold case solved before 2000",
+                "murder trial verdict before 2000",
+                "missing person case before 2000",
+                "historical true crime case before 2000",
+            ],
+            "de": [
+                "historischer Mordfall vor 2000",
+                "Cold Case vor 2000 aufgeklärt",
+                "Mordprozess Urteil vor 2000",
+            ],
+            "fa": ["پرونده قتل تاریخی قبل از سال ۲۰۰۰", "پرونده حل‌شده قبل از ۲۰۰۰"],
+            "ar": ["قضية قتل تاريخية قبل عام 2000", "قضية باردة حُلت قبل عام 2000"],
+        }
+        return (historical.get(language) or historical["en"])[:6]
     seeds = (ai_config.case_selection.seed_queries.get(language)
              or ai_config.case_selection.seed_queries.get("en") or [])
     base = [q.replace("{year}", str(year)).replace("{last_year}", str(year - 1))

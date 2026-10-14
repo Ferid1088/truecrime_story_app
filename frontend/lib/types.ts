@@ -535,6 +535,8 @@ export interface SuggestionRecord {
   source_urls: string[];
   recency_score: number | null;
   rank_score: number | null;
+  legal_risk: boolean;
+  legal_risk_reasons: string[];
   /** Ranking, dates, status evidence and what it was checked against. */
   suggestion_reason: string | null;
   duplicate_of_case_id: number | null;

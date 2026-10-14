@@ -241,6 +241,42 @@ def _recency(raw: dict) -> tuple[float, str]:
 
 _EMPTY = {"", "unknown", "n/a", "na", "none", "null", "-", "?", "unbekannt"}
 
+_LEGAL_RISK_PATTERNS = (
+    ("ongoing trial", re.compile(
+        r"\b(?:ongoing|pending|current|active)\s+(?:criminal\s+)?trial\b|"
+        r"\btrial\s+(?:is\s+)?ongoing\b|\btrial\s+underway\b", re.I)),
+    ("minors involved", re.compile(
+        r"\b(?:minor|minor[s']|child|children|juvenile|underage|teenager|teen)\b",
+        re.I)),
+)
+_CONVICTION_TERMS = re.compile(
+    r"\b(?:convicted|conviction|found guilty|guilty verdict|sentenced|pleaded guilty|"
+    r"plea agreement|life in prison)\b", re.I)
+_SUSPECT_TERMS = re.compile(
+    r"\b(?:suspect|accused|defendant|charged|arrested|alleged|prosecutor)\b", re.I)
+
+
+def legal_risk_flags(raw: dict, verdict: dict | None = None) -> list[str]:
+    """Return plain-language legal cautions for a discovery suggestion.
+
+    Discovery is not a legal finding. The flags are intentionally conservative:
+    an unverified or non-convicted status is surfaced for editorial review.
+    """
+    verification = verdict or raw.get("verification") or {}
+    text = " ".join(
+        str(raw.get(key) or "")
+        for key in ("title", "rationale", "resolution_evidence", "suggested_queries")
+    )
+    text += " " + " ".join(
+        str(verification.get(key) or "")
+        for key in ("reason", "latest_development", "solved_by", "key_facts")
+    )
+    reasons = [label for label, pattern in _LEGAL_RISK_PATTERNS if pattern.search(text)]
+    status = normalize_status(verification.get("status") or raw.get("resolution_status"))
+    if status != SOLVED or (_SUSPECT_TERMS.search(text) and not _CONVICTION_TERMS.search(text)):
+        reasons.append("suspect not convicted")
+    return list(dict.fromkeys(reasons))
+
 
 def _clean(raw: dict) -> dict:
     """Extraction placeholders ("UNKNOWN") are no data."""
@@ -326,6 +362,9 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
             conf, evidence = None, (raw.get("resolution_evidence") or "status not verified")
             why = "status claimed by the discovery extraction, not verified"
             source = "claimed"
+        risk_reasons = legal_risk_flags(raw, v)
+        raw["legal_risk"] = bool(risk_reasons)
+        raw["legal_risk_reasons"] = risk_reasons
         rec, rec_how = _recency(raw)
         score = status_score(status, rec)
         raw["selection"].update({"status": status, "status_confidence": conf,
@@ -337,8 +376,11 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
             raw["selection"]["reason"] = ("UNSOLVED — the standard pipeline suggests solved "
                                           "cases (include_unsolved to see it)")
 
-    eligible = sorted([r for r in fresh if r["selection"]["state"] == "eligible"],
-                      key=lambda r: r["selection"]["rank"], reverse=True)
+    eligible = sorted(
+        [r for r in fresh if r["selection"]["state"] == "eligible"],
+        key=lambda r: (not bool(r.get("legal_risk")), r["selection"]["rank"]),
+        reverse=True,
+    )
     for pos, raw in enumerate(eligible):
         sel = raw["selection"]
         if pos < count:
@@ -420,6 +462,8 @@ def ingest_candidates(db: Session, result: dict, *, count: int, include_unsolved
             people_json=_json(raw.get("key_people")),
             source_urls_json=_json(raw.get("source_urls")),
             recency_score=sel.get("recency"), rank_score=sel.get("rank"),
+            legal_risk=bool(raw.get("legal_risk")),
+            legal_risk_reasons_json=_json(raw.get("legal_risk_reasons")),
             suggestion_reason=sel.get("reason"),
             duplicate_of_case_id=dup.get("matched_id") if is_dup and dup.get("matched_kind") == "case" else None,
             duplicate_of_candidate_id=(dup.get("matched_id") if is_dup and dup.get("matched_kind")
@@ -444,7 +488,10 @@ def ingest_candidates(db: Session, result: dict, *, count: int, include_unsolved
                     "verification": raw.get("verification"),
                     "already_covered": is_dup})
     suggested = [c for c in out if c["state"] == "suggested"]
-    suggested.sort(key=lambda c: c.get("rank_score") or 0, reverse=True)
+    suggested.sort(
+        key=lambda c: (not bool(c.get("legal_risk")), c.get("rank_score") or 0),
+        reverse=True,
+    )
     others = [c for c in out if c["state"] != "suggested"]
     return {"candidates": suggested, "rejected": others, "skipped_duplicates": skipped,
             "selection_stats": stats}
@@ -475,6 +522,8 @@ def candidate_dict(c) -> dict:
         "people": json.loads(c.people_json or "[]"),
         "source_urls": json.loads(c.source_urls_json or "[]"),
         "recency_score": c.recency_score, "rank_score": c.rank_score,
+        "legal_risk": c.legal_risk,
+        "legal_risk_reasons": json.loads(c.legal_risk_reasons_json or "[]"),
         "suggestion_reason": c.suggestion_reason,
         "duplicate_of_case_id": c.duplicate_of_case_id,
         "duplicate_of_candidate_id": c.duplicate_of_candidate_id,

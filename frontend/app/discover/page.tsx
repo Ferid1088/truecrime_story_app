@@ -27,12 +27,14 @@ const COUNTS = [5, 10, 20];
 /** Open suggestions of earlier runs shown at most. */
 const HISTORY_LIMIT = 20;
 const DISCOVERY_JOB_KEY = "truecrime.discovery.job_id";
+const HISTORICAL_THEME = "historical cases (before 2000)";
 
 export default function DiscoverPage() {
   const router = useRouter();
   const [count, setCount] = useState(5);
   const [langs, setLangs] = useState<string[]>(["en"]);
   const [theme, setTheme] = useState("true crime");
+  const [customTheme, setCustomTheme] = useState("");
   const [preferUndercovered, setPreferUndercovered] = useState(true);
   const [requireMulti, setRequireMulti] = useState(false);
   const [searchYt, setSearchYt] = useState(true);
@@ -270,7 +272,7 @@ export default function DiscoverPage() {
       <SearchHealthWarning />
       <PageHeader
         title="Find New Cases"
-        description="Recent, solved cases nobody has covered yet — each suggestion says why, with its status evidence."
+        description="Discover cases nobody has covered yet — each suggestion says why, with status evidence and legal-risk cautions."
       />
 
       <Card className="mb-6">
@@ -310,7 +312,31 @@ export default function DiscoverPage() {
             </div>
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">Theme</p>
-              <Input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="true crime" />
+              <select
+                aria-label="Theme"
+                value={theme === "true crime" || theme === HISTORICAL_THEME ? theme : "custom"}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "custom") setTheme(customTheme);
+                  else setTheme(value);
+                }}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+              >
+                <option value="true crime">Recent true crime</option>
+                <option value={HISTORICAL_THEME}>Historical cases (before 2000)</option>
+                <option value="custom">Custom theme</option>
+              </select>
+              {theme !== "true crime" && theme !== HISTORICAL_THEME && (
+                <Input
+                  className="mt-2"
+                  value={customTheme}
+                  onChange={(e) => {
+                    setCustomTheme(e.target.value);
+                    setTheme(e.target.value);
+                  }}
+                  placeholder="e.g. missing persons in Scandinavia"
+                />
+              )}
             </div>
           </div>
 
@@ -563,11 +589,22 @@ function CandidateCard({
             <ResolutionBadge status={c.resolution_status} confidence={c.resolution_confidence} size="lg" />
           </CardTitle>
         </div>
+        {c.legal_risk && (
+          <Badge variant="danger" title={c.legal_risk_reasons?.join(", ") || "Legal review needed"}>
+            Legal risk
+          </Badge>
+        )}
         <Badge variant={c.already_covered ? "warning" : "success"}>
           {c.already_covered ? "Already covered" : "New"}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
+        {c.legal_risk && (
+          <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+            <span className="font-medium">Legal review needed:</span>{" "}
+            {(c.legal_risk_reasons ?? ["editorial/legal review recommended"]).join(", ")}
+          </div>
+        )}
         <CaseFacts c={c} />
 
         {c.suggestion_reason && (

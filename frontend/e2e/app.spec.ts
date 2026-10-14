@@ -36,6 +36,8 @@ const CANDIDATES = {
       key_people: ["Thomas Marshall"],
       location: "Scotland",
       approximate_date: "1900-12",
+      legal_risk: true,
+      legal_risk_reasons: ["suspect not convicted"],
     },
   ],
   skipped_duplicates: 1,
@@ -96,6 +98,14 @@ test.describe("Discover", () => {
     await expect(page.getByTestId("discovery-job-status")).toBeVisible();
     await expect(page.getByText("The Vanishing of the Flannan Isles Keepers")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("1 duplicate rejected")).toBeVisible();
+    await expect(page.getByText("Legal risk")).toBeVisible();
+    await expect(page.getByText("suspect not convicted")).toBeVisible();
+  });
+
+  test("offers the historical pre-2000 discovery theme", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/discover");
+    await expect(page.getByLabel("Theme").locator("option", { hasText: "Historical cases (before 2000)" })).toBeVisible();
   });
 
   test("does not show completed when the returned job is missing from the API", async ({ page }) => {
