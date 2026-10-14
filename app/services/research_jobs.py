@@ -75,6 +75,26 @@ def create_job(
     return job
 
 
+def _payload_value(payload, name: str, default=None):
+    if isinstance(payload, dict):
+        return payload.get(name, default)
+    return getattr(payload, name, default)
+
+
+def _discovery_input(payload) -> dict:
+    return {
+        "count": _payload_value(payload, "count", 5),
+        "languages": _payload_value(payload, "languages", ["en"]),
+        "theme": _payload_value(payload, "theme", "true crime"),
+        "prefer_undercovered": bool(_payload_value(payload, "prefer_undercovered", True)),
+        "require_multiple_sources": bool(_payload_value(payload, "require_multiple_sources", False)),
+        "search_web": bool(_payload_value(payload, "search_web", True)),
+        "search_youtube": bool(_payload_value(payload, "search_youtube", True)),
+        "avoid_existing": bool(_payload_value(payload, "avoid_existing", True)),
+        "include_unsolved": bool(_payload_value(payload, "include_unsolved", False)),
+    }
+
+
 def _persist_provenance(db: Session, job: ResearchJob, result: dict) -> dict[int, int]:
     """Relational query -> result provenance (Part 5).
 
@@ -153,40 +173,35 @@ def _apply_job_telemetry(job: ResearchJob, result: dict | None):
         job.model = ", ".join(models)[:200]
 
 
-async def start_discovery_job(db: Session, payload) -> ResearchJob:
-    provider = get_research_provider()
-    if not provider.is_configured():
-        raise ProviderError(
-            "missing_key",
-            "Research engine is not configured — set TRUECRIME_SEARXNG_URL or search_engine.searxng_url.",
-        )
-
-    job = create_job(
-        db,
-        job_type="discovery",
-        input_data={
-            "count": payload.count,
-            "languages": payload.languages,
-            "theme": payload.theme,
-            "include_unsolved": bool(getattr(payload, "include_unsolved", False)),
-        },
-    )
-    from app.lifecycle.identity import IdentityIndex
-
+async def start_discovery_job(db: Session, payload, job: ResearchJob | None = None) -> ResearchJob:
+    if job is None:
+        job = create_job(db, job_type="discovery", input_data=_discovery_input(payload))
     try:
+        provider = get_research_provider()
+        if not provider.is_configured():
+            raise ProviderError(
+                "search_unconfigured",
+                "Research search is not configured — set TRUECRIME_SEARXNG_URL or search_engine.searxng_url.",
+            )
+        job.current_stage = "starting"
+        db.commit()
+        from app.lifecycle.identity import IdentityIndex
+
         external_id = await provider.start_discovery(
-            count=payload.count,
-            languages=payload.languages,
-            theme=payload.theme,
-            prefer_undercovered=payload.prefer_undercovered,
-            require_multiple_sources=payload.require_multiple_sources,
+            count=_payload_value(payload, "count", 5),
+            languages=_payload_value(payload, "languages", ["en"]),
+            theme=_payload_value(payload, "theme", "true crime"),
+            prefer_undercovered=_payload_value(payload, "prefer_undercovered", True),
+            require_multiple_sources=_payload_value(payload, "require_multiple_sources", False),
             existing_titles=known_case_titles(db),
             known_identities=IdentityIndex.from_db(db).to_list(),
-            include_unsolved=bool(getattr(payload, "include_unsolved", False)),
+            include_unsolved=bool(_payload_value(payload, "include_unsolved", False)),
         )
     except Exception as e:
         job.status = "failed"
+        job.current_stage = "failed"
         job.error = str(e)[:500]
+        job.error_code = getattr(e, "kind", "provider_error")
         job.completed_at = utc_now()
         db.commit()
         raise
@@ -197,6 +212,31 @@ async def start_discovery_job(db: Session, payload) -> ResearchJob:
     db.commit()
     db.refresh(job)
     return job
+
+
+async def run_discovery_job(job_id: int, input_data: dict) -> None:
+    """Submit one discovery job without tying provider latency to HTTP."""
+    from app.db.base import SessionLocal
+    from app.schemas import TopicDiscoveryRequest
+
+    db = SessionLocal()
+    try:
+        job = db.get(ResearchJob, job_id)
+        if not job:
+            return
+        payload = TopicDiscoveryRequest.model_validate(input_data)
+        await start_discovery_job(db, payload, job=job)
+    except Exception as e:  # noqa: BLE001 - persist every background failure
+        job = db.get(ResearchJob, job_id)
+        if job:
+            job.status = "failed"
+            job.current_stage = "failed"
+            job.error = str(e)[:500]
+            job.error_code = getattr(e, "kind", "provider_error")
+            job.completed_at = job.completed_at or utc_now()
+            db.commit()
+    finally:
+        db.close()
 
 
 async def start_research_job(db: Session, case: Case, job: ResearchJob | None = None,
@@ -315,8 +355,24 @@ def _ingest_discovery(db: Session, job: ResearchJob, result: dict):
     out = ingest_candidates(
         db, result, count=int(params.get("count") or 5),
         include_unsolved=bool(params.get("include_unsolved")), job_id=job.id)
-    job.result_summary = (f"candidates={len(out['candidates'])} "
-                          f"duplicates_rejected={out['skipped_duplicates']}")
+    if out["candidates"]:
+        job.result_summary = (f"candidates={len(out['candidates'])} "
+                              f"duplicates_rejected={out['skipped_duplicates']}")
+    else:
+        raw_count = len(result.get("candidates") or [])
+        rejected_count = len(out.get("rejected") or [])
+        if raw_count == 0:
+            reason = "the provider returned no usable candidate records"
+        elif rejected_count:
+            reason = "all returned candidates were rejected by duplicate or status filters"
+        else:
+            reason = "the provider returned no suggested candidates"
+        out["no_candidates_reason"] = reason
+        job.result_summary = f"No candidates: {reason}"
+    if out["candidates"]:
+        job.result_summary = (
+            f"{job.result_summary} | provider candidates={len(result.get('candidates') or [])}"
+        )[:500]
     return out
 
 

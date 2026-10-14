@@ -1072,6 +1072,7 @@ export interface ResearchJob {
     rejected?: DiscoveryCandidate[];
     selection_stats?: SelectionStats;
     skipped_duplicates?: number;
+    no_candidates_reason?: string;
     sources_added?: number;
     language_stats?: Record<string, LanguageRunStats>;
     stop_reason?: string;

@@ -10,15 +10,14 @@ the run replays deterministically in the query inspector.
 from __future__ import annotations
 
 from app.agents.runner import run_agent
-
-from app.core.prompts import prompt
-
 import logging
 import re
 import time
 from dataclasses import dataclass
 
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
+from app.providers.base import ProviderError
 from app.research_engine.dedupe import SourceFamilyDetector
 from app.research_engine.content_filter import inspect_result
 from app.research_engine.embeddings import cosine_matrix
@@ -613,6 +612,12 @@ class ResearchOrchestrator:
         progress = progress or Progress()
         tel = _telemetry()
         self._bind_llm(tel)
+        if self.gen is None:
+            raise ProviderError(
+                "generation_unconfigured",
+                "Discovery needs the configured generation provider for candidate extraction; "
+                "set TRUECRIME_APIMASTER_API_KEY and retry.",
+            )
         time_range = ai_config.case_selection.discovery_time_range or None
         found: list[dict] = []
         queries_out: list[dict] = []

@@ -2,14 +2,17 @@
 
 Active research runs on the TrueCrime Search Engine (SearXNG +
 fetcher); provider HTTP is mocked — no live requests."""
+import asyncio
 import json
 from contextlib import ExitStack
-
-import pytest
 from unittest.mock import patch
 
+import pytest
+
+from app.db.models import Case, DiscoveryCandidate, ResearchJob, Source
 from app.providers.base import ProviderError, ProviderJob
-from app.db.models import Case, ResearchJob, Source, DiscoveryCandidate
+from app.providers.generation.recorded import RecordedE2EGenerationProvider
+from app.services import research_jobs
 
 
 class FakeProvider:
@@ -40,6 +43,41 @@ class FakeProvider:
         if self._poll_job:
             return self._poll_job
         return ProviderJob(external_id=external_id, status="running")
+
+
+class RecordedDiscoveryProvider(FakeProvider):
+    """A recorded search job whose candidate extraction uses the E2E payload."""
+
+    def __init__(self):
+        super().__init__()
+        self.generation = RecordedE2EGenerationProvider()
+
+    async def poll(self, external_id):
+        extracted, _ = await self.generation.generate_structured(
+            "case_discovery_agent",
+            "recorded discovery system",
+            json.dumps({
+                "results": [{
+                    "title": "The Harbor Ledger Disappearance",
+                    "query": "recent solved true crime case",
+                    "url": "https://recorded.example/harbor-ledger",
+                }],
+                "max_candidates": 1,
+            }),
+        )
+        return ProviderJob(
+            external_id=external_id,
+            status="completed",
+            result={
+                "candidates": extracted["candidates"],
+                "queries": [{"language": "en", "query": "recent solved true crime case"}],
+                "_telemetry": {"searches": 5, "input_tokens": 12,
+                                "output_tokens": 18, "cost_usd": 0.001},
+            },
+        )
+
+    async def start_discovery(self, **kwargs):
+        return "recorded-discovery"
 
 
 def _provider_patch(provider):
@@ -96,6 +134,25 @@ def test_research_status_configured_unreachable(client):
 # ---------------------------------------------------------------------------
 
 
+def test_discovery_returns_candidates_with_recorded_provider(client, db_session):
+    provider = RecordedDiscoveryProvider()
+    payload = {"count": 1, "languages": ["en"], "theme": "true crime"}
+    with _provider_patch(provider):
+        started = client.post("/api/topics/discover", json=payload)
+        assert started.status_code == 200
+        body = started.json()
+        assert body["status"] == "queued"
+        asyncio.run(research_jobs.run_discovery_job(body["job_id"], payload))
+        job = client.get(f"/api/research-jobs/{body['job_id']}").json()
+
+    assert job["status"] == "completed"
+    assert job["result"]["candidates"][0]["title"] == "The Harbor Ledger Disappearance"
+    assert job["total_tokens"] == 30
+    assert db_session.query(DiscoveryCandidate).filter_by(
+        title="The Harbor Ledger Disappearance"
+    ).count() == 1
+
+
 def test_discovery_returns_job_and_completes(client, db_session):
     result = {
         "candidates": [
@@ -125,8 +182,14 @@ def test_discovery_returns_job_and_completes(client, db_session):
         )
         assert r.status_code == 200
         body = r.json()
-        assert body["status"] == "running"
+        assert body["status"] == "queued"
         job_id = body["job_id"]
+
+        # TestClient closes its request portal as soon as the response is
+        # returned, so drive the same persisted background entry point here.
+        asyncio.run(research_jobs.run_discovery_job(job_id, {
+            "count": 2, "languages": ["en"], "theme": "cold case",
+        }))
 
         r = client.get(f"/api/research-jobs/{job_id}")
         job = r.json()
@@ -138,7 +201,9 @@ def test_discovery_returns_job_and_completes(client, db_session):
         assert candidates[0]["candidate_id"]
 
     # the duplicate is stored too — with the reason it was rejected (audit)
-    stored = db_session.query(DiscoveryCandidate).order_by(DiscoveryCandidate.id).all()
+    stored = (db_session.query(DiscoveryCandidate)
+              .filter(DiscoveryCandidate.discovery_job_id == job_id)
+              .order_by(DiscoveryCandidate.id).all())
     states = {c.title: c.state for c in stored}
     assert states == {"The Lighthouse Keeper Vanishing": "suggested", "Duplicate Case": "duplicate"}
     dup = next(c for c in stored if c.state == "duplicate")
@@ -146,13 +211,19 @@ def test_discovery_returns_job_and_completes(client, db_session):
 
 
 def test_discovery_fails_cleanly_when_unconfigured(client):
-    """With the search engine unconfigured, discovery and research answer
-    503 — there is no unchecked fallback path."""
+    """An unavailable provider becomes a visible failed job, not a hung POST."""
     provider = FakeProvider(configured=False)
     with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
         r = client.post("/api/topics/discover", json={"count": 3, "languages": ["en"]})
-        assert r.status_code == 503
-        assert r.json()["code"] == "SEARCH_UNAVAILABLE"
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "queued"
+        asyncio.run(research_jobs.run_discovery_job(body["job_id"], {
+            "count": 3, "languages": ["en"],
+        }))
+        failed = client.get(f"/api/research-jobs/{body['job_id']}").json()
+        assert failed["status"] == "failed"
+        assert "not configured" in failed["error"]
         case_id = client.post("/api/cases", json={"canonical_title": "No Engine Case",
                                                   "language": "en", "force": True}).json()["id"]
         r2 = client.post(f"/api/cases/{case_id}/research")

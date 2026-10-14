@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.deps import duplicate_or_409, unique_slug
 from app.db.base import get_db
 from app.db.models import (
     Case,
@@ -10,30 +11,28 @@ from app.db.models import (
     ResearchJob,
     ResearchQuery,
 )
-from app.schemas import (
-    TopicDiscoveryRequest,
-    InvestigateCandidateRequest,
-)
-from app.providers.base import ProviderError
-from app.services import research_jobs
-
-
 from app.lifecycle.api import resolution_dict
-from app.api.deps import duplicate_or_409, unique_slug
-from app.api import deps
+from app.schemas import InvestigateCandidateRequest, TopicDiscoveryRequest
+from app.services import research_jobs
 
 router = APIRouter()
 
 
 @router.post("/api/topics/discover")
 async def discover_topics(payload: TopicDiscoveryRequest, db: Session = Depends(get_db)):
-    """Candidate discovery runs as a job on the search engine (duplicate and
-    status checks included); there is no second, unchecked path."""
-    await deps.require_search_available()
-    try:
-        job = await research_jobs.start_discovery_job(db, payload)
-    except ProviderError as e:
-        raise HTTPException(status_code=503, detail=f"Research provider unavailable: {e}") from e
+    """Create the durable job and return immediately.
+
+    Provider submission belongs to the background task. A search-engine health
+    check or a slow provider must never hold the browser request open.
+    """
+    input_data = payload.model_dump()
+    job = research_jobs.create_job(db, job_type="discovery", input_data=input_data)
+    from app.core.tasks import spawn
+
+    spawn(
+        research_jobs.run_discovery_job(job.id, input_data),
+        name=f"discovery:{job.id}",
+    )
     return {"job_id": job.id, "status": job.status}
 
 

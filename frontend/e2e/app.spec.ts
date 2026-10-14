@@ -93,7 +93,7 @@ test.describe("Discover", () => {
     });
     await page.goto("/discover");
     await page.getByRole("button", { name: /discover new cases/i }).click();
-    await expect(page.getByText(/queued|running|searching the web/i)).toBeVisible();
+    await expect(page.getByTestId("discovery-job-status")).toBeVisible();
     await expect(page.getByText("The Vanishing of the Flannan Isles Keepers")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("1 duplicate rejected")).toBeVisible();
   });
@@ -104,8 +104,23 @@ test.describe("Discover", () => {
     });
     await page.goto("/discover");
     await page.getByRole("button", { name: /discover new cases/i }).click();
-    await expect(page.getByText("Research provider unreachable")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Research provider unreachable", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".animate-pulse")).toHaveCount(0);
+  });
+
+  test("resumes a running discovery job after navigating away and back", async ({ page }) => {
+    await mockApi(page, {
+      researchJob: (n) =>
+        n < 2 ? jobBody("running") : jobBody("completed", CANDIDATES),
+    });
+    await page.goto("/discover");
+    await page.getByRole("button", { name: /discover new cases/i }).click();
+    await expect(page.getByTestId("discovery-job-status")).toContainText("running");
+
+    await page.goto("/cases");
+    await page.goto("/discover");
+    await expect(page.getByText("The Vanishing of the Flannan Isles Keepers")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("discovery-job-status")).toContainText("completed");
   });
 });
 

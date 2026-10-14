@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Compass, Globe, History, MapPin, Sparkles, Users } from "lucide-react";
 import { api, duplicateConflict, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import type { DiscoveryCandidate, DuplicateConflict, SelectionStats } from "@/lib/types";
+import type { DiscoveryCandidate, DuplicateConflict, ResearchJob, SelectionStats } from "@/lib/types";
 import { LANGUAGES, formatDateTime, humanize, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const LANG_OPTIONS = ["en", "de", "fa", "ar", "other"];
 const COUNTS = [5, 10, 20];
 /** Open suggestions of earlier runs shown at most. */
 const HISTORY_LIMIT = 20;
+const DISCOVERY_JOB_KEY = "truecrime.discovery.job_id";
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -46,8 +47,11 @@ export default function DiscoverPage() {
   const [conflicts, setConflicts] = useState<Record<number, DuplicateConflict>>({});
   const [skippedDupes, setSkippedDupes] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
+  const [jobId, setJobId] = useState<number | null>(null);
+  const [jobStatus, setJobStatus] = useState<ResearchJob["status"] | null>(null);
   const [jobStage, setJobStage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [noCandidatesReason, setNoCandidatesReason] = useState<string | null>(null);
   const [busy, setBusy] = useState<{ id: number; force: boolean } | null>(null);
   const pollAbort = useRef<AbortController | null>(null);
 
@@ -55,7 +59,105 @@ export default function DiscoverPage() {
   const history = useApi(() => api.discoveryHistory("suggested"), []);
   const openHistory = (history.data ?? []).slice(0, HISTORY_LIMIT);
 
-  useEffect(() => () => pollAbort.current?.abort(), []);
+  const applyJob = useCallback((job: ResearchJob) => {
+    setJobId(job.id);
+    setJobStatus(job.status);
+    try {
+      window.localStorage.setItem(DISCOVERY_JOB_KEY, String(job.id));
+    } catch {
+      // Private browsing or a blocked storage policy should not stop polling.
+    }
+
+    const active = job.status === "queued" || job.status === "running";
+    setRunning(active);
+    setJobStage(
+      active
+        ? job.status === "queued"
+          ? "Discovery job queued…"
+          : job.current_stage === "verifying_status"
+            ? "Verifying whether the best candidates are solved…"
+            : "Research is searching the web and deduplicating against your archive…"
+        : null,
+    );
+    if (job.status === "failed") {
+      setError(job.error || "Discovery job failed without an error message.");
+      return;
+    }
+    if (job.status !== "completed") return;
+
+    setError(null);
+    const result = job.result;
+    setCandidates(result?.candidates ?? []);
+    setRejected(result?.rejected ?? []);
+    setStats(result?.selection_stats ?? null);
+    setSkippedDupes(result?.skipped_duplicates ?? null);
+    setNoCandidatesReason(
+      result?.candidates?.length
+        ? null
+        : result?.no_candidates_reason
+          ?? (job.result_summary?.replace(/^No candidates:\s*/i, "")
+            || "the provider completed without returning usable candidate records"),
+    );
+    setFromHistory(false);
+    setIgnored(new Set());
+    setConflicts({});
+  }, []);
+
+  const pollDiscovery = useCallback(async (id: number, signal: AbortSignal) => {
+    const job = await pollResearchJob(id, {
+      signal,
+      onUpdate: applyJob,
+    });
+    applyJob(job);
+  }, [applyJob]);
+
+  useEffect(() => {
+    const ctl = new AbortController();
+    pollAbort.current = ctl;
+
+    async function resumeDiscovery() {
+      try {
+        let job: ResearchJob | null = null;
+        let storedId: number | null = null;
+        try {
+          const raw = window.localStorage.getItem(DISCOVERY_JOB_KEY);
+          storedId = raw ? Number(raw) : null;
+        } catch {
+          storedId = null;
+        }
+
+        if (storedId != null && Number.isFinite(storedId)) {
+          try {
+            const stored = await api.researchJob(storedId);
+            if (stored.job_type === "discovery") job = stored;
+          } catch {
+            try { window.localStorage.removeItem(DISCOVERY_JOB_KEY); } catch { /* ignore */ }
+          }
+        }
+        if (!job) {
+          const jobs = await api.listResearchJobs();
+          const latest = jobs.find((candidate) => candidate.job_type === "discovery");
+          if (latest) job = await api.researchJob(latest.id);
+        }
+        if (!job || ctl.signal.aborted) return;
+        applyJob(job);
+        if (job.status === "queued" || job.status === "running") {
+          await pollDiscovery(job.id, ctl.signal);
+        }
+      } catch (e) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          setError(e instanceof Error ? e.message : String(e));
+          setRunning(false);
+        }
+      }
+    }
+
+    void resumeDiscovery();
+    return () => {
+      ctl.abort();
+      if (pollAbort.current === ctl) pollAbort.current = null;
+    };
+  }, [applyJob, pollDiscovery]);
 
   const toggleLang = (l: string) =>
     setLangs((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
@@ -80,30 +182,17 @@ export default function DiscoverPage() {
         include_unsolved: includeUnsolved,
       });
       if (res.job_id != null) {
-        const job = await pollResearchJob(res.job_id, {
-          signal: ctl.signal,
-          onUpdate: (j) =>
-            setJobStage(
-              j.status === "queued"
-                ? "Discovery job queued…"
-                : j.current_stage === "verifying_status"
-                  ? "Verifying whether the best candidates are solved…"
-                  : "Research is searching the web and deduplicating against your archive…",
-            ),
-        });
-        if (job.status === "failed") {
-          throw new Error(job.error || "Research provider unavailable");
-        }
-        setCandidates(job.result?.candidates ?? []);
-        setRejected(job.result?.rejected ?? []);
-        setStats(job.result?.selection_stats ?? null);
-        setSkippedDupes(job.result?.skipped_duplicates ?? null);
+        try { window.localStorage.setItem(DISCOVERY_JOB_KEY, String(res.job_id)); } catch { /* ignore */ }
+        setJobId(res.job_id);
+        await pollDiscovery(res.job_id, ctl.signal);
       } else {
         const result = res.result as { candidates?: DiscoveryCandidate[] } | undefined;
         setCandidates(result?.candidates ?? []);
         setRejected([]);
         setStats(null);
         setSkippedDupes(null);
+        setJobStatus("completed");
+        setNoCandidatesReason(result?.candidates?.length ? null : "the discovery response contained no candidates");
       }
       setFromHistory(false);
       setIgnored(new Set());
@@ -113,8 +202,10 @@ export default function DiscoverPage() {
         setError(e instanceof Error ? e.message : String(e));
       }
     } finally {
-      setRunning(false);
-      setJobStage(null);
+      if (pollAbort.current === ctl) {
+        setRunning(false);
+        setJobStage(null);
+      }
     }
   }
 
@@ -244,6 +335,12 @@ export default function DiscoverPage() {
               <Sparkles className="size-4" />
               Discover New Cases
             </Button>
+            {jobStatus && (
+              <span className="text-xs text-muted-foreground" data-testid="discovery-job-status">
+                Discovery job #{jobId}: {jobStatus === "queued" ? "queued" : jobStatus}
+                {jobStatus === "failed" && error ? ` — ${error}` : ""}
+              </span>
+            )}
             {running && (
               <span className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="size-2 animate-pulse rounded-full bg-amber-500" />
@@ -285,8 +382,12 @@ export default function DiscoverPage() {
 
       {!running && visible.length === 0 && !error && candidates.length === 0 && (
         <EmptyState
-          title="No candidates yet"
-          description="Configure the discovery options above and run the Discovery Agent."
+          title={jobStatus === "completed" ? "No candidates found" : "No candidates yet"}
+          description={
+            jobStatus === "completed"
+              ? `No candidates: ${noCandidatesReason || "the provider returned no usable candidate records"}`
+              : "Configure the discovery options above and run the Discovery Agent."
+          }
           action={
             openHistory.length > 0 ? (
               <Button variant="outline" size="sm" onClick={showHistory}>

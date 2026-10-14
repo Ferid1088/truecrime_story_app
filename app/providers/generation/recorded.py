@@ -44,6 +44,31 @@ class RecordedE2EGenerationProvider(GenerationProvider):
                                   "spoiler_risk": 0.1, "epistemic_risk": 0.1,
                                   "native_quality": 0.95, "reason": "recorded payload"}
                                  for title in titles_in]}, self._result(role))
+        if role == "case_discovery_agent":
+            results = payload.get("results") or []
+            candidates = []
+            for item in results[:12]:
+                title = str(item.get("title") or "").strip()
+                if not title:
+                    continue
+                candidates.append({
+                    "title": title,
+                    "aliases": [],
+                    "key_people": [],
+                    "location": "",
+                    "incident_date": None,
+                    "latest_development_date": "2026-01-01",
+                    "resolution_status": "SOLVED",
+                    "resolution_evidence": "Recorded provider evidence.",
+                    "source_urls": [item.get("url")] if item.get("url") else [],
+                    "rationale": "Recorded provider candidate from the discovery result.",
+                    "narrative_potential": 0.8,
+                    "source_richness": "high",
+                    "languages_available": ["en"],
+                    "suggested_queries": [item.get("query") or title],
+                    "angles": ["The documented sequence of events"],
+                })
+            return ({"candidates": candidates}, self._result(role))
         if role in {"shorts.write", "chapter_writer"}:
             spoken = str(payload.get("spoken_text") or "Recorded evidence-led short.").strip()
             language_code = str(payload.get("language") or "en")
