@@ -504,6 +504,20 @@ function JobPanel({
     job.status === "interrupted";
   const resumeDisabled = canResume && job.resume_allowed === false;
   const languageErrors = Object.entries(job.result.errors ?? {});
+  const approvalStage = job.stages.find((stage) => stage.name === "master_approval");
+  const approvalDetail = approvalStage?.detail && typeof approvalStage.detail === "object"
+    ? approvalStage.detail as Record<string, unknown>
+    : null;
+  const approvalAttempts = approvalDetail && Array.isArray(approvalDetail.attempts)
+    ? approvalDetail.attempts as Array<Record<string, unknown>>
+    : [];
+  const lastAttempt = approvalAttempts.at(-1);
+  const gates = lastAttempt?.quality_gates && typeof lastAttempt.quality_gates === "object"
+    ? lastAttempt.quality_gates as Record<string, unknown>
+    : null;
+  const failures = Array.isArray(approvalDetail?.reasons)
+    ? approvalDetail.reasons.map(String)
+    : [];
 
   return (
     <Card>
@@ -588,6 +602,27 @@ function JobPanel({
           <p className="rounded-md border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs">
             <span className="font-medium">Next:</span> {job.next_action}
           </p>
+        )}
+        {gates && failures.length > 0 && (
+          <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs leading-5" data-testid="master-approval-diagnostics">
+            <p className="font-medium">Master approval checks</p>
+            <ul className="mt-1 space-y-0.5">
+              {failures.map((failure) => {
+                if (failure === "length_out_of_range" && typeof gates.actual_minutes === "number") {
+                  const target = Number(gates.target_minutes ?? approvalDetail?.target_minutes ?? 0);
+                  const allowed = gates.allowed_minutes as { min?: number; max?: number } | undefined;
+                  return <li key={failure}>Length failed: story {gates.actual_minutes.toFixed(1)} min, allowed {target.toFixed(1)} min ({Number(allowed?.min ?? 0).toFixed(1)}–{Number(allowed?.max ?? 0).toFixed(1)} min).</li>;
+                }
+                if (failure === "grounding" && typeof gates.grounding_score === "number") {
+                  return <li key={failure}>Grounding failed: score {gates.grounding_score.toFixed(2)}, required {Number(gates.grounding_threshold ?? 0).toFixed(2)}; unsupported claims {Number(gates.grounding_unsupported_claims ?? 0)}/{Number(gates.grounding_max_unsupported_claims ?? 0)}.</li>;
+                }
+                if (failure === "engagement_below_threshold" && typeof gates.engagement_score === "number") {
+                  return <li key={failure}>Engagement failed: score {gates.engagement_score.toFixed(1)}, required {Number(gates.engagement_threshold ?? 0).toFixed(1)}.</li>;
+                }
+                return <li key={failure}>{humanize(failure)} failed.</li>;
+              })}
+            </ul>
+          </div>
         )}
         <WarningList warnings={job.result.warnings ?? []} />
         {job.result.cost_report && <CostReportCard report={job.result.cost_report} />}

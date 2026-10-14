@@ -912,7 +912,13 @@ class StoryPipeline:
             self._normalize_act_budgets(plan, target_words)
 
             acts = plan.get("acts") or []
-            if mg.section_based_generation and len(acts) > 1:
+            # A pilot is a short, real editorial target. Splitting a three
+            # minute master into the full-film act/repair graph creates five
+            # writer calls before any quality gate can run. Keep the compact
+            # pilot on one bounded writer pass; full films retain act-scoped
+            # generation and its evidence protections.
+            compact_master = kind == "master" and target_minutes < ai_config.story.min_target_minutes
+            if mg.section_based_generation and len(acts) > 1 and not compact_master:
                 sections, story_res = await self._write_acts(
                     db, case, pack, plan, acts, language, tone
                 )
@@ -936,7 +942,10 @@ class StoryPipeline:
             # Repair-call ceiling: grounding repair must not consume the
             # entire case budget before engagement cycles ever run — the
             # assembled gate still judges whatever repairs did not reach.
-            max_repairs = ai_config.master_generation.max_span_repairs_per_pass * 5
+            max_repairs = min(
+                ai_config.master_generation.max_span_repairs_per_pass * 5,
+                ai_config.master_generation.max_revision_calls,
+            )
             repairs_done = 0
             for i, s in enumerate(sections):
                 act_pack = build_act_pack(
@@ -1000,9 +1009,15 @@ class StoryPipeline:
                         break
                 s["grounding"] = rep
 
-            sections, section_scores = await self._section_pass(
-                db, case, sections, pack, plan, language
-            )
+            if compact_master:
+                # A compact pilot already had one bounded writer pass.  A
+                # per-act critic/rewrite graph adds calls without improving a
+                # three-minute draft enough to justify its cost.
+                section_scores = []
+            else:
+                sections, section_scores = await self._section_pass(
+                    db, case, sections, pack, plan, language
+                )
 
             text = _join_sections(sections)
             grounding = await self._checked_grounding(db, case, text, pack)
@@ -1065,7 +1080,18 @@ class StoryPipeline:
             prev_snapshot = None
             score_history: list[float] = []
             no_gain_streak = 0
-            cycles = min(iterations, mg.max_revision_cycles)
+            # Length is deterministic and a rewrite cannot repair a draft
+            # while the gate is judging it against the wrong target. Do not
+            # spend critic/rewriter calls on that terminal condition.
+            pre_gates = self._evaluate_gates(
+                text, language, target_minutes, grounding, consistency,
+                engagement=None, wpm=words_per_minute,
+            )
+            cycles = 0 if "length_out_of_range" in pre_gates["failures"] else min(
+                iterations, mg.max_revision_cycles
+            )
+            if compact_master:
+                cycles = min(cycles, 1)
             for _ in range(cycles):
                 text = _join_sections(sections)
                 h = text_hash(text)
@@ -1242,6 +1268,8 @@ class StoryPipeline:
                 if "engagement_below_threshold" not in failures:
                     failures.append("engagement_below_threshold")
                 gates["pass"] = False
+            gates["engagement_score"] = float(final_critique.get("score", 0))
+            gates["engagement_threshold"] = ai_config.story.engagement_threshold
             final_critique["quality_gates"] = gates
             final_critique["section_scores"] = section_scores
             final_critique["consistency"] = consistency
@@ -1325,6 +1353,8 @@ class StoryPipeline:
         case: Case,
         story_version: StoryVersion,
         instruction: str,
+        target_minutes: float | None = None,
+        words_per_minute: int | None = None,
     ) -> StoryVersion:
         """Apply an editorial instruction to an existing version and store a new one."""
         sources = db.query(Source).filter(Source.case_id == case.id).all()
@@ -1378,9 +1408,16 @@ class StoryPipeline:
                     f"{int(orig_words * (1 - tol))}–"
                     f"{int(orig_words * (1 + tol))}"
                 )
-            est_minutes = max(
-                ai_config.story.min_target_minutes,
-                round(new_words / ai_config.story.words_per_minute),
+            # Approval revisions must keep the job's editorial target. The
+            # old min-target clamp turned a 3-minute pilot revision into a
+            # 45-minute quality check and produced a false length failure.
+            est_minutes = (
+                float(target_minutes)
+                if target_minutes is not None
+                else max(
+                    ai_config.story.min_target_minutes,
+                    round(new_words / (words_per_minute or ai_config.story.words_per_minute)),
+                )
             )
 
             # A rewritten candidate must pass the same grounding and
@@ -1406,6 +1443,7 @@ class StoryPipeline:
                 story, story_version.language, est_minutes,
                 grounding, consistency,
                 float(critique.get("score", 0)),
+                wpm=words_per_minute,
             )
             critique["consistency"] = consistency
             critique["grounding"] = {
@@ -2179,10 +2217,19 @@ class StoryPipeline:
         failures = []
         target_words = target_minutes * (wpm or ai_config.story.words_per_minute)
         words = len(story.split())
+        actual_minutes = words / (wpm or ai_config.story.words_per_minute)
+        def display_minutes(value: float) -> float:
+            # Avoid banker's rounding in user-facing gate diagnostics (2.55
+            # should be shown as 2.6, not 2.5).
+            return int(value * 10 + 0.5) / 10
+        allowed_words = {
+            "min": target_words * ai_config.story.minimum_length_ratio,
+            "max": target_words * ai_config.story.maximum_length_ratio,
+        }
         if not (
-            target_words * ai_config.story.minimum_length_ratio
+            allowed_words["min"]
             <= words
-            <= target_words * ai_config.story.maximum_length_ratio
+            <= allowed_words["max"]
         ):
             failures.append("length_out_of_range")
 
@@ -2233,9 +2280,27 @@ class StoryPipeline:
             "failures": failures,
             "words": words,
             "target_words": target_words,
+            "actual_minutes": display_minutes(actual_minutes),
+            "target_minutes": round(float(target_minutes), 1),
+            "allowed_minutes": {
+                "min": display_minutes(allowed_words["min"] / (wpm or ai_config.story.words_per_minute)),
+                "max": display_minutes(allowed_words["max"] / (wpm or ai_config.story.words_per_minute)),
+            },
+            "allowed_words": {
+                "min": round(allowed_words["min"]),
+                "max": round(allowed_words["max"]),
+            },
             "language_quality": lang,
             "grounding_score": grounding_score,
+            "grounding_unsupported_claims": (
+                len(grounding.get("unsupported_claims") or [])
+                if grounding is not None else None
+            ),
+            "grounding_max_unsupported_claims": sq.max_unsupported_claims,
+            "grounding_threshold": sq.minimum_grounding_score,
             "high_consistency_violations": high_violations,
+            "engagement_score": engagement,
+            "engagement_threshold": ai_config.story.engagement_threshold,
         }
 
     def _score_similarity(

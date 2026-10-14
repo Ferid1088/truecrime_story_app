@@ -78,6 +78,14 @@ RESEARCH_POLL_SECONDS = 15.0
 RESEARCH_MAX_HOURS = 6.0
 
 
+class MasterApprovalError(RuntimeError):
+    """A failed master gate with safe, UI-ready diagnostics."""
+
+    def __init__(self, message: str, detail: dict):
+        super().__init__(message)
+        self.detail = detail
+
+
 from app.documentary.pipeline.base import StageRunner  # noqa: E402
 from app.documentary.pipeline.errors import JobCancelled, LanguageFailed, SpokenRejected  # noqa: E402,F401
 from app.services.policy_events import record_decision  # noqa: E402
@@ -86,7 +94,9 @@ from app.services.budget import BudgetStopped  # noqa: E402
 
 
 async def approve_master(db: Session, case: Case, v: StoryVersion,
-                         max_redos: int | None = None) -> tuple[StoryVersion, list[dict]]:
+                         max_redos: int | None = None,
+                         target_minutes: float | None = None,
+                         words_per_minute: int | None = None) -> tuple[StoryVersion, list[dict]]:
     """The master story's approval gate: its critics and quality gates
     must have passed (status "ready"). A master marked needs_revision is
     revised with exactly the reasons it failed — the revision is a new
@@ -108,22 +118,51 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
                 "nothing else: " + json.dumps(feedback["reasons"], ensure_ascii=False)
                 + (". Critic notes: " + str(notes.get("summary") or notes.get("notes"))[:1500]
                    if notes.get("summary") or notes.get("notes") else ""))
-            current = await StoryPipeline(roles=MASTER_ROLES).improve(
-                db, case, current, instruction)
+            if target_minutes is None:
+                # Preserve the small public helper's historical behavior for
+                # callers that are not running inside a documentary job.
+                current = await StoryPipeline(roles=MASTER_ROLES).improve(
+                    db, case, current, instruction)
+            else:
+                current = await StoryPipeline(roles=MASTER_ROLES).improve(
+                    db, case, current, instruction,
+                    target_minutes=target_minutes,
+                    words_per_minute=words_per_minute,
+                )
         return current
 
     async def audit(version: StoryVersion) -> dict:
         notes = json.loads(version.critic_notes or "{}")
         failures = (notes.get("quality_gates") or {}).get("failures") or []
         if version.status == "needs_revision":
-            rejected.append({"version_id": version.id, "failures": failures})
-        return {"approved": version.status != "needs_revision", "reasons": failures}
+            rejected.append({
+                "version_id": version.id,
+                "failures": failures,
+                "quality_gates": notes.get("quality_gates") or {},
+            })
+        # A deterministic length miss is not made better by repeating the
+        # same approval rewrite. The caller will surface the measured band.
+        return {
+            "approved": version.status != "needs_revision",
+            "reasons": failures,
+            "quality_gates": notes.get("quality_gates") or {},
+            "terminal": "length_out_of_range" in failures,
+        }
 
     outcome = await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
         produce, audit, limit, ExhaustedAction.STOP, stage="master_story")
     if outcome.status == "stopped":
         reasons = ", ".join(map(str, outcome.reasons)) or "quality gates failed"
-        raise RuntimeError(f"Master story not approved after {limit} revision(s): {reasons}")
+        detail = {
+            "reasons": list(outcome.reasons),
+            "attempts": rejected,
+            "target_minutes": target_minutes,
+            "terminal": bool(rejected and "length_out_of_range" in rejected[-1].get("failures", [])),
+        }
+        raise MasterApprovalError(
+            f"Master story not approved after {max(0, outcome.attempts - 1)} revision(s): {reasons}",
+            detail,
+        )
     return current, rejected
 
 
@@ -306,8 +345,17 @@ class DocumentaryPipeline(StageRunner):
             # nothing goes into production unapproved: a master its own
             # critics did not pass is revised with their reasons (each
             # revision judged again), at most max_redos times
-            v, history = await approve_master(db, case, db.get(StoryVersion,
-                                                               job.master_version_id))
+            target_minutes = float(job.target_minutes or (
+                (job.pilot_seconds or ai_config.documentary.pilot_seconds) / 60
+                if pilot else ai_config.story.default_target_minutes
+            ))
+            v, history = await approve_master(
+                db, case, db.get(StoryVersion, job.master_version_id),
+                target_minutes=target_minutes,
+                words_per_minute=ai_config.words_per_minute_for(
+                    ai_config.multilingual.canonical_language
+                ),
+            )
             if v.id != job.master_version_id:
                 job.master_version_id = v.id
                 db.commit()

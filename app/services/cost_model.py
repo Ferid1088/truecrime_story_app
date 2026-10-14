@@ -8,6 +8,7 @@ estimate cannot silently disagree with the amount reserved by a real stage.
 from __future__ import annotations
 
 import json
+import statistics
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,10 +16,19 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, DocumentaryJob, ProviderCall, StoryVersion
+from app.db.models import Case, DocumentaryJob, ProviderCall
 
 PRICING_PATH = Path(__file__).resolve().parents[2] / "config" / "parameters" / "pricing.json"
 SCENARIOS = ("low", "expected", "high")
+
+
+def configured_stage_cost_ceiling_eur(mode: str | None, stage: str) -> float | None:
+    """Return the configured hard ceiling for a job stage, if any."""
+    if mode != "pilot":
+        return None
+    base = stage.split(":", 1)[0]
+    ceiling = ai_config.cost_control.pilot_stage_cost_ceiling_eur.get(base)
+    return float(ceiling) if ceiling is not None else None
 
 
 @dataclass(frozen=True)
@@ -185,6 +195,78 @@ def _scale(metrics: dict[str, float], key: str, factor: float) -> dict[str, floa
     return {scenario: metrics[scenario] * factor for scenario in SCENARIOS}
 
 
+def _percentile(values: list[float], fraction: float) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * fraction
+    low = int(position)
+    high = min(low + 1, len(ordered) - 1)
+    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
+
+
+def _calibrated_master_story_line(
+    db: Session,
+) -> tuple[CostLine | None, dict[str, Any]]:
+    """Estimate the master attempt from observed ledger usage.
+
+    A master is a graph of writer, repair, critic and validator calls, not one
+    request with the final story as its output. Once recorded provider rows
+    exist, use their measured per-call tokens/cost and the bounded revision
+    budget. New installations retain the formula-based fallback.
+    """
+    rows = (db.query(ProviderCall)
+            .filter(ProviderCall.stage == "master_story",
+                    ProviderCall.model.is_not(None),
+                    ProviderCall.tokens_in.is_not(None),
+                    ProviderCall.tokens_out.is_not(None),
+                    ProviderCall.estimated.is_(False),
+                    ProviderCall.is_test_data.is_(False))
+            .all())
+    costs: list[float] = []
+    inputs: list[int] = []
+    outputs: list[int] = []
+    for row in rows:
+        cost = row.cost_eur
+        if cost is None:
+            cost = model_cost_eur(row.model, row.tokens_in, row.tokens_out)
+        if cost is None:
+            continue
+        costs.append(float(cost))
+        inputs.append(int(row.tokens_in))
+        outputs.append(int(row.tokens_out))
+    if len(costs) < 3:
+        return None, {"source": "formula", "observations": len(costs)}
+
+    expected_calls = 1 + int(ai_config.master_generation.max_revision_calls)
+    mean_cost = statistics.fmean(costs)
+    mean_input = statistics.fmean(inputs)
+    mean_output = statistics.fmean(outputs)
+    eur = {
+        "low": _percentile(costs, 0.25) * expected_calls,
+        "expected": mean_cost * expected_calls,
+        "high": _percentile(costs, 0.75) * expected_calls,
+    }
+    line = CostLine(
+        "master_story", "run", None,
+        {"input_tokens": mean_input * expected_calls,
+         "output_tokens": mean_output * expected_calls},
+        {"observed_eur_per_call": mean_cost,
+         "expected_calls": float(expected_calls)},
+        eur, "ledger-calibrated", "verified", None,
+    )
+    return line, {
+        "source": "provider_calls",
+        "observations": len(costs),
+        "expected_calls": expected_calls,
+        "mean_input_tokens_per_call": round(mean_input, 1),
+        "mean_output_tokens_per_call": round(mean_output, 1),
+        "mean_cost_eur_per_call": round(mean_cost, 6),
+    }
+
+
 def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                    target_minutes: float | None = None,
                    pilot_seconds: float | None = None,
@@ -192,7 +274,6 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
     pricing = pricing or load_pricing()
     languages = languages or ["en"]
     metrics = _metrics(db, case, target_minutes, pricing, pilot_seconds)
-    source = metrics["source_words"]
     story = metrics["story_words"]
     assumptions = pricing["assumptions"]
     chars = _scale(story, "story_words", float(assumptions["narration_characters_per_word"]))
@@ -200,8 +281,14 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
     tokens = metrics["tokens"]
     lines.append(_llm_line(pricing, "research", "cheap",
                            tokens["research_input"], tokens["research_output"]))
-    lines.append(_llm_line(pricing, "master_story", "writer",
-                           tokens["master_story_input"], tokens["master_story_output"]))
+    master_line, calibration = _calibrated_master_story_line(
+        db
+    )
+    lines.append(master_line or _llm_line(
+        pricing, "master_story", "writer",
+        tokens["master_story_input"], tokens["master_story_output"]
+    ))
+    metrics["master_story_calibration"] = calibration
     for language in languages:
         lines.append(_llm_line(pricing, f"spoken:{language}", "premium",
                                tokens["spoken_input"], tokens["spoken_output"]))

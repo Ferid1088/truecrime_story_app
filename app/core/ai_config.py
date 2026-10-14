@@ -497,6 +497,10 @@ class MasterGenerationConfig(BaseModel):
     rewrite_length_tolerance: float = Field(gt=0.0, le=1.0)
     max_sections_per_revision_cycle: int = Field(ge=1, le=10)
     max_revision_cycles: int = Field(ge=0, le=6)
+    # A short pilot must not spend a full-film-sized repair budget. This is
+    # the total number of model-backed revision calls allowed by the master
+    # writer's repair paths for one generation attempt.
+    max_revision_calls: int = Field(default=6, ge=1, le=20)
     minimum_engagement_improvement: float = Field(ge=0.0, le=50.0)
     min_act_budget_share: float = Field(gt=0.0, le=0.5)
     max_span_repairs_per_pass: int = Field(ge=1, le=50)
@@ -505,6 +509,10 @@ class MasterGenerationConfig(BaseModel):
 class CostControlConfig(BaseModel):
     max_master_tokens_per_case: int = Field(gt=0)
     max_master_cost_usd: float = Field(gt=0.0)
+    # Per-stage hard stops for short pilot runs.  The map is intentionally
+    # extensible so another expensive pilot stage can be capped without
+    # adding another special-case setting.
+    pilot_stage_cost_ceiling_eur: dict[str, float] = Field(default_factory=dict)
 
 
 class BudgetConfig(BaseModel):

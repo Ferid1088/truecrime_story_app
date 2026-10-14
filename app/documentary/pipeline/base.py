@@ -17,9 +17,9 @@ from app.core.concurrency import gather_limited
 from app.core.policy import PolicyDecision, warning_for
 from app.db.models import Artifact, DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
+from app.services.budget import BudgetService, BudgetStopped, StageCostCeilingExceeded
+from app.services.cost_model import configured_stage_cost_ceiling_eur, estimate_stage_eur
 from app.services.tracking import documentary_run_context
-from app.services.budget import BudgetService, BudgetStopped
-from app.services.cost_model import estimate_stage_eur
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -171,7 +171,32 @@ class StageRunner:
             self.job.pilot_seconds if self.job.mode == "pilot" else None,
         )
         try:
+            ceiling = configured_stage_cost_ceiling_eur(self.job.mode, budget_stage)
+            if ceiling is not None and estimate > ceiling + 1e-9:
+                reason = (
+                    f"Pilot {budget_stage} stopped before run: estimated cost "
+                    f"€{estimate:.2f} exceeds stage ceiling €{ceiling:.2f}."
+                )
+                raise StageCostCeilingExceeded(
+                    self.job.case_id, budget_stage, reason,
+                    {
+                        "cost_ceiling_exceeded": True,
+                        "stage": budget_stage,
+                        "ceiling_eur": ceiling,
+                        "estimated_eur": estimate,
+                        "reason": reason,
+                    },
+                )
             BudgetService(self.db).check(self.job.case_id, budget_stage, estimate)
+        except StageCostCeilingExceeded as exc:
+            st["status"] = "failed"
+            st["detail"] = exc.detail
+            st["error_type"] = type(exc).__name__
+            st["finished_at"] = utc_now().isoformat()
+            if name in self.running:
+                self.running.remove(name)
+            self._save()
+            raise
         except BudgetStopped as exc:
             st["status"] = "failed"
             st["detail"] = {"budget_stopped": True, "reason": exc.reason}
@@ -202,7 +227,10 @@ class StageRunner:
                 detail = await fn()
         except Exception as e:
             st["status"] = "failed"
-            st["detail"] = str(e)[:500]
+            # Some gates have measured diagnostics that the job page can
+            # render (for example actual story minutes versus the pilot
+            # band). Keep those structured details alongside the error text.
+            st["detail"] = getattr(e, "detail", None) or str(e)[:500]
             st["error_type"] = type(e).__name__
             st["finished_at"] = utc_now().isoformat()
             st["errors"] = (st.get("errors") or [])[-4:] + [

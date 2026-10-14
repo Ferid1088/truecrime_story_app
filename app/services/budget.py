@@ -18,6 +18,19 @@ class BudgetStopped(RuntimeError):
         self.case_id, self.stage, self.reason = case_id, stage, reason
 
 
+class StageCostCeilingExceeded(RuntimeError):
+    """A configured per-stage ceiling stopped a job without changing case budget state."""
+
+    def __init__(self, case_id: int, stage: str, reason: str, detail: dict | None = None):
+        super().__init__(reason)
+        self.case_id, self.stage, self.reason = case_id, stage, reason
+        self.detail = detail or {
+            "cost_ceiling_exceeded": True,
+            "stage": stage,
+            "reason": reason,
+        }
+
+
 @dataclass(frozen=True)
 class BudgetSnapshot:
     cap_eur: float

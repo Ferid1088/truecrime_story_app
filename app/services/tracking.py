@@ -2,12 +2,14 @@ import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
-from sqlalchemy.orm import Session
-from app.core.ai_config import ai_config
-from app.db.models import AgentRun
-from app.utils import ensure_utc, utc_now
-from app.providers.generation.base import GenerationResult
 
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.core.ai_config import ai_config
+from app.db.models import AgentRun, DocumentaryJob, ProviderCall
+from app.providers.generation.base import GenerationResult
+from app.utils import ensure_utc, utc_now
 
 _run_context: ContextVar[dict | None] = ContextVar("agent_run_context", default=None)
 
@@ -116,9 +118,12 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     """
     if run.case_id is None or run.provider is None:
         return
-    from app.db.models import ProviderCall
-    from app.services.budget import BudgetService
-    from app.services.cost_model import estimate_stage_eur, model_cost_eur
+    from app.services.budget import BudgetService, StageCostCeilingExceeded
+    from app.services.cost_model import (
+        configured_stage_cost_ceiling_eur,
+        estimate_stage_eur,
+        model_cost_eur,
+    )
 
     stage = run.pipeline_stage or run.agent_name
     reported = run.estimated_cost_usd is not None or (
@@ -137,10 +142,7 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
             ProviderCall.stage == stage,
             ProviderCall.estimated.is_(True),
         ).first()
-        if already_estimated:
-            cost_eur = 0.0
-        else:
-            cost_eur = estimate_stage_eur(db, run.case_id, stage)
+        cost_eur = 0.0 if already_estimated else estimate_stage_eur(db, run.case_id, stage)
     BudgetService(db).record(
         case_id=run.case_id, stage=stage, model=run.model,
         units=(run.total_tokens or ((run.input_tokens or 0) + (run.output_tokens or 0))),
@@ -150,6 +152,35 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
         is_test_data=(run.model == "recorded-e2e"),
         documentary_job_id=run.documentary_job_id,
     )
+    if run.documentary_job_id is None:
+        return
+    job = db.get(DocumentaryJob, run.documentary_job_id)
+    ceiling = configured_stage_cost_ceiling_eur(
+        job.mode if job else None, stage
+    )
+    if ceiling is None:
+        return
+    spent = db.query(func.coalesce(func.sum(ProviderCall.cost_eur), 0.0)).filter(
+        ProviderCall.documentary_job_id == run.documentary_job_id,
+        ProviderCall.stage == stage,
+        ProviderCall.cost_eur.is_not(None),
+        ProviderCall.is_test_data.is_(False),
+    ).scalar() or 0.0
+    if float(spent) > ceiling + 1e-9:
+        reason = (
+            f"Pilot {stage} stopped: stage cost ceiling €{ceiling:.2f} "
+            f"exceeded (spent €{float(spent):.2f})."
+        )
+        raise StageCostCeilingExceeded(
+            run.case_id, stage, reason,
+            {
+                "cost_ceiling_exceeded": True,
+                "stage": stage,
+                "ceiling_eur": ceiling,
+                "spent_eur": round(float(spent), 6),
+                "reason": reason,
+            },
+        )
 
 
 def stamp_run(
