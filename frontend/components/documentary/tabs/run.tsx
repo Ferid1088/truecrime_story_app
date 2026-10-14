@@ -502,6 +502,7 @@ function JobPanel({
     job.status === "cancelled" ||
     job.status === "partial" ||
     job.status === "interrupted";
+  const resumeDisabled = canResume && job.resume_allowed === false;
   const languageErrors = Object.entries(job.result.errors ?? {});
 
   return (
@@ -524,10 +525,11 @@ function JobPanel({
             </Button>
           )}
           {canResume && (
-            <Button variant="secondary" size="sm" onClick={onResume} loading={busy === "resume"} disabled={busy !== null}>
+            <Button variant="secondary" size="sm" onClick={onResume} loading={busy === "resume"} disabled={busy !== null || resumeDisabled} title={resumeDisabled ? (job.resume_disabled_reason ?? "Resume is unavailable") : undefined}>
               <RotateCcw className="size-3.5" /> Resume
             </Button>
           )}
+          {resumeDisabled && <span className="self-center text-[11px] text-muted-foreground">{job.resume_disabled_reason}</span>}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -582,6 +584,11 @@ function JobPanel({
             </InlineAlert>
           )
         )}
+        {job.next_action && (
+          <p className="rounded-md border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs">
+            <span className="font-medium">Next:</span> {job.next_action}
+          </p>
+        )}
         <WarningList warnings={job.result.warnings ?? []} />
         {job.result.cost_report && <CostReportCard report={job.result.cost_report} />}
       </CardContent>
@@ -604,9 +611,9 @@ function CostReportCard({ report }: { report: CostReport }) {
           <TBody>{report.rows.map((row) => (
             <TR key={row.stage} className="text-[11px]">
               <TD className="whitespace-nowrap font-medium">{row.stage}</TD>
-              <TD>{money(row.estimated_eur)}</TD><TD>{money(row.actual_eur)}</TD>
-              <TD>{row.difference_percent == null ? "—" : `${row.difference_percent.toFixed(1)}%`}</TD>
-              <TD>{row.estimated ? <span className="text-amber-700 dark:text-amber-400">estimated</span> : "reported"}</TD>
+              <TD>{money(row.estimated_eur)}</TD><TD>{row.status === "not run" ? "not run" : money(row.actual_eur ?? 0)}</TD>
+              <TD>{row.status === "not run" ? "not run" : row.difference_percent == null ? "—" : `${row.difference_percent.toFixed(1)}%`}</TD>
+              <TD>{row.estimated ? <span className="text-amber-700 dark:text-amber-400" title={row.estimated_reason ?? undefined}>estimated</span> : row.status === "not run" ? "not run" : "reported"}</TD>
             </TR>
           ))}</TBody>
         </Table>

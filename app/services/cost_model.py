@@ -327,26 +327,41 @@ def estimate_vs_actual_report(db: Session, job: DocumentaryJob) -> dict[str, Any
         ProviderCall.case_id == job.case_id,
         ProviderCall.documentary_job_id == job.id,
     ).all()
+    saved_stages = json.loads(job.stages_json or "[]")
+
+    def stage_state(name: str) -> str | None:
+        for item in saved_stages:
+            if _stage_matches(item.get("name"), name):
+                return item.get("status")
+        return None
+
     rows = []
     for line in estimate["lines"]:
         matched = [call for call in calls if _stage_matches(call.stage, line["stage"])]
         actual = round(sum(float(call.cost_eur or 0.0) for call in matched), 6)
         expected = float(line["estimated_cost_eur"])
-        difference = None if expected == 0 else round((actual - expected) / expected * 100, 2)
+        state = stage_state(line["stage"])
+        not_run = state in (None, "pending", "blocked", "skipped")
+        difference = None if expected == 0 or not_run else round((actual - expected) / expected * 100, 2)
+        estimated = any(bool(call.estimated) for call in matched)
         rows.append({
             "stage": line["stage"],
             "estimated_eur": round(expected, 6),
-            "actual_eur": actual,
+            "actual_eur": None if not_run else actual,
             "difference_percent": difference,
-            "estimated": any(bool(call.estimated) for call in matched),
-            "status": line["status"],
-            "reason": line["reason"],
+            "estimated": estimated,
+            "estimated_reason": (
+                "Provider response did not report usage; the configured estimate was recorded."
+                if estimated else None
+            ),
+            "status": "not run" if not_run else (state or line["status"]),
+            "reason": "not run before the job stopped" if not_run else line["reason"],
         })
     return {
         "rows": rows,
         "totals": {
             "estimated_eur": round(sum(row["estimated_eur"] for row in rows), 6),
-            "actual_eur": round(sum(row["actual_eur"] for row in rows), 6),
+            "actual_eur": round(sum(row["actual_eur"] or 0.0 for row in rows), 6),
         },
         "pricing_last_verified": estimate["pricing_last_verified"],
     }

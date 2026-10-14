@@ -1614,6 +1614,9 @@ export interface DocumentaryJob {
     [key: string]: unknown;
   };
   error: string | null;
+  next_action?: string | null;
+  resume_allowed?: boolean;
+  resume_disabled_reason?: string | null;
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
@@ -1623,9 +1626,10 @@ export interface CostReport {
   rows: Array<{
     stage: string;
     estimated_eur: number;
-    actual_eur: number;
+    actual_eur: number | null;
     difference_percent: number | null;
     estimated: boolean;
+    estimated_reason?: string | null;
     status: string;
     reason: string | null;
   }>;

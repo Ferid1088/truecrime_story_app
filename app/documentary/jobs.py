@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import traceback
 import uuid
 
@@ -187,6 +188,8 @@ def latest_production(db: Session, version_id: int) -> ProductionScript | None:
 
 
 def job_dict(job: DocumentaryJob) -> dict:
+    result = json.loads(job.result_json or "{}")
+    failure = result.get("failure") or {}
     return {
         "id": job.id, "case_id": job.case_id, "master_version_id": job.master_version_id,
         "mode": job.mode, "languages": json.loads(job.languages_json or "[]"),
@@ -198,9 +201,31 @@ def job_dict(job: DocumentaryJob) -> dict:
         "follow_up_id": job.follow_up_id,
         "status": job.status, "stage": job.stage, "progress": round(job.progress or 0, 3),
         "stages": json.loads(job.stages_json or "[]"),
-        "result": json.loads(job.result_json or "{}"), "error": job.error,
+        "result": result, "error": job.error,
+        "next_action": failure.get("next_action"),
+        "resume_allowed": failure.get("resume_allowed", job.status in ("cancelled", "partial", "interrupted")),
+        "resume_disabled_reason": failure.get("resume_disabled_reason"),
         "created_at": job.created_at, "updated_at": job.updated_at,
         "completed_at": job.completed_at,
+    }
+
+
+def plain_failure(error: BaseException | str) -> str:
+    text = str(error)
+    return re.sub(r"^(?:[A-Za-z_][A-Za-z0-9_]*Error|RuntimeError):\s*", "", text).strip()
+
+
+def failure_details(message: str, error_code: str | None = None) -> dict:
+    if error_code == "no_relevant_sources" or message.startswith("No relevant sources found"):
+        return {
+            "resume_allowed": False,
+            "resume_disabled_reason": "Resume is disabled until the case title or research details change.",
+            "next_action": "Add a more specific title, aliases, location or incident date, then start a new run.",
+        }
+    return {
+        "resume_allowed": True,
+        "resume_disabled_reason": None,
+        "next_action": "Review the failed stage and its inputs, then resume if the provider or service is available again.",
     }
 
 
@@ -963,9 +988,10 @@ async def run_job(job_id: int, session_factory=None):
                     case.status = "budget stopped"
                     case.budget_stop_reason = e.reason[:1000]
                 job.status = "failed"
-                job.error = e.reason[:1000]
+                job.error = plain_failure(e.reason)[:1000]
                 result = json.loads(job.result_json or "{}")
                 result["budget_stopped"] = {"stage": e.stage, "reason": e.reason}
+                result["failure"] = {**failure_details(job.error, "budget_stopped"), "reason": job.error}
                 job.result_json = json.dumps(result, ensure_ascii=False)
             except Exception as e:  # recorded on the job, visible in the UI
                 log.error("documentary job %s failed: %s", job_id, traceback.format_exc())
@@ -981,7 +1007,10 @@ async def run_job(job_id: int, session_factory=None):
                     assert job is not None
                 _set_case_state(db, job.case_id, "story_ready")
                 job.status = "failed"
-                job.error = f"{type(e).__name__}: {e}"[:1000]
+                job.error = plain_failure(e)[:1000]
+                result = json.loads(job.result_json or "{}")
+                result["failure"] = {**failure_details(job.error), "reason": job.error}
+                job.result_json = json.dumps(result, ensure_ascii=False)
             from app.services.cost_model import estimate_vs_actual_report
 
             # Persist the per-case estimate-vs-actual ledger for this run
