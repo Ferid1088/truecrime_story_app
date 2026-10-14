@@ -604,7 +604,10 @@ class SearchEngineConfig(BaseModel):
     brave_api_key_env: str = "BRAVE_SEARCH_API_KEY"
     brave_base_url: str = "https://api.search.brave.com"
     request_timeout_s: int = Field(ge=5, le=120, default=10)
-    health_cache_seconds: float = Field(ge=0, le=300, default=10.0)
+    # The health endpoint is a discovery-style probe, not a live search.  Keep
+    # its result for ten minutes so polling and load balancers cannot create a
+    # stream of billable Brave requests.
+    health_cache_seconds: float = Field(ge=0, le=3600, default=600.0)
     # Iterative loop (Part 6/38)
     max_results_per_query: int = Field(ge=1, le=20)
     max_queries_per_language: int = Field(ge=1, le=20)

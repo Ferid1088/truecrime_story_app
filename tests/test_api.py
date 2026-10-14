@@ -38,6 +38,42 @@ def test_health_reports_degraded_when_discovery_probe_has_too_few_results(monkey
     assert body["search_query"] == "recent true crime investigation case"
 
 
+def test_twenty_health_requests_make_at_most_one_brave_probe(monkeypatch):
+    from app.api import system
+    from app.research_engine.search_adapters import brave
+    import httpx
+
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            calls.append(1)
+            return httpx.Response(200, json={"web": {"results": [
+                {"url": "https://one.example"},
+                {"url": "https://two.example"},
+                {"url": "https://three.example"},
+            ]}})
+
+    brave._health_cache.clear()
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = brave.BraveSearchBackend("test-key", "https://search", health_cache_seconds=600)
+    monkeypatch.setattr(system.deps, "research_provider", lambda: type(
+        "Provider", (), {"health_status": backend.health}
+    )())
+
+    for _ in range(20):
+        response = client.get("/health")
+        assert response.status_code == 200
+
+    assert len(calls) <= 1
+
+
 def test_case_crud_flow():
     r = client.post("/api/cases", json={"canonical_title": "Test Case Alpha", "language": "en"})
     assert r.status_code == 200

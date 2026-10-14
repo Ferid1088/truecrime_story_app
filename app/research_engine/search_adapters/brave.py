@@ -10,6 +10,7 @@ import time
 import httpx
 
 from app.core.env import env_value
+from app.core.observability import health_probe_var
 from app.research_engine.search import SearchError, SearchResult
 from app.research_engine.urlnorm import canonicalize_url, domain_of
 
@@ -22,7 +23,7 @@ class BraveSearchBackend:
 
     def __init__(self, api_key: str | None = None,
                  base_url: str = "https://api.search.brave.com",
-                 timeout_s: float = 10.0, health_cache_seconds: float = 10.0,
+                 timeout_s: float = 10.0, health_cache_seconds: float = 600.0,
                  result_count: int = 10):
         self.api_key = api_key if api_key is not None else env_value("BRAVE_SEARCH_API_KEY")
         self.base_url = base_url.rstrip("/")
@@ -124,14 +125,18 @@ class BraveSearchBackend:
         if not self.api_key:
             result["reason"] = "BRAVE_SEARCH_API_KEY is not configured"
         else:
+            token = health_probe_var.set(True)
             try:
-                data, status = await self._request(_HEALTH_QUERY, "en", self.result_count)
-                count = len(self._results(data))
-                result.update({"status_code": status, "result_count": count})
-                result["status"] = "ok" if count >= 3 else "degraded"
-                result["healthy"] = count >= 3
-                if count < 3:
-                    result["reason"] = "discovery probe returned fewer than 3 results"
+                try:
+                    data, status = await self._request(_HEALTH_QUERY, "en", self.result_count)
+                    count = len(self._results(data))
+                    result.update({"status_code": status, "result_count": count})
+                    result["status"] = "ok" if count >= 3 else "degraded"
+                    result["healthy"] = count >= 3
+                    if count < 3:
+                        result["reason"] = "discovery probe returned fewer than 3 results"
+                finally:
+                    health_probe_var.reset(token)
             except SearchError as exc:
                 result["reason"] = "search unavailable"
                 result["error_kind"] = exc.kind

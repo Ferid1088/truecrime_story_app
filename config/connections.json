@@ -21,7 +21,7 @@
     "brave_api_key_env": "BRAVE_SEARCH_API_KEY",
     "brave_base_url": "https://api.search.brave.com",
     "request_timeout_s": 10,
-    "health_cache_seconds": 10,
+    "health_cache_seconds": 600,
     "max_results_per_query": 10,
     "max_queries_per_language": 6,
     "max_rounds_per_language": 3,

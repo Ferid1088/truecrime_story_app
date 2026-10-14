@@ -26,6 +26,9 @@ from app.core.ai_config import ai_config
 from app.utils import utc_now
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
+health_probe_var: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "health_probe", default=False
+)
 _ID_OK = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _QUIET_PATHS = {"/health"}
 log = logging.getLogger("app.observability")
@@ -149,6 +152,11 @@ def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
 
 def record_call(request: httpx.Request, started: float, response: httpx.Response | None = None,
                 error: BaseException | None = None, stream: bool = False) -> None:
+    # Health probes are operational checks, not user/provider work.  They are
+    # deliberately absent from the provider ledger so they cannot affect a
+    # case's spend or the EUR 20 budget gate.
+    if health_probe_var.get():
+        return
     if not settings.provider_ledger or request.url.host in _SKIP_HOSTS:
         return
     try:
