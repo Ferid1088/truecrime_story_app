@@ -1930,6 +1930,9 @@ class ProviderCall(Base):
     # True when the provider returned no usage and the configured stage
     # estimate was recorded as a conservative ledger placeholder.
     estimated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Recorded/e2e calls are retained for auditability but never count toward
+    # a case's spend or EUR budget cap.
+    is_test_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     documentary_job_id: Mapped[int | None] = mapped_column(
         ForeignKey("documentary_jobs.id"), nullable=True, index=True
     )

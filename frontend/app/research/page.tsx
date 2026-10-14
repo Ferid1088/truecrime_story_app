@@ -16,6 +16,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import type { ResearchJob } from "@/lib/types";
+import { SearchHealthWarning } from "@/components/search-health-warning";
 
 export default function ResearchPage() {
   const { data: runs, error, loading, refetch } = useApi(() => api.allAgentRuns());
@@ -35,6 +36,10 @@ export default function ResearchPage() {
 
   const queue = (cases ?? []).filter((c) =>
     ["new", "researching", "researched"].includes(c.status),
+  );
+  const noSearchResults = (jobs ?? []).some(
+    (j) => j.job_type === "discovery" && j.status === "completed" &&
+      (j.result_summary ?? "").toLowerCase().includes("search returned no results"),
   );
 
   async function runResearch(caseId: number) {
@@ -79,6 +84,7 @@ export default function ResearchPage() {
 
   return (
     <div>
+      <SearchHealthWarning />
       <PageHeader
         title="Research"
         description="Agent activity and the research queue across all cases."
@@ -93,6 +99,11 @@ export default function ResearchPage() {
       {actionError && (
         <div className="mb-4 rounded-md border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
           {actionError}
+        </div>
+      )}
+      {noSearchResults && (
+        <div role="alert" className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          The latest discovery search returned no results. Check SearXNG before starting more research.
         </div>
       )}
 

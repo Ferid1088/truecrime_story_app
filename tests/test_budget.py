@@ -65,3 +65,15 @@ def test_missing_provider_usage_is_explicitly_estimated(db_session):
         cost_eur=0.05, estimated=True,
     )
     assert row.estimated is True
+
+
+def test_recorded_provider_calls_are_excluded_from_case_budget(db_session):
+    case = _case(db_session)
+    ledger = BudgetService(db_session)
+    ledger.record(case_id=case.id, stage="discovery", model="recorded-e2e",
+                  units=100, cost_eur=19.99, is_test_data=True)
+    assert ledger.snapshot(case.id).spent_eur == pytest.approx(0.0)
+    ledger.record(case_id=case.id, stage="research", model="live",
+                  units=1, cost_eur=19.50)
+    with pytest.raises(BudgetStopped, match="remaining"):
+        ledger.check(case.id, "story", 1.0)

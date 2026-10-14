@@ -25,11 +25,17 @@ router = APIRouter()
 
 
 @router.get("/health")
-def health():
+async def health():
     from app.shortform.export import ffmpeg_caption_capability
     from app.core.provider_mode import provider_mode
 
-    return {"status": "ok", "provider_mode": provider_mode(), "short_form": {
+    search_ok = False
+    try:
+        search_ok = await deps.research_provider().check_health()
+    except Exception:  # health must remain useful when a dependency is down
+        search_ok = False
+    return {"status": "ok", "provider_mode": provider_mode(),
+            "search": "ok" if search_ok else "failing", "short_form": {
         "caption_burn_in": ffmpeg_caption_capability(),
     }}
 

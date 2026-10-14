@@ -46,6 +46,7 @@ def case_costs(case_id: int, db: Session = Depends(get_db)):
             "units": call.units, "tokens_in": call.tokens_in,
             "tokens_out": call.tokens_out, "cost_eur": call.cost_eur,
             "cost_usd": call.cost_usd, "ok": call.ok, "error": call.error,
+            "is_test_data": call.is_test_data,
             "created_at": call.created_at,
         } for call in calls],
     }

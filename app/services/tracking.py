@@ -147,6 +147,7 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
         cost_usd=cost_usd if not estimated else None,
         cost_eur=cost_eur, tokens_in=run.input_tokens, tokens_out=run.output_tokens,
         estimated=estimated,
+        is_test_data=(run.model == "recorded-e2e"),
         documentary_job_id=run.documentary_job_id,
     )
 

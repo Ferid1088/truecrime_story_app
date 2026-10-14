@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DuplicateNotice } from "@/components/lifecycle/duplicate-notice";
 import { Collapsible, FieldLabel, SourceLinks } from "@/components/lifecycle/shared";
 import { cn } from "@/lib/utils";
+import { SearchHealthWarning } from "@/components/search-health-warning";
 
 const LANG_OPTIONS = ["en", "de", "fa", "ar", "other"];
 const COUNTS = [5, 10, 20];
@@ -250,6 +251,7 @@ export default function DiscoverPage() {
 
   return (
     <div>
+      <SearchHealthWarning />
       <PageHeader
         title="Find New Cases"
         description="Recent, solved cases nobody has covered yet — each suggestion says why, with its status evidence."
@@ -369,6 +371,11 @@ export default function DiscoverPage() {
       {error && (
         <div className="mb-4 rounded-md border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
           {error}
+        </div>
+      )}
+      {jobStatus === "completed" && noCandidatesReason?.startsWith("search returned") && (
+        <div role="alert" className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          Search returned no results for the discovery queries. Check SearXNG before trying again.
         </div>
       )}
 

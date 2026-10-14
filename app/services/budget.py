@@ -39,10 +39,15 @@ class BudgetService:
         if case is None:
             raise ValueError("case not found")
         eur = self.db.query(func.coalesce(func.sum(ProviderCall.cost_eur), 0.0)).filter(
-            ProviderCall.case_id == case_id).scalar() or 0.0
+            ProviderCall.case_id == case_id,
+            ProviderCall.is_test_data.is_(False),
+        ).scalar() or 0.0
         # Legacy ledger rows have USD only; convert them once at read time.
         legacy_usd = self.db.query(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).filter(
-            ProviderCall.case_id == case_id, ProviderCall.cost_eur.is_(None)).scalar() or 0.0
+            ProviderCall.case_id == case_id,
+            ProviderCall.cost_eur.is_(None),
+            ProviderCall.is_test_data.is_(False),
+        ).scalar() or 0.0
         spent = float(eur) + float(legacy_usd) * ai_config.budget.usd_to_eur
         cap = _cap(case)
         return BudgetSnapshot(cap, round(spent, 6), round(max(cap - spent, 0.0), 6), case.status)
@@ -52,6 +57,7 @@ class BudgetService:
         actual_stage = self.db.query(func.coalesce(func.sum(ProviderCall.cost_eur), 0.0)).filter(
             ProviderCall.case_id == case_id, ProviderCall.stage == stage,
             ProviderCall.cost_eur.is_not(None), ProviderCall.estimated.is_(False),
+            ProviderCall.is_test_data.is_(False),
         ).scalar() or 0.0
         required = max(float(estimated_cost_eur), float(actual_stage))
         if required > current.remaining_eur + 1e-9:
@@ -71,7 +77,8 @@ class BudgetService:
                cost_eur: float | None = None, tokens_in: int | None = None,
                tokens_out: int | None = None, ok: bool = True,
                error: str | None = None, estimated: bool = False,
-               documentary_job_id: int | None = None) -> ProviderCall:
+               documentary_job_id: int | None = None,
+               is_test_data: bool = False) -> ProviderCall:
         converted = cost_eur
         if converted is None and cost_usd is not None:
             converted = float(cost_usd) * ai_config.budget.usd_to_eur
@@ -80,7 +87,8 @@ class BudgetService:
                            duration_ms=0, tokens_in=tokens_in, tokens_out=tokens_out,
                            cost_usd=cost_usd, error=error, case_id=case_id,
                            stage=stage, model=model, units=units, cost_eur=converted,
-                           estimated=estimated, documentary_job_id=documentary_job_id)
+                           estimated=estimated, is_test_data=is_test_data,
+                           documentary_job_id=documentary_job_id)
         self.db.add(row)
         self.db.commit()
         return row

@@ -355,13 +355,17 @@ def _ingest_discovery(db: Session, job: ResearchJob, result: dict):
     out = ingest_candidates(
         db, result, count=int(params.get("count") or 5),
         include_unsolved=bool(params.get("include_unsolved")), job_id=job.id)
+    out["search_diagnostics"] = result.get("search_diagnostics") or []
     if out["candidates"]:
         job.result_summary = (f"candidates={len(out['candidates'])} "
                               f"duplicates_rejected={out['skipped_duplicates']}")
     else:
         raw_count = len(result.get("candidates") or [])
         rejected_count = len(out.get("rejected") or [])
-        if raw_count == 0:
+        diagnostics = out["search_diagnostics"]
+        if diagnostics and all(not int(item.get("result_count") or 0) for item in diagnostics):
+            reason = "search returned no results for the configured queries"
+        elif raw_count == 0:
             reason = "the provider returned no usable candidate records"
         elif rejected_count:
             reason = "all returned candidates were rejected by duplicate or status filters"

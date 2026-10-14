@@ -621,6 +621,7 @@ class ResearchOrchestrator:
         time_range = ai_config.case_selection.discovery_time_range or None
         found: list[dict] = []
         queries_out: list[dict] = []
+        search_diagnostics: list[dict] = []
         for lang in (languages or ["en"]):
             for q in _discovery_queries(theme, lang):
                 progress.stage(f"searching:{lang}")
@@ -633,6 +634,21 @@ class ResearchOrchestrator:
                     log.warning("discovery search failed: %s", e)
                     raw = []
                 tel["searches"] += 1
+                search_diagnostics.append({
+                    "query": q,
+                    "language": lang,
+                    "result_count": len(raw),
+                    "engines": sorted({
+                        engine
+                        for item in raw
+                        for engine in (item.scores or {}).get("engines", [])
+                        if engine
+                    }),
+                    "sample_results": [
+                        {"title": item.title, "url": item.url}
+                        for item in raw[:3]
+                    ],
+                })
                 for r in raw:
                     found.append({
                         "title": r.title, "snippet": r.snippet,
@@ -649,6 +665,7 @@ class ResearchOrchestrator:
         tel["searches"] += prepared["stats"].get("status_searches", 0)
         return {
             "queries": queries_out,
+            "search_diagnostics": search_diagnostics,
             "candidates": prepared["candidates"],
             "selection_stats": prepared["stats"],
             "_telemetry": tel,
