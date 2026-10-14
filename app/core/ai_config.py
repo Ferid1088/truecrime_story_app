@@ -604,6 +604,7 @@ class SearchEngineConfig(BaseModel):
     brave_api_key_env: str = "BRAVE_SEARCH_API_KEY"
     brave_base_url: str = "https://api.search.brave.com"
     request_timeout_s: int = Field(ge=5, le=120, default=10)
+    search_min_interval_s: float = Field(ge=0.0, le=60.0, default=1.0)
     # The health endpoint is a discovery-style probe, not a live search.  Keep
     # its result for ten minutes so polling and load balancers cannot create a
     # stream of billable Brave requests.

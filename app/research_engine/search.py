@@ -12,6 +12,18 @@ from typing import Protocol
 
 log = logging.getLogger(__name__)
 
+MAX_QUERY_WORDS = 8
+
+
+def shorten_query(query: str, max_words: int = MAX_QUERY_WORDS) -> str:
+    """Keep provider queries compact and predictable.
+
+    The planner is allowed to be verbose, but the paid search boundary is
+    deliberately bounded so each provider call remains discovery-oriented.
+    """
+    words = (query or "").split()
+    return " ".join(words[:max_words])
+
 
 @dataclass
 class SearchResult:
@@ -32,10 +44,11 @@ class SearchResult:
 
 
 class SearchError(RuntimeError):
-    def __init__(self, backend: str, kind: str, message: str):
+    def __init__(self, backend: str, kind: str, message: str, details: dict | None = None):
         super().__init__(message)
         self.backend = backend
         self.kind = kind
+        self.details = details or {}
 
 
 class SearchBackend(Protocol):
@@ -75,6 +88,8 @@ class SearchBackendRegistry:
         results = await backend.search(
             query, language, categories=categories, time_range=time_range, limit=limit)
         if not results:
+            detail = getattr(backend, "last_search_diagnostics", None) or {}
             raise SearchError(backend.name, "search_unavailable",
-                              "search unavailable: provider returned 0 results")
+                              "search unavailable: provider returned 0 results",
+                              detail)
         return results

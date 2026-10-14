@@ -30,6 +30,7 @@ from app.research_engine.orchestrator import (
 from app.research_engine.ratelimit import DomainRateLimiter
 from app.research_engine.search import SearchBackendRegistry
 from app.research_engine.search_adapters import BraveSearchBackend
+from app.services.tracking import documentary_run_context
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +87,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
             base_url=cfg.brave_base_url,
             timeout_s=ai_config.search_engine.request_timeout_s,
             health_cache_seconds=cfg.health_cache_seconds,
-            result_count=cfg.max_results_per_query)
+            result_count=cfg.max_results_per_query,
+            min_interval_s=cfg.search_min_interval_s)
         self.registry = SearchBackendRegistry([self.brave])
         self.fetcher = DocumentFetcher(
             cache=FetchCache(max_age_s=cfg.fetch_cache_max_age_s),
@@ -184,7 +186,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
     # ------------------------------------------------------------------
 
     def _launch(
-        self, runner: Callable[[_JobProgress], Awaitable[dict]]
+        self, runner: Callable[[_JobProgress], Awaitable[dict]],
+        context: dict | None = None,
     ) -> str:
         external_id = f"tce-{uuid.uuid4().hex[:16]}"
         _JOBS[external_id] = {
@@ -194,7 +197,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
 
         async def _run():
             try:
-                result = await runner(_JobProgress(external_id))
+                with documentary_run_context(**(context or {})):
+                    result = await runner(_JobProgress(external_id))
                 _JOBS[external_id].update(
                     status="completed", result=result, stage="completed")
             except Exception as e:  # noqa: BLE001
@@ -202,7 +206,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
                 kind = getattr(e, "kind", "engine_error")
                 _JOBS[external_id].update(
                     status="failed",
-                    error={"kind": kind, "message": str(e)[:500]},
+                    error={"kind": kind, "message": str(e)[:500],
+                           "details": getattr(e, "details", {}) or {}},
                     stage="failed")
 
         spawn(_run(), name=f"research:{external_id}")
@@ -234,7 +239,8 @@ class TrueCrimeSearchProvider(ResearchProvider):
             p.live_telemetry(tel)
             return result
 
-        return self._launch(run)
+        return self._launch(run, {"case_id": case_context.get("case_id"),
+                                  "pipeline_stage": "research"})
 
     async def start_discovery(
         self,
@@ -259,7 +265,7 @@ class TrueCrimeSearchProvider(ResearchProvider):
             p.live_telemetry(result.get("_telemetry") or {})
             return result
 
-        return self._launch(run)
+        return self._launch(run, {"pipeline_stage": "discovery"})
 
     async def start_video_discovery(
         self, case_title: str, languages: list[str]
@@ -292,5 +298,6 @@ class TrueCrimeSearchProvider(ResearchProvider):
             error=err.get("message"),
             meta={**(job.get("meta") or {}),
                   "stage": job.get("stage"),
-                  "error_kind": err.get("kind")},
+                  "error_kind": err.get("kind"),
+                  "error_details": err.get("details") or {}},
         )

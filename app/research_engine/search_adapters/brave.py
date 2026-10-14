@@ -5,17 +5,22 @@ environment and is never included in diagnostics or exceptions.
 """
 from __future__ import annotations
 
+import asyncio
+import email.utils
+import logging
 import time
+from datetime import datetime, timezone
 
 import httpx
 
 from app.core.env import env_value
 from app.core.observability import health_probe_var
-from app.research_engine.search import SearchError, SearchResult
+from app.research_engine.search import SearchError, SearchResult, shorten_query
 from app.research_engine.urlnorm import canonicalize_url, domain_of
 
 _HEALTH_QUERY = "recent true crime investigation case"
 _health_cache: dict[str, tuple[float, dict]] = {}
+log = logging.getLogger(__name__)
 
 
 class BraveSearchBackend:
@@ -24,21 +29,40 @@ class BraveSearchBackend:
     def __init__(self, api_key: str | None = None,
                  base_url: str = "https://api.search.brave.com",
                  timeout_s: float = 10.0, health_cache_seconds: float = 600.0,
-                 result_count: int = 10):
+                 result_count: int = 10, min_interval_s: float = 1.0):
         self.api_key = api_key if api_key is not None else env_value("BRAVE_SEARCH_API_KEY")
         self.base_url = base_url.rstrip("/")
-        self.timeout_s = 10.0
+        self.timeout_s = float(timeout_s)
         self.health_cache_seconds = health_cache_seconds
         self.result_count = min(max(int(result_count), 1), 20)
+        self.min_interval_s = max(float(min_interval_s), 0.0)
+        self._rate_lock = asyncio.Lock()
+        self._next_request_at = 0.0
         self.last_search_diagnostics: dict | None = None
 
     def is_available(self) -> bool:
         return bool(self.api_key)
 
+    @staticmethod
+    def _retry_after(value: str | None) -> float | None:
+        if not value:
+            return None
+        try:
+            return max(float(value), 0.0)
+        except ValueError:
+            try:
+                when = email.utils.parsedate_to_datetime(value)
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
+            except (TypeError, ValueError, OverflowError):
+                return None
+
     async def _request(self, query: str, language: str, limit: int) -> tuple[dict, int]:
         if not self.api_key:
             raise SearchError(self.name, "not_configured",
                               "Brave Search API is not configured")
+        query = shorten_query(query)
         params = {
             "q": query,
             "count": min(max(limit, 1), self.result_count, 20),
@@ -47,22 +71,56 @@ class BraveSearchBackend:
         }
         headers = {"Accept": "application/json", "X-Subscription-Token": self.api_key}
         last_status: int | None = None
+        attempts: list[dict] = []
         for attempt in range(2):
             try:
-                async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
-                    response = await client.get(f"{self.base_url}/res/v1/web/search", params=params)
+                async with self._rate_lock:
+                    wait = self._next_request_at - time.monotonic()
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                    async with httpx.AsyncClient(timeout=self.timeout_s, headers=headers) as client:
+                        response = await client.get(f"{self.base_url}/res/v1/web/search", params=params)
+                    retry_after = self._retry_after(response.headers.get("Retry-After"))
+                    self._next_request_at = time.monotonic() + self.min_interval_s
+                    if retry_after is not None:
+                        self._next_request_at = max(self._next_request_at,
+                                                    time.monotonic() + retry_after)
                 last_status = response.status_code
+                try:
+                    response_data = response.json()
+                    count = len(self._results(response_data)) if isinstance(response_data, dict) else 0
+                except (ValueError, TypeError):
+                    response_data, count = None, 0
+                attempts.append({
+                    "attempt": attempt + 1,
+                    "http_status": response.status_code,
+                    "result_count": count,
+                    "retry_after_s": retry_after,
+                })
+                log.info("Brave search status=%s results=%s retry=%s retry_after_s=%s query=%r",
+                         response.status_code, count, attempt, retry_after, query)
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt == 0:
                         continue
                     raise SearchError(self.name, "search_unavailable",
-                                      "search unavailable: Brave Search request failed")
+                                      f"search unavailable: Brave returned HTTP {response.status_code} "
+                                      f"after retry (results={count})",
+                                      {"http_status": response.status_code, "attempts": attempts,
+                                       "rate_limited": response.status_code == 429})
                 if response.status_code >= 400:
                     raise SearchError(self.name, "search_unavailable",
-                                      "search unavailable: Brave Search request failed")
-                data = response.json()
+                                      f"search unavailable: Brave returned HTTP {response.status_code} "
+                                      f"(results={count})",
+                                      {"http_status": response.status_code, "attempts": attempts})
+                data = response_data if response_data is not None else response.json()
                 if not isinstance(data, dict):
                     raise ValueError("invalid Brave response")
+                self.last_search_diagnostics = {
+                    "query": query, "http_status": response.status_code,
+                    "result_count": count, "retries": attempt,
+                    "attempts": attempts, "provider": self.name,
+                    "rate_limited": any(a["http_status"] == 429 for a in attempts),
+                }
                 return data, response.status_code
             except SearchError:
                 raise
@@ -70,7 +128,9 @@ class BraveSearchBackend:
                 raise SearchError(self.name, "search_unavailable",
                                   "search unavailable: Brave Search request failed") from exc
         raise SearchError(self.name, "search_unavailable",
-                          f"search unavailable: Brave Search request failed ({last_status or 'unknown'})")
+                          f"search unavailable: Brave Search request failed ({last_status or 'unknown'})",
+                          {"http_status": last_status, "attempts": attempts,
+                           "rate_limited": any(a["http_status"] == 429 for a in attempts)})
 
     @staticmethod
     def _results(data: dict) -> list[dict]:
@@ -81,17 +141,24 @@ class BraveSearchBackend:
                      categories: list[str] | None = None,
                      time_range: str | None = None,
                      limit: int = 10) -> list[SearchResult]:
+        query = shorten_query(query)
         data, status = await self._request(query, language, limit)
         raw_results = self._results(data)
         self.last_search_diagnostics = {
             "query": query,
             "http_status": status,
             "result_count": len(raw_results),
+            "retries": (self.last_search_diagnostics or {}).get("retries", 0),
+            "attempts": (self.last_search_diagnostics or {}).get("attempts", []),
+            "rate_limited": (self.last_search_diagnostics or {}).get("rate_limited", False),
+            "estimated_cost_usd": 0.005,
             "provider": self.name,
         }
         if not raw_results:
             raise SearchError(self.name, "search_unavailable",
-                              "search unavailable: Brave returned 0 results")
+                              f"search unavailable: Brave returned 0 results (HTTP {status}; "
+                              f"retries={self.last_search_diagnostics.get('retries', 0)})",
+                              self.last_search_diagnostics)
         out: list[SearchResult] = []
         for i, raw in enumerate(raw_results):
             url = (raw.get("url") or "").strip()
@@ -110,7 +177,8 @@ class BraveSearchBackend:
                 break
         if not out:
             raise SearchError(self.name, "search_unavailable",
-                              "search unavailable: Brave returned 0 usable results")
+                              f"search unavailable: Brave returned 0 usable results (HTTP {status})",
+                              self.last_search_diagnostics)
         return out
 
     async def health(self) -> dict:

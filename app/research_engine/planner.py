@@ -7,6 +7,7 @@ provider's role system — no model IDs here.
 from __future__ import annotations
 
 from app.agents.runner import run_agent
+from app.research_engine.search import shorten_query
 
 from app.core.prompts import prompt
 
@@ -83,7 +84,7 @@ class ResearchQueryPlanner:
         out = []
         for q in (data or {}).get("queries") or []:
             try:
-                text = (q.get("query") or "").strip()
+                text = shorten_query((q.get("query") or "").strip())
                 if not text or len(text) > 400:
                     continue
                 pr_raw = q.get("priority")
@@ -111,9 +112,9 @@ class ResearchQueryPlanner:
                           round_index: int) -> list[PlannedQuery]:
         """Deterministic seed queries when the planner is unavailable —
         the engine still functions."""
-        title = (case_context.get("title") or "").strip()
+        title = shorten_query((case_context.get("title") or "").strip())
         people = [p for p in (case_context.get("key_people") or [])[:3]]
-        seeds = [title] + people
+        seeds = [title] + [shorten_query(p) for p in people]
         queries = []
         for i, s in enumerate(seeds):
             if not s:

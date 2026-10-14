@@ -88,6 +88,7 @@ def test_brave_recorded_response_maps_web_results_and_never_logs_key(monkeypatch
             assert url.endswith("/res/v1/web/search")
             assert self.kwargs["headers"]["X-Subscription-Token"] == "recorded-brave-key"
             assert kwargs["params"]["count"] == 3
+            assert len(kwargs["params"]["q"].split()) <= 8
             return httpx.Response(200, json={"web": {"results": [
                 {"title": "A case", "url": "https://news.example/case",
                  "description": "A reported investigation"}]}})
@@ -98,6 +99,35 @@ def test_brave_recorded_response_maps_web_results_and_never_logs_key(monkeypatch
     assert result[0].backend == "brave"
     assert result[0].title == "A case"
     assert "recorded-brave-key" not in caplog.text
+
+
+def test_brave_honors_retry_after_and_reports_attempt_diagnostics(monkeypatch):
+    from app.research_engine.search_adapters import brave
+
+    calls = []
+    sleeps = []
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, *args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                return httpx.Response(429, headers={"Retry-After": "2"})
+            return httpx.Response(200, json={"web": {"results": [
+                {"title": "A", "url": "https://example.test/a"}]}})
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    monkeypatch.setattr(brave.asyncio, "sleep", fake_sleep)
+    backend = brave.BraveSearchBackend("test-key", min_interval_s=0)
+    result = asyncio.run(backend.search("one two three four five six seven eight nine", "en"))
+    assert result and len(calls) == 2
+    assert sleeps == pytest.approx([2.0], abs=0.01)
+    assert backend.last_search_diagnostics["retries"] == 1
+    assert backend.last_search_diagnostics["attempts"][0]["http_status"] == 429
 
 
 def test_brave_retries_once_on_rate_limit_and_zero_results_are_unavailable(monkeypatch):
