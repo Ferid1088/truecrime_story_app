@@ -35,7 +35,7 @@ from app.research_engine.ranking import (
     rank_results,
     select_for_fetch,
 )
-from app.research_engine.search import SearchBackendRegistry
+from app.research_engine.search import SearchBackendRegistry, SearchError
 from app.research_engine.source_quality import (
     TYPE_TO_SOURCE_TYPE,
     classify_source,
@@ -141,6 +141,7 @@ class ResearchOrchestrator:
         results_out: list[dict] = []
         sources_out: list[dict] = []
         language_stats: dict[str, dict] = {}
+        search_diagnostics: list[dict] = []
         safety = {"blocked": {}, "dropped": {}, "accepted": 0}
         case_context["_safety"] = safety
         all_gaps: list[str] = list(case_context.get("research_gaps") or [])
@@ -174,7 +175,7 @@ class ResearchOrchestrator:
             stats = await self._research_language(
                 lang, case_context, objective, seen_canonical,
                 families, tel, queries_out, results_out, sources_out,
-                all_gaps, contradictions, progress, started)
+                all_gaps, contradictions, search_diagnostics, progress, started)
             language_stats[lang] = stats
 
         # Assembler: one final case-level summary (cheap).
@@ -196,6 +197,7 @@ class ResearchOrchestrator:
             "research_gaps": all_gaps[:30],
             "possible_contradictions": contradictions[:30],
             "language_stats": language_stats,
+            "search_diagnostics": search_diagnostics,
             "safety": safety,
             "_telemetry": tel,
         }
@@ -205,6 +207,7 @@ class ResearchOrchestrator:
         seen_canonical: set[str], families: SourceFamilyDetector,
         tel: dict, queries_out: list, results_out: list,
         sources_out: list, all_gaps: list, contradictions: list,
+        search_diagnostics: list,
         progress: Progress, started: float,
     ) -> dict:
         stats = {
@@ -246,6 +249,7 @@ class ResearchOrchestrator:
                 break
 
             new_this_round = 0
+            search_failed = False
             for pq in planned:
                 if stats["queries"] >= self.cfg.max_queries_per_language:
                     break
@@ -260,11 +264,38 @@ class ResearchOrchestrator:
                 prev_queries.append(pq.query)
                 stats["queries"] += 1
                 progress.stage(f"searching:{lang}")
-                raw = await self.registry.search(
-                    pq.query, pq.language,
-                    limit=self.cfg.max_results_per_query)
+                try:
+                    raw = await self.registry.search(
+                        pq.query, pq.language,
+                        limit=self.cfg.max_results_per_query)
+                except SearchError as exc:
+                    detail = dict(exc.details or {})
+                    detail.setdefault("query", pq.query)
+                    detail.setdefault("provider", exc.backend)
+                    detail.setdefault("result_count", 0)
+                    detail.setdefault("retries", 0)
+                    detail.setdefault("error_kind", exc.kind)
+                    search_diagnostics.append(detail)
+                    queries_out[q_idx]["search"] = detail
+                    tel["search_errors"] = tel.get("search_errors", 0) + 1
+                    search_failed = True
+                    stats["stop_reason"] = "search_unavailable"
+                    log.warning("research search failed query=%r status=%s results=%s retries=%s",
+                                pq.query, detail.get("http_status"),
+                                detail.get("result_count", 0), detail.get("retries", 0))
+                    break
+                backend_detail = getattr(self.registry.backends[0],
+                                         "last_search_diagnostics", None) or {}
+                detail = dict(backend_detail)
+                detail.setdefault("query", pq.query)
+                search_diagnostics.append(detail)
+                queries_out[q_idx]["search"] = detail
                 stats["search_calls"] += 1
                 tel["searches"] += 1
+                search_cost = float(detail.get("estimated_cost_usd") or 0.0)
+                tel["search_cost_usd"] += search_cost
+                tel["cost_usd"] += search_cost
+                stats["cost_usd"] += search_cost
                 stats["sources_found"] += len(raw)
                 new_this_round += await self._process_results(
                     raw, q_idx, lang, case_context, seen_canonical,
@@ -273,6 +304,9 @@ class ResearchOrchestrator:
                     progress=progress, safety=case_context["_safety"])
                 if stats["fetch_calls"] >= self.cfg.max_fetches_per_language:
                     break
+
+            if search_failed:
+                break
 
             # Gap analysis for this round (bounded LLM usage).
             if self.gaps and self.cfg.enable_gap_analysis and sources_out:

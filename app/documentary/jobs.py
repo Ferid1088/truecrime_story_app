@@ -216,6 +216,19 @@ def plain_failure(error: BaseException | str) -> str:
 
 
 def failure_details(message: str, error_code: str | None = None) -> dict:
+    if error_code in {"search_no_results", "search_rate_limited"}:
+        rate_limited = error_code == "search_rate_limited"
+        return {
+            "resume_allowed": False,
+            "resume_disabled_reason": (
+                "Resume is disabled until the Brave Search response or rate-limit condition changes."
+            ),
+            "next_action": (
+                "Wait for the Brave Search rate-limit window to change, then start a new research run."
+                if rate_limited else
+                "Check Brave Search availability and query results, then start a new research run."
+            ),
+        }
     if error_code == "no_relevant_sources" or message.startswith("No relevant sources found"):
         return {
             "resume_allowed": False,

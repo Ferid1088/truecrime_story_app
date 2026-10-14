@@ -9,6 +9,7 @@ from app.core import observability as obs
 from app.core.config import settings
 from app.db.base import SessionLocal
 from app.db.models import ProviderCall
+from app.services.tracking import documentary_run_context
 
 
 @pytest.fixture(autouse=True)
@@ -86,6 +87,18 @@ def test_every_brave_call_is_recorded_with_configured_estimated_cost():
     assert row.model == "brave-search"
     assert row.estimated is True
     assert row.cost_usd == pytest.approx(0.005)
+    assert row.cost_eur == pytest.approx(0.004469)
+
+
+def test_research_brave_call_is_attributed_to_case_and_research_stage():
+    with documentary_run_context(case_id=2, pipeline_stage="research"):
+        with httpx.Client(transport=mock(lambda r: httpx.Response(
+                200, json={"web": {"results": []}}))) as c:
+            c.get("https://api.search.brave.com/res/v1/web/search?q=gilgo&count=10")
+    (row,) = rows()
+    assert row.case_id == 2
+    assert row.stage == "research"
+    assert row.estimated is True
     assert row.cost_eur == pytest.approx(0.004469)
 
 

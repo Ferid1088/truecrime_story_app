@@ -279,6 +279,7 @@ async def start_research_job(db: Session, case: Case, job: ResearchJob | None = 
         except (ValueError, TypeError):
             continue
     context = {
+        "case_id": case.id,
         "title": case.canonical_title,
         "summary": case.summary or "",
         "location": case.location or "",
@@ -765,13 +766,38 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
                 existing_sources = db.query(Source).filter(Source.case_id == job.case_id).count()
                 if extra["sources_added"] < minimum_relevant_sources() and existing_sources == 0:
                     title = case.canonical_title if case else "this case"
+                    diagnostics = pjob.result.get("search_diagnostics") or []
+                    failed_search = next(
+                        (d for d in diagnostics if d.get("error_kind") or d.get("http_status") == 429),
+                        None,
+                    )
                     job.status = "failed"
                     job.current_stage = "failed"
-                    job.error_code = "no_relevant_sources"
-                    job.error = (
-                        f"No relevant sources found for '{title}'. Add a more specific case title, "
-                        "aliases, location or date."
-                    )[:500]
+                    if failed_search and failed_search.get("rate_limited"):
+                        job.error_code = "search_rate_limited"
+                        status = failed_search.get("http_status") or 429
+                        retries = failed_search.get("retries", 0)
+                        job.error = (
+                            f"Search returned no results because Brave rate-limited the request "
+                            f"(HTTP {status}; retries={retries}). Wait for the rate-limit window "
+                            "to change, then start research again."
+                        )[:500]
+                    elif failed_search:
+                        job.error_code = "search_no_results"
+                        status = failed_search.get("http_status") or "unknown"
+                        retries = failed_search.get("retries", 0)
+                        query = failed_search.get("query") or title
+                        job.error = (
+                            f"Search returned no results for '{query}' (HTTP {status}; "
+                            f"retries={retries}). Check Brave Search availability and start "
+                            "research again."
+                        )[:500]
+                    else:
+                        job.error_code = "no_relevant_sources"
+                        job.error = (
+                            f"No relevant sources found for '{title}'. Add a more specific case title, "
+                            "aliases, location or date."
+                        )[:500]
                     job.result_summary = f"{job.result_summary} | safety={pjob.result.get('safety', {})}"[:500]
                     if case and not db.query(StoryVersion).filter(StoryVersion.case_id == case.id).count():
                         case.status = "new"
@@ -842,8 +868,15 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
     else:
         job.status = "failed"
         job.current_stage = "failed"
+        details = meta.get("error_details") or {}
         job.error = (pjob.error or "Provider job failed.")[:500]
         job.error_code = meta.get("error_kind") or None
+        if details.get("rate_limited"):
+            job.error_code = "search_rate_limited"
+            job.error = (
+                f"Search was rate-limited by Brave (HTTP {details.get('http_status') or 429}; "
+                f"retries={len(details.get('attempts') or []) - 1}). Wait and start research again."
+            )[:500]
         _record_run(
             db,
             job,
