@@ -91,11 +91,11 @@ def test_every_brave_call_is_recorded_with_configured_estimated_cost():
 
 def test_the_api_itself_and_disabled_ledger_leave_no_rows(client, monkeypatch):
     client.get("/health")
-    assert len(rows()) == 1
+    assert rows() == []
     monkeypatch.setattr(settings, "provider_ledger", False)
     with httpx.Client(transport=mock(lambda r: httpx.Response(200))) as c:
         c.get("https://off.example.com/")
-    assert len(rows()) == 1
+    assert rows() == []
 
 
 def test_a_broken_database_write_does_not_break_the_call(monkeypatch):
