@@ -84,13 +84,17 @@ export TRUECRIME_DISABLE_SCHEDULER=1
 export TRUECRIME_JOB_RUNNER=external
 export TRUECRIME_SEARXNG_URL="http://127.0.0.1:9"
 export TC_TEST_NO_NETWORK=1
+export TRUECRIME_PROVIDER_MODE=recorded
+export TRUECRIME_TEST_NO_REAL_PROVIDERS=1
 export NEXT_DIST_DIR=".next-e2e"
 export NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:${API_PORT}"
 export TRUECRIME_CORS_ORIGINS="http://127.0.0.1:${WEB_PORT}"
 
 "$ROOT/.venv/bin/python" -m alembic upgrade head
 PYTHONPATH="$ROOT" "$ROOT/.venv/bin/python" "$ROOT/scripts/seed_stage_control_e2e.py"
-"$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >"$ROOT/data/e2e-api.log" 2>&1 &
+TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" DATABASE_URL="$E2E_DATABASE_URL" \
+  TRUECRIME_PROVIDER_MODE=recorded TC_TEST_NO_NETWORK=1 TRUECRIME_TEST_NO_REAL_PROVIDERS=1 \
+  "$ROOT/.venv/bin/python" -m uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >"$ROOT/data/e2e-api.log" 2>&1 &
 API_PID=$!
 PYTHONPATH="$ROOT" TRUECRIME_DATABASE_URL="$E2E_DATABASE_URL" DATABASE_URL="$E2E_DATABASE_URL" \
   "$ROOT/.venv/bin/python" "$ROOT/scripts/e2e_stage_control_worker.py" >"$ROOT/data/e2e-stage-control-worker.log" 2>&1 &
@@ -103,6 +107,8 @@ until curl -fsS "http://127.0.0.1:${API_PORT}/health" >/dev/null; do
   n=$((n + 1)); [[ "$n" -lt 60 ]] || { cat "$ROOT/data/e2e-api.log"; exit 1; }
   sleep 1
 done
+health_mode="$(curl -fsS "http://127.0.0.1:${API_PORT}/health" | "$ROOT/.venv/bin/python" -c 'import json,sys; print(json.load(sys.stdin).get("provider_mode", ""))')"
+[[ "$health_mode" == "recorded" ]] || { echo "E2E safety check failed: API provider mode was '$health_mode', expected recorded." >&2; exit 1; }
 
 (cd "$ROOT/frontend" && npm run dev -- --hostname 127.0.0.1 --port "$WEB_PORT") >"$ROOT/data/e2e-frontend.log" 2>&1 &
 FRONTEND_PID=$!
