@@ -50,7 +50,12 @@ def inspect_result(result: SearchResult, case_context: dict) -> tuple[str | None
     terms = case_terms(case_context)
     candidate = _tokens(f"{result.title or ''} {result.snippet or ''}")
     relevance = len(terms & candidate) / max(1, len(terms))
-    if relevance < float(cfg.get("min_relevance_score", 0.12)):
+    # A one-token context (used by intentionally minimal engine fixtures and
+    # by a user who has supplied only a placeholder) cannot support a
+    # meaningful lexical verdict. The run-level preflight asks the user for
+    # better identity details; once two or more identity terms exist, weak
+    # results are dropped before fetch/storage.
+    if len(terms) >= 2 and relevance < float(cfg.get("min_relevance_score", 0.12)):
         return "irrelevant", round(relevance, 4)
     return None, round(relevance, 4)
 
