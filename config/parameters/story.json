@@ -45,16 +45,6 @@
         "base_seconds": 300,
         "seconds_per_target_minute": 250
       }
-    },
-    "pilot_stage_cost_ceiling_eur": {
-      "master_story": {
-        "base_eur": 0.05,
-        "eur_per_target_minute": 0.05
-      },
-      "master_approval": {
-        "base_eur": 0.05,
-        "eur_per_target_minute": 0.05
-      }
     }
   },
   "research_depth": {

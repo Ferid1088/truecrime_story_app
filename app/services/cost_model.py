@@ -1,8 +1,9 @@
 """Config-backed, no-send production cost estimates.
 
-The estimator deliberately exposes the units used for every line.  It is used
-by the dry run, stage-control preview, and the per-call budget gate so a UI
-estimate cannot silently disagree with the amount reserved by a real stage.
+The estimator deliberately exposes the units used for every line. It is used
+by the dry run, the stage-control preview, and the estimate-vs-actual report
+— information only. The only thing that can stop a run over cost is the
+case's actual recorded spend against its EUR cap (app.services.budget).
 """
 
 from __future__ import annotations
@@ -29,20 +30,6 @@ def configured_stage_time_budget_seconds(stage: str, target_minutes: float) -> f
     if spec is None:
         return None
     return float(spec.base_seconds + spec.seconds_per_target_minute * max(target_minutes, 0.0))
-
-
-def configured_stage_cost_ceiling_eur(
-    mode: str | None, stage: str, target_minutes: float | None = None
-) -> float | None:
-    """Return the target-scaled hard ceiling for a pilot stage, if any."""
-    if mode != "pilot":
-        return None
-    base = stage.split(":", 1)[0]
-    spec = ai_config.cost_control.pilot_stage_cost_ceiling_eur.get(base)
-    if spec is None:
-        return None
-    target = float(target_minutes or ai_config.documentary.pilot_seconds / 60.0)
-    return float(spec.base_eur + spec.eur_per_target_minute * max(target, 0.0))
 
 
 @dataclass(frozen=True)

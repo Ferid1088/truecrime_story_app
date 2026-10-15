@@ -261,6 +261,10 @@ class VoiceRenderer:
                 raw, meta_path = blocks_dir / f"{stem}.mp3", blocks_dir / f"{stem}.json"
         cache_hit = meta is not None
         if not cache_hit:
+            if self.db is not None and self.budget_case_id is not None:
+                from app.services.budget import BudgetService
+
+                BudgetService(self.db).check(self.budget_case_id, self.budget_stage or f"tts:{language}")
             res = await self.provider.synthesize(req)
             if res.character_cost is None:
                 self._budget_usage_missing = True

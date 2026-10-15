@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import AgentRun, DocumentaryJob, ProviderCall
 from app.providers.generation.base import GenerationResult
-from app.services.budget import BudgetService, StageCostCeilingExceeded, StageTimeBudgetExceeded
+from app.services.budget import BudgetService, StageTimeBudgetExceeded
 from app.utils import ensure_utc, utc_now
 
 _run_context: ContextVar[dict | None] = ContextVar("agent_run_context", default=None)
@@ -104,6 +104,7 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
     db.refresh(row)
     try:
         _check_stage_time_budget(context, case_id)
+        _check_case_budget(db, case_id, context.get("pipeline_stage"))
         _set_call_progress(db, row, context, started)
         yield row
     except (Exception, asyncio.CancelledError) as e:
@@ -160,6 +161,15 @@ def _check_stage_time_budget(context: dict, case_id: int | None) -> None:
         raise error
 
 
+def _check_case_budget(db: Session, case_id: int | None, stage: str | None) -> None:
+    """The only cost limit: refuse the next paid provider call once the
+    case's actual recorded spend has reached its EUR cap. No estimates —
+    see app.services.budget.BudgetService.check."""
+    if case_id is None:
+        return
+    BudgetService(db).check(case_id, stage)
+
+
 def _set_call_progress(db: Session, row: AgentRun, context: dict, started: datetime) -> None:
     job_id = row.documentary_job_id
     stage = row.pipeline_stage
@@ -212,11 +222,7 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     """
     if run.case_id is None or run.provider is None:
         return
-    from app.services.cost_model import (
-        configured_stage_cost_ceiling_eur,
-        estimate_stage_eur,
-        model_cost_eur,
-    )
+    from app.services.cost_model import estimate_stage_eur, model_cost_eur
 
     stage = run.pipeline_stage or run.agent_name
     reported = run.estimated_cost_usd is not None or (
@@ -246,37 +252,6 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
         documentary_job_id=run.documentary_job_id,
         duration_ms=run.duration_ms,
     )
-    if run.documentary_job_id is None:
-        return
-    job = db.get(DocumentaryJob, run.documentary_job_id)
-    ceiling = configured_stage_cost_ceiling_eur(
-        job.mode if job else None,
-        stage,
-        float(job.target_minutes) if job and job.target_minutes else None,
-    )
-    if ceiling is None:
-        return
-    spent = db.query(func.coalesce(func.sum(ProviderCall.cost_eur), 0.0)).filter(
-        ProviderCall.documentary_job_id == run.documentary_job_id,
-        ProviderCall.stage == stage,
-        ProviderCall.cost_eur.is_not(None),
-        ProviderCall.is_test_data.is_(False),
-    ).scalar() or 0.0
-    if float(spent) > ceiling + 1e-9:
-        reason = (
-            f"Pilot {stage} stopped: stage cost ceiling €{ceiling:.2f} "
-            f"exceeded (spent €{float(spent):.2f})."
-        )
-        raise StageCostCeilingExceeded(
-            run.case_id, stage, reason,
-            {
-                "cost_ceiling_exceeded": True,
-                "stage": stage,
-                "ceiling_eur": ceiling,
-                "spent_eur": round(float(spent), 6),
-                "reason": reason,
-            },
-        )
 
 
 def stamp_run(

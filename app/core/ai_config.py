@@ -515,20 +515,10 @@ class ScaledStageTimeBudgetConfig(BaseModel):
     seconds_per_target_minute: float = Field(ge=0.0)
 
 
-class ScaledStageCostCeilingConfig(BaseModel):
-    base_eur: float = Field(ge=0.0)
-    eur_per_target_minute: float = Field(ge=0.0)
-
-
 class CostControlConfig(BaseModel):
     max_master_tokens_per_case: int = Field(gt=0)
     max_master_cost_usd: float = Field(gt=0.0)
     stage_time_budgets: dict[str, ScaledStageTimeBudgetConfig] = Field(default_factory=dict)
-    # Per-stage hard stops for short pilot runs. The ceiling scales with the
-    # requested target length instead of being a fixed per-call allowance.
-    pilot_stage_cost_ceiling_eur: dict[str, ScaledStageCostCeilingConfig] = Field(
-        default_factory=dict
-    )
 
 
 class BudgetConfig(BaseModel):

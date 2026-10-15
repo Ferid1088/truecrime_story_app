@@ -13,26 +13,40 @@ def _case(db):
     return case
 
 
-def test_budget_stops_before_paid_stage_and_can_resume(db_session):
+def test_budget_stops_at_cap_and_can_resume_after_raising_it(db_session):
     case = _case(db_session)
     case.total_cost_cap_eur = 20.0
     db_session.commit()
     ledger = BudgetService(db_session)
     row = ledger.record(case_id=case.id, stage="research", model="fake-search",
-                        units=10, cost_eur=19.50, tokens_in=4, tokens_out=6)
-    assert row.cost_eur == pytest.approx(19.50)
-    assert ledger.snapshot(case.id).spent_eur == pytest.approx(19.50)
-    with pytest.raises(BudgetStopped, match="would exceed"):
-        ledger.check(case.id, "tts", 2.0)
+                        units=10, cost_eur=20.0, tokens_in=4, tokens_out=6)
+    assert row.cost_eur == pytest.approx(20.0)
+    assert ledger.snapshot(case.id).spent_eur == pytest.approx(20.0)
+    with pytest.raises(BudgetStopped, match=r"case budget €20.00 reached: spent €20.00"):
+        ledger.check(case.id, "tts")
     db_session.refresh(case)
     assert case.status == "budget stopped"
     assert case.budget_stop_reason
     snapshot = ledger.set_cap(case.id, 25.0)
-    ledger.check(case.id, "tts", 2.0)
+    ledger.check(case.id, "tts")  # no longer at the (now higher) cap: proceeds
     db_session.refresh(case)
     assert case.status == "story_ready"
-    assert snapshot.remaining_eur == pytest.approx(5.5)
+    assert snapshot.remaining_eur == pytest.approx(5.0)
     assert db_session.query(type(row)).filter_by(case_id=case.id).count() == 1
+
+
+def test_budget_check_allows_19_99_and_stops_only_at_20_00(db_session):
+    # The only cost limit: actual recorded spend against the EUR cap.
+    # No estimate is ever involved in this comparison.
+    case = _case(db_session)
+    case.total_cost_cap_eur = 20.0
+    db_session.commit()
+    ledger = BudgetService(db_session)
+    ledger.record(case_id=case.id, stage="research", model="fake", units=1, cost_eur=19.99)
+    ledger.check(case.id, "master_story")  # 19.99 < 20.00: the call may proceed
+    ledger.record(case_id=case.id, stage="research", model="fake", units=1, cost_eur=0.01)
+    with pytest.raises(BudgetStopped, match=r"case budget €20.00 reached: spent €20.00"):
+        ledger.check(case.id, "master_story")
 
 
 def test_budget_records_euro_call_cost_without_double_counting(db_session):
@@ -59,8 +73,8 @@ def test_budget_record_keeps_the_measured_call_duration(db_session):
     assert no_duration.duration_ms == 0
 
 
-def test_actual_provider_usage_stops_the_next_stage_at_cap(db_session):
-    """A provider response larger than the estimate must govern the next gate."""
+def test_actual_spend_crossing_the_cap_stops_the_next_call(db_session):
+    """A provider response larger than any estimate still governs the next gate."""
     case = _case(db_session)
     case.total_cost_cap_eur = 1.0
     db_session.commit()
@@ -70,8 +84,8 @@ def test_actual_provider_usage_stops_the_next_stage_at_cap(db_session):
     actual = ledger.record(case_id=case.id, stage="master_story", model="fake",
                            units=1000, cost_eur=1.25, estimated=False)
     assert actual.cost_eur > estimated.cost_eur
-    with pytest.raises(BudgetStopped, match="remaining"):
-        ledger.check(case.id, "spoken", 0.01)
+    with pytest.raises(BudgetStopped, match="case budget"):
+        ledger.check(case.id, "spoken")
 
 
 def test_missing_provider_usage_is_explicitly_estimated(db_session):
@@ -85,11 +99,14 @@ def test_missing_provider_usage_is_explicitly_estimated(db_session):
 
 def test_recorded_provider_calls_are_excluded_from_case_budget(db_session):
     case = _case(db_session)
+    case.total_cost_cap_eur = 20.0
+    db_session.commit()
     ledger = BudgetService(db_session)
     ledger.record(case_id=case.id, stage="discovery", model="recorded-e2e",
                   units=100, cost_eur=19.99, is_test_data=True)
+    # Test-data spend never counts: the case is nowhere near its cap.
     assert ledger.snapshot(case.id).spent_eur == pytest.approx(0.0)
-    ledger.record(case_id=case.id, stage="research", model="live",
-                  units=1, cost_eur=19.50)
-    with pytest.raises(BudgetStopped, match="remaining"):
-        ledger.check(case.id, "story", 1.0)
+    ledger.check(case.id, "research")  # must not raise
+    ledger.record(case_id=case.id, stage="research", model="live", units=1, cost_eur=20.0)
+    with pytest.raises(BudgetStopped, match="case budget"):
+        ledger.check(case.id, "story")

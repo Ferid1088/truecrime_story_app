@@ -13,19 +13,13 @@ from app.utils import utc_now
 
 
 class BudgetStopped(RuntimeError):
-    def __init__(self, case_id: int, stage: str, reason: str):
-        super().__init__(reason)
-        self.case_id, self.stage, self.reason = case_id, stage, reason
+    """The only cost limit: a case's actual recorded spend reached its EUR cap."""
 
-
-class StageCostCeilingExceeded(RuntimeError):
-    """A configured per-stage ceiling stopped a job without changing case budget state."""
-
-    def __init__(self, case_id: int, stage: str, reason: str, detail: dict | None = None):
+    def __init__(self, case_id: int, stage: str | None, reason: str, detail: dict | None = None):
         super().__init__(reason)
         self.case_id, self.stage, self.reason = case_id, stage, reason
         self.detail = detail or {
-            "cost_ceiling_exceeded": True,
+            "budget_stopped": True,
             "stage": stage,
             "reason": reason,
         }
@@ -78,20 +72,16 @@ class BudgetService:
         cap = _cap(case)
         return BudgetSnapshot(cap, round(spent, 6), round(max(cap - spent, 0.0), 6), case.status)
 
-    def check(self, case_id: int, stage: str, estimated_cost_eur: float) -> BudgetSnapshot:
+    def check(self, case_id: int, stage: str | None = None) -> BudgetSnapshot:
+        """The only cost limit: stop before a paid provider call if the
+        case's actual recorded spend (provider_calls ledger, is_test_data
+        excluded) has already reached its EUR cap. No estimates — a call
+        already in flight is never interrupted, only the next one refused."""
         current = self.snapshot(case_id)
-        actual_stage = self.db.query(func.coalesce(func.sum(ProviderCall.cost_eur), 0.0)).filter(
-            ProviderCall.case_id == case_id, ProviderCall.stage == stage,
-            ProviderCall.cost_eur.is_not(None), ProviderCall.estimated.is_(False),
-            ProviderCall.is_test_data.is_(False),
-        ).scalar() or 0.0
-        required = max(float(estimated_cost_eur), float(actual_stage))
-        if required > current.remaining_eur + 1e-9:
+        if current.spent_eur >= current.cap_eur - 1e-9:
             case = self.db.get(Case, case_id)
             assert case is not None
-            reason = (f"Budget stopped before {stage}: max(estimate €{estimated_cost_eur:.2f}, "
-                      f"actual so far €{float(actual_stage):.2f}) = €{required:.2f} "
-                      f"would exceed the remaining €{current.remaining_eur:.2f}.")
+            reason = f"case budget €{current.cap_eur:.2f} reached: spent €{current.spent_eur:.2f}"
             case.status = "budget stopped"
             case.budget_stop_reason = reason
             self.db.commit()

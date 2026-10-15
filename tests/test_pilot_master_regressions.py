@@ -20,10 +20,12 @@ def _no_cross_test_ledger_calibration_pollution(db_session):
     uncommitted-rollback-free session (tests/conftest.py), so any
     ProviderCall row a test commits for stage "master_story" or
     "master_approval" otherwise survives into every later test in the
-    run and can push an unrelated pilot's cost estimate over its stage
-    ceiling (this broke test_visual_production.py/test_visual_direction.py
-    when this file's tests ran first alphabetically). Delete only the rows
-    this test itself added, by id, so real historical data is untouched."""
+    run and can silently change an unrelated test's calibrated estimate
+    (this broke test_visual_production.py/test_visual_direction.py when
+    this file's tests ran first alphabetically, back when a stage cost
+    ceiling compared that estimate against a hard stop). Delete only the
+    rows this test itself added, by id, so real historical data is
+    untouched."""
     high_water_mark = db_session.query(ProviderCall.id).order_by(ProviderCall.id.desc()).first()
     start_id = high_water_mark[0] if high_water_mark else 0
     yield
@@ -247,8 +249,11 @@ def test_master_story_estimate_uses_provider_ledger_calibration(db_session):
     assert line["estimated_cost_eur"] > 0.1
 
 
-def test_pilot_master_story_stage_ceiling_stops_after_recorded_spend(db_session):
-    from app.services.budget import StageCostCeilingExceeded
+def test_record_provider_call_never_raises_a_stage_cost_ceiling(db_session):
+    # The per-stage cost-ceiling formula (0.05 + 0.05 x target_minutes) is
+    # removed: recording a provider call must never stop a job over a
+    # per-stage figure. Only the case-wide actual-spend cap can stop a run
+    # (see tests/test_budget.py) — and only the next call, never this one.
     from app.services.tracking import _record_provider_call
 
     case = _case(db_session)
@@ -274,12 +279,41 @@ def test_pilot_master_story_stage_ceiling_stops_after_recorded_spend(db_session)
     db_session.add(run)
     db_session.commit()
 
-    with pytest.raises(StageCostCeilingExceeded) as exc:
-        _record_provider_call(db_session, run)
+    _record_provider_call(db_session, run)
 
-    assert exc.value.detail["cost_ceiling_exceeded"] is True
-    assert exc.value.detail["ceiling_eur"] == pytest.approx(0.20)
-    assert exc.value.detail["spent_eur"] > 0.20
+    assert db_session.query(ProviderCall).filter(
+        ProviderCall.case_id == case.id, ProviderCall.stage == "master_story",
+    ).count() == 2
+
+
+def test_a_20s_pilot_stage_is_never_blocked_by_cost_estimate(db_session):
+    # Case 2, job #5: "Pilot master_approval stopped before run: estimated
+    # cost €0.12 exceeds stage ceiling €0.07" — that per-stage ceiling
+    # formula (0.05 + 0.05 x target_minutes, ~0.067 EUR for a 20s/0.33min
+    # pilot) is gone. A stage runs as long as the case's actual recorded
+    # spend has not reached its EUR cap, no estimate involved.
+    from app.documentary.pipeline.base import Stage, StageRunner
+
+    case = _case(db_session)
+    job = DocumentaryJob(
+        case_id=case.id, mode="pilot", pilot_seconds=20,
+        target_minutes=20 / 60, status="running",
+    )
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(job)
+    ran = []
+
+    class Dummy(Stage):
+        name = "master_approval"
+
+        async def run(self):
+            ran.append(True)
+            return {"ok": True}
+
+    result = asyncio.run(StageRunner(db_session, job).execute(Dummy(None)))
+    assert ran == [True]
+    assert result == {"ok": True}
 
 
 def test_record_provider_call_keeps_the_agent_run_duration(db_session):
@@ -346,26 +380,22 @@ def test_master_approval_estimate_line_reflects_real_revision_spend(db_session):
     assert row["actual_eur"] == pytest.approx(0.146, abs=0.001)
 
 
-def test_pilot_stage_limits_scale_with_target_and_timeout_is_inactivity_based():
+def test_pilot_stage_time_limits_scale_with_target_and_timeout_is_inactivity_based():
     from app.core.ai_config import ai_config
-    from app.services.cost_model import (
-        configured_stage_cost_ceiling_eur,
-        configured_stage_time_budget_seconds,
-    )
+    from app.services.cost_model import configured_stage_time_budget_seconds
 
     # A single measured master writer/rewriter call takes 330-400s (job 4,
     # case 2: AgentRun ids 83 and 88 — 334.1s and 402.7s). The provider does
     # not stream, so the generation-provider timeout and the stage budget
     # must both clear the slowest observed call with margin, or every pilot
-    # approval fails before a single revision can even run.
+    # approval fails before a single revision can even run. (Time/inactivity
+    # timeouts are not cost limits and are kept as-is.)
     SLOWEST_MEASURED_WRITER_CALL_S = 403
     assert ai_config.generation_provider().inactivity_timeout_s > SLOWEST_MEASURED_WRITER_CALL_S
     assert configured_stage_time_budget_seconds("master_approval", 3) > SLOWEST_MEASURED_WRITER_CALL_S
     assert configured_stage_time_budget_seconds("master_story", 3) > SLOWEST_MEASURED_WRITER_CALL_S
     assert configured_stage_time_budget_seconds("master_approval", 3) == pytest.approx(1050)
     assert configured_stage_time_budget_seconds("master_approval", 45) == pytest.approx(11550)
-    assert configured_stage_cost_ceiling_eur("pilot", "master_approval", 3) == pytest.approx(0.20)
-    assert configured_stage_cost_ceiling_eur("pilot", "master_approval", 6) == pytest.approx(0.35)
 
 
 def test_stage_time_budget_error_is_structured_before_next_call():

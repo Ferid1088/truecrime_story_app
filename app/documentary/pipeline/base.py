@@ -19,17 +19,8 @@ from app.core.concurrency import gather_limited
 from app.core.policy import PolicyDecision, warning_for
 from app.db.models import Artifact, DocumentaryJob
 from app.documentary.pipeline.errors import JobCancelled
-from app.services.budget import (
-    BudgetService,
-    BudgetStopped,
-    StageCostCeilingExceeded,
-    StageTimeBudgetExceeded,
-)
-from app.services.cost_model import (
-    configured_stage_cost_ceiling_eur,
-    configured_stage_time_budget_seconds,
-    estimate_stage_eur,
-)
+from app.services.budget import BudgetService, BudgetStopped, StageTimeBudgetExceeded
+from app.services.cost_model import configured_stage_time_budget_seconds
 from app.services.tracking import documentary_run_context
 from app.utils import utc_now
 
@@ -185,42 +176,17 @@ class StageRunner:
         stage_budget_seconds = configured_stage_time_budget_seconds(
             budget_stage, target_minutes
         )
-        estimate = estimate_stage_eur(
-            self.db, self.job.case_id, name,
-            self.job.pilot_seconds if self.job.mode == "pilot" else None,
-        )
         try:
-            ceiling = configured_stage_cost_ceiling_eur(
-                self.job.mode, budget_stage, target_minutes
-            )
-            if ceiling is not None and estimate > ceiling + 1e-9:
-                reason = (
-                    f"Pilot {budget_stage} stopped before run: estimated cost "
-                    f"€{estimate:.2f} exceeds stage ceiling €{ceiling:.2f}."
-                )
-                raise StageCostCeilingExceeded(
-                    self.job.case_id, budget_stage, reason,
-                    {
-                        "cost_ceiling_exceeded": True,
-                        "stage": budget_stage,
-                        "ceiling_eur": ceiling,
-                        "estimated_eur": estimate,
-                        "reason": reason,
-                    },
-                )
-            BudgetService(self.db).check(self.job.case_id, budget_stage, estimate)
-        except StageCostCeilingExceeded as exc:
-            st["status"] = "failed"
-            st["detail"] = exc.detail
-            st["error_type"] = type(exc).__name__
-            st["finished_at"] = utc_now().isoformat()
-            if name in self.running:
-                self.running.remove(name)
-            self._save()
-            raise
+            # The only cost limit: the case's actual recorded spend against
+            # its EUR cap — no estimate, so a stage never gets refused over
+            # a guess at what it might cost. The same check runs again
+            # before every individual paid provider call inside the stage
+            # (app.services.tracking.track_run); this is just the cheap
+            # early exit so an already-over-cap case never even starts one.
+            BudgetService(self.db).check(self.job.case_id, budget_stage)
         except BudgetStopped as exc:
             st["status"] = "failed"
-            st["detail"] = {"budget_stopped": True, "reason": exc.reason}
+            st["detail"] = exc.detail
             st["error_type"] = type(exc).__name__
             st["finished_at"] = utc_now().isoformat()
             self.result["budget_stopped"] = {"stage": name, "reason": exc.reason}
