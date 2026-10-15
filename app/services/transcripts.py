@@ -195,7 +195,7 @@ async def normalize_transcript(db: Session, video: VideoSource) -> int:
 
     Batched by chunk; original text is untouched. Returns segments updated.
     """
-    canonical = ai_config.multilingual.canonical_language
+    canonical = ai_config.multilingual.evidence_language
     pending = [
         s for s in video.segments
         if s.language != canonical and s.canonical_text_en is None

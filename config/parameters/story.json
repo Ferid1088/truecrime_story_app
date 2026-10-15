@@ -76,7 +76,7 @@
     "min_tokens": 200,
     "max_tokens": 1400,
     "max_chunks_per_source_for_extraction": 4,
-    "max_sources_per_extraction_call": 4
+    "max_sources_per_extraction_call": 2
   },
   "evidence_strength": {
     "weights": {
@@ -95,10 +95,11 @@
       "fa",
       "ar"
     ],
-    "canonical_language": "en",
+    "canonical_language": "fa",
+    "evidence_language": "en",
     "localization_languages": [
+      "en",
       "de",
-      "fa",
       "ar"
     ]
   },

@@ -149,7 +149,7 @@ async def _acquire_and_process(db: Session, case: Case, video: VideoSource) -> d
     stored = store_transcript(db, video, result)
     if not stored:
         return {"segments": 0, "claims": 0, "insights": 0}
-    if (video.language or "en") != ai_config.multilingual.canonical_language:
+    if (video.language or "en") != ai_config.multilingual.evidence_language:
         try:
             await normalize_transcript(db, video)
         except Exception as e:

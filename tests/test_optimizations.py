@@ -1,7 +1,8 @@
 """Behaviour added by the optimization pass (no network)."""
 
 import asyncio
-
+import time
+import types
 
 from app.core.tasks import running, spawn
 from app.db.models import Case, ResearchJob, Video
@@ -113,7 +114,7 @@ def test_ingesting_job_is_not_seen_as_completed_and_not_reentered(db_session, mo
     job = ResearchJob(job_type="research", status="running", external_job_id="tce-x", provider="truecrime")
     db_session.add(job)
     db_session.commit()
-    RJ._INGESTING[job.id] = __import__("time").monotonic()
+    RJ._INGESTING.add(job.id)
 
     class Boom:
         async def poll(self, *_):
@@ -122,7 +123,56 @@ def test_ingesting_job_is_not_seen_as_completed_and_not_reentered(db_session, mo
     monkeypatch.setattr(RJ, "_provider_for", lambda j: Boom())
     out = asyncio.run(RJ.poll_job(db_session, job))
     assert out.status == "running"
-    RJ._INGESTING.pop(job.id)
+    RJ._INGESTING.discard(job.id)
+
+
+def test_slow_ingestion_is_not_restarted_by_a_later_poll(db_session, monkeypatch):
+    """Fact extraction runs for much longer than any fixed window; a poll made
+    hours into it must not start a second, billed extraction pass."""
+    from app.agents.research import ResearchAgent
+    from app.providers.base import ProviderJob
+    from app.services import research_jobs as RJ
+
+    case = _case(db_session, "Slow ingestion case")
+    job = ResearchJob(job_type="research", status="running", case_id=case.id,
+                      external_job_id="tce-slow", provider="truecrime")
+    db_session.add(job)
+    db_session.commit()
+    result = {"sources": [{"title": "A", "url": "https://example.com/slow", "language": "en",
+                           "summary": "s"}], "_telemetry": {}}
+
+    class Done:
+        async def poll(self, *_):
+            return ProviderJob(external_id="tce-slow", status="completed", result=result)
+
+    runs, release = [], asyncio.Event()
+
+    async def slow_extraction(self, db, case, contradiction_hints=None):
+        runs.append(1)
+        await release.wait()
+        return {"facts": 1, "contradictions": 0}
+
+    real_monotonic, offset = time.monotonic, [0.0]
+    monkeypatch.setattr(RJ, "time", types.SimpleNamespace(
+        monotonic=lambda: real_monotonic() + offset[0]), raising=False)
+    monkeypatch.setattr(RJ, "_provider_for", lambda j: Done())
+    monkeypatch.setattr(ResearchAgent, "run", slow_extraction)
+
+    async def scenario():
+        first = asyncio.create_task(RJ.poll_job(db_session, job))
+        await asyncio.sleep(0.05)
+        offset[0] = 7200.0
+        try:
+            during = (await asyncio.wait_for(RJ.poll_job(db_session, job), 3)).status
+        finally:
+            release.set()
+        await first
+        return during
+
+    during = asyncio.run(scenario())
+    assert runs == [1]
+    assert during == "running" and job.status == "completed"
+    assert job.id not in RJ._INGESTING
 
 
 def test_list_poll_does_not_ingest(db_session, monkeypatch):

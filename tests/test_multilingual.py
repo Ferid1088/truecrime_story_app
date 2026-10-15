@@ -100,8 +100,10 @@ def _master(db, case, status="ready"):
 def test_research_languages_configured():
     langs = ai_config.multilingual.research_languages
     assert langs == ["en", "de", "fa", "ar"]
-    assert ai_config.multilingual.canonical_language == "en"
-    for lang in ("de", "fa", "ar"):
+    # The channel writes natively in Persian; en/de/ar are native rewrites
+    # from that master, not translations of an English original.
+    assert ai_config.multilingual.canonical_language == "fa"
+    for lang in ("en", "de", "ar"):
         assert lang in ai_config.multilingual.localization_languages
 
 
@@ -350,7 +352,7 @@ def test_date_change_detected(db_session, monkeypatch):
         LocalizationPipeline, "_semantic_check", bad_dates
     )
     loc = asyncio.run(
-        LocalizationPipeline().localize(db_session, case, master, "fa")
+        LocalizationPipeline().localize(db_session, case, master, "de")
     )
     critic = json.loads(loc.critic_notes)
     assert "semantic_consistency" in critic["quality_gates"]["failures"]
@@ -490,7 +492,7 @@ def test_research_languages_endpoint(client, db_session):
     r = client.get(f"/api/cases/{case.id}/research/languages")
     assert r.status_code == 200
     body = r.json()
-    assert body["canonical_language"] == "en"
+    assert body["canonical_language"] == "fa"
     assert body["languages"]["en"]["sources"] == 1
     assert body["languages"]["de"]["sources"] == 1
     assert body["languages"]["de"]["evidence_items"] == 1
@@ -505,3 +507,24 @@ def test_no_hardcoded_model_ids_or_thresholds():
     for path in app_src:
         hits = [ln for ln in path.read_text().splitlines() if banned.search(ln)]
         assert not hits, f"{path}: hardcoded model/threshold: {hits[:2]}"
+
+
+def test_evidence_is_normalized_to_english_whatever_the_master_language(db_session, monkeypatch):
+    """The master is written in Persian, but evidence stays canonical in
+    English: an English source needs no summary_en, a Persian one does."""
+    from app.services import research_jobs
+
+    assert ai_config.multilingual.evidence_language == "en"
+    case = _mk_case(db_session)
+    sources = {}
+    for lang, text in (("en", "English original."), ("fa", "متن فارسی.")):
+        s = Source(case_id=case.id, title=lang, url=f"https://q.example/{lang}",
+                   source_type="news", language=lang, summary=text, status="active")
+        db_session.add(s)
+        sources[lang] = s
+    db_session.commit()
+    monkeypatch.setattr(research_jobs, "get_generation_provider", lambda: _Gen())
+    assert asyncio.run(research_jobs._normalize_sources(db_session, case.id)) == 1
+    db_session.refresh(sources["en"]); db_session.refresh(sources["fa"])
+    assert sources["en"].summary_en is None
+    assert sources["fa"].summary_en

@@ -56,7 +56,7 @@ async def generate_master_story(
     payload: GenerateStoryRequest,
     db: Session = Depends(get_db),
 ):
-    """Generate the canonical English master. All localizations derive
+    """Generate the canonical master (in the configured master language). All localizations derive
     from a ready master — never directly from evidence."""
     case = get_case_or_404(db, case_id)
     canonical = ai_config.multilingual.canonical_language

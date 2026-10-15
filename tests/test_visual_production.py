@@ -1098,7 +1098,8 @@ def documentary_env(tmp_path, monkeypatch):
                 master = self.db.query(StoryVersion).filter_by(kind="master").first()
                 if master is None:
                     master = StoryVersion(
-                        case_id=case.id, version=1, kind="master", language="en"
+                        case_id=case.id, version=1, kind="master",
+                        language=ai_config.multilingual.canonical_language,
                     )
                     self.db.add(master)
                 master.narrative_angle = "{}"

@@ -787,3 +787,41 @@ def test_timeline_and_contradiction_prompts_do_not_resend_source_texts(db_sessio
         entry = seen[role][0]
         assert entry["id"] == src.id
         assert entry["text"] is None and entry["chunks"] == []
+
+
+def test_failed_extraction_batch_is_split_and_retried(db_session, monkeypatch):
+    """One oversized or malformed reply used to lose the whole pass; the failing
+    batch is halved until its sources go through, and a lone failing source
+    still fails the extraction."""
+    from app.core.ai_config import ai_config
+    from app.providers.generation.base import GenerationError, GenerationResult
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_extraction_call", 4)
+    case = _mk_case(db_session)
+    sources = [_mk_source(db_session, case, language="en") for _ in range(4)]
+    sizes = []
+
+    class FlakyFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role != "fact_extractor":
+                return await super().generate_structured(role, system, user)
+            bundle = json.loads(user)["sources"]
+            sizes.append(len(bundle))
+            if len(bundle) > 1:
+                raise GenerationError("invalid_output", "truncated at max_tokens")
+            facts = [{"claim": f"fact {bundle[0]['id']}", "source_ids": [bundle[0]["id"]],
+                      "category": "context"}]
+            return {"facts": facts}, GenerationResult(text="{}", model="m", provider="fake")
+
+    result = _run_extract(db_session, case, FlakyFake([]))
+    assert sizes == [4, 2, 1, 1, 2, 1, 1]
+    assert result["facts"] == len(sources)
+
+    class AlwaysFails(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                raise ValueError("Expecting value: line 1 column 1 (char 0)")
+            return await super().generate_structured(role, system, user)
+
+    with pytest.raises(ValueError):
+        _run_extract(db_session, case, AlwaysFails([]))

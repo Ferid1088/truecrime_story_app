@@ -1,7 +1,6 @@
 from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
-import time
 import re
 from datetime import timedelta
 
@@ -617,7 +616,7 @@ async def _normalize_sources(db: Session, case_id: int) -> int:
     """Normalize non-English source summaries into canonical English
     (`summary_en`). Original-language text is preserved untouched; this is
     evidence normalization, not storytelling — factual fidelity only."""
-    canonical = ai_config.multilingual.canonical_language
+    canonical = ai_config.multilingual.evidence_language
     pending = (
         db.query(Source)
         .filter(
@@ -665,8 +664,7 @@ async def _normalize_sources(db: Session, case_id: int) -> int:
 # Jobs whose results are being ingested right now (this process): a second
 # poller must neither re-enter the ingestion nor see a half-finished job as
 # "completed".
-_INGESTING: dict[int, float] = {}
-_INGEST_STALE_S = 1800.0
+_INGESTING: set[int] = set()
 
 
 async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> ResearchJob:
@@ -677,9 +675,7 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
     ingestion dedupes by URL. `ingest=False` only reads (list views): a
     finished engine result then stays unconsumed until a real poll.
     """
-    started = _INGESTING.get(job.id)
-    if job.status in ("completed", "failed") or (
-            started is not None and time.monotonic() - started < _INGEST_STALE_S):
+    if job.status in ("completed", "failed") or job.id in _INGESTING:
         return job
     # video_research jobs are driven by their own background task —
     # external_job_id refers only to the *discovery* phase, and polling it
@@ -745,13 +741,21 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
         return job
     if pjob.status == "completed":
         job.current_stage = "ingesting"
-        _INGESTING[job.id] = time.monotonic()
+        _INGESTING.add(job.id)
     else:
         job.status = "failed"
         job.current_stage = "failed"
         job.error = (pjob.error or "provider failed")[:500]
         job.error_code = (meta.get("error_kind") or "provider_error")[:50]
     db.commit()
+    try:
+        return await _conclude(db, job, pjob, meta)
+    finally:
+        _INGESTING.discard(job.id)
+
+
+async def _conclude(db: Session, job: ResearchJob, pjob, meta: dict) -> ResearchJob:
+    """Store a finished provider result and close the job."""
 
     if pjob.status == "completed" and pjob.result:
         try:
@@ -894,7 +898,6 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
             if case and case.status == "researching":
                 case.status = "new"
 
-    _INGESTING.pop(job.id, None)
     db.commit()
     db.refresh(job)
     return job

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import Case, Source, Fact, Contradiction
 from app.providers.generation import get_generation_provider
+from app.providers.generation.base import GenerationError
 from app.services.tracking import track_run, stamp_run
 
 
@@ -125,24 +126,39 @@ class ResearchAgent:
         batches = _extraction_batches(
             sources, ai_config.source_chunking.max_sources_per_extraction_call)
         for number, batch in enumerate(batches, 1):
-            user = json.dumps(
-                {
-                    "case": case.canonical_title,
-                    "sources": _source_bundle(batch),
-                    "output_schema": _FACT_SCHEMA,
-                },
-                ensure_ascii=False,
-            )
+            facts.extend(await self._extract_batch(
+                db, case, batch, system, f"{number}/{len(batches)}"))
+        return facts
+
+    async def _extract_batch(self, db: Session, case: Case, batch: list[Source],
+                             system: str, label: str) -> list[dict]:
+        """One call for the batch; if the reply is unusable (truncated, empty,
+        malformed) the batch is halved and each half retried. A single failing
+        source raises."""
+        user = json.dumps(
+            {
+                "case": case.canonical_title,
+                "sources": _source_bundle(batch),
+                "output_schema": _FACT_SCHEMA,
+            },
+            ensure_ascii=False,
+        )
+        try:
             with track_run(
                 db, case.id, "Fact Extractor",
-                input_summary=f"case={case.id} batch={number}/{len(batches)} sources={len(batch)}",
+                input_summary=f"case={case.id} batch={label} sources={len(batch)}",
             ) as run:
                 data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
                 stamp_run(run, res, "fact_extractor")
                 found = data.get("facts", [])
                 run.output_summary = f"facts={len(found)}"
-            facts.extend(found)
-        return facts
+            return found
+        except (GenerationError, ValueError):
+            if len(batch) == 1:
+                raise
+            middle = len(batch) // 2
+            return (await self._extract_batch(db, case, batch[:middle], system, f"{label}a")
+                    + await self._extract_batch(db, case, batch[middle:], system, f"{label}b"))
 
     def _store_facts(self, db: Session, case: Case, facts_data: list[dict]) -> list[Fact]:
         db.query(Fact).filter(Fact.case_id == case.id).delete()

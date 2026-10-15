@@ -458,7 +458,11 @@ class StoryQualityConfig(BaseModel):
 
 class MultilingualConfig(BaseModel):
     research_languages: list[str] = ["en", "de", "fa", "ar"]
+    # Language of the master story (the narrative every localization derives from).
     canonical_language: str = "en"
+    # Language the evidence is normalized into (summary_en, canonical_text_en);
+    # independent of the language the master is written in.
+    evidence_language: str = "en"
     localization_languages: list[str] = ["de", "fa", "ar"]
 
     @model_validator(mode="after")

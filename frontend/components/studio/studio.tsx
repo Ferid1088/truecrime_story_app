@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
-import { parseNarrativePlan } from "@/lib/format";
+import { langLabel, parseNarrativePlan } from "@/lib/format";
 import { EmptyState, ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StoryReader } from "@/components/story/reader";
@@ -76,6 +76,8 @@ function StudioBody({
   onCaseChange: (id: number) => void;
 }) {
   const [language, setLanguage] = useState("fa");
+  const { data: settingsStatus } = useApi(() => api.settingsStatus(), []);
+  const canonicalLanguage = settingsStatus?.multilingual?.canonical_language ?? "en";
   const [minutes, setMinutes] = useState(45);
   const [tone, setTone] = useState(TONES[1].value);
   const [customTone, setCustomTone] = useState("");
@@ -171,7 +173,7 @@ function StudioBody({
     try {
       const m = await api.generateMasterStory(caseId, {
         target_minutes: minutes,
-        language: "en",
+        language: canonicalLanguage,
         tone: effectiveTone,
       });
       setMasterState({ caseId, master: m });
@@ -303,7 +305,7 @@ function StudioBody({
                 <>
                   <div className="grid grid-cols-2 gap-1 text-[11px] text-muted-foreground">
                     <span>
-                      v{master.version} · English
+                      v{master.version} · {langLabel(master.language)}
                     </span>
                     <span>
                       {master.word_count.toLocaleString()} words
@@ -345,8 +347,8 @@ function StudioBody({
                 </>
               ) : (
                 <p className="text-[11px] leading-4 text-muted-foreground">
-                  No English master yet. The master is the canonical narrative
-                  every localization derives from.
+                  No {langLabel(canonicalLanguage)} master yet. The master is the canonical
+                  narrative every localization derives from.
                 </p>
               )}
               <Button
@@ -356,7 +358,7 @@ function StudioBody({
                 loading={busy === "generate"}
                 onClick={generateMaster}
               >
-                {master ? "New Master Version" : "Generate English Master"}
+                {master ? "New Master Version" : `Generate ${langLabel(canonicalLanguage)} Master`}
               </Button>
             </CardContent>
           </Card>
