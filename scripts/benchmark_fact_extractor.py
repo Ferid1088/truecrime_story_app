@@ -31,7 +31,9 @@ from app.db.base import SessionLocal
 from app.db.models import Case, Source
 from app.providers.generation import get_generation_provider
 from app.services.budget import BudgetService
-from app.services.tracking import documentary_run_context, stamp_run, track_run
+from app.services.tracking import documentary_run_context, stamp_run, track_research_call
+
+CONCURRENCY = 4  # matches production's ai_config.source_chunking.extraction_concurrency order of magnitude
 
 CANDIDATES = [
     "claude-haiku-4-5",  # baseline
@@ -48,30 +50,50 @@ ROLE_ALIAS = "cheap"  # config/models.json alias fact_extractor is routed to
 def _model_override(model_id: str):
     """Temporarily point the "cheap" alias at a specific concrete model, so
     run_agent("research.extract_facts", ...) — the real production call —
-    runs unchanged against a different model."""
+    runs unchanged against a different model.
+
+    Also clears the alias's fallback chain for the duration: production
+    silently substitutes a fallback model (e.g. "cheap" -> "writer") on a
+    transient hiccup, which is exactly right for a real job but would
+    silently attribute another model's output to whichever candidate is
+    under test here — corrupting both its own score and, for the gold
+    model specifically, the "ground truth" every candidate is compared
+    against. A failure during benchmarking must surface as a failure.
+    """
     section = ai_config.generation_provider()
-    original = section.models[ROLE_ALIAS]
+    original_model = section.models[ROLE_ALIAS]
+    original_fallbacks = section.fallbacks.get(ROLE_ALIAS)
     section.models[ROLE_ALIAS] = model_id
+    section.fallbacks[ROLE_ALIAS] = []
     try:
         yield
     finally:
-        section.models[ROLE_ALIAS] = original
+        section.models[ROLE_ALIAS] = original_model
+        if original_fallbacks is None:
+            section.fallbacks.pop(ROLE_ALIAS, None)
+        else:
+            section.fallbacks[ROLE_ALIAS] = original_fallbacks
 
 
 def _similar(a: str, b: str) -> float:
     return SequenceMatcher(None, (a or "").lower(), (b or "").lower()).ratio()
 
 
-async def _extract(db, bench_case: Case, bundle: list[dict], system: str, label: str) -> dict:
+async def _extract(bench_case_id: int, case_title: str, bundle: list[dict],
+                   system: str, label: str) -> dict:
+    """Own short-lived DB session per call (app.services.tracking.
+    track_research_call), exactly like production's concurrent extraction
+    (app.agents.research.ResearchAgent._extract_facts) — a single shared
+    session across concurrent asyncio tasks is not safe."""
     gen = get_generation_provider()
     started = time.monotonic()
-    with documentary_run_context(case_id=bench_case.id, pipeline_stage=f"benchmark:fact_extractor"):
+    with documentary_run_context(case_id=bench_case_id, pipeline_stage="benchmark:fact_extractor"):
         try:
-            with track_run(db, bench_case.id, "Fact Extractor (benchmark)",
-                           f"label={label}") as run:
+            with track_research_call(
+                "Fact Extractor (benchmark)", f"label={label}", case_id=bench_case_id,
+            ) as run:
                 user = json.dumps(
-                    {"case": bench_case.canonical_title, "sources": bundle,
-                     "output_schema": _FACT_SCHEMA},
+                    {"case": case_title, "sources": bundle, "output_schema": _FACT_SCHEMA},
                     ensure_ascii=False,
                 )
                 data, res = await run_agent("research.extract_facts", gen, user, system=system)
@@ -169,20 +191,26 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int) -> Non
     batches = [sources[i:i + batch_size] for i in range(0, len(sources), batch_size)]
     bundles = [_source_bundle(b) for b in batches]
 
+    semaphore = asyncio.Semaphore(CONCURRENCY)
+
+    async def _bounded(label: str, bundle: list[dict]) -> dict:
+        async with semaphore:
+            return await _extract(bench_case_id, bench_case.canonical_title, bundle, system, label)
+
     print(f"Running gold ({GOLD_MODEL}) over {len(bundles)} batches...")
-    gold_results = []
     with _model_override(GOLD_MODEL):
-        for i, bundle in enumerate(bundles):
-            gold_results.append(await _extract(db, bench_case, bundle, system, f"gold-{i}"))
+        gold_results = await asyncio.gather(
+            *[_bounded(f"gold-{i}", bundle) for i, bundle in enumerate(bundles)]
+        )
     gold_facts_by_batch = [r.get("facts", []) if r["ok"] else [] for r in gold_results]
 
     report: dict[str, dict] = {}
     for model_id in CANDIDATES:
         print(f"Running candidate {model_id} over {len(bundles)} batches...")
-        results = []
         with _model_override(model_id):
-            for i, bundle in enumerate(bundles):
-                results.append(await _extract(db, bench_case, bundle, system, f"{model_id}-{i}"))
+            results = await asyncio.gather(
+                *[_bounded(f"{model_id}-{i}", bundle) for i, bundle in enumerate(bundles)]
+            )
         valid = [r for r in results if r["ok"]]
         valid_json_rate = len(valid) / len(results) if results else 0.0
         agreements = [
@@ -203,7 +231,11 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int) -> Non
             "total_facts_extracted": sum(len(r.get("facts", [])) for r in results),
         }
 
-    snapshot = BudgetService(db).snapshot(bench_case_id)
+    # A fresh session for the final tally: `db` has been open across every
+    # concurrent track_research_call's own commit and may hold a stale
+    # transaction snapshot under the default isolation level.
+    with SessionLocal() as fresh_db:
+        snapshot = BudgetService(fresh_db).snapshot(bench_case_id)
     print("\n=== Report (see docs/benchmarks/models.md) ===")
     print(json.dumps(report, indent=2))
     print(f"\nTotal benchmark spend (case {bench_case_id}): EUR {snapshot.spent_eur:.6f}")
