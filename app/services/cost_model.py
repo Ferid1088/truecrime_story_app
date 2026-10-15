@@ -501,6 +501,23 @@ def model_cost_eur(model: str | None, input_tokens: int | None,
                   + int(output_tokens) / 1_000_000 * float(spec["output_usd_per_1m_tokens"])) * rate, 8)
 
 
+def conservative_unpriced_cost_eur(input_tokens: int, output_tokens: int) -> float:
+    """A deliberately pessimistic cost for real, reported usage from a model
+    with no config/parameters/pricing.json entry: the EUR-20/case actual-
+    spend cap must never silently go uncounted just because a price lookup
+    failed, so this prices the real tokens at the most expensive configured
+    model's rate (never under-counts against any currently known model).
+    The caller still records why (a missing-price error), so the gap gets
+    fixed rather than hidden; this only keeps the cap meaningful meanwhile.
+    """
+    pricing = load_pricing()
+    input_rate = max(float(spec["input_usd_per_1m_tokens"]) for spec in pricing["models"].values())
+    output_rate = max(float(spec["output_usd_per_1m_tokens"]) for spec in pricing["models"].values())
+    rate = float(pricing["exchange_rates"]["usd_to_eur"])
+    return round((int(input_tokens) / 1_000_000 * input_rate
+                  + int(output_tokens) / 1_000_000 * output_rate) * rate, 8)
+
+
 def _stage_matches(call_stage: str | None, estimate_stage: str) -> bool:
     if not call_stage:
         return False

@@ -286,15 +286,19 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
 
     A provider that DOES report real token usage, for a model with no entry
     in config/parameters/pricing.json, is a configuration defect, not a
-    "usage unknown" situation — it is recorded with its real tokens and a
-    non-empty ``error``, cost_eur left unset, rather than silently folded
-    into the usage-less-retry estimate (which would hide a real, priced
-    call behind a stage-level guess, or zero it out entirely once one
-    estimate for the stage already exists).
+    "usage unknown" situation — it is recorded with its real tokens, a
+    non-empty ``error``, and a deliberately pessimistic cost_eur (the real
+    tokens priced at the most expensive configured model's rate), never
+    folded into the usage-less-retry estimate (which would hide a real,
+    priced call behind a stage-level guess, or zero it out entirely once one
+    estimate for the stage already exists). The pessimistic price keeps the
+    EUR-20/case actual-spend cap meaningful while the missing price gets
+    fixed — a silent cost_eur=None here would let the cap go uncounted
+    exactly where the ledger is least trustworthy.
     """
     if run.case_id is None or run.provider is None:
         return
-    from app.services.cost_model import estimate_stage_eur, model_cost_eur
+    from app.services.cost_model import conservative_unpriced_cost_eur, estimate_stage_eur, model_cost_eur
 
     stage = run.pipeline_stage or run.agent_name
     tokens_reported = run.input_tokens is not None and run.output_tokens is not None
@@ -306,15 +310,17 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     elif tokens_reported:
         cost_eur = model_cost_eur(run.model, run.input_tokens, run.output_tokens)
         price_missing = cost_eur is None
-    estimated = cost_eur is None and not price_missing
+    estimated = cost_eur is None
     error = None
     if price_missing:
         error = f"no price entry for model {run.model!r} (stage {stage})"[:200]
         log.error(
             "Cost ledger: %s has real token usage (in=%s out=%s) but no "
-            "configured price — booked with cost_eur unset, not EUR 0.",
+            "configured price — booked at a conservative upper-bound "
+            "cost, not the real (unknown) one.",
             error, run.input_tokens, run.output_tokens,
         )
+        cost_eur = conservative_unpriced_cost_eur(run.input_tokens, run.output_tokens)
     elif estimated:
         # Do not multiply a stage estimate by every usage-less retry.
         already_estimated = db.query(ProviderCall.id).filter(
@@ -326,9 +332,9 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     BudgetService(db).record(
         case_id=run.case_id, stage=stage, model=run.model,
         units=(run.total_tokens or ((run.input_tokens or 0) + (run.output_tokens or 0))),
-        cost_usd=cost_usd if not estimated and not price_missing else None,
+        cost_usd=cost_usd if not estimated else None,
         cost_eur=cost_eur, tokens_in=run.input_tokens, tokens_out=run.output_tokens,
-        estimated=estimated, error=error,
+        estimated=estimated, error=error, ok=(run.status != "failed"),
         is_test_data=(run.model == "recorded-e2e"),
         documentary_job_id=run.documentary_job_id,
         duration_ms=run.duration_ms,

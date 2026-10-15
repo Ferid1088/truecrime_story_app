@@ -128,12 +128,17 @@ def test_a_failure_with_no_provider_response_at_all_books_nothing(db_session):
     assert BudgetService(db_session).snapshot(case.id).spent_eur == 0.0
 
 
-def test_a_model_with_no_price_entry_fails_loudly_instead_of_booking_zero(db_session):
+def test_a_model_with_no_price_entry_fails_loudly_and_still_counts_toward_the_cap(db_session):
     """config/parameters/pricing.json has no entry for this model string
     (e.g. a gateway alias never added to pricing) even though the call
     really happened and reported real tokens. This must never be folded
     into the generic usage-less-retry estimate (which would, after the
-    first call for the stage, silently zero every further one)."""
+    first call for the stage, silently zero every further one) — but it
+    must also never go uncounted against the EUR cap just because its
+    exact price is unknown (a repeated unpriced model could otherwise
+    spend real money forever without the cap ever firing)."""
+    from app.services.cost_model import conservative_unpriced_cost_eur
+
     case = _case(db_session)
     for _ in range(2):
         with documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"):
@@ -149,15 +154,18 @@ def test_a_model_with_no_price_entry_fails_loudly_instead_of_booking_zero(db_ses
              .order_by(ProviderCall.id)
              .all())
     assert len(calls) == 2
+    expected = conservative_unpriced_cost_eur(400, 100)
+    assert expected > 0
     for call in calls:
-        assert call.cost_eur is None
-        assert call.estimated is False
+        # A conservative (never-under-counting), not a real, price — every
+        # call gets its own, never deduped/zeroed like the usage-less-retry
+        # estimate path.
+        assert call.cost_eur == pytest.approx(expected)
+        assert call.estimated is True
         assert call.error and "no price entry" in call.error
         assert call.tokens_in == 400
         assert call.tokens_out == 100
-    # Real spend is unknown for these calls (never invented as zero), so
-    # the budget snapshot reflects no spend from them specifically.
-    assert BudgetService(db_session).snapshot(case.id).spent_eur == 0.0
+    assert BudgetService(db_session).snapshot(case.id).spent_eur == pytest.approx(2 * expected, abs=1e-5)
 
 
 def test_missing_usage_retries_still_dedupe_to_zero_after_the_first_stage_estimate(db_session):
