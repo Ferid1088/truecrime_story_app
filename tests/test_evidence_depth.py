@@ -762,3 +762,28 @@ def test_fact_extraction_runs_in_per_language_batches(db_session, monkeypatch):
     assert all(len({lang for _, lang in c}) == 1 for c in calls)
     assert result["facts"] == 4
     assert {s.id for s in en + ar} == {i for c in calls for i, _ in c}
+
+
+def test_timeline_and_contradiction_prompts_do_not_resend_source_texts(db_session):
+    """Only fact extraction reads the chunk texts; the later stages work on the
+    extracted claims, so resending every chunk of every source grows with the
+    case until it no longer fits."""
+    from app.providers.generation.base import GenerationResult
+
+    case = _mk_case(db_session)
+    src = _mk_source(db_session, case, language="en", raw_text="long source text",
+                     is_authorized_text=True)
+    seen = {}
+
+    class Spy(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role in ("timeline_builder", "contradiction_analyzer"):
+                seen[role] = json.loads(user)["sources"]
+            return await super().generate_structured(role, system, user)
+
+    fake = Spy([{"claim": "c", "source_ids": [src.id], "category": "context"}])
+    _run_extract(db_session, case, fake)
+    for role in ("timeline_builder", "contradiction_analyzer"):
+        entry = seen[role][0]
+        assert entry["id"] == src.id
+        assert entry["text"] is None and entry["chunks"] == []

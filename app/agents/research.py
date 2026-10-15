@@ -8,7 +8,9 @@ from app.providers.generation import get_generation_provider
 from app.services.tracking import track_run, stamp_run
 
 
-def _source_bundle(sources: list[Source]) -> list[dict]:
+def _source_bundle(sources: list[Source], *, with_texts: bool = True) -> list[dict]:
+    """with_texts=False drops the raw text and chunks: only fact extraction
+    reads them, later stages work on the extracted claims."""
     return [
         {
             "id": s.id,
@@ -21,7 +23,8 @@ def _source_bundle(sources: list[Source]) -> list[dict]:
             "content_status": s.content_status,
             "source_family": s.source_family,
             "text": (
-                s.raw_text if s.is_authorized_text and not s.chunks else None
+                s.raw_text
+                if with_texts and s.is_authorized_text and not s.chunks else None
             ),
             "summary": s.summary,
             "summary_en": s.summary_en,
@@ -31,7 +34,7 @@ def _source_bundle(sources: list[Source]) -> list[dict]:
                 for c in (s.chunks or [])[
                     : ai_config.source_chunking.max_chunks_per_source_for_extraction
                 ]
-            ],
+            ] if with_texts else [],
         }
         for s in sources
     ]
@@ -193,7 +196,7 @@ class ResearchAgent:
                     {"id": f.id, "claim": f.claim, "current_event_date": f.event_date}
                     for f in fact_rows
                 ],
-                "sources": _source_bundle(sources),
+                "sources": _source_bundle(sources, with_texts=False),
                 "output_schema": {
                     "timeline": [{"id": 1, "event_date": "YYYY-MM-DD or null"}]
                 },
@@ -233,7 +236,7 @@ class ResearchAgent:
             {
                 "case": case.canonical_title,
                 "facts": [{"id": f.id, "claim": f.claim, "disputed": f.disputed} for f in fact_rows],
-                "sources": _source_bundle(sources),
+                "sources": _source_bundle(sources, with_texts=False),
                 "research_hints": hints,
                 "output_schema": {
                     "contradictions": [
