@@ -65,3 +65,6 @@ data/live-*.log
 
 # Live-run hygiene/verification evidence (ffprobe output, frames, screenshots)
 data/evidence/
+
+# live-run browser helpers
+frontend/.live-run-*.mjs
