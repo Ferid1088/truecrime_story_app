@@ -67,7 +67,7 @@ def health():
     api_commit = _commit_hash()
     worker = _worker_health()
     commit_mismatch = bool(
-        worker["alive"] and worker["commit"] and api_commit and worker["commit"] != api_commit
+        worker["commit"] and api_commit and worker["commit"] != api_commit
     )
     return {"status": "ok", "commit": api_commit, "provider_mode": provider_mode(),
             "worker_commit": worker["commit"],

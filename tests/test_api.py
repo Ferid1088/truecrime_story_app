@@ -47,6 +47,28 @@ def test_health_shows_worker_commit_and_flags_a_mismatch(monkeypatch, tmp_path):
     assert body["commit_mismatch"] is True
 
 
+def test_health_flags_a_mismatch_even_when_worker_liveness_probe_is_negative(monkeypatch, tmp_path):
+    from app.api import system
+    from app.core import process_health as ph
+
+    # A dead/unreachable pid (liveness probe false-negative, e.g. a pid
+    # recorded by a separate process/container) must never suppress a real
+    # commit difference — worker_alive and commit_mismatch are independent.
+    monkeypatch.setattr(ph, "WORKER_HEALTH_PATH", tmp_path / "worker.health.json")
+    monkeypatch.setenv("TRUECRIME_PROCESS_COMMIT", "a" * 40)
+    ph.write_worker_health("host:1:aaaaaa")
+    reported = json.loads((tmp_path / "worker.health.json").read_text())
+    reported["commit"] = "b" * 40
+    reported["pid"] = 999999999  # not a real, reachable pid
+    (tmp_path / "worker.health.json").write_text(json.dumps(reported))
+
+    body = system.health()
+    assert body["worker_commit"] == "b" * 40
+    assert body["commit"] == "a" * 40
+    assert body["worker_alive"] is False
+    assert body["commit_mismatch"] is True
+
+
 def test_health_reports_degraded_when_discovery_probe_has_too_few_results(monkeypatch):
     from app.api import system
 
