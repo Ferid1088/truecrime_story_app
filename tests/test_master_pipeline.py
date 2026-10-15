@@ -649,3 +649,31 @@ def test_master_generation_timeout_scales_with_the_film_length(client, db_sessio
     assert created["timeout_seconds"] == int(
         budget.base_seconds + budget.seconds_per_target_minute * 45)
     assert created["timeout_seconds"] > 300
+
+
+def test_director_prompt_stays_small_for_a_case_with_thousands_of_facts():
+    """1,700 extracted facts, each repeated in the disputed list and in the
+    narrative buckets, made a 1.18M-token director prompt (limit 1M). The
+    director plans with one short line per item; the act writers still get
+    full detail by id."""
+    from app.agents.story import build_evidence_pack, director_view
+    from app.db.models import Fact
+
+    facts = [
+        Fact(id=i, case_id=1, claim=f"Claim {i} " + "word " * 80, confidence=0.9,
+             category="evidence", narrative_value=["human_detail", "quote", "scene_detail"][i % 3],
+             evidence_strength="secondary", original_claim="Originaltext " * 40,
+             original_language="de", supporting_text="verbatim passage " * 30,
+             source_ids_json="[1,2]", chunk_ids_json="[3,4]", event_date="1924-05-21")
+        for i in range(1, 1701)
+    ]
+    pack = build_evidence_pack(facts, [], [])
+    view = director_view(pack)
+
+    assert len(json.dumps(view, ensure_ascii=False)) < len(json.dumps(pack, ensure_ascii=False)) / 5
+    assert len(view["facts"]) == 1700
+    item = view["facts"][0]
+    assert item["id"] == "F001" and len(item["claim"]) <= 220
+    assert not {"original_claim", "supporting_text", "source_ids", "chunk_ids"} & set(item)
+    assert view["human_details"][0] == "F003" and view["approved_quotes"][0] == "F001"
+    assert pack["facts"][0]["supporting_text"]            # the full pack is untouched

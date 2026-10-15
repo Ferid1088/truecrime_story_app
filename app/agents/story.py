@@ -160,6 +160,38 @@ def build_evidence_pack(
     }
 
 
+_DIRECTOR_CLAIM_CHARS = 220
+_DIRECTOR_FACT_KEYS = ("id", "category", "narrative_value", "evidence_strength", "uncertain",
+                       "people")
+_PACK_ID_LISTS = ("disputed_facts", "human_details", "scene_details", "investigation_details",
+                  "physical_evidence", "historical_context", "environment_details",
+                  "approved_quotes")
+
+
+def director_view(pack: dict) -> dict:
+    """The evidence as the story director plans with it: one short line per
+    item and the narrative buckets as id lists. Original wording, supporting
+    texts and source ids stay in the full pack, which the act writers draw
+    from by id — a case with thousands of facts would otherwise overrun the
+    model's prompt limit (1.18M tokens against 1M)."""
+    view = {
+        "facts": [
+            {**{k: f.get(k) for k in _DIRECTOR_FACT_KEYS},
+             "claim": (f.get("claim") or "")[:_DIRECTOR_CLAIM_CHARS]}
+            for f in pack.get("facts") or []
+        ],
+        "timeline": [{"id": t["id"], "event_date": t["event_date"]}
+                     for t in pack.get("timeline") or []],
+        "contradictions": pack.get("contradictions") or [],
+        "approved_context": [{**c, "summary": c["summary"][:300]}
+                             for c in pack.get("approved_context") or []],
+        "research_gaps": pack.get("research_gaps") or [],
+    }
+    for bucket in _PACK_ID_LISTS:
+        view[bucket] = [f["id"] for f in pack.get(bucket) or []]
+    return view
+
+
 _NV_BUCKET = {
     "human": "human_details",
     "scene": "scene_details",
@@ -658,7 +690,7 @@ class StoryDirector:
                 "target_minutes": target_minutes,
                 "language": language,
                 "editorial_context": context or {},
-                "evidence": pack,
+                "evidence": director_view(pack),
             },
             ensure_ascii=False,
             default=str,
