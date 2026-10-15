@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 
@@ -16,6 +17,30 @@ def test_health():
     body = r.json()
     assert body["status"] == "ok"
     assert {"available", "subtitles_filter", "libass", "fix"} <= set(body["short_form"]["caption_burn_in"])
+    # No worker has reported in this test process: never a false-positive mismatch.
+    assert body["worker_alive"] is False
+    assert body["commit_mismatch"] is False
+
+
+def test_health_shows_worker_commit_and_flags_a_mismatch(monkeypatch, tmp_path):
+    from app.api import system
+    from app.core import process_health as ph
+
+    monkeypatch.setattr(ph, "WORKER_HEALTH_PATH", tmp_path / "worker.health.json")
+    monkeypatch.setenv("TRUECRIME_PROCESS_COMMIT", "a" * 40)
+    ph.write_worker_health("host:1:aaaaaa")
+    # Simulate a worker still running an older commit than the API it is
+    # paired with — the exact scenario a restart-after-deploy must catch.
+    reported = json.loads((tmp_path / "worker.health.json").read_text())
+    reported["commit"] = "b" * 40
+    reported["pid"] = os.getpid()  # a pid this test can prove is alive
+    (tmp_path / "worker.health.json").write_text(json.dumps(reported))
+
+    body = system.health()
+    assert body["worker_commit"] == "b" * 40
+    assert body["commit"] == "a" * 40
+    assert body["worker_alive"] is True
+    assert body["commit_mismatch"] is True
 
 
 def test_health_reports_degraded_when_discovery_probe_has_too_few_results(monkeypatch):

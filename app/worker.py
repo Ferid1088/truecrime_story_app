@@ -271,6 +271,9 @@ def main() -> None:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, worker.stop.set)
+        from app.core.process_health import write_worker_health
+
+        write_worker_health(worker.worker_id)
         log.info("worker %s started", worker.worker_id)
         await worker.run()
 

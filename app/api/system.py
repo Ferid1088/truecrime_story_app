@@ -1,8 +1,5 @@
 
 import asyncio
-import os
-import subprocess
-from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -30,19 +27,24 @@ router = APIRouter()
 
 
 def _commit_hash() -> str | None:
-    value = os.environ.get("TRUECRIME_PROCESS_COMMIT")
-    if value and len(value) == 40:
-        return value
-    try:
-        root = str(Path(__file__).resolve().parents[2])
-        result = subprocess.run(
-            ["git", "-C", root, "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True, timeout=2,
-        )
-        value = result.stdout.strip()
-        return value if len(value) == 40 else None
-    except Exception:
-        return None
+    from app.core.process_health import commit_hash
+
+    return commit_hash()
+
+
+def _worker_health() -> dict:
+    from app.core.process_health import pid_alive, read_worker_health
+
+    reported = read_worker_health()
+    if reported is None:
+        return {"commit": None, "pid": None, "alive": False, "started_at": None}
+    alive = pid_alive(reported.get("pid"))
+    return {
+        "commit": reported.get("commit"),
+        "pid": reported.get("pid"),
+        "alive": alive,
+        "started_at": reported.get("started_at"),
+    }
 
 
 @router.get("/health")
@@ -62,7 +64,17 @@ def health():
     search_state = search_probe.get("status")
     if search_state not in {"ok", "degraded", "failing"}:
         search_state = "ok" if search_probe.get("healthy") else "failing"
-    return {"status": "ok", "commit": _commit_hash(), "provider_mode": provider_mode(),
+    api_commit = _commit_hash()
+    worker = _worker_health()
+    commit_mismatch = bool(
+        worker["alive"] and worker["commit"] and api_commit and worker["commit"] != api_commit
+    )
+    return {"status": "ok", "commit": api_commit, "provider_mode": provider_mode(),
+            "worker_commit": worker["commit"],
+            "worker_pid": worker["pid"],
+            "worker_alive": worker["alive"],
+            "worker_started_at": worker["started_at"],
+            "commit_mismatch": commit_mismatch,
             "search": search_state,
             "search_result_count": search_probe.get("result_count"),
             "search_query": search_probe.get("query"),

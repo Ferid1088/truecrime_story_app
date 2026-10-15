@@ -43,6 +43,7 @@ const NAV = [
 function ApiStatus() {
   const [ok, setOk] = useState<boolean | null>(null);
   const [providerMode, setProviderMode] = useState<string | null>(null);
+  const [mismatch, setMismatch] = useState<{ api: string; worker: string | null } | null>(null);
   useEffect(() => {
     let cancelled = false;
     const check = () =>
@@ -53,6 +54,11 @@ function ApiStatus() {
           if (r.ok) {
             const body = await r.json().catch(() => ({}));
             setProviderMode(body.provider_mode ?? null);
+            setMismatch(
+              body.commit_mismatch
+                ? { api: body.commit, worker: body.worker_commit }
+                : null,
+            );
           }
         })
         .catch(() => !cancelled && setOk(false));
@@ -85,6 +91,14 @@ function ApiStatus() {
           title={providerMode === "recorded" ? "Test providers are active" : "Live provider mode"}
         >
           Providers: {providerMode === "recorded" ? "RECORDED (test)" : "live"}
+        </span>
+      )}
+      {mismatch && (
+        <span
+          className="block rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+          title={`API ${mismatch.api.slice(0, 7)} · worker ${mismatch.worker?.slice(0, 7) ?? "unknown"} — restart both via scripts/dev_up.sh`}
+        >
+          API/worker commit mismatch
         </span>
       )}
     </div>
