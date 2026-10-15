@@ -618,3 +618,34 @@ def test_improve_preserves_master_kind(db_session, monkeypatch):
         .all()
     )
     assert {m.id for m in masters} == {master.id, new.id}
+
+
+def test_master_generation_timeout_scales_with_the_film_length(client, db_session, monkeypatch):
+    """A 45-minute master takes far longer than the flat 300 s that cancelled
+    its first stage; the job gets the pipeline's own target-scaled budget."""
+    from app.api import masters
+    from app.core.ai_config import ai_config
+    from app.services import background_jobs
+
+    async def authorized():
+        return {"authorized": True}
+
+    created = {}
+
+    def fake_create_job(db, **kwargs):
+        created.update(kwargs)
+        return type("Job", (), {"id": 1, "status": "queued"})()
+
+    monkeypatch.setattr(masters.deps, "require_generation_authorized", authorized)
+    monkeypatch.setattr(masters, "build_readiness", lambda *a, **k: {
+        "master_readiness": {"status": "ready"}})
+    monkeypatch.setattr(background_jobs, "create_job", fake_create_job)
+    monkeypatch.setattr(background_jobs, "launch", lambda job_id: None)
+    case = _mk_case(db_session)
+    r = client.post(f"/api/cases/{case.id}/master-story/generate",
+                    json={"target_minutes": 45, "language": "fa"})
+    assert r.status_code == 200
+    budget = ai_config.cost_control.stage_time_budgets["master_story"]
+    assert created["timeout_seconds"] == int(
+        budget.base_seconds + budget.seconds_per_target_minute * 45)
+    assert created["timeout_seconds"] > 300

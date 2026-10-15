@@ -18,6 +18,7 @@ from app.agents.story import (
     StoryPipeline,
 )
 from app.agents.localization import LocalizationPipeline
+from app.services.cost_model import configured_stage_time_budget_seconds
 from app.services.readiness import build_readiness
 
 
@@ -94,7 +95,9 @@ async def generate_master_story(
 
     job = background_jobs.create_job(
         db, case_id=case.id, kind="master_story_generate",
-        input_data={**payload.model_dump(), "language": canonical}, timeout_seconds=300,
+        input_data={**payload.model_dump(), "language": canonical},
+        timeout_seconds=int(configured_stage_time_budget_seconds(
+            "master_story", payload.target_minutes)),
     )
     background_jobs.launch(job.id)
     return {"job_id": job.id, "status": job.status}
