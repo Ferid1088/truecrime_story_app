@@ -42,7 +42,35 @@ Gold labels: `claude-sonnet-5-5` (current "premium" role), spot-checked by the i
 
 ## Per-job-type schema inventory
 
-(filled in from a live code inventory — see the job-type table below)
+Architecture note (applies to all 18 roles below): `run_agent()` (`app/agents/runner.py`) resolves `config/agents.json`'s per-agent `.prompt`/`.output`, then calls `generate_text`/`generate_structured`. There is **no schema-enforced/tool-calling validation anywhere today** — `generate_structured` just parses JSON into a plain `dict`; no Pydantic models exist for any agent output (only two bare `@dataclass`es, `SemanticClassification` and `PlannedQuery`, do any field-level validation at all). The authoritative JSON shape for most roles lives in an `output_schema` dict the Python caller injects into the prompt's user message, not in the prompt file itself (see Part 2, which adds real pydantic-validated schemas for every stage — out of scope here).
+
+**`discovery`** is routed in `config/models.json` (`"discovery": "cheap"`) but has no `config/agents.json` entry and no code path calls it — dead/legacy routing. The real case-discovery work is `case_discovery_agent` (routed to `research_intelligence`). Flagged for removal alongside the Haiku cleanup, not benchmarked.
+
+**`semantic_consistency_checker`** covers two distinct agents/schemas (`story.compression_semantics` and `localization.semantic_check`) that both route to "cheap" — benchmarked separately below.
+
+| Role | Agent key / prompt | Output (primary field) | Caller |
+|---|---|---|---|
+| fact_extractor | `research.extract_facts` / `agents/research/extract_facts.md` | `facts[]` (claim, category, confidence, source_ids, disputed, event_date, evidence_strength, supporting_text, chunk_ids, ...) | `app/agents/research.py` |
+| timeline_builder | `research.build_timeline` | `timeline[]` (id, event_date) | `app/agents/research.py` |
+| contradiction_analyzer | `research.analyze_contradictions` | `contradictions[]` (topic, description, source_ids, severity) | `app/agents/research.py` |
+| discovery | *(dead config, no code path — see note above)* | — | — |
+| grounding_validator | `story.grounding` | `supported_claims[]`, `unsupported_claims[]`, `uncertainty_errors[]`, `grounding_score` | `app/agents/story.py` |
+| consistency_checker | `story.consistency` | `violations[]` (type, severity, detail, location) | `app/agents/story.py` |
+| semantic_consistency_checker (a) | `story.compression_semantics` | `direct_assertion`, `attribution_present`, `confidence`, `rationale` (-> `SemanticClassification` dataclass) | `app/longform/compression.py` |
+| semantic_consistency_checker (b) | `localization.semantic_check` | `semantic_consistency_score`, `missing_information`, `added_information`, `meaning_changes`, `uncertainty_changes` | `app/agents/localization.py` |
+| localized_grounding_validator | `localization.grounding` | `supported_claims[]`, `unsupported_claims[]`, `uncertainty_errors[]`, `grounding_score` | `app/agents/localization.py` |
+| evidence_normalizer | `evidence.normalize_sources` | `summaries[]` (id, summary_en) | `app/services/research_jobs.py` |
+| transcript_normalizer | `transcripts.normalize` | `translations[]` (id, text_en) | `app/services/transcripts.py` |
+| transcript_intelligence_extractor | `transcripts.extract_claims` | `claims[]`, `narrative_insights[]` | `app/agents/transcript_intel.py` |
+| claim_clusterer | `claims.merge` | `groups[]` (canonical_claim_en, claim_ids) | `app/services/claims.py` |
+| evidence_verifier | `claims.verify` | `verdicts[]` (cluster_id, verification_status, confidence, supporting_fact_ids) | `app/services/claims.py` |
+| research_evaluator | `research_engine.analyze_gaps` | `remaining_gaps[]`, `resolved_gaps[]`, `new_contradictions[]`, `novel_information_detected` | `app/research_engine/planner.py` |
+| research_assembler | `research_engine.summarize` | `summary`, `coverage`, `thin_areas[]` | `app/research_engine/planner.py` |
+| research_query_planner | `research_engine.plan_queries` | `queries[]` (query, language, purpose, priority, expected_source_types) -> `PlannedQuery` dataclass | `app/research_engine/planner.py` |
+| result_reranker | `research_engine.rerank` | `evaluations[]` (idx, relevance, credibility, novelty, fetch_recommendation) | `app/research_engine/planner.py` |
+| case_discovery_agent | `research_engine.discover_cases` | `candidates[]` (title, resolution_status, narrative_potential, source_richness, ...) | `app/research_engine/orchestrator.py` |
+
+**Benchmark execution order** (data-driven: case 5's real ledger shows call volume per stage, highest first — `Fact Extractor` 110 calls, `research` [query planner + reranker + evaluator] 73, `Transcript Intelligence` 24, `Grounding Validator` 9, `Claim Clusterer` 4, `Timeline Builder`/`Contradiction Analyzer` 3 each, others 1 each): fact_extractor benchmarked first (this document's Results section), remaining roles follow the same harness pattern (`scripts/benchmark_fact_extractor.py` as the template — generalizing it to the other 17 roles is tracked in ROADMAP.md Part 1).
 
 ## Benchmark methodology
 
