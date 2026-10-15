@@ -760,6 +760,8 @@ class ResearchOrchestrator:
         title = case_context.get("title") or ""
         # Native query stems per language — a Persian documentary search
         # uses Persian terms, not a translated English string.
+        # restricted to youtube.com: a plain web search for a case title
+        # rarely returns watch pages.
         stems = {
             "en": ["{t} documentary", "{t} true crime", "{t}"],
             "de": ["{t} Doku Fall", "{t} Verbrechen", "{t}"],
@@ -769,18 +771,14 @@ class ResearchOrchestrator:
         queries_out: list[dict] = []
         backend = self.registry
         for lang in (languages or ["en"]):
-            qs = [s.format(t=title)
+            qs = ["site:youtube.com " + s.format(t=title)
                   for s in stems.get(lang, stems["en"])]
             for q in qs:
                 progress.stage(f"searching:{lang}")
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "youtube",
                     "priority": "2", "round": 0})
-                try:
-                    raw = await backend.search(q, lang, limit=10)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("video search failed: %s", e)
-                    raw = []
+                raw = await backend.search(q, lang, limit=10)
                 tel["searches"] += 1
                 from app.research_engine.urlnorm import youtube_video_id
                 for r in raw:

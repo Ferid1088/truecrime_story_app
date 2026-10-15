@@ -188,6 +188,10 @@ async def _acquire_and_process(db: Session, case: Case, video: VideoSource) -> d
     return {"segments": stored, **counts}
 
 
+class VideoDiscoveryError(RuntimeError):
+    """The discovery ran but found no YouTube video at all."""
+
+
 async def run_video_research(
     db: Session, case: Case, job: ResearchJob
 ) -> dict:
@@ -214,6 +218,11 @@ async def run_video_research(
         candidates = await _discover_youtube_api(case)
     else:
         candidates = await _discover_engine(db, case, job)
+
+    if not candidates:
+        raise VideoDiscoveryError(
+            f"No YouTube video was found for '{case.canonical_title}' "
+            f"in {', '.join(cfg_yt.languages)}.")
 
     # Dedupe against existing video rows AND within this discovery round —
     # canonical video identity (video_id) prevents double processing (P39).

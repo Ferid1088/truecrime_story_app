@@ -673,3 +673,25 @@ def test_historical_devin_job_renders(db_session, client):
     assert res.status_code == 200
     assert res.json()["provider"] == "devin"
     assert res.json()["status"] == "completed"
+
+
+# --- video discovery -----------------------------------------------------------
+
+
+def test_video_discovery_searches_youtube_in_every_language():
+    """A plain web search for a case title rarely returns watch pages: every
+    video query is restricted to youtube.com."""
+    backend = FakeBackend([{"url": "https://www.youtube.com/watch?v=abcdefghijk",
+                            "title": "A documentary"}])
+    orch = _orchestrator(backend)
+    result = asyncio.run(orch.discover_videos({"title": "Case X"}, ["en", "de", "fa", "ar"]))
+    assert backend.calls
+    assert all(query.startswith("site:youtube.com ") for query, _ in backend.calls)
+    assert {lang for _, lang in backend.calls} == {"en", "de", "fa", "ar"}
+    assert [v["video_id"] for v in result["videos"]] == ["abcdefghijk"]
+
+
+def test_video_discovery_does_not_swallow_search_failures():
+    backend = FakeBackend(error=SearchError("fake", "search_unavailable", "Brave is down"))
+    with pytest.raises(SearchError):
+        asyncio.run(_orchestrator(backend).discover_videos({"title": "Case X"}, ["en"]))

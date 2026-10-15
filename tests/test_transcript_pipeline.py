@@ -11,6 +11,8 @@ import hashlib
 import json
 import uuid
 
+import pytest
+
 from app.providers.generation.base import GenerationResult
 
 
@@ -847,3 +849,27 @@ def test_claim_clusters_endpoint(client, db_session):
     assert len(body) == 1
     assert body[0]["id"] == cl.id
     assert body[0]["claims"][0]["video"] == v.video_id
+
+
+def test_video_research_finding_no_video_fails_instead_of_completing(db_session, monkeypatch):
+    """'completed' with zero videos hid a broken discovery; no video found is a
+    failed job with the reason."""
+    import app.services.video_research as vr
+    from app.db.models import Case, ResearchJob
+    from app.utils import slugify
+
+    case = Case(canonical_title="No Video Case", slug=slugify("No Video Case"), language="en")
+    db_session.add(case)
+    db_session.commit()
+    job = ResearchJob(job_type="video_research", case_id=case.id, status="queued",
+                      provider="truecrime")
+    db_session.add(job)
+    db_session.commit()
+
+    async def nothing(db, case, job):
+        return []
+
+    monkeypatch.setattr(vr, "_discover_engine", nothing)
+    monkeypatch.setattr(vr.ai_config.youtube_research, "discovery_provider", "engine")
+    with pytest.raises(vr.VideoDiscoveryError, match="No Video Case"):
+        asyncio.run(vr.run_video_research(db_session, case, job))
