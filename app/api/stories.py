@@ -10,6 +10,7 @@ from app.db.models import (
     EditorialBlueprint,
 )
 from app.schemas import (
+    ApproveStoryRequest,
     GenerateStoryRequest,
     ImproveStoryRequest,
     VoiceRenderRequest,
@@ -39,6 +40,7 @@ from app.documentary.audio_director import (
 )
 from app.providers.voice import VoiceProviderError
 from app.providers.generation.base import GenerationError
+from app.utils import utc_now
 
 
 from app.api.deps import get_case_or_404, story_or_404
@@ -79,6 +81,33 @@ async def improve_story(case_id: int, payload: ImproveStoryRequest, db: Session 
         return story_full_dict(new_version)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/api/cases/{case_id}/stories/{version_id}/approve")
+def approve_story(case_id: int, version_id: int, payload: ApproveStoryRequest,
+                  db: Session = Depends(get_db)):
+    """Control at every stage means a human can approve a version its own
+    critics rejected — "as is", without editing it. The critic scores and
+    problems stay on the version untouched; only status and who/when
+    approved it change, so the record of what was flagged is never lost."""
+    from app.services.policy_events import record_override
+
+    story = story_or_404(db, case_id, version_id)
+    if story.status == "ready":
+        raise HTTPException(status_code=409, detail="This version is already ready.")
+    previous_status = story.status
+    story.status = "ready"
+    story.approved_by = payload.approved_by
+    story.approved_at = utc_now()
+    db.commit()
+    db.refresh(story)
+    record_override(
+        db, actor=payload.approved_by, scope_type="story_version",
+        scope_id=str(story.id), field="status",
+        old_value=previous_status, new_value="ready",
+        reason="Approved as is over open critic problems.",
+    )
+    return story_full_dict(story)
 
 
 @router.get("/api/cases/{case_id}/stories")

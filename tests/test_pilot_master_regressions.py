@@ -47,7 +47,7 @@ def _case(db):
     return row
 
 
-def _master(db, case, status, failures, gates=None):
+def _master(db, case, status, failures, gates=None, approved_by=None):
     row = StoryVersion(
         case_id=case.id,
         version=1,
@@ -56,6 +56,7 @@ def _master(db, case, status, failures, gates=None):
         narrative_angle="{}",
         story_text="word " * 408,
         status=status,
+        approved_by=approved_by,
         critic_notes=json.dumps({
             "quality_gates": {
                 "pass": not failures,
@@ -68,6 +69,74 @@ def _master(db, case, status, failures, gates=None):
     db.commit()
     db.refresh(row)
     return row
+
+
+def test_approve_story_endpoint_sets_ready_and_keeps_critic_notes(db_session, client):
+    case = _case(db_session)
+    story = _master(db_session, case, "needs_revision", ["grounding", "engagement_below_threshold"])
+
+    r = client.post(
+        f"/api/cases/{case.id}/stories/{story.id}/approve",
+        json={"approved_by": "alice"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ready"
+    assert body["approved_by"] == "alice"
+    assert body["approved_at"] is not None
+    db_session.refresh(story)
+    assert story.status == "ready"
+    assert story.approved_by == "alice"
+    notes = json.loads(story.critic_notes)
+    assert notes["quality_gates"]["failures"] == ["grounding", "engagement_below_threshold"]
+
+    from app.db.models import OverrideLog
+    override = db_session.query(OverrideLog).filter(
+        OverrideLog.scope_type == "story_version", OverrideLog.scope_id == str(story.id),
+    ).one()
+    assert override.actor == "alice"
+    assert json.loads(override.old_value_json) == "needs_revision"
+    assert json.loads(override.new_value_json) == "ready"
+
+
+def test_approve_story_endpoint_rejects_already_ready_version(db_session, client):
+    case = _case(db_session)
+    story = _master(db_session, case, "ready", [])
+
+    r = client.post(f"/api/cases/{case.id}/stories/{story.id}/approve", json={})
+    assert r.status_code == 409
+
+
+def test_approve_story_endpoint_404_for_missing_version(db_session, client):
+    case = _case(db_session)
+    r = client.post(f"/api/cases/{case.id}/stories/999999/approve", json={})
+    assert r.status_code == 404
+
+
+def test_manually_approved_master_skips_critics_with_no_revision(db_session, monkeypatch):
+    # A human can approve a master "as is" over its own critics' objections
+    # (control at every stage). The endpoint keeps the original critic
+    # scores/problems and just flips status + approved_by — this must be
+    # honored as approved, without spending another writer/critic call.
+    from app.documentary.jobs import approve_master
+
+    case = _case(db_session)
+    approved = _master(
+        db_session, case, "ready", ["grounding", "engagement_below_threshold"],
+        approved_by="operator",
+    )
+
+    async def improve(*args, **kwargs):
+        raise AssertionError("a manually approved master must not be revised")
+
+    monkeypatch.setattr(StoryPipeline, "improve", improve)
+    version, history = asyncio.run(approve_master(
+        db_session, case, approved, target_minutes=3, words_per_minute=150,
+    ))
+
+    assert version.id == approved.id
+    assert version.status == "ready"
+    assert history == []
 
 
 def test_pilot_approval_passes_its_target_to_revision(db_session, monkeypatch):

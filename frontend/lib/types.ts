@@ -466,6 +466,8 @@ export interface StoryMeta {
   generation_provider: string | null;
   generation_model: string | null;
   text_hash: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   narrative_structure: {
     title?: string | null;
     central_question?: string | null;

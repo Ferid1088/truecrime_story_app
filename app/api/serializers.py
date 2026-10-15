@@ -8,6 +8,7 @@ from app.db.models import (
     Contradiction,
     StoryVersion,
     AgentRun,
+    OverrideLog,
     VideoSource,
     TranscriptClaim,
 )
@@ -118,6 +119,8 @@ def story_meta_dict(s: StoryVersion) -> dict:
         "generation_provider": s.generation_provider,
         "generation_model": s.generation_model,
         "text_hash": s.text_hash,
+        "approved_by": s.approved_by,
+        "approved_at": s.approved_at,
         # Section text duplicates story_text; the voice-blocks endpoint
         # exposes per-act text where it is actually needed.
         "narrative_structure": structure_without_text(
@@ -159,6 +162,22 @@ def agent_run_dict(r: AgentRun) -> dict:
         "estimated_cost_usd": r.estimated_cost_usd,
         "generation_id": r.generation_id,
         "text_hash": r.text_hash,
+    }
+
+
+def override_dict(o: OverrideLog) -> dict:
+    return {
+        "id": o.id,
+        "created_at": o.created_at,
+        "actor": o.actor,
+        "scope_type": o.scope_type,
+        "scope_id": o.scope_id,
+        "field": o.field,
+        "old_value": json.loads(o.old_value_json),
+        "new_value": json.loads(o.new_value_json),
+        "reason": o.reason,
+        "reverted_at": o.reverted_at,
+        "reverted_by": o.reverted_by,
     }
 
 

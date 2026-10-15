@@ -8,6 +8,7 @@ import { useApi } from "@/lib/hooks";
 import type { StoryFull, StoryMeta } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,11 +80,12 @@ function StudioBody({
   const [tone, setTone] = useState(TONES[1].value);
   const [customTone, setCustomTone] = useState("");
   const [stories, setStories] = useState<Record<number, StoryFull>>({});
-  const [busy, setBusy] = useState<"generate" | "improve" | null>(null);
+  const [busy, setBusy] = useState<"generate" | "improve" | "approve" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [customInstruction, setCustomInstruction] = useState("");
   const [showCustom, setShowCustom] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
 
   const story = stories[caseId] ?? null;
   const setStory = (s: StoryFull) => setStories((prev) => ({ ...prev, [caseId]: s }));
@@ -176,6 +178,24 @@ function StudioBody({
       setStory(m);
       refetchVersions();
       refetchCase();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function approveMaster() {
+    if (!master) return;
+    setBusy("approve");
+    setError(null);
+    try {
+      const m = await api.approveStory(caseId, master.id, "operator");
+      setMasterState({ caseId, master: m });
+      if (story?.id === master.id) setStory(m);
+      refetchVersions();
+      refetchCase();
+      setApproveOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -304,6 +324,24 @@ function StudioBody({
                   >
                     Open Master v{master.version}
                   </Button>
+                  {master.status !== "ready" && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full"
+                      disabled={busy !== null}
+                      onClick={() => setApproveOpen(true)}
+                    >
+                      Approve as is
+                    </Button>
+                  )}
+                  {master.approved_by && (
+                    <p className="text-[11px] leading-4 text-muted-foreground">
+                      Approved by {master.approved_by}
+                      {master.approved_at && ` on ${new Date(master.approved_at).toLocaleString()}`} — over its own
+                      critics&apos; objections.
+                    </p>
+                  )}
                 </>
               ) : (
                 <p className="text-[11px] leading-4 text-muted-foreground">
@@ -490,6 +528,36 @@ function StudioBody({
           </Card>
         </div>
       </div>
+
+      <Dialog
+        open={approveOpen}
+        onClose={() => setApproveOpen(false)}
+        title={`Approve Master v${master?.version ?? ""} as is?`}
+        description="This sets status to ready and unlocks localizations. The critic scores and problems below stay on the record — approving does not resolve them."
+      >
+        <div className="space-y-3">
+          {master && master.problems.length > 0 ? (
+            <ul className="max-h-48 list-disc space-y-1 overflow-y-auto pl-4 text-xs leading-5 text-foreground/80">
+              {master.problems.map((p, i) => (
+                <li key={i}>{p}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">No critic problems are recorded on this version.</p>
+          )}
+          {error && (
+            <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setApproveOpen(false)} disabled={busy !== null}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={approveMaster} loading={busy === "approve"} disabled={busy !== null}>
+              Approve as is
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

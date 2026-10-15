@@ -10,6 +10,8 @@ test.describe("Operations page", () => {
     await expect(page.getByText("$1.23")).toBeVisible();
     await expect(page.getByText("1 / 2")).toBeVisible(); // running / queued
     await expect(page.getByText("abc123def456")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+    await expect(page.getByText("No human overrides recorded")).toBeVisible();
     await expect(page.locator(".animate-pulse")).toHaveCount(0);
   });
 

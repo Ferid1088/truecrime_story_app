@@ -350,3 +350,15 @@ def all_agent_runs(db: Session = Depends(get_db)):
             d["case_title"] = None
         out.append(d)
     return out
+
+
+@router.get("/api/overrides")
+def list_overrides(db: Session = Depends(get_db)):
+    """The audit log: every human override of an automated decision
+    (e.g. approving a master story its own critics rejected), who made
+    it, and whether it was later reverted."""
+    from app.api.serializers import override_dict
+    from app.db.models import OverrideLog
+
+    rows = db.query(OverrideLog).order_by(OverrideLog.created_at.desc()).limit(200).all()
+    return [override_dict(r) for r in rows]

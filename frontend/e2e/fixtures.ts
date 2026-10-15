@@ -674,6 +674,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/short-form/metrics" && method === "GET") return json(route, fixtures.shortFormMetrics);
     if (path === "/api/integrations/research/status") return json(route, fixtures.researchStatus);
     if (path === "/api/db/overview") return json(route, fixtures.dbOverview);
+    if (path === "/api/overrides") return json(route, []);
     return json(route, { detail: `unmocked ${method} ${path}` }, 404);
   });
 }

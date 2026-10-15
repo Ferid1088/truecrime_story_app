@@ -43,7 +43,7 @@ export function StoryTab({ caseId }: { caseId: number }) {
         title="No story yet"
         description="Once research is complete, generate a long-form story in the Story Studio."
         action={
-          <Link href={`/studio?case=${caseId}`}>
+          <Link href={`/story-studio?case=${caseId}`}>
             <Button size="sm">
               <PenLine className="size-3.5" /> Open Story Studio
             </Button>
@@ -62,7 +62,7 @@ export function StoryTab({ caseId }: { caseId: number }) {
           selectedId={activeId}
           onSelect={(v) => setSelectedId(v.id)}
         />
-        <Link href={`/studio?case=${caseId}`} className="mt-3 block">
+        <Link href={`/story-studio?case=${caseId}`} className="mt-3 block">
           <Button variant="secondary" size="sm" className="w-full">
             <PenLine className="size-3.5" /> Open in Studio
           </Button>

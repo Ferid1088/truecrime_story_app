@@ -93,6 +93,13 @@ class ImproveStoryRequest(BaseModel):
     instruction: str = Field(min_length=3, max_length=2000)
 
 
+class ApproveStoryRequest(BaseModel):
+    # This app authenticates a single shared operator session (no per-user
+    # accounts), so the caller names who is approving; it is recorded as-is
+    # for traceability, not verified against an identity system.
+    approved_by: str = Field(default="operator", min_length=1, max_length=200)
+
+
 class VoiceRenderRequest(BaseModel):
     # Render only the opening (whole blocks) — e.g. 180 for a 3-minute
     # pilot. None renders the full story.

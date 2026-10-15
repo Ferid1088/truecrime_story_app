@@ -34,6 +34,7 @@ export default function OpsPage() {
   const summary = useApi(() => opsApi.summary(hours), [hours], { keepPrevious: true });
   const errors = useApi(() => opsApi.calls({ onlyErrors: true, limit: 20 }), [hours], { keepPrevious: true });
   const search = useApi(() => opsApi.searchStatus(), []);
+  const overrides = useApi(() => opsApi.overrides(), []);
 
   return (
     <div>
@@ -143,6 +144,46 @@ export default function OpsPage() {
                         </TD>
                         <TD>{c.status ?? c.error ?? "failed"}</TD>
                         <TD className="font-mono text-xs text-muted-foreground">{c.request_id ?? "—"}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Audit log</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {overrides.error && <ErrorState message={overrides.error} onRetry={overrides.refetch} />}
+              {overrides.data && overrides.data.length === 0 && (
+                <EmptyState title="No human overrides recorded" />
+              )}
+              {overrides.data && overrides.data.length > 0 && (
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>When</TH>
+                      <TH>Who</TH>
+                      <TH>What</TH>
+                      <TH>Change</TH>
+                      <TH>Reason</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {overrides.data.map((o) => (
+                      <TR key={o.id}>
+                        <TD className="whitespace-nowrap text-muted-foreground">{formatDateTime(o.created_at)}</TD>
+                        <TD className="font-medium">{o.actor ?? "—"}</TD>
+                        <TD>
+                          {o.scope_type} #{o.scope_id} · {o.field}
+                        </TD>
+                        <TD className="font-mono text-xs">
+                          {JSON.stringify(o.old_value)} → {JSON.stringify(o.new_value)}
+                        </TD>
+                        <TD className="text-muted-foreground">{o.reason ?? "—"}</TD>
                       </TR>
                     ))}
                   </TBody>

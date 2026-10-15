@@ -216,6 +216,11 @@ class StoryVersion(Base):
     generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # A human explicitly approved this version "as is" over its own critics'
+    # objections (control-at-every-stage: continue / redo / edit). Set only
+    # by POST .../stories/{id}/approve — never by the automated gate.
+    approved_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     case = relationship("Case", back_populates="stories")
 

@@ -31,7 +31,7 @@ const NAV = [
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/cases", label: "Cases", icon: FolderOpen },
   { href: "/research", label: "Research", icon: FlaskConical },
-  { href: "/studio", label: "Story Studio", icon: PenLine },
+  { href: "/story-studio", label: "Story Studio", icon: PenLine },
   { href: "/documentary", label: "Documentary", icon: Clapperboard },
   { href: "/short-form", label: "Short-Form", icon: Smartphone },
   { href: "/archive", label: "Archive", icon: Archive },

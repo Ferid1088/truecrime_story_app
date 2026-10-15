@@ -188,7 +188,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
           <Button variant="secondary" size="sm" onClick={runResearch} loading={busy === "research"}>
             <FlaskConical className="size-3.5" /> Run Research
           </Button>
-          <Button size="sm" onClick={() => router.push(`/studio?case=${caseId}`)}>
+          <Button size="sm" onClick={() => router.push(`/story-studio?case=${caseId}`)}>
             <PenLine className="size-3.5" /> Generate Story
           </Button>
           <Button variant="secondary" size="sm" onClick={() => router.push(`/documentary/${caseId}`)}>

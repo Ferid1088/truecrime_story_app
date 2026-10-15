@@ -432,6 +432,10 @@ export const api = {
   listStories: (caseId: number) => request<StoryMeta[]>(`/api/cases/${caseId}/stories`),
   getStoryVersion: (caseId: number, versionId: number) =>
     request<StoryFull>(`/api/cases/${caseId}/stories/${versionId}`),
+  approveStory: (caseId: number, versionId: number, approvedBy: string) =>
+    post<StoryFull>(`/api/cases/${caseId}/stories/${versionId}/approve`, {
+      approved_by: approvedBy,
+    }),
 
   researchLanguages: (caseId: number) =>
     request<ResearchLanguages>(`/api/cases/${caseId}/research/languages`),
@@ -763,7 +767,24 @@ export const opsApi = {
     request<OpsCall[]>(
       `/api/ops/provider-calls?limit=${opts.limit ?? 50}${opts.onlyErrors ? "&only_errors=true" : ""}`,
     ),
+  overrides: () => request<OverrideRecord[]>("/api/overrides"),
 };
+
+/** `override_dict` of app/api/serializers.py — one human override of an
+ * automated decision (the audit log). */
+export interface OverrideRecord {
+  id: number;
+  created_at: string;
+  actor: string | null;
+  scope_type: string | null;
+  scope_id: string | null;
+  field: string | null;
+  old_value: unknown;
+  new_value: unknown;
+  reason: string | null;
+  reverted_at: string | null;
+  reverted_by: string | null;
+}
 
 export type BackupSettings = {
   enabled: boolean;

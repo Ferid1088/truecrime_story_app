@@ -110,7 +110,7 @@ test("Films approval bundle approves, excludes, and invalidates only an edited s
 test("phone viewport has no horizontal overflow on the main screens", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of [
-    "/", "/discover", "/cases", "/research", "/studio", "/documentary",
+    "/", "/discover", "/cases", "/research", "/story-studio", "/documentary",
     "/short-form", "/archive", "/database", "/ops", "/settings",
     "/cases/1", "/documentary/1",
   ]) {

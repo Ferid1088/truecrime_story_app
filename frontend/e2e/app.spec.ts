@@ -339,7 +339,7 @@ test.describe("Other pages", () => {
     ["/research", "Research"],
     ["/settings", "Settings"],
     ["/database", "Database"],
-    ["/studio", "Story Studio"],
+    ["/story-studio", "Story Studio"],
   ] as const) {
     test(`${path} renders without stuck skeleton`, async ({ page }) => {
       await mockApi(page);
@@ -399,7 +399,7 @@ test.describe("Hygiene", () => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     await mockApi(page);
-    for (const path of ["/", "/discover", "/cases", "/cases/1", "/research", "/settings", "/database", "/studio"]) {
+    for (const path of ["/", "/discover", "/cases", "/cases/1", "/research", "/settings", "/database", "/story-studio"]) {
       await page.goto(path);
       await page.waitForTimeout(1200);
     }

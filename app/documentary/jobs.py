@@ -138,6 +138,13 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
     async def audit(version: StoryVersion) -> dict:
         notes = json.loads(version.critic_notes or "{}")
         failures = (notes.get("quality_gates") or {}).get("failures") or []
+        # A human can approve a version "as is" over its own critics'
+        # objections (control at every stage). That sets status "ready"
+        # directly but deliberately keeps the original critic scores and
+        # problems, so `failures` here can be non-empty for an approved
+        # version — the manual override, not an empty failures list, is
+        # what makes it approved.
+        manually_approved = bool(version.approved_by)
         if version.status == "needs_revision":
             rejected.append({
                 "version_id": version.id,
@@ -147,10 +154,11 @@ async def approve_master(db: Session, case: Case, v: StoryVersion,
         # A deterministic length miss is not made better by repeating the
         # same approval rewrite. The caller will surface the measured band.
         return {
-            "approved": version.status != "needs_revision" and not failures,
-            "reasons": failures,
+            "approved": version.status != "needs_revision" and (not failures or manually_approved),
+            "reasons": [] if manually_approved else failures,
             "quality_gates": notes.get("quality_gates") or {},
-            "terminal": "length_out_of_range" in failures,
+            "terminal": "length_out_of_range" in failures and not manually_approved,
+            "manually_approved": manually_approved,
         }
 
     # A deterministic length miss cannot be repaired by a quality revision.
@@ -406,7 +414,10 @@ class DocumentaryPipeline(StageRunner):
             if v.id != job.master_version_id:
                 job.master_version_id = v.id
                 db.commit()
-            return {"master_version_id": v.id, "verdict": "approved",
+            return {"master_version_id": v.id,
+                    "verdict": "approved manually" if v.approved_by else "approved",
+                    "manually_approved": bool(v.approved_by),
+                    "approved_by": v.approved_by,
                     "redos": len(history), "history": history}
 
         await self._stage("master_approval", master_approval)
