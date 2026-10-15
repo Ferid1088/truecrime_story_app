@@ -560,6 +560,7 @@ class SourceChunkingConfig(BaseModel):
     min_tokens: int = Field(gt=0)
     max_tokens: int = Field(gt=0)
     max_chunks_per_source_for_extraction: int = Field(ge=1, le=20)
+    max_sources_per_extraction_call: int = Field(ge=1, le=20)
 
 
 class EvidenceStrengthConfig(BaseModel):

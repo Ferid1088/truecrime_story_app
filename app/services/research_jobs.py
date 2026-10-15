@@ -840,9 +840,13 @@ async def poll_job(db: Session, job: ResearchJob, ingest: bool = True) -> Resear
                             f"contradictions={res['contradictions']}"
                         )
                 except Exception as e:
-                    job.result_summary = (
-                        f"{job.result_summary} | fact extraction failed: {e}"
-                    )[:500]
+                    job.status = "failed"
+                    job.current_stage = "failed"
+                    job.error_code = "fact_extraction_failed"
+                    job.error = f"Fact extraction failed: {e}"[:500]
+                    _record_run(db, job, "Research Agent", output="", error=job.error)
+                    db.commit()
+                    return job
             job.status = "completed"
             job.current_stage = "completed"
             # Provider-side usage (engine searches/fetches + LLM calls/

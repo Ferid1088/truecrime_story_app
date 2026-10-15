@@ -725,3 +725,26 @@ def test_orchestrator_search_to_source_pipeline():
     assert src["detected_language"] == "en"
     assert result["results"][0]["accepted"] is True
     assert result["_telemetry"]["searches"] >= 1
+
+
+def test_research_job_fails_when_fact_extraction_fails(client, db_session):
+    """A job whose sources were stored but whose fact extraction failed is not
+    'completed': the error must be the job's error, not buried in a summary."""
+    from app.agents.research import ResearchAgent
+
+    case_id = _make_case(client)
+    result = {"sources": [{"title": "A", "url": "https://example.com/a", "language": "en",
+                           "summary": "s"}], "_telemetry": {}}
+    provider = FakeProvider(
+        poll_job=ProviderJob(external_id="s3", status="completed", result=result))
+
+    async def boom(self, db, case, contradiction_hints=None):
+        raise RuntimeError("completion truncated at max_tokens")
+
+    with patch("app.api.deps.get_research_provider", return_value=provider), \
+            _provider_patch(provider), patch.object(ResearchAgent, "run", boom):
+        job_id = client.post(f"/api/cases/{case_id}/research").json()["job_id"]
+        job = client.get(f"/api/research-jobs/{job_id}").json()
+    assert job["status"] == "failed"
+    assert job["error_code"] == "fact_extraction_failed"
+    assert "truncated at max_tokens" in job["error"]

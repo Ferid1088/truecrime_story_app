@@ -37,6 +37,40 @@ def _source_bundle(sources: list[Source]) -> list[dict]:
     ]
 
 
+_FACT_SCHEMA = {
+    "facts": [
+        {
+            "claim": "...",
+            "category": "timeline|person|evidence|investigation|legal|context",
+            "confidence": 0.0,
+            "source_ids": [1, 2],
+            "disputed": False,
+            "event_date": "YYYY-MM-DD or null",
+            "original_claim": "claim in the source language or null",
+            "original_language": "en",
+            "narrative_value": "human_detail|scene_detail|investigation_detail|...",
+            "evidence_strength": "primary|strong_secondary|secondary|tertiary|weak|disputed",
+            "supporting_text": "verbatim passage or null",
+            "chunk_ids": [1],
+            "quote_status": "verified_direct|reported_quote|paraphrase|uncertain|null",
+            "speaker": "name or null",
+            "people": ["..."],
+            "locations": ["..."],
+        }
+    ]
+}
+
+
+def _extraction_batches(sources: list[Source], size: int) -> list[list[Source]]:
+    """Single-language batches of at most `size` sources: one call over every
+    source overruns the output limit and starves all but the first language."""
+    by_language: dict[str, list[Source]] = {}
+    for s in sources:
+        by_language.setdefault(s.language or "en", []).append(s)
+    return [group[i:i + size] for group in by_language.values()
+            for i in range(0, len(group), size)]
+
+
 class ResearchAgent:
     """Fact extraction -> timeline dating -> contradiction analysis.
 
@@ -84,43 +118,27 @@ class ResearchAgent:
 
     async def _extract_facts(self, db: Session, case: Case, sources: list[Source]) -> list[dict]:
         system = prompt("agents/research/extract_facts")
-        user = json.dumps(
-            {
-                "case": case.canonical_title,
-                "sources": _source_bundle(sources),
-                "output_schema": {
-                    "facts": [
-                        {
-                            "claim": "...",
-                            "category": "timeline|person|evidence|investigation|legal|context",
-                            "confidence": 0.0,
-                            "source_ids": [1, 2],
-                            "disputed": False,
-                            "event_date": "YYYY-MM-DD or null",
-                            "original_claim": "claim in the source language or null",
-                            "original_language": "en",
-                            "narrative_value": "human_detail|scene_detail|investigation_detail|...",
-                            "evidence_strength": "primary|strong_secondary|secondary|tertiary|weak|disputed",
-                            "supporting_text": "verbatim passage or null",
-                            "chunk_ids": [1],
-                            "quote_status": "verified_direct|reported_quote|paraphrase|uncertain|null",
-                            "speaker": "name or null",
-                            "people": ["..."],
-                            "locations": ["..."],
-                        }
-                    ]
+        facts: list[dict] = []
+        batches = _extraction_batches(
+            sources, ai_config.source_chunking.max_sources_per_extraction_call)
+        for number, batch in enumerate(batches, 1):
+            user = json.dumps(
+                {
+                    "case": case.canonical_title,
+                    "sources": _source_bundle(batch),
+                    "output_schema": _FACT_SCHEMA,
                 },
-            },
-            ensure_ascii=False,
-        )
-        with track_run(
-            db, case.id, "Fact Extractor",
-            input_summary=f"case={case.id} sources={len(sources)}",
-        ) as run:
-            data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
-            stamp_run(run, res, "fact_extractor")
-            facts = data.get("facts", [])
-            run.output_summary = f"facts={len(facts)}"
+                ensure_ascii=False,
+            )
+            with track_run(
+                db, case.id, "Fact Extractor",
+                input_summary=f"case={case.id} batch={number}/{len(batches)} sources={len(batch)}",
+            ) as run:
+                data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
+                stamp_run(run, res, "fact_extractor")
+                found = data.get("facts", [])
+                run.output_summary = f"facts={len(found)}"
+            facts.extend(found)
         return facts
 
     def _store_facts(self, db: Session, case: Case, facts_data: list[dict]) -> list[Fact]:

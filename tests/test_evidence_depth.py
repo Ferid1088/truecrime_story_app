@@ -732,3 +732,33 @@ def test_capacity_endpoint_returns_layers(client, db_session):
     assert body["evidence_readiness"]["status"] == "incomplete"
     # Flat capacity fields remain for existing consumers.
     assert body["estimated_supported_minutes"] > 0
+
+
+def test_fact_extraction_runs_in_per_language_batches(db_session, monkeypatch):
+    """One call over every source truncated at max_tokens and only the first
+    language got facts; sources are extracted in bounded, single-language
+    batches and the facts merged."""
+    from app.core.ai_config import ai_config
+    from app.providers.generation.base import GenerationResult
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_extraction_call", 2)
+    case = _mk_case(db_session)
+    en = [_mk_source(db_session, case, language="en") for _ in range(3)]
+    ar = [_mk_source(db_session, case, language="ar") for _ in range(1)]
+    calls = []
+
+    class BatchFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role != "fact_extractor":
+                return await super().generate_structured(role, system, user)
+            bundle = json.loads(user)["sources"]
+            calls.append([(s["id"], s["language"]) for s in bundle])
+            facts = [{"claim": f"fact of {s['id']}", "source_ids": [s["id"]],
+                      "category": "context"} for s in bundle]
+            return {"facts": facts}, GenerationResult(text="{}", model="m", provider="fake")
+
+    result = _run_extract(db_session, case, BatchFake([]))
+    assert [len(c) for c in calls] == [2, 1, 1]
+    assert all(len({lang for _, lang in c}) == 1 for c in calls)
+    assert result["facts"] == 4
+    assert {s.id for s in en + ar} == {i for c in calls for i, _ in c}
