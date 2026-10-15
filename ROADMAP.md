@@ -85,7 +85,25 @@ Nothing outstanding — all of Part 0 is DONE, tested, reviewed (3 passes, all f
 ---
 
 ## Part 1 — Models: Haiku out, cheaper model in
-Status: TODO. Not started.
+Status: IN_PROGRESS.
+
+### Inventory
+- Haiku is used for exactly two aliases in config/models.json: `"cheap"` and `"research_intelligence"`, both -> `claude-haiku-4-5`. Also referenced in config/parameters/pricing.json (one price entry, `provider_model: claude-haiku-4-5`, $1/$5 per 1M tokens in/out — confirmed matching the real apimaster.ai/docs/models page).
+- Roles routed to `"cheap"` (config/models.json `routing`): fact_extractor, timeline_builder, contradiction_analyzer, discovery, grounding_validator, consistency_checker, evidence_normalizer, semantic_consistency_checker, localized_grounding_validator, transcript_normalizer, transcript_intelligence_extractor, claim_clusterer, evidence_verifier, research_evaluator, research_assembler.
+- Roles routed to `"research_intelligence"`: research_query_planner, result_reranker, case_discovery_agent.
+- Real gateway catalog (`GET https://apimaster.ai/v1/models`, live call, 2026-10-15): **79 models** total (see docs/benchmarks/models.md for the full list once written). Relevant text/JSON-capable, non-image/video candidate families: claude (haiku-4-5, sonnet-5-5, sonnet-4-6, opus-4-7/4-8/5/5-5, fable-5/5-1), gemini (3.5/3.6/3.7/3.8-flash, 4-argon, 3.1-pro-preview), gpt (5.6-luna/terra/sol, 6-sol/astra/luna, 6.1-sol), qwen (3.7-plus/max, 3.8-flash/max), deepseek (flash, v4-flash/pro, v3.2), glm (5.2, 5.3, 5.3-flash, 5.3-flashx), kimi (k2.6, k2.7-code, k2.8-preview, k3), mimo (v2.5, v2.5-pro, v2.6-flash, v2.6-pro), MiniMax (M3, H3), grok (4.5, 4.6, 4.7, text only — grok-imagine-* excluded as image/video).
+- Pricing: apimaster's own `/docs/models` page only lists 5 models with prices (haiku-4-5, sonnet-4-6, opus-4-7, gpt-5.4, gpt-5.5 — the last two aren't even in the live catalog, so that page is a stale/partial reference). No `/pricing` or `/models/pricing` API endpoint exists (probed live, 404). Per the Honesty rule, prices for benchmark candidates are therefore taken from each real call's own `usage.cost`/`usage` fields (the same mechanism the existing ledger uses), not assumed from any docs page.
+- Shortlist for the benchmark (reasoning: vendor diversity, "flash"/cheap-tier naming suggesting a lower price point than Haiku, and `openai` endpoint-type support confirmed live so each is callable through the existing OpenAI-compatible provider unchanged): **qwen3.8-flash**, **deepseek-v4-flash**, **glm-5.3-flash**, **gemini-3.8-flash** (already in production as "writer" — a known-good quantity to compare against), plus **claude-haiku-4-5** as the baseline. Gold labels from **claude-sonnet-5-5** (already "premium", spot-checked by me).
+- Job-type schema inventory (what each of the 18 cheap/research_intelligence roles actually returns, to design real per-job-type scorers): in progress, see next update.
+
+### Requirements
+| Req | Test | Live evidence | Status |
+|-----|------|----------------|--------|
+| Real model list + prices obtained (not assumed) | — | Live `GET /v1/models` (79 models) + `/docs/models` fetch, both quoted above | DONE |
+| Benchmark built + run (≤40 items/job type, incl. Persian), docs/benchmarks/models.md written | | | TODO |
+| Haiku replaced per job type by measurement | | | TODO |
+| Zero "haiku" (case-insensitive) in app/, config/, tests/, prompts/, README.md | | | TODO |
+| Live mini research+extraction run with new models, cost/quality vs old | | | TODO |
 
 ## Part 2 — Extraction as fixed JSON, parallelism, fewer better evidence items
 Status: TODO. Not started.
