@@ -56,3 +56,12 @@ data/searxng/
 
 # Native local service runtime state (PIDs, ports, and logs)
 data/dev/
+
+# Disposable browser-E2E stack output (logs, seeded fixtures) — never source
+data/e2e/
+data/e2e-*.log
+data/e2e-*/
+data/live-*.log
+
+# Live-run hygiene/verification evidence (ffprobe output, frames, screenshots)
+data/evidence/
