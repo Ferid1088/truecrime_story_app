@@ -1,4 +1,9 @@
 {
+  "db:story_versions:0": {
+    "commit": "5492935",
+    "class": "a",
+    "reason": "Migration 0020 adds story_versions.approved_by/approved_at (manual master-story approval). Every existing row's snapshot changes because it now serializes two new, nulled columns, not because any row's real content changed."
+  },
   "db:chapter_plans:0": {
     "commit": "25cf3aa",
     "class": "a",
