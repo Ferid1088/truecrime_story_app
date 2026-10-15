@@ -29,7 +29,7 @@ Status: IN_PROGRESS
 - (b) Cost ledger: not yet inventoried.
 - (c) Cost-estimate gates: not yet inventoried.
 - (d) SearXNG: `config/searxng/` exists on disk — needs inventory of whether code still references it.
-- (e) /health: observed live on 2026-10-15 reporting commit_mismatch=false despite API commit 97a1466... and worker_commit 9d7b384...; not yet root-caused.
+- (e) /health: root cause found and fixed (commit a67502c). `commit_mismatch` was gated on `worker["alive"]` (app/api/system.py:70, an `os.kill` pid-liveness probe at app/core/process_health.py:58-69). Both commit hashes were already correctly computed fresh (api_commit via live `git rev-parse HEAD`/`TRUECRIME_PROCESS_COMMIT` env, worker_commit via a one-time snapshot written at worker startup and read fresh from disk every request) — the bug was that a liveness-probe false-negative (e.g. pid recorded by a separate process) could silently suppress a real, provable mismatch. Fix: `commit_mismatch` now compares only the two commit hashes; `worker_alive` stays an independent field.
 
 ### Requirements
 
@@ -39,7 +39,7 @@ Status: IN_PROGRESS
 | 0b Cost ledger prices by resolved model, books failed-call tokens, fails loudly on missing price | | | TODO |
 | 0c No cost-estimate gates block a run; actual-spend cap only | | | TODO |
 | 0d SearXNG/search fallback removed (Brave only) | | | TODO |
-| 0e /health commit_mismatch correct | | | TODO |
+| 0e /health commit_mismatch correct | tests/test_api.py::test_health_flags_a_mismatch_even_when_worker_liveness_probe_is_negative | Restarted API+worker on commit a67502c; `GET /health` → commit=a67502c99c8b6326817ea127439a47c74185a7b5, worker_commit=same, worker_alive=true, commit_mismatch=false | DONE |
 
 ### Review passes
 Not yet run (part in progress).
