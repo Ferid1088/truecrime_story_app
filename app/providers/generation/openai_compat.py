@@ -85,8 +85,18 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                 "rate_limited", f"{self.label} rate limit exceeded (429)."
             )
         return GenerationError(
-            "provider_error", f"{self.label} error (HTTP {code})."
+            "provider_error", f"{self.label} error (HTTP {code}){self._provider_message(e)}."
         )
+
+    @staticmethod
+    def _provider_message(e: httpx.HTTPStatusError) -> str:
+        """The gateway's own explanation (JSON error.message), short; a body that
+        is not JSON carries nothing worth showing."""
+        try:
+            message = (e.response.json().get("error") or {}).get("message")
+        except (ValueError, AttributeError):
+            return ""
+        return f": {message[:300]}" if isinstance(message, str) and message else ""
 
     async def check_health(self) -> bool:
         """Minimal safe request: GET /models (no key value exposed)."""

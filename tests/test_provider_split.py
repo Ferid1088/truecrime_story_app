@@ -508,3 +508,24 @@ def test_brave_omits_search_lang_for_languages_it_rejects(monkeypatch):
     asyncio.run(backend.search("قتل بوبي فرانكس", "ar"))
     assert "search_lang" not in sent[0]
     assert sent[1]["search_lang"] == "ar"
+
+
+def test_generation_http_error_keeps_the_providers_own_message():
+    """Every HTTP 400 looked the same; the gateway says why (context too long,
+    bad parameter...) and that message must reach the error."""
+    from app.providers.generation.apimaster import APIMasterGenerationProvider
+
+    # no __init__: it refuses to build a real provider inside the test suite
+    provider = APIMasterGenerationProvider.__new__(APIMasterGenerationProvider)
+    response = httpx.Response(400, json={"error": {
+        "message": "This model's maximum context length is 200000 tokens"}},
+        request=httpx.Request("POST", "https://gateway.example/v1/chat/completions"))
+    error = provider._map_http_error(httpx.HTTPStatusError(
+        "bad request", request=response.request, response=response))
+    assert error.kind == "provider_error"
+    assert "HTTP 400" in str(error)
+    assert "maximum context length is 200000 tokens" in str(error)
+
+    plain = httpx.Response(502, text="<html>Bad gateway</html>", request=response.request)
+    assert "HTTP 502" in str(provider._map_http_error(httpx.HTTPStatusError(
+        "bad", request=response.request, response=plain)))
