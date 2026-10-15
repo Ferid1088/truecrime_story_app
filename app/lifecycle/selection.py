@@ -265,11 +265,13 @@ _SUSPECT_TERMS = re.compile(
     r"\b(?:suspect|accused|defendant|charged|arrested|alleged|prosecutor)\b", re.I)
 
 
-def legal_risk_flags(raw: dict, verdict: dict | None = None) -> list[str]:
+def legal_risk_flags(raw: dict, verdict: dict | None = None, status: str | None = None) -> list[str]:
     """Return plain-language legal cautions for a discovery suggestion.
 
     Discovery is not a legal finding. The flags are intentionally conservative:
     an unverified or non-convicted status is surfaced for editorial review.
+    `status` is the final (gated) status; without it the verdict's or the
+    claimed status is used.
     """
     verification = verdict or raw.get("verification") or {}
     text = " ".join(
@@ -281,7 +283,7 @@ def legal_risk_flags(raw: dict, verdict: dict | None = None) -> list[str]:
         for key in ("reason", "latest_development", "solved_by", "key_facts")
     )
     reasons = [label for label, pattern in _LEGAL_RISK_PATTERNS if pattern.search(text)]
-    status = normalize_status(verification.get("status") or raw.get("resolution_status"))
+    status = normalize_status(status or verification.get("status") or raw.get("resolution_status"))
     if status != SOLVED or (_SUSPECT_TERMS.search(text) and not _CONVICTION_TERMS.search(text)):
         reasons.append("suspect not convicted")
     return list(dict.fromkeys(reasons))
@@ -387,7 +389,7 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
             conf, evidence = None, (raw.get("resolution_evidence") or "status not verified")
             why = "status claimed by the discovery extraction, not verified"
             source = "claimed"
-        risk_reasons = legal_risk_flags(raw, v)
+        risk_reasons = legal_risk_flags(raw, v, status)
         raw["legal_risk"] = bool(risk_reasons)
         raw["legal_risk_reasons"] = risk_reasons
         rec, rec_how = _recency(raw)
