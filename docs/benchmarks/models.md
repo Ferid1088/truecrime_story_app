@@ -83,4 +83,23 @@ Per job type: up to ~40 items from stored real data (including Persian items whe
 
 ## Results
 
-(to be filled in as the benchmark runs — see ROADMAP.md Part 1 for current status)
+### fact_extractor (highest call volume: 110/1339 of case 5's real ledger rows)
+
+Real run, 2026-10-15: 16 real English sources from case 5 (`Leopold and Loeb murder of Bobby Franks`), batched 2/call (production's own `source_chunking.max_sources_per_extraction_call`), 8 batches, gold = claude-sonnet-5-5, billed to the dedicated benchmark case (6). `scripts/benchmark_fact_extractor.py 5 6 --limit 16`.
+
+| Model | valid_json_rate | mean_agreement_with_gold | mean_unsupported_rate | mean_latency_s | facts extracted |
+|---|---|---|---|---|---|
+| **claude-haiku-4-5 (baseline)** | **0.875** | **0.059** | **0.058** | 284.6 | 364 |
+| gemini-3.8-flash | 0.75 | 0.052 | 0.086 | 70.1 | 95 |
+| qwen3.8-flash | 0.0 | — | — | 233.8 | 0 |
+| deepseek-v4-flash | 0.25 | 0.0 | 0.036 | 255.4 | 104 |
+| glm-5.3-flash | 0.875 | 0.053 | 0.094 | 117.2 | 177 |
+
+**Findings** (real, not assumed):
+- **qwen3.8-flash: unusable today, not a quality verdict.** Every single call returned the gateway's own text "You've reached your daily usage limit for Chat. Come back tomorrow..." as the model's content (a 200 OK with a quota message instead of a completion) — this is an account-level daily quota on this specific model via apimaster, not a model-quality finding. Needs a real retry once the quota resets before any verdict is possible.
+- **deepseek-v4-flash: unreliable on this task, confirmed as truncation, not a one-off.** 6 of 8 batches failed JSON parsing; most calls generated 32000 output tokens (the same ceiling repeatedly, well past our configured `max_tokens: 16000` for this role) and were cut off before the JSON object closed. This looks like a real behavior of this model/gateway pairing (verbose, doesn't respect the requested token budget), not noise.
+- **gemini-3.8-flash and glm-5.3-flash: both measurably worse than the baseline on quality**, despite being 2.4x-4x faster. Neither wins on the deciding axis (agreement with gold, unsupported-claims rate) by the spec's own rule ("the cheapest model that is not worse than the baseline on quality metrics").
+- **Verdict so far: Haiku is not yet beaten for fact_extractor.** Per CLAUDE.md ("no Haiku anywhere"), this is not a stopping point — it means the original 4-candidate shortlist wasn't sufficient for this specific job type. Additional candidates are being tried (see below); qwen3.8-flash should be re-tried once its quota resets, since it's the strongest structured-output candidate on paper and was never actually measured.
+- Real cost from the ledger so far (3 runs on case 6, including the 2 smaller smoke-test passes that preceded this table): see `GET /api/cases/6/costs`. All candidate costs are currently the *conservative upper-bound* estimate (`cost_model.conservative_unpriced_cost_eur`), not a real per-token price — apimaster has no pricing API and its docs page doesn't cover any of these 4 models (see above), and the gateway did not report a `usage.cost` field for any of them during this benchmark. A real price per model requires the owner's apimaster console/billing page; until then, cost comparisons between candidates here are not meaningful (every candidate is priced by the same conservative formula), only quality comparisons are.
+
+(Additional candidates in progress — see ROADMAP.md Part 1 for current status. Remaining 17 job types not yet benchmarked.)

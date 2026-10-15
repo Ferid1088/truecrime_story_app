@@ -10,6 +10,11 @@ latency, and real EUR cost (from the ledger, attributed to a dedicated
 benchmark case so it never touches the source case's own budget).
 
     python -m scripts.benchmark_fact_extractor <source_case_id> <benchmark_case_id> [--limit N]
+        [--candidates model1,model2,...] [--gold-cache path.json]
+
+--gold-cache reuses a prior run's real gold extraction (same source_case_id
+and --limit) instead of paying for it again when only testing additional
+candidates.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ import sys
 import time
 from contextlib import contextmanager
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from app.agents.research import _FACT_SCHEMA, _source_bundle
 from app.agents.runner import run_agent
@@ -170,7 +176,8 @@ def _agreement_with_gold(candidate: list[dict], gold: list[dict]) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-async def main_async(source_case_id: int, bench_case_id: int, limit: int) -> None:
+async def main_async(source_case_id: int, bench_case_id: int, limit: int,
+                     candidates: list[str], gold_cache: Path | None) -> None:
     db = SessionLocal()
     source_case = db.get(Case, source_case_id)
     bench_case = db.get(Case, bench_case_id)
@@ -197,15 +204,29 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int) -> Non
         async with semaphore:
             return await _extract(bench_case_id, bench_case.canonical_title, bundle, system, label)
 
-    print(f"Running gold ({GOLD_MODEL}) over {len(bundles)} batches...")
-    with _model_override(GOLD_MODEL):
-        gold_results = await asyncio.gather(
-            *[_bounded(f"gold-{i}", bundle) for i, bundle in enumerate(bundles)]
-        )
-    gold_facts_by_batch = [r.get("facts", []) if r["ok"] else [] for r in gold_results]
+    if gold_cache and gold_cache.exists():
+        cached = json.loads(gold_cache.read_text())
+        if cached.get("source_case_id") == source_case_id and cached.get("limit") == limit:
+            print(f"Reusing cached gold extraction from {gold_cache} "
+                  f"(real spend already recorded in that earlier run).")
+            gold_facts_by_batch = cached["gold_facts_by_batch"]
+        else:
+            gold_cache = None  # mismatched cache; fall through to a real run
+    if not gold_cache or not gold_cache.exists():
+        print(f"Running gold ({GOLD_MODEL}) over {len(bundles)} batches...")
+        with _model_override(GOLD_MODEL):
+            gold_results = await asyncio.gather(
+                *[_bounded(f"gold-{i}", bundle) for i, bundle in enumerate(bundles)]
+            )
+        gold_facts_by_batch = [r.get("facts", []) if r["ok"] else [] for r in gold_results]
+        if gold_cache:
+            gold_cache.write_text(json.dumps({
+                "source_case_id": source_case_id, "limit": limit,
+                "gold_facts_by_batch": gold_facts_by_batch,
+            }, ensure_ascii=False))
 
     report: dict[str, dict] = {}
-    for model_id in CANDIDATES:
+    for model_id in candidates:
         print(f"Running candidate {model_id} over {len(bundles)} batches...")
         with _model_override(model_id):
             results = await asyncio.gather(
@@ -246,8 +267,13 @@ def main() -> None:
     parser.add_argument("source_case_id", type=int)
     parser.add_argument("benchmark_case_id", type=int)
     parser.add_argument("--limit", type=int, default=16)
+    parser.add_argument("--candidates", type=str, default=",".join(CANDIDATES),
+                        help="comma-separated model ids to test (default: the Part 1 shortlist)")
+    parser.add_argument("--gold-cache", type=Path, default=None,
+                        help="JSON file to read/write the gold extraction, to avoid re-paying for it")
     args = parser.parse_args()
-    asyncio.run(main_async(args.source_case_id, args.benchmark_case_id, args.limit))
+    asyncio.run(main_async(args.source_case_id, args.benchmark_case_id, args.limit,
+                           args.candidates.split(","), args.gold_cache))
 
 
 if __name__ == "__main__":
