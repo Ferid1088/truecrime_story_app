@@ -7,7 +7,7 @@ Inside each part: an inventory note, a requirement table (test + live evidence p
 
 | ID | Title | Status | Commit | Tests | Live proof | Not verified | Next owner action |
 |----|-------|--------|--------|-------|------------|---------------|--------------------|
-| 0 | Foundation | IN_PROGRESS | | | | | |
+| 0 | Foundation | WAITING_OWNER | 8c1e308 | 59 new/changed (test_generation.py, test_cost_ledger.py), full suite 1262 passed/10 skipped | See Part 0 section below | Part 0b case-5 recompute not yet written to the DB | Approve `python -m scripts.recompute_case_costs 5 --apply` (or decline/ask for something different) — case 5's real spend is EUR 19.92, not the EUR 15.78 the ledger currently shows |
 | 1 | Models: Haiku out, cheaper model in | TODO | | | | | |
 | 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | TODO | | | | | |
 | 3 | Research: Persian-canonical, more languages, YouTube as a main source | TODO | | | | | |
@@ -22,7 +22,7 @@ Inside each part: an inventory note, a requirement table (test + live evidence p
 
 ## Part 0 — Foundation
 
-Status: IN_PROGRESS
+Status: WAITING_OWNER (0a, 0c, 0d, 0e DONE; 0b's code fix DONE, its case-5 data correction awaits owner approval — see below). Proceeding to Part 1 in the meantime per protocol.
 
 ### Inventory
 - (a) CLAUDE.md had only the no-push rule; ROADMAP.md did not exist. Both being created now.
@@ -36,7 +36,7 @@ Status: IN_PROGRESS
 | Req | Test | Live evidence | Status |
 |-----|------|----------------|--------|
 | 0a CLAUDE.md + ROADMAP.md created | — | — | DONE |
-| 0b Cost ledger prices by resolved model, books failed-call tokens, fails loudly on missing price | | | TODO |
+| 0b Cost ledger prices by resolved model, books failed-call tokens, fails loudly on missing price | tests/test_generation.py (6 new `_chat`/`generate_structured` tests), tests/test_cost_ledger.py (7 new tests) | See "Part 0b live proof" below | DONE (code); recompute dry-run only, awaiting owner confirmation to write |
 | 0c No cost-estimate gates block a run; actual-spend cap only | tests/test_budget.py (all), tests/test_pilot_master_regressions.py::test_record_provider_call_never_raises_a_stage_cost_ceiling, ::test_a_20s_pilot_stage_is_never_blocked_by_cost_estimate | Ran `pytest tests/test_budget.py tests/test_pilot_master_regressions.py`: 23 passed. No code change needed — already correct. | DONE (pre-existing) |
 | 0d SearXNG/search fallback removed (Brave only) | — (no behavior to test; dead config/docs only) | `grep -rni searxng` across app/, config/, scripts/, tests/, README.md, .gitignore → zero hits after cleanup (only ROADMAP.md/docs/changing.txt mention the word, as history) | DONE |
 | 0e /health commit_mismatch correct | tests/test_api.py::test_health_flags_a_mismatch_even_when_worker_liveness_probe_is_negative | Restarted API+worker on commit a67502c; `GET /health` → commit=a67502c99c8b6326817ea127439a47c74185a7b5, worker_commit=same, worker_alive=true, commit_mismatch=false | DONE |
@@ -44,8 +44,19 @@ Status: IN_PROGRESS
 ### Review passes
 Not yet run (part in progress).
 
+### Part 0b live proof
+Three real bugs found and fixed in app/services/tracking.py, app/providers/generation/openai_compat.py, app/providers/generation/base.py, app/services/cost_model.py (commit 8c1e308):
+1. `_chat` billed against whatever model string the gateway echoed back, not the resolved model actually requested (pricing.json only has entries for resolved models) — now bills against the requested model, logs loudly on any mismatch.
+2. `track_run`'s except branch never booked a failed call's cost, even when real tokens were already known (post-stamp_run failures; GenerationError now carries billed usage for truncated/empty-completion/repair-exhausted failures too). A true zero-usage failure (timeout, no response) still books nothing — correct.
+3. A model with real usage but no pricing.json entry was silently folded into the generic per-stage estimate, which zeroes every call after the first for that stage — this is the "~223 Haiku calls at EUR 0" bug. Now gets its own distinct error row (`error` set, `cost_eur` left unset), never folded into the estimate/zero path. Also added: `model_cost_eur` normalizes a dated gateway snapshot suffix (observed live: `...-20251001`) back to its base model for pricing, since this is exactly the shape the real case-5 bug took.
+
+**Live evidence against the real PostgreSQL case 5** (`Leopold and Loeb murder of Bobby Franks`), queried directly:
+- 1339 total `provider_calls` rows. 223 rows with `model='claude-haiku-4-5-20251001'` (the dated gateway echo), `cost_eur=0.0`, `estimated=True`, real tokens present — exactly bug #1/#3's shape, confirming the "~223 Haiku calls" the owner described. 95 rows with `ok=False` — exactly the "~95 failed calls" the owner described; all 95 have `model=None` (no usage was ever stamped — genuine zero-usage failures, timeouts/network errors before any response; correctly book nothing).
+- `scripts/recompute_case_costs.py` (new, dry-run by default, `--apply` to write) recomputes exactly the 223 mispriced rows from their own stored tokens: **spent_eur before: EUR 15.777983 → after: EUR 19.920885** (dry run; not yet written — see OWNER ACTION below). Case 5's real spend was ~26% higher than the ledger showed, 8 cents from the EUR 20 cap.
+- OWNER ACTION (does not block the loop): writing this correction to the live case 5 rows needs the owner's go-ahead (the Claude Code auto-mode classifier itself declined to write to the shared production database without explicit permission) — the owner compares the new total with the gateway's own usage page, then either approves `python -m scripts.recompute_case_costs 5 --apply` or asks for something different.
+
 ### Not verified
-Everything except 0a.
+Everything except 0a, 0c, 0d, 0e, and 0b's code fix. The case-5 recompute is dry-run only until the owner approves writing it.
 
 ---
 

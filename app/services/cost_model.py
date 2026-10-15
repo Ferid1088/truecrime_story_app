@@ -9,6 +9,7 @@ case's actual recorded spend against its EUR cap (app.services.budget).
 from __future__ import annotations
 
 import json
+import re
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
@@ -464,14 +465,35 @@ def estimate_stage_eur(db: Session, case_id: int, stage: str,
     return round(sum(line.expected for line in candidates), 6)
 
 
+_DATED_SNAPSHOT_SUFFIX = re.compile(r"-\d{8}$")
+
+
+def _price_spec(pricing: dict[str, Any], model: str) -> dict[str, Any] | None:
+    spec = next((row for row in pricing["models"].values()
+                 if row.get("provider_model") == model), None)
+    if spec:
+        return spec
+    # Some gateway responses echo a dated snapshot of the model we actually
+    # requested (an -YYYYMMDD suffix on the configured model id) instead of
+    # the resolved model string itself. openai_compat.py now bills against
+    # the resolved model going forward (see its _chat), but this keeps
+    # historical rows stored under the dated variant priceable too, on the
+    # documented assumption that a dated snapshot suffix never changes the
+    # provider's per-token rate.
+    base = _DATED_SNAPSHOT_SUFFIX.sub("", model)
+    if base == model:
+        return None
+    return next((row for row in pricing["models"].values()
+                 if row.get("provider_model") == base), None)
+
+
 def model_cost_eur(model: str | None, input_tokens: int | None,
                    output_tokens: int | None) -> float | None:
     """Price provider-reported token usage using the configured model rate."""
     if not model or input_tokens is None or output_tokens is None:
         return None
     pricing = load_pricing()
-    spec = next((row for row in pricing["models"].values()
-                 if row.get("provider_model") == model), None)
+    spec = _price_spec(pricing, model)
     if not spec:
         return None
     rate = float(pricing["exchange_rates"]["usd_to_eur"])
