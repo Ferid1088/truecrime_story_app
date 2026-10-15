@@ -28,3 +28,17 @@ def make_host_plan(db, case, blueprint=None):
     db.add(hp)
     db.commit()
     return hp
+
+
+class DistinctEmbedder:
+    """Fake embedding client: every text gets its own direction, so no two
+    facts are ever judged duplicates and nothing leaves the process."""
+
+    model = "fake-embed"
+    total_tokens = 0
+    total_cost_usd = 0.0
+
+    async def embed(self, texts):
+        import numpy as np
+
+        return np.eye(len(texts), dtype=np.float32)

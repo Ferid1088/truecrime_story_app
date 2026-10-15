@@ -1,12 +1,15 @@
+import asyncio
+
 from app.agents.runner import run_agent
 from app.core.prompts import prompt
 import json
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import Case, Source, Fact, Contradiction
+from app.agents.fact_merge import FactMerger, default_embedder
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
-from app.services.tracking import track_run, stamp_run
+from app.services.tracking import track_research_call, track_run, stamp_run
 
 
 def _source_bundle(sources: list[Source], *, with_texts: bool = True) -> list[dict]:
@@ -85,6 +88,7 @@ class ResearchAgent:
 
     def __init__(self):
         self.gen = get_generation_provider()
+        self.embedder = default_embedder()
 
     async def run(
         self,
@@ -98,7 +102,8 @@ class ResearchAgent:
         case.status = "researching"
         db.commit()
         try:
-            facts_data = await self._extract_facts(db, case, sources)
+            facts_data = await self._merge_duplicates(
+                case, await self._extract_facts(db, case, sources))
             fact_rows = self._store_facts(db, case, facts_data)
 
             await self._build_timeline(db, case, fact_rows, sources)
@@ -121,32 +126,40 @@ class ResearchAgent:
     # ------------------------------------------------------------------
 
     async def _extract_facts(self, db: Session, case: Case, sources: list[Source]) -> list[dict]:
+        """Single-language batches, extracted concurrently. The bundles are
+        read here, in this session; each call then tracks itself in its own."""
         system = prompt("agents/research/extract_facts")
-        facts: list[dict] = []
-        batches = _extraction_batches(
-            sources, ai_config.source_chunking.max_sources_per_extraction_call)
-        for number, batch in enumerate(batches, 1):
-            facts.extend(await self._extract_batch(
-                db, case, batch, system, f"{number}/{len(batches)}"))
-        return facts
+        bundles = [
+            _source_bundle(batch) for batch in _extraction_batches(
+                sources, ai_config.source_chunking.max_sources_per_extraction_call)
+        ]
+        limit = asyncio.Semaphore(ai_config.source_chunking.extraction_concurrency)
 
-    async def _extract_batch(self, db: Session, case: Case, batch: list[Source],
-                             system: str, label: str) -> list[dict]:
+        async def run(number: int, bundle: list[dict]) -> list[dict]:
+            async with limit:
+                return await self._extract_batch(
+                    case, bundle, system, f"{number}/{len(bundles)}")
+
+        try:
+            async with asyncio.TaskGroup() as group:
+                tasks = [group.create_task(run(n, bundle)) for n, bundle in enumerate(bundles, 1)]
+        except ExceptionGroup as failed:
+            raise failed.exceptions[0] from None
+        return [fact for task in tasks for fact in task.result()]
+
+    async def _extract_batch(self, case: Case, bundle: list[dict], system: str,
+                             label: str) -> list[dict]:
         """One call for the batch; if the reply is unusable (truncated, empty,
         malformed) the batch is halved and each half retried. A single failing
         source raises."""
         user = json.dumps(
-            {
-                "case": case.canonical_title,
-                "sources": _source_bundle(batch),
-                "output_schema": _FACT_SCHEMA,
-            },
+            {"case": case.canonical_title, "sources": bundle, "output_schema": _FACT_SCHEMA},
             ensure_ascii=False,
         )
         try:
-            with track_run(
-                db, case.id, "Fact Extractor",
-                input_summary=f"case={case.id} batch={label} sources={len(batch)}",
+            with track_research_call(
+                "Fact Extractor", f"case={case.id} batch={label} sources={len(bundle)}",
+                case_id=case.id,
             ) as run:
                 data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
                 stamp_run(run, res, "fact_extractor")
@@ -154,11 +167,27 @@ class ResearchAgent:
                 run.output_summary = f"facts={len(found)}"
             return found
         except (GenerationError, ValueError):
-            if len(batch) == 1:
+            if len(bundle) == 1:
                 raise
-            middle = len(batch) // 2
-            return (await self._extract_batch(db, case, batch[:middle], system, f"{label}a")
-                    + await self._extract_batch(db, case, batch[middle:], system, f"{label}b"))
+            middle = len(bundle) // 2
+            return (await self._extract_batch(case, bundle[:middle], system, f"{label}a")
+                    + await self._extract_batch(case, bundle[middle:], system, f"{label}b"))
+
+    async def _merge_duplicates(self, case: Case, facts: list[dict]) -> list[dict]:
+        """One fact per event: the same claim extracted from sources in several
+        languages is merged (embedding cost is part of the case ledger)."""
+        if len(facts) < 2:
+            return facts
+        merger = FactMerger(self.embedder, ai_config.source_chunking.merge_min_similarity)
+        with track_research_call(
+            "Fact Merger", f"case={case.id} facts={len(facts)}", case_id=case.id,
+        ) as run:
+            merged = await merger.merge(facts)
+            run.provider, run.model = "embeddings", self.embedder.model
+            run.input_tokens, run.output_tokens = self.embedder.total_tokens, 0
+            run.estimated_cost_usd = self.embedder.total_cost_usd
+            run.output_summary = f"facts={len(merged)} merged={len(facts) - len(merged)}"
+        return merged
 
     def _store_facts(self, db: Session, case: Case, facts_data: list[dict]) -> list[Fact]:
         db.query(Fact).filter(Fact.case_id == case.id).delete()

@@ -76,7 +76,9 @@
     "min_tokens": 200,
     "max_tokens": 1400,
     "max_chunks_per_source_for_extraction": 4,
-    "max_sources_per_extraction_call": 2
+    "max_sources_per_extraction_call": 2,
+    "extraction_concurrency": 4,
+    "merge_min_similarity": 0.9
   },
   "evidence_strength": {
     "weights": {

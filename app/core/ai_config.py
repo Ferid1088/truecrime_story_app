@@ -565,6 +565,10 @@ class SourceChunkingConfig(BaseModel):
     max_tokens: int = Field(gt=0)
     max_chunks_per_source_for_extraction: int = Field(ge=1, le=20)
     max_sources_per_extraction_call: int = Field(ge=1, le=20)
+    # Extraction batches in flight at once; each uses its own session.
+    extraction_concurrency: int = Field(ge=1, le=8)
+    # Cosine similarity from which two extracted facts count as the same fact.
+    merge_min_similarity: float = Field(ge=0.5, le=1.0)
 
 
 class EvidenceStrengthConfig(BaseModel):

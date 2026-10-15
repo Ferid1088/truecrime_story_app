@@ -9,6 +9,8 @@ import json
 import uuid
 
 import pytest
+
+from tests.factories import DistinctEmbedder
 from fastapi import HTTPException
 
 from app.agents.story import (
@@ -226,15 +228,16 @@ def test_multilingual_family_dedupe(db_session):
 # ---------------------------------------------------------------------------
 
 
-def _run_extract(db_session, case, fake):
+def _run_extract(db_session, case, fake, embedder=None):
     import app.agents.research as research_mod
 
-    original = research_mod.get_generation_provider
+    original = research_mod.get_generation_provider, research_mod.default_embedder
     research_mod.get_generation_provider = lambda: fake
+    research_mod.default_embedder = lambda: embedder or DistinctEmbedder()
     try:
         return asyncio.run(research_mod.ResearchAgent().run(db_session, case))
     finally:
-        research_mod.get_generation_provider = original
+        research_mod.get_generation_provider, research_mod.default_embedder = original
 
 
 class _ExtractFake:
@@ -825,3 +828,73 @@ def test_failed_extraction_batch_is_split_and_retried(db_session, monkeypatch):
 
     with pytest.raises(ValueError):
         _run_extract(db_session, case, AlwaysFails([]))
+
+
+def test_extraction_batches_run_concurrently_and_keep_batch_order(db_session, monkeypatch):
+    """Batches are independent, so they run in parallel (bounded by
+    extraction_concurrency, each with its own session) and the facts come back
+    in batch order."""
+    from app.core.ai_config import ai_config
+    from app.providers.generation.base import GenerationResult
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_extraction_call", 1)
+    monkeypatch.setattr(ai_config.source_chunking, "extraction_concurrency", 3)
+    case = _mk_case(db_session)
+    sources = [_mk_source(db_session, case, language="en") for _ in range(5)]
+    state = {"now": 0, "peak": 0}
+
+    class SlowFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role != "fact_extractor":
+                return await super().generate_structured(role, system, user)
+            source_id = json.loads(user)["sources"][0]["id"]
+            state["now"] += 1
+            state["peak"] = max(state["peak"], state["now"])
+            await asyncio.sleep(0.05 if source_id != sources[0].id else 0.2)
+            state["now"] -= 1
+            return {"facts": [{"claim": f"fact {source_id}", "source_ids": [source_id],
+                               "category": "context"}]}, \
+                GenerationResult(text="{}", model="m", provider="fake")
+
+    result = _run_extract(db_session, case, SlowFake([]))
+    assert result["facts"] == 5
+    assert state["peak"] == 3
+    from app.db.models import Fact
+    stored = db_session.query(Fact).filter(Fact.case_id == case.id).order_by(Fact.id).all()
+    assert [f.claim for f in stored] == [f"fact {s.id}" for s in sources]
+
+
+def test_research_merges_the_same_fact_from_different_languages(db_session):
+    """The same event extracted from an English and a German source is stored
+    once, with both sources behind it, and the merge is a tracked run."""
+    import numpy as np
+    from app.db.models import AgentRun, Fact
+
+    class SameEmbedder(DistinctEmbedder):
+        async def embed(self, texts):
+            return np.ones((len(texts), 4), dtype=np.float32)
+
+    case = _mk_case(db_session)
+    en = _mk_source(db_session, case, language="en")
+    de = _mk_source(db_session, case, language="de")
+    facts = [
+        {"claim": "Darrow defended both", "source_ids": [en.id], "category": "legal"},
+        {"claim": "Darrow defended both men", "source_ids": [de.id], "category": "legal",
+         "original_language": "de", "original_claim": "Darrow verteidigte beide"},
+    ]
+
+    class PerSourceFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            data, res = await super().generate_structured(role, system, user)
+            if role == "fact_extractor":
+                ids = {s["id"] for s in json.loads(user)["sources"]}
+                data = {"facts": [f for f in facts if set(f["source_ids"]) <= ids]}
+            return data, res
+
+    result = _run_extract(db_session, case, PerSourceFake([]), SameEmbedder())
+    assert result["facts"] == 1
+    stored = db_session.query(Fact).filter(Fact.case_id == case.id).one()
+    assert sorted(json.loads(stored.source_ids_json)) == sorted([en.id, de.id])
+    merger_run = db_session.query(AgentRun).filter_by(
+        case_id=case.id, agent_name="Fact Merger").one()
+    assert merger_run.output_summary == "facts=1 merged=1"

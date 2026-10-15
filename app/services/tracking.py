@@ -142,7 +142,8 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
 
 
 @contextmanager
-def track_research_call(agent_name: str, input_summary: str | None = None):
+def track_research_call(agent_name: str, input_summary: str | None = None,
+                        case_id: int | None = None):
     """Like track_run, but for the research engine (app/research_engine),
     which is deliberately DB-free — it has no session to pass in. Opens
     its own short-lived session and reads case_id from the same context
@@ -154,7 +155,7 @@ def track_research_call(agent_name: str, input_summary: str | None = None):
     from app.db.base import SessionLocal
 
     context = _documentary_metadata()
-    case_id = context.get("case_id")
+    case_id = case_id if case_id is not None else context.get("case_id")
     with SessionLocal() as db, track_run(db, case_id, agent_name, input_summary) as row:
         yield row
 

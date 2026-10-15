@@ -1151,6 +1151,8 @@ def documentary_env(tmp_path, monkeypatch):
     ):
         monkeypatch.setattr(f"{mod}.get_generation_provider", lambda: gen, raising=False)
     monkeypatch.setattr("app.providers.generation.get_generation_provider", lambda: gen)
+    from tests.factories import DistinctEmbedder
+    monkeypatch.setattr("app.agents.research.default_embedder", lambda: DistinctEmbedder())
     tts = FakeTTS()
     gen.tts = tts
     # Host scenes resolve their provider dynamically, unlike the production
