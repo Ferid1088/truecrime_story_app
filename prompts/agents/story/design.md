@@ -82,4 +82,7 @@ Act rules:
   not dump everything into act 1; reserve myth/fabrication evidence for
   the debunk act; an id may appear in at most one act. Assign fact,
   timeline AND contradiction ids (F…, T…, C…) to the acts that own them.
+  List at most max_evidence_ids_per_act fact ids per act — the strongest and
+  most relevant for that act; an act's writer cannot use more, and a plan that
+  lists every fact is cut off. Facts you do not assign are simply left out.
 - do_not_reveal lists evidence the writer must withhold until a later act.

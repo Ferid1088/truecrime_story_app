@@ -700,6 +700,7 @@ class StoryDirector:
                 "target_minutes": target_minutes,
                 "language": language,
                 "editorial_context": context or {},
+                "max_evidence_ids_per_act": ai_config.story_quality.max_evidence_per_act,
                 "evidence": director_view(pack),
             },
             ensure_ascii=False,

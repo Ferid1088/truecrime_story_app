@@ -706,3 +706,25 @@ def test_act_pack_keeps_only_the_strongest_evidence_up_to_the_cap(monkeypatch):
     assert len(with_timeline["facts"]) == 50 and len(with_timeline["timeline"]) == 1
     small = build_act_pack(pack, ["F001", "F002"])
     assert [f["id"] for f in small["facts"]] == ["F001", "F002"]
+
+
+def test_director_is_told_how_many_evidence_ids_an_act_can_use(db_session):
+    """Left to itself the director listed ids for most of 1,700 facts in every
+    act and its plan overran max_tokens; an act only uses the strongest
+    max_evidence_per_act, and the director is told so."""
+    from app.agents.story import StoryDirector
+    from app.core.prompts import prompt
+
+    case = _mk_case(db_session)
+    seen = {}
+
+    class Spy:
+        async def generate_structured(self, role, system, user, images=None):
+            seen["user"] = json.loads(user)
+            return {"acts": []}, GenerationResult(text="{}", model="m", provider="fake")
+
+    director = StoryDirector()
+    director.gen = Spy()
+    asyncio.run(director.design(case, {"facts": []}, 45, "fa"))
+    assert seen["user"]["max_evidence_ids_per_act"] == ai_config.story_quality.max_evidence_per_act
+    assert "max_evidence_ids_per_act" in prompt("agents/story/design")
