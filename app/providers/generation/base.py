@@ -8,11 +8,27 @@ class GenerationError(RuntimeError):
     `kind` distinguishes missing credentials, auth failures, rate
     limits, timeouts, unavailable models and invalid model output so
     callers can decide when model fallback is legitimate.
+
+    Some failures happen AFTER the provider already returned a billed
+    response (e.g. output truncated at max_tokens, or a repair call whose
+    JSON still failed to parse) — those carry the usage the provider
+    already reported, so the cost ledger can book what was actually
+    consumed instead of losing it. A failure with no response at all
+    (timeout, unreachable, auth) leaves these None: nothing was billed.
     """
 
-    def __init__(self, kind: str, message: str):
+    def __init__(self, kind: str, message: str, *, provider: str | None = None,
+                 model: str | None = None, input_tokens: int | None = None,
+                 output_tokens: int | None = None, total_tokens: int | None = None,
+                 cost_usd: float | None = None):
         super().__init__(message)
         self.kind = kind
+        self.provider = provider
+        self.model = model
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.total_tokens = total_tokens
+        self.cost_usd = cost_usd
 
 
 @dataclass

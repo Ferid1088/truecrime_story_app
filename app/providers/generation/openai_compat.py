@@ -24,6 +24,14 @@ from app.providers.generation.base import (
 
 log = logging.getLogger(__name__)
 
+
+def _sum_optional(a: float | None, b: float | None) -> float | None:
+    """Sum two provider-reported usage values, None meaning "not reported"
+    rather than zero; None only when neither side reported anything."""
+    if a is None and b is None:
+        return None
+    return (a or 0) + (b or 0)
+
 # Failure kinds where falling back to a configured fallback model is
 # legitimate. Credential failures (unauthorized/forbidden) and invalid
 # model output never trigger fallback — a bad key is not a bad model,
@@ -234,19 +242,33 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             raise GenerationError(
                 "unreachable", f"Cannot reach {self.label}: {type(e).__name__}"
             ) from e
+        # Extracted before the validity checks below: a response that gets
+        # rejected for an empty/truncated completion was still a real,
+        # billed call — its usage must be attached to any GenerationError
+        # raised from here, or the cost is lost rather than booked.
+        usage = data.get("usage") or {}
+        billed = {
+            "provider": self.name,
+            "model": model,
+            "input_tokens": usage.get("prompt_tokens"),
+            "output_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "cost_usd": usage.get("cost"),
+        }
         choice = (data.get("choices") or [{}])[0]
         content = choice.get("message", {}).get("content")
         if not isinstance(content, str) or not content.strip():
             raise GenerationError(
-                "invalid_output", f"{self.label} returned an empty completion."
+                "invalid_output", f"{self.label} returned an empty completion.",
+                **billed,
             )
         if choice.get("finish_reason") in ("length", "max_tokens"):
             raise GenerationError(
                 "invalid_output",
                 f"{self.label} completion truncated at max_tokens for "
                 f"model {model}.",
+                **billed,
             )
-        usage = data.get("usage") or {}
         meta = {
             "input_tokens": usage.get("prompt_tokens"),
             "output_tokens": usage.get("completion_tokens"),
@@ -254,7 +276,19 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             "cost_usd": usage.get("cost"),
             "generation_id": data.get("id"),
         }
-        return content, data.get("model") or model, meta
+        reported_model = data.get("model")
+        if reported_model and reported_model != model:
+            # The resolved model we requested is the one config/parameters/
+            # pricing.json has a price for; trust it for billing even when
+            # the gateway echoes a different string back (e.g. a dated or
+            # internally-aliased model id), and say so loudly rather than
+            # silently mis-pricing the call.
+            log.warning(
+                "%s gateway echoed model=%s for requested model=%s; "
+                "billing against the requested model.",
+                self.label, reported_model, model,
+            )
+        return content, model, meta
 
     async def generate_text(
         self, role: str, system: str, user: str, images: list[str] | None = None
@@ -324,9 +358,9 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
     async def generate_structured(
         self, role: str, system: str, user: str, images: list[str] | None = None
     ) -> tuple[dict[str, Any], GenerationResult]:
-        result = await self.generate_text(role, system, user, images)
+        first = await self.generate_text(role, system, user, images)
         try:
-            return self._extract_json(result.text), result
+            return self._extract_json(first.text), first
         except json.JSONDecodeError:
             pass
         # One strict-JSON repair attempt (Part 16) — non-JSON output is
@@ -341,16 +375,24 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             + "\n\nCRITICAL: return ONLY one valid JSON object — no prose, "
               "no markdown fences, no trailing text."
         )
-        result = await self.generate_text(role, strict, user, images)
+        repaired = await self.generate_text(role, strict, user, images)
         try:
-            return self._extract_json(result.text), result
+            return self._extract_json(repaired.text), repaired
         except json.JSONDecodeError as e:
             log.error(
                 "%s invalid JSON output for role=%s model=%s: %.200s",
-                self.label, role, result.model, result.text,
+                self.label, role, repaired.model, repaired.text,
             )
+            # Both the first and the repair call were real, billed
+            # generations (only their JSON parsing failed) — book the sum
+            # of both rather than losing either.
             raise GenerationError(
                 "invalid_output",
-                f"Model {result.model} returned non-JSON output for "
-                f"role {role}.",
+                f"Model {repaired.model} returned non-JSON output for "
+                f"role {role} after one repair attempt.",
+                provider=repaired.provider, model=repaired.model,
+                input_tokens=_sum_optional(first.input_tokens, repaired.input_tokens),
+                output_tokens=_sum_optional(first.output_tokens, repaired.output_tokens),
+                total_tokens=_sum_optional(first.total_tokens, repaired.total_tokens),
+                cost_usd=_sum_optional(first.cost_usd, repaired.cost_usd),
             ) from e

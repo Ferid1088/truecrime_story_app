@@ -232,6 +232,158 @@ def test_structured_parses_json():
     assert res.provider == "apimaster"
 
 
+# ---------------------------------------------------------------------------
+# _chat: real HTTP shape (mocked transport) — cost-ledger-relevant behaviour
+# ---------------------------------------------------------------------------
+
+
+def _mock_client(handler):
+    import httpx
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            self._transport = httpx.MockTransport(handler)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc_info):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            request = httpx.Request("POST", url, headers=headers, json=json)
+            response = self._transport.handle_request(request)
+            response.request = request
+            return response
+
+    return _FakeAsyncClient
+
+
+def test_chat_bills_against_the_requested_model_even_if_the_gateway_echoes_a_different_one(monkeypatch):
+    import httpx as httpx_module
+
+    provider = _provider()
+    gen = ai_config.generation_for("fact_extractor")
+
+    def handler(request):
+        return httpx_module.Response(200, json={
+            "id": "gen-1",
+            "model": "claude-haiku-4-5-20251001",  # gateway's own, longer id
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        })
+
+    monkeypatch.setattr(
+        "app.providers.generation.openai_compat.httpx.AsyncClient",
+        _mock_client(handler),
+    )
+    with patch("app.providers.generation.openai_compat.log") as mock_log:
+        content, used_model, meta = asyncio.run(
+            provider._chat("claude-haiku-4-5", "sys", "user", gen)
+        )
+    assert used_model == "claude-haiku-4-5"
+    assert mock_log.warning.called
+
+
+def test_chat_truncated_completion_raises_with_billed_usage_attached(monkeypatch):
+    import httpx as httpx_module
+
+    provider = _provider()
+    gen = ai_config.generation_for("fact_extractor")
+
+    def handler(request):
+        return httpx_module.Response(200, json={
+            "id": "gen-2",
+            "model": "claude-haiku-4-5",
+            "choices": [{"message": {"content": "cut off"}, "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "cost": 0.02},
+        })
+
+    monkeypatch.setattr(
+        "app.providers.generation.openai_compat.httpx.AsyncClient",
+        _mock_client(handler),
+    )
+    with pytest.raises(GenerationError) as exc:
+        asyncio.run(provider._chat("claude-haiku-4-5", "sys", "user", gen))
+    assert exc.value.kind == "invalid_output"
+    assert exc.value.provider == "apimaster"
+    assert exc.value.model == "claude-haiku-4-5"
+    assert exc.value.input_tokens == 100
+    assert exc.value.output_tokens == 50
+    assert exc.value.cost_usd == 0.02
+
+
+def test_chat_empty_completion_raises_with_billed_usage_attached(monkeypatch):
+    import httpx as httpx_module
+
+    provider = _provider()
+    gen = ai_config.generation_for("fact_extractor")
+
+    def handler(request):
+        return httpx_module.Response(200, json={
+            "id": "gen-3",
+            "model": "claude-haiku-4-5",
+            "choices": [{"message": {"content": ""}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 42, "completion_tokens": 0},
+        })
+
+    monkeypatch.setattr(
+        "app.providers.generation.openai_compat.httpx.AsyncClient",
+        _mock_client(handler),
+    )
+    with pytest.raises(GenerationError) as exc:
+        asyncio.run(provider._chat("claude-haiku-4-5", "sys", "user", gen))
+    assert exc.value.kind == "invalid_output"
+    assert exc.value.input_tokens == 42
+
+
+def test_timeout_raises_with_no_billed_usage():
+    import httpx as httpx_module
+
+    provider = _provider()
+    gen = ai_config.generation_for("fact_extractor")
+
+    class _TimeoutClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc_info):
+            return False
+
+        async def post(self, *a, **k):
+            raise httpx_module.TimeoutException("timed out")
+
+    with patch("app.providers.generation.openai_compat.httpx.AsyncClient", _TimeoutClient):
+        with pytest.raises(GenerationError) as exc:
+            asyncio.run(provider._chat("claude-haiku-4-5", "sys", "user", gen))
+    assert exc.value.kind == "timeout"
+    assert exc.value.provider is None
+    assert exc.value.model is None
+    assert exc.value.input_tokens is None
+
+
+def test_generate_structured_repair_exhausted_sums_both_calls_usage_into_the_error():
+    provider = _provider()
+    calls = []
+
+    async def non_json_both_times(model, system, user, gen):
+        calls.append(1)
+        meta = {"input_tokens": 100, "output_tokens": 40, "total_tokens": 140, "cost_usd": 0.01}
+        return "not json" + str(len(calls)), model, meta
+
+    with patch.object(provider, "_chat", side_effect=non_json_both_times):
+        with pytest.raises(GenerationError) as exc:
+            asyncio.run(provider.generate_structured("fact_extractor", "sys", "user"))
+    assert len(calls) == 2  # first attempt + one repair attempt, no more
+    assert exc.value.kind == "invalid_output"
+    assert exc.value.input_tokens == 200  # both calls' tokens, not just the repair's
+    assert exc.value.output_tokens == 80
+    assert exc.value.cost_usd == pytest.approx(0.02)
+
+
 def test_missing_key_raises():
     provider = _provider()
     provider.api_key = ""

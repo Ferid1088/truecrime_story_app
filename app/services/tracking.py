@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -15,6 +16,8 @@ from app.core.ai_config import ai_config
 from app.db.models import AgentRun, DocumentaryJob, ProviderCall
 from app.services.budget import BudgetService, StageTimeBudgetExceeded
 from app.utils import ensure_utc, utc_now
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     # A plain top-level import pulls in app.providers' package __init__,
@@ -123,6 +126,37 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
         row.error = str(e)[:2000]
         row.completed_at = utc_now()
         row.duration_ms = int((time.monotonic() - monotonic) * 1000)
+        if row.provider is None:
+            # stamp_run never ran (the failure came from inside the
+            # provider call itself, before a GenerationResult existed) —
+            # but the provider may still have billed real usage before
+            # raising (output truncated at max_tokens, or a repair call
+            # whose JSON still failed to parse). GenerationError carries
+            # that usage when it has it; a local import avoids a circular
+            # import with app.providers at module load time (see the
+            # TYPE_CHECKING note above).
+            from app.providers.generation.base import GenerationError
+
+            if isinstance(e, GenerationError) and e.provider is not None:
+                row.provider = e.provider
+                row.model = e.model
+                row.input_tokens = e.input_tokens
+                row.output_tokens = e.output_tokens
+                row.total_tokens = e.total_tokens
+                row.estimated_cost_usd = e.cost_usd
+        try:
+            # stamp_run may already have copied real provider/model/token
+            # usage onto `row` before the failure (e.g. a successful,
+            # billed generation whose JSON output then failed downstream
+            # validation) — that spend must still reach the ledger.
+            # _record_provider_call's own guard is a no-op when nothing was
+            # ever stamped (a timeout/network failure with no usage at all).
+            _record_provider_call(db, row)
+        except Exception:
+            log.exception(
+                "Cost ledger: failed to record a provider call for a failed "
+                "run (case_id=%s, stage=%s)", row.case_id, row.pipeline_stage,
+            )
         _clear_call_progress(db, context)
         db.commit()
         raise
@@ -249,22 +283,39 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     A provider that omits usage is still represented once for the stage with
     its configured estimate and ``estimated=true``. This keeps the budget
     gate conservative without inventing provider usage numbers.
+
+    A provider that DOES report real token usage, for a model with no entry
+    in config/parameters/pricing.json, is a configuration defect, not a
+    "usage unknown" situation — it is recorded with its real tokens and a
+    non-empty ``error``, cost_eur left unset, rather than silently folded
+    into the usage-less-retry estimate (which would hide a real, priced
+    call behind a stage-level guess, or zero it out entirely once one
+    estimate for the stage already exists).
     """
     if run.case_id is None or run.provider is None:
         return
     from app.services.cost_model import estimate_stage_eur, model_cost_eur
 
     stage = run.pipeline_stage or run.agent_name
-    reported = run.estimated_cost_usd is not None or (
-        run.input_tokens is not None and run.output_tokens is not None)
+    tokens_reported = run.input_tokens is not None and run.output_tokens is not None
     cost_eur = None
     cost_usd = run.estimated_cost_usd
+    price_missing = False
     if cost_usd is not None:
         cost_eur = float(cost_usd) * ai_config.budget.usd_to_eur
-    elif reported:
+    elif tokens_reported:
         cost_eur = model_cost_eur(run.model, run.input_tokens, run.output_tokens)
-    estimated = cost_eur is None
-    if estimated:
+        price_missing = cost_eur is None
+    estimated = cost_eur is None and not price_missing
+    error = None
+    if price_missing:
+        error = f"no price entry for model {run.model!r} (stage {stage})"
+        log.error(
+            "Cost ledger: %s has real token usage (in=%s out=%s) but no "
+            "configured price — booked with cost_eur unset, not EUR 0.",
+            error, run.input_tokens, run.output_tokens,
+        )
+    elif estimated:
         # Do not multiply a stage estimate by every usage-less retry.
         already_estimated = db.query(ProviderCall.id).filter(
             ProviderCall.case_id == run.case_id,
@@ -275,9 +326,9 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     BudgetService(db).record(
         case_id=run.case_id, stage=stage, model=run.model,
         units=(run.total_tokens or ((run.input_tokens or 0) + (run.output_tokens or 0))),
-        cost_usd=cost_usd if not estimated else None,
+        cost_usd=cost_usd if not estimated and not price_missing else None,
         cost_eur=cost_eur, tokens_in=run.input_tokens, tokens_out=run.output_tokens,
-        estimated=estimated,
+        estimated=estimated, error=error,
         is_test_data=(run.model == "recorded-e2e"),
         documentary_job_id=run.documentary_job_id,
         duration_ms=run.duration_ms,
