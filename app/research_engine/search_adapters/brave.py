@@ -22,6 +22,11 @@ _HEALTH_QUERY = "recent true crime investigation case"
 _health_cache: dict[str, tuple[float, dict]] = {}
 log = logging.getLogger(__name__)
 
+# Brave answers HTTP 422 to search_lang for these (checked live 2026-10-15:
+# search_lang=fa -> 422, the same Persian query without it -> 200). The query
+# text carries the language instead.
+_UNSUPPORTED_SEARCH_LANGS = frozenset({"fa"})
+
 
 class BraveSearchBackend:
     name = "brave"
@@ -66,9 +71,11 @@ class BraveSearchBackend:
         params = {
             "q": query,
             "count": min(max(limit, 1), self.result_count, 20),
-            "search_lang": (language or "en")[:2].lower(),
             "safesearch": "strict",
         }
+        search_lang = (language or "en")[:2].lower()
+        if search_lang not in _UNSUPPORTED_SEARCH_LANGS:
+            params["search_lang"] = search_lang
         headers = {"Accept": "application/json", "X-Subscription-Token": self.api_key}
         last_status: int | None = None
         attempts: list[dict] = []

@@ -485,3 +485,26 @@ def test_research_provider_is_engine_not_apimaster():
     assert isinstance(get_research_provider(), TrueCrimeSearchProvider)
     assert ai_config.providers.research == "truecrime"
     assert ai_config.providers.generation == "apimaster"
+
+
+def test_brave_omits_search_lang_for_languages_it_rejects(monkeypatch):
+    """Brave answers HTTP 422 to search_lang=fa; a Persian query without the
+    parameter works, so the adapter must not send it."""
+    from app.research_engine.search_adapters import brave
+
+    sent = []
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, url, **kwargs):
+            sent.append(kwargs["params"])
+            return httpx.Response(200, json={"web": {"results": [
+                {"title": "A", "url": "https://example.test/a"}]}})
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = brave.BraveSearchBackend("test-key", min_interval_s=0)
+    asyncio.run(backend.search("قتل بابی فرانکس", "fa"))
+    asyncio.run(backend.search("قتل بوبي فرانكس", "ar"))
+    assert "search_lang" not in sent[0]
+    assert sent[1]["search_lang"] == "ar"

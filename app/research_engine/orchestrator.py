@@ -358,7 +358,7 @@ class ResearchOrchestrator:
         safety.setdefault("accepted", 0)
         safe_raw = []
         for candidate in raw:
-            reason, relevance = inspect_result(candidate, case_context)
+            reason, relevance = inspect_result(candidate, case_context, candidate.query, lang)
             if reason:
                 bucket = safety["blocked"] if reason.startswith("blocked_") else safety["dropped"]
                 bucket[reason] = bucket.get(reason, 0) + 1

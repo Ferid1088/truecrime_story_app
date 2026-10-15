@@ -34,8 +34,14 @@ def case_terms(case_context: dict) -> set[str]:
     return _tokens(" ".join(parts))
 
 
-def inspect_result(result: SearchResult, case_context: dict) -> tuple[str | None, float]:
-    """Return (reason, relevance), where reason means do not store/fetch."""
+def inspect_result(result: SearchResult, case_context: dict, query: str | None = None,
+                   language: str | None = None) -> tuple[str | None, float]:
+    """Return (reason, relevance), where reason means do not store/fetch.
+
+    The case terms are written in the case's language. For a search in another
+    language they share no token with a page in another script, so the page is
+    judged against the terms of the query that found it instead.
+    """
     cfg = config()
     host = (urlsplit(result.url or "").hostname or "").lower().removeprefix("www.")
     for domain in cfg.get("blocked_domains", []):
@@ -47,7 +53,11 @@ def inspect_result(result: SearchResult, case_context: dict) -> tuple[str | None
     for label, keywords in cfg.get("blocked_keywords", {}).items():
         if any(keyword.lower() in haystack for keyword in keywords):
             return f"blocked_{label}", 0.0
-    terms = case_terms(case_context)
+    case_language = (case_context.get("language") or "en")[:2].lower()
+    if query and language and language[:2].lower() != case_language:
+        terms = _tokens(query)
+    else:
+        terms = case_terms(case_context)
     candidate = _tokens(f"{result.title or ''} {result.snippet or ''}")
     relevance = len(terms & candidate) / max(1, len(terms))
     # A one-token context (used by intentionally minimal engine fixtures and
