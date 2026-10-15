@@ -3,6 +3,14 @@
 State file for the rebuild described in `docs/changing.txt`. One row per part. Status: TODO / IN_PROGRESS / DONE / WAITING_OWNER / BLOCKED.
 Inside each part: an inventory note, a requirement table (test + live evidence per requirement), the three review passes, and "not verified" items.
 
+## Amendment 1 (received 2026-10-15, mid-Part-0)
+
+The owner sent an amendment to the master prompt. Recorded verbatim in effect, applied as follows:
+
+- **Patch F** replaces Part 5 items (b) and (c) — see the Part 5 section below for the full patched text. Part 5 had not been started when this arrived, so Patch F is used in place of the original (b)/(c) when Part 5 is reached; nothing needed to be redone.
+- **Part 10 — One real 60-minute film from zero** is inserted as a new part, run AFTER Part 8 and BEFORE the (unchanged) Part 9, which stays the final audit/report and runs last. See the Part 10 section below.
+- The COMMON HEADER and LOOP PROTOCOL apply unchanged to both.
+
 ## Parts
 
 | ID | Title | Status | Commit | Tests | Live proof | Not verified | Next owner action |
@@ -16,7 +24,8 @@ Inside each part: an inventory note, a requirement table (test + live evidence p
 | 6 | Host editorial: what Fereidoun says, when, persona and memory | TODO | | | | | |
 | 7 | Fereidoun's visual direction: studio, looks, wardrobe, light, performance | TODO | | | | | |
 | 8 | Film integration and UI | TODO | | | | | |
-| 9 | Final live run, audit and report | TODO | | | | | |
+| 10 | One real 60-minute film from zero (Amendment 1) | TODO | | | | | |
+| 9 | Final live run, audit and report (runs last, after Part 10) | TODO | | | | | |
 
 ---
 
@@ -76,6 +85,17 @@ OWNER GATE (pending): may editorial_review_required news photos be used in publi
 ## Part 5 — Story plan first, stronger writer, Persian master, native rewrites
 Status: TODO. Not started.
 OWNER GATE (pending): owner approves the Persian master before native rewrites proceed.
+OWNER GATE (pending, Patch F): the owner reads old vs new writer output side by side for the same beat and says which is better; the owner's judgement overrides the metrics.
+
+Item (a) (story plan before writing) is unchanged from the original prompt. **Items (b) and (c) are replaced by Patch F (Amendment 1, 2026-10-15)**, verbatim:
+
+> b) STRONGER WRITER PROMPT, MEASURED AGAINST THE OLD ONE. The old output was weak (the Persian master v1 on case 5 failed its gates). Rewrite the writer system prompt and per-beat instructions: concrete scene detail taken from evidence, tension without invention, variety of sentence rhythm, no stock phrases, narration style fit for spoken Persian (short breaths, no written-register stiffness). The prompt lives in prompts/ and has a version: store the prompt file's sha256 and name on every story version (Alembic migration, shown in the API and UI), so any text can be traced to the exact prompt that produced it. Write per-beat drafts IN PARALLEL from a shared story bible (facts, people, motifs, voice, reveal order), then one stitch pass for continuity, then the critic.
+>
+> b2) BASELINE FIRST. Before changing anything, capture the old writer's real output for 2-3 specific beats of case 5 (from the stored story versions, no new spend) and compute deterministic metrics: unsupported claims (grounding validator against the beat's evidence), repeated word trigrams, sentence-length variance, stock-phrase hits, per-beat length error against the plan, and the critic's dimension scores. Write the table to docs/benchmarks/writer.md (numbers and ids only, no raw third-party text).
+>
+> c) A/B AND ITERATE. Write the SAME beats with the new writer on the same evidence. Compare with the same metrics, plus a blind rubric review by a fresh reviewer agent that does not know which text is new: concreteness, tension without invention, rhythm, naturalness of spoken Persian, repetition, faithfulness to evidence. Iterate the prompt up to 4 rounds; keep each round's prompt version and scores in docs/benchmarks/writer.md. The new prompt is accepted only if it is better on unsupported claims, repetition and the rubric without losing on per-beat length. Then a full 2-minute section on the Part 3 case. OWNER GATE (do not block): the owner reads old vs new side by side (the UI shows both for the same beat) and says which is better; the owner's judgement overrides the metrics.
+
+d) PERSIAN MASTER, then APPROVAL, then native rewrites for en, de, ar — unchanged from the original prompt (now item (d), following patched (b)/(c)).
 
 ## Part 6 — Host editorial: persona and memory
 Status: TODO. Not started.
@@ -88,13 +108,36 @@ OWNER GATES (pending, non-blocking): owner approves look images before any HeyGe
 ## Part 8 — Film integration and UI
 Status: TODO. Not started.
 
+## Part 10 — One real 60-minute film from zero (Amendment 1, new part)
+Status: TODO. Not started. Runs AFTER Part 8 and BEFORE Part 9 (Part 9 is the final audit/report and runs last).
+OWNER GATE (pending, do not block): case choice — probe 3 candidate cases (Brave only: source count, YouTube coverage, usable-rights photos/footage), the owner picks one; do not reuse case 5 unless chosen. Build/test the full-film runner on a scratch case at small length until picked.
+OWNER GATE (pending): the run pauses after the Persian master is written for the owner to approve it before continuing.
+
+Goal: prove the whole product on a real case, from nothing to a finished ~60-minute Persian film, with the first en/de/ar native rewrite of the approved master started after approval.
+
+Full text (Amendment 1, 2026-10-15):
+
+> b) FULL CHAIN, one case, nothing skipped, each stage a separate checkpoint with wall time and ACTUAL EUR from GET /api/cases/{id}/costs: research in all configured languages + YouTube -> evidence diet -> story plan sized for ~60 minutes (acts, chapters, host slots) -> Persian master written per beat in parallel -> stitch -> critic -> OWNER GATE: the owner approves the Persian master (the run waits here and reports) -> host plan (opening + 1-2 mid) -> host dialogue -> voice for ALL narration (ElevenLabs, per beat, idempotent) -> stage direction + looks + the real avatar segments -> media coverage (target = the number measured in Part 4, written in ROADMAP.md before the run) -> audio plan (music, silences, chapter breaks) -> intro per channel -> timeline -> render the full ~60-minute film -> auditors.
+>
+> c) COST AND CAP. No estimates and no stage gates: the only limit is EUR 20 per case on actual spend, enforced before each paid call. If the cap stops the run, report exactly at which stage, what is finished, what remains and what the actual spend per stage was; only the owner may change the cap. Part 2's per-stage table is the reference for "cheaper than before".
+>
+> d) LONG-RUN SAFETY. The run must survive an API or worker restart at any stage without paying twice (voice, avatar and render steps are idempotent by sha256 as in host_scenes.py); prove it by restarting the worker mid-run on the real case and showing the ledger has no duplicate calls for the same input. A failed stage is retried from its last saved result, never from the beginning.
+>
+> e) QUALITY CHECKS ON THE FINISHED FILM (real, from the rendered file): total duration (ffprobe), share of minutes with case-specific visuals, host time total and per appearance vs the caps, audio loudness and no silence gaps beyond the audio plan, chapter cards present, every host segment with its direction and persona hash, and no unapproved (editorial_review_required) asset in the render. Write the values to ROADMAP.md.
+>
+> f) THE OWNER WATCHES. The agent hands over the rendered file path and a short list of timestamps to look at (host openings, each chapter start, the reveals, the weakest critic-scored beats). The owner's notes go into ROADMAP.md as the next improvement list. A film is not DONE until the owner has watched it.
+>
+> LIVE PROOF: the finished file, its measured duration, the per-stage ledger table, the restart-without-double-pay evidence, and the quality values from (e).
+
 ## Part 9 — Final live run, audit and report
-Status: TODO. Not started.
+Status: TODO. Not started. Runs LAST, after Part 10.
 
 ---
 
 ## WAITING_OWNER items (summary, kept in sync as they arise)
+- Part 0b: approve writing the case-5 cost-ledger recompute (`python -m scripts.recompute_case_costs 5 --apply`) — see Part 0 section above
 - Part 4: editorial_review_required news photos usable in published films? (default: not used)
-- Part 5: approval of the Persian master before native rewrites
+- Part 5: approval of the Persian master before native rewrites; (Patch F) owner's old-vs-new writer judgement overrides the metrics
 - Part 6: host time reading A vs B
 - Part 7: look-image approvals before HeyGen upload; per-channel outfit allow-list
+- Part 10: case choice for the 60-minute film (not case 5 unless chosen); approval of its Persian master mid-run
