@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
 from app.providers.base import ProviderError
+from app.services.budget import BudgetStopped
+from app.services.tracking import track_research_call, stamp_run
 from app.research_engine.dedupe import SourceFamilyDetector
 from app.research_engine.content_filter import inspect_result
 from app.research_engine.embeddings import cosine_matrix
@@ -29,6 +31,7 @@ from app.research_engine.planner import (
     ResearchQueryPlanner,
     ResearchAssembler,
     ResultReranker,
+    accumulate_telemetry,
 )
 from app.research_engine.ranking import (
     needs_llm_rerank,
@@ -691,7 +694,7 @@ class ResearchOrchestrator:
                         "published_at": r.published_at})
         progress.stage("analyzing")
         candidates = await self._extract_candidates(
-            found, min(max(count * 3, count + 4), 30), existing_titles, theme)
+            found, min(max(count * 3, count + 4), 30), existing_titles, theme, tel)
         progress.stage("duplicate_check")
         prepared = await prepare_candidates(
             candidates, found, IdentityIndex.from_list(known_identities),
@@ -707,7 +710,7 @@ class ResearchOrchestrator:
         }
 
     async def _extract_candidates(self, found, count, existing_titles,
-                                  theme) -> list[dict]:
+                                  theme, tel: dict | None = None) -> list[dict]:
         if not self.gen or not found:
             return []
         system = prompt("research_engine/orchestrator/extract_candidates")
@@ -734,7 +737,12 @@ class ResearchOrchestrator:
             }]},
         }, ensure_ascii=False)
         try:
-            data, _ = await run_agent("research_engine.discover_cases", self.gen, user, system=system)
+            with track_research_call("Candidate Extractor") as run:
+                data, res = await run_agent("research_engine.discover_cases", self.gen, user, system=system)
+                stamp_run(run, res, "case_discovery_agent")
+            accumulate_telemetry(tel, res)
+        except BudgetStopped:
+            raise
         except Exception as e:  # noqa: BLE001
             log.warning("candidate extraction failed: %s", e)
             return []

@@ -11,13 +11,17 @@ from app.main import app  # noqa: E402
 client = TestClient(app)
 
 
-def test_health():
+def test_health(monkeypatch, tmp_path):
+    from app.core import process_health as ph
+
+    # Isolated from any real worker.health.json a dev stack on this same
+    # machine may have written: never a false-positive mismatch here.
+    monkeypatch.setattr(ph, "WORKER_HEALTH_PATH", tmp_path / "worker.health.json")
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
     assert {"available", "subtitles_filter", "libass", "fix"} <= set(body["short_form"]["caption_burn_in"])
-    # No worker has reported in this test process: never a false-positive mismatch.
     assert body["worker_alive"] is False
     assert body["commit_mismatch"] is False
 

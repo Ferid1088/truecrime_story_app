@@ -1,18 +1,29 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import AgentRun, DocumentaryJob, ProviderCall
-from app.providers.generation.base import GenerationResult
 from app.services.budget import BudgetService, StageTimeBudgetExceeded
 from app.utils import ensure_utc, utc_now
+
+if TYPE_CHECKING:
+    # A plain top-level import pulls in app.providers' package __init__,
+    # which imports app.research_engine.provider — and research_engine now
+    # imports track_research_call/stamp_run from this module (below), so a
+    # real import here is circular. GenerationResult is only used for a
+    # type hint; `from __future__ import annotations` makes that safe to
+    # defer to type-checking time only.
+    from app.providers.generation.base import GenerationResult
 
 _run_context: ContextVar[dict | None] = ContextVar("agent_run_context", default=None)
 _AGENT_METADATA_KEYS = {"documentary_job_id", "language", "pipeline_stage"}
@@ -128,6 +139,24 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
             raise
         _clear_call_progress(db, context)
         db.commit()
+
+
+@contextmanager
+def track_research_call(agent_name: str, input_summary: str | None = None):
+    """Like track_run, but for the research engine (app/research_engine),
+    which is deliberately DB-free — it has no session to pass in. Opens
+    its own short-lived session and reads case_id from the same context
+    var app.research_engine.provider._launch already populates via
+    documentary_run_context, so a research call gets exactly the same
+    case-budget check and provider_calls ledger entry as every other
+    paid call (previously it had neither: a case's real research spend
+    was invisible and never checked against its EUR cap)."""
+    from app.db.base import SessionLocal
+
+    context = _documentary_metadata()
+    case_id = context.get("case_id")
+    with SessionLocal() as db, track_run(db, case_id, agent_name, input_summary) as row:
+        yield row
 
 
 def _stage_time_error(context: dict, case_id: int | None) -> StageTimeBudgetExceeded | None:
@@ -255,11 +284,19 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
 
 
 def stamp_run(
-    run: AgentRun, result: GenerationResult, role: str, text_hash: str | None = None
+    run: AgentRun, result: GenerationResult | None, role: str, text_hash: str | None = None
 ) -> None:
     """Record which provider/model/settings produced a generation, plus
     reported token usage/cost and the hash of the text this run scored or
-    produced (so critic scores provably match stored story text)."""
+    produced (so critic scores provably match stored story text).
+
+    `result` is None for a handful of test doubles that short-circuit
+    run_agent()'s (data, GenerationResult) contract; there is nothing to
+    stamp in that case, not an error."""
+    if result is None:
+        if text_hash is not None:
+            run.text_hash = text_hash
+        return
     run.provider = result.provider
     run.model = result.model
     run.role = role

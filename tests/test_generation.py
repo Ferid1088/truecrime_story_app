@@ -363,6 +363,21 @@ def test_stamp_run_records_role_and_fallback(db_session):
     assert run.model == "m/fb"
 
 
+def test_stamp_run_tolerates_a_missing_generation_result(db_session):
+    # Some callers' run_agent doubles short-circuit the documented
+    # (data, GenerationResult) contract and pass None as the result (e.g.
+    # tests/test_case_lifecycle.py's discovery fake) — stamp_run must not
+    # crash on that, just leave provider/model unset.
+    from app.services.tracking import record_run, stamp_run
+
+    run = record_run(db_session, None, "T", "completed")
+    stamp_run(run, None, "writer", text_hash="abc123")
+    db_session.commit()
+    assert run.provider is None
+    assert run.model is None
+    assert run.text_hash == "abc123"
+
+
 def test_similarity_not_evaluated_without_source_text(db_session):
 
     from app.agents.story import StoryPipeline

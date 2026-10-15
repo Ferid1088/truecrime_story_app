@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from app.agents.runner import run_agent
 from app.research_engine.search import shorten_query
+from app.services.budget import BudgetStopped
+from app.services.tracking import track_research_call, stamp_run
 
 from app.core.prompts import prompt
 
@@ -76,8 +78,12 @@ class ResearchQueryPlanner:
             },
         }, ensure_ascii=False)
         try:
-            data, res = await run_agent("research_engine.plan_queries", self.gen, user, system=_PLANNER_SYSTEM)
-            _acc(self.tel, res)
+            with track_research_call("Query Planner") as run:
+                data, res = await run_agent("research_engine.plan_queries", self.gen, user, system=_PLANNER_SYSTEM)
+                stamp_run(run, res, "research_query_planner")
+            accumulate_telemetry(self.tel, res)
+        except BudgetStopped:
+            raise
         except Exception as e:  # noqa: BLE001
             log.warning("query planning failed for %s: %s", target_language, e)
             return self._fallback_queries(case_context, target_language, round_index)
@@ -129,7 +135,7 @@ class ResearchQueryPlanner:
 _RERANK_SYSTEM = prompt("research_engine/planner/rerank_system")
 
 
-def _acc(tel: dict | None, res) -> None:
+def accumulate_telemetry(tel: dict | None, res) -> None:
     """Accumulate a GenerationResult's usage into engine telemetry."""
     if tel is None or res is None:
         return
@@ -171,8 +177,12 @@ class ResultReranker:
                 "reason": "short"}]},
         }, ensure_ascii=False)
         try:
-            data, res = await run_agent("research_engine.rerank", self.gen, user, system=_RERANK_SYSTEM)
-            _acc(self.tel, res)
+            with track_research_call("Result Reranker") as run:
+                data, res = await run_agent("research_engine.rerank", self.gen, user, system=_RERANK_SYSTEM)
+                stamp_run(run, res, "result_reranker")
+            accumulate_telemetry(self.tel, res)
+        except BudgetStopped:
+            raise
         except Exception as e:  # noqa: BLE001
             log.warning("rerank failed: %s", e)
             return {}
@@ -224,9 +234,13 @@ class GapAnalyzer:
             },
         }, ensure_ascii=False)
         try:
-            data, res = await run_agent("research_engine.analyze_gaps", self.gen, user, system=_GAP_SYSTEM)
-            _acc(self.tel, res)
+            with track_research_call("Gap Analyzer") as run:
+                data, res = await run_agent("research_engine.analyze_gaps", self.gen, user, system=_GAP_SYSTEM)
+                stamp_run(run, res, "research_evaluator")
+            accumulate_telemetry(self.tel, res)
             return data or {}
+        except BudgetStopped:
+            raise
         except Exception as e:  # noqa: BLE001
             log.warning("gap analysis failed: %s", e)
             return {}
@@ -258,9 +272,13 @@ class ResearchAssembler:
             },
         }, ensure_ascii=False)
         try:
-            data, res = await run_agent("research_engine.summarize", self.gen, user, system=_SUMMARY_SYSTEM)
-            _acc(self.tel, res)
+            with track_research_call("Research Assembler") as run:
+                data, res = await run_agent("research_engine.summarize", self.gen, user, system=_SUMMARY_SYSTEM)
+                stamp_run(run, res, "research_assembler")
+            accumulate_telemetry(self.tel, res)
             return data or {}
+        except BudgetStopped:
+            raise
         except Exception as e:  # noqa: BLE001
             log.warning("assembler failed: %s", e)
             return {}
