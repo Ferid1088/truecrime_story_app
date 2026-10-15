@@ -177,7 +177,8 @@ def _agreement_with_gold(candidate: list[dict], gold: list[dict]) -> float:
 
 
 async def main_async(source_case_id: int, bench_case_id: int, limit: int,
-                     candidates: list[str], gold_cache: Path | None) -> None:
+                     candidates: list[str], gold_cache: Path | None,
+                     batch_size_override: int | None = None) -> None:
     db = SessionLocal()
     source_case = db.get(Case, source_case_id)
     bench_case = db.get(Case, bench_case_id)
@@ -194,7 +195,7 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int,
           f"({bench_case.canonical_title}).")
 
     system = prompt("agents/research/extract_facts")
-    batch_size = ai_config.source_chunking.max_sources_per_extraction_call
+    batch_size = batch_size_override or ai_config.source_chunking.max_sources_per_extraction_call
     batches = [sources[i:i + batch_size] for i in range(0, len(sources), batch_size)]
     bundles = [_source_bundle(b) for b in batches]
 
@@ -204,15 +205,16 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int,
         async with semaphore:
             return await _extract(bench_case_id, bench_case.canonical_title, bundle, system, label)
 
+    cache_hit = False
     if gold_cache and gold_cache.exists():
         cached = json.loads(gold_cache.read_text())
-        if cached.get("source_case_id") == source_case_id and cached.get("limit") == limit:
+        if (cached.get("source_case_id") == source_case_id and cached.get("limit") == limit
+                and cached.get("batch_size") == batch_size):
             print(f"Reusing cached gold extraction from {gold_cache} "
                   f"(real spend already recorded in that earlier run).")
             gold_facts_by_batch = cached["gold_facts_by_batch"]
-        else:
-            gold_cache = None  # mismatched cache; fall through to a real run
-    if not gold_cache or not gold_cache.exists():
+            cache_hit = True
+    if not cache_hit:
         print(f"Running gold ({GOLD_MODEL}) over {len(bundles)} batches...")
         with _model_override(GOLD_MODEL):
             gold_results = await asyncio.gather(
@@ -221,7 +223,7 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int,
         gold_facts_by_batch = [r.get("facts", []) if r["ok"] else [] for r in gold_results]
         if gold_cache:
             gold_cache.write_text(json.dumps({
-                "source_case_id": source_case_id, "limit": limit,
+                "source_case_id": source_case_id, "limit": limit, "batch_size": batch_size,
                 "gold_facts_by_batch": gold_facts_by_batch,
             }, ensure_ascii=False))
 
@@ -271,9 +273,11 @@ def main() -> None:
                         help="comma-separated model ids to test (default: the Part 1 shortlist)")
     parser.add_argument("--gold-cache", type=Path, default=None,
                         help="JSON file to read/write the gold extraction, to avoid re-paying for it")
+    parser.add_argument("--batch-size", type=int, default=None,
+                        help="override production's max_sources_per_extraction_call (default: use it)")
     args = parser.parse_args()
     asyncio.run(main_async(args.source_case_id, args.benchmark_case_id, args.limit,
-                           args.candidates.split(","), args.gold_cache))
+                           args.candidates.split(","), args.gold_cache, args.batch_size))
 
 
 if __name__ == "__main__":
