@@ -37,10 +37,11 @@ Final Story Text
 
 ## Research (TrueCrime Search Engine)
 
-Research is first-party: SearXNG for search, our own fetcher/extractor/ranker
-(`app/research_engine/`), LLMs only plan queries and judge content (via
-the `config/` layers roles). `TRUECRIME_SEARXNG_URL` must be set; without it
-discovery and research answer `503` (there is no fallback path).
+Research is first-party: Brave Search Web API for search, our own
+fetcher/extractor/ranker (`app/research_engine/`), LLMs only plan queries and
+judge content (via the `config/` layers roles). `BRAVE_SEARCH_API_KEY` must be
+set; without it discovery and research answer `503` (there is no fallback
+path — a search failure is fatal to the job, never silently substituted).
 
 - `POST /api/topics/discover` and `POST /api/cases/{id}/research` return
   `{job_id, status}`; poll `GET /api/research-jobs/{job_id}`. The poll that sees
@@ -60,12 +61,12 @@ discovery and research answer `503` (there is no fallback path).
 
 ## Run the app natively on macOS
 
-The commands below are the supported local workflow; `scripts/dev_up.sh --help`,
-`scripts/dev_down.sh --help`, and `scripts/searxng_up.sh --help` show the command
-usage without starting a service.
+The commands below are the supported local workflow; `scripts/dev_up.sh --help`
+and `scripts/dev_down.sh --help` show the command usage without starting a
+service.
 
 Prerequisites: Python 3.12, Node.js 22+, Homebrew `postgresql@16`, `ffmpeg`,
-the PostgreSQL client tools (`pg_dump`), and a native SearXNG installation.
+the PostgreSQL client tools (`pg_dump`), and a `BRAVE_SEARCH_API_KEY`.
 The app does not manage or install these system services.
 
 ```bash
@@ -76,14 +77,6 @@ cp .env.example .env
 cd frontend && npm ci && cd ..
 brew services start postgresql@16
 ```
-
-Install SearXNG in its own venv (clone `searxng/searxng` from GitHub — there
-is no official PyPI package — and `pip install --use-pep517
---no-build-isolation -e .` from that source tree into the venv; see
-https://docs.searxng.org/admin/installation-searxng.html), then set
-`SEARXNG_DIR` to that installation's root (the directory containing
-`.venv/bin/searxng-run`). `scripts/searxng_up.sh` creates its private
-settings file under `data/searxng/` and generates the local secret there.
 
 Start and stop the complete local process set with:
 
@@ -313,7 +306,7 @@ still work. If they open them, the visuals deepen understanding."
 2. **Visual research → media library**: images from the case's own
    sources (news articles: og:image, figures with captions), Wikimedia
    Commons (license metadata; polite User-Agent and request spacing) and
-   the SearXNG image search; **footage** from Wikimedia Commons video and
+   Brave image search; **footage** from Wikimedia Commons video and
    the Internet Archive (licensed only), stored as short MUTED clips with
    a keyframe for verification. Every asset keeps source, rights,
    license, entity, the query it was found for, the date found and a
@@ -405,7 +398,7 @@ follow-up.
 
 - **Which cases are suggested**: RECENT + SOLVED + NEVER USED. Discovery
   searches recent developments (verdicts, convictions, charges;
-  `case_selection.seed_queries`, SearXNG `time_range`), the extraction
+  `case_selection.seed_queries`, Brave `time_range`), the extraction
   reports status and dates, the best candidates' status is verified with
   targeted searches and `case_status_verifier`, and the ranking is
   recency (half-life `recency_half_life_days`) × status weight. UNSOLVED
