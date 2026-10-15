@@ -137,7 +137,7 @@ TRUECRIME_APIMASTER_API_KEY=...
 
 the `config/` layers defines three model aliases:
 
-- `cheap` — `openai/gpt-5.6-luna`
+- `cheap` — `claude-haiku-4-5` (the former `gpt-5.6-luna` answered in ~130 s per call on the gateway)
   (structured extraction: facts, timeline, contradictions)
 - `writer` — `google/gemini-3.8-flash`
   (story direction, long-form writing, rewriting)

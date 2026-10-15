@@ -167,7 +167,8 @@ def _apply_job_telemetry(job: ResearchJob, result: dict | None):
         job.sources_accepted = job.sources_accepted or len(sources) or None
     stats = (result or {}).get("language_stats") or {}
     if stats:
-        job.languages_completed = json.dumps(sorted(stats))
+        job.languages_completed = json.dumps(
+            sorted(lang for lang, st in stats.items() if (st or {}).get("queries")))
     models = tel.get("models_used") or []
     if models:
         job.model = ", ".join(models)[:200]

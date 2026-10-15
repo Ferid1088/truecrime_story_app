@@ -556,6 +556,35 @@ def test_max_fetches_stop():
     assert len(orch.fetcher.calls) == 1
 
 
+def test_time_budget_is_per_language(monkeypatch):
+    """A slow first language must not starve the later ones: every requested
+    language gets its own max_duration_s."""
+    clock = [0.0]
+    monkeypatch.setattr("app.research_engine.orchestrator.time.monotonic",
+                        lambda: clock[0])
+
+    class SlowBackend(FakeBackend):
+        async def search(self, *a, **kw):
+            clock[0] += 1000.0
+            return await super().search(*a, **kw)
+
+    backend = SlowBackend([{"url": "https://a.example/1"}])
+    orch = _orchestrator(
+        backend, outcome=_ok_outcome(),
+        plans=[[_pq("q-en", "en")], [_pq("q-de", "de")]],
+        max_rounds_per_language=1, max_duration_s=500)
+    result = asyncio.run(orch.research_case({"title": "C"}, ["en", "de"]))
+    assert [lang for _, lang in backend.calls] == ["en", "de"]
+    assert result["language_stats"]["de"]["queries"] == 1
+
+
+def test_languages_completed_lists_only_searched_languages():
+    job = ResearchJob(job_type="research")
+    _apply_job_telemetry(job, {"language_stats": {
+        "en": {"queries": 3}, "de": {"queries": 0, "stop_reason": "max_duration"}}})
+    assert json.loads(job.languages_completed) == ["en"]
+
+
 def test_planner_empty_stop():
     orch = _orchestrator(
         FakeBackend([{"url": "https://a.example/1"}]),

@@ -149,8 +149,6 @@ class ResearchOrchestrator:
         case_context["_safety"] = safety
         all_gaps: list[str] = list(case_context.get("research_gaps") or [])
         contradictions: list[str] = []
-        started = time.monotonic()
-
         families = SourceFamilyDetector()
         for entry in corpus.get("family_corpus") or []:
             families.add_source(entry.get("source_id") or 0,
@@ -172,13 +170,13 @@ class ResearchOrchestrator:
                     log.warning("corpus embedding failed: %s", e)
 
         for lang in languages:
-            if time.monotonic() - started > self.cfg.max_duration_s:
-                language_stats[lang] = {"stop_reason": "max_duration"}
-                break
+            # max_duration_s is the budget of each language, so a slow first
+            # language cannot starve the others.
             stats = await self._research_language(
                 lang, case_context, objective, seen_canonical,
                 families, tel, queries_out, results_out, sources_out,
-                all_gaps, contradictions, search_diagnostics, progress, started)
+                all_gaps, contradictions, search_diagnostics, progress,
+                time.monotonic())
             language_stats[lang] = stats
 
         # Assembler: one final case-level summary (cheap).

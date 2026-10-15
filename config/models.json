@@ -2,20 +2,13 @@
   "generation_providers": {
     "apimaster": {
       "models": {
-        "cheap": "gpt-5.6-luna",
-        "research_intelligence": "gpt-5.6-luna",
+        "cheap": "claude-haiku-4-5",
+        "research_intelligence": "claude-haiku-4-5",
         "writer": "gemini-3.8-flash",
         "premium": "claude-sonnet-5-5",
         "embedding": "bge-m3"
       },
       "capabilities": {
-        "gpt-5.6-luna": {
-          "structured_output": true,
-          "tool_calling": true,
-          "web_search": "none",
-          "web_fetch": "none",
-          "vision": true
-        },
         "gemini-3.8-flash": {
           "structured_output": true,
           "tool_calling": true,
@@ -35,6 +28,13 @@
           "tool_calling": false,
           "web_search": "none",
           "web_fetch": "none"
+        },
+        "claude-haiku-4-5": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": true
         }
       },
       "routing": {

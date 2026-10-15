@@ -12,13 +12,13 @@
   },
   "models": {
     "cheap": {
-      "provider_model": "gpt-5.6-luna",
-      "input_usd_per_1m_tokens": 0.2,
-      "output_usd_per_1m_tokens": 1.2,
+      "provider_model": "claude-haiku-4-5",
+      "input_usd_per_1m_tokens": 1.0,
+      "output_usd_per_1m_tokens": 5.0,
       "currency": "USD",
-      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
-      "plan_or_tier": "Standard API, direct OpenAI list price; uncached input/output",
-      "last_verified": "2026-10-13",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "plan_or_tier": "Standard API list price per aggregators citing Anthropic (Anthropic page not opened); uncached input/output",
+      "last_verified": "2026-10-15",
       "verification_status": "verified"
     },
     "writer": {
@@ -82,8 +82,16 @@
     "verification_status": "verified"
   },
   "assumptions": {
-    "target_minutes": {"low": 45, "expected": 60, "high": 90},
-    "host_minutes": {"low": 1.5, "expected": 2.5, "high": 3.0},
+    "target_minutes": {
+      "low": 45,
+      "expected": 60,
+      "high": 90
+    },
+    "host_minutes": {
+      "low": 1.5,
+      "expected": 2.5,
+      "high": 3.0
+    },
     "words_per_minute": 150,
     "short_count": 0,
     "source_words_floor": 1200,
@@ -102,6 +110,10 @@
       "performance_output": "target_story_words * 0.09 * words_to_tokens",
       "short_selection_output": "story_words / story_words_floor * 1200"
     },
-    "range_multipliers": {"low": 0.8, "expected": 1.0, "high": 1.25}
+    "range_multipliers": {
+      "low": 0.8,
+      "expected": 1.0,
+      "high": 1.25
+    }
   }
 }
