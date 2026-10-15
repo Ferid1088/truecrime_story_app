@@ -651,7 +651,7 @@ def test_master_generation_timeout_scales_with_the_film_length(client, db_sessio
     assert created["timeout_seconds"] > 300
 
 
-def test_director_prompt_stays_small_for_a_case_with_thousands_of_facts():
+def test_director_prompt_stays_small_for_a_case_with_thousands_of_facts(monkeypatch):
     """1,700 extracted facts, each repeated in the disputed list and in the
     narrative buckets, made a 1.18M-token director prompt (limit 1M). The
     director plans with one short line per item; the act writers still get
@@ -659,6 +659,7 @@ def test_director_prompt_stays_small_for_a_case_with_thousands_of_facts():
     from app.agents.story import build_evidence_pack, director_view
     from app.db.models import Fact
 
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_story", 5000)
     facts = [
         Fact(id=i, case_id=1, claim=f"Claim {i} " + "word " * 80, confidence=0.9,
              category="evidence", narrative_value=["human_detail", "quote", "scene_detail"][i % 3],
@@ -728,3 +729,51 @@ def test_director_is_told_how_many_evidence_ids_an_act_can_use(db_session):
     asyncio.run(director.design(case, {"facts": []}, 45, "fa"))
     assert seen["user"]["max_evidence_ids_per_act"] == ai_config.story_quality.max_evidence_per_act
     assert "max_evidence_ids_per_act" in prompt("agents/story/design")
+
+
+def test_act_without_assigned_evidence_gets_the_strongest_capped_not_the_whole_case(monkeypatch):
+    """An act the director assigned no ids fell back to the entire pack: a
+    1.18M-token writer prompt for a case with 1,700 facts."""
+    from app.agents.story import build_act_pack, build_evidence_pack
+    from app.db.models import Fact
+
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_act", 50)
+    facts = [Fact(id=i, case_id=1, claim=f"Claim {i}", confidence=0.9, category="evidence",
+                  evidence_strength="primary" if i > 850 else "weak", source_ids_json="[1]",
+                  event_date="1924-05-21") for i in range(1, 901)]
+    pack = build_evidence_pack(facts, [], [])
+    for nothing in (None, []):
+        act = build_act_pack(pack, nothing)
+        assert len(act["facts"]) == 50
+        assert {f["evidence_strength"] for f in act["facts"]} == {"primary"}
+        assert act["timeline"]
+    small = build_evidence_pack(facts[:10], [], [])
+    assert build_act_pack(small, None) is small
+
+
+def test_evidence_pack_holds_a_diverse_selection_of_the_strongest_facts(monkeypatch):
+    """Every whole-story check serialized all 1,700 facts (over a million
+    tokens, and money for each call). The pack keeps story_quality.
+    max_evidence_per_story facts: the strongest, round-robin over fact types,
+    numbered in their original order, the same selection every time."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Fact
+
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_story", 40)
+    values = ["human_detail", "scene_detail", "quote", "investigation_detail"]
+    strengths = ["weak", "secondary", "primary"]
+    facts = [Fact(id=i, case_id=1, claim=f"Claim {i}", confidence=0.5 + (i % 5) / 10,
+                  category="evidence", narrative_value=values[i % 4],
+                  evidence_strength=strengths[(i // 4) % 3], source_ids_json="[1]")
+             for i in range(1, 401)]
+    pack = build_evidence_pack(facts, [], [])
+
+    assert len(pack["facts"]) == 40
+    kinds = [f["narrative_value"] for f in pack["facts"]]
+    assert {kinds.count(v) for v in values} == {10}
+    assert {f["evidence_strength"] for f in pack["facts"]} == {"primary"}
+    claims = [f["claim"] for f in pack["facts"]]
+    assert [f["id"] for f in pack["facts"]] == [f"F{i:03d}" for i in range(1, 41)]
+    assert claims == sorted(claims, key=lambda c: int(c.split()[1]))     # original order
+    assert build_evidence_pack(list(reversed(facts)), [], [])["facts"] == pack["facts"]
+    assert len(build_evidence_pack(facts[:10], [], [])["facts"]) == 10

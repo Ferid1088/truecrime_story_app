@@ -456,7 +456,11 @@ class StoryQualityConfig(BaseModel):
     section_marker_prefix: str = "[[ACT:"
     # An act's writer, grounding check and repair editor see at most this many
     # evidence items (the strongest); more would overrun the prompt limit.
-    max_evidence_per_act: int = Field(ge=10, default=120)
+    max_evidence_per_act: int = Field(ge=10, default=60)
+    # The evidence pack every whole-story step reads holds at most this many
+    # facts (the strongest, spread over the fact types): all of a large case's
+    # facts overrun the model's prompt limit and are paid for on every call.
+    max_evidence_per_story: int = Field(ge=20, default=160)
 
 
 class MultilingualConfig(BaseModel):

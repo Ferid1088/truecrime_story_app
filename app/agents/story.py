@@ -62,11 +62,33 @@ def evidence_fingerprint(pack: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+def _strongest_facts(facts: list[Fact], cap: int) -> list[Fact]:
+    """At most `cap` facts: the strongest, taken round-robin over the fact
+    types so humans, scenes, quotes and investigation all stay represented;
+    in their original order. Deterministic."""
+    if len(facts) <= cap:
+        return facts
+    groups: dict[str, list[Fact]] = {}
+    for f in sorted(facts, key=lambda f: (-_EVIDENCE_RANK.get(f.evidence_strength, 0),
+                                          -(f.confidence or 0), f.id)):
+        groups.setdefault((f.narrative_value or "other").split("_")[0], []).append(f)
+    queues = [iter(group) for group in groups.values()]
+    picked: list[Fact] = []
+    while len(picked) < cap and queues:
+        for queue in list(queues):
+            fact = next(queue, None)
+            if fact is None:
+                queues.remove(queue)
+            elif len(picked) < cap:
+                picked.append(fact)
+    return sorted(picked, key=lambda f: f.id)
+
+
 def build_evidence_pack(
     facts: list[Fact], contradictions: list[Contradiction], sources: list[Source]
 ) -> dict:
     q = ai_config.story_quality
-    facts = _by_id(list(facts))
+    facts = _strongest_facts(_by_id(list(facts)), q.max_evidence_per_story)
     contradictions = _by_id(list(contradictions))
     sources = _by_id(list(sources))
     fact_items = []
@@ -258,9 +280,13 @@ def build_act_pack(pack: dict, evidence_ids: list[str] | set[str] | None) -> dic
     validator and repair editor all see only that subset plus context —
     not the entire case database."""
     assigned = set(evidence_ids or [])
-    if not assigned:
-        return pack
     cap = ai_config.story_quality.max_evidence_per_act
+    if not assigned:
+        # nothing assigned: the whole case, unless that is more than an act can carry
+        if len(pack.get("facts") or []) <= cap:
+            return pack
+        assigned = {i["id"] for key in ("facts", "timeline", "contradictions")
+                    for i in pack.get(key) or []}
     if len(assigned) > cap:
         # strongest first; the stable sort keeps the pack order among equals
         ranked = sorted(
