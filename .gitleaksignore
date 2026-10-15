@@ -1,0 +1,17 @@
+# Accepted gitleaks findings (owner decision, 2026-10-15): all are false positives that were already public on origin/main.
+# None of the project's .env values ever appeared in the history (checked by exact value against every revision).
+
+# tests/test_backup.py:292: dummy access_token set by monkeypatch inside a test, not a credential
+018b303df4dee5f6783a0272def8b686e4add9cd:tests/test_backup.py:generic-api-key:292
+
+# data/fetch_cache/21807b9b288420dd2d967dd02b277b684763754025ec6eebf050c6766da59930.json: cached HTML of podcasts.apple.com; the matched values are that site's own public page data; removed from HEAD in 6bdb217
+d9142ad1309f345d5d7596444c8c2ac3ff015482:data/fetch_cache/21807b9b288420dd2d967dd02b277b684763754025ec6eebf050c6766da59930.json:generic-api-key:1
+
+# data/fetch_cache/e97b50d80bf144d872f3eb4a25f0a1b3b5d8a8b50469ca736aee7a679ea2060b.json: cached HTML of www.sbs.com.au; the matched values are that site's own public page data; removed from HEAD in 6bdb217
+d9142ad1309f345d5d7596444c8c2ac3ff015482:data/fetch_cache/e97b50d80bf144d872f3eb4a25f0a1b3b5d8a8b50469ca736aee7a679ea2060b.json:generic-api-key:1
+
+# data/fetch_cache/c4e9032ab35ba5a83057044b198247bc37f561b10370736e7f83f6e8dcb3cc7d.json: cached HTML of www.instagram.com; the matched values are that site's own public page data; removed from HEAD in 6bdb217
+d9142ad1309f345d5d7596444c8c2ac3ff015482:data/fetch_cache/c4e9032ab35ba5a83057044b198247bc37f561b10370736e7f83f6e8dcb3cc7d.json:generic-api-key:1
+
+# tests/test_backup.py:308: the same dummy test token as above, as seen when scanning the working tree
+tests/test_backup.py:generic-api-key:308
