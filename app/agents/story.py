@@ -160,6 +160,8 @@ def build_evidence_pack(
     }
 
 
+_EVIDENCE_RANK = {"primary": 5, "strong_secondary": 4, "secondary": 3, "tertiary": 2,
+                  "weak": 1, "disputed": 0}
 _DIRECTOR_CLAIM_CHARS = 220
 _DIRECTOR_FACT_KEYS = ("id", "category", "narrative_value", "evidence_strength", "uncertain",
                        "people")
@@ -258,6 +260,14 @@ def build_act_pack(pack: dict, evidence_ids: list[str] | set[str] | None) -> dic
     assigned = set(evidence_ids or [])
     if not assigned:
         return pack
+    cap = ai_config.story_quality.max_evidence_per_act
+    if len(assigned) > cap:
+        # strongest first; the stable sort keeps the pack order among equals
+        ranked = sorted(
+            (f for f in pack.get("facts") or [] if f["id"] in assigned),
+            key=lambda f: (-_EVIDENCE_RANK.get(f.get("evidence_strength"), 0),
+                           -(f.get("confidence") or 0)))
+        assigned = (assigned - {f["id"] for f in ranked}) | {f["id"] for f in ranked[:cap]}
 
     def _items(key: str) -> list[dict]:
         return [i for i in (pack.get(key) or []) if i["id"] in assigned]

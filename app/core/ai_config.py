@@ -454,6 +454,9 @@ class StoryQualityConfig(BaseModel):
     disputed_confidence_threshold: float = Field(ge=0.0, le=1.0)
     strip_markdown_artifacts: bool = True
     section_marker_prefix: str = "[[ACT:"
+    # An act's writer, grounding check and repair editor see at most this many
+    # evidence items (the strongest); more would overrun the prompt limit.
+    max_evidence_per_act: int = Field(ge=10, default=120)
 
 
 class MultilingualConfig(BaseModel):

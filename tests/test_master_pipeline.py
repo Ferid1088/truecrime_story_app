@@ -677,3 +677,32 @@ def test_director_prompt_stays_small_for_a_case_with_thousands_of_facts():
     assert not {"original_claim", "supporting_text", "source_ids", "chunk_ids"} & set(item)
     assert view["human_details"][0] == "F003" and view["approved_quotes"][0] == "F001"
     assert pack["facts"][0]["supporting_text"]            # the full pack is untouched
+
+
+def test_act_pack_keeps_only_the_strongest_evidence_up_to_the_cap(monkeypatch):
+    """One act was handed ~800 facts, each in full and again in the narrative
+    buckets: an 818k-token writer prompt. An act carries at most
+    story_quality.max_evidence_per_act items, the strongest first."""
+    from app.agents.story import build_act_pack, build_evidence_pack
+    from app.db.models import Fact
+
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_act", 50)
+    strengths = ["weak", "secondary", "primary"]
+    facts = [Fact(id=i, case_id=1, claim=f"Claim {i}", confidence=0.5 + (i % 5) / 10,
+                  category="evidence", narrative_value="human_detail",
+                  evidence_strength=strengths[i % 3], source_ids_json="[1]",
+                  event_date="1924-05-21")
+             for i in range(1, 901)]
+    pack = build_evidence_pack(facts, [], [])
+    act = build_act_pack(pack, [f["id"] for f in pack["facts"]])
+
+    assert len(act["facts"]) == 50
+    assert {f["evidence_strength"] for f in act["facts"]} == {"primary"}
+    assert [f["confidence"] for f in act["facts"]] == sorted(
+        (f["confidence"] for f in act["facts"]), reverse=True)
+    kept = {f["id"] for f in act["facts"]}
+    assert {f["id"] for f in act["human_details"]} == kept
+    with_timeline = build_act_pack(pack, [f["id"] for f in pack["facts"]] + ["T001"])
+    assert len(with_timeline["facts"]) == 50 and len(with_timeline["timeline"]) == 1
+    small = build_act_pack(pack, ["F001", "F002"])
+    assert [f["id"] for f in small["facts"]] == ["F001", "F002"]
