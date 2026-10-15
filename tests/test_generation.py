@@ -196,6 +196,61 @@ def test_fallback_on_rate_limit_records_actual_model():
     assert res.fallback_used is True
 
 
+def test_discarded_billed_attempt_before_a_successful_fallback_is_not_lost():
+    """A truncated (real, billed) first attempt must not vanish just
+    because a later fallback candidate succeeds — its usage must be
+    folded into the eventual GenerationResult."""
+    provider = _provider()
+    models = ai_config.generation_provider().models
+    calls = []
+
+    async def first_truncated_then_ok(model, system, user, gen):
+        calls.append(model)
+        if len(calls) == 1:
+            raise GenerationError(
+                "invalid_output", "truncated at max_tokens",
+                provider="apimaster", model=model,
+                input_tokens=200, output_tokens=100, total_tokens=300, cost_usd=0.01,
+            )
+        return "text", model, {"input_tokens": 50, "output_tokens": 20,
+                               "total_tokens": 70, "cost_usd": 0.002}
+
+    with patch.object(provider, "_chat", side_effect=first_truncated_then_ok):
+        res = asyncio.run(provider.generate_text("writer", "sys", "user"))
+    assert calls == [models["writer"], models["writer"]]  # same-model retry, not a fallback
+    assert res.input_tokens == 250
+    assert res.output_tokens == 120
+    assert res.total_tokens == 370
+    assert res.cost_usd == pytest.approx(0.012)
+
+
+def test_discarded_billed_attempts_are_kept_even_if_every_candidate_fails():
+    """Same shape, but nothing ever succeeds — the final raised error must
+    carry the sum of every attempt's billed usage, with a provider/model
+    identifying what was actually billed (not None from the last,
+    unbilled attempt)."""
+    provider = _provider()
+    calls = []
+
+    async def billed_then_unbilled_timeout(model, system, user, gen):
+        calls.append(model)
+        if len(calls) == 1:
+            raise GenerationError(
+                "invalid_output", "truncated at max_tokens",
+                provider="apimaster", model=model,
+                input_tokens=200, output_tokens=100, total_tokens=300, cost_usd=0.01,
+            )
+        raise GenerationError("timeout", "request timed out")
+
+    with patch.object(provider, "_chat", side_effect=billed_then_unbilled_timeout):
+        with pytest.raises(GenerationError) as exc:
+            asyncio.run(provider.generate_text("writer", "sys", "user"))
+    assert exc.value.provider == "apimaster"
+    assert exc.value.input_tokens == 200
+    assert exc.value.output_tokens == 100
+    assert exc.value.cost_usd == pytest.approx(0.01)
+
+
 def test_no_fallback_on_unauthorized():
     provider = _provider()
 

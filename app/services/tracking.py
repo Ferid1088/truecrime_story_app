@@ -309,7 +309,7 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     estimated = cost_eur is None and not price_missing
     error = None
     if price_missing:
-        error = f"no price entry for model {run.model!r} (stage {stage})"
+        error = f"no price entry for model {run.model!r} (stage {stage})"[:200]
         log.error(
             "Cost ledger: %s has real token usage (in=%s out=%s) but no "
             "configured price — booked with cost_eur unset, not EUR 0.",

@@ -297,6 +297,16 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         attempted = ai_config.model_for(role)
         candidates = [attempted] + ai_config.fallback_models_for(role)
         last_error: GenerationError | None = None
+        # Usage already billed by a discarded attempt (a same-model retry or
+        # an earlier fallback candidate that failed AFTER the provider
+        # responded, e.g. truncated output) is real spend that must still
+        # reach the eventual result — whether this call ultimately succeeds
+        # on a later attempt or exhausts every candidate. provider/model are
+        # tracked alongside the usage because a later, unbilled failure
+        # (e.g. a timeout with no response at all) would otherwise overwrite
+        # them with None on the error that ultimately gets raised.
+        discarded_provider = discarded_model = None
+        discarded_input = discarded_output = discarded_total = discarded_cost = None
         for model in candidates:
             # Provider hiccups (empty body, truncation, transport errors)
             # deserve one retry on the same model before giving up or
@@ -324,17 +334,39 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                         model=used,
                         provider=self.name,
                         fallback_used=fallback_used,
-                        **meta,
+                        input_tokens=_sum_optional(discarded_input, meta.get("input_tokens")),
+                        output_tokens=_sum_optional(discarded_output, meta.get("output_tokens")),
+                        total_tokens=_sum_optional(discarded_total, meta.get("total_tokens")),
+                        cost_usd=_sum_optional(discarded_cost, meta.get("cost_usd")),
+                        generation_id=meta.get("generation_id"),
                     )
                 except GenerationError as e:
                     last_error = e
+                    if e.provider is not None:
+                        discarded_provider, discarded_model = e.provider, e.model
+                    discarded_input = _sum_optional(discarded_input, e.input_tokens)
+                    discarded_output = _sum_optional(discarded_output, e.output_tokens)
+                    discarded_total = _sum_optional(discarded_total, e.total_tokens)
+                    discarded_cost = _sum_optional(discarded_cost, e.cost_usd)
                     if e.kind not in _FALLABLE_KINDS | {
                         "invalid_output", "unreachable"
                     }:
+                        e.provider, e.model = discarded_provider, discarded_model
+                        e.input_tokens = discarded_input
+                        e.output_tokens = discarded_output
+                        e.total_tokens = discarded_total
+                        e.cost_usd = discarded_cost
                         raise
                     if e.kind in _FALLABLE_KINDS:
                         break  # straight to the fallback candidate
-        raise last_error or GenerationError(
+        if last_error is not None:
+            last_error.provider, last_error.model = discarded_provider, discarded_model
+            last_error.input_tokens = discarded_input
+            last_error.output_tokens = discarded_output
+            last_error.total_tokens = discarded_total
+            last_error.cost_usd = discarded_cost
+            raise last_error
+        raise GenerationError(
             "provider_error",
             f"All configured models failed for role {role}.",
         )
