@@ -51,7 +51,11 @@ class Case(Base):
     identifiers_json: Mapped[str] = mapped_column(Text, default="[]")
     # discovery | manual | follow_up
     origin: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    total_cost_cap_eur: Mapped[float] = mapped_column(Float, default=20.0, server_default="20")
+    # Null means "use the configured default" (ai_config.budget.total_cap_eur,
+    # read live at check-time by app.services.budget._cap) — never a hardcoded
+    # value baked in at creation, or raising the configured default later
+    # would silently not apply to any case created before that change.
+    total_cost_cap_eur: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     budget_stop_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     sources = relationship("Source", back_populates="case", cascade="all, delete-orphan")

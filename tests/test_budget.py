@@ -110,3 +110,22 @@ def test_recorded_provider_calls_are_excluded_from_case_budget(db_session):
     ledger.record(case_id=case.id, stage="research", model="live", units=1, cost_eur=20.0)
     with pytest.raises(BudgetStopped, match="case budget"):
         ledger.check(case.id, "story")
+
+
+def test_a_new_case_with_no_explicit_cap_tracks_the_configured_default(db_session, monkeypatch):
+    """A case created with no explicit total_cost_cap_eur must track whatever
+    config/parameters/policies.json's budget.total_cap_eur currently is —
+    never a value baked in at creation time, or raising the configured
+    default later would silently not apply to any case created earlier."""
+    from app.core.ai_config import ai_config
+
+    case = Case(canonical_title="No explicit cap", slug=f"no-cap-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    assert case.total_cost_cap_eur is None
+
+    monkeypatch.setattr(ai_config.budget, "total_cap_eur", 123.0)
+    assert BudgetService(db_session).snapshot(case.id).cap_eur == pytest.approx(123.0)
+
+    monkeypatch.setattr(ai_config.budget, "total_cap_eur", 456.0)
+    assert BudgetService(db_session).snapshot(case.id).cap_eur == pytest.approx(456.0)

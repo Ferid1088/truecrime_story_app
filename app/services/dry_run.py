@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.db.models import Case
 from app.services.cost_model import documentary_estimate
 
@@ -14,7 +15,7 @@ def documentary_dry_run(db: Session, case: Case, languages: list[str] | None = N
     if "en" not in langs:
         raise ValueError("English is required as the canonical master language")
     estimate = documentary_estimate(db, case, langs, pilot_seconds=pilot_seconds)
-    cap = float(case.total_cost_cap_eur or 20.0)
+    cap = float(case.total_cost_cap_eur or ai_config.budget.total_cap_eur)
     rows = [{**line, "prompt": f"Prepare {line['stage'].replace('_', ' ')} for case: {case.canonical_title}", "sends": False}
             for line in estimate["lines"]]
     total = estimate["totals"]["expected"]
