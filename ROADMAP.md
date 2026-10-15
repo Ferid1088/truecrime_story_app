@@ -11,11 +11,18 @@ The owner sent an amendment to the master prompt. Recorded verbatim in effect, a
 - **Part 10 — One real 60-minute film from zero** is inserted as a new part, run AFTER Part 8 and BEFORE the (unchanged) Part 9, which stays the final audit/report and runs last. See the Part 10 section below.
 - The COMMON HEADER and LOOP PROTOCOL apply unchanged to both.
 
+## Amendment 2 (received 2026-10-15, after Part 0's case-5 recompute was approved)
+
+The owner approved writing the case-5 cost-ledger recompute, then said: **"do not cap the available budget on 20 euro. you have as much budget as you need"**, followed by **"do not pause asking me. run till end use your recommandations."** Applied as follows:
+- `config/parameters/policies.json`'s `budget.total_cap_eur` raised from 20.0 to **300.0** (my recommendation: generous enough not to block any part of this rebuild, including Part 10's 60-minute film and Part 1's multi-model benchmarking, while still acting as a safety net against a genuine runaway-loop bug rather than removing spend limits entirely). Case 5's own cap raised to match via `BudgetService.set_cap` (live, same code path as `PATCH /api/cases/{id}/budget`).
+- CLAUDE.md's cost-cap line updated accordingly.
+- Per "run till end, use your recommendations": this session will no longer pause with AskUserQuestion for in-scope judgment calls going forward (owner gates from the master prompt itself still get recorded as WAITING_OWNER per the LOOP PROTOCOL, not blocked on, exactly as before).
+
 ## Parts
 
 | ID | Title | Status | Commit | Tests | Live proof | Not verified | Next owner action |
 |----|-------|--------|--------|-------|------------|---------------|--------------------|
-| 0 | Foundation | WAITING_OWNER | 939d594 | test_generation.py + test_cost_ledger.py (new/changed), full suite 1266 passed/10 skipped, 3-pass review done (all findings fixed) | See Part 0 section below | Part 0b case-5 recompute not yet written to the DB | Approve `python -m scripts.recompute_case_costs 5 --apply` (or decline/ask for something different) — case 5's real spend is EUR 19.92, not the EUR 15.78 the ledger currently shows |
+| 0 | Foundation | DONE | 939d594 | test_generation.py + test_cost_ledger.py (new/changed), full suite 1266 passed/10 skipped, 3-pass review done (all findings fixed) | See Part 0 section below | None | None — owner approved and the case-5 recompute is applied; budget cap raised to EUR 300/case per Amendment 2 |
 | 1 | Models: Haiku out, cheaper model in | TODO | | | | | |
 | 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | TODO | | | | | |
 | 3 | Research: Persian-canonical, more languages, YouTube as a main source | TODO | | | | | |
@@ -31,7 +38,7 @@ The owner sent an amendment to the master prompt. Recorded verbatim in effect, a
 
 ## Part 0 — Foundation
 
-Status: WAITING_OWNER (0a, 0c, 0d, 0e DONE; 0b's code fix DONE, its case-5 data correction awaits owner approval — see below). Proceeding to Part 1 in the meantime per protocol.
+Status: DONE. All of 0a-0e complete; 0b's case-5 data correction approved by the owner and applied live (see below).
 
 ### Inventory
 - (a) CLAUDE.md had only the no-push rule; ROADMAP.md did not exist. Both being created now.
@@ -68,12 +75,12 @@ Three real bugs found and fixed in app/services/tracking.py, app/providers/gener
 
 **Live evidence against the real PostgreSQL case 5** (`Leopold and Loeb murder of Bobby Franks`), queried directly:
 - 1339 total `provider_calls` rows. 223 rows with `model='claude-haiku-4-5-20251001'` (the dated gateway echo), `cost_eur=0.0`, `estimated=True`, real tokens present — exactly bug #1/#3's shape, confirming the "~223 Haiku calls" the owner described. 95 rows with `ok=False` — exactly the "~95 failed calls" the owner described; **94 of 95** have `model=None` (genuine zero-usage failures, timeouts/network errors before any response; correctly book nothing) — the remaining one (`id=1073`) is a failed-but-billed `brave-search` call with real `cost_eur=0.004469`, unrelated to the 223-row fix.
-- `scripts/recompute_case_costs.py` (new, dry-run by default, `--apply` to write) recomputes exactly the 223 mispriced rows from their own stored tokens: **spent_eur before: EUR 15.777983 → after: EUR 19.920885** (dry run, independently reproduced bit-for-bit by the pass-2 reviewer agent; not yet written — see OWNER ACTION below). Case 5's real spend was ~26% higher than the ledger showed, 8 cents from the EUR 20 cap.
-- OWNER ACTION (does not block the loop): writing this correction to the live case 5 rows needs the owner's go-ahead (the Claude Code auto-mode classifier itself declined to write to the shared production database without explicit permission) — the owner compares the new total with the gateway's own usage page, then either approves `python -m scripts.recompute_case_costs 5 --apply` or asks for something different.
+- `scripts/recompute_case_costs.py` (new, dry-run by default, `--apply` to write) recomputes exactly the 223 mispriced rows from their own stored tokens: **spent_eur before: EUR 15.777983 → after: EUR 19.920886** (dry run independently reproduced bit-for-bit by the pass-2 reviewer agent; then **applied live** with the owner's approval — confirmed via `BudgetService(db).snapshot(5)` against the real PostgreSQL database: `spent_eur=19.920886`). Case 5's real spend was ~26% higher than the ledger showed.
+- Owner then raised the EUR cap from 20 to 300 per case (Amendment 2, same conversation) — case 5's cap raised to match (`BudgetSnapshot(cap_eur=300.0, spent_eur=19.920886, remaining_eur=280.079114, status='story_ready')`, confirmed live).
 - `/health` re-verified after a clean restart on commit 939d594: `commit=939d59434c84d48931b96c222e70a98d7077907e`, `worker_commit`=same, `worker_alive=true`, `commit_mismatch=false`.
 
 ### Not verified
-Everything except 0a, 0c, 0d, 0e, and 0b's code fix (including its 3 review-pass fixes). The case-5 recompute is dry-run only until the owner approves writing it.
+Nothing outstanding — all of Part 0 is DONE, tested, reviewed (3 passes, all findings fixed), and verified live.
 
 ---
 
@@ -143,7 +150,6 @@ Status: TODO. Not started. Runs LAST, after Part 10.
 ---
 
 ## WAITING_OWNER items (summary, kept in sync as they arise)
-- Part 0b: approve writing the case-5 cost-ledger recompute (`python -m scripts.recompute_case_costs 5 --apply`) — see Part 0 section above
 - Part 4: editorial_review_required news photos usable in published films? (default: not used)
 - Part 5: approval of the Persian master before native rewrites; (Patch F) owner's old-vs-new writer judgement overrides the metrics
 - Part 6: host time reading A vs B

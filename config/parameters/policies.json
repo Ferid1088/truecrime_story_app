@@ -1,6 +1,6 @@
 {
   "budget": {
-    "total_cap_eur": 20.0,
+    "total_cap_eur": 300.0,
     "usd_to_eur": 0.92,
     "stage_estimate_eur": {
       "research": 0.5,
