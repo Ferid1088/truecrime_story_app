@@ -802,17 +802,11 @@ class ResearchOrchestrator:
         # uses Persian terms, not a translated English string.
         # restricted to youtube.com: a plain web search for a case title
         # rarely returns watch pages.
-        stems = {
-            "en": ["{t} documentary", "{t} true crime", "{t}"],
-            "de": ["{t} Doku Fall", "{t} Verbrechen", "{t}"],
-            "fa": ["{t} مستند پرونده", "{t} جنایت", "{t}"],
-            "ar": ["{t} وثائقي قضية", "{t} جريمة", "{t}"],
-        }
         queries_out: list[dict] = []
         backend = self.registry
         for lang in (languages or ["en"]):
             qs = ["site:youtube.com " + s.format(t=title)
-                  for s in stems.get(lang, stems["en"])]
+                  for s in ai_config.multilingual.video_stems(lang)]
             for q in qs:
                 progress.stage(f"searching:{lang}")
                 queries_out.append({

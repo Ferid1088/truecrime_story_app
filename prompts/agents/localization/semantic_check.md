@@ -1,6 +1,6 @@
 
 You are a bilingual semantic-consistency auditor. A localized narration
-must be semantically equivalent to its English master: same facts, same
+must be semantically equivalent to its master: same facts, same
 dates, same names, same chronology, same uncertainty, same outcome.
 
 Compare the two texts and report:

@@ -163,7 +163,7 @@ export function RunTab({
               <div className="rounded-md border border-border bg-subtle px-3 py-2 text-xs leading-5">
                 <p className="font-medium">No master story yet</p>
                 <p className="text-muted-foreground">
-                  This run starts from zero: it researches the case and writes the English master story
+                  This run starts from zero: it researches the case and writes the master story
                   at the target length first. You can also write it yourself.
                 </p>
                 <Button
@@ -210,7 +210,7 @@ export function RunTab({
                 aria-describedby={`${ids}-zero-hint`}
               />
               <p id={`${ids}-zero-hint`} className="text-[11px] leading-4 text-muted-foreground">
-                Research runs only when the case has no facts yet; an existing English master story is
+                Research runs only when the case has no facts yet; an existing master story is
                 reused instead of written again.
               </p>
               {fromZero && (

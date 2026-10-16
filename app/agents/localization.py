@@ -59,7 +59,7 @@ _NATIVE_CRITERIA = {
 
 
 class LocalizationPipeline:
-    """English Master -> native transcreation -> multi-validator gating.
+    """Master -> native transcreation -> multi-validator gating.
 
     Localizations never reinterpret research: they derive ONLY from a
     specific ready Master version plus its protected fact/uncertainty map.

@@ -198,7 +198,44 @@ def test_tts_budget_and_host_stages():
     assert not J.tts_budget_left({"en": 600, "de": 400}, 1000)
 
 
-def test_pick_master_requires_an_english_master(client, db_session):
+def _master(db, case, version, language):
+    from app.db.models import StoryVersion
+
+    v = StoryVersion(case_id=case.id, version=version, narrative_angle="{}", story_text="x",
+                     engagement_score=1.0, kind="master", language=language)
+    db.add(v)
+    db.commit()
+    return v
+
+
+def test_pick_master_prefers_the_canonical_language_master(db_session):
+    """Part 3(a): the canonical (configured) language wins over a newer
+    master in another language."""
+    from app.core.ai_config import ai_config
+    from app.documentary.api import _pick_master
+
+    canonical = ai_config.multilingual.canonical_language
+    case = _case(db_session, "Opt canonical master")
+    canonical_master = _master(db_session, case, 1, canonical)
+    _master(db_session, case, 2, "en" if canonical != "en" else "de")
+    assert _pick_master(db_session, case.id, None).id == canonical_master.id
+
+
+def test_pick_master_keeps_a_legacy_master_usable_when_no_canonical_one_exists(db_session):
+    """Part 3(a), existing data: cases written when the master language was
+    English (cases 1 and 2) keep a usable master after the canonical
+    language became Persian — nothing orphaned."""
+    from app.core.ai_config import ai_config
+    from app.documentary.api import _pick_master
+
+    legacy_language = "en" if ai_config.multilingual.canonical_language != "en" else "de"
+    case = _case(db_session, "Opt legacy master")
+    legacy = _master(db_session, case, 1, legacy_language)
+    assert _pick_master(db_session, case.id, None).id == legacy.id
+    assert _pick_master(db_session, case.id, legacy.id).id == legacy.id
+
+
+def test_pick_master_requires_a_master(client, db_session):
     from app.db.models import StoryVersion
 
     case = _case(db_session, "Opt master")

@@ -231,6 +231,13 @@ export default function SettingsPage() {
                   ["Research languages", data.multilingual.research_languages],
                   ["Canonical language", [data.multilingual.canonical_language]],
                   ["Localization targets", data.multilingual.localization_languages],
+                  ["Research-only languages", data.multilingual.research_only_languages],
+                  [
+                    "Ready to enable (config/parameters/story.json)",
+                    Object.keys(data.multilingual.available_languages).filter(
+                      (l) => !data.multilingual!.research_languages.includes(l),
+                    ),
+                  ],
                 ] as [string, string[]][]
               ).map(([label, langs]) => (
                 <div key={label} className="flex items-center justify-between gap-4 text-sm">

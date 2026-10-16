@@ -1009,6 +1009,8 @@ export interface SettingsStatus {
     research_languages: string[];
     canonical_language: string;
     localization_languages: string[];
+    research_only_languages: string[];
+    available_languages: Record<string, string>;
   };
   database: { connected: boolean; url: string };
 }
@@ -1184,6 +1186,9 @@ export interface BackgroundJob {
 }
 
 export interface ResearchLanguageStats {
+  name: string;
+  research_only: boolean;
+  enabled: boolean;
   searched: boolean;
   queries: string[];
   sources: number;

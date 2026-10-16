@@ -97,7 +97,7 @@ def _master(db, case, status="ready"):
 # ---------------------------------------------------------------------------
 
 
-def test_research_languages_configured():
+    assert langs == ["fa", "en", "de", "ar"]
     langs = ai_config.multilingual.research_languages
     assert langs == ["en", "de", "fa", "ar"]
     # The channel writes natively in Persian; en/de/ar are native rewrites
@@ -497,6 +497,10 @@ def test_research_languages_endpoint(client, db_session):
     assert body["languages"]["de"]["sources"] == 1
     assert body["languages"]["de"]["evidence_items"] == 1
     assert body["languages"]["de"]["unique_evidence"] == 1
+    assert list(body["languages"])[0] == "fa"
+    assert body["languages"]["en"]["name"] == "English"
+    assert body["languages"]["en"]["research_only"] is False
+    assert body["languages"]["en"]["enabled"] is True
 
 
 def test_no_hardcoded_model_ids_or_thresholds():
@@ -528,3 +532,50 @@ def test_evidence_is_normalized_to_english_whatever_the_master_language(db_sessi
     db_session.refresh(sources["en"]); db_session.refresh(sources["fa"])
     assert sources["en"].summary_en is None
     assert sources["fa"].summary_en
+
+
+def test_language_catalog_has_native_stems_for_every_ready_to_enable_language():
+    """Part 3(b): ja, zh, fr, es, it are ready to enable by editing
+    research_languages only — each already has its Brave code and native
+    video-search stems in config."""
+    catalog = ai_config.multilingual.language_catalog
+    for lang in ("en", "de", "fa", "ar", "ja", "zh", "fr", "es", "it"):
+        entry = catalog[lang]
+        assert len(entry.video_search_stems) == 3
+        assert all("{t}" in stem for stem in entry.video_search_stems)
+        assert "{title}" in entry.video_query_stem
+
+
+def test_configured_languages_must_exist_in_the_catalog():
+    import pytest
+
+    from app.core.ai_config import MultilingualConfig
+
+    with pytest.raises(ValueError, match="missing from language_catalog"):
+        MultilingualConfig(research_languages=["en", "xx"], canonical_language="en",
+                           localization_languages=[],
+                           language_catalog={"en": ai_config.multilingual.language_catalog["en"]})
+
+
+def test_research_only_languages_are_the_research_languages_that_are_not_produced():
+    assert ai_config.multilingual.research_only_languages == []
+    widened = ai_config.multilingual.model_copy(
+        update={"research_languages": [*ai_config.multilingual.research_languages, "ja", "zh"]})
+    assert widened.research_only_languages == ["ja", "zh"]
+
+
+def test_brave_search_lang_comes_from_the_catalog():
+    """Checked live against Brave on 2026-10-16: fa and a bare zh answer
+    HTTP 422; zh-hans, ja, fr, es, it, ar, de answer 200."""
+    m = ai_config.multilingual
+    assert m.brave_search_lang("zh") == "zh-hans"
+    assert m.brave_search_lang("fa") is None
+    assert m.brave_search_lang("de") == "de"
+    assert m.brave_search_lang("ja") == "ja"
+
+
+def test_canonical_language_leads_every_configured_language_list():
+    m = ai_config.multilingual
+    assert m.research_languages[0] == m.canonical_language
+    assert m.produced_languages[0] == m.canonical_language
+    assert next(iter(m.language_catalog)) == m.canonical_language

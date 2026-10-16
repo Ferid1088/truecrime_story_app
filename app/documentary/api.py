@@ -234,20 +234,26 @@ def _masters(db: Session, case_id: int) -> list[StoryVersion]:
 
 
 def _pick_master(db: Session, case_id: int, version_id: int | None) -> StoryVersion:
+    """The master a film starts from: the configured canonical-language master
+    when the case has one. A case written before the canonical language
+    changed keeps its older-language master, which stays usable (never
+    orphaned) until a canonical master exists."""
+    canonical = ai_config.multilingual.canonical_language
     if version_id:
         v = db.get(StoryVersion, version_id)
         if not v or v.case_id != case_id:
             raise HTTPException(status_code=404, detail="Story version not found")
-        if v.kind != "master" or (v.language or "en") != ai_config.multilingual.canonical_language:
-            raise HTTPException(status_code=409,
-                                detail="A film starts from the English master story.")
+        if v.kind != "master":
+            raise HTTPException(status_code=409, detail="A film starts from a master story.")
         return v
-    masters = [m for m in _masters(db, case_id) if (m.language or "en") == "en"]
+    masters = [m for m in _masters(db, case_id) if m.kind == "master"]
     if not masters:
-        raise HTTPException(status_code=409, detail="Write an English master story first.")
+        raise HTTPException(status_code=409,
+                            detail=f"Write a master story first (master language: {canonical}).")
+    masters.sort(key=lambda m: (m.language or "en") != canonical)
     # prefer one that already has a blueprint (work is reused)
     for m in masters:
-        if latest_blueprint(db, m.id):
+        if (m.language or "en") == (masters[0].language or "en") and latest_blueprint(db, m.id):
             return m
     return masters[0]
 

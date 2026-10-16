@@ -75,6 +75,7 @@ function LanguageCard({ lang, stats: v }: { lang: string; stats: ResearchLanguag
         <CardTitle className="flex items-center gap-2 text-sm">
           {langLabel(lang)}
           {lang !== "en" && <span className="font-mono text-[10px] uppercase text-muted-foreground">{lang}</span>}
+          {v.research_only && <Badge variant="outline">research only</Badge>}
         </CardTitle>
         {searched ? (
           v.sources > 0 ? (

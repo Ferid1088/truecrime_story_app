@@ -34,19 +34,9 @@ def video_id_from_url(url: str) -> str | None:
     return m.group(1) if m else None
 
 
-# Native query stems per language — never a literal translation of one
-# English query (Part 1).
-_QUERY_STEMS = {
-    "en": "{title} documentary investigation",
-    "de": "{title} Doku Fall Ermittlungen",
-    "fa": "{title} مستند پرونده تحقیق",
-    "ar": "{title} وثائقي قضية تحقيق",
-}
-
-
 def _queries_for(case: Case, languages: list[str]) -> dict[str, str]:
     return {
-        lang: _QUERY_STEMS.get(lang, "{title} documentary").format(
+        lang: ai_config.multilingual.video_query_stem(lang).format(
             title=case.canonical_title
         )
         for lang in languages

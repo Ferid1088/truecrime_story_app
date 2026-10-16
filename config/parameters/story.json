@@ -94,9 +94,9 @@
   },
   "multilingual": {
     "research_languages": [
+      "fa",
       "en",
       "de",
-      "fa",
       "ar"
     ],
     "canonical_language": "fa",
@@ -105,7 +105,99 @@
       "en",
       "de",
       "ar"
-    ]
+    ],
+    "language_catalog": {
+      "fa": {
+        "name": "Persian",
+        "brave_search_lang": null,
+        "video_search_stems": [
+          "{t} مستند پرونده",
+          "{t} جنایت",
+          "{t}"
+        ],
+        "video_query_stem": "{title} مستند پرونده تحقیق"
+      },
+      "en": {
+        "name": "English",
+        "brave_search_lang": "en",
+        "video_search_stems": [
+          "{t} documentary",
+          "{t} true crime",
+          "{t}"
+        ],
+        "video_query_stem": "{title} documentary investigation"
+      },
+      "de": {
+        "name": "German",
+        "brave_search_lang": "de",
+        "video_search_stems": [
+          "{t} Doku Fall",
+          "{t} Verbrechen",
+          "{t}"
+        ],
+        "video_query_stem": "{title} Doku Fall Ermittlungen"
+      },
+      "ar": {
+        "name": "Arabic",
+        "brave_search_lang": "ar",
+        "video_search_stems": [
+          "{t} وثائقي قضية",
+          "{t} جريمة",
+          "{t}"
+        ],
+        "video_query_stem": "{title} وثائقي قضية تحقيق"
+      },
+      "ja": {
+        "name": "Japanese",
+        "brave_search_lang": "ja",
+        "video_search_stems": [
+          "{t} ドキュメンタリー 事件",
+          "{t} 犯罪",
+          "{t}"
+        ],
+        "video_query_stem": "{title} ドキュメンタリー 捜査"
+      },
+      "zh": {
+        "name": "Chinese",
+        "brave_search_lang": "zh-hans",
+        "video_search_stems": [
+          "{t} 纪录片 案件",
+          "{t} 犯罪",
+          "{t}"
+        ],
+        "video_query_stem": "{title} 纪录片 调查"
+      },
+      "fr": {
+        "name": "French",
+        "brave_search_lang": "fr",
+        "video_search_stems": [
+          "{t} documentaire affaire",
+          "{t} crime",
+          "{t}"
+        ],
+        "video_query_stem": "{title} documentaire enquête"
+      },
+      "es": {
+        "name": "Spanish",
+        "brave_search_lang": "es",
+        "video_search_stems": [
+          "{t} documental caso",
+          "{t} crimen",
+          "{t}"
+        ],
+        "video_query_stem": "{title} documental investigación"
+      },
+      "it": {
+        "name": "Italian",
+        "brave_search_lang": "it",
+        "video_search_stems": [
+          "{t} documentario caso",
+          "{t} crimine",
+          "{t}"
+        ],
+        "video_query_stem": "{title} documentario indagine"
+      }
+    }
   },
   "localization": {
     "require_master_ready": true,

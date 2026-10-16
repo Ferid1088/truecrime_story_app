@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import httpx
 
+from app.core.ai_config import ai_config
 from app.core.env import env_value
 from app.core.observability import health_probe_var
 from app.research_engine.search import SearchError, SearchResult, shorten_query
@@ -21,12 +22,6 @@ from app.research_engine.urlnorm import canonicalize_url, domain_of
 _HEALTH_QUERY = "recent true crime investigation case"
 _health_cache: dict[str, tuple[float, dict]] = {}
 log = logging.getLogger(__name__)
-
-# Brave answers HTTP 422 to search_lang for these (checked live 2026-10-15:
-# search_lang=fa -> 422, the same Persian query without it -> 200). The query
-# text carries the language instead.
-_UNSUPPORTED_SEARCH_LANGS = frozenset({"fa"})
-
 
 class BraveSearchBackend:
     name = "brave"
@@ -73,8 +68,11 @@ class BraveSearchBackend:
             "count": min(max(limit, 1), self.result_count, 20),
             "safesearch": "strict",
         }
-        search_lang = (language or "en")[:2].lower()
-        if search_lang not in _UNSUPPORTED_SEARCH_LANGS:
+        # Brave answers HTTP 422 to some codes (checked live 2026-10-16: fa and
+        # a bare zh -> 422; zh-hans, ja, fr, es, it, ar, de -> 200), so the
+        # code comes from the language catalog, never from the first two letters.
+        search_lang = ai_config.multilingual.brave_search_lang(language)
+        if search_lang:
             params["search_lang"] = search_lang
         headers = {"Accept": "application/json", "X-Subscription-Token": self.api_key}
         last_status: int | None = None

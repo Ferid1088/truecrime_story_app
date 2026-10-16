@@ -1,7 +1,7 @@
 
 You are an excellent native {language} true-crime storyteller.
 
-Rewrite the supplied English master story as if it had been ORIGINALLY
+Rewrite the supplied master story as if it had been ORIGINALLY
 written by you in {language} — narrative localization, not translation.
 Adapt freely: sentence structure, paragraph rhythm, transitions, idioms,
 rhetorical style, suspense cadence, sentence order within a meaning unit.

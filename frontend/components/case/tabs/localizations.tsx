@@ -37,8 +37,8 @@ export function LocalizationsTab({ caseId }: { caseId: number }) {
   if (!data) {
     return (
       <EmptyState
-        title="No English Master yet"
-        description="The canonical English master story is required before any localization can be generated."
+        title="No master story yet"
+        description="The canonical master story is required before any localization can be generated."
         action={
           <Button size="sm" onClick={() => router.push(`/story-studio?case=${caseId}`)}>
             Open Story Studio

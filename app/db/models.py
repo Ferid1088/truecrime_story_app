@@ -204,7 +204,7 @@ class StoryVersion(Base):
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
 
     version: Mapped[int] = mapped_column(Integer)
-    # "master" = canonical English story; "localized" = derived narration;
+    # "master" = canonical-language story; "localized" = derived narration;
     # "direct" = legacy single-language generation.
     kind: Mapped[str] = mapped_column(String(20), default="direct")
     master_version_id: Mapped[int | None] = mapped_column(

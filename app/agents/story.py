@@ -791,7 +791,7 @@ def _evidence_usage(sections: list[dict], pack: dict) -> dict:
     }
 
 
-# Roles of the English master story (director, writer, rewriter, critics) —
+# Roles of the master story (director, writer, rewriter, critics) —
 # one definition for the API and the documentary pipeline.
 MASTER_ROLES = {
     "director": "master_story_director", "writer": "master_writer",

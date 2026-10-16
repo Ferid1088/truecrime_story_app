@@ -2,7 +2,7 @@
 
 Stages (each idempotent — a re-run resumes and reuses what exists):
   research           (from zero) research the case with the search engine
-  master_story       (from zero) write the English master story
+  master_story       (from zero) write the master story (in the configured master language)
   blueprint          editorial blueprint for the master story
   audio_plan         breaths, music beds/moments, silences
   spoken:<lang>      storyteller version per language
@@ -858,7 +858,7 @@ async def _video_research(db: Session, case: Case) -> dict:
 
 
 async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
-    """From zero, step 2: the English master story at the film's length
+    """From zero, step 2: the master story at the film's length
     (reuses a master that already exists)."""
     from app.agents.story import StoryPipeline
     from app.services.readiness import build_readiness

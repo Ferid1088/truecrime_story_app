@@ -129,6 +129,11 @@ def settings_status(db: Session = Depends(get_db)):
             "research_languages": ai_config.multilingual.research_languages,
             "canonical_language": ai_config.multilingual.canonical_language,
             "localization_languages": ai_config.multilingual.localization_languages,
+            "research_only_languages": ai_config.multilingual.research_only_languages,
+            "available_languages": {
+                code: entry.name
+                for code, entry in ai_config.multilingual.language_catalog.items()
+            },
         },
         "database": {"connected": db_ok, "url": settings.database_url.split("///")[0]},
     }

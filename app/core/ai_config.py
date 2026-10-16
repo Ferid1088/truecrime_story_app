@@ -462,8 +462,24 @@ class StoryQualityConfig(BaseModel):
     max_evidence_per_story: int = Field(ge=20, default=160)
 
 
+class LanguageEntry(BaseModel):
+    """One language the research can run in: how Brave is asked for it and
+    the native query stems used to find videos about a case."""
+    name: str
+    # Brave's own search_lang code, or None when Brave rejects the parameter
+    # (the query text then carries the language).
+    brave_search_lang: str | None
+    # Three stems (formatted with the case title as {t}); never a literal
+    # translation of one English query.
+    video_search_stems: list[str] = Field(min_length=1)
+    video_query_stem: str
+
+
 class MultilingualConfig(BaseModel):
     research_languages: list[str] = ["en", "de", "fa", "ar"]
+    # Every language research or production can use. A language in here but
+    # not in research_languages is ready to enable by editing research_languages.
+    language_catalog: dict[str, LanguageEntry] = {}
     # Language of the master story (the narrative every localization derives from).
     canonical_language: str = "en"
     # Language the evidence is normalized into (summary_en, canonical_text_en);
@@ -477,7 +493,31 @@ class MultilingualConfig(BaseModel):
             raise ValueError(
                 "canonical_language must not also be a localization target"
             )
+        used = {*self.research_languages, self.canonical_language,
+                self.evidence_language, *self.localization_languages}
+        missing = sorted(used - set(self.language_catalog))
+        if missing:
+            raise ValueError(f"languages missing from language_catalog: {missing}")
         return self
+
+    @property
+    def produced_languages(self) -> list[str]:
+        """Languages a film is produced in: the master plus its rewrites."""
+        return [self.canonical_language, *self.localization_languages]
+
+    @property
+    def research_only_languages(self) -> list[str]:
+        return [l for l in self.research_languages if l not in self.produced_languages]
+
+    def video_stems(self, language: str) -> list[str]:
+        return (self.language_catalog.get(language) or self.language_catalog["en"]).video_search_stems
+
+    def video_query_stem(self, language: str) -> str:
+        return (self.language_catalog.get(language) or self.language_catalog["en"]).video_query_stem
+
+    def brave_search_lang(self, language: str) -> str | None:
+        entry = self.language_catalog.get(language)
+        return entry.brave_search_lang if entry else (language or "en")[:2].lower()
 
 
 class LocalizationConfig(BaseModel):
