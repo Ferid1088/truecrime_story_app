@@ -58,10 +58,13 @@ def host_slots(plan: dict) -> list[dict]:
             if run >= mark:
                 break
         pick = min(pick, len(ids) - 2)
-        while pick in used and pick > 0:
-            pick -= 1
-        if pick in used:
+        # prefer a beat that is not next to another host slot, nearest first
+        order = sorted(range(len(ids) - 1), key=lambda i: abs(i - pick))
+        free = [i for i in order if i not in used]
+        apart = [i for i in free if i - 1 not in used and i + 1 not in used]
+        if not free:
             continue
+        pick = (apart or free)[0]
         used.add(pick)
         slots.append({"id": f"H{len(slots) + 1}", "position": "mid", "after_beat": ids[pick]})
     return slots

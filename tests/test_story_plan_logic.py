@@ -82,3 +82,11 @@ def test_mapping_fails_on_wrong_order_lost_structure_and_length():
     long[2]["text"] = " ".join(["w"] * 900)
     issue = SP.check_plan_mapping(long, plan)["issues"][0]
     assert (issue["code"], issue["beat"]) == ("beat_length", "act3")
+
+
+def test_mid_host_slots_are_not_placed_on_adjacent_beats_when_there_is_room():
+    plan = {"acts": [{"id": f"act{n}", "title": "t", "purpose": "p", "target_words": 500,
+                      "evidence_ids": []} for n in range(1, 7)]}
+    mids = [s["after_beat"] for s in SP.host_slots(plan) if s["position"] == "mid"]
+    numbers = sorted(int(m[3:]) for m in mids)
+    assert len(numbers) == 2 and numbers[1] - numbers[0] >= 2
