@@ -803,6 +803,49 @@ def test_evidence_pack_prefers_corroborated_facts_and_reports_what_it_dropped(mo
     assert "evidence diet cap" in pack["evidence_diet"]["dropped"][0]["reason"]
 
 
+def test_evidence_pack_prefers_a_high_reliability_source_over_a_low_one(monkeypatch):
+    """Part 3(e) item 2: "a fact from a high-quality video counts at least
+    as much as one from a news page" — Source.reliability_score (now real
+    for video sources, app.services.claims.video_source_reliability_score)
+    is a ranking tier here for the first time, independent of corroboration
+    or evidence_strength, which tie in this fixture on purpose."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Fact, Source
+
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_story", 1)
+    low_source = Source(id=1, case_id=1, title="Low", url="https://e/1",
+                        source_type="article", reliability_score=0.3)
+    high_source = Source(id=2, case_id=1, title="High-quality video", url="https://e/2",
+                         source_type="youtube_video", reliability_score=0.9)
+    from_low = Fact(id=1, case_id=1, claim="From the low-reliability source", confidence=0.5,
+                    category="evidence", narrative_value="context",
+                    evidence_strength="secondary", source_ids_json="[1]")
+    from_high = Fact(id=2, case_id=1, claim="From the high-reliability video", confidence=0.5,
+                     category="evidence", narrative_value="context",
+                     evidence_strength="secondary", source_ids_json="[2]")
+    pack = build_evidence_pack([from_low, from_high], [], [low_source, high_source])
+
+    assert [f["claim"] for f in pack["facts"]] == ["From the high-reliability video"]
+
+
+def test_evidence_pack_flags_single_source_facts():
+    """Part 3(e) item 2: "keep the single-source flag for facts only one
+    [source] claims, and show it.\""""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Fact
+
+    single = Fact(id=1, case_id=1, claim="Only one source claims this", confidence=0.9,
+                  category="evidence", narrative_value="context",
+                  evidence_strength="secondary", source_ids_json="[1]")
+    corroborated = Fact(id=2, case_id=1, claim="Two sources agree", confidence=0.9,
+                        category="evidence", narrative_value="context",
+                        evidence_strength="secondary", source_ids_json="[1, 2]")
+    pack = build_evidence_pack([single, corroborated], [], [])
+    by_claim = {f["claim"]: f["single_source"] for f in pack["facts"]}
+    assert by_claim["Only one source claims this"] is True
+    assert by_claim["Two sources agree"] is False
+
+
 def test_evidence_pack_never_drops_a_fact_a_contradiction_depends_on(monkeypatch):
     """Part 2(c): "keep every item... a contradiction depends on" — a fact
     sharing a source with a stored Contradiction survives the cap even

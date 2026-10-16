@@ -636,6 +636,57 @@ def test_independence_marks_same_family_derivative(db_session):
     assert v2.likely_derivative_of == v1.id
 
 
+def test_video_source_reliability_score_combines_classification_independence_quality():
+    """Part 3(e) item 2: deterministic, no model call — real signals this
+    pipeline already computes elsewhere (classification, independence,
+    transcript quality), combined into one score."""
+    from app.db.models import VideoSource
+    from app.services.claims import video_source_reliability_score
+
+    best = VideoSource(case_id=1, video_id="a", url="https://e/a", title="t",
+                       classification="official", source_independence="primary",
+                       transcript_quality_verdict="good")
+    worst = VideoSource(case_id=1, video_id="b", url="https://e/b", title="t",
+                        classification="creator_narration",
+                        source_independence="likely_derivative",
+                        transcript_quality_verdict="poor")
+    best_score = video_source_reliability_score(best)
+    worst_score = video_source_reliability_score(worst)
+    assert best_score > worst_score
+    assert 0.05 <= worst_score <= 0.95
+    assert 0.05 <= best_score <= 0.95
+
+
+def test_independence_sets_source_reliability_score_from_video_quality(db_session):
+    """Part 3(e) item 2: Source.reliability_score was never set for a video
+    source at all (always the 0.5 model default) — compute_independence
+    now sets it from the video's real, already-computed classification/
+    independence/transcript quality."""
+    from app.db.models import Source
+    from app.services.claims import compute_independence
+
+    case = _mk_case(db_session)
+    high_src = Source(case_id=case.id, title="Official court video", url="https://e/x",
+                      source_type="youtube_video", reliability_score=0.5)
+    low_src = Source(case_id=case.id, title="Narrated recap", url="https://e/y",
+                     source_type="youtube_video", reliability_score=0.5)
+    db_session.add_all([high_src, low_src])
+    db_session.commit()
+    high_v = _mk_video(db_session, case, source_id=high_src.id)
+    high_v.classification = "official"
+    high_v.transcript_quality_verdict = "good"
+    low_v = _mk_video(db_session, case, source_id=low_src.id)
+    low_v.classification = "creator_narration"
+    low_v.transcript_quality_verdict = "poor"
+    db_session.commit()
+
+    compute_independence(db_session, case)
+    db_session.refresh(high_src)
+    db_session.refresh(low_src)
+    assert high_src.reliability_score > 0.5
+    assert low_src.reliability_score < 0.5
+
+
 # ---------------------------------------------------------------------------
 # verification + promotion into Facts
 # ---------------------------------------------------------------------------

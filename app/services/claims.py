@@ -224,6 +224,33 @@ async def _semantic_merge(db, case, singles, clusters, add_to) -> list[Transcrip
     return [c for c in singles if c.id not in grouped]
 
 
+# Part 3(e) item 2: "a fact from a high-quality video counts at least as
+# much as one from a news page" — Source.reliability_score (the signal
+# app.agents.research's own source selection already ranks by) was never
+# set for a video source at all, always the model default (0.5),
+# regardless of its real classification/independence/transcript quality.
+_CLASSIFICATION_RELIABILITY = {
+    "official": 0.9, "documentary": 0.75, "news": 0.7, "interview": 0.65,
+    "archive": 0.6, "analysis": 0.55, "creator_narration": 0.45, "unknown": 0.5,
+}
+_INDEPENDENCE_ADJUSTMENT = {
+    "primary": 0.1, "independent_secondary": 0.0, "likely_derivative": -0.15,
+    "unknown": 0.0,
+}
+_QUALITY_ADJUSTMENT = {"good": 0.0, "degraded": -0.1, "poor": -0.25}
+
+
+def video_source_reliability_score(video: VideoSource) -> float:
+    """Deterministic, no model call — the same real signals (classification,
+    source independence, transcript quality) already computed elsewhere in
+    this pipeline, combined into the one score the rest of the app already
+    uses to judge a source's trustworthiness."""
+    score = _CLASSIFICATION_RELIABILITY.get(video.classification, 0.5)
+    score += _INDEPENDENCE_ADJUSTMENT.get(video.source_independence, 0.0)
+    score += _QUALITY_ADJUSTMENT.get(video.transcript_quality_verdict, 0.0)
+    return round(min(max(score, 0.05), 0.95), 4)
+
+
 def compute_independence(db: Session, case: Case) -> dict:
     """Classify each video's source independence (Part 10).
 
@@ -285,6 +312,11 @@ def compute_independence(db: Session, case: Case) -> dict:
                 if second.source_independence != "primary":
                     second.source_independence = "likely_derivative"
                     second.likely_derivative_of = first.id
+
+    for v in videos:
+        if v.source is not None:
+            v.source.reliability_score = video_source_reliability_score(v)
+
     db.flush()
     return {
         "primary": sum(1 for v in videos if v.source_independence == "primary"),

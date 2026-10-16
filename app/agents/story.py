@@ -77,6 +77,21 @@ def _corroboration(f: Fact) -> int:
     return len(_fact_source_ids(f))
 
 
+def _max_source_reliability(f: Fact, reliability_by_id: dict[int, float]) -> float:
+    """Part 3(e) item 2: "a fact from a high-quality video counts at
+    least as much as one from a news page" — Source.reliability_score
+    (now real for video sources too, app.services.claims.
+    video_source_reliability_score) is the same trustworthiness signal
+    app.agents.research's own source selection already ranks by; this is
+    the first time it reaches the evidence-diet ranking at all. 0.5 (the
+    model default) for a fact with no resolvable source — no signal, not
+    a penalty."""
+    ids = _fact_source_ids(f)
+    if not ids:
+        return 0.5
+    return max(reliability_by_id.get(sid, 0.5) for sid in ids)
+
+
 def _contradiction_dependent_source_ids(contradictions: list[Contradiction]) -> set:
     """Source ids a stored Contradiction cites. Contradiction has no
     fact_ids_json (a known, separately-documented schema gap — see
@@ -94,12 +109,15 @@ def _contradiction_dependent_source_ids(contradictions: list[Contradiction]) -> 
 
 def _strongest_facts(
     facts: list[Fact], cap: int, contradictions: list[Contradiction] | None = None,
+    reliability_by_id: dict[int, float] | None = None,
 ) -> tuple[list[Fact], list[dict]]:
     """At most `cap` facts: the strongest, taken round-robin over the fact
     types so humans, scenes, quotes and investigation all stay represented;
     in their original order. Deterministic.
 
-    Part 2(c), evidence diet: ranked by evidence_strength, then
+    Part 2(c)/3(e) item 2, evidence diet: ranked by evidence_strength, then
+    the best source reliability behind the fact (a high-quality video
+    counts at least as much as a news page — Part 3(e) item 2), then
     corroboration (independent sources behind the fact after merging),
     then the model's own confidence. A fact that shares a source with a
     stored Contradiction is never dropped (the cap only applies to the
@@ -107,6 +125,7 @@ def _strongest_facts(
     dropped fact is returned with its reason, never silently lost (the
     Fact row itself is never deleted either way; this only controls what
     a generated evidence pack includes)."""
+    reliability_by_id = reliability_by_id or {}
     protected_source_ids = _contradiction_dependent_source_ids(contradictions or [])
     protected = [f for f in facts if protected_source_ids & set(_fact_source_ids(f))]
     rest = [f for f in facts if f not in protected]
@@ -115,8 +134,9 @@ def _strongest_facts(
         return _by_id(protected + rest), []
 
     def _rank_key(f: Fact) -> tuple:
-        return (-_EVIDENCE_RANK.get(f.evidence_strength, 0), -_corroboration(f),
-               -(f.confidence or 0), f.id)
+        return (-_EVIDENCE_RANK.get(f.evidence_strength, 0),
+               -_max_source_reliability(f, reliability_by_id),
+               -_corroboration(f), -(f.confidence or 0), f.id)
 
     groups: dict[str, list[Fact]] = {}
     for f in sorted(rest, key=_rank_key):
@@ -133,8 +153,9 @@ def _strongest_facts(
     kept_ids = {f.id for f in picked}
     dropped = [
         {"fact_id": f.id, "reason": "ranked below the evidence diet cap "
-         f"(evidence_strength={f.evidence_strength}, corroboration={_corroboration(f)}, "
-         f"confidence={f.confidence})"}
+         f"(evidence_strength={f.evidence_strength}, "
+         f"max_source_reliability={_max_source_reliability(f, reliability_by_id)}, "
+         f"corroboration={_corroboration(f)}, confidence={f.confidence})"}
         for f in rest if f.id not in kept_ids
     ]
     return _by_id(protected + picked), dropped
@@ -145,9 +166,13 @@ def build_evidence_pack(
 ) -> dict:
     q = ai_config.story_quality
     contradictions = _by_id(list(contradictions))
-    facts, dropped_facts = _strongest_facts(
-        _by_id(list(facts)), q.max_evidence_per_story, contradictions)
     sources = _by_id(list(sources))
+    reliability_by_id = {
+        s.id: (s.reliability_score if s.reliability_score is not None else 0.5)
+        for s in sources
+    }
+    facts, dropped_facts = _strongest_facts(
+        _by_id(list(facts)), q.max_evidence_per_story, contradictions, reliability_by_id)
     fact_items = []
     for i, f in enumerate(facts, 1):
         uncertain = bool(f.disputed) or f.confidence < q.disputed_confidence_threshold
@@ -186,6 +211,9 @@ def build_evidence_pack(
                 "locations": locations,
                 "source_ids": source_ids,
                 "chunk_ids": chunk_ids,
+                # Part 3(e) item 2: "keep the single-source flag for facts
+                # only one [source] claims, and show it."
+                "single_source": len(source_ids) == 1,
             }
         )
     timeline = [
