@@ -137,6 +137,23 @@ class TranscriptIntelligenceAgent:
                     if isinstance(i, int) and 0 <= i < len(seg_ids)
                 ]
                 segs = [s for s in video.segments if s.id in set(idx)]
+                quote_classification = c.get("quote_classification") or None
+                quote_verified = None
+                if quote_classification in ("source_document_quote", "interview_quote"):
+                    # Part 3(e) item 3: a direct quote is only ever safe to
+                    # present as one if it is deterministically present in
+                    # the REAL segment text (never the model's own retyped
+                    # copy — app.core.quote_check, the same mechanism
+                    # Fact.quote_verified already uses) AND the caption is
+                    # manual, never auto-generated (whatever the language —
+                    # Persian/Arabic auto-captions are the spec's named
+                    # worst case, but the rule is unconditional here).
+                    from app.core.quote_check import quote_is_supported
+
+                    quoted_text = c.get("original_claim") or claim_en
+                    cited_text = " ".join(s.text_original for s in segs)
+                    supported = quote_is_supported(quoted_text, cited_text)
+                    quote_verified = bool(supported) and video.transcript_type == "manual"
                 db.add(
                     TranscriptClaim(
                         case_id=case.id,
@@ -149,9 +166,8 @@ class TranscriptIntelligenceAgent:
                         confidence=min(max(float(c.get("confidence", 0.5)), 0.0), 1.0),
                         certainty=(c.get("certainty") or "unverified")[:40],
                         speaker=(c.get("speaker") or None),
-                        quote_classification=(
-                            c.get("quote_classification") or None
-                        ),
+                        quote_classification=quote_classification,
+                        quote_verified=quote_verified,
                         timestamp_start=(
                             min((s.start_seconds for s in segs), default=None)
                         ),

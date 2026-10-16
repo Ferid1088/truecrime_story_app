@@ -360,6 +360,13 @@ class VideoSource(Base):
     value_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     extraction_cache_key: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
 
+    # Part 3(e) item 3: set once, at transcript storage time, for
+    # auto-caption transcripts only (app.services.transcript_quality);
+    # manual captions are trusted by type and leave these null.
+    transcript_quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    transcript_quality_verdict: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # good|degraded|poor
+
     processed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
@@ -393,6 +400,11 @@ class TranscriptSegment(Base):
     language: Mapped[str] = mapped_column(String(20), default="unknown")
     canonical_text_en: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Part 3(e) item 3: auto-caption noise detected deterministically at
+    # storage time (app.services.transcript_quality) — a garbled segment is
+    # excluded from extraction chunks, never quoted.
+    is_garbled: Mapped[bool] = mapped_column(Boolean, default=False)
+
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
@@ -424,6 +436,14 @@ class TranscriptClaim(Base):
     speaker: Mapped[str | None] = mapped_column(String(300), nullable=True)
     quote_classification: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # source_document_quote|interview_quote|reported_quote|creator_narration|uncertain
+
+    # Part 3(e) item 3: True only for a quote-classified claim whose text
+    # is deterministically confirmed present in the real (non-garbled)
+    # segment text it cites, AND whose video has a manual (not
+    # auto-generated) caption — never a model's own say-so. None for a
+    # non-quote claim type (nothing to check, same convention as
+    # Fact.quote_verified).
+    quote_verified: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     timestamp_start: Mapped[float | None] = mapped_column(Float, nullable=True)
     timestamp_end: Mapped[float | None] = mapped_column(Float, nullable=True)

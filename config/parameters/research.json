@@ -92,6 +92,12 @@
     "min_tokens": 150,
     "max_tokens": 1000
   },
+  "transcript_quality": {
+    "max_segment_noise_ratio": 0.15,
+    "degraded_garbled_rate": 0.15,
+    "max_acceptable_garbled_rate": 0.35,
+    "min_punctuation_ratio": 0.2
+  },
   "transcript_value": {
     "weights": {
       "unique_claims": 0.3,

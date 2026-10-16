@@ -206,6 +206,26 @@ def test_chunks_preserve_provenance(db_session):
     assert starts == sorted(starts)
 
 
+def test_chunks_exclude_garbled_segments(db_session):
+    """Part 3(e) item 3: "extract only from the passages that are clean" —
+    a segment flagged is_garbled never reaches an extraction chunk."""
+    from app.services.transcripts import transcript_chunks
+
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case)
+    _mk_segment(db_session, v, 0, "clean segment one here", start=0.0, end=5.0)
+    garbled = _mk_segment(db_session, v, 1, "garbled noise segment", start=5.0, end=10.0)
+    garbled.is_garbled = True
+    db_session.commit()
+    _mk_segment(db_session, v, 2, "clean segment two here", start=10.0, end=15.0)
+
+    chunks = transcript_chunks(v)
+    all_text = " ".join(c["text"] for c in chunks)
+    assert "garbled noise segment" not in all_text
+    assert "clean segment one here" in all_text
+    assert "clean segment two here" in all_text
+
+
 def test_video_id_extraction():
     from app.services.video_research import video_id_from_url
 
@@ -243,6 +263,58 @@ def test_store_transcript_persists_timed_segments(db_session):
     assert segs[0].start_seconds == 0.0
     assert segs[1].end_seconds == 10.0
     assert segs[0].text_original == "First line."
+
+
+def test_store_transcript_scores_auto_caption_quality_and_flags_garbled_segments(db_session):
+    """Part 3(e) item 3: auto-caption transcripts get a deterministic
+    per-segment garbled flag and a video-level quality verdict — no model
+    call, computed at storage time."""
+    from app.providers.transcript.base import (
+        TranscriptResult,
+        TranscriptSegmentData,
+    )
+    from app.services.transcripts import store_transcript
+
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case, transcript_status="pending", research_language="en")
+    result = TranscriptResult(
+        available=True, language="en", transcript_type="auto_caption",
+        segments=[
+            TranscriptSegmentData(0.0, 5.0, "The keeper was last seen on the rock."),
+            TranscriptSegmentData(5.0, 10.0, "sooooooooo yeah the lighthouse"),
+            TranscriptSegmentData(10.0, 15.0, "Investigators searched the area for days."),
+        ],
+    )
+    store_transcript(db_session, v, result)
+
+    assert v.transcript_quality_verdict in ("good", "degraded", "poor")
+    assert v.transcript_quality_score is not None
+    segs = sorted(v.segments, key=lambda s: s.segment_index)
+    assert segs[1].is_garbled is True
+    assert segs[0].is_garbled is False
+    assert segs[2].is_garbled is False
+
+
+def test_manual_caption_transcript_is_trusted_without_quality_scoring(db_session):
+    """Manual captions are preferred/trusted by type already — they skip
+    the auto-caption-only scoring entirely, even if the text looks noisy."""
+    from app.providers.transcript.base import (
+        TranscriptResult,
+        TranscriptSegmentData,
+    )
+    from app.services.transcripts import store_transcript
+
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case, transcript_status="pending", research_language="en")
+    result = TranscriptResult(
+        available=True, language="en", transcript_type="manual",
+        segments=[TranscriptSegmentData(0.0, 5.0, "sooooooooo yeah weird text")],
+    )
+    store_transcript(db_session, v, result)
+
+    assert v.transcript_quality_verdict == "good"
+    assert v.transcript_quality_score == 1.0
+    assert v.segments[0].is_garbled is False
 
 
 def test_unavailable_transcript_stores_status_only(db_session):
@@ -354,6 +426,79 @@ def test_extraction_produces_timestamped_typed_claims(db_session, monkeypatch):
     assert claims[1].timestamp_start == 30.0
     ins = db_session.query(NarrativeInsight).all()
     assert ins[0].insight_type == "important_question"
+
+
+def test_quote_claim_verified_only_on_manual_caption_with_matching_text(db_session, monkeypatch):
+    """Part 3(e) item 3: a direct quote is only ever safe to present as one
+    when it is both (a) deterministically present in the real segment text
+    and (b) from a manual caption — never an auto-caption, whatever the
+    language, and never just the model's own say-so."""
+    from app.agents.transcript_intel import TranscriptIntelligenceAgent
+    from app.db.models import TranscriptClaim
+
+    fake = FakeGen()
+    quoted_text = 'Moore said, "The damage is done," to the inspector.'
+    fake.structured["transcript_intelligence_extractor"] = lambda s, u: {
+        "claims": [
+            {"canonical_claim_en": "The damage is done", "claim_type": "quote",
+             "quote_classification": "interview_quote", "confidence": 0.9,
+             "certainty": "supported", "segment_indices": [0]},
+        ],
+        "narrative_insights": [],
+    }
+    _patch_gen(monkeypatch, fake)
+
+    # Manual caption, text genuinely present in the segment -> verified.
+    case_a = _mk_case(db_session)
+    v_manual = _mk_video(db_session, case_a, transcript_type="manual")
+    _mk_segment(db_session, v_manual, 0, quoted_text, canonical=quoted_text)
+    asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case_a, v_manual))
+    claim_manual = db_session.query(TranscriptClaim).filter_by(video_source_id=v_manual.id).one()
+    assert claim_manual.quote_verified is True
+
+    # Auto-caption, SAME matching text -> never verified, by policy.
+    case_b = _mk_case(db_session)
+    v_auto = _mk_video(db_session, case_b, transcript_type="auto_caption")
+    _mk_segment(db_session, v_auto, 0, quoted_text, canonical=quoted_text)
+    asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case_b, v_auto))
+    claim_auto = db_session.query(TranscriptClaim).filter_by(video_source_id=v_auto.id).one()
+    assert claim_auto.quote_verified is False
+
+    # Manual caption, but the real segment text does NOT contain the quote
+    # -> verification genuinely fails on the text-match itself.
+    case_c = _mk_case(db_session)
+    v_mismatch = _mk_video(db_session, case_c, transcript_type="manual")
+    _mk_segment(db_session, v_mismatch, 0, "A completely unrelated sentence about the weather.",
+               canonical="A completely unrelated sentence about the weather.")
+    asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case_c, v_mismatch))
+    claim_mismatch = db_session.query(TranscriptClaim).filter_by(
+        video_source_id=v_mismatch.id).one()
+    assert claim_mismatch.quote_verified is False
+
+
+def test_non_quote_claim_leaves_quote_verified_unset(db_session, monkeypatch):
+    """Nothing to check for a claim that was never classified as a quote —
+    same "None means not applicable" convention as Fact.quote_verified."""
+    from app.agents.transcript_intel import TranscriptIntelligenceAgent
+    from app.db.models import TranscriptClaim
+
+    fake = FakeGen()
+    fake.structured["transcript_intelligence_extractor"] = lambda s, u: {
+        "claims": [
+            {"canonical_claim_en": "The farmhouse door was locked",
+             "claim_type": "scene_detail", "confidence": 0.8,
+             "certainty": "unverified", "segment_indices": [0]},
+        ],
+        "narrative_insights": [],
+    }
+    _patch_gen(monkeypatch, fake)
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case, transcript_type="manual")
+    _mk_segment(db_session, v, 0, "The farmhouse door was locked from inside.",
+               canonical="The farmhouse door was locked from inside.")
+    asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
+    claim = db_session.query(TranscriptClaim).filter_by(video_source_id=v.id).one()
+    assert claim.quote_verified is None
 
 
 # ---------------------------------------------------------------------------

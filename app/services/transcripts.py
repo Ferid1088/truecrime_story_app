@@ -110,6 +110,27 @@ def store_transcript(
     db.query(TranscriptSegment).filter(
         TranscriptSegment.video_source_id == video.id
     ).delete()
+
+    # Part 3(e) item 3: auto-caption quality gating, deterministic, no
+    # model call. Manual captions are trusted by type (the provider already
+    # prefers them, app.providers.transcript.youtube) and skip scoring.
+    garbled_flags = [False] * len(cleaned)
+    if result.transcript_type == "auto_caption":
+        from app.services.transcript_quality import is_segment_garbled, score_transcript
+
+        cfg = ai_config.transcript_quality
+        garbled_flags = [is_segment_garbled(seg["text"], cfg) for seg in cleaned]
+        quality = score_transcript(
+            [seg["text"] for seg in cleaned],
+            expected_language=video.research_language or video.language,
+            cfg=cfg,
+        )
+        video.transcript_quality_score = quality["score"]
+        video.transcript_quality_verdict = quality["verdict"]
+    else:
+        video.transcript_quality_score = 1.0
+        video.transcript_quality_verdict = "good"
+
     seen: set[str] = set()
     created = 0
     for i, seg in enumerate(cleaned):
@@ -129,6 +150,7 @@ def store_transcript(
                     seg["text"] if (result.language or "en") == "en" else None
                 ),
                 content_hash=h,
+                is_garbled=garbled_flags[i],
             )
         )
         created += 1
@@ -153,12 +175,18 @@ def transcript_chunks(video: VideoSource, canonical_only: bool = True) -> list[d
 
     Each chunk carries its segment ids + start/end timestamps — downstream
     extraction can always trace a claim back to a point in the video.
+
+    Part 3(e) item 3: a segment flagged is_garbled (auto-caption noise) is
+    excluded entirely — "extract only from the passages that are clean,
+    never present a garbled phrase as a quote."
     """
     cfg = ai_config.transcript_chunking
     chunks: list[dict] = []
     cur: list[TranscriptSegment] = []
     cur_words = 0
     for seg in video.segments:
+        if seg.is_garbled:
+            continue
         text = (
             seg.canonical_text_en if canonical_only else seg.text_original
         ) or seg.text_original
