@@ -102,6 +102,25 @@ def list_host_scenes(case_id: int | None = None, language: str | None = None,
     return [scene_dict(s) for s in q.order_by(HostScene.id.desc()).limit(200)]
 
 
+@router.get("/api/cases/{case_id}/host-time/{language}")
+def host_time(case_id: int, language: str, db: Session = Depends(get_db)):
+    """Host time of the film in this language on the real voice seconds."""
+    from app.core.ai_config import ai_config
+    from app.db.models import StoryVersion
+    from app.documentary.host_scenes import real_time_report
+
+    latest = (db.query(HostSegments).filter(HostSegments.case_id == case_id,
+                                            HostSegments.language == language)
+              .order_by(HostSegments.id.desc()).first())
+    if latest is None:
+        raise HTTPException(status_code=404, detail="No host segments for this language")
+    scenes = db.query(HostScene).filter(HostScene.host_segments_id == latest.id).all()
+    version = db.get(StoryVersion, latest.story_version_id)
+    narration = len((version.story_text or "").split()) / ai_config.documentary.wpm(language) * 60
+    return {"host_segments_id": latest.id, "language": language,
+            "narration_seconds": round(narration, 1), **real_time_report(scenes, narration)}
+
+
 @router.get("/api/host-scenes/{scene_id}")
 def get_host_scene(scene_id: int, db: Session = Depends(get_db)):
     s = db.get(HostScene, scene_id)
@@ -130,7 +149,9 @@ async def _run_task(scene_id: int, until: str) -> None:
     try:
         s = db.get(HostScene, scene_id)
         if s is not None:
-            await run_scene(db, s, until)
+            from app.documentary.host import HostDirector
+
+            await run_scene(db, s, until, shortener=HostDirector().shorten_scene)
     except Exception as e:  # recorded on the scene by run_scene
         log.warning("host scene %s stopped: %s", scene_id, e)
     finally:

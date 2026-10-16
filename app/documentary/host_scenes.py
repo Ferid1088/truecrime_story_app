@@ -289,8 +289,30 @@ async def _step_avatar_download(db: Session, scene: HostScene, prov,
     scene.avatar_meta_json = json.dumps(meta)
 
 
+class HostTooLong(ST.StudioError):
+    """The real voice is longer than the appearance's cap."""
+
+
+async def _voice_within_cap(db: Session, scene: HostScene, voice_provider, shortener) -> dict | None:
+    """Synthesize, measure the REAL seconds, and when the voice is over its
+    cap have the text rewritten shorter (bounded) and voice it again."""
+    r = await _step_voice(db, scene, voice_provider)
+    attempts = 0
+    while (scene.voice_seconds or 0) > scene_cap(scene.position):
+        if shortener is None or attempts >= ai_config.host.max_repair_iterations:
+            raise HostTooLong(f"the host voice is {scene.voice_seconds}s, over the "
+                              f"{scene_cap(scene.position)}s cap for a {scene.position} appearance")
+        attempts += 1
+        _log(scene, "voice", "too_long", {"seconds": scene.voice_seconds,
+                                          "cap": scene_cap(scene.position), "attempt": attempts})
+        await shortener(db, scene, scene_cap(scene.position))
+        r = await _step_voice(db, scene, voice_provider)
+    return r
+
+
 async def run_scene(db: Session, scene: HostScene, until: str = "voice",
-                    voice_provider=None, avatar_provider=None, sleep=asyncio.sleep) -> HostScene:
+                    voice_provider=None, avatar_provider=None, sleep=asyncio.sleep,
+                    shortener=None) -> HostScene:
     """Run the scene's steps up to `until` ("voice" or "avatar"), starting
     from the first one whose saved result is missing. Each step commits its
     result before the next begins; a failure is recorded and re-raised."""
@@ -300,7 +322,7 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
     db.commit()
     step = "voice"
     try:
-        r = await _step_voice(db, scene, voice_provider)
+        r = await _voice_within_cap(db, scene, voice_provider, shortener)
         _done(scene, "voice", db, r, {"voice_sha256": (scene.voice_sha256 or "")[:16],
                                       "seconds": scene.voice_seconds})
         if until == "voice":
@@ -362,3 +384,42 @@ def scene_dict(s: HostScene) -> dict:
         "running": s.running_since is not None,
         "created_at": s.created_at, "updated_at": s.updated_at,
     }
+
+
+def scene_cap(position: str | None) -> float:
+    """The most real voice seconds a host appearance may take."""
+    cfg = ai_config.host
+    hi = cfg.seconds.get(position or "mid", [0, cfg.max_appearance_seconds])[1]
+    return min(float(hi), cfg.max_appearance_seconds)
+
+
+def real_time_report(scenes: list[HostScene], narration_seconds: float) -> dict:
+    """Host time of a film measured on the REAL voice seconds (after TTS):
+    each appearance within its cap, the total within host.max_total_seconds,
+    the opening strictly the longest; the share is reported, and only an
+    error for a film of 600 s or more."""
+    cfg = ai_config.host
+    rows = [{"scene": s.id, "segment": s.host_segment_id, "position": s.position,
+             "seconds": s.voice_seconds, "cap": scene_cap(s.position)} for s in scenes]
+    errors, warnings = [], []
+    for r in rows:
+        if r["seconds"] is None:
+            warnings.append({"code": "no_real_voice_yet", "segment": r["segment"]})
+        elif r["seconds"] > r["cap"]:
+            errors.append({"code": "appearance_over_cap", "segment": r["segment"],
+                           "seconds": r["seconds"], "cap": r["cap"]})
+    timed = [r for r in rows if r["seconds"] is not None]
+    total = round(sum(r["seconds"] for r in timed), 2)
+    if total > cfg.max_total_seconds:
+        errors.append({"code": "host_time_over_cap", "seconds": total, "cap": cfg.max_total_seconds})
+    opening = next((r for r in timed if r["position"] == "opening"), None)
+    if opening:
+        for r in timed:
+            if r["position"] != "opening" and r["seconds"] >= opening["seconds"]:
+                errors.append({"code": "opening_not_longest", "segment": r["segment"]})
+    share = round(total / max(narration_seconds, 1.0), 4)
+    if share > cfg.max_total_share:
+        (errors if narration_seconds >= 600 else warnings).append(
+            {"code": "host_share_too_high", "share": share, "max": cfg.max_total_share})
+    return {"scenes": rows, "host_seconds": total, "host_share": share,
+            "errors": errors, "warnings": warnings}

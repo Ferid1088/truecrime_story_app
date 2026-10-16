@@ -23,6 +23,7 @@ from app.documentary.host import (
     dialogue_issues,
     director_input,
     director_system_prompt,
+    estimate_seconds,
     memories,
     persona_prompt,
     persona_sha256,
@@ -109,6 +110,39 @@ class HostDirector:
         if row.status != "invalid":
             remember(db, case.id, row, plan.get("memory_updates") or [])
         return row
+
+    # -- real-length repair ----------------------------------------------------
+    async def shorten_scene(self, db: Session, scene, cap_seconds: float) -> None:
+        """The real voice of this appearance is over its cap: the writer
+        rewrites the dialogue shorter, same claims, native in its language,
+        and the scene (and its stored segment) takes the new text."""
+        from app.documentary.host_scenes import _sha
+
+        words = len(scene.text.split())
+        measured = scene.voice_seconds or cap_seconds
+        target = max(int(words * cap_seconds / measured * 0.92), 5)
+        payload = {"language": scene.language, "task": "shorten",
+                   "instruction": (f"This host dialogue speaks for {measured:.0f} s; the cap is "
+                                   f"{cap_seconds:.0f} s. Rewrite it with at most {target} words: "
+                                   "keep its claims, its evidence and its voice, drop the least "
+                                   "important sentences. Same language, spoken, no new facts."),
+                   "segments": [{"id": scene.host_segment_id, "dialogue": scene.text,
+                                 "target_words": target}]}
+        raw, _ = await self._json(db, scene.case_id, f"Host Writer {scene.language} shorten",
+                                  "host_writer", writer_system_prompt(scene.language, self.cfg),
+                                  payload)
+        text = _dialogues(raw).get(scene.host_segment_id, "").strip()
+        if not text or len(text.split()) >= words:
+            raise RuntimeError("the writer did not make the host dialogue shorter")
+        row = db.get(HostSegments, scene.host_segments_id)
+        segments = json.loads(row.segments_json or "[]")
+        for seg in segments:
+            if seg.get("id") == scene.host_segment_id:
+                seg["avatar_dialogue"] = text
+                seg["estimated_seconds"] = estimate_seconds(text, scene.language)
+        row.segments_json = json.dumps(segments, ensure_ascii=False)
+        scene.text, scene.text_sha256 = text, _sha(text)
+        db.commit()
 
     # -- 2.+3. dialogue per language ----------------------------------------
     async def write(self, db: Session, case: Case, version: StoryVersion,
