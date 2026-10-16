@@ -546,9 +546,21 @@ def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
 # ---------------------------------------------------------------------------
 
 
-def critic_system_prompt(language: str) -> str:
+def critic_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
+    """The critic judges against the persona itself (its Never list, Evidence
+    Discipline, Memory and Anti-Repetition rules and its own Quality Check),
+    inserted whole after its instructions."""
     name = LANG_NAMES.get(language, language)
-    return prompt("documentary/host/critic_system_prompt").format(name=name)
+    return (prompt("documentary/host/critic_system_prompt").format(name=name)
+            + "\n\nTHE PERSONA YOU JUDGE AGAINST (the host must follow all of it; its Quality "
+              "Check list is your checklist):\n\n" + persona_prompt(cfg))
+
+
+def persona_sha256(cfg: HostConfig | None = None) -> str:
+    """sha256 of the persona text exactly as it is inserted into the prompts."""
+    import hashlib
+
+    return hashlib.sha256(persona_prompt(cfg).encode("utf-8")).hexdigest()
 
 
 def critic_input(written: dict[str, str], wi: dict) -> dict:

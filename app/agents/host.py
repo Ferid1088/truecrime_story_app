@@ -40,7 +40,12 @@ class HostDirector:
 
     async def _json(self, db, case_id: int, label: str, role: str, system: str,
                     payload: dict) -> tuple[dict, object]:
-        with track_run(db, case_id, label, input_summary=label) as run:
+        from app.documentary.host import persona_prompt, persona_sha256
+
+        if persona_prompt(self.cfg) not in system:
+            raise RuntimeError(f"the host persona is missing from the {label} prompt")
+        with track_run(db, case_id, label,
+                       input_summary=f"{label} persona_sha256={persona_sha256(self.cfg)}") as run:
             raw, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
             stamp_run(run, res, role)
         return raw, res

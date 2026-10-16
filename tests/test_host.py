@@ -495,3 +495,53 @@ def test_the_host_director_reads_the_story_plans_slots_for_its_master(db_session
     master.story_plan_id = plan.id
     db_session.commit()
     assert HostDirector._planned_slots(db_session, master) == slots
+
+
+@pytest.mark.parametrize("language", ["fa", "en", "de", "ar"])
+def test_the_exact_persona_file_reaches_director_writer_and_critic_in_every_language(language):
+    """Part 6f: sha256 of the persona file equals the sha256 of the persona
+    block found in each rendered system prompt."""
+    import hashlib
+    from pathlib import Path
+
+    from app.documentary.host import (
+        critic_system_prompt, director_system_prompt, persona_sha256, writer_system_prompt,
+    )
+
+    persona = Path(ai_config.host.persona_file).read_text(encoding="utf-8").strip()
+    file_sha = hashlib.sha256(persona.encode("utf-8")).hexdigest()
+    assert persona_sha256() == file_sha
+    for rendered in (director_system_prompt(), writer_system_prompt(language),
+                     critic_system_prompt(language)):
+        start = rendered.index(persona[:80])
+        block = rendered[start:start + len(persona)]
+        assert hashlib.sha256(block.encode("utf-8")).hexdigest() == file_sha
+
+
+def test_a_host_call_without_the_persona_in_its_prompt_is_refused(db_session):
+    from app.agents.host import HostDirector
+
+    with pytest.raises(RuntimeError, match="persona is missing"):
+        asyncio.run(HostDirector()._json(db_session, 1, "Host Critic", "host_critic",
+                                         "a prompt without the persona", {}))
+
+
+def test_every_host_call_records_the_persona_sha256_in_the_run_store(db_session, monkeypatch):
+    from app.agents.host import HostDirector
+    from app.db.models import AgentRun
+    from app.documentary.host import critic_system_prompt, persona_sha256
+
+    class Gen:
+        async def generate_structured(self, role, system, user):
+            from app.providers.generation.base import GenerationResult
+            return {"segments": []}, GenerationResult(text="{}", model="m", provider="p")
+
+        def is_configured(self):
+            return True
+
+    monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: Gen())
+    asyncio.run(HostDirector()._json(db_session, 1, "Host Critic", "host_critic",
+                                     critic_system_prompt("fa"), {}))
+    run = db_session.query(AgentRun).filter(AgentRun.agent_name == "Host Critic").order_by(
+        AgentRun.id.desc()).first()
+    assert f"persona_sha256={persona_sha256()}" in run.input_summary
