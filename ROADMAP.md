@@ -93,7 +93,7 @@ Nothing outstanding — all of Part 0 is DONE, tested, reviewed (3 passes, all f
 ---
 
 ## Part 1 — Models: Haiku out, cheaper model in
-Status: IN_PROGRESS.
+Status: IN_PROGRESS (fact_extractor resolved — keep Haiku; the owner paused further per-role benchmarking on 2026-10-16 to prioritize Part 2(e) instead; resume with the remaining 17 roles when asked).
 
 ### Inventory
 - Haiku is used for exactly two aliases in config/models.json: `"cheap"` and `"research_intelligence"`, both -> `claude-haiku-4-5`. Also referenced in config/parameters/pricing.json (one price entry, `provider_model: claude-haiku-4-5`, $1/$5 per 1M tokens in/out — confirmed matching the real apimaster.ai/docs/models page).
@@ -112,7 +112,7 @@ Status: IN_PROGRESS.
 |-----|------|----------------|--------|
 | Real model list + prices obtained (not assumed) | — | Live `GET /v1/models` (79 models) + `/docs/models` fetch, both quoted above | DONE |
 | Benchmark built + run (≤40 items/job type, incl. Persian), docs/benchmarks/models.md written | — | fact_extractor: real 16-source/8-batch run, see docs/benchmarks/models.md | IN_PROGRESS (fact_extractor done, inconclusive so far — no winner yet; 17 roles not started) |
-| Haiku replaced per job type by measurement | | | TODO (blocked on finding a candidate that beats baseline for fact_extractor; other 17 roles not started) |
+| Haiku replaced per job type by measurement | | | fact_extractor: DONE — verdict is KEEP claude-haiku-4-5 (Amendment 3: "if quality is less than Haiku's, keep Haiku"; 7 candidates tried, none beat it). Other 17 roles: TODO, paused by the owner to prioritize Part 2(e)'s cost-reduction work on this same role instead of continuing to benchmark the rest of the catalog. |
 | Zero "haiku" (case-insensitive) in app/, config/, tests/, prompts/, README.md | | | TODO |
 | Live mini research+extraction run with new models, cost/quality vs old | | | TODO |
 
