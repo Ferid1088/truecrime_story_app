@@ -74,10 +74,8 @@
       "ar"
     ],
     "max_results_per_language": 8,
-    "max_videos_per_language": 4,
     "discovery_provider": "auto",
-    "max_queries_per_language": 3,
-    "min_video_relevance_score": 0.15,
+    "max_queries_per_language": 8,
     "classification_rank_bonus": {
       "official": 0.25,
       "documentary": 0.2,
@@ -87,6 +85,13 @@
       "analysis": 0.0,
       "creator_narration": -0.05,
       "unknown": 0.0
+    },
+    "search_results_per_query": 20,
+    "stop_after_empty_queries": 2,
+    "relevance": {
+      "accept_from": 0.5,
+      "unrelated_below": 0.25,
+      "check_batch_size": 20
     }
   },
   "transcript_ingestion": {
@@ -125,19 +130,19 @@
     "near_duplicate_threshold": 88,
     "batch_size": 60,
     "min_independent_families_for_verified": 2,
-    "verify_batch_size": 60
+    "verify_batch_size": 30
   },
   "source_independence": {
     "shared_unusual_claim_ratio": 0.6,
     "min_shared_unusual_claims": 3
   },
-  "research_stop_conditions": {
-    "max_transcripts_per_case": 24,
-    "minimum_novel_information_ratio": 0.08,
-    "consecutive_low_value_stop": 2
-  },
   "embeddings": {
     "max_attempts": 3,
     "retry_backoff_s": 2.0
+  },
+  "evidence_selection": {
+    "max_facts_per_research_stage": 100,
+    "term_min_length": 4,
+    "contradiction_min_shared_terms": 3
   }
 }

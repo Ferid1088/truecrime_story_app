@@ -732,3 +732,23 @@ def test_video_discovery_scores_relevance_by_title_overlap_with_the_case():
         {"title": "The Lighthouse Keeper Disappearance"}, ["en"]))
     by_id = {v["video_id"]: v["relevance"] for v in result["videos"]}
     assert by_id["ccccccccccc"] > by_id["ddddddddddd"]
+
+
+def test_video_discovery_goes_deep_until_queries_add_nothing_and_never_caps_the_list():
+    """Each stem is searched while it still adds videos; two consecutive queries
+    that add nothing end the language. 40 distinct videos are all returned."""
+    from app.core.ai_config import ai_config
+
+    class Growing(FakeBackend):
+        async def search(self, query, language, categories=None, time_range=None, limit=10):
+            n = len(self.calls)
+            fresh = [{"url": f"https://www.youtube.com/watch?v={n:02d}{i:09d}"} for i in range(8)] \
+                if n < 5 else [{"url": "https://www.youtube.com/watch?v=00000000000"}]
+            self.results = fresh
+            return await FakeBackend.search(self, query, language, limit=limit)
+
+    backend = Growing()
+    result = asyncio.run(_orchestrator(backend).discover_videos({"title": "Case X"}, ["en"]))
+    assert len(result["videos"]) == 5 * 8
+    stop = ai_config.youtube_research.stop_after_empty_queries
+    assert len(backend.calls) == 5 + stop

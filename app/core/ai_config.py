@@ -101,6 +101,9 @@ REQUIRED_ROLES = {
     # Camera, outfit, posture, gestures and lighting of one host appearance,
     # decided from its real audio (Part 7c).
     "host_stage_director",
+    # Reads the title, channel and description of a borderline YouTube candidate
+    # and decides whether it is about the case.
+    "video_relevance_checker",
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
     "visual_planner",
@@ -458,11 +461,11 @@ class StoryQualityConfig(BaseModel):
     section_marker_prefix: str = "[[ACT:"
     # An act's writer, grounding check and repair editor see at most this many
     # evidence items (the strongest); more would overrun the prompt limit.
-    max_evidence_per_act: int = Field(ge=10, default=60)
+    max_evidence_per_act: int = Field(ge=10, le=100, default=100)
     # The evidence pack every whole-story step reads holds at most this many
     # facts (the strongest, spread over the fact types): all of a large case's
     # facts overrun the model's prompt limit and are paid for on every call.
-    max_evidence_per_story: int = Field(ge=20, default=160)
+    max_evidence_per_story: int = Field(ge=20, le=100, default=100)
 
 
 class LanguageEntry(BaseModel):
@@ -727,16 +730,37 @@ class ResearchProfileConfig(BaseModel):
     minimum_result_novelty: float = Field(ge=0.0, le=1.0, default=0.15)
 
 
+class VideoRelevanceConfig(BaseModel):
+    """The only gate a discovered video passes: relevance to the case, never a count."""
+    # Token-overlap score at or above this: relevant, no check needed.
+    accept_from: float = Field(ge=0.0, le=1.0)
+    # Below this: clearly unrelated, skipped with the reason "unrelated_to_case".
+    unrelated_below: float = Field(ge=0.0, le=1.0)
+    # In between: a cheap model reads title, channel and description and decides.
+    check_batch_size: int = Field(ge=1, le=50)
+
+
+class EvidenceSelectionConfig(BaseModel):
+    """The fact cap shared by the story pack and the research stages."""
+    # Facts the timeline builder and the contradiction analyzer receive.
+    max_facts_per_research_stage: int = Field(ge=20, le=100)
+    # A contradiction names sources, not facts: a fact stands in it when it
+    # shares a source and at least this many terms (of this length) with it.
+    term_min_length: int = Field(ge=2, le=10)
+    contradiction_min_shared_terms: int = Field(ge=1, le=10)
+
+
 class YouTubeResearchConfig(BaseModel):
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_results_per_language: int = Field(ge=1, le=50)
-    max_videos_per_language: int = Field(ge=1, le=50)
     discovery_provider: str = "auto"  # auto | youtube_api | engine
-    # Part 3(e) item 4: the search for videos is strongly capped, their
-    # importance in ranking is not.
-    max_queries_per_language: int = Field(ge=1, le=10)
-    # Candidates scoring below this relevance are logged as skipped.
-    min_video_relevance_score: float = Field(ge=0.0, le=1.0)
+    # Discovery depth: query stems tried per language, results asked per query,
+    # and the number of consecutive queries that add no new video before the
+    # language is considered exhausted.
+    max_queries_per_language: int = Field(ge=1, le=20)
+    search_results_per_query: int = Field(ge=1, le=20)
+    stop_after_empty_queries: int = Field(ge=1, le=10)
+    relevance: VideoRelevanceConfig
     # Added to a candidate's relevance when ranking: the channel type matters.
     classification_rank_bonus: dict[str, float]
 
@@ -832,12 +856,6 @@ class SimilarityConfig(BaseModel):
     max_ngram_overlap_ratio: float = Field(ge=0.0, le=1.0)
     max_longest_sequence_ratio: float = Field(ge=0.0, le=1.0)
     structure_overlap_threshold: float = Field(ge=0.0, le=1.0)
-
-
-class ResearchStopConditionsConfig(BaseModel):
-    max_transcripts_per_case: int = Field(ge=1)
-    minimum_novel_information_ratio: float = Field(ge=0.0, le=1.0)
-    consecutive_low_value_stop: int = Field(ge=1)
 
 
 class ReviewIndependenceConfig(BaseModel):
@@ -1465,6 +1483,9 @@ class VisualSearchConfig(BaseModel):
     max_lead_sources: int = Field(default=6, ge=0)
     max_lead_pages_per_lead: int = Field(default=2, ge=1)
     max_video_link_queries: int = Field(default=3, ge=0)
+    # People and places (by number of facts naming them) searched for at the
+    # case level, before any blueprint exists.
+    case_level_entities: int = Field(default=8, ge=0)
     video_links_per_query: int = Field(default=5, ge=1, le=20)
     user_agent: str = ("TrueCrimeStudio/1.0 (local documentary research tool; "
                        "https://github.com/Ferid1088/truecrime_story_app)")
@@ -2320,6 +2341,7 @@ class AIConfig(BaseModel):
     research_profiles: dict[str, ResearchProfileConfig] = {}
     search_engine: SearchEngineConfig
     youtube_research: YouTubeResearchConfig
+    evidence_selection: EvidenceSelectionConfig
     transcript_ingestion: TranscriptIngestionConfig
     transcript_chunking: TranscriptChunkingConfig
     transcript_quality: TranscriptQualityConfig
@@ -2332,7 +2354,6 @@ class AIConfig(BaseModel):
     embeddings: EmbeddingsConfig
     source_independence: SourceIndependenceConfig
     similarity: SimilarityConfig
-    research_stop_conditions: ResearchStopConditionsConfig
     review_independence: ReviewIndependenceConfig = Field(
         default_factory=ReviewIndependenceConfig
     )

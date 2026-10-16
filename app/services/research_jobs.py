@@ -612,6 +612,21 @@ def _ingest_research(db: Session, job: ResearchJob, result: dict):
     }
 
 
+async def _search_case_visuals(db: Session, case: Case) -> str:
+    """Photos and related videos for the film are searched once per case, right
+    after its research; a failure here never fails the research."""
+    from app.documentary.visuals.case_search import search_case_visuals
+
+    try:
+        stats = await search_case_visuals(db, case)
+    except Exception as e:
+        return f" | picture search failed: {e}"[:200]
+    if stats is None:
+        return ""
+    return (f" | pictures: candidates={stats['candidates']} added={stats['added']} "
+            f"video_links={stats.get('video_links', 0)}")
+
+
 async def _normalize_sources(db: Session, case_id: int) -> int:
     """Normalize non-English source summaries into canonical English
     (`summary_en`). Original-language text is preserved untouched; this is
@@ -843,6 +858,7 @@ async def _conclude(db: Session, job: ResearchJob, pjob, meta: dict) -> Research
                             f"| extraction: facts={res['facts']} "
                             f"contradictions={res['contradictions']}"
                         )
+                        job.result_summary += await _search_case_visuals(db, case)
                 except Exception as e:
                     job.status = "failed"
                     job.current_stage = "failed"

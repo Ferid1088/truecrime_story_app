@@ -7,9 +7,9 @@ Fact/Contradiction layer.
 
 Discovery prefers the YouTube Data API when an API key is configured and
 falls back to search-engine discovery (site:youtube.com queries
-in each research language). Stop conditions bound cost:
-max transcripts per case, minimum novel-information ratio, and a
-consecutive-low-value cutoff.
+in each research language). A video is skipped only when it is not about
+the case (relevance gate); there is no count cap and no novelty cutoff: a
+video that only confirms known facts is still processed.
 """
 
 import re
@@ -67,18 +67,42 @@ def _log_skipped_video(db: Session, case: Case, candidate: dict, reason: str) ->
             research_language=(candidate.get("research_language") or None),
             classification=(candidate.get("classification") or "unknown")[:60],
             relevance_score=candidate.get("relevance"),
+            description=(candidate.get("description") or None),
             discovery_query=(candidate.get("discovery_query") or None),
-            transcript_status="skipped", skip_reason=reason,
+            transcript_status="skipped", skip_reason=reason[:80],
         ))
     elif row.transcript_status == "skipped":
-        row.skip_reason = reason
+        row.skip_reason = reason[:80]
 
 
-def _skip_rest(db: Session, case: Case, rest: list[dict], reason: str) -> int:
-    for candidate in rest:
-        _log_skipped_video(db, case, candidate, reason)
+async def relevant_candidates(db: Session, case: Case, ranked: list[dict]) -> tuple[list[dict], int]:
+    """The relevance gate: a score at or above `accept_from` passes, below
+    `unrelated_below` is clearly unrelated, and the band in between is decided
+    by a cheap model reading title, channel and description. Returns the
+    relevant candidates in rank order and the number skipped (each logged
+    with its reason)."""
+    from app.agents.video_relevance import VideoRelevanceChecker
+
+    gate = ai_config.youtube_research.relevance
+    borderline = [c for c in ranked if c.get("relevance") is not None
+                  and gate.unrelated_below <= c["relevance"] < gate.accept_from]
+    verdicts = (await VideoRelevanceChecker().check(db, case.id, case.canonical_title, borderline)
+                if borderline else {})
+    kept: list[dict] = []
+    skipped = 0
+    for c in ranked:
+        relevance = c.get("relevance")
+        if relevance is not None and relevance < gate.unrelated_below:
+            reason = "unrelated_to_case"
+        elif c in borderline and not verdicts.get(c["video_id"], (True, ""))[0]:
+            reason = f"not_relevant: {verdicts[c['video_id']][1]}"
+        else:
+            kept.append(c)
+            continue
+        _log_skipped_video(db, case, c, reason)
+        skipped += 1
     db.commit()
-    return len(rest)
+    return kept, skipped
 
 
 async def _discover_youtube_api(case: Case) -> list[dict]:
@@ -228,12 +252,10 @@ async def run_video_research(
 ) -> dict:
     """Full video-research pass for one case, recorded on `job`.
 
-    Order matters: process videos in rank order and stop when the marginal
-    novel-information ratio drops below the configured floor for
-    `consecutive_low_value_stop` videos in a row (Part 22).
+    Videos are processed in rank order; every relevant video is processed,
+    however little new it adds (it is still film material).
     """
     cfg_yt = ai_config.youtube_research
-    cfg_stop = ai_config.research_stop_conditions
 
     provider_mode = cfg_yt.discovery_provider
     if provider_mode == "auto":
@@ -257,33 +279,21 @@ async def run_video_research(
 
     # Dedupe against existing video rows AND within this discovery round —
     # canonical video identity (video_id) prevents double processing (P39).
-    # A previously skipped video is reconsidered (its caps may have changed).
+    # A previously skipped video is reconsidered (the relevance gate may have changed).
     existing_ids = {
         v.video_id
         for v in db.query(VideoSource).filter(
             VideoSource.case_id == case.id, VideoSource.transcript_status != "skipped")
     }
     seen: set[str] = set()
-    unique: list[dict] = []
-    per_lang: dict[str, int] = {}
-    skipped = 0
+    fresh: list[dict] = []
     for c in sorted(candidates, key=lambda c: -video_rank_score(c)):
         vid = c.get("video_id")
-        lang = c.get("research_language") or c.get("language") or "unknown"
         if not vid or vid in existing_ids or vid in seen:
             continue
         seen.add(vid)
-        relevance = c.get("relevance")
-        if relevance is not None and relevance < cfg_yt.min_video_relevance_score:
-            _log_skipped_video(db, case, c, "below_min_relevance")
-            skipped += 1
-            continue
-        if per_lang.get(lang, 0) >= cfg_yt.max_videos_per_language:
-            _log_skipped_video(db, case, c, "per_language_cap")
-            skipped += 1
-            continue
-        per_lang[lang] = per_lang.get(lang, 0) + 1
-        unique.append(c)
+        fresh.append(c)
+    unique, skipped = await relevant_candidates(db, case, fresh)
 
     stats = {
         "videos_discovered": len(candidates),
@@ -293,20 +303,9 @@ async def run_video_research(
         "transcripts_unavailable": 0,
         "claims": 0,
         "insights": 0,
-        "stop_reason": None,
     }
 
-    processed = db.query(VideoSource).filter(
-        VideoSource.case_id == case.id,
-        VideoSource.transcript_status == "processed",
-    ).count()
-    low_value_streak = 0
-
-    for position, cand in enumerate(unique):
-        if processed >= cfg_stop.max_transcripts_per_case:
-            stats["stop_reason"] = "max_transcripts_per_case"
-            stats["videos_skipped"] += _skip_rest(db, case, unique[position:], stats["stop_reason"])
-            break
+    for cand in unique:
         db.query(VideoSource).filter(
             VideoSource.case_id == case.id, VideoSource.video_id == cand["video_id"],
             VideoSource.transcript_status == "skipped").delete()
@@ -365,26 +364,10 @@ async def run_video_research(
             stats["transcripts_unavailable"] += 1
             db.commit()
             continue
-        processed += 1
         stats["videos_processed"] += 1
         stats["claims"] += out["claims"]
         stats["insights"] += out["insights"]
 
-        # Incremental novelty check for the stop condition.
-        from app.services.claims import cluster_claims, score_videos
-
-        await cluster_claims(db, case)
-        scores = score_videos(db, case)
-        novel = scores.get(video.id, {}).get("novel", 0.0)
-        if novel < cfg_stop.minimum_novel_information_ratio:
-            low_value_streak += 1
-            if low_value_streak >= cfg_stop.consecutive_low_value_stop:
-                stats["stop_reason"] = "consecutive_low_value"
-                stats["videos_skipped"] += _skip_rest(
-                    db, case, unique[position + 1:], stats["stop_reason"])
-                break
-        else:
-            low_value_streak = 0
         db.commit()
 
     # Cross-video merge + verification + promotion (Parts 9/10/12).
@@ -415,7 +398,7 @@ async def run_video_research(
         f"videos={stats['videos_new']} skipped={stats['videos_skipped']} processed={stats['videos_processed']} "
         f"unavailable={stats['transcripts_unavailable']} "
         f"claims={stats['claims']} clusters={cl['clusters']} "
-        f"promoted={prom['promoted']} stop={stats['stop_reason'] or 'complete'}"
+        f"promoted={prom['promoted']}"
     )[:500]
     job.status = "completed"
     job.current_stage = "completed"

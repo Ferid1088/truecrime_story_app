@@ -25,3 +25,16 @@ Validators' own record for the whole version: grounding score 0.78, unsupported 
 
 Validators' own record for the whole version: grounding score 0.0, unsupported claims 1, engagement score 52.0, failed gates ['grounding', 'engagement_below_threshold']; critic section scores [(None, 67), (None, 67), (None, 64), (None, 68), (None, 58), (None, 63)].
 
+### New writer round 2 (no retelling, no source commentary) — case 8, story version 8 (v2, fa, model claude-sonnet-5-5, prompt agents/story/write_act 52c3e822) — 2026-10-16
+
+| beat | words | target | length error | sentences | mean len | len variance | short share | repeated trigrams | stock phrases |
+|---|---|---|---|---|---|---|---|---|---|
+| act1 | 763 | 836 | -0.087 | 55 | 13.87 | 53.27 | 0.145 | 0.0657 | 0 |
+| act2 | 839 | 1003 | -0.164 | 61 | 13.75 | 37.37 | 0.049 | 0.0346 | 0 |
+| act3 | 1479 | 1338 | 0.105 | 101 | 14.64 | 55.14 | 0.099 | 0.0359 | 0 |
+| act4 | 1499 | 1226 | 0.223 | 109 | 13.75 | 47.82 | 0.128 | 0.0347 | 0 |
+| act5 | 892 | 836 | 0.067 | 70 | 12.74 | 39.88 | 0.143 | 0.0202 | 0 |
+| act6 | 871 | 836 | 0.042 | 64 | 13.61 | 36.3 | 0.141 | 0.0483 | 0 |
+
+Validators' own record for the whole version: grounding score 1.0, unsupported claims 0, engagement score 46.0, failed gates ['engagement_below_threshold']; critic section scores [(None, 62), (None, 71), (None, 66), (None, 63), (None, 72), (None, 71)].
+

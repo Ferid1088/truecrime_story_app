@@ -804,23 +804,30 @@ class ResearchOrchestrator:
         # rarely returns watch pages.
         queries_out: list[dict] = []
         backend = self.registry
+        from app.research_engine.urlnorm import youtube_video_id
+
+        yt = ai_config.youtube_research
         for lang in (languages or ["en"]):
             qs = ["site:youtube.com " + s.format(t=title)
-                  for s in ai_config.multilingual.video_stems(lang)[
-                      :ai_config.youtube_research.max_queries_per_language]]
+                  for s in ai_config.multilingual.video_stems(lang)[:yt.max_queries_per_language]]
+            known_in_language: set[str] = set()
+            empty_streak = 0
             for q in qs:
                 progress.stage(f"searching:{lang}")
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "youtube",
                     "priority": "2", "round": 0})
-                raw = await backend.search(q, lang, limit=10)
+                raw = await backend.search(q, lang, limit=yt.search_results_per_query)
                 tel["searches"] += 1
-                from app.research_engine.urlnorm import youtube_video_id
+                added = 0
                 for r in raw:
                     vid = youtube_video_id(r.url) or (
                         (r.scores or {}).get("video_id"))
                     if not vid:
                         continue
+                    if vid not in known_in_language:
+                        known_in_language.add(vid)
+                        added += 1
                     video_title = r.title or vid
                     channel_name = (r.scores or {}).get("channel")
                     description = (r.snippet or "")[:800]
@@ -839,6 +846,11 @@ class ResearchOrchestrator:
                         "discovery_query": q,
                         "research_language": lang,
                     })
+                # Discovery depth: a language is exhausted when consecutive
+                # queries stop adding videos.
+                empty_streak = 0 if added else empty_streak + 1
+                if empty_streak >= yt.stop_after_empty_queries:
+                    break
         # Dedupe by video id, keep first provenance.
         seen = set()
         deduped = []
@@ -849,7 +861,7 @@ class ResearchOrchestrator:
             deduped.append(v)
         return {
             "queries": queries_out,
-            "videos": deduped[:30],
+            "videos": deduped,
             "_telemetry": tel,
         }
 

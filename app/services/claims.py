@@ -28,6 +28,7 @@ from app.db.models import (
     VideoSource,
 )
 from app.providers.generation import get_generation_provider
+from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
 from app.utils import utc_now
 
@@ -333,18 +334,27 @@ def compute_independence(db: Session, case: Case) -> dict:
 async def verify_clusters(db: Session, case: Case) -> dict:
     """evidence_verifier scores each cluster against the case's canonical
     Facts + Sources. Creator repetition alone can never reach
-    'strongly_supported' — independent source families decide."""
+    'strongly_supported' — independent source families decide. Clusters
+    already verified are not paid for again, so a run that stopped halfway
+    resumes where it stopped."""
+    from app.services.evidence_selection import EvidenceSelector
+
     clusters = (
-        db.query(ClaimCluster).filter(ClaimCluster.case_id == case.id).all()
+        db.query(ClaimCluster)
+        .filter(ClaimCluster.case_id == case.id, ClaimCluster.support_status == "unverified")
+        .all()
     )
     if not clusters:
         return {"verified": 0}
-    facts = db.query(Fact).filter(Fact.case_id == case.id).all()
     sources = db.query(Source).filter(Source.case_id == case.id).all()
+    contradictions = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
+    facts, _ = EvidenceSelector(ai_config.evidence_selection.max_facts_per_research_stage,
+                                sources, contradictions).select(
+        db.query(Fact).filter(Fact.case_id == case.id).all())
     gen = get_generation_provider()
 
     system = prompt("services/claims/verify_clusters")
-    facts_view = [{"id": f.id, "claim": f.claim} for f in facts[:400]]
+    facts_view = [{"id": f.id, "claim": f.claim} for f in facts]
     sources_view = [
         {"id": s.id, "title": s.title, "type": s.source_type} for s in sources[:200]
     ]
@@ -352,11 +362,30 @@ async def verify_clusters(db: Session, case: Case) -> dict:
     batches = [clusters[i:i + size] for i in range(0, len(clusters), size)]
     n = 0
     for position, batch in enumerate(batches, 1):
-        n += await _verify_batch(
+        n += await _verify_splitting(
             db, case, gen, system, batch, facts_view, sources_view,
             f"clusters={len(batch)} batch={position}/{len(batches)}")
+        db.commit()
     db.flush()
     return {"verified": n}
+
+
+async def _verify_splitting(db, case, gen, system, clusters, facts_view, sources_view,
+                            summary: str) -> int:
+    """One verification call; when the answer is cut off at the output limit the
+    batch is halved and both halves are verified (a single cluster that still
+    does not fit is an error)."""
+    try:
+        return await _verify_batch(db, case, gen, system, clusters, facts_view, sources_view,
+                                   summary)
+    except GenerationError as e:
+        if "truncated" not in str(e) or len(clusters) < 2:
+            raise
+        half = len(clusters) // 2
+        return (await _verify_splitting(db, case, gen, system, clusters[:half], facts_view,
+                                        sources_view, f"{summary} (first half)")
+                + await _verify_splitting(db, case, gen, system, clusters[half:], facts_view,
+                                          sources_view, f"{summary} (second half)"))
 
 
 async def _verify_batch(db, case, gen, system, clusters, facts_view, sources_view,

@@ -1,0 +1,24 @@
+{
+  "agents": {
+    "research.video_relevance": {
+      "role": "video_relevance_checker",
+      "prompt": "agents/research/video_relevance",
+      "output": "json",
+      "description": "Decides from title, channel and description whether a borderline YouTube candidate is about the case.",
+      "used_by": "app/agents/video_relevance.py"
+    }
+  },
+  "generation_providers": {
+    "apimaster": {
+      "routing": {
+        "video_relevance_checker": "cheap"
+      }
+    }
+  },
+  "generation": {
+    "video_relevance_checker": {
+      "temperature": 0.0,
+      "max_tokens": 4000
+    }
+  }
+}

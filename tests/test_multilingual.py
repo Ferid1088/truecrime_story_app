@@ -541,7 +541,7 @@ def test_language_catalog_has_native_stems_for_every_ready_to_enable_language():
     catalog = ai_config.multilingual.language_catalog
     for lang in ("en", "de", "fa", "ar", "ja", "zh", "fr", "es", "it"):
         entry = catalog[lang]
-        assert len(entry.video_search_stems) == 3
+        assert len(entry.video_search_stems) >= 3
         assert all("{t}" in stem for stem in entry.video_search_stems)
         assert "{title}" in entry.video_query_stem
 

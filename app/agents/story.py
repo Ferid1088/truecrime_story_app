@@ -13,6 +13,7 @@ from app.db.models import (
     AgentRun, Case, Fact, Contradiction, Source, StoryVersion,
 )
 from app.providers.generation import get_generation_provider
+from app.services.evidence_selection import EVIDENCE_RANK, EvidenceSelector
 from app.providers.generation.base import GenerationResult
 from app.services.tracking import track_run, stamp_run
 from app.utils import (
@@ -62,117 +63,14 @@ def evidence_fingerprint(pack: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _fact_source_ids(f: Fact) -> list:
-    try:
-        return json.loads(f.source_ids_json or "[]")
-    except (ValueError, TypeError):
-        return []
-
-
-def _corroboration(f: Fact) -> int:
-    """How many independent sources this fact survived merging with
-    (app.agents.fact_merge unions source_ids when it merges duplicates) —
-    a fact several sources agree on is stronger evidence than one only a
-    single source claims, all else equal (Part 2(c))."""
-    return len(_fact_source_ids(f))
-
-
-def _max_source_reliability(f: Fact, reliability_by_id: dict[int, float]) -> float:
-    """Part 3(e) item 2: "a fact from a high-quality video counts at
-    least as much as one from a news page" — Source.reliability_score
-    (now real for video sources too, app.services.claims.
-    video_source_reliability_score) is the same trustworthiness signal
-    app.agents.research's own source selection already ranks by; this is
-    the first time it reaches the evidence-diet ranking at all. 0.5 (the
-    model default) for a fact with no resolvable source — no signal, not
-    a penalty."""
-    ids = _fact_source_ids(f)
-    if not ids:
-        return 0.5
-    return max(reliability_by_id.get(sid, 0.5) for sid in ids)
-
-
-def _contradiction_dependent_source_ids(contradictions: list[Contradiction]) -> set:
-    """Source ids a stored Contradiction cites. Contradiction has no
-    fact_ids_json (a known, separately-documented schema gap — see
-    docs/benchmarks/extraction.md's "fact survival" section), so a fact
-    is treated as contradiction-dependent by the proxy of sharing a
-    source with the contradiction, not by a direct id reference."""
-    ids: set = set()
-    for c in contradictions:
-        try:
-            ids.update(json.loads(c.source_ids_json or "[]"))
-        except (ValueError, TypeError):
-            pass
-    return ids
-
-
-def _strongest_facts(
-    facts: list[Fact], cap: int, contradictions: list[Contradiction] | None = None,
-    reliability_by_id: dict[int, float] | None = None,
-) -> tuple[list[Fact], list[dict]]:
-    """At most `cap` facts: the strongest, taken round-robin over the fact
-    types so humans, scenes, quotes and investigation all stay represented;
-    in their original order. Deterministic.
-
-    Part 2(c)/3(e) item 2, evidence diet: ranked by evidence_strength, then
-    the best source reliability behind the fact (a high-quality video
-    counts at least as much as a news page — Part 3(e) item 2), then
-    corroboration (independent sources behind the fact after merging),
-    then the model's own confidence. A fact that shares a source with a
-    stored Contradiction is never dropped (the cap only applies to the
-    rest) — "keep every item... a contradiction depends on". Every
-    dropped fact is returned with its reason, never silently lost (the
-    Fact row itself is never deleted either way; this only controls what
-    a generated evidence pack includes)."""
-    reliability_by_id = reliability_by_id or {}
-    protected_source_ids = _contradiction_dependent_source_ids(contradictions or [])
-    protected = [f for f in facts if protected_source_ids & set(_fact_source_ids(f))]
-    rest = [f for f in facts if f not in protected]
-    remaining_cap = max(cap - len(protected), 0)
-    if len(rest) <= remaining_cap:
-        return _by_id(protected + rest), []
-
-    def _rank_key(f: Fact) -> tuple:
-        return (-_EVIDENCE_RANK.get(f.evidence_strength, 0),
-               -_max_source_reliability(f, reliability_by_id),
-               -_corroboration(f), -(f.confidence or 0), f.id)
-
-    groups: dict[str, list[Fact]] = {}
-    for f in sorted(rest, key=_rank_key):
-        groups.setdefault((f.narrative_value or "other").split("_")[0], []).append(f)
-    queues = [iter(group) for group in groups.values()]
-    picked: list[Fact] = []
-    while len(picked) < remaining_cap and queues:
-        for queue in list(queues):
-            fact = next(queue, None)
-            if fact is None:
-                queues.remove(queue)
-            elif len(picked) < remaining_cap:
-                picked.append(fact)
-    kept_ids = {f.id for f in picked}
-    dropped = [
-        {"fact_id": f.id, "reason": "ranked below the evidence diet cap "
-         f"(evidence_strength={f.evidence_strength}, "
-         f"max_source_reliability={_max_source_reliability(f, reliability_by_id)}, "
-         f"corroboration={_corroboration(f)}, confidence={f.confidence})"}
-        for f in rest if f.id not in kept_ids
-    ]
-    return _by_id(protected + picked), dropped
-
-
 def build_evidence_pack(
     facts: list[Fact], contradictions: list[Contradiction], sources: list[Source]
 ) -> dict:
     q = ai_config.story_quality
     contradictions = _by_id(list(contradictions))
     sources = _by_id(list(sources))
-    reliability_by_id = {
-        s.id: (s.reliability_score if s.reliability_score is not None else 0.5)
-        for s in sources
-    }
-    facts, dropped_facts = _strongest_facts(
-        _by_id(list(facts)), q.max_evidence_per_story, contradictions, reliability_by_id)
+    facts, dropped_facts = EvidenceSelector(
+        q.max_evidence_per_story, sources, contradictions).select(_by_id(list(facts)))
     fact_items = []
     for i, f in enumerate(facts, 1):
         uncertain = bool(f.disputed) or f.confidence < q.disputed_confidence_threshold
@@ -276,8 +174,6 @@ def build_evidence_pack(
     }
 
 
-_EVIDENCE_RANK = {"primary": 5, "strong_secondary": 4, "secondary": 3, "tertiary": 2,
-                  "weak": 1, "disputed": 0}
 _DIRECTOR_CLAIM_CHARS = 220
 _DIRECTOR_FACT_KEYS = ("id", "category", "narrative_value", "evidence_strength", "uncertain",
                        "people")
@@ -385,7 +281,7 @@ def build_act_pack(pack: dict, evidence_ids: list[str] | set[str] | None) -> dic
         # strongest first; the stable sort keeps the pack order among equals
         ranked = sorted(
             (f for f in pack.get("facts") or [] if f["id"] in assigned),
-            key=lambda f: (-_EVIDENCE_RANK.get(f.get("evidence_strength"), 0),
+            key=lambda f: (-EVIDENCE_RANK.get(f.get("evidence_strength"), 0),
                            -(f.get("confidence") or 0)))
         assigned = (assigned - {f["id"] for f in ranked}) | {f["id"] for f in ranked[:cap]}
 

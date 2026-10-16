@@ -19,7 +19,9 @@
     "consistency_max_high_severity": 0,
     "disputed_confidence_threshold": 0.7,
     "strip_markdown_artifacts": true,
-    "section_marker_prefix": "[[ACT:"
+    "section_marker_prefix": "[[ACT:",
+    "max_evidence_per_story": 100,
+    "max_evidence_per_act": 100
   },
   "master_generation": {
     "section_based_generation": true,
@@ -113,6 +115,10 @@
         "video_search_stems": [
           "{t} مستند پرونده",
           "{t} جنایت",
+          "{t} مستند",
+          "{t} دادگاه",
+          "{t} تاریخچه",
+          "{t} پادکست",
           "{t}"
         ],
         "video_query_stem": "{title} مستند پرونده تحقیق"
@@ -123,6 +129,11 @@
         "video_search_stems": [
           "{t} documentary",
           "{t} true crime",
+          "{t} full episode",
+          "{t} trial",
+          "{t} history explained",
+          "{t} podcast",
+          "{t} news report",
           "{t}"
         ],
         "video_query_stem": "{title} documentary investigation"
@@ -133,6 +144,10 @@
         "video_search_stems": [
           "{t} Doku Fall",
           "{t} Verbrechen",
+          "{t} Dokumentation",
+          "{t} Prozess",
+          "{t} Geschichte",
+          "{t} Podcast",
           "{t}"
         ],
         "video_query_stem": "{title} Doku Fall Ermittlungen"
@@ -143,6 +158,10 @@
         "video_search_stems": [
           "{t} وثائقي قضية",
           "{t} جريمة",
+          "{t} وثائقي",
+          "{t} محاكمة",
+          "{t} تاريخ",
+          "{t} بودكاست",
           "{t}"
         ],
         "video_query_stem": "{title} وثائقي قضية تحقيق"

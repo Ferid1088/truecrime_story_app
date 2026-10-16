@@ -884,6 +884,42 @@ def test_verification_runs_in_bounded_batches_and_covers_every_cluster(
     assert statuses == {"supported"}
 
 
+def test_a_truncated_verification_answer_is_halved_and_verified_clusters_are_not_repaid(
+        db_session, monkeypatch):
+    """Case 8: one 60-cluster answer was cut off at max_tokens and the whole video
+    research failed after 45 paid batches. The batch is halved on truncation, and
+    a re-run only verifies the clusters that still have no verdict."""
+    from app.core.ai_config import ai_config
+    from app.db.models import ClaimCluster
+    from app.providers.generation.base import GenerationError
+    from app.services.claims import verify_clusters
+
+    calls = []
+
+    def verdicts(system, user):
+        batch = json.loads(user)["clusters"]
+        calls.append(len(batch))
+        if len(batch) > 2:
+            raise GenerationError("invalid_output", "completion truncated at max_tokens for model m.")
+        return {"verdicts": [{"cluster_id": c["id"], "verification_status": "supported",
+                              "confidence": 0.7} for c in batch]}
+
+    fake = FakeGen()
+    fake.structured["evidence_verifier"] = verdicts
+    _patch_gen(monkeypatch, fake)
+    monkeypatch.setattr(ai_config.claim_clustering, "verify_batch_size", 8)
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case)
+    for i in range(8):
+        _clustered_claims(db_session, case, [v], f"distinct claim number {i}")
+    assert asyncio.run(verify_clusters(db_session, case)) == {"verified": 8}
+    assert calls == [8, 4, 2, 2, 4, 2, 2]
+    calls.clear()
+    assert asyncio.run(verify_clusters(db_session, case)) == {"verified": 0} and calls == []
+    assert {c.support_status for c in db_session.query(ClaimCluster).filter(
+        ClaimCluster.case_id == case.id)} == {"supported"}
+
+
 # ---------------------------------------------------------------------------
 # dossier merge
 # ---------------------------------------------------------------------------
@@ -1194,47 +1230,82 @@ def test_video_research_finding_no_video_fails_instead_of_completing(db_session,
         asyncio.run(vr.run_video_research(db_session, case, job))
 
 
-def test_video_research_ranks_by_channel_type_and_logs_every_skipped_video(db_session, monkeypatch):
-    """Part 3(e) items 1/4: a documentary outranks a news page even with a
-    lower raw relevance; a video below the minimum relevance or over the
-    per-language cap is kept with its reason, never silently dropped."""
-    import app.services.video_research as vr
-    from app.db.models import ResearchJob, VideoSource
+def _research_job(db_session, case):
+    from app.db.models import ResearchJob
 
-    case = _mk_case(db_session)
     job = ResearchJob(job_type="video_research", case_id=case.id, status="queued",
                       provider="truecrime")
     db_session.add(job)
     db_session.commit()
+    return job
 
-    def cand(video_id, relevance, classification):
-        return {"video_id": video_id, "url": f"https://www.youtube.com/watch?v={video_id}",
-                "title": f"title {video_id}", "language": "en", "research_language": "en",
-                "relevance": relevance, "classification": classification}
+
+def _cand(video_id, relevance, classification="unknown", language="en"):
+    return {"video_id": video_id, "url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": f"title {video_id}", "language": language, "research_language": language,
+            "relevance": relevance, "classification": classification}
+
+
+def _run_research(db_session, monkeypatch, candidates, verdicts=None):
+    """run_video_research over fake candidates; every transcript is processed
+    with zero new claims (a video that only confirms known facts)."""
+    import app.agents.video_relevance as vrel
+    import app.services.video_research as vr
+    from app.db.models import VideoSource
+
+    case = _mk_case(db_session)
+    job = _research_job(db_session, case)
 
     async def discovered(db, case, job):
-        return [cand("newsnewsnew", 0.65, "news"), cand("docdocdocd", 0.6, "documentary"),
-                cand("lowlowlowl", 0.05, "documentary"), cand("unkunkunkk", 0.4, "unknown")]
+        return candidates
 
-    async def no_transcript(db, case, video):
-        return {"segments": 0, "claims": 0, "insights": 0}
+    async def processed_no_news(db, case, video):
+        video.transcript_status = "processed"
+        return {"segments": 3, "claims": 0, "insights": 0}
+
+    async def checked(self, db, case_id, title, batch):
+        return {c["video_id"]: (verdicts or {}).get(c["video_id"], (True, "")) for c in batch}
 
     monkeypatch.setattr(vr, "_discover_engine", discovered)
-    monkeypatch.setattr(vr, "_acquire_and_process", no_transcript)
+    monkeypatch.setattr(vr, "_acquire_and_process", processed_no_news)
+    monkeypatch.setattr(vrel.VideoRelevanceChecker, "check", checked)
     monkeypatch.setattr(vr.ai_config.youtube_research, "discovery_provider", "engine")
-    monkeypatch.setattr(vr.ai_config.youtube_research, "max_videos_per_language", 1)
     stats = asyncio.run(vr.run_video_research(db_session, case, job))
-
     rows = {v.video_id: v for v in db_session.query(VideoSource).filter(
         VideoSource.case_id == case.id)}
-    assert rows["docdocdocd"].transcript_status != "skipped"
-    assert rows["newsnewsnew"].skip_reason == "per_language_cap"
-    assert rows["unkunkunkk"].skip_reason == "per_language_cap"
-    assert rows["lowlowlowl"].skip_reason == "below_min_relevance"
-    assert stats["videos_skipped"] == 3
+    return stats, rows
 
 
-def test_a_skipped_video_is_reconsidered_when_the_cap_allows_it(db_session, monkeypatch):
+def test_relevant_videos_beyond_the_old_caps_are_all_processed(db_session, monkeypatch):
+    """Case 8 lost 7 relevant videos to a per-language count cap of 4. There is no
+    count cap and no novelty stop: 30 relevant English videos that add no new
+    claim are all processed."""
+    ids = [f"relevant{i:04d}x" for i in range(30)]
+    stats, rows = _run_research(db_session, monkeypatch, [_cand(i, 0.75) for i in ids])
+    assert stats["videos_processed"] == 30 and stats["videos_skipped"] == 0
+    assert {r.transcript_status for r in rows.values()} == {"processed"}
+
+
+def test_unrelated_video_is_skipped_with_its_reason_and_the_rest_runs(db_session, monkeypatch):
+    stats, rows = _run_research(db_session, monkeypatch,
+                                [_cand("docdocdocd", 0.75, "documentary"), _cand("lowlowlowl", 0.05)])
+    assert rows["lowlowlowl"].transcript_status == "skipped"
+    assert rows["lowlowlowl"].skip_reason == "unrelated_to_case"
+    assert rows["docdocdocd"].transcript_status == "processed"
+    assert stats["videos_skipped"] == 1
+
+
+def test_borderline_video_is_decided_by_the_relevance_check(db_session, monkeypatch):
+    stats, rows = _run_research(
+        db_session, monkeypatch,
+        [_cand("goodgoodgoo", 0.4), _cand("badbadbadba", 0.3), _cand("silentsilen", 0.35)],
+        verdicts={"badbadbadba": (False, "different case"), "goodgoodgoo": (True, "about it")})
+    assert rows["goodgoodgoo"].transcript_status == "processed"
+    assert rows["silentsilen"].transcript_status == "processed"  # no verdict: never dropped
+    assert rows["badbadbadba"].skip_reason == "not_relevant: different case"
+
+
+def test_a_skipped_video_is_reconsidered_when_the_relevance_gate_allows_it(db_session, monkeypatch):
     import app.services.video_research as vr
     from app.db.models import ResearchJob, VideoSource
 
@@ -1246,7 +1317,7 @@ def test_a_skipped_video_is_reconsidered_when_the_cap_allows_it(db_session, monk
     candidate = {"video_id": "againagain", "url": "https://www.youtube.com/watch?v=againagain",
                  "title": "t", "language": "en", "research_language": "en",
                  "relevance": 0.5, "classification": "documentary"}
-    vr._log_skipped_video(db_session, case, candidate, "per_language_cap")
+    vr._log_skipped_video(db_session, case, candidate, "unrelated_to_case")
     db_session.commit()
 
     async def discovered(db, case, job):

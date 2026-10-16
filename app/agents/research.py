@@ -373,10 +373,12 @@ class ResearchAgent:
                 case, await self._extract_facts(db, case, extraction_sources))
             fact_rows = self._store_facts(db, case, facts_data, sources)
 
-            await self._build_timeline(db, case, fact_rows, sources)
+            all_facts = db.query(Fact).filter(Fact.case_id == case.id).all()
+            stage_facts = self._facts_for_stage(db, case, all_facts, sources)
+            await self._build_timeline(db, case, stage_facts, sources)
 
             contradictions = await self._analyze_contradictions(
-                db, case, fact_rows, sources, contradiction_hints or []
+                db, case, stage_facts, sources, contradiction_hints or []
             )
             n_contra = self._store_contradictions(db, case, contradictions)
 
@@ -386,7 +388,7 @@ class ResearchAgent:
             case.status = previous_status
             db.commit()
             raise
-        return {"facts": len(fact_rows), "contradictions": n_contra}
+        return {"facts": len(all_facts), "contradictions": n_contra}
 
     # ------------------------------------------------------------------
     # Part 2(e) item 1: select before extracting
@@ -612,7 +614,10 @@ class ResearchAgent:
 
     def _store_facts(self, db: Session, case: Case, facts_data: list[dict],
                      sources: list[Source]) -> list[Fact]:
-        db.query(Fact).filter(Fact.case_id == case.id).delete()
+        # Facts promoted from video transcripts are not rebuilt from web sources:
+        # deleting them lost the videos' claims and left their clusters pointing
+        # at facts that no longer exist.
+        db.query(Fact).filter(Fact.case_id == case.id, Fact.transcript_claim_ids_json == "[]").delete()
         source_text_by_id = {s.id: _source_text(s) for s in sources}
         rows = []
         for f in facts_data:
@@ -657,6 +662,20 @@ class ResearchAgent:
             rows.append(row)
         db.flush()
         return rows
+
+    @staticmethod
+    def _facts_for_stage(db: Session, case: Case, facts: list[Fact],
+                         sources: list[Source]) -> list[Fact]:
+        """The timeline and contradiction stages receive at most the configured
+        number of facts (video-backed first, then the strongest; disputed and
+        contradiction facts always); no Fact row is deleted by the cap."""
+        from app.services.evidence_selection import EvidenceSelector
+
+        contradictions = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
+        kept, _ = EvidenceSelector(
+            ai_config.evidence_selection.max_facts_per_research_stage, sources,
+            contradictions).select(facts)
+        return kept
 
     # ------------------------------------------------------------------
     # timeline_builder (cheap)

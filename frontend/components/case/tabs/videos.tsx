@@ -20,7 +20,7 @@ const TRANSCRIPT_STATUS: Record<string, string> = {
   discovered: "discovered",
   pending: "pending",
   available: "transcript",
-  unavailable: "no transcript",
+  unavailable: "relevant, no transcript available",
   processed: "processed",
   failed: "failed",
 };

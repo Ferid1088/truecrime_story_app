@@ -236,6 +236,23 @@ def query_item(entity: dict, query: str, kind: str = "exact") -> dict:
             "footage": bool(entity.get("footage", etype in FOOTAGE_TYPES))}
 
 
+def beat_first_queries(requirements: dict, beat_ids: list[str] | None, ents: dict) -> list[dict]:
+    """For every beat that needs a picture: the first exact query of its most
+    important entity. They come first, so the query cap can never leave a beat
+    without a single candidate search."""
+    rank = {"high": 3, "medium": 2, "low": 1}
+    out = []
+    for b in requirements.get("beats") or []:
+        if beat_ids and b["beat_id"] not in beat_ids:
+            continue
+        for r in sorted(b["requirements"], key=lambda r: -rank.get(r.get("priority"), 2)):
+            entity = ents.get(r["entity"])
+            if entity and entity.get("search_queries"):
+                out.append(query_item(entity, entity["search_queries"][0], "exact"))
+                break
+    return out
+
+
 def research_queries(requirements: dict, beat_ids: list[str] | None = None,
                      max_queries: int | None = None) -> list[dict]:
     """Search queries ordered by need: entities of high-priority
@@ -255,7 +272,7 @@ def research_queries(requirements: dict, beat_ids: list[str] | None = None,
     context = [query_item(e, q, "context") for e in ordered
                for q in e.get("context_queries") or []]
     out, seen = [], set()
-    for q in exact + context:
+    for q in beat_first_queries(requirements, beat_ids, ents) + exact + context:
         k = (fold(q["query"]), q["kind"])
         if k not in seen:
             seen.add(k)
