@@ -777,3 +777,51 @@ def test_evidence_pack_holds_a_diverse_selection_of_the_strongest_facts(monkeypa
     assert claims == sorted(claims, key=lambda c: int(c.split()[1]))     # original order
     assert build_evidence_pack(list(reversed(facts)), [], [])["facts"] == pack["facts"]
     assert len(build_evidence_pack(facts[:10], [], [])["facts"]) == 10
+
+
+def test_evidence_pack_prefers_corroborated_facts_and_reports_what_it_dropped(monkeypatch):
+    """Part 2(c): among facts tied on evidence_strength and confidence, the
+    one backed by more independent sources (post-merge corroboration)
+    survives the cap; every fact the cap cuts is named in the pack with a
+    reason — nothing is a silent drop."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Fact
+
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_story", 1)
+    weak = Fact(id=1, case_id=1, claim="Only one source", confidence=0.5,
+               category="evidence", narrative_value="context",
+               evidence_strength="secondary", source_ids_json="[1]")
+    strong = Fact(id=2, case_id=1, claim="Three independent sources agree", confidence=0.5,
+                 category="evidence", narrative_value="context",
+                 evidence_strength="secondary", source_ids_json="[1, 2, 3]")
+    pack = build_evidence_pack([weak, strong], [], [])
+
+    assert [f["claim"] for f in pack["facts"]] == ["Three independent sources agree"]
+    assert pack["evidence_diet"]["cap"] == 1
+    assert pack["evidence_diet"]["kept"] == 1
+    assert [d["fact_id"] for d in pack["evidence_diet"]["dropped"]] == [1]
+    assert "evidence diet cap" in pack["evidence_diet"]["dropped"][0]["reason"]
+
+
+def test_evidence_pack_never_drops_a_fact_a_contradiction_depends_on(monkeypatch):
+    """Part 2(c): "keep every item... a contradiction depends on" — a fact
+    sharing a source with a stored Contradiction survives the cap even
+    when every other signal (evidence_strength, corroboration, confidence)
+    would have ranked it last."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Contradiction, Fact
+
+    monkeypatch.setattr(ai_config.story_quality, "max_evidence_per_story", 1)
+    weak_but_cited = Fact(id=1, case_id=1, claim="Disputed by a contradiction", confidence=0.1,
+                          category="evidence", narrative_value="context",
+                          evidence_strength="weak", source_ids_json="[9]")
+    strong_unrelated = Fact(id=2, case_id=1, claim="Unrelated strong fact", confidence=0.9,
+                            category="evidence", narrative_value="context",
+                            evidence_strength="primary", source_ids_json="[1, 2, 3]")
+    contradiction = Contradiction(id=1, case_id=1, topic="t", description="d",
+                                  source_ids_json="[9]", severity="high")
+    pack = build_evidence_pack([weak_but_cited, strong_unrelated], [contradiction], [])
+
+    claims = {f["claim"] for f in pack["facts"]}
+    assert claims == {"Disputed by a contradiction"}
+    assert [d["fact_id"] for d in pack["evidence_diet"]["dropped"]] == [2]

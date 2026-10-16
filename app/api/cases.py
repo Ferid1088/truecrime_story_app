@@ -398,6 +398,21 @@ def list_contradictions(case_id: int, db: Session = Depends(get_db)):
     return [contradiction_dict(c) for c in rows]
 
 
+@router.get("/api/cases/{case_id}/evidence-diet")
+def evidence_diet(case_id: int, db: Session = Depends(get_db)):
+    """Part 2(c): which stored facts the current evidence pack keeps vs.
+    drops (and why) — auditable, since the diet caps what a pack includes
+    without ever deleting the underlying Fact row."""
+    get_case_or_404(db, case_id)
+    facts = db.query(Fact).filter(Fact.case_id == case_id).all()
+    contradictions = db.query(Contradiction).filter(Contradiction.case_id == case_id).all()
+    sources = db.query(Source).filter(Source.case_id == case_id).all()
+    from app.agents.story import build_evidence_pack
+
+    pack = build_evidence_pack(facts, contradictions, sources)
+    return {"total_facts": len(facts), **pack["evidence_diet"]}
+
+
 @router.get("/api/cases/{case_id}/dossier")
 def case_dossier(case_id: int, db: Session = Depends(get_db)):
     """The CanonicalResearchDossier — the merged view of web research +

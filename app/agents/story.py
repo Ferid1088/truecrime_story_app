@@ -62,34 +62,91 @@ def evidence_fingerprint(pack: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _strongest_facts(facts: list[Fact], cap: int) -> list[Fact]:
+def _fact_source_ids(f: Fact) -> list:
+    try:
+        return json.loads(f.source_ids_json or "[]")
+    except (ValueError, TypeError):
+        return []
+
+
+def _corroboration(f: Fact) -> int:
+    """How many independent sources this fact survived merging with
+    (app.agents.fact_merge unions source_ids when it merges duplicates) —
+    a fact several sources agree on is stronger evidence than one only a
+    single source claims, all else equal (Part 2(c))."""
+    return len(_fact_source_ids(f))
+
+
+def _contradiction_dependent_source_ids(contradictions: list[Contradiction]) -> set:
+    """Source ids a stored Contradiction cites. Contradiction has no
+    fact_ids_json (a known, separately-documented schema gap — see
+    docs/benchmarks/extraction.md's "fact survival" section), so a fact
+    is treated as contradiction-dependent by the proxy of sharing a
+    source with the contradiction, not by a direct id reference."""
+    ids: set = set()
+    for c in contradictions:
+        try:
+            ids.update(json.loads(c.source_ids_json or "[]"))
+        except (ValueError, TypeError):
+            pass
+    return ids
+
+
+def _strongest_facts(
+    facts: list[Fact], cap: int, contradictions: list[Contradiction] | None = None,
+) -> tuple[list[Fact], list[dict]]:
     """At most `cap` facts: the strongest, taken round-robin over the fact
     types so humans, scenes, quotes and investigation all stay represented;
-    in their original order. Deterministic."""
-    if len(facts) <= cap:
-        return facts
+    in their original order. Deterministic.
+
+    Part 2(c), evidence diet: ranked by evidence_strength, then
+    corroboration (independent sources behind the fact after merging),
+    then the model's own confidence. A fact that shares a source with a
+    stored Contradiction is never dropped (the cap only applies to the
+    rest) — "keep every item... a contradiction depends on". Every
+    dropped fact is returned with its reason, never silently lost (the
+    Fact row itself is never deleted either way; this only controls what
+    a generated evidence pack includes)."""
+    protected_source_ids = _contradiction_dependent_source_ids(contradictions or [])
+    protected = [f for f in facts if protected_source_ids & set(_fact_source_ids(f))]
+    rest = [f for f in facts if f not in protected]
+    remaining_cap = max(cap - len(protected), 0)
+    if len(rest) <= remaining_cap:
+        return _by_id(protected + rest), []
+
+    def _rank_key(f: Fact) -> tuple:
+        return (-_EVIDENCE_RANK.get(f.evidence_strength, 0), -_corroboration(f),
+               -(f.confidence or 0), f.id)
+
     groups: dict[str, list[Fact]] = {}
-    for f in sorted(facts, key=lambda f: (-_EVIDENCE_RANK.get(f.evidence_strength, 0),
-                                          -(f.confidence or 0), f.id)):
+    for f in sorted(rest, key=_rank_key):
         groups.setdefault((f.narrative_value or "other").split("_")[0], []).append(f)
     queues = [iter(group) for group in groups.values()]
     picked: list[Fact] = []
-    while len(picked) < cap and queues:
+    while len(picked) < remaining_cap and queues:
         for queue in list(queues):
             fact = next(queue, None)
             if fact is None:
                 queues.remove(queue)
-            elif len(picked) < cap:
+            elif len(picked) < remaining_cap:
                 picked.append(fact)
-    return sorted(picked, key=lambda f: f.id)
+    kept_ids = {f.id for f in picked}
+    dropped = [
+        {"fact_id": f.id, "reason": "ranked below the evidence diet cap "
+         f"(evidence_strength={f.evidence_strength}, corroboration={_corroboration(f)}, "
+         f"confidence={f.confidence})"}
+        for f in rest if f.id not in kept_ids
+    ]
+    return _by_id(protected + picked), dropped
 
 
 def build_evidence_pack(
     facts: list[Fact], contradictions: list[Contradiction], sources: list[Source]
 ) -> dict:
     q = ai_config.story_quality
-    facts = _strongest_facts(_by_id(list(facts)), q.max_evidence_per_story)
     contradictions = _by_id(list(contradictions))
+    facts, dropped_facts = _strongest_facts(
+        _by_id(list(facts)), q.max_evidence_per_story, contradictions)
     sources = _by_id(list(sources))
     fact_items = []
     for i, f in enumerate(facts, 1):
@@ -179,6 +236,15 @@ def build_evidence_pack(
         "environment_details": _bucket("environment"),
         "approved_quotes": _bucket("quote"),
         "research_gaps": [],
+        # Part 2(c): the evidence diet never deletes a Fact row, but caps
+        # what any one pack includes — every excluded fact is named here
+        # with its reason, so "fewer, better items" stays auditable rather
+        # than a silent cut.
+        "evidence_diet": {
+            "cap": q.max_evidence_per_story,
+            "kept": len(fact_items),
+            "dropped": dropped_facts,
+        },
     }
 
 

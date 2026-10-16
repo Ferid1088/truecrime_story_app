@@ -231,6 +231,9 @@ def test_empty_research_views():
     assert client.get(f"/api/cases/{case_id}/timeline").json() == []
     assert client.get(f"/api/cases/{case_id}/stories").json() == []
     assert client.get(f"/api/cases/{case_id}/agent-runs").json() == []
+    r = client.get(f"/api/cases/{case_id}/evidence-diet")
+    assert r.status_code == 200
+    assert r.json() == {"total_facts": 0, "cap": r.json()["cap"], "kept": 0, "dropped": []}
 
 
 def test_missing_case_404s():
@@ -242,6 +245,7 @@ def test_missing_case_404s():
         "/api/cases/99999/contradictions",
         "/api/cases/99999/stories",
         "/api/cases/99999/agent-runs",
+        "/api/cases/99999/evidence-diet",
     ]:
         assert client.get(path).status_code == 404, path
 
