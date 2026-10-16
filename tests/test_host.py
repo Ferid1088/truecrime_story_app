@@ -145,6 +145,9 @@ def test_dialogue_length_and_stock_phrases():
     assert {"stock_phrase", "not_plain_speech"} <= types
     fa = "متوجه شدم " + " ".join(["خانه"] * 60)
     assert "stock_phrase" in {i["type"] for i in dialogue_issues(SEG, fa, "fa", [], [])}
+    for phrase in ("ماجرا به همین جا ختم نشد", "آرامش قبل از طوفان", "سکوت مرگبار"):
+        text = phrase + " " + " ".join(["خانه"] * 60)
+        assert "stock_phrase" in {i["type"] for i in dialogue_issues(SEG, text, "fa", [], [])}
 
 
 def test_dialogue_repetition_of_recent_episodes():
