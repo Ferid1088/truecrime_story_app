@@ -6,7 +6,7 @@ import { ExternalLink, ImageOff, ImageUp, Search } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { formatDate, humanize } from "@/lib/format";
-import type { AssetRole, VerificationStatus, VisualAsset } from "@/lib/types";
+import type { AssetRole, MediaCoverage, VerificationStatus, VisualAsset } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -77,6 +77,7 @@ export function VisualLibraryTab({ caseId, overview, refreshKey }: DocumentaryTa
 
   return (
     <div className="space-y-4">
+      <CoveragePanel caseId={caseId} languages={overview.languages ? Object.keys(overview.languages) : ["fa"]} refreshKey={refreshKey} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
@@ -626,6 +627,57 @@ function VisualDetailDialog({
         </div>
       </div>
     </Dialog>
+  );
+}
+
+function pct(share: number): string {
+  return `${Math.round(share * 100)}%`;
+}
+
+function CoveragePanel({ caseId, languages, refreshKey }: { caseId: number; languages: string[]; refreshKey: number }) {
+  const [language, setLanguage] = useState(languages[0] ?? "fa");
+  const { data, error } = useApi<MediaCoverage>(
+    () => api.mediaCoverage(caseId, language),
+    [caseId, language, refreshKey],
+    { keepPrevious: true },
+  );
+  return (
+    <Card className="p-3" data-testid="media-coverage">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-medium">Media coverage</h3>
+        <Select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Coverage language">
+          {languages.map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {error && <p className="mt-2 text-xs text-muted-foreground">No film timeline for this language yet.</p>}
+      {data && (
+        <div className="mt-2 space-y-2 text-xs">
+          <p>
+            <span className="font-medium">{pct(data.case_specific_share)}</span> of the film shows case-specific
+            pictures ({pct(data.exact_share)} exact evidence, person or map) · generic {pct(data.generic_share)} ·
+            no picture {pct(data.uncovered_share)}
+          </p>
+          <p className="text-muted-foreground">
+            Per minute: {data.per_minute.map((m) => `${m.minute}: ${pct(m.case_specific_share)}`).join(" · ")}
+          </p>
+          {data.gaps.length > 0 ? (
+            <ul className="list-disc pl-4 text-muted-foreground">
+              {data.gaps.map((g) => (
+                <li key={g.beat_id}>
+                  Beat {g.beat_id} ({Math.round(g.seconds)} s): {g.reason}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground">No beat is below {pct(data.min_beat_coverage)} coverage.</p>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 

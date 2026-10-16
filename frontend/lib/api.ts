@@ -1,4 +1,5 @@
 import type {
+  MediaCoverage,
   ThumbnailOptions,
   ThumbnailRecord,
   CaseNaming,
@@ -633,6 +634,8 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  mediaCoverage: (caseId: number, language: string) =>
+    request<MediaCoverage>(`/api/cases/${caseId}/documentary/media-coverage/${language}`),
   /** Record who approved an editorial_review_required picture for use. */
   approveEditorial: (assetId: number, approvedBy: string) =>
     post<VisualAsset>(`/api/visuals/${assetId}/approve-editorial`, { approved_by: approvedBy }),

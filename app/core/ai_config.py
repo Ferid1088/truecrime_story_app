@@ -2009,6 +2009,9 @@ class VisualDirectionConfig(BaseModel):
     max_context_appearances: int = Field(default=1, ge=1)
     max_person_appearances: int = Field(default=1, ge=1)
     max_evidence_appearances: int = Field(default=1, ge=1)
+    # Part 4 coverage metric: a beat whose share of case-specific picture
+    # time is below this is listed as a gap.
+    min_beat_coverage: float = Field(default=0.5, ge=0.0, le=1.0)
     min_repeat_gap_seconds: float = Field(default=45.0, ge=0.0)
     # A verified clip of the same need outranks a photo by this factor
     # (and within a tier a fill takes a clip before a photo).

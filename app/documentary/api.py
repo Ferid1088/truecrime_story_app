@@ -958,6 +958,24 @@ def _ps(db: Session, ps_id: int) -> ProductionScript:
     return ps
 
 
+@router.get("/api/cases/{case_id}/documentary/media-coverage/{language}")
+def get_media_coverage(case_id: int, language: str, version_id: int | None = None,
+                       db: Session = Depends(get_db)):
+    """Share of the film carried by case-specific pictures, per minute and
+    per beat, with the gap list (Part 4a)."""
+    from app.documentary.visuals import coverage as C
+
+    master = _pick_master(db, case_id, version_id)
+    bp = latest_blueprint(db, master.id)
+    v = J.latest_spoken(db, master, language, bp.id if bp else None)
+    ps = J.latest_production(db, v.id) if v else None
+    if not ps:
+        raise HTTPException(status_code=404, detail="No production script for this language")
+    shots = _loads(ps.script_json, {}).get("shots") or []
+    return {"production_id": ps.id, "language": language,
+            **C.coverage_report(shots, ps.duration_seconds or 0.0, C.beat_windows(shots))}
+
+
 @router.get("/api/documentary/production/{ps_id}/video.mp4")
 def production_video(ps_id: int, db: Session = Depends(get_db)):
     info = _loads(_ps(db, ps_id).render_json, None)

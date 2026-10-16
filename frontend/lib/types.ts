@@ -2125,6 +2125,21 @@ export interface DocumentaryOverview {
 export type AssetRole = "evidence" | "context" | "illustration";
 export type VerificationStatus = "verified" | "needs_review" | "rejected" | "unverified";
 
+export interface MediaCoverage {
+  production_id: number;
+  language: string;
+  duration_seconds: number;
+  case_specific_share: number;
+  exact_share: number;
+  generic_share: number;
+  uncovered_share: number;
+  seconds_by_category: Record<string, number>;
+  per_minute: { minute: number; case_specific_share: number }[];
+  per_beat: { beat_id: string; seconds: number; case_specific_share: number }[];
+  gaps: { beat_id: string; seconds: number; case_specific_share: number; reason: string }[];
+  min_beat_coverage: number;
+}
+
 export interface VisualAsset {
   id: number;
   asset_id: string;
