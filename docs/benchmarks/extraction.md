@@ -34,4 +34,20 @@ Given this, fact recall for the acceptance bar is measured differently (and more
 
 ## Reductions implemented (ordered, each measured separately)
 
-See ROADMAP.md Part 2 for status. This file is updated as each of the 6 ordered steps lands.
+### Step 1 — select before extracting (rank, dedupe, cap)
+
+Implemented: `ResearchAgent._select_sources_for_extraction` (app/agents/research.py). Rank by `reliability_score` then content length; dedupe near-duplicates/syndicated copies via the existing embedder, same-language pairs only (`duplicate_source_min_similarity: 0.92`); cap to `max_sources_per_case_for_extraction` (config, default 50). Every skip recorded on `Source.extraction_skip_reason` (migration 0024).
+
+**Real measurement on case 5** (dry run, 2026-10-16, no extraction spend — only the already-cached embedding lookup, case 5's `spent_eur` unchanged at 19.920886): of 88 real stored sources, **50 selected, 38 skipped** — all 38 skipped for "ranked below the per-case extraction limit" (none were duplicates at the 0.92 threshold, none had zero content). That is a **43% cut in sources entering extraction**, which should translate to a roughly proportional cut in Fact Extractor calls/EUR once combined with the remaining steps — on its own this one step does not yet reach the 50% target; re-measured against the real ledger once steps 2-6 land and a real extraction re-run is done.
+
+### Step 3 — cache by content hash (done ahead of step 1/2, see Part 2 progress note in ROADMAP.md)
+
+Implemented: `app/agents/research.py`'s `_extraction_cache_*` helpers + `ExtractionCache` (migration 0023). Content-hash + prompt-version + model keyed, portable across cases (source/chunk ids remapped), never applied to empty-content bundles. Reduces repeat-extraction cost to zero for unchanged content on a restart or a shared source; real EUR impact on case 5 not yet measured (would need a real re-run that repeats existing content, which hasn't happened yet).
+
+### Step 6 — deterministic quote check (done ahead of step 1/2)
+
+Implemented: `app/core/quote_check.py` + `Fact.quote_verified` (migration 0022). Does not yet reduce EUR directly (no LLM grounding step exists yet in this pipeline for it to let skip) — see ROADMAP.md Part 2 for detail.
+
+### Steps 2, 4, 5 — not started
+
+Chunk-level cutting by embedding similarity (2), compact output schema with span/offset evidence (4), and concurrent batching of small chunks (5) remain to be implemented before the full acceptance measurement (EUR cut >= 50% vs. baseline, fact recall equal-or-better, 0 schema failures) can be run for real on case 5.
