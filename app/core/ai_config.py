@@ -750,6 +750,9 @@ class TranscriptValueConfig(BaseModel):
 class ClaimClusteringConfig(BaseModel):
     near_duplicate_threshold: int = Field(ge=50, le=100)
     batch_size: int = Field(ge=1, le=500)
+    # Clusters judged per evidence_verifier call: one call over every cluster
+    # of a large case (1,626 on a 13-video case) is truncated by the model.
+    verify_batch_size: int = Field(ge=1, le=200)
     min_independent_families_for_verified: int = Field(ge=1)
 
 

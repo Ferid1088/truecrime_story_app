@@ -124,7 +124,8 @@
   "claim_clustering": {
     "near_duplicate_threshold": 88,
     "batch_size": 60,
-    "min_independent_families_for_verified": 2
+    "min_independent_families_for_verified": 2,
+    "verify_batch_size": 60
   },
   "source_independence": {
     "shared_unusual_claim_ratio": 0.6,

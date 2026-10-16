@@ -849,6 +849,41 @@ def test_strongly_supported_requires_independent_families(
     assert cl.support_status == "supported"  # downgraded, not promoted to strong
 
 
+def test_verification_runs_in_bounded_batches_and_covers_every_cluster(
+        db_session, monkeypatch):
+    """A large case's clusters are verified verify_batch_size at a time (one
+    call over 1,626 clusters was truncated by the model on a live run) and
+    every cluster still gets its verdict."""
+    from app.db.models import ClaimCluster
+    from app.services.claims import verify_clusters
+
+    seen_batches = []
+
+    def verdicts(system, user):
+        batch = json.loads(user)["clusters"]
+        seen_batches.append(len(batch))
+        return {"verdicts": [{"cluster_id": c["id"], "verification_status": "supported",
+                              "confidence": 0.7} for c in batch]}
+
+    fake = FakeGen()
+    fake.structured["evidence_verifier"] = verdicts
+    _patch_gen(monkeypatch, fake)
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.claim_clustering, "verify_batch_size", 2)
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case)
+    for i in range(5):
+        _clustered_claims(db_session, case, [v], f"distinct claim number {i}")
+    out = asyncio.run(verify_clusters(db_session, case))
+
+    assert seen_batches == [2, 2, 1]
+    assert out == {"verified": 5}
+    statuses = {c.support_status for c in db_session.query(ClaimCluster).filter(
+        ClaimCluster.case_id == case.id)}
+    assert statuses == {"supported"}
+
+
 # ---------------------------------------------------------------------------
 # dossier merge
 # ---------------------------------------------------------------------------

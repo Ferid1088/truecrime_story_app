@@ -343,9 +343,24 @@ async def verify_clusters(db: Session, case: Case) -> dict:
     sources = db.query(Source).filter(Source.case_id == case.id).all()
     gen = get_generation_provider()
 
-    system = (
-        prompt("services/claims/verify_clusters")
-    )
+    system = prompt("services/claims/verify_clusters")
+    facts_view = [{"id": f.id, "claim": f.claim} for f in facts[:400]]
+    sources_view = [
+        {"id": s.id, "title": s.title, "type": s.source_type} for s in sources[:200]
+    ]
+    size = ai_config.claim_clustering.verify_batch_size
+    batches = [clusters[i:i + size] for i in range(0, len(clusters), size)]
+    n = 0
+    for position, batch in enumerate(batches, 1):
+        n += await _verify_batch(
+            db, case, gen, system, batch, facts_view, sources_view,
+            f"clusters={len(batch)} batch={position}/{len(batches)}")
+    db.flush()
+    return {"verified": n}
+
+
+async def _verify_batch(db, case, gen, system, clusters, facts_view, sources_view,
+                        summary: str) -> int:
     user = json.dumps(
         {
             "clusters": [
@@ -359,11 +374,8 @@ async def verify_clusters(db: Session, case: Case) -> dict:
                 }
                 for c in clusters
             ],
-            "facts": [{"id": f.id, "claim": f.claim} for f in facts[:400]],
-            "sources": [
-                {"id": s.id, "title": s.title, "type": s.source_type}
-                for s in sources[:200]
-            ],
+            "facts": facts_view,
+            "sources": sources_view,
             "output_schema": {
                 "verdicts": [
                     {
@@ -378,10 +390,7 @@ async def verify_clusters(db: Session, case: Case) -> dict:
         },
         ensure_ascii=False,
     )
-    with track_run(
-        db, case.id, "Evidence Verifier",
-        input_summary=f"clusters={len(clusters)}",
-    ) as run:
+    with track_run(db, case.id, "Evidence Verifier", input_summary=summary) as run:
         data, res = await run_agent("claims.verify", gen, user, system=system)
         stamp_run(run, res, "evidence_verifier")
         by_id = {c.id: c for c in clusters}
@@ -420,8 +429,7 @@ async def verify_clusters(db: Session, case: Case) -> dict:
                     cl.verification_status = status
             n += 1
         run.output_summary = f"verified={n}"
-    db.flush()
-    return {"verified": n}
+    return n
 
 
 def promote_clusters(db: Session, case: Case) -> dict:
