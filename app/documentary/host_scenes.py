@@ -272,7 +272,8 @@ async def _step_avatar_request(db: Session, scene: HostScene, prov, look_id: str
         resolution=ai_config.avatar.resolution,
         background_asset_id=meta.get("background_asset_id") if composited else None,
         title=f"{scene.channel} case {scene.case_id} {scene.host_segment_id}",
-        motion_prompt=motion_prompt, expressiveness=expressiveness)
+        **({"motion_prompt": motion_prompt, "expressiveness": expressiveness}
+           if motion_prompt else {}))
     scene.avatar_id = look_id
     scene.provider_job_id = job.job_id
     scene.provider_job_voice_sha = scene.voice_sha256
