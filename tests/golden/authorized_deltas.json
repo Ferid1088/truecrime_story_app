@@ -37,5 +37,14 @@
   "db:visual_assets:6": { "commit": "d0422f4", "class": "a", "reason": "See db:videos:0 (same persistence-order fix)." },
   "db:visual_audits:0": { "commit": "d0422f4", "class": "a", "reason": "See db:videos:0 (same persistence-order fix)." },
   "db:visual_audits:1": { "commit": "d0422f4", "class": "a", "reason": "See db:videos:0 (same persistence-order fix)." },
-  "db:visual_audits:2": { "commit": "d0422f4", "class": "a", "reason": "See db:videos:0 (same persistence-order fix)." }
+  "db:visual_audits:2": { "commit": "d0422f4", "class": "a", "reason": "See db:videos:0 (same persistence-order fix)." },
+
+  "db:facts:0": {
+    "commit": "ec79347",
+    "class": "a",
+    "reason": "Migration 0022 adds facts.quote_verified (Part 2(e): deterministic supporting_text check, no model call). Every existing fact row's snapshot changes because it now serializes one new, computed column, not because any row's real content changed."
+  },
+  "db:facts:1": { "commit": "ec79347", "class": "a", "reason": "See db:facts:0." },
+  "db:facts:2": { "commit": "ec79347", "class": "a", "reason": "See db:facts:0." },
+  "db:facts:3": { "commit": "ec79347", "class": "a", "reason": "See db:facts:0." }
 }
