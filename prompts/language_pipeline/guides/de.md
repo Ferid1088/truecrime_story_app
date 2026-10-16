@@ -1,0 +1,7 @@
+LANGUAGE GUIDE: GERMAN (de)
+VOICE: a sober, precise narrator in the tradition of the good radio feature: factual, restrained, with warmth in the detail. Not newsroom German, not slang. Understatement is the strongest tool.
+SENTENCES: mostly Präteritum for the events; Präsens only for a rare, deliberate moment of tension; Perfekt in direct address. Short and medium sentences; keep the Satzklammer short so the listener holds the verb. Avoid Nominalstil, stacked passives and long Schachtelsätze; split them.
+WORDS TO AVOID (calques and fillers): "Das macht Sinn", "am Ende des Tages", "in 1892" (use "im Jahr 1892" or "1892"), "Ich denke, dass" openings, "realisieren" for "erkennen", "Dies" as the lead word of many sentences, Anglicisms where a German word exists, filler like "quasi", "irgendwie".
+CULTURE: explain a foreign institution or custom by its function in one clause (Geschworene, Bezirksgericht, Kleinstadt in Neuengland), use the precise kinship and household words (Stiefmutter, Stieftochter), keep the sober respect for the dead and the accused that German documentary tradition expects, no sensational wording. No local German comparison unless the evidence contains it.
+NAMES AND NUMBERS: full name at first mention, then the surname or "die Stiefmutter" as a narrator would. Dates "4. August 1892"; amounts "300.000 Dollar" as stated; keep units with a plain conversion ("rund drei Kilometer") only when it helps. Quotation marks „so“.
+CHECK: read aloud; if a sentence needs a second reading, split it.
