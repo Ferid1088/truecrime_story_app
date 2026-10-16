@@ -3,6 +3,8 @@ import type {
   MediaLinkItem,
   HostMemoryItem,
   HostLookItem,
+  HostPlanRecord,
+  HostSegmentsRecord,
   HostAppearanceItem,
   StoryPlan,
   StoryPlanPreview,
@@ -654,6 +656,10 @@ export const api = {
     }),
   approveStoryPlan: (planId: number, approvedBy: string) =>
     post<StoryPlan>(`/api/story-plans/${planId}/approve`, { approved_by: approvedBy }),
+  hostPlan: (caseId: number) =>
+    request<HostPlanRecord>(`/api/cases/${caseId}/documentary/host-plan`),
+  hostSegments: (versionId: number) =>
+    request<HostSegmentsRecord>(`/api/documentary/versions/${versionId}/host`),
   hostLooks: (language: string) =>
     request<HostLookItem[]>(`/api/host-looks?language=${language}`),
   requestHostLook: (payload: { language: string; camera: string; framing: string; outfit_id: string; pose: string }) =>

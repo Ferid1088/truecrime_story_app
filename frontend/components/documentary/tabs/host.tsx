@@ -1,5 +1,7 @@
 "use client";
 
+import { CoveragePanel } from "./visual-library";
+import { HostPlanPanel } from "./host-plan";
 import { HostLooksPanel } from "./host-looks";
 import { HostMemoryPanel } from "./host-memory";
 import { useEffect, useState } from "react";
@@ -58,6 +60,8 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
         </p>
       </div>
       <HostMemoryPanel caseId={caseId} />
+      <HostPlanPanel caseId={caseId} scenes={data ?? []} />
+      <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />
       <HostLooksPanel language={language} channel={channel} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}

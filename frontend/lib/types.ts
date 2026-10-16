@@ -2654,6 +2654,49 @@ export interface StudioPatch {
   confirm?: boolean;
 }
 
+export interface HostPlanSegment {
+  id: string;
+  position: "opening" | "mid" | "final";
+  beat_id: string | null;
+  purpose: string;
+  target_seconds: number;
+  memory_reference: string | null;
+  claims: { text: string; kind: string; evidence_ids: string[] }[];
+}
+
+export interface HostPlanRecord {
+  id: number;
+  version: number;
+  status: string;
+  persona_sha256: string | null;
+  persona_state: "current" | "persona changed" | "unknown persona";
+  plan: { segments: HostPlanSegment[]; notes?: string };
+  validation: { status: string; errors: { code: string }[]; warnings: { code: string }[]; host_seconds?: number };
+}
+
+export interface HostSegmentsRecord {
+  id: number;
+  language: string;
+  status: string;
+  persona_sha256: string | null;
+  persona_state: "current" | "persona changed" | "unknown persona";
+  segments: {
+    id: string;
+    position: string;
+    avatar_dialogue: string;
+    estimated_seconds: number;
+    quality: { pass: boolean; problems: { check: string; fix?: string }[] };
+  }[];
+}
+
+export interface DirectionExecution {
+  field: string;
+  value: string | number | null;
+  target: string;
+  executed: boolean;
+  shown_as: string;
+}
+
 export interface HostLookItem {
   id: number;
   studio_profile_id: string;
@@ -2704,6 +2747,9 @@ export interface HostMemoryItem {
 }
 
 export interface HostScene {
+  direction: Record<string, unknown> | null;
+  direction_sha256: string | null;
+  direction_execution: DirectionExecution[];
   persona_file: string | null;
   persona_sha256: string | null;
   persona_state: "current" | "persona changed" | "unknown persona";

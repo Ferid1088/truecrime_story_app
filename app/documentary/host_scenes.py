@@ -35,6 +35,7 @@ from app.core.ai_config import ai_config
 from app.core.env import env_value
 from app.db.models import HostScene, HostSegments, StoryVersion
 from app.documentary import storage
+from app.documentary import stage_direction as SD
 from app.documentary import studio as ST
 from app.utils import utc_now
 
@@ -394,8 +395,12 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
 def scene_dict(s: HostScene) -> dict:
     from app.documentary.host import persona_state
 
+    direction = _loads(s.direction_json, None)
     return {
         **persona_state(s),
+        "direction": direction,
+        "direction_sha256": s.direction_sha256,
+        "direction_execution": SD.execution_view(direction),
         "id": s.id, "case_id": s.case_id, "story_version_id": s.story_version_id,
         "host_segments_id": s.host_segments_id, "host_segment_id": s.host_segment_id,
         "language": s.language, "channel": s.channel, "position": s.position,

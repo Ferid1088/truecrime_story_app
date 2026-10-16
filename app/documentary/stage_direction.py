@@ -146,3 +146,48 @@ def sentence_ends(alignment: dict) -> list[float]:
     ({"characters": [...], "ends": [...]})."""
     chars, ends = alignment.get("characters") or [], alignment.get("ends") or []
     return [round(float(e), 3) for c, e in zip(chars, ends) if c in ".!?؟…"]
+
+
+# What actually executes each direction field (docs/host-direction.md). A
+# field whose renderer or provider part is not built shows as PLANNED_ONLY.
+EXECUTION = {
+    "studio_id": ("EXECUTED_BY_LOOK_CHOICE", True),
+    "camera": ("EXECUTED_BY_LOOK_CHOICE", True),
+    "framing": ("EXECUTED_IN_OUR_RENDERER", False),
+    "movement": ("EXECUTED_IN_OUR_RENDERER", False),
+    "outfit_id": ("EXECUTED_BY_LOOK_CHOICE", True),
+    "posture": ("EXECUTED_BY_PROVIDER", True),
+    "gestures": ("EXECUTED_BY_PROVIDER", True),
+    "eye_contact": ("EXECUTED_BY_PROVIDER", True),
+    "emotion_intensity": ("EXECUTED_BY_PROVIDER", True),
+    "emotion": ("PLANNED_ONLY", False),
+    "performance_timeline": ("PLANNED_ONLY", False),
+    "lighting": ("EXECUTED_IN_OUR_RENDERER", False),
+}
+
+
+def execution_view(direction: dict | None) -> list[dict]:
+    """The stored direction field by field with how each is (or is not) executed."""
+    if not direction:
+        return []
+    shots = direction.get("camera_plan") or []
+    values = {
+        "studio_id": direction.get("studio_id"),
+        "camera": ", ".join(dict.fromkeys(s["camera"] for s in shots)),
+        "framing": ", ".join(dict.fromkeys(s["framing"] for s in shots)),
+        "movement": ", ".join(dict.fromkeys(s["movement"] for s in shots)),
+        "outfit_id": direction.get("outfit_id"), "posture": direction.get("posture"),
+        "gestures": ", ".join(a["action"] for a in direction.get("performance_timeline") or []
+                              if a.get("action") in GESTURES and a["action"] != "G01_NONE") or "none",
+        "eye_contact": direction.get("eye_contact"),
+        "emotion_intensity": (direction.get("emotion") or {}).get("intensity"),
+        "emotion": (direction.get("emotion") or {}).get("primary"),
+        "performance_timeline": f"{len(direction.get('performance_timeline') or [])} actions",
+        "lighting": (direction.get("lighting") or {}).get("variation"),
+    }
+    out = []
+    for field, value in values.items():
+        target, implemented = EXECUTION[field]
+        out.append({"field": field, "value": value, "target": target,
+                    "executed": implemented, "shown_as": target if implemented else "PLANNED_ONLY"})
+    return out

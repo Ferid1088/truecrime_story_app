@@ -121,3 +121,12 @@ def test_a_memory_reference_must_exist():
 def test_sentence_ends_come_from_the_character_alignment():
     alignment = {"characters": list("Hi. Ok?"), "ends": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]}
     assert SD.sentence_ends(alignment) == [0.3, 0.7]
+
+
+def test_the_execution_view_marks_what_is_executed_and_what_is_planned_only():
+    view = {v["field"]: v for v in SD.execution_view(good())}
+    assert view["camera"]["shown_as"] == "EXECUTED_BY_LOOK_CHOICE"
+    assert view["gestures"]["shown_as"] == "EXECUTED_BY_PROVIDER" and "G02" in view["gestures"]["value"]
+    assert view["movement"]["shown_as"] == "PLANNED_ONLY" and view["lighting"]["executed"] is False
+    assert view["performance_timeline"]["shown_as"] == "PLANNED_ONLY"
+    assert SD.execution_view(None) == []

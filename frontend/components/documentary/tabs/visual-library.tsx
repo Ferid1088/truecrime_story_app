@@ -635,7 +635,7 @@ function pct(share: number): string {
   return `${Math.round(share * 100)}%`;
 }
 
-function CoveragePanel({ caseId, languages, refreshKey }: { caseId: number; languages: string[]; refreshKey: number }) {
+export function CoveragePanel({ caseId, languages, refreshKey }: { caseId: number; languages: string[]; refreshKey: number }) {
   const [language, setLanguage] = useState(languages[0] ?? "fa");
   const { data, error } = useApi<MediaCoverage>(
     () => api.mediaCoverage(caseId, language),
