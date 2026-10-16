@@ -695,3 +695,40 @@ def test_video_discovery_does_not_swallow_search_failures():
     backend = FakeBackend(error=SearchError("fake", "search_unavailable", "Brave is down"))
     with pytest.raises(SearchError):
         asyncio.run(_orchestrator(backend).discover_videos({"title": "Case X"}, ["en"]))
+
+
+def test_video_discovery_classifies_by_title_keywords():
+    """Part 3(e) item 1/2: real channel-type classification — this used to
+    be hardcoded to "documentary" for every single candidate."""
+    backend = FakeBackend([
+        {"url": "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+         "title": "BBC News: Case X verdict announced"},
+    ])
+    result = asyncio.run(_orchestrator(backend).discover_videos({"title": "Case X"}, ["en"]))
+    assert result["videos"][0]["classification"] == "news"
+
+
+def test_video_discovery_defaults_to_unknown_not_a_guessed_classification():
+    """An honest "unknown" default, not a hardcoded "documentary" guess
+    the old code always made regardless of real content."""
+    backend = FakeBackend([
+        {"url": "https://www.youtube.com/watch?v=bbbbbbbbbbb",
+         "title": "Case X - what really happened that night"},
+    ])
+    result = asyncio.run(_orchestrator(backend).discover_videos({"title": "Case X"}, ["en"]))
+    assert result["videos"][0]["classification"] == "unknown"
+
+
+def test_video_discovery_scores_relevance_by_title_overlap_with_the_case():
+    """Part 3(e) item 1: real relevance scoring — this used to be a flat
+    0.6 for every candidate, regardless of how related it actually was."""
+    backend = FakeBackend([
+        {"url": "https://www.youtube.com/watch?v=ccccccccccc",
+         "title": "The Lighthouse Keeper Disappearance Documentary"},
+        {"url": "https://www.youtube.com/watch?v=ddddddddddd",
+         "title": "Totally unrelated cooking tutorial video"},
+    ])
+    result = asyncio.run(_orchestrator(backend).discover_videos(
+        {"title": "The Lighthouse Keeper Disappearance"}, ["en"]))
+    by_id = {v["video_id"]: v["relevance"] for v in result["videos"]}
+    assert by_id["ccccccccccc"] > by_id["ddddddddddd"]

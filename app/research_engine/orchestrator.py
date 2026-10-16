@@ -750,6 +750,46 @@ class ResearchOrchestrator:
     # Video discovery via search engine (no LLM search)
     # ------------------------------------------------------------------
 
+    # Part 3(e) items 1/2: cheap, deterministic channel-type classification
+    # and relevance scoring (no new LLM call, same cost-conscious pattern
+    # as app.services.transcript_quality) — this used to be hardcoded to
+    # "documentary"/0.6 for every single candidate, for every case.
+    _CHANNEL_TYPE_KEYWORDS = {
+        "news": ("news", "breaking", "nachrichten", "bbc", "cnn", "abc news",
+                "cbs news", "nbc news", "sky news", "al jazeera", "reuters"),
+        "official": ("police department", "sheriff", "fbi", "court tv",
+                    "courtroom", "trial footage", "prosecutor",
+                    "department of justice", "press conference", "bodycam"),
+        "interview": ("interview", "sits down with", "exclusive interview",
+                     "in conversation with", "q&a with"),
+        "documentary": ("documentary", "full documentary",
+                       "true crime documentary", "investigation discovery",
+                       "crime files"),
+        "archive": ("archive footage", "archival", "newsreel", "vintage footage",
+                   "from the archive"),
+    }
+
+    @classmethod
+    def _classify_video(cls, title: str | None, channel_name: str | None,
+                        description: str | None) -> str:
+        text = f"{title or ''} {channel_name or ''} {description or ''}".lower()
+        for ctype, keywords in cls._CHANNEL_TYPE_KEYWORDS.items():
+            if any(k in text for k in keywords):
+                return ctype
+        return "unknown"
+
+    _TOKEN = re.compile(r"[a-zA-Z؀-ۿÀ-ɏ]{3,}")
+
+    @classmethod
+    def _video_relevance(cls, video_text: str, case_title: str) -> float:
+        case_tokens = {t.lower() for t in cls._TOKEN.findall(case_title or "")}
+        if not case_tokens:
+            return 0.5  # no case-title signal at all — neutral, not a guess
+        video_tokens = {t.lower() for t in cls._TOKEN.findall(video_text or "")}
+        if not video_tokens:
+            return 0.0
+        return round(min(1.0, len(case_tokens & video_tokens) / len(case_tokens)), 4)
+
     async def discover_videos(self, case_context: dict,
                               languages: list[str],
                               progress: Progress | None = None) -> dict:
@@ -786,16 +826,21 @@ class ResearchOrchestrator:
                         (r.scores or {}).get("video_id"))
                     if not vid:
                         continue
+                    video_title = r.title or vid
+                    channel_name = (r.scores or {}).get("channel")
+                    description = (r.snippet or "")[:800]
                     videos.append({
                         "video_id": vid,
                         "url": f"https://www.youtube.com/watch?v={vid}",
-                        "title": r.title or vid,
-                        "channel_name": (r.scores or {}).get("channel"),
+                        "title": video_title,
+                        "channel_name": channel_name,
                         "language": lang,
                         "published_at": r.published_at,
-                        "description": (r.snippet or "")[:800],
-                        "classification": "documentary",
-                        "relevance": 0.6,
+                        "description": description,
+                        "classification": self._classify_video(
+                            video_title, channel_name, description),
+                        "relevance": self._video_relevance(
+                            f"{video_title} {description}", title),
                         "discovery_query": q,
                         "research_language": lang,
                     })
