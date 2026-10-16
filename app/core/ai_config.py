@@ -534,6 +534,14 @@ class StoryPlanConfig(BaseModel):
     mid_host_slots: int = Field(ge=0, le=4)
 
 
+class WriterMetricsConfig(BaseModel):
+    """Deterministic writer metrics (Part 5b2). The stock phrases are the
+    genre's own clichés per language, matched case-insensitively."""
+    stock_phrases: dict[str, list[str]]
+    trigram_min_words: int = Field(ge=3, le=5)
+    short_sentence_words: int = Field(ge=1, le=12)
+
+
 class LocalizationConfig(BaseModel):
     require_master_ready: bool = True
     # Refuse to localize a master whose evidence fingerprint no longer
@@ -2274,6 +2282,7 @@ class AIConfig(BaseModel):
     transcript_value: TranscriptValueConfig
     claim_clustering: ClaimClusteringConfig
     story_plan: StoryPlanConfig
+    writer_metrics: WriterMetricsConfig
     embeddings: EmbeddingsConfig
     source_independence: SourceIndependenceConfig
     similarity: SimilarityConfig

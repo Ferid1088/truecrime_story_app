@@ -1,0 +1,45 @@
+{
+  "writer_metrics": {
+    "stock_phrases": {
+      "en": [
+        "little did",
+        "what happened next",
+        "shocking truth",
+        "dark secret",
+        "sent shivers",
+        "chilling",
+        "unthinkable",
+        "would never be the same",
+        "the truth was far more",
+        "hidden in plain sight"
+      ],
+      "fa": [
+        "حقیقت تکان‌دهنده",
+        "راز تاریک",
+        "هیچ‌کس نمی‌دانست",
+        "آنچه بعد رخ داد",
+        "سکوتی سنگین",
+        "هرگز مثل سابق نشد",
+        "کابوسی که"
+      ],
+      "de": [
+        "schockierende wahrheit",
+        "dunkles geheimnis",
+        "niemand ahnte",
+        "was dann geschah",
+        "lief es einem kalt",
+        "nie wieder dieselbe"
+      ],
+      "ar": [
+        "الحقيقة الصادمة",
+        "سر مظلم",
+        "لم يكن أحد يعلم",
+        "ما حدث بعد ذلك",
+        "صمت ثقيل",
+        "لن تعود كما كانت"
+      ]
+    },
+    "trigram_min_words": 3,
+    "short_sentence_words": 6
+  }
+}
