@@ -166,6 +166,7 @@ class LocalizationPipeline:
                 text, language, minutes, wpm, native, semantic,
                 grounding, engagement=None,
             )
+            self._figure_gate(gates, text, master.story_text, pack)
             if gates["pass"]:
                 break
             if attempt < loc.max_localization_repair_iterations:
@@ -215,6 +216,8 @@ class LocalizationPipeline:
                     )
                     if kept else {"pass": False}
                 )
+                if kept:
+                    self._figure_gate(edit_gates, edit_text, master.story_text, pack)
                 if edit_gates["pass"]:
                     text = edit_text
                     sections = edit_sections
@@ -521,6 +524,19 @@ Output only the story text.
     @staticmethod
     def _native_score(native: dict) -> float:
         return float(native.get("overall_native_quality") or 0)
+
+    @staticmethod
+    def _figure_gate(gates: dict, text: str, master_text: str, pack: dict) -> None:
+        """A rewrite may not add a number the master and the evidence lack."""
+        from app.services.figures import added_figures
+
+        added = added_figures(text, master_text, pack)
+        gates["added_figures"] = added
+        if added:
+            gates["pass"] = False
+            failures = gates.setdefault("failures", [])
+            if "added_figures" not in failures:
+                failures.append("added_figures")
 
     def _evaluate_gates(
         self,
