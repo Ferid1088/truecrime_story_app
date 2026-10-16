@@ -1035,6 +1035,7 @@ class StoryPipeline:
         words_per_minute: int | None = None,
         follow_up: dict | None = None,
         instruction: str | None = None,
+        story_plan=None,
     ) -> StoryVersion:
         facts = db.query(Fact).filter(Fact.case_id == case.id).all()
         contradictions = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
@@ -1057,22 +1058,28 @@ class StoryPipeline:
         case.status = "writing"
         db.commit()
         try:
-            context = editorial_context(db, case, follow_up)
-            if instruction:
-                context["user_instruction"] = instruction
-            with track_run(db, case.id, "Story Director") as run:
-                plan, res = await self.director.design(
-                    case, pack, target_minutes, language,
-                    role=self.roles["director"], context=context,
-                )
-                stamp_run(run, res, self.roles["director"])
-                if not isinstance(plan, dict):
-                    plan = {}
-                plan["opening_strategy"], plan["opening_reason"] = choose_opening(plan, context)
-                plan["case_status"] = context["case_status"]
-                run.output_summary = (f"acts={len(plan.get('acts', []))} "
-                                      f"opening={plan['opening_strategy']}")
-            self._normalize_act_budgets(plan, target_words)
+            if story_plan is not None:
+                # Part 5a: the approved plan is the contract; no new director
+                # call and no re-scaling of its beat lengths.
+                plan = json.loads(story_plan.plan_json)
+                plan["story_plan_id"] = story_plan.id
+            else:
+                context = editorial_context(db, case, follow_up)
+                if instruction:
+                    context["user_instruction"] = instruction
+                with track_run(db, case.id, "Story Director") as run:
+                    plan, res = await self.director.design(
+                        case, pack, target_minutes, language,
+                        role=self.roles["director"], context=context,
+                    )
+                    stamp_run(run, res, self.roles["director"])
+                    if not isinstance(plan, dict):
+                        plan = {}
+                    plan["opening_strategy"], plan["opening_reason"] = choose_opening(plan, context)
+                    plan["case_status"] = context["case_status"]
+                    run.output_summary = (f"acts={len(plan.get('acts', []))} "
+                                          f"opening={plan['opening_strategy']}")
+                self._normalize_act_budgets(plan, target_words)
 
             acts = plan.get("acts") or []
             # A pilot is a short, real editorial target. Splitting a three
@@ -1433,6 +1440,15 @@ class StoryPipeline:
                 gates["pass"] = False
             gates["engagement_score"] = float(final_critique.get("score", 0))
             gates["engagement_threshold"] = ai_config.story.engagement_threshold
+            if story_plan is not None:
+                from app.services.story_plans import check_plan_mapping
+
+                gates["plan_check"] = check_plan_mapping(sections, plan)
+                if not gates["plan_check"]["ok"]:
+                    gates["pass"] = False
+                    failures = gates.setdefault("failures", [])
+                    if "plan_mapping" not in failures:
+                        failures.append("plan_mapping")
             final_critique["quality_gates"] = gates
             final_critique["section_scores"] = section_scores
             final_critique["consistency"] = consistency
@@ -1502,8 +1518,12 @@ class StoryPipeline:
                     "budget_exhausted": budget_exhausted,
                     "evidence_fingerprint": evidence_fingerprint(pack),
                     "structure_lost_at": structure_lost_at,
+                    **({"story_plan_id": story_plan.id} if story_plan is not None else {}),
                 },
             )
+            if story_plan is not None:
+                row.story_plan_id = story_plan.id
+                db.commit()
         except Exception:
             case.status = previous_status
             db.commit()

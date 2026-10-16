@@ -330,6 +330,16 @@ def _visual_research_without_brave_by_default(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _story_plan_gate_off_by_default(monkeypatch):
+    """Older pipeline tests write masters without a plan; the plan gate and the
+    one-button automatic plan have their own tests that turn them on."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.story_plan, "require_approved_plan", False)
+    monkeypatch.setattr(ai_config.story_plan, "automatic_approval_in_pipeline", False)
+
+
+@pytest.fixture(autouse=True)
 def _no_title_drafting_in_pipeline_tests(monkeypatch):
     """Pipeline tests use scripted model answers; the naming stage (many
     model calls) has its own tests."""

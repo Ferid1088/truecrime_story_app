@@ -896,8 +896,13 @@ async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
         instruction = json.loads(job.result_json or "{}").get("stage_control_prompt")
     except (TypeError, ValueError):
         pass
+    from app.services.story_plan_service import StoryPlanService
+
+    plan = (await StoryPlanService(db).ensure_approved(
+        case, minutes, canonical, follow_up=follow_up, instruction=instruction)
+        if ai_config.story_plan.require_approved_plan else None)
     story = await StoryPipeline(roles=MASTER_ROLES).run(
-        db=db, case=case, target_minutes=minutes, language=canonical,
+        db=db, case=case, target_minutes=minutes, language=canonical, story_plan=plan,
         tone=defaults.tone, iterations=defaults.iterations, kind="master",
         words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up,
         instruction=instruction)

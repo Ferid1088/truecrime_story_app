@@ -91,6 +91,15 @@ async def generate_master_story(
             "capacity": capacity, "source_readiness": report["source_readiness"],
         })
 
+    if ai_config.story_plan.require_approved_plan:
+        from app.services.story_plan_service import StoryPlanService
+
+        if StoryPlanService(db).usable_approved(case, canonical, payload.target_minutes) is None:
+            raise HTTPException(status_code=409, detail={
+                "code": "story_plan_required",
+                "message": "Plan the story first: the writer needs an approved story plan "
+                           "for this language, length and evidence."})
+
     from app.services import background_jobs
 
     job = background_jobs.create_job(

@@ -226,6 +226,8 @@ class StoryVersion(Base):
     is_best: Mapped[bool] = mapped_column(Boolean, default=False)
     text_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     narrative_structure: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The approved story plan this version was written to (Part 5a).
+    story_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     critic_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -511,6 +513,36 @@ class ClaimCluster(Base):
     case = relationship("Case")
 
 
+class StoryPlan(Base):
+    """The stored, validated plan a master is written from (Part 5a): the
+    story director's beats (acts) in order with purpose, reveals, evidence ids,
+    target length and people introductions, plus the host slots. The writer
+    does not run without an approved plan; the editorial blueprint is derived
+    from the story written to it."""
+    __tablename__ = "story_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    language: Mapped[str] = mapped_column(String(10))
+    target_minutes: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    # draft | approved | superseded
+    plan_json: Mapped[str] = mapped_column(Text, default="{}")
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    evidence_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origin: Mapped[str] = mapped_column(String(20), default="director")
+    # director | redo | edit
+    supersedes_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    case = relationship("Case")
+
+
 class MediaLink(Base):
     """A video found by Brave video search for a case: a LINK for the owner,
     never downloaded and never put into a film (Part 4b)."""
@@ -744,6 +776,8 @@ class EditorialBlueprint(Base):
     # valid | needs_review (warnings) | invalid (structural errors)
     status: Mapped[str] = mapped_column(String(20), default="invalid", index=True)
     evidence_fingerprint: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # The story plan this blueprint is derived from (Part 5a).
+    story_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     story_text_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     central_question: Mapped[str | None] = mapped_column(Text, nullable=True)
     editorial_thesis: Mapped[str | None] = mapped_column(Text, nullable=True)

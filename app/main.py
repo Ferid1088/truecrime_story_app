@@ -84,6 +84,7 @@ from app.api import (  # noqa: E402
     costs,
     discovery,
     masters,
+    story_plans,
     ops,
     research,
     stories,
@@ -119,6 +120,7 @@ for _router in (
     research.router,
     stories.router,
     masters.router,
+    story_plans.router,
     ops.router,
     backup_api.router,
 ):

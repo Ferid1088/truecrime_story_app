@@ -1,6 +1,8 @@
 import type {
   MediaCoverage,
   MediaLinkItem,
+  StoryPlan,
+  StoryPlanPreview,
   ThumbnailOptions,
   ThumbnailRecord,
   CaseNaming,
@@ -635,6 +637,20 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  storyPlan: (caseId: number, language: string) =>
+    request<StoryPlan>(`/api/cases/${caseId}/story-plan?language=${language}`),
+  createStoryPlan: (caseId: number, payload: { target_minutes: number; language: string; instruction?: string }) =>
+    request<StoryPlan>(`/api/cases/${caseId}/story-plan`, {
+      method: "POST", body: JSON.stringify(payload), timeoutMs: 600_000,
+    }),
+  previewStoryPlan: (planId: number, payload: { action: "redo" | "edit"; instruction?: string }) =>
+    post<StoryPlanPreview>(`/api/story-plans/${planId}/preview`, payload),
+  redoStoryPlan: (planId: number, payload: { token: string; instruction: string }) =>
+    request<StoryPlan>(`/api/story-plans/${planId}/redo`, {
+      method: "POST", body: JSON.stringify(payload), timeoutMs: 600_000,
+    }),
+  approveStoryPlan: (planId: number, approvedBy: string) =>
+    post<StoryPlan>(`/api/story-plans/${planId}/approve`, { approved_by: approvedBy }),
   mediaLinks: (caseId: number) =>
     request<MediaLinkItem[]>(`/api/cases/${caseId}/media-links`),
   setMediaLinkStatus: (linkId: number, status: "new" | "dismissed") =>

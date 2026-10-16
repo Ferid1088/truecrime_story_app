@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryPlanPanel } from "./story-plan-panel";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, Copy, Sparkles } from "lucide-react";
@@ -362,6 +363,8 @@ function StudioBody({
               </Button>
             </CardContent>
           </Card>
+
+          <StoryPlanPanel caseId={caseId} language={canonicalLanguage} minutes={minutes} />
 
           <Localizations
             caseId={caseId}

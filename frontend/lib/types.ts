@@ -2125,6 +2125,48 @@ export interface DocumentaryOverview {
 export type AssetRole = "evidence" | "context" | "illustration";
 export type VerificationStatus = "verified" | "needs_review" | "rejected" | "unverified";
 
+export interface StoryPlanBeat {
+  id: string;
+  title: string | null;
+  purpose: string | null;
+  key_beats: string[];
+  target_words: number | null;
+  evidence_ids: string[];
+  reveals: string[];
+  introduces_people: string[];
+  open_loops: string[];
+  resolved_loops: string[];
+  do_not_reveal: string[];
+}
+
+export interface StoryPlan {
+  id: number;
+  case_id: number;
+  version: number;
+  language: string;
+  target_minutes: number;
+  status: "draft" | "approved" | "superseded";
+  origin: string;
+  instruction: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  title: string | null;
+  central_question: string | null;
+  opening_strategy: string | null;
+  beats: StoryPlanBeat[];
+  host_slots: { id: string; position: string; before_beat?: string; after_beat?: string }[];
+  validation: { status: string; errors: { code: string }[]; warnings: { code: string }[] };
+}
+
+export interface StoryPlanPreview {
+  plan_id: number;
+  action: string;
+  approval_is_lost: boolean;
+  masters_written_from_this_plan: number[];
+  director_calls: number;
+  token: string;
+}
+
 export interface MediaLinkItem {
   id: number;
   kind: string;

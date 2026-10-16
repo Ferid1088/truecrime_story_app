@@ -520,6 +520,20 @@ class MultilingualConfig(BaseModel):
         return entry.brave_search_lang if entry else (language or "en")[:2].lower()
 
 
+class StoryPlanConfig(BaseModel):
+    """Part 5a: the plan a master is written from."""
+    # The writer does not run (API) without an approved plan.
+    require_approved_plan: bool
+    # A one-button documentary run plans and approves by itself, recorded as
+    # "automatic", when the owner has not planned first.
+    automatic_approval_in_pipeline: bool
+    # The beats' target words may differ from the film target by this share
+    # before the plan is invalid (half of it is a warning).
+    max_total_words_deviation: float = Field(gt=0.0, le=1.0)
+    # Mid-film host slots planned (also capped by host.max_mid_segments).
+    mid_host_slots: int = Field(ge=0, le=4)
+
+
 class LocalizationConfig(BaseModel):
     require_master_ready: bool = True
     # Refuse to localize a master whose evidence fingerprint no longer
@@ -2259,6 +2273,7 @@ class AIConfig(BaseModel):
     transcript_quality: TranscriptQualityConfig
     transcript_value: TranscriptValueConfig
     claim_clustering: ClaimClusteringConfig
+    story_plan: StoryPlanConfig
     embeddings: EmbeddingsConfig
     source_independence: SourceIndependenceConfig
     similarity: SimilarityConfig

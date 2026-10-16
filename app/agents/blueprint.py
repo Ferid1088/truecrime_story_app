@@ -123,6 +123,7 @@ class NarrativeDirector:
         row = EditorialBlueprint(
             case_id=case.id, story_version_id=version.id, version=count + 1,
             status=report["status"], evidence_fingerprint=fingerprint,
+            story_plan_id=version.story_plan_id,
             story_text_hash=version.text_hash,
             central_question=blueprint["central_question"] or None,
             editorial_thesis=blueprint["editorial_thesis"] or None,

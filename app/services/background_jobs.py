@@ -80,6 +80,15 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
                 "kind": "master",
                 "words_per_minute": ai_config.words_per_minute_for(kwargs["language"]),
             })
+            if ai_config.story_plan.require_approved_plan:
+                from app.services.story_plan_service import StoryPlanService
+
+                plan = StoryPlanService(db).usable_approved(
+                    case, kwargs["language"], kwargs["target_minutes"])
+                if plan is None:
+                    raise RuntimeError("story_plan_required: no approved plan for this "
+                                       "evidence and length")
+                kwargs["story_plan"] = plan
             story = await StoryPipeline(roles=MASTER_ROLES).run(**kwargs)
         else:
             story = await StoryPipeline().run(**kwargs)
