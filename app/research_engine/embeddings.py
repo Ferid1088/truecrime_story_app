@@ -6,6 +6,7 @@ never an expensive chat model. Results are cached by
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -13,6 +14,8 @@ import os
 
 import httpx
 import numpy as np
+
+from app.core.ai_config import ai_config
 
 log = logging.getLogger(__name__)
 
@@ -126,20 +129,31 @@ class EmbeddingClient:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout_s) as c:
-                r = await c.post(
-                    f"{self.base_url}/embeddings",
-                    headers=headers,
-                    json={"model": self.model, "input": texts},
-                )
-                r.raise_for_status()
-                data = r.json()
-        except httpx.HTTPStatusError as e:
-            raise EmbeddingError(
-                f"embeddings HTTP {e.response.status_code}") from e
-        except (httpx.HTTPError, ValueError) as e:
-            raise EmbeddingError(f"embeddings failed: {e}") from e
+        cfg = ai_config.embeddings
+        for attempt in range(1, cfg.max_attempts + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout_s) as c:
+                    r = await c.post(
+                        f"{self.base_url}/embeddings",
+                        headers=headers,
+                        json={"model": self.model, "input": texts},
+                    )
+                    r.raise_for_status()
+                    data = r.json()
+                break
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                error = EmbeddingError(f"embeddings HTTP {status}")
+                error.__cause__ = e
+                retryable = status == 429 or status >= 500
+            except (httpx.HTTPError, ValueError) as e:
+                error = EmbeddingError(f"embeddings failed: {e}")
+                error.__cause__ = e
+                retryable = True
+            if not retryable or attempt == cfg.max_attempts:
+                raise error
+            log.warning("%s (attempt %s/%s), retrying", error, attempt, cfg.max_attempts)
+            await asyncio.sleep(cfg.retry_backoff_s * attempt)
 
         usage = data.get("usage") or {}
         self.total_tokens += int(usage.get("total_tokens") or 0)

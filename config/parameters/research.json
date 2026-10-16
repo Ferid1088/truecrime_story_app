@@ -135,5 +135,9 @@
     "max_transcripts_per_case": 24,
     "minimum_novel_information_ratio": 0.08,
     "consecutive_low_value_stop": 2
+  },
+  "embeddings": {
+    "max_attempts": 3,
+    "retry_backoff_s": 2.0
   }
 }

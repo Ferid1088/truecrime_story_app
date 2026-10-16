@@ -756,6 +756,13 @@ class ClaimClusteringConfig(BaseModel):
     min_independent_families_for_verified: int = Field(ge=1)
 
 
+class EmbeddingsConfig(BaseModel):
+    # A gateway 5xx/429 or network error is retried (the same request is
+    # idempotent); a live run lost a whole research job to one transient 500.
+    max_attempts: int = Field(ge=1, le=6)
+    retry_backoff_s: float = Field(ge=0.0, le=60.0)
+
+
 class SourceIndependenceConfig(BaseModel):
     shared_unusual_claim_ratio: float = Field(ge=0.0, le=1.0)
     min_shared_unusual_claims: int = Field(ge=1)
@@ -2242,6 +2249,7 @@ class AIConfig(BaseModel):
     transcript_quality: TranscriptQualityConfig
     transcript_value: TranscriptValueConfig
     claim_clustering: ClaimClusteringConfig
+    embeddings: EmbeddingsConfig
     source_independence: SourceIndependenceConfig
     similarity: SimilarityConfig
     research_stop_conditions: ResearchStopConditionsConfig
