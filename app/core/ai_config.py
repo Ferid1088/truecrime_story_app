@@ -542,6 +542,21 @@ class WriterMetricsConfig(BaseModel):
     short_sentence_words: int = Field(ge=1, le=12)
 
 
+class StageDirectionConfig(BaseModel):
+    """Deterministic guard-rails of the host's stage direction (Part 7c)."""
+    min_shot_seconds: float = Field(gt=0)
+    max_shot_seconds: float = Field(gt=0)
+    cut_alignment_tolerance_seconds: float = Field(ge=0)
+    max_close_shots_per_appearance: int = Field(ge=0)
+    close_allowed_emotions: list[str]
+    close_allowed_purposes: list[str]
+    forbidden_emotions: list[str]
+    recent_outfit_window: int = Field(ge=0)
+    sensitive_max_gestures: int = Field(ge=0)
+    # How many of the newest appearances of the channel the director reads.
+    visual_memory_appearances: int = Field(ge=1, le=40)
+
+
 class LocalizationConfig(BaseModel):
     require_master_ready: bool = True
     # Refuse to localize a master whose evidence fingerprint no longer
@@ -2286,6 +2301,7 @@ class AIConfig(BaseModel):
     transcript_value: TranscriptValueConfig
     claim_clustering: ClaimClusteringConfig
     story_plan: StoryPlanConfig
+    stage_direction: StageDirectionConfig
     writer_metrics: WriterMetricsConfig
     embeddings: EmbeddingsConfig
     source_independence: SourceIndependenceConfig

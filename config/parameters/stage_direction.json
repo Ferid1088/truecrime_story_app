@@ -1,0 +1,26 @@
+{
+  "stage_direction": {
+    "min_shot_seconds": 8.0,
+    "max_shot_seconds": 20.0,
+    "cut_alignment_tolerance_seconds": 0.4,
+    "max_close_shots_per_appearance": 1,
+    "close_allowed_emotions": [
+      "reflective",
+      "affected",
+      "concerned"
+    ],
+    "close_allowed_purposes": [
+      "personal_reflection",
+      "important_point",
+      "difficult_observation"
+    ],
+    "forbidden_emotions": [
+      "SHOCKED",
+      "TERRIFIED",
+      "OUTRAGED"
+    ],
+    "recent_outfit_window": 3,
+    "sensitive_max_gestures": 1,
+    "visual_memory_appearances": 15
+  }
+}
