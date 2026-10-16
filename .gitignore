@@ -18,6 +18,11 @@ truecrime.db
 *.db-journal
 truecrime.db*
 
+# Database backups — a full data dump must never land in the repo (a bug in
+# the backup destination default, or a run with no configured dir, would
+# otherwise write one straight into the repo root).
+*.dump
+
 # Rendered documentary media (audio/video per case) — regenerable, large
 data/cases/
 data/music_library/
