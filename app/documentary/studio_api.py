@@ -283,9 +283,11 @@ async def _run_task(scene_id: int, until: str) -> None:
     try:
         s = db.get(HostScene, scene_id)
         if s is not None:
+            from app.agents.stage_director import StageDirector
             from app.documentary.host import HostDirector
 
-            await run_scene(db, s, until, shortener=HostDirector().shorten_scene)
+            await run_scene(db, s, until, shortener=HostDirector().shorten_scene,
+                            director=StageDirector().direct)
     except Exception as e:  # recorded on the scene by run_scene
         log.warning("host scene %s stopped: %s", scene_id, e)
     finally:

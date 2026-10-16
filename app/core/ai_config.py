@@ -98,6 +98,9 @@ REQUIRED_ROLES = {
     "host_director",
     "host_writer",
     "host_critic",
+    # Camera, outfit, posture, gestures and lighting of one host appearance,
+    # decided from its real audio (Part 7c).
+    "host_stage_director",
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
     "visual_planner",
@@ -555,6 +558,12 @@ class StageDirectionConfig(BaseModel):
     sensitive_max_gestures: int = Field(ge=0)
     # How many of the newest appearances of the channel the director reads.
     visual_memory_appearances: int = Field(ge=1, le=40)
+    # Words that make a segment victim-related (matched case-insensitively in
+    # its dialogue and claims): soft lighting, one gesture, a static camera.
+    sensitive_terms: dict[str, list[str]]
+    # Owner choice: outfits that may appear per language; a language without an
+    # entry may use every outfit.
+    outfit_allow_list: dict[str, list[str]]
 
 
 class HostLooksConfig(BaseModel):

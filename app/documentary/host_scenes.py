@@ -312,7 +312,7 @@ async def _voice_within_cap(db: Session, scene: HostScene, voice_provider, short
 
 async def run_scene(db: Session, scene: HostScene, until: str = "voice",
                     voice_provider=None, avatar_provider=None, sleep=asyncio.sleep,
-                    shortener=None) -> HostScene:
+                    shortener=None, director=None) -> HostScene:
     """Run the scene's steps up to `until` ("voice" or "avatar"), starting
     from the first one whose saved result is missing. Each step commits its
     result before the next begins; a failure is recorded and re-raised."""
@@ -325,6 +325,11 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         r = await _voice_within_cap(db, scene, voice_provider, shortener)
         _done(scene, "voice", db, r, {"voice_sha256": (scene.voice_sha256 or "")[:16],
                                       "seconds": scene.voice_seconds})
+        if director is not None and not scene.direction_json:
+            step = "stage_direction"
+            await director(db, scene)
+            _log(scene, "stage_direction", "ok", {"direction_sha256": (scene.direction_sha256 or "")[:16]})
+            db.commit()
         if until == "voice":
             return scene
         step = "avatar_upload"

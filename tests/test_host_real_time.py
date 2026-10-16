@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 
 from app.documentary import host_scenes as HS
@@ -83,3 +84,35 @@ def test_host_time_endpoint_reports_real_seconds(client, db_session):
     db_session.commit()
     body = client.get(f"/api/cases/{case.id}/host-time/{seg.language}").json()
     assert body["host_seconds"] == 70.0 and body["scenes"][0]["cap"] == 120
+
+
+def test_the_stage_director_runs_after_the_voice_and_a_failure_is_recorded_on_the_scene(db_session, monkeypatch):
+    import asyncio
+
+    from app.documentary import host_scenes as HS
+
+    scene = SimpleNamespace(voice_seconds=10.0, direction_json=None, direction_sha256="s" * 64,
+                            history_json="[]", attempts_json="{}", status="planned", position="mid",
+                            failed_step=None, last_error=None, running_since=None,
+                            voice_sha256="v" * 64)
+    order = []
+
+    async def voice(db, s, p, sh):
+        order.append("voice")
+        return {}
+
+    async def director(db, s):
+        order.append("direction")
+
+    monkeypatch.setattr(HS, "_voice_within_cap", voice)
+    monkeypatch.setattr(db_session, "commit", lambda: None)
+    asyncio.run(HS.run_scene(db_session, scene, "voice", director=director))
+    assert order == ["voice", "direction"]
+
+    async def failing(db, s):
+        raise RuntimeError("guard-rails failed")
+
+    scene.direction_json = None
+    with pytest.raises(RuntimeError):
+        asyncio.run(HS.run_scene(db_session, scene, "voice", director=failing))
+    assert scene.failed_step == "stage_direction"

@@ -21,6 +21,56 @@
     ],
     "recent_outfit_window": 3,
     "sensitive_max_gestures": 1,
-    "visual_memory_appearances": 15
+    "visual_memory_appearances": 15,
+    "sensitive_terms": {
+      "en": [
+        "victim",
+        "murder",
+        "killed",
+        "body",
+        "child",
+        "children",
+        "abuse",
+        "grief",
+        "funeral",
+        "died"
+      ],
+      "de": [
+        "opfer",
+        "mord",
+        "ermordet",
+        "leiche",
+        "kind",
+        "kinder",
+        "missbrauch",
+        "trauer",
+        "beerdigung",
+        "starb"
+      ],
+      "fa": [
+        "قربانی",
+        "قتل",
+        "کشته",
+        "جسد",
+        "کودک",
+        "کودکان",
+        "آزار",
+        "سوگ",
+        "مرگ"
+      ],
+      "ar": [
+        "ضحية",
+        "جريمة",
+        "قتل",
+        "جثة",
+        "طفل",
+        "أطفال",
+        "اعتداء",
+        "حزن",
+        "جنازة",
+        "توفي"
+      ]
+    },
+    "outfit_allow_list": {}
   }
 }
