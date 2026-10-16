@@ -71,8 +71,8 @@ def test_persona_prompt_is_the_master_prompt():
 
 def test_valid_plan_and_clamping():
     raw = plan_raw()
-    raw["segments"][0]["target_seconds"] = 90
-    plan, rep = validate_host_plan(raw, BP, EVIDENCE, set(), 1200)
+    raw["segments"][0]["target_seconds"] = 200
+    plan, rep = validate_host_plan(raw, BP, EVIDENCE, set(), 2400)
     assert rep["status"] == "valid", rep
     assert [s["id"] for s in plan["segments"]] == ["S1", "S2"]
     assert plan["segments"][0]["target_seconds"] == ai_config.host.seconds["opening"][1]
@@ -421,3 +421,77 @@ def test_settings_show_channels_and_credential_presence_only(client, monkeypatch
         "provider": "heygen", "key_present": True, "avatar_id_present": True}}
     body = json.dumps(s)
     assert "secret-heygen-value" not in body and "avatar-123" not in body
+
+
+def test_host_time_caps_are_the_owner_decision():
+    assert ai_config.host.max_appearance_seconds == 120
+    assert ai_config.host.max_total_seconds == 240
+    assert ai_config.host.final_enabled is False
+
+
+def test_every_mid_appearance_must_be_shorter_than_the_opening():
+    raw = plan_raw()
+    raw["segments"][0]["target_seconds"] = 30
+    raw["segments"][1]["target_seconds"] = 30
+    _, rep = validate_host_plan(raw, BP, EVIDENCE, set(), 2400)
+    assert "opening_must_be_the_longest" in codes(rep["errors"])
+    raw["segments"][1]["target_seconds"] = 29
+    _, rep = validate_host_plan(raw, BP, EVIDENCE, set(), 2400)
+    assert "opening_must_be_the_longest" not in codes(rep["errors"])
+
+
+def test_the_final_slot_is_off_by_default():
+    raw = plan_raw()
+    raw["segments"].append({**raw["segments"][1], "id": "S3", "position": "final",
+                            "beat_id": None, "target_seconds": 15})
+    _, rep = validate_host_plan(raw, BP, EVIDENCE, set(), 2400)
+    assert "final_slot_is_off" in codes(rep["errors"])
+
+
+def test_a_120_second_total_in_a_420_second_film_is_a_warning_not_an_error():
+    raw = plan_raw()
+    raw["segments"][0]["target_seconds"] = 80
+    raw["segments"][1]["target_seconds"] = 40
+    _, rep = validate_host_plan(raw, BP, EVIDENCE, set(), 420)
+    assert rep["host_seconds"] == 120.0
+    assert "host_share_too_high" in codes(rep["warnings"]) and not rep["errors"]
+
+
+def test_no_appearance_exceeds_120_seconds_and_the_total_stays_within_240():
+    raw = plan_raw()
+    raw["segments"][0]["target_seconds"] = 500
+    plan, _ = validate_host_plan(raw, BP, EVIDENCE, set(), 2400)
+    assert plan["segments"][0]["target_seconds"] == 120.0
+
+
+def test_mid_segments_follow_the_story_plans_slots_or_veto_one_with_a_reason():
+    bp = {"beats": [dict(b, act_id=f"act{1 + i // 2}") for i, b in enumerate(BP["beats"])]}
+    mid_act = next(b["act_id"] for b in bp["beats"] if b["id"] == "B03")
+    slots = [{"id": "H1", "position": "opening", "before_beat": "act1"},
+             {"id": "H2", "position": "mid", "after_beat": mid_act}]
+    _, ok = validate_host_plan(plan_raw(), bp, EVIDENCE, set(), 2400, slots=slots)
+    assert not codes(ok["errors"]) & {"mid_segment_not_on_a_planned_slot", "veto_without_reason"}
+    off = [{**slots[1], "after_beat": "act9"}]
+    _, rep = validate_host_plan(plan_raw(), bp, EVIDENCE, set(), 2400, slots=[slots[0]] + off)
+    assert "mid_segment_not_on_a_planned_slot" in codes(rep["errors"])
+    raw = plan_raw(vetoes=[{"slot": "H2", "reason": ""}])
+    raw["segments"] = raw["segments"][:1]
+    _, bad = validate_host_plan(raw, bp, EVIDENCE, set(), 2400, slots=slots)
+    assert "veto_without_reason" in codes(bad["errors"])
+
+
+def test_the_host_director_reads_the_story_plans_slots_for_its_master(db_session):
+    from test_blueprint_performance import _story
+    from app.agents.host import HostDirector
+    from app.db.models import StoryPlan
+
+    case, master = _story(db_session)
+    assert HostDirector._planned_slots(db_session, master) == []
+    slots = [{"id": "H1", "position": "opening", "before_beat": "act1"}]
+    plan = StoryPlan(case_id=case.id, language="fa", target_minutes=3.0, status="approved",
+                     plan_json=json.dumps({"host_slots": slots}))
+    db_session.add(plan)
+    db_session.commit()
+    master.story_plan_id = plan.id
+    db_session.commit()
+    assert HostDirector._planned_slots(db_session, master) == slots

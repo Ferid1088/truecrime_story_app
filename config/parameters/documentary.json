@@ -64,10 +64,26 @@
     "enabled": true,
     "max_mid_segments": 2,
     "max_total_share": 0.08,
-    "max_total_seconds": 180,
+    "max_total_seconds": 240,
     "min_beats_between": 3,
     "pace_factor": 1.08,
-    "max_repair_iterations": 2
+    "max_repair_iterations": 2,
+    "max_appearance_seconds": 120,
+    "final_enabled": false,
+    "seconds": {
+      "opening": [
+        30,
+        120
+      ],
+      "mid": [
+        8,
+        60
+      ],
+      "final": [
+        10,
+        45
+      ]
+    }
   },
   "studio": {
     "registry_path": "config/studio_registry.json",
@@ -159,7 +175,12 @@
       "height": 1920,
       "captions_burned_in": true,
       "default_visibility": "private",
-      "languages": ["en", "de", "fa", "ar"],
+      "languages": [
+        "en",
+        "de",
+        "fa",
+        "ar"
+      ],
       "max_redos": 2,
       "max_cost_usd_per_case": 2.0,
       "ffmpeg_bin": "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg",

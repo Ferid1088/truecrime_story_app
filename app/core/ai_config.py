@@ -1249,13 +1249,17 @@ class HostConfig(BaseModel):
     persona_file: str = "persona_master_prompt.md"
     # Spoken length per placement, in seconds [min, max].
     seconds: dict[str, list[float]] = Field(default_factory=lambda: {
-        "opening": [15.0, 40.0], "mid": [8.0, 40.0], "final": [10.0, 45.0]})
+        "opening": [30.0, 120.0], "mid": [8.0, 60.0], "final": [10.0, 45.0]})
+    # No appearance may be longer than this (real voice seconds).
+    max_appearance_seconds: float = Field(default=120.0, gt=0.0)
+    # The final slot is off unless this switch is on.
+    final_enabled: bool = False
     max_mid_segments: int = Field(default=2, ge=0, le=4)
     # Host time as a share of the narration (the story stays dominant).
     max_total_share: float = Field(default=0.08, ge=0.0, le=0.5)
     # ...and never more than this in one film, however long (the avatar
     # is used sparingly: 2–3 minutes per video).
-    max_total_seconds: float = Field(default=180.0, ge=0.0)
+    max_total_seconds: float = Field(default=240.0, ge=0.0)
     # Beats of narration between two host appearances.
     min_beats_between: int = Field(default=3, ge=0)
     # The host talks a little faster than the narrator (words per minute

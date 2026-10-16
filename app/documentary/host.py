@@ -245,9 +245,12 @@ def _reveal_index(blueprint: dict) -> dict[str, int]:
 
 def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
                        memory_refs: set[str], narration_seconds: float,
-                       cfg: HostConfig | None = None) -> tuple[dict, dict]:
+                       cfg: HostConfig | None = None,
+                       slots: list[dict] | None = None) -> tuple[dict, dict]:
     """Deterministic checks of the director's plan. Errors are sent back
-    for repair; adjustments (clamped durations) are logged."""
+    for repair; adjustments (clamped durations) are logged. `slots` are the
+    story plan's host slots (Part 5): the plan keeps to them, or vetoes one
+    with a reason."""
     cfg = cfg or ai_config.host
     raw = raw if isinstance(raw, dict) else {}
     beats = blueprint.get("beats") or []
@@ -271,6 +274,8 @@ def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
             at = -1
             bid = None
         elif pos == "final":
+            if not cfg.final_enabled:
+                errors.append({"code": "final_slot_is_off", "segment": sid})
             at = len(beats) - 1
             bid = beats[-1]["id"] if beats else None
         else:
@@ -315,6 +320,7 @@ def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
                                "claim": str(c["text"])[:120]})
             claims.append({"text": str(c["text"])[:400], "kind": kind, "evidence_ids": ids})
         lo, hi = cfg.seconds[pos]
+        hi = min(hi, cfg.max_appearance_seconds)
         try:
             t = float(s.get("target_seconds"))
         except (TypeError, ValueError):
@@ -347,6 +353,14 @@ def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
     ids = [s["id"] for s in segments]
     if len(set(ids)) != len(ids):
         errors.append({"code": "duplicate_segment_ids"})
+    opening = next((s for s in segments if s["position"] == "opening"), None)
+    if opening:
+        for s in segments:
+            if s["position"] != "opening" and s["target_seconds"] >= opening["target_seconds"]:
+                errors.append({"code": "opening_must_be_the_longest", "segment": s["id"],
+                               "seconds": s["target_seconds"],
+                               "opening_seconds": opening["target_seconds"]})
+    errors += _slot_errors(raw, segments, blueprint, slots)
     for a, b in zip(segments, segments[1:]):
         # opening sits at -1, a mid/final segment after beat i at i: the
         # difference is the number of narrated beats between the two
@@ -393,6 +407,31 @@ def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
               "narration_seconds": round(narration_seconds, 1),
               "host_share": round(share, 4)}
     return plan, report
+
+
+def _slot_errors(raw: dict, segments: list[dict], blueprint: dict,
+                 slots: list[dict] | None) -> list[dict]:
+    """The plan's host slots are the placement; a slot may be vetoed, with a
+    reason, never silently dropped or replaced by another position."""
+    if not slots:
+        return []
+    out: list[dict] = []
+    act_of = {b["id"]: b.get("act_id") for b in blueprint.get("beats") or []}
+    mid_slots = [s for s in slots if s.get("position") == "mid"]
+    vetoes = [v for v in raw.get("vetoes") or [] if isinstance(v, dict)]
+    for v in vetoes:
+        if not str(v.get("reason") or "").strip():
+            out.append({"code": "veto_without_reason", "slot": v.get("slot")})
+    vetoed = {str(v.get("slot")) for v in vetoes}
+    free = [s for s in mid_slots if s["id"] not in vetoed]
+    for seg in (s for s in segments if s["position"] == "mid"):
+        match = next((s for s in free if s.get("after_beat") == act_of.get(seg["beat_id"])), None)
+        if match is None:
+            out.append({"code": "mid_segment_not_on_a_planned_slot", "segment": seg["id"],
+                        "beat": seg["beat_id"]})
+        else:
+            free.remove(match)
+    return out
 
 
 # ---------------------------------------------------------------------------

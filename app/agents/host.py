@@ -45,6 +45,14 @@ class HostDirector:
             stamp_run(run, res, role)
         return raw, res
 
+    @staticmethod
+    def _planned_slots(db: Session, master: StoryVersion) -> list[dict]:
+        """The story plan's host slots (Part 5a) this master was written to."""
+        from app.db.models import StoryPlan
+
+        plan = db.get(StoryPlan, master.story_plan_id) if master.story_plan_id else None
+        return (json.loads(plan.plan_json).get("host_slots") or []) if plan else []
+
     # -- 1. plan -------------------------------------------------------------
     async def create_plan(self, db: Session, case: Case, bp_row: EditorialBlueprint,
                           master: StoryVersion) -> HostPlan:
@@ -56,6 +64,14 @@ class HostDirector:
         arch, mem = archive(db, case.id), memories(db, case.id)
         recent = recent_segments(db, case.id, None)
         payload = director_input(case, blueprint, texts, pack, arch, mem, recent)
+        slots = self._planned_slots(db, master)
+        if slots:
+            payload["planned_host_slots"] = slots
+            payload["host_slot_rules"] = (
+                "Place the host where planned_host_slots say (an opening before the first beat, "
+                "mid appearances in the act named by after_beat; the final slot is off). To skip a "
+                "planned mid slot, add vetoes:[{\"slot\": \"H2\", \"reason\": \"why\"}]; a veto "
+                "needs a reason. The opening is the longest appearance; every mid is strictly shorter.")
         evidence_ids = {e["id"] for e in payload["evidence"]}
         refs = set(_memory_index(arch, mem))
         narration_seconds = sum(len(t.split()) for t in texts.values()) / \
@@ -65,7 +81,7 @@ class HostDirector:
         raw, res = await self._json(db, case.id, "Host Director", "host_director",
                                     system, payload)
         plan, report = validate_host_plan(raw, blueprint, evidence_ids, refs,
-                                          narration_seconds, self.cfg)
+                                          narration_seconds, self.cfg, slots=slots)
         repairs = 0
         while report["errors"] and repairs < self.cfg.max_repair_iterations:
             repairs += 1
@@ -73,7 +89,7 @@ class HostDirector:
                 db, case.id, f"Host Director repair {repairs}", "host_director", system,
                 {**payload, "previous_plan": raw, "errors_to_fix": report["errors"]})
             plan, report = validate_host_plan(raw, blueprint, evidence_ids, refs,
-                                              narration_seconds, self.cfg)
+                                              narration_seconds, self.cfg, slots=slots)
         report["repair_iterations"] = repairs
         count = db.query(HostPlan).filter(HostPlan.blueprint_id == bp_row.id).count()
         row = HostPlan(case_id=case.id, blueprint_id=bp_row.id, version=count + 1,
