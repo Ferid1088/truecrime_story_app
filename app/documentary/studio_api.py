@@ -121,6 +121,36 @@ def host_time(case_id: int, language: str, db: Session = Depends(get_db)):
             "narration_seconds": round(narration, 1), **real_time_report(scenes, narration)}
 
 
+@router.get("/api/host-appearances")
+def list_host_appearances(case_id: int | None = None, channel: str | None = None,
+                          db: Session = Depends(get_db)):
+    """The host's visual memory, newest first."""
+    from app.db.models import HostAppearance
+    from app.documentary.visual_memory import appearance_dict
+
+    q = db.query(HostAppearance)
+    if case_id is not None:
+        q = q.filter(HostAppearance.case_id == case_id)
+    if channel:
+        q = q.filter(HostAppearance.channel == channel)
+    return [appearance_dict(r) for r in q.order_by(
+        HostAppearance.created_at.desc(), HostAppearance.id.desc()).limit(200)]
+
+
+@router.delete("/api/host-appearances/{appearance_id}")
+def delete_host_appearance(appearance_id: int, db: Session = Depends(get_db)):
+    """Remove a wrong entry from the visual memory (it stops steering the
+    director; the scene keeps its stored direction)."""
+    from app.db.models import HostAppearance
+
+    row = db.get(HostAppearance, appearance_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Appearance not found")
+    db.delete(row)
+    db.commit()
+    return {"id": appearance_id, "deleted": True}
+
+
 @router.get("/api/host-scenes/{scene_id}")
 def get_host_scene(scene_id: int, db: Session = Depends(get_db)):
     s = db.get(HostScene, scene_id)

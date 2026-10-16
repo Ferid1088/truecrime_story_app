@@ -1958,6 +1958,9 @@ class HostScene(Base):
     # Part 6g: the persona file and its sha256 these results were made under.
     persona_file: Mapped[str | None] = mapped_column(String(300), nullable=True)
     persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Part 7c: the stage direction stored with the scene, and its sha256.
+    direction_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    direction_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
@@ -2179,3 +2182,33 @@ class ExtractionCache(Base):
     model: Mapped[str] = mapped_column(String(200))
     result_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class HostAppearance(Base):
+    """What the host looked like in one appearance (Part 7d): the visual
+    memory the stage director reads to avoid repeating a whole combination.
+    Written once per accepted direction, in the same transaction as the scene's
+    direction; never for a failed or rejected one."""
+
+    __tablename__ = "host_appearances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    host_scene_id: Mapped[int] = mapped_column(
+        ForeignKey("host_scenes.id"), unique=True, index=True
+    )
+    language: Mapped[str] = mapped_column(String(10))
+    channel: Mapped[str] = mapped_column(String(100), index=True)
+    position: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    studio_profile_id: Mapped[str] = mapped_column(String(100))
+    shots_json: Mapped[str] = mapped_column(Text, default="[]")
+    outfit_id: Mapped[str] = mapped_column(String(100))
+    look_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    posture: Mapped[str] = mapped_column(String(60))
+    gestures_json: Mapped[str] = mapped_column(Text, default="[]")
+    lighting: Mapped[str] = mapped_column(String(60))
+    emotion: Mapped[str] = mapped_column(String(40))
+    interaction_pattern: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    direction_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
