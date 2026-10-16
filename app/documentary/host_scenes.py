@@ -235,18 +235,43 @@ async def _step_avatar_upload(db: Session, scene: HostScene, prov) -> dict | Non
         scene.avatar_meta_json = json.dumps(meta)
 
 
+def direction_controls(scene: HostScene) -> tuple[str | None, str | None]:
+    """(motion_prompt, expressiveness) HeyGen can execute from the scene's
+    stored direction: gestures, posture and eye contact become one natural-
+    language prompt, the emotion's intensity a coarse expressiveness level.
+    None, None for a scene without a direction."""
+    if not scene.direction_json:
+        return None, None
+    from app.core.prompts import prompt
+
+    cfg = ai_config.stage_direction
+    d = json.loads(scene.direction_json)
+    gestures = [cfg.gesture_phrases[a["action"]] for a in d.get("performance_timeline") or []
+                if a.get("action") in cfg.gesture_phrases and a["action"] != "G01_NONE"]
+    text = prompt("documentary/host/motion_prompt").format(
+        posture=cfg.posture_phrases.get(d.get("posture"), "sits naturally"),
+        eye_contact=str(d.get("eye_contact") or "DIRECT").lower().replace("_", " "),
+        gestures=("Over the speech he " + ", then ".join(gestures)) if gestures
+        else cfg.gesture_phrases["G01_NONE"].capitalize())
+    intensity = float((d.get("emotion") or {}).get("intensity") or 0.0)
+    low, high = cfg.expressiveness_thresholds
+    return text, "low" if intensity < low else ("medium" if intensity < high else "high")
+
+
 async def _step_avatar_request(db: Session, scene: HostScene, prov, look_id: str) -> dict | None:
     if (scene.provider_job_id and scene.provider_job_voice_sha == scene.voice_sha256):
         return {"skipped": f"job {scene.provider_job_id} exists"}
     meta = _loads(scene.avatar_meta_json, {})
     composited = scene.background_mode == "provider_composited"
     key = f"tc-host-{scene.id}-{(scene.voice_sha256 or '')[:12]}-g{scene.provider_generation}"
+    motion_prompt, expressiveness = direction_controls(scene)
     job = await prov.create_video(
         look_id, scene.provider_asset_id, key,
         output_format="mp4" if composited else ai_config.avatar.output_format,
         resolution=ai_config.avatar.resolution,
         background_asset_id=meta.get("background_asset_id") if composited else None,
-        title=f"{scene.channel} case {scene.case_id} {scene.host_segment_id}")
+        title=f"{scene.channel} case {scene.case_id} {scene.host_segment_id}",
+        motion_prompt=motion_prompt, expressiveness=expressiveness)
     scene.avatar_id = look_id
     scene.provider_job_id = job.job_id
     scene.provider_job_voice_sha = scene.voice_sha256

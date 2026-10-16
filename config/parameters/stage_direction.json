@@ -71,6 +71,26 @@
         "توفي"
       ]
     },
-    "outfit_allow_list": {}
+    "outfit_allow_list": {},
+    "gesture_phrases": {
+      "G01_NONE": "keeps the hands still",
+      "G02_SMALL_OPEN_PALM": "makes one small open-palm gesture",
+      "G03_SUBTLE_TWO_HAND_EXPLANATION": "makes one subtle two-hand explaining gesture",
+      "G04_SMALL_HEAD_TILT": "tilts the head slightly once",
+      "G05_THOUGHTFUL_PAUSE": "pauses thoughtfully for a moment",
+      "G06_SLIGHT_NOD": "nods slightly once",
+      "G07_SHORT_LOOK_AWAY_RETURN": "looks away briefly and returns to the camera"
+    },
+    "posture_phrases": {
+      "P01_NEUTRAL_SEATED": "sits in a neutral upright position",
+      "P02_SLIGHT_FORWARD": "leans slightly forward",
+      "P03_RELAXED_BACK": "sits relaxed, leaning back",
+      "P04_ARMREST_RELAXED": "rests an arm on the armrest",
+      "P05_HANDS_LOOSELY_JOINED": "holds the hands loosely joined"
+    },
+    "expressiveness_thresholds": [
+      0.34,
+      0.67
+    ]
   }
 }

@@ -40,7 +40,8 @@ class AvatarProvider:
     async def create_video(self, look_id: str, audio_asset_id: str, idempotency_key: str,
                            output_format: str, resolution: str,
                            background_asset_id: str | None = None,
-                           title: str | None = None) -> AvatarJob:
+                           title: str | None = None, motion_prompt: str | None = None,
+                           expressiveness: str | None = None) -> AvatarJob:
         raise NotImplementedError
 
     async def get_video(self, job_id: str) -> AvatarJob:

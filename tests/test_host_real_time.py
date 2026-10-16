@@ -1,3 +1,4 @@
+import json
 import pytest
 from types import SimpleNamespace
 
@@ -116,3 +117,43 @@ def test_the_stage_director_runs_after_the_voice_and_a_failure_is_recorded_on_th
     with pytest.raises(RuntimeError):
         asyncio.run(HS.run_scene(db_session, scene, "voice", director=failing))
     assert scene.failed_step == "stage_direction"
+
+
+def test_the_stored_direction_becomes_a_motion_prompt_and_an_expressiveness_level():
+    import json
+
+    from app.documentary.host_scenes import direction_controls
+    from test_stage_direction import good
+
+    scene = SimpleNamespace(direction_json=None)
+    assert direction_controls(scene) == (None, None)
+    raw = good()
+    scene.direction_json = json.dumps(raw)
+    motion, level = direction_controls(scene)
+    assert "leans slightly forward" in motion and "small open-palm gesture" in motion
+    assert "mostly direct" in motion and level == "medium"        # intensity 0.4
+    raw["emotion"]["intensity"] = 0.1
+    scene.direction_json = json.dumps(raw)
+    assert direction_controls(scene)[1] == "low"
+
+
+def test_heygen_create_video_sends_motion_prompt_and_expressiveness_only_when_given(monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from app.providers.avatar.heygen import HeyGenAvatarProvider
+
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"data": {"video_id": "v1", "status": "waiting"}})
+
+    monkeypatch.setenv("TRUECRIME_HEYGEN_API_KEY", "k")
+    prov = HeyGenAvatarProvider(key_env="TRUECRIME_HEYGEN_API_KEY", transport=httpx.MockTransport(handler))
+    asyncio.run(prov.create_video("look", "audio", "key", "mp4", "1080p"))
+    asyncio.run(prov.create_video("look", "audio", "key", "mp4", "1080p",
+                                  motion_prompt="calm", expressiveness="low"))
+    assert "motion_prompt" not in bodies[0] and "expressiveness" not in bodies[0]
+    assert (bodies[1]["motion_prompt"], bodies[1]["expressiveness"]) == ("calm", "low")

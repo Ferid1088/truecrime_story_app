@@ -1,0 +1,1 @@
+The speaker {posture}, looks {eye_contact} at the camera and speaks naturally, calm and human. {gestures}. Small natural movement only: breathing, blinking, a slight posture adjustment. No large gestures, no dramatic acting, no walking.

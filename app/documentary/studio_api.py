@@ -226,6 +226,29 @@ async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+@router.post("/api/host-looks/{look_id}/upload")
+async def upload_host_look(look_id: int, db: Session = Depends(get_db)):
+    """Upload an APPROVED look to HeyGen as a look of the configured character."""
+    from app.core.ai_config import ai_config
+    from app.core.env import env_value
+    from app.documentary import looks as LK
+    from app.providers.avatar import get_avatar_provider
+    from app.providers.avatar.base import AvatarProviderError
+
+    look = _look(db, look_id)
+    try:
+        LK.require_approved_for_upload(look)
+        cp = ST.channel_profile(look.language)
+        group = env_value(cp["heygen_avatar_env"]) or ""
+        if not group:
+            raise ST.StudioError(f"{cp['heygen_avatar_env']} is not set (.env)")
+        prov = get_avatar_provider(key_env=cp["heygen_key_env"])
+        await LK.upload_to_heygen(db, look, prov, group)
+        return LK.look_dict(look)
+    except (LK.LookError, ST.StudioError, AvatarProviderError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
 class LookDecision(BaseModel):
     by: str | None = None
     reason: str | None = None

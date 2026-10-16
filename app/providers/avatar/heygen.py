@@ -99,15 +99,42 @@ class HeyGenAvatarProvider(AvatarProvider):
             raise AvatarProviderError("invalid_output", "HeyGen upload returned no asset id")
         return aid
 
+    async def create_look(self, group_id: str, name: str, asset_id: str) -> str:
+        """Add an uploaded picture as another look of an existing character
+        (HeyGen docs, Photo to Avatar: POST /v3/avatars type photo with
+        avatar_group_id; the response's avatar_item.id is the look id)."""
+        d = await self._call("POST", "/v3/avatars", json={
+            "type": "photo", "name": name[:100], "avatar_group_id": group_id,
+            "file": {"type": "asset_id", "asset_id": asset_id}})
+        item = (d.get("data") or d).get("avatar_item") or {}
+        if not item.get("id"):
+            raise AvatarProviderError("invalid_output", "HeyGen returned no look id")
+        return item["id"]
+
+    async def look_status(self, look_id: str) -> tuple[str, str | None]:
+        """(status, error message) of a look: processing | completed | failed."""
+        d = await self._call("GET", f"/v3/avatars/looks/{look_id}")
+        data = d.get("data") or {}
+        err = data.get("error") or {}
+        return data.get("status") or "unknown", (err.get("message") if isinstance(err, dict) else None)
+
     async def create_video(self, look_id: str, audio_asset_id: str, idempotency_key: str,
                            output_format: str, resolution: str,
                            background_asset_id: str | None = None,
-                           title: str | None = None) -> AvatarJob:
+                           title: str | None = None, motion_prompt: str | None = None,
+                           expressiveness: str | None = None) -> AvatarJob:
         body: dict = {"type": "avatar", "avatar_id": look_id, "audio_asset_id": audio_asset_id,
                       "output_format": output_format, "resolution": resolution,
                       "aspect_ratio": "16:9"}
         if title:
             body["title"] = title[:100]
+        # HeyGen docs (create-video, 2026-10-16): motion_prompt directs body
+        # motion and hand gestures of photo avatars; expressiveness
+        # (high|medium|low) is photo avatars on Avatar IV only.
+        if motion_prompt:
+            body["motion_prompt"] = motion_prompt
+        if expressiveness:
+            body["expressiveness"] = expressiveness
         if background_asset_id:
             if output_format == "webm":
                 raise AvatarProviderError("invalid_request",

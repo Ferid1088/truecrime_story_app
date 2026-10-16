@@ -564,6 +564,11 @@ class StageDirectionConfig(BaseModel):
     # Owner choice: outfits that may appear per language; a language without an
     # entry may use every outfit.
     outfit_allow_list: dict[str, list[str]]
+    # How a direction becomes HeyGen's natural-language motion prompt.
+    gesture_phrases: dict[str, str]
+    posture_phrases: dict[str, str]
+    # intensity below the first value -> low, below the second -> medium, else high
+    expressiveness_thresholds: list[float]
 
 
 class HostLooksConfig(BaseModel):

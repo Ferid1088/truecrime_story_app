@@ -165,3 +165,28 @@ def look_dict(look: HostLook) -> dict:
             "status": look.status, "approved_by": look.approved_by,
             "approved_at": look.approved_at, "rejected_reason": look.rejected_reason,
             "heygen_look_id": look.heygen_look_id, "attempts": look.attempts}
+
+
+async def upload_to_heygen(db: Session, look: HostLook, provider, group_id: str,
+                           sleep=None, polls: int = 60) -> HostLook:
+    """Only an approved look: upload its picture, add it as a look of the
+    character, wait until HeyGen finished it, store the HeyGen look id."""
+    import asyncio
+
+    from app.providers.avatar.base import AvatarProviderError
+
+    require_approved_for_upload(look)
+    path = storage.resolve(look.image_path) if look.image_path else None
+    if path is None or not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest() != look.image_sha256:
+        raise LookError("the approved picture is missing or changed on disk")
+    asset_id = await provider.upload_asset(path, "image/png")
+    look_id = await provider.create_look(
+        group_id, f"{look.studio_profile_id} {look.camera} {look.framing} {look.outfit_id}", asset_id)
+    for _ in range(polls):
+        status, message = await provider.look_status(look_id)
+        if status == "completed":
+            return mark_uploaded(db, look, look_id)
+        if status == "failed":
+            raise AvatarProviderError("provider_error", f"HeyGen could not build the look: {message}")
+        await (sleep or asyncio.sleep)(5)
+    raise AvatarProviderError("timeout", "HeyGen did not finish the look in time")

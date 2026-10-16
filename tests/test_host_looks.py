@@ -104,3 +104,65 @@ def test_looks_api_request_approve_and_generation_refuses_without_a_studio_maste
     assert gen.status_code == 409 and "studio master" in gen.json()["detail"]
     assert client.post(f"/api/host-looks/{made['id']}/approve", json={}).status_code == 409
     assert any(x["id"] == made["id"] for x in client.get("/api/host-looks?language=en").json())
+
+
+def _heygen(handler, monkeypatch):
+    import httpx
+
+    from app.providers.avatar.heygen import HeyGenAvatarProvider
+
+    monkeypatch.setenv("TRUECRIME_HEYGEN_API_KEY", "k")
+    return HeyGenAvatarProvider(key_env="TRUECRIME_HEYGEN_API_KEY",
+                                transport=httpx.MockTransport(handler))
+
+
+def test_heygen_create_look_adds_a_photo_look_to_the_group_and_reads_its_status(monkeypatch):
+    import httpx
+    import json
+
+    seen = []
+
+    def handler(request):
+        seen.append((request.method, request.url.path, request.content))
+        if request.url.path == "/v3/avatars":
+            return httpx.Response(200, json={"data": {"avatar_item": {"id": "look9"}}})
+        return httpx.Response(200, json={"data": {"status": "completed"}})
+
+    prov = _heygen(handler, monkeypatch)
+    assert asyncio.run(prov.create_look("grp1", "studio front", "asset7")) == "look9"
+    body = json.loads(seen[0][2])
+    assert body == {"type": "photo", "name": "studio front", "avatar_group_id": "grp1",
+                    "file": {"type": "asset_id", "asset_id": "asset7"}}
+    assert asyncio.run(prov.look_status("look9")) == ("completed", None)
+
+
+def test_upload_to_heygen_needs_an_approved_look_with_its_picture_unchanged(db_session, profile, tmp_path, monkeypatch):
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    look = _new(db_session, profile)
+    asyncio.run(LK.generate(db_session, look, FakeImage(), b"s", b"o"))
+
+    class Prov:
+        calls = []
+
+        async def upload_asset(self, path, mime):
+            self.calls.append("upload")
+            return "a1"
+
+        async def create_look(self, group, name, asset):
+            self.calls.append("create")
+            return "hl1"
+
+        async def look_status(self, look_id):
+            return "completed", None
+
+    prov = Prov()
+    with pytest.raises(LK.LookError, match="approved"):
+        asyncio.run(LK.upload_to_heygen(db_session, look, prov, "grp"))
+    assert prov.calls == []                              # nothing reached HeyGen
+    LK.approve(db_session, look, "owner")
+    (tmp_path / look.image_path).write_bytes(b"tampered")
+    with pytest.raises(LK.LookError, match="changed on disk"):
+        asyncio.run(LK.upload_to_heygen(db_session, look, prov, "grp"))
+    (tmp_path / look.image_path).write_bytes(b"\x89PNG\r\n\x1a\nfake1")
+    asyncio.run(LK.upload_to_heygen(db_session, look, prov, "grp"))
+    assert look.heygen_look_id == "hl1" and prov.calls == ["upload", "create"]
