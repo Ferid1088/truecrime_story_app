@@ -34,7 +34,7 @@ _PLACE_KINDS = {"place", "building", "landscape", "map", "geography"}
 _CASE_KINDS = {"event", "document"}
 
 # Material from the case's own sources: an exact match is case evidence.
-CASE_SOURCE_PROVIDERS = {"source_page", "upload"}
+CASE_SOURCE_PROVIDERS = {"source_page", "upload", "lead_source"}
 
 
 def tier_label(tier: int | None) -> str | None:

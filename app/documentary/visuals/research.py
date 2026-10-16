@@ -268,6 +268,135 @@ class SourcePageProvider:
         ]
 
 
+def brave_backend():
+    """Brave Search (the project's only search provider), configured as the
+    research engine configures it."""
+    from app.core.env import env_value
+    from app.research_engine.search_adapters.brave import BraveSearchBackend
+
+    cfg = ai_config.search_engine
+    return BraveSearchBackend(
+        api_key=env_value(cfg.brave_api_key_env), base_url=cfg.brave_base_url,
+        timeout_s=cfg.request_timeout_s, health_cache_seconds=cfg.health_cache_seconds,
+        result_count=cfg.max_results_per_query, min_interval_s=cfg.search_min_interval_s)
+
+
+class BraveImageProvider:
+    """Brave image search for the case's own people, places and documents.
+    The result carries no license: rights default to editorial_review_required
+    (rights.py), so a human decides before it can be used."""
+    name = "brave_images"
+
+    def __init__(self, backend):
+        self.backend = backend
+        self.cfg = ai_config.visual_search
+
+    async def search(self, query: str, limit: int) -> list[Candidate]:
+        from app.research_engine.search import SearchError
+
+        try:
+            results = await self.backend.search_media("images", query, "en", limit)
+        except SearchError as e:
+            log.warning("brave image search failed for %r: %s", query, e)
+            return []
+        out = []
+        for r in results:
+            props = r.get("properties") or {}
+            url = props.get("url") or (r.get("thumbnail") or {}).get("src")
+            if not url or (props.get("width") and props["width"] < self.cfg.min_width):
+                continue
+            out.append(Candidate(
+                url=url, provider=self.name, page_url=r.get("url"),
+                title=_clean(r.get("title"), 300), source_name=r.get("source"),
+                found_for=query))
+        return out
+
+
+def _owner_matches(owner: str, url: str, title: str | None) -> bool:
+    """The page is plausibly the named owner's own: a distinctive word of the
+    owner's name appears in the page's domain or title."""
+    words = {w.lower() for w in re.findall(r"[\w']+", owner or "") if len(w) >= 4}
+    haystack = f"{urlparse(url).hostname or ''} {title or ''}".lower()
+    return any(w in haystack for w in words)
+
+
+class LeadSourceProvider:
+    """Part 4b(2): the ORIGINAL owner of footage or photos a video showed
+    (court, police, archive, news organisation) — searched on the web and its
+    page fetched directly, never the YouTube video itself."""
+    name = "lead_source"
+
+    def __init__(self, client: httpx.AsyncClient, backend):
+        self.client = client
+        self.backend = backend
+        self.cfg = ai_config.visual_search
+
+    async def images_for(self, lead, case: Case) -> list[Candidate]:
+        from app.research_engine.search import SearchError
+
+        owner = (lead.original_owner or "").strip()
+        if not owner:
+            return []
+        try:
+            results = await self.backend.search(f"{owner} {case.canonical_title}", "en", limit=6)
+        except SearchError as e:
+            log.info("lead source search failed for %r: %s", owner, e)
+            return []
+        out: list[Candidate] = []
+        pages = 0
+        for r in results:
+            if pages >= self.cfg.max_lead_pages_per_lead:
+                break
+            if any(h in r.url for h in ("youtube.com", "youtu.be")) or not _owner_matches(
+                    owner, r.url, r.title):
+                continue
+            pages += 1
+            try:
+                resp = await self.client.get(r.url)
+                resp.raise_for_status()
+                page = resp.text if "html" in resp.headers.get("content-type", "html") else ""
+            except httpx.HTTPError as e:
+                log.info("lead source page fetch failed %s: %s", r.url, type(e).__name__)
+                continue
+            for img in page_images(page, r.url):
+                out.append(Candidate(
+                    url=img["url"], page_url=r.url, provider=self.name,
+                    title=r.title, caption=img["caption"] or _clean(lead.description_en),
+                    source_name=owner, found_for=f"lead:{lead.id}", query_kind="source"))
+        return out
+
+
+async def store_video_links(db: Session, case: Case, backend, queries: list[dict]) -> int:
+    """Part 4b(3): Brave video search results as LINKS ONLY for the owner."""
+    from app.db.models import MediaLink
+    from app.research_engine.search import SearchError
+
+    cfg = ai_config.visual_search
+    known = {u for (u,) in db.query(MediaLink.url).filter(MediaLink.case_id == case.id)}
+    added = 0
+    for q in queries[: cfg.max_video_link_queries]:
+        try:
+            results = await backend.search_media(
+                "videos", q["query"], "en", cfg.video_links_per_query)
+        except SearchError as e:
+            log.info("brave video search failed for %r: %s", q["query"], e)
+            continue
+        for r in results:
+            url = (r.get("url") or "").strip()
+            if not url or url in known:
+                continue
+            known.add(url)
+            video = r.get("video") or {}
+            db.add(MediaLink(
+                case_id=case.id, kind="video", url=url[:1000],
+                title=_clean(r.get("title"), 500), description=_clean(r.get("description")),
+                creator=(video.get("creator") or None), duration=video.get("duration"),
+                platform=urlparse(url).hostname, found_for=q["query"][:500]))
+            added += 1
+    db.commit()
+    return added
+
+
 # ---------------------------------------------------------------------------
 # agent
 # ---------------------------------------------------------------------------

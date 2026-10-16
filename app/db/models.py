@@ -511,6 +511,28 @@ class ClaimCluster(Base):
     case = relationship("Case")
 
 
+class MediaLink(Base):
+    """A video found by Brave video search for a case: a LINK for the owner,
+    never downloaded and never put into a film (Part 4b)."""
+    __tablename__ = "media_links"
+    __table_args__ = (UniqueConstraint("case_id", "url", name="uq_media_links_case_url"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="video")
+    url: Mapped[str] = mapped_column(String(1000))
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    creator: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    platform: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    duration: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    found_for: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="new")  # new | dismissed
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    case = relationship("Case")
+
+
 class VisualLead(Base):
     """Part 3(d): what real footage or photos a video shows (court, police,
     bodycam, news clip, document...), at which timestamp, and the original

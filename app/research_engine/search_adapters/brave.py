@@ -58,7 +58,8 @@ class BraveSearchBackend:
             except (TypeError, ValueError, OverflowError):
                 return None
 
-    async def _request(self, query: str, language: str, limit: int) -> tuple[dict, int]:
+    async def _request(self, query: str, language: str, limit: int,
+                       endpoint: str = "web") -> tuple[dict, int]:
         if not self.api_key:
             raise SearchError(self.name, "not_configured",
                               "Brave Search API is not configured")
@@ -84,7 +85,7 @@ class BraveSearchBackend:
                     if wait > 0:
                         await asyncio.sleep(wait)
                     async with httpx.AsyncClient(timeout=self.timeout_s, headers=headers) as client:
-                        response = await client.get(f"{self.base_url}/res/v1/web/search", params=params)
+                        response = await client.get(f"{self.base_url}/res/v1/{endpoint}/search", params=params)
                     retry_after = self._retry_after(response.headers.get("Retry-After"))
                     self._next_request_at = time.monotonic() + self.min_interval_s
                     if retry_after is not None:
@@ -139,8 +140,22 @@ class BraveSearchBackend:
 
     @staticmethod
     def _results(data: dict) -> list[dict]:
+        top = data.get("results")  # the images and videos endpoints answer with a flat list
+        if isinstance(top, list):
+            return top
         web = data.get("web")
         return (web.get("results") or []) if isinstance(web, dict) else []
+
+    async def search_media(self, kind: str, query: str, language: str,
+                           limit: int = 10) -> list[dict]:
+        """Brave image or video search results, as Brave returns them (checked
+        live 2026-10-16: images carry properties.url, the original image, and
+        the page url, no license; videos carry url, title, video.creator and
+        video.duration). An empty answer is an empty list, not an error."""
+        if kind not in ("images", "videos"):
+            raise ValueError(f"unknown Brave media kind {kind!r}")
+        data, _ = await self._request(shorten_query(query), language, limit, endpoint=kind)
+        return self._results(data)[:min(limit, self.result_count, 20)]
 
     async def search(self, query: str, language: str,
                      categories: list[str] | None = None,

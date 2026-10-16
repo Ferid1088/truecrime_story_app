@@ -2125,6 +2125,19 @@ export interface DocumentaryOverview {
 export type AssetRole = "evidence" | "context" | "illustration";
 export type VerificationStatus = "verified" | "needs_review" | "rejected" | "unverified";
 
+export interface MediaLinkItem {
+  id: number;
+  kind: string;
+  url: string;
+  title: string | null;
+  description: string | null;
+  creator: string | null;
+  platform: string | null;
+  duration: string | null;
+  found_for: string | null;
+  status: "new" | "dismissed";
+}
+
 export interface MediaCoverage {
   production_id: number;
   language: string;

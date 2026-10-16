@@ -1393,6 +1393,13 @@ class DocumentaryConfig(BaseModel):
 
 class VisualSearchConfig(BaseModel):
     providers: list[str] = ["source_pages", "wikimedia"]
+    # Part 4b: pages of the original owners named by a video's visual leads,
+    # the Brave image search for the case's own people/places/documents, and
+    # Brave video search results kept as LINKS for the owner (never downloaded).
+    max_lead_sources: int = Field(default=6, ge=0)
+    max_lead_pages_per_lead: int = Field(default=2, ge=1)
+    max_video_link_queries: int = Field(default=3, ge=0)
+    video_links_per_query: int = Field(default=5, ge=1, le=20)
     user_agent: str = ("TrueCrimeStudio/1.0 (local documentary research tool; "
                        "https://github.com/Ferid1088/truecrime_story_app)")
     # Seconds between requests to public APIs (Wikimedia robot policy).

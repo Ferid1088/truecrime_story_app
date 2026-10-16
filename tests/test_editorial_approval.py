@@ -55,3 +55,19 @@ def test_approval_only_applies_to_editorial_review_pictures(client, db_session):
     a = _asset(db_session, "public_domain", "VIS_T3")
     r = client.post(f"/api/visuals/{a.id}/approve-editorial", json={"approved_by": "owner"})
     assert r.status_code == 409
+
+
+def test_the_final_checks_flag_any_shot_whose_picture_is_not_cleared(db_session):
+    """Part 4: nothing unapproved reaches a render — the deterministic checks of
+    the production script flag an unapproved editorial picture as a high issue."""
+    from app.documentary.production.critics import deterministic_checks
+
+    unapproved = _asset(db_session, "editorial_review_required", "VIS_T9")
+    approved = _asset(db_session, "public_domain", "VIS_T10")
+    script = {"duration": 20.0, "shots": [
+        {"index": 0, "start": 0.0, "end": 10.0, "kind": "image", "asset_id": "VIS_T9"},
+        {"index": 1, "start": 10.0, "end": 20.0, "kind": "image", "asset_id": "VIS_T10"}]}
+    issues = deterministic_checks(script, {"VIS_T9": unapproved, "VIS_T10": approved})["issues"]
+    rights = [i for i in issues if i["check"] == "rights"]
+    assert [(i["shot"], i["severity"]) for i in rights] == [(0, "high")]
+    assert "missing" in rights[0]["why"]

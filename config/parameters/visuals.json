@@ -2,7 +2,10 @@
   "visual_search": {
     "providers": [
       "source_pages",
-      "wikimedia"
+      "wikimedia",
+      "brave_images",
+      "lead_sources",
+      "brave_video_links"
     ],
     "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
     "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
@@ -23,7 +26,11 @@
       "123rf.",
       "stock.adobe."
     ],
-    "min_request_interval_s": 1.0
+    "min_request_interval_s": 1.0,
+    "max_lead_sources": 6,
+    "max_lead_pages_per_lead": 2,
+    "max_video_link_queries": 3,
+    "video_links_per_query": 5
   },
   "visual_verification": {
     "per_requirement": 5,

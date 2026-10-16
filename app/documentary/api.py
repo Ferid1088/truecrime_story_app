@@ -19,6 +19,7 @@ from app.core.files import serve as serve_file
 from app.core.tasks import spawn
 from app.db.base import get_db
 from app.db.models import (
+    MediaLink,
     Artifact,
     Case,
     DocumentaryJob,
@@ -771,6 +772,33 @@ def update_visual(asset_id: int, payload: AssetUpdate, db: Session = Depends(get
     a.human_override = True
     db.commit()
     return asset_dict(a)
+
+
+def media_link_dict(m) -> dict:
+    return {"id": m.id, "kind": m.kind, "url": m.url, "title": m.title,
+            "description": m.description, "creator": m.creator, "platform": m.platform,
+            "duration": m.duration, "found_for": m.found_for, "status": m.status}
+
+
+@router.get("/api/cases/{case_id}/media-links")
+def list_media_links(case_id: int, db: Session = Depends(get_db)):
+    """Videos found by Brave search: links for the owner, never downloaded."""
+    return [media_link_dict(m) for m in db.query(MediaLink).filter(
+        MediaLink.case_id == case_id).order_by(MediaLink.id)]
+
+
+class MediaLinkUpdate(BaseModel):
+    status: Literal["new", "dismissed"]
+
+
+@router.patch("/api/media-links/{link_id}")
+def update_media_link(link_id: int, payload: MediaLinkUpdate, db: Session = Depends(get_db)):
+    m = db.get(MediaLink, link_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Link not found")
+    m.status = payload.status
+    db.commit()
+    return media_link_dict(m)
 
 
 class EditorialApproval(BaseModel):

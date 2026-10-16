@@ -7,13 +7,17 @@ import json
 import httpx
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
-from app.db.models import Case, Source, VisualAsset
+from app.db.models import Case, Source, VisualAsset, VisualLead
 from app.documentary import storage
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import (
+    BraveImageProvider,
     Candidate,
+    LeadSourceProvider,
+    brave_backend,
+    store_video_links,
     RIGHTS_KNOWN_PROVIDERS,
     SourcePageProvider,
     WikimediaProvider,
@@ -66,9 +70,22 @@ class VisualResearchAgent:
                     for c in await sp.images_for(s):
                         c.query_kind = "source"
                         candidates.append(c)
+            backend = brave_backend() if any(
+                p in self.cfg.providers for p in ("brave_images", "lead_sources", "brave_video_links")
+            ) else None
+            if ("lead_sources" in self.cfg.providers and backend and exact_wanted
+                    and found_during == "research"):
+                lp = LeadSourceProvider(client, backend)
+                leads = (db.query(VisualLead).filter(
+                    VisualLead.case_id == case.id, VisualLead.original_owner.isnot(None))
+                    .order_by(VisualLead.id).limit(self.cfg.max_lead_sources).all())
+                for lead in leads:
+                    candidates.extend(await lp.images_for(lead, case))
             searchers = []
             if "wikimedia" in self.cfg.providers:
                 searchers.append(WikimediaProvider(client))
+            if "brave_images" in self.cfg.providers and backend:
+                searchers.append(BraveImageProvider(backend))
             for q in queries[: self.cfg.max_queries]:
                 kind = query_kind(q)
                 ents = list(q.get("entities") or [])
@@ -140,6 +157,9 @@ class VisualResearchAgent:
                 budget -= 1
                 stats["added"] += 1
                 stats["by_provider"][c.provider] = stats["by_provider"].get(c.provider, 0) + 1
+            if "brave_video_links" in self.cfg.providers and backend and queries:
+                stats["video_links"] = await store_video_links(
+                    db, case, backend, footage_queries(queries, self.cfg.max_video_link_queries))
             fcfg = ai_config.footage
             fq = footage_queries(queries, fcfg.max_queries) if (
                 fcfg.enabled and fcfg.providers and budget > 0) else []

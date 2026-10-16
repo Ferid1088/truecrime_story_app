@@ -55,9 +55,12 @@ def classify(provider: str, license_name: str | None = None,
             return "creative_commons", f"license: {license_name}"
         if "all rights reserved" in lic or "copyright" in lic:
             return "permission_required", f"license: {license_name}"
-    if provider == "source_page":
+    if provider in ("source_page", "lead_source"):
         return ("editorial_review_required",
                 f"image from a case source ({_domain(page_url or url)})")
+    if provider == "brave_images":
+        return ("editorial_review_required",
+                f"web image search result, license unknown ({_domain(page_url or url)})")
     return "unknown", "no license information"
 
 

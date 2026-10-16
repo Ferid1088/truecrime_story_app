@@ -77,6 +77,7 @@ export function VisualLibraryTab({ caseId, overview, refreshKey }: DocumentaryTa
 
   return (
     <div className="space-y-4">
+      <MediaLinksPanel caseId={caseId} refreshKey={refreshKey} />
       <CoveragePanel caseId={caseId} languages={overview.languages ? Object.keys(overview.languages) : ["fa"]} refreshKey={refreshKey} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -677,6 +678,45 @@ function CoveragePanel({ caseId, languages, refreshKey }: { caseId: number; lang
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+function MediaLinksPanel({ caseId, refreshKey }: { caseId: number; refreshKey: number }) {
+  const [tick, setTick] = useState(0);
+  const { data } = useApi(() => api.mediaLinks(caseId), [caseId, refreshKey, tick], { keepPrevious: true });
+  const links = (data ?? []).filter((l) => l.status === "new");
+  if (links.length === 0) return null;
+  return (
+    <Card className="p-3" data-testid="media-links">
+      <h3 className="text-xs font-medium">Video links for you ({links.length})</h3>
+      <p className="mb-2 text-[11px] text-muted-foreground">
+        Found by video search. These are links only: they are never downloaded and never used in a film.
+      </p>
+      <ul className="space-y-1.5 text-xs">
+        {links.map((l) => (
+          <li key={l.id} className="flex items-start justify-between gap-2">
+            <span className="min-w-0">
+              <a href={l.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                {l.title || l.url}
+              </a>
+              <span className="ml-1.5 text-muted-foreground">
+                {[l.platform, l.creator, l.duration].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={async () => {
+                await api.setMediaLinkStatus(l.id, "dismissed");
+                setTick((t) => t + 1);
+              }}
+            >
+              Dismiss
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

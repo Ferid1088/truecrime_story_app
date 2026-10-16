@@ -18,6 +18,7 @@ from test_blueprint_performance import PACK, SECTIONS, _good, _no_contradiction,
 
 from app.core.ai_config import ai_config
 from app.db.models import DocumentaryJob, ProductionScript, VisualAsset, VisualPlan
+from datetime import datetime, timezone
 from app.documentary.blueprint import validate_blueprint
 from app.documentary.production.critics import apply_fixes, deterministic_checks
 from app.documentary.production.script import compose
@@ -204,6 +205,9 @@ def test_requirements_keep_only_grounded_material():
 # ---------------------------------------------------------------------------
 
 
+# a fixed approval time: golden snapshots must not depend on the clock
+APPROVED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
 def _asset(code, **kw):
     base = dict(
         asset_code=code,
@@ -211,6 +215,8 @@ def _asset(code, **kw):
         asset_role="evidence",
         verification_status="verified",
         rights_status="editorial_review_required",
+        editorial_approved_by="test",
+        editorial_approved_at=APPROVED_AT,
         local_path="x.jpg",
         entities_json='["the_house"]',
         reveals_json="[]",
@@ -1201,6 +1207,8 @@ def documentary_env(tmp_path, monkeypatch):
                     asset_code=code,
                     provider="source_page",
                     rights_status="editorial_review_required",
+                    editorial_approved_by="test",
+                    editorial_approved_at=APPROVED_AT,
                     asset_role="evidence",
                     title=f"The farmhouse {i} [mock:{fingerprint}]",
                     local_path=str(p),

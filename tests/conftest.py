@@ -320,6 +320,16 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
+def _visual_research_without_brave_by_default(monkeypatch):
+    """The Brave image/lead/video-link providers reach a paid external API;
+    tests of the older providers keep their old provider list, and the new
+    providers have their own tests that opt in with a fake backend."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.visual_search, "providers", ["source_pages", "wikimedia"])
+
+
+@pytest.fixture(autouse=True)
 def _no_title_drafting_in_pipeline_tests(monkeypatch):
     """Pipeline tests use scripted model answers; the naming stage (many
     model calls) has its own tests."""

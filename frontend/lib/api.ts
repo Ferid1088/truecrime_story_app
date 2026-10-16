@@ -1,5 +1,6 @@
 import type {
   MediaCoverage,
+  MediaLinkItem,
   ThumbnailOptions,
   ThumbnailRecord,
   CaseNaming,
@@ -634,6 +635,10 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  mediaLinks: (caseId: number) =>
+    request<MediaLinkItem[]>(`/api/cases/${caseId}/media-links`),
+  setMediaLinkStatus: (linkId: number, status: "new" | "dismissed") =>
+    patch<MediaLinkItem>(`/api/media-links/${linkId}`, { status }),
   mediaCoverage: (caseId: number, language: string) =>
     request<MediaCoverage>(`/api/cases/${caseId}/documentary/media-coverage/${language}`),
   /** Record who approved an editorial_review_required picture for use. */

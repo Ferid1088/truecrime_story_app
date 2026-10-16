@@ -255,6 +255,14 @@ def deterministic_checks(script: dict, assets: dict[str, VisualAsset],
                            "why": f"{code} shown {n} times"})
     issues += repetition_issues(script, assets)
     for s in shots:
+        a = assets.get(s.get("asset_id") or "")
+        if a is not None and s.get("kind") in ("image", "video", "document") and not R.usable(a):
+            issues.append({"check": "rights", "severity": "high", "shot": s["index"],
+                           "time": _mmss(s["start"]),
+                           "why": f"{a.asset_code} is not cleared for the film "
+                                  f"(rights: {a.rights_status}, editorial approval "
+                                  f"{'recorded' if a.editorial_approved_at else 'missing'})"})
+    for s in shots:
         length = s["end"] - s["start"]
         if length < motion.min_hold_seconds * 0.8 and s is not shots[-1]:
             issues.append({"check": "holds", "severity": "low", "shot": s["index"],

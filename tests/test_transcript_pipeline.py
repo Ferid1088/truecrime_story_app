@@ -1290,7 +1290,7 @@ def test_extraction_stores_visual_leads_with_timestamp_and_owner(db_session, mon
 
     counts = asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
     assert counts["visual_leads"] == 2
-    leads = {l.description_en: l for l in db_session.query(VisualLead).all()}
+    leads = {l.description_en: l for l in db_session.query(VisualLead).filter_by(case_id=case.id)}
     court = leads["Courtroom arraignment footage"]
     assert (court.lead_type, court.original_owner, court.timestamp_start) == (
         "court_footage", "County Court TV", 30.0)
@@ -1298,7 +1298,7 @@ def test_extraction_stores_visual_leads_with_timestamp_and_owner(db_session, mon
     assert (other.lead_type, other.original_owner) == ("other", None)
 
     asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
-    assert db_session.query(VisualLead).count() == 2
+    assert db_session.query(VisualLead).filter_by(case_id=case.id).count() == 2
 
 
 def test_visual_leads_endpoints(client, db_session):
