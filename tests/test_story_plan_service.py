@@ -167,3 +167,31 @@ def test_the_pipeline_writes_to_the_plan_without_a_new_director_call(db_session,
     assert [a["id"] for a in structure["acts"]] == ["act1", "act2", "act3"]
     gates = json.loads(version.critic_notes)["quality_gates"]
     assert "plan_check" in gates
+
+
+def test_every_new_master_records_its_writer_prompt_name_and_sha256(db_session, monkeypatch):
+    from app.core.prompts import prompt_sha256
+    from tests.test_master_pipeline import ScriptGen, _pipeline
+    from app.agents.story import MASTER_ROLES
+
+    fake = ScriptGen()
+    fake.structured["master_story_director"] = _director(3)
+    pipe = _pipeline(fake, monkeypatch)
+    pipe.roles = MASTER_ROLES
+    case = _case(db_session)
+    version = asyncio.run(pipe.run(
+        db=db_session, case=case, target_minutes=45, language="fa", tone="documentary",
+        iterations=0, kind="master", words_per_minute=ai_config.words_per_minute_for("fa")))
+    assert version.writer_prompt_name == "agents/story/write_act"
+    assert version.writer_prompt_sha256 == prompt_sha256("agents/story/write_act")
+    assert len(version.writer_prompt_sha256) == 64
+
+
+def test_prompt_sha256_is_the_hash_of_the_file_bytes():
+    import hashlib
+    from pathlib import Path
+
+    from app.core.prompts import prompt_sha256
+
+    raw = Path("prompts/agents/story/write_act.md").read_bytes()
+    assert prompt_sha256("agents/story/write_act") == hashlib.sha256(raw).hexdigest()

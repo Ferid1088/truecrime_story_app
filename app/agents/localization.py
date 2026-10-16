@@ -255,7 +255,7 @@ class LocalizationPipeline:
             sections,
             text, engagement, None, "not_evaluated", critique, language,
             writer_res,
-            kind="localized",
+            kind="localized", writer_prompt="agents/localization/writer_rules",
             master_version_id=master.id,
             derived_from_master_version=master.version,
             native_quality_score=self._native_score(native),

@@ -42,6 +42,20 @@ def prompt(name: str) -> str:
         raise PromptNotFound(f"prompt {name!r} not found ({path})") from None
 
 
+def prompt_sha256(name: str) -> str:
+    """sha256 of the prompt file exactly as stored: any text can be traced to
+    the prompt version that produced it."""
+    import hashlib
+
+    path = (PROMPT_DIR / (name + SUFFIX)).resolve()
+    if PROMPT_DIR.resolve() not in path.parents:
+        raise PromptNotFound(f"invalid prompt name {name!r}")
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except FileNotFoundError:
+        raise PromptNotFound(f"prompt {name!r} not found ({path})") from None
+
+
 def reload() -> None:
     prompt.cache_clear()
 

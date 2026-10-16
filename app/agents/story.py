@@ -1,5 +1,5 @@
 from app.agents.runner import run_agent
-from app.core.prompts import prompt
+from app.core.prompts import prompt, prompt_sha256
 import copy
 import hashlib
 import json
@@ -1088,7 +1088,10 @@ class StoryPipeline:
             # pilot on one bounded writer pass; full films retain act-scoped
             # generation and its evidence protections.
             compact_master = kind == "master" and target_minutes < ai_config.story.min_target_minutes
-            if mg.section_based_generation and len(acts) > 1 and not compact_master:
+            section_writer = bool(
+                mg.section_based_generation and len(acts) > 1 and not compact_master)
+            writer_prompt = "agents/story/write_act" if section_writer else "agents/story/write"
+            if section_writer:
                 sections, story_res = await self._write_acts(
                     db, case, pack, plan, acts, language, tone
                 )
@@ -1509,7 +1512,7 @@ class StoryPipeline:
                 db, case, plan, sections, text,
                 float(final_critique.get("score", 0)),
                 similarity, sim_status, final_critique, language, story_res,
-                kind=kind,
+                kind=kind, writer_prompt=writer_prompt,
                 extra_structure={
                     "evidence_usage": _evidence_usage(sections, pack),
                     "evidence_coverage": evidence_coverage_matrix(
@@ -1660,6 +1663,8 @@ class StoryPipeline:
                 kind=story_version.kind,
                 master_version_id=story_version.master_version_id,
                 derived_from_master_version=story_version.derived_from_master_version,
+                writer_prompt=story_version.writer_prompt_name,
+                writer_prompt_sha256=story_version.writer_prompt_sha256,
                 extra_structure={
                     "evidence_fingerprint": evidence_fingerprint(pack),
                     "structure_lost_at": [] if structure_kept else ["improve"],
@@ -2511,6 +2516,8 @@ class StoryPipeline:
         semantic_consistency_score: float | None = None,
         factual_consistency_score: float | None = None,
         extra_structure: dict | None = None,
+        writer_prompt: str | None = None,
+        writer_prompt_sha256: str | None = None,
     ) -> StoryVersion:
         current_versions = (
             db.query(StoryVersion)
@@ -2610,6 +2617,9 @@ class StoryPipeline:
             critic_notes=json.dumps(critique, ensure_ascii=False),
             generation_provider=generation.provider if generation else None,
             generation_model=generation.model if generation else None,
+            writer_prompt_name=writer_prompt,
+            writer_prompt_sha256=(writer_prompt_sha256
+                                  or (prompt_sha256(writer_prompt) if writer_prompt else None)),
         )
         db.add(row)
         case.status = "story_ready"

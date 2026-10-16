@@ -317,6 +317,11 @@ function StudioBody({
                     <span>
                       ~{Math.max(1, Math.round(master.word_count / 150))} min
                     </span>
+                    {master.writer_prompt_sha256 && (
+                      <span title={master.writer_prompt_sha256}>
+                        prompt {master.writer_prompt_name?.split("/").pop()} {master.writer_prompt_sha256.slice(0, 8)}
+                      </span>
+                    )}
                   </div>
                   <Button
                     size="sm"

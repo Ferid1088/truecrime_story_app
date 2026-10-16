@@ -228,6 +228,9 @@ class StoryVersion(Base):
     narrative_structure: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The approved story plan this version was written to (Part 5a).
     story_plan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # The writer prompt file (prompts/<name>.md) and its sha256 that wrote this text.
+    writer_prompt_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    writer_prompt_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     critic_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     generation_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)

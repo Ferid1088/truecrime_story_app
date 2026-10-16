@@ -465,6 +465,9 @@ export interface StoryMeta {
   narrative_angle: string;
   language: string;
   kind: StoryKind;
+  story_plan_id: number | null;
+  writer_prompt_name: string | null;
+  writer_prompt_sha256: string | null;
   master_version_id: number | null;
   derived_from_master_version: number | null;
   native_quality_score: number | null;

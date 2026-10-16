@@ -327,6 +327,7 @@ class SpokenNarrator:
         version = StoryPipeline()._new_version(
             db, case, plan, spoken, text, 0.0, None, "not_evaluated", critique,
             language, writer_res, kind="spoken",
+            writer_prompt="documentary/spoken/writer_system_prompt",
             master_version_id=master.id,
             derived_from_master_version=master.version,
             native_quality_score=round(100 * storyteller / n, 1),
