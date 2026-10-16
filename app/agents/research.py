@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 
 from app.agents.runner import run_agent
 from app.core.prompts import prompt
@@ -6,7 +7,8 @@ from app.core.quote_check import quote_is_supported
 import json
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
-from app.db.models import Case, Source, Fact, Contradiction
+from app.db.base import SessionLocal
+from app.db.models import Case, Source, Fact, Contradiction, ExtractionCache
 from app.agents.fact_merge import FactMerger, default_embedder
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
@@ -43,6 +45,88 @@ def _source_bundle(sources: list[Source], *, with_texts: bool = True) -> list[di
         }
         for s in sources
     ]
+
+
+def _source_content_key(source_dict: dict) -> str:
+    texts = [c["text"] for c in source_dict.get("chunks", [])] or [source_dict.get("text") or ""]
+    return hashlib.sha256("\x1f".join(texts).encode("utf-8")).hexdigest()
+
+
+def _chunk_content_key(chunk_dict: dict) -> str:
+    return hashlib.sha256((chunk_dict.get("text") or "").encode("utf-8")).hexdigest()
+
+
+def _bundle_has_cacheable_content(bundle: list[dict]) -> bool:
+    """A source with no real text (summary-only, fetch failed, a test
+    fixture with no fixture text) must never be cached: every such source
+    hashes identically (empty content), so caching it would silently
+    return one source's facts for a completely different one."""
+    return any(
+        any(c.get("text", "").strip() for c in s.get("chunks", []))
+        or (s.get("text") or "").strip()
+        for s in bundle
+    )
+
+
+def _bundle_content_hash(bundle: list[dict]) -> str:
+    """Stable hash of exactly the text a batch sends to the model —
+    independent of source/chunk row ids, so the same real-world content
+    hashes the same even if it was re-ingested under a different Source
+    row (a different case, or a re-fetch of the same page)."""
+    keys = sorted(_source_content_key(s) for s in bundle)
+    return hashlib.sha256("\x1e".join(keys).encode("utf-8")).hexdigest()
+
+
+def _facts_for_cache(facts: list[dict], bundle: list[dict]) -> list[dict]:
+    """Before storing: replace this bundle's real source/chunk ids in each
+    fact with content-hash keys, so the cached result is portable to
+    whatever ids the same content has in a future bundle."""
+    source_key_by_id = {s["id"]: _source_content_key(s) for s in bundle}
+    chunk_key_by_id = {c["id"]: _chunk_content_key(c) for s in bundle for c in s.get("chunks", [])}
+    return [
+        {**f,
+         "source_ids": [source_key_by_id.get(sid, sid) for sid in f.get("source_ids", [])],
+         "chunk_ids": [chunk_key_by_id.get(cid, cid) for cid in f.get("chunk_ids", [])] or f.get("chunk_ids", [])}
+        for f in facts
+    ]
+
+
+def _facts_from_cache(cached: list[dict], bundle: list[dict]) -> list[dict]:
+    """After a cache hit: replace the stored content-hash keys with this
+    bundle's actual real source/chunk ids. Falls back to the stored value
+    unchanged if a key isn't found (should not happen — the content hash
+    already matched this exact bundle)."""
+    id_by_source_key = {_source_content_key(s): s["id"] for s in bundle}
+    id_by_chunk_key = {_chunk_content_key(c): c["id"] for s in bundle for c in s.get("chunks", [])}
+    return [
+        {**f,
+         "source_ids": [id_by_source_key.get(key, key) for key in f.get("source_ids", [])],
+         "chunk_ids": [id_by_chunk_key.get(key, key) for key in f.get("chunk_ids", [])]}
+        for f in cached
+    ]
+
+
+def _extraction_cache_get(content_hash: str, prompt_version: str, model: str) -> list[dict] | None:
+    with SessionLocal() as db:
+        row = db.query(ExtractionCache).filter_by(
+            content_hash=content_hash, prompt_version=prompt_version, model=model,
+        ).first()
+        return json.loads(row.result_json) if row else None
+
+
+def _extraction_cache_put(content_hash: str, prompt_version: str, model: str, facts: list[dict]) -> None:
+    with SessionLocal() as db:
+        # Another concurrent batch may have just written the same key.
+        existing = db.query(ExtractionCache).filter_by(
+            content_hash=content_hash, prompt_version=prompt_version, model=model,
+        ).first()
+        if existing:
+            return
+        db.add(ExtractionCache(
+            content_hash=content_hash, prompt_version=prompt_version, model=model,
+            result_json=json.dumps(facts, ensure_ascii=False),
+        ))
+        db.commit()
 
 
 def _source_text(source: Source) -> str:
@@ -162,7 +246,21 @@ class ResearchAgent:
                              label: str) -> list[dict]:
         """One call for the batch; if the reply is unusable (truncated, empty,
         malformed) the batch is halved and each half retried. A single failing
-        source raises."""
+        source raises.
+
+        Part 2(e) item 3: the exact same content, prompt and model is never
+        extracted twice — a restart, or the same source shared by another
+        case, is served from app.db.models.ExtractionCache with no provider
+        call at all."""
+        cacheable = _bundle_has_cacheable_content(bundle)
+        content_hash = _bundle_content_hash(bundle) if cacheable else None
+        prompt_version = hashlib.sha256(system.encode("utf-8")).hexdigest()
+        model = ai_config.model_for("fact_extractor")
+        if cacheable:
+            cached = _extraction_cache_get(content_hash, prompt_version, model)
+            if cached is not None:
+                return _facts_from_cache(cached, bundle)
+
         user = json.dumps(
             {"case": case.canonical_title, "sources": bundle, "output_schema": _FACT_SCHEMA},
             ensure_ascii=False,
@@ -176,6 +274,8 @@ class ResearchAgent:
                 stamp_run(run, res, "fact_extractor")
                 found = data.get("facts", [])
                 run.output_summary = f"facts={len(found)}"
+            if cacheable:
+                _extraction_cache_put(content_hash, prompt_version, model, _facts_for_cache(found, bundle))
             return found
         except (GenerationError, ValueError):
             if len(bundle) == 1:

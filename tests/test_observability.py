@@ -55,6 +55,51 @@ def test_llm_call_records_tokens_cost_and_never_the_query_or_key():
         assert secret not in dump
 
 
+def test_llm_call_without_a_reported_cost_is_priced_from_its_model_and_tokens():
+    """A real bug on case 5: ~578 real apimaster.ai chat/embeddings calls
+    (made via raw httpx, not through app.providers.generation) were booked
+    with model=None and cost_eur=None forever, even though the response
+    body already carried both the model id and real token counts — the
+    ledger just never looked at them."""
+    def h(req):
+        return httpx.Response(200, json={
+            "model": "claude-sonnet-5-5",
+            "usage": {"prompt_tokens": 1000, "completion_tokens": 500},
+        })
+
+    async def go():
+        async with httpx.AsyncClient(transport=mock(h)) as c:
+            await c.post("https://apimaster.ai/v1/chat/completions", json={})
+
+    asyncio.run(go())
+    (r,) = rows()
+    assert r.model == "claude-sonnet-5-5"
+    assert (r.tokens_in, r.tokens_out) == (1000, 500)
+    assert r.estimated is False
+    assert r.cost_eur is not None and r.cost_eur > 0
+    assert r.error is None
+
+
+def test_llm_call_with_an_unpriced_model_fails_loudly_not_at_zero():
+    def h(req):
+        return httpx.Response(200, json={
+            "model": "some-new-model-not-in-pricing-json",
+            "usage": {"prompt_tokens": 1000, "completion_tokens": 500},
+        })
+
+    async def go():
+        async with httpx.AsyncClient(transport=mock(h)) as c:
+            await c.post("https://apimaster.ai/v1/chat/completions", json={})
+
+    asyncio.run(go())
+    (r,) = rows()
+    assert r.model == "some-new-model-not-in-pricing-json"
+    assert r.estimated is True
+    assert r.error and "no price entry" in r.error
+    # A conservative (never-under-counting) price, never a silent zero.
+    assert r.cost_eur is not None and r.cost_eur > 0
+
+
 def test_http_error_and_exception_are_recorded_as_failures():
     def h(req):
         if req.url.path == "/boom":

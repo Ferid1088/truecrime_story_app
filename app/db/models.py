@@ -2013,3 +2013,22 @@ class BackupRun(Base):
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ExtractionCache(Base):
+    """Part 2(e): the same content, prompt version and model is never
+    extracted twice — across cases that share a source, and across a
+    restart. Keyed by a hash of the extracted content, never the content
+    itself (kept small; the real text lives on Source/SourceChunk)."""
+
+    __tablename__ = "extraction_cache"
+    __table_args__ = (
+        UniqueConstraint("content_hash", "prompt_version", "model", name="uq_extraction_cache_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    prompt_version: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(200))
+    result_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

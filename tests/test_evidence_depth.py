@@ -329,6 +329,70 @@ def test_quote_verified_is_deterministic_not_a_model_call(db_session):
     assert facts["No supporting text given"].quote_verified is None
 
 
+def test_extraction_cache_makes_no_provider_call_on_a_repeat(db_session):
+    """Part 2(e) item 3: the same content, prompt version and model is
+    never extracted twice — a restart must not pay for it again."""
+    case = _mk_case(db_session)
+    src = _mk_source(
+        db_session, case, content_status="full_text", is_authorized_text=True,
+        raw_text="The keeper's logbook recorded fair weather on the twelfth of December.",
+    )
+    calls = {"n": 0}
+
+    class CountingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                calls["n"] += 1
+            return await super().generate_structured(role, system, user)
+
+    fake = CountingFake([
+        {"claim": "Fair weather was logged", "category": "context",
+         "confidence": 0.8, "source_ids": [src.id]},
+    ])
+    _run_extract(db_session, case, fake)
+    assert calls["n"] == 1
+
+    # A second extraction run over the exact same content (e.g. a restart
+    # re-running the stage) must be served entirely from cache.
+    _run_extract(db_session, case, fake)
+    assert calls["n"] == 1
+
+
+def test_extraction_cache_is_portable_across_cases_with_remapped_ids(db_session):
+    """Part 2(e) item 3: "also across cases that share a source" — the
+    cached fact's source_ids/chunk_ids must point at the NEW case's real
+    row ids, never the ids of the case that first populated the cache."""
+    case_a = _mk_case(db_session)
+    src_a = _mk_source(
+        db_session, case_a, content_status="full_text", is_authorized_text=True,
+        raw_text="A rescue boat was dispatched from Breasclete at dawn.",
+    )
+    fake = _ExtractFake([
+        {"claim": "A rescue boat was dispatched", "category": "context",
+         "confidence": 0.8, "source_ids": [src_a.id]},
+    ])
+    _run_extract(db_session, case_a, fake)
+
+    case_b = _mk_case(db_session)
+    src_b = _mk_source(
+        db_session, case_b, content_status="full_text", is_authorized_text=True,
+        raw_text="A rescue boat was dispatched from Breasclete at dawn.",
+    )
+    assert src_b.id != src_a.id
+
+    class FailingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                raise AssertionError("must be served from cache, not a real call")
+            return await super().generate_structured(role, system, user)
+
+    _run_extract(db_session, case_b, FailingFake([]))
+    from app.db.models import Fact
+
+    fact_b = db_session.query(Fact).filter(Fact.case_id == case_b.id).one()
+    assert json.loads(fact_b.source_ids_json) == [src_b.id]
+
+
 # ---------------------------------------------------------------------------
 # 13. EvidenceCoverageMatrix
 # ---------------------------------------------------------------------------

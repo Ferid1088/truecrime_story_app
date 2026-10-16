@@ -133,21 +133,26 @@ def _brave_price() -> tuple[float, float]:
         return 0.005, 0.004469
 
 
-def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None]:
-    """Token counts and cost from an LLM-style JSON body that is already in memory."""
+def _usage(resp: httpx.Response) -> tuple[int | None, int | None, float | None, str | None]:
+    """Token counts, cost and model from an LLM-style JSON body that is
+    already in memory. `model` is read regardless of whether `usage` itself
+    is present — some gateway responses carry one without the other."""
     try:
         if "json" not in resp.headers.get("content-type", "") or len(resp.content) > 2_000_000:
-            return None, None, None
-        u = (resp.json() or {}).get("usage")
+            return None, None, None, None
+        data = resp.json() or {}
+        model = data.get("model")
+        model = model if isinstance(model, str) else None
+        u = data.get("usage")
         if not isinstance(u, dict):
-            return None, None, None
+            return None, None, None, model
         tin = u.get("prompt_tokens", u.get("input_tokens"))
         tout = u.get("completion_tokens", u.get("output_tokens"))
         cost = u.get("cost")
         return (tin if isinstance(tin, int) else None, tout if isinstance(tout, int) else None,
-                float(cost) if isinstance(cost, (int, float)) else None)
+                float(cost) if isinstance(cost, (int, float)) else None, model)
     except Exception:  # noqa: BLE001  (not JSON, not read yet, or an unexpected shape)
-        return None, None, None
+        return None, None, None, None
 
 
 def record_call(request: httpx.Request, started: float, response: httpx.Response | None = None,
@@ -161,13 +166,13 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
         return
     try:
         status = response.status_code if response is not None else None
-        tin = tout = cost = None
+        tin = tout = cost = model = None
         size = None
         if response is not None:
             cl = response.headers.get("content-length")
             size = int(cl) if cl and cl.isdigit() else None
             if not stream:
-                tin, tout, cost = _usage(response)
+                tin, tout, cost, model = _usage(response)
                 size = size if size is not None else len(response.content)
         rid = request_id_var.get()
         try:
@@ -177,20 +182,49 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
             metadata = {}
         is_brave = request.url.host == "api.search.brave.com" and request.url.path == "/res/v1/web/search"
         brave_usd, brave_eur = _brave_price()
+        resolved_model = "brave-search" if is_brave else model
+        price_error = None
+        if is_brave:
+            estimated = cost is None
+            cost_usd = brave_usd if cost is None else cost
+            cost_eur = brave_eur if cost is None else cost * ai_config.budget.usd_to_eur
+        elif cost is not None:
+            estimated = False
+            cost_usd = cost
+            cost_eur = cost * ai_config.budget.usd_to_eur
+        elif resolved_model and tin is not None and tout is not None:
+            # The provider reported real usage and which model served it,
+            # but not its own cost — price it the same way the rest of the
+            # cost ledger does (app.services.tracking._record_provider_call),
+            # never leaving a real, priceable call's cost unset.
+            from app.services.cost_model import conservative_unpriced_cost_eur, model_cost_eur
+
+            cost_usd = None
+            priced = model_cost_eur(resolved_model, tin, tout)
+            if priced is not None:
+                estimated = False
+                cost_eur = priced
+            else:
+                estimated = True
+                price_error = f"no price entry for model {resolved_model!r}"[:200]
+                cost_eur = conservative_unpriced_cost_eur(tin, tout)
+        else:
+            estimated = False
+            cost_usd = None
+            cost_eur = None
         row = dict(
             host=request.url.host[:120], method=request.method[:10], path=request.url.path[:300],
             status=status, ok=error is None and status is not None and status < 400,
             duration_ms=round((time.perf_counter() - started) * 1000), bytes_in=size,
             tokens_in=tin, tokens_out=tout,
-            error=(type(error).__name__ if error is not None else None),
+            error=(type(error).__name__ if error is not None else price_error),
             request_id=None if rid == "-" else rid,
             case_id=metadata.get("case_id"),
             stage=metadata.get("pipeline_stage"),
-            model=("brave-search" if is_brave else None),
-            estimated=(is_brave and cost is None),
-            cost_usd=(brave_usd if is_brave and cost is None else cost),
-            cost_eur=(brave_eur if is_brave and cost is None else
-                      (cost * ai_config.budget.usd_to_eur if cost is not None else None)),
+            model=resolved_model,
+            estimated=estimated,
+            cost_usd=cost_usd,
+            cost_eur=cost_eur,
             units=(1 if is_brave else
                    ((tin or 0) + (tout or 0) if tin is not None or tout is not None else None)),
         )
