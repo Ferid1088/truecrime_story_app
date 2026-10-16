@@ -380,6 +380,60 @@ def test_supporting_span_is_resolved_from_the_real_chunk_not_retyped(db_session)
     assert facts["No span given"].quote_verified is None
 
 
+def test_chunk_selection_sends_the_most_relevant_chunks_not_the_first_n(db_session, monkeypatch):
+    """Part 2(e) item 2: cut the text, not the source — a long source's
+    chunks are ranked by relevance to the case, not truncated at the
+    first N in document order."""
+    from app.core.ai_config import ai_config
+    from app.db.models import SourceChunk
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_chunks_per_source_for_extraction", 2)
+    # A unique marker instead of a real-world case theme: several other
+    # test files independently use "Flannan Isles"/lighthouse-keeper
+    # content as a shared fixture for unrelated discovery/dedup checks,
+    # and the full suite shares one database — colliding with it caused a
+    # spurious failure there when this test ran earlier in the same run.
+    marker = f"relevance-marker-{uuid.uuid4().hex[:8]}"
+    case = _mk_case(db_session)
+    case.canonical_title = f"a case about {marker}"
+    db_session.commit()
+    src = _mk_source(db_session, case, content_status="full_text")
+    chunk_texts = [
+        "An unrelated weather almanac entry about rainfall averages.",
+        f"The central fact of {marker} was documented here.",      # 1: relevant
+        "A recipe for traditional Scottish shortbread biscuits.",
+        f"Investigators confirmed {marker} in their report.",      # 3: relevant
+        "An advertisement for a steamship ticket to Glasgow.",
+    ]
+    chunks = [
+        SourceChunk(source_id=src.id, chunk_index=i, text=t, content_hash=f"{i}" * 64, language="en")
+        for i, t in enumerate(chunk_texts)
+    ]
+    db_session.add_all(chunks)
+    db_session.commit()
+    relevant_ids = {chunks[1].id, chunks[3].id}
+
+    class RelevanceAwareEmbedder(DistinctEmbedder):
+        async def embed(self, texts):
+            import numpy as np
+            vectors = []
+            for t in texts:
+                vectors.append([1.0, 0.0] if marker in t else [0.0, 1.0])
+            return np.array(vectors, dtype=np.float32)
+
+    seen_chunk_ids = []
+
+    class RecordingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                for s in json.loads(user)["sources"]:
+                    seen_chunk_ids.extend(c["id"] for c in s["chunks"])
+            return await super().generate_structured(role, system, user)
+
+    _run_extract(db_session, case, RecordingFake([]), RelevanceAwareEmbedder())
+    assert set(seen_chunk_ids) == relevant_ids
+
+
 def test_extraction_cache_makes_no_provider_call_on_a_repeat(db_session):
     """Part 2(e) item 3: the same content, prompt version and model is
     never extracted twice — a restart must not pay for it again."""

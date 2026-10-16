@@ -16,9 +16,25 @@ from app.providers.generation.base import GenerationError
 from app.services.tracking import track_research_call, track_run, stamp_run
 
 
-def _source_bundle(sources: list[Source], *, with_texts: bool = True) -> list[dict]:
+def _source_bundle(sources: list[Source], *, with_texts: bool = True,
+                   chunk_ids_by_source: dict[int, list[int]] | None = None) -> list[dict]:
     """with_texts=False drops the raw text and chunks: only fact extraction
-    reads them, later stages work on the extracted claims."""
+    reads them, later stages work on the extracted claims.
+
+    chunk_ids_by_source (Part 2(e) item 2): which chunk ids to send for a
+    source, already selected by relevance (see
+    ResearchAgent._select_chunks_for_extraction) instead of the first N in
+    document order. Falls back to the first N when not given (callers that
+    don't do extraction, e.g. timeline/contradiction prompts with
+    with_texts=False, never need this)."""
+    def chunks_for(s: Source) -> list:
+        if not with_texts:
+            return []
+        if chunk_ids_by_source is not None:
+            wanted = set(chunk_ids_by_source.get(s.id, []))
+            return [c for c in (s.chunks or []) if c.id in wanted]
+        return (s.chunks or [])[: ai_config.source_chunking.max_chunks_per_source_for_extraction]
+
     return [
         {
             "id": s.id,
@@ -37,12 +53,7 @@ def _source_bundle(sources: list[Source], *, with_texts: bool = True) -> list[di
             "summary": s.summary,
             "summary_en": s.summary_en,
             "notes": s.notes,
-            "chunks": [
-                {"id": c.id, "text": c.text}
-                for c in (s.chunks or [])[
-                    : ai_config.source_chunking.max_chunks_per_source_for_extraction
-                ]
-            ] if with_texts else [],
+            "chunks": [{"id": c.id, "text": c.text} for c in chunks_for(s)],
         }
         for s in sources
     ]
@@ -330,6 +341,48 @@ class ResearchAgent:
         db.flush()
         return [s for s in sources if s.id in kept_ids]
 
+    async def _select_chunks_for_extraction(
+        self, case: Case, sources: list[Source]
+    ) -> dict[int, list[int]]:
+        """Part 2(e) item 2: cut the text, not the source. A source with
+        more chunks than the configured per-source limit sends only the
+        ones most relevant to the case (by embedding similarity to the
+        case's own identity — canonical_title and summary, the only
+        "central question" proxy available this early; EditorialBlueprint's
+        real central_question does not exist until after the master is
+        written), never just the first N in document order (mostly
+        boilerplate for a long page).
+
+        Chunks are returned in their original document order (narrative
+        coherence for the extractor), not similarity-ranked order.
+        """
+        limit = ai_config.source_chunking.max_chunks_per_source_for_extraction
+        query = " ".join(filter(None, (case.canonical_title, case.summary)))
+        result: dict[int, list[int]] = {}
+        to_rank: list[Source] = []
+        for s in sources:
+            chunks = s.chunks or []
+            if len(chunks) <= limit:
+                result[s.id] = [c.id for c in chunks]
+            else:
+                to_rank.append(s)
+        if not to_rank or not query.strip():
+            for s in to_rank:
+                result[s.id] = [c.id for c in (s.chunks or [])[:limit]]
+            return result
+
+        for s in to_rank:
+            chunks = s.chunks or []
+            # The query and the chunks must come from the same embed() call:
+            # a fresh call can return a different vector space (dimension
+            # even varies with a fake/test embedder keyed on batch size).
+            vectors = await self.embedder.embed([query] + [c.text for c in chunks])
+            query_vector, chunk_vectors = vectors[:1], vectors[1:]
+            sims = cosine_matrix(query_vector, chunk_vectors)[0]
+            ranked = sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)[:limit]
+            result[s.id] = [chunks[i].id for i in sorted(ranked)]
+        return result
+
     # ------------------------------------------------------------------
     # fact_extractor (cheap)
     # ------------------------------------------------------------------
@@ -338,8 +391,10 @@ class ResearchAgent:
         """Single-language batches, extracted concurrently. The bundles are
         read here, in this session; each call then tracks itself in its own."""
         system = prompt("agents/research/extract_facts")
+        chunk_ids_by_source = await self._select_chunks_for_extraction(case, sources)
         bundles = [
-            _source_bundle(batch) for batch in _extraction_batches(
+            _source_bundle(batch, chunk_ids_by_source=chunk_ids_by_source)
+            for batch in _extraction_batches(
                 sources, ai_config.source_chunking.max_sources_per_extraction_call)
         ]
         limit = asyncio.Semaphore(ai_config.source_chunking.extraction_concurrency)
