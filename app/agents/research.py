@@ -490,20 +490,34 @@ class ResearchAgent:
                 result[s.id] = [c.id for c in (s.chunks or [])[:limit]]
             return result
 
+        # Part 2(d): independent per-source ranking calls, concurrent and
+        # bounded (previously one source at a time) — each source's
+        # relevance ranking depends on nothing from any other source's,
+        # so there is no shared state to race (unlike per-language
+        # research's novelty dedup — see ROADMAP.md Part 2(d)).
+        limit_sem = asyncio.Semaphore(ai_config.source_chunking.extraction_concurrency)
+
+        async def rank_one(s: Source) -> tuple[int, list[int]]:
+            chunks = s.chunks or []
+            # The query and the chunks must come from the same embed() call:
+            # a fresh call can return a different vector space (dimension
+            # even varies with a fake/test embedder keyed on batch size).
+            async with limit_sem:
+                vectors = await self.embedder.embed([query] + [c.text for c in chunks])
+            query_vector, chunk_vectors = vectors[:1], vectors[1:]
+            sims = cosine_matrix(query_vector, chunk_vectors)[0]
+            ranked = sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)[:limit]
+            return s.id, [chunks[i].id for i in sorted(ranked)]
+
         with _track_embedding_cost(
             self.embedder, case.id, "Chunk Selection",
             f"case={case.id} sources_ranked={len(to_rank)}",
         ) as run:
-            for s in to_rank:
-                chunks = s.chunks or []
-                # The query and the chunks must come from the same embed() call:
-                # a fresh call can return a different vector space (dimension
-                # even varies with a fake/test embedder keyed on batch size).
-                vectors = await self.embedder.embed([query] + [c.text for c in chunks])
-                query_vector, chunk_vectors = vectors[:1], vectors[1:]
-                sims = cosine_matrix(query_vector, chunk_vectors)[0]
-                ranked = sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)[:limit]
-                result[s.id] = [chunks[i].id for i in sorted(ranked)]
+            async with asyncio.TaskGroup() as group:
+                tasks = [group.create_task(rank_one(s)) for s in to_rank]
+            for task in tasks:
+                sid, chunk_ids = task.result()
+                result[sid] = chunk_ids
             run.output_summary = f"sources_ranked={len(to_rank)}"
         return result
 

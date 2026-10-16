@@ -538,6 +538,50 @@ def test_chunk_selection_sends_the_most_relevant_chunks_not_the_first_n(db_sessi
     assert set(seen_chunk_ids) == relevant_ids
 
 
+def test_chunk_selection_ranks_sources_concurrently_bounded_by_extraction_concurrency(
+    db_session, monkeypatch,
+):
+    """Part 2(d): independent per-source embedding calls run concurrently
+    (previously one source at a time, with no shared state between them to
+    race), bounded by the same extraction_concurrency semaphore the fact
+    extractor batches already use."""
+    import asyncio
+
+    from app.core.ai_config import ai_config
+    from app.db.models import SourceChunk
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_chunks_per_source_for_extraction", 1)
+    monkeypatch.setattr(ai_config.source_chunking, "extraction_concurrency", 3)
+    marker = uuid.uuid4().hex[:8]
+    case = _mk_case(db_session)
+    case.canonical_title = f"a case about {marker}"
+    db_session.commit()
+    sources = [_mk_source(db_session, case, content_status="full_text") for _ in range(5)]
+    for s in sources:
+        db_session.add_all([
+            SourceChunk(source_id=s.id, chunk_index=i,
+                       text=f"{marker} chunk {s.id}-{i}", content_hash=f"{s.id}{i}" * 16,
+                       language="en")
+            for i in range(2)
+        ])
+    db_session.commit()
+
+    state = {"now": 0, "peak": 0}
+
+    class SlowRankingEmbedder(DistinctEmbedder):
+        async def embed(self, texts):
+            import numpy as np
+
+            state["now"] += 1
+            state["peak"] = max(state["peak"], state["now"])
+            await asyncio.sleep(0.05)
+            state["now"] -= 1
+            return np.eye(len(texts), dtype=np.float32)
+
+    _run_extract(db_session, case, _ExtractFake([]), SlowRankingEmbedder())
+    assert state["peak"] == 3
+
+
 def test_deleting_a_promoted_fact_clears_the_reference_instead_of_blocking(tmp_path):
     """A real bug found live on case 5, 2026-10-16: _store_facts deletes
     and re-inserts every Fact for a case on each research run, but
