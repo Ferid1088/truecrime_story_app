@@ -331,6 +331,55 @@ def test_quote_verified_is_deterministic_not_a_model_call(db_session):
     assert facts["No supporting text given"].quote_verified is None
 
 
+def test_supporting_span_is_resolved_from_the_real_chunk_not_retyped(db_session):
+    """Part 2(e) item 4: the model points at its evidence (chunk id +
+    character offsets) instead of retyping it; the actual text is sliced
+    from the real chunk in code, never trusted from the model's own copy
+    — and never asked of it, cutting output tokens for long quotes."""
+    from app.db.models import Fact, SourceChunk
+
+    case = _mk_case(db_session)
+    src = _mk_source(db_session, case, content_status="full_text")
+    chunk_text = ("Keeper James Ducat was married with three children in Edinburgh. "
+                 f"span-resolution-test {uuid.uuid4().hex[:8]}")
+    chunk = SourceChunk(source_id=src.id, chunk_index=0, text=chunk_text,
+                       content_hash="x" * 64, language="en")
+    db_session.add(chunk)
+    db_session.commit()
+
+    fake = _ExtractFake([
+        {
+            "claim": "Ducat was married", "category": "person", "confidence": 0.9,
+            "source_ids": [src.id], "chunk_ids": [chunk.id],
+            "supporting_span": {"chunk_id": chunk.id, "start": 8, "end": 34},
+        },
+        {
+            "claim": "Out of bounds span", "category": "context", "confidence": 0.5,
+            "source_ids": [src.id], "chunk_ids": [chunk.id],
+            "supporting_span": {"chunk_id": chunk.id, "start": 0, "end": 9999},
+        },
+        {
+            "claim": "Unknown chunk referenced", "category": "context", "confidence": 0.5,
+            "source_ids": [src.id],
+            "supporting_span": {"chunk_id": 999999, "start": 0, "end": 5},
+        },
+        {
+            "claim": "No span given", "category": "context", "confidence": 0.5,
+            "source_ids": [src.id],
+            "supporting_span": None,
+        },
+    ])
+    _run_extract(db_session, case, fake)
+
+    facts = {f.claim: f for f in db_session.query(Fact).filter(Fact.case_id == case.id).all()}
+    assert facts["Ducat was married"].supporting_text == chunk_text[8:34]
+    assert facts["Ducat was married"].quote_verified is True
+    assert facts["Out of bounds span"].supporting_text is None
+    assert facts["Out of bounds span"].quote_verified is False
+    assert facts["Unknown chunk referenced"].quote_verified is None
+    assert facts["No span given"].quote_verified is None
+
+
 def test_extraction_cache_makes_no_provider_call_on_a_repeat(db_session):
     """Part 2(e) item 3: the same content, prompt version and model is
     never extracted twice — a restart must not pay for it again."""

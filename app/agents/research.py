@@ -142,6 +142,38 @@ def _extractable_content(source: Source) -> str:
     return " ".join(p for p in parts if p)
 
 
+def _resolve_fact_span(fact: dict, chunk_text_by_id: dict[int, str]) -> dict:
+    """Part 2(e) item 4: the model points at its evidence (a chunk id plus
+    character offsets) instead of retyping it — resolved here, once, right
+    at the model-response boundary, into the same plain "supporting_text"
+    string the rest of the pipeline (merge, cache, storage, serializers)
+    already expects, so nothing downstream needs to know spans exist.
+
+    A fact with no "supporting_span" key (older/test-provided facts that
+    still set "supporting_text" directly) is left untouched — verified
+    later by app.core.quote_check's fuzzy match against the full cited
+    source text, exactly as before this change.
+    """
+    if "supporting_span" not in fact:
+        return fact
+    span = fact.pop("supporting_span")
+    if not isinstance(span, dict):
+        fact["supporting_text"] = None
+        fact["_quote_verified"] = None
+        return fact
+    chunk_text = chunk_text_by_id.get(span.get("chunk_id"))
+    if chunk_text is None:
+        fact["supporting_text"] = None
+        fact["_quote_verified"] = None
+        return fact
+    start, end = span.get("start"), span.get("end")
+    valid = (isinstance(start, int) and isinstance(end, int)
+             and 0 <= start < end <= len(chunk_text))
+    fact["supporting_text"] = chunk_text[start:end] if valid else None
+    fact["_quote_verified"] = valid if valid else False
+    return fact
+
+
 def _source_text(source: Source) -> str:
     """All text a fact's supporting_text could plausibly quote: every
     extraction-eligible chunk, plus the raw page text if the extractor saw
@@ -165,7 +197,7 @@ _FACT_SCHEMA = {
             "original_language": "en",
             "narrative_value": "human_detail|scene_detail|investigation_detail|...",
             "evidence_strength": "primary|strong_secondary|secondary|tertiary|weak|disputed",
-            "supporting_text": "verbatim passage or null",
+            "supporting_span": {"chunk_id": 1, "start": 0, "end": 1},
             "chunk_ids": [1],
             "quote_status": "verified_direct|reported_quote|paraphrase|uncertain|null",
             "speaker": "name or null",
@@ -354,7 +386,8 @@ class ResearchAgent:
             ) as run:
                 data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
                 stamp_run(run, res, "fact_extractor")
-                found = data.get("facts", [])
+                chunk_text_by_id = {c["id"]: c["text"] for s in bundle for c in s.get("chunks", [])}
+                found = [_resolve_fact_span(f, chunk_text_by_id) for f in data.get("facts", [])]
                 run.output_summary = f"facts={len(found)}"
             if cacheable:
                 _extraction_cache_put(content_hash, prompt_version, model, _facts_for_cache(found, bundle))
@@ -389,9 +422,16 @@ class ResearchAgent:
         rows = []
         for f in facts_data:
             supporting_text = f.get("supporting_text") or None
-            cited_text = " ".join(
-                source_text_by_id.get(sid, "") for sid in f.get("source_ids", [])
-            )
+            if "_quote_verified" in f:
+                # Already resolved deterministically in _extract_batch from
+                # a chunk id + character span — true by construction (or
+                # False for an out-of-bounds span), no fuzzy match needed.
+                quote_verified = f["_quote_verified"]
+            else:
+                cited_text = " ".join(
+                    source_text_by_id.get(sid, "") for sid in f.get("source_ids", [])
+                )
+                quote_verified = quote_is_supported(supporting_text, cited_text)
             row = Fact(
                 case_id=case.id,
                 claim=f["claim"],
@@ -401,7 +441,7 @@ class ResearchAgent:
                 confidence=float(f.get("confidence", 0.5)),
                 source_ids_json=json.dumps(f.get("source_ids", [])),
                 disputed=bool(f.get("disputed", False)),
-                quote_verified=quote_is_supported(supporting_text, cited_text),
+                quote_verified=quote_verified,
                 event_date=f.get("event_date") or None,
                 narrative_value=(f.get("narrative_value") or None),
                 evidence_strength=(f.get("evidence_strength") or None),

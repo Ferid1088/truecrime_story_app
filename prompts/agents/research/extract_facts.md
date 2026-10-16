@@ -32,9 +32,17 @@ Set "evidence_strength" to one of:
 primary|strong_secondary|secondary|tertiary|weak|disputed
 (primary = official record/eyewitness document/transcript; strong_secondary
 = reputable corroborated reporting; tertiary/weak = derivative or thin).
-Set "supporting_text" to the brief verbatim passage (original language)
-that grounds the claim. Set "chunk_ids" to the ids of chunks the claim
-came from when chunk material was used.
+Set "supporting_span" to the exact passage that grounds the claim, as a
+location instead of retyped text: {"chunk_id": <the id of the chunk
+containing it>, "start": <0-based character offset>, "end": <exclusive
+0-based character offset>}, both offsets counted in that chunk's own
+"text" exactly as given to you. Never retype, paraphrase or translate the
+passage — point at it. Set it to null when no single exact passage in the
+given chunk material grounds the claim (e.g. the claim synthesizes the
+whole source, or no chunk material was supplied for this source). Set
+"chunk_ids" to the ids of every chunk the claim came from when chunk
+material was used (this may include more than just the chunk named in
+"supporting_span").
 Set "people" and "locations" to the names of people/places central to the
 claim (short lists, [] if none).
 

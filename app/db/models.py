@@ -2024,7 +2024,14 @@ class ExtractionCache(Base):
     """Part 2(e): the same content, prompt version and model is never
     extracted twice — across cases that share a source, and across a
     restart. Keyed by a hash of the extracted content, never the content
-    itself (kept small; the real text lives on Source/SourceChunk)."""
+    itself (kept small; the real text lives on Source/SourceChunk).
+
+    Test-writing note: this cache is shared across the whole test DB with
+    no per-test scoping. Two tests using the exact same literal source
+    text will silently serve each other's fake results. Salt test fixture
+    text with a short uuid (see tests/test_evidence_depth.py) rather than
+    reusing a fixed string across tests.
+    """
 
     __tablename__ = "extraction_cache"
     __table_args__ = (

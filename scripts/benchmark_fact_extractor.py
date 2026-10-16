@@ -29,7 +29,7 @@ from contextlib import contextmanager
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from app.agents.research import _FACT_SCHEMA, _source_bundle
+from app.agents.research import _FACT_SCHEMA, _resolve_fact_span, _source_bundle
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
@@ -104,7 +104,8 @@ async def _extract(bench_case_id: int, case_title: str, bundle: list[dict],
                 )
                 data, res = await run_agent("research.extract_facts", gen, user, system=system)
                 stamp_run(run, res, "fact_extractor")
-                facts = data.get("facts", [])
+                chunk_text_by_id = {c["id"]: c["text"] for s in bundle for c in s.get("chunks", [])}
+                facts = [_resolve_fact_span(f, chunk_text_by_id) for f in data.get("facts", [])]
                 run.output_summary = f"facts={len(facts)}"
             return {"ok": True, "facts": facts, "elapsed_s": time.monotonic() - started}
         except Exception as e:
