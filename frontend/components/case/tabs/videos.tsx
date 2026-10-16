@@ -16,6 +16,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const TRANSCRIPT_STATUS: Record<string, string> = {
+  skipped: "skipped",
   discovered: "discovered",
   pending: "pending",
   available: "transcript",
@@ -215,6 +216,11 @@ export function VideosTab({
                           <Badge variant={transcriptVariant(v.transcript_status)}>
                             {TRANSCRIPT_STATUS[v.transcript_status] ?? v.transcript_status}
                           </Badge>
+                          {v.skip_reason && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground">
+                              {v.skip_reason.replace(/_/g, " ")}
+                            </span>
+                          )}
                         </TD>
                         <TD>
                           <Badge variant={qualityVariant(v.transcript_quality_verdict)}>

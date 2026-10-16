@@ -259,7 +259,8 @@ def compute_independence(db: Session, case: Case) -> dict:
     derivative (later-published one derives from the earlier)."""
     cfg = ai_config.source_independence
     videos = (
-        db.query(VideoSource).filter(VideoSource.case_id == case.id).all()
+        db.query(VideoSource).filter(
+            VideoSource.case_id == case.id, VideoSource.transcript_status != "skipped").all()
     )
     claims_by_video: dict[int, set[int]] = {}
     for c in (
@@ -563,7 +564,8 @@ def score_videos(db: Session, case: Case) -> dict:
     Value weights come from config — views never count."""
     cfg = ai_config.transcript_value
     videos = (
-        db.query(VideoSource).filter(VideoSource.case_id == case.id).all()
+        db.query(VideoSource).filter(
+            VideoSource.case_id == case.id, VideoSource.transcript_status != "skipped").all()
     )
     claims = (
         db.query(TranscriptClaim).filter(TranscriptClaim.case_id == case.id).all()

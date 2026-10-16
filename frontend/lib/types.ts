@@ -281,6 +281,7 @@ export interface VideoSourceItem {
   transcript_type: string | null;
   segment_count: number;
   claim_count: number;
+  skip_reason: string | null;
   transcript_quality_score: number | null;
   transcript_quality_verdict: "good" | "degraded" | "poor" | null;
   contradiction_count: number;

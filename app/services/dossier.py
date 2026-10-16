@@ -131,7 +131,8 @@ def build_dossier(db: Session, case: Case) -> dict:
         db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
     )
     sources = db.query(Source).filter(Source.case_id == case.id).all()
-    videos = db.query(VideoSource).filter(VideoSource.case_id == case.id).all()
+    videos = db.query(VideoSource).filter(
+        VideoSource.case_id == case.id, VideoSource.transcript_status != "skipped").all()
     claims = db.query(TranscriptClaim).filter(TranscriptClaim.case_id == case.id).all()
     clusters = db.query(ClaimCluster).filter(ClaimCluster.case_id == case.id).all()
     insights = db.query(NarrativeInsight).filter(NarrativeInsight.case_id == case.id).all()

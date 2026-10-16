@@ -264,6 +264,7 @@ def video_dict(v: VideoSource, contradiction_count: int = 0) -> dict:
         "transcript_type": v.transcript_type,
         "segment_count": len(v.segments) if v.segments else 0,
         "claim_count": len(v.claims) if v.claims else 0,
+        "skip_reason": v.skip_reason,
         "transcript_quality_score": v.transcript_quality_score,
         "transcript_quality_verdict": v.transcript_quality_verdict,
         "contradiction_count": contradiction_count,

@@ -359,6 +359,9 @@ class VideoSource(Base):
     novel_information_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     value_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     extraction_cache_key: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    # Part 3(e) item 4: why a discovered video was not transcribed
+    # (transcript_status == "skipped"); None for every processed video.
+    skip_reason: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
     # Part 3(e) item 3: set once, at transcript storage time, for
     # auto-caption transcripts only (app.services.transcript_quality);

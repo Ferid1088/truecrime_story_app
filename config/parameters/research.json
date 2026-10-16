@@ -75,7 +75,19 @@
     ],
     "max_results_per_language": 8,
     "max_videos_per_language": 4,
-    "discovery_provider": "auto"
+    "discovery_provider": "auto",
+    "max_queries_per_language": 3,
+    "min_video_relevance_score": 0.15,
+    "classification_rank_bonus": {
+      "official": 0.25,
+      "documentary": 0.2,
+      "news": 0.1,
+      "interview": 0.1,
+      "archive": 0.05,
+      "analysis": 0.0,
+      "creator_narration": -0.05,
+      "unknown": 0.0
+    }
   },
   "transcript_ingestion": {
     "preferred_languages": [

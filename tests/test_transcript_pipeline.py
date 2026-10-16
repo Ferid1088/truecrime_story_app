@@ -1159,6 +1159,75 @@ def test_video_research_finding_no_video_fails_instead_of_completing(db_session,
         asyncio.run(vr.run_video_research(db_session, case, job))
 
 
+def test_video_research_ranks_by_channel_type_and_logs_every_skipped_video(db_session, monkeypatch):
+    """Part 3(e) items 1/4: a documentary outranks a news page even with a
+    lower raw relevance; a video below the minimum relevance or over the
+    per-language cap is kept with its reason, never silently dropped."""
+    import app.services.video_research as vr
+    from app.db.models import ResearchJob, VideoSource
+
+    case = _mk_case(db_session)
+    job = ResearchJob(job_type="video_research", case_id=case.id, status="queued",
+                      provider="truecrime")
+    db_session.add(job)
+    db_session.commit()
+
+    def cand(video_id, relevance, classification):
+        return {"video_id": video_id, "url": f"https://www.youtube.com/watch?v={video_id}",
+                "title": f"title {video_id}", "language": "en", "research_language": "en",
+                "relevance": relevance, "classification": classification}
+
+    async def discovered(db, case, job):
+        return [cand("newsnewsnew", 0.65, "news"), cand("docdocdocd", 0.6, "documentary"),
+                cand("lowlowlowl", 0.05, "documentary"), cand("unkunkunkk", 0.4, "unknown")]
+
+    async def no_transcript(db, case, video):
+        return {"segments": 0, "claims": 0, "insights": 0}
+
+    monkeypatch.setattr(vr, "_discover_engine", discovered)
+    monkeypatch.setattr(vr, "_acquire_and_process", no_transcript)
+    monkeypatch.setattr(vr.ai_config.youtube_research, "discovery_provider", "engine")
+    monkeypatch.setattr(vr.ai_config.youtube_research, "max_videos_per_language", 1)
+    stats = asyncio.run(vr.run_video_research(db_session, case, job))
+
+    rows = {v.video_id: v for v in db_session.query(VideoSource).filter(
+        VideoSource.case_id == case.id)}
+    assert rows["docdocdocd"].transcript_status != "skipped"
+    assert rows["newsnewsnew"].skip_reason == "per_language_cap"
+    assert rows["unkunkunkk"].skip_reason == "per_language_cap"
+    assert rows["lowlowlowl"].skip_reason == "below_min_relevance"
+    assert stats["videos_skipped"] == 3
+
+
+def test_a_skipped_video_is_reconsidered_when_the_cap_allows_it(db_session, monkeypatch):
+    import app.services.video_research as vr
+    from app.db.models import ResearchJob, VideoSource
+
+    case = _mk_case(db_session)
+    job = ResearchJob(job_type="video_research", case_id=case.id, status="queued",
+                      provider="truecrime")
+    db_session.add(job)
+    db_session.commit()
+    candidate = {"video_id": "againagain", "url": "https://www.youtube.com/watch?v=againagain",
+                 "title": "t", "language": "en", "research_language": "en",
+                 "relevance": 0.5, "classification": "documentary"}
+    vr._log_skipped_video(db_session, case, candidate, "per_language_cap")
+    db_session.commit()
+
+    async def discovered(db, case, job):
+        return [candidate]
+
+    async def no_transcript(db, case, video):
+        return {"segments": 0, "claims": 0, "insights": 0}
+
+    monkeypatch.setattr(vr, "_discover_engine", discovered)
+    monkeypatch.setattr(vr, "_acquire_and_process", no_transcript)
+    monkeypatch.setattr(vr.ai_config.youtube_research, "discovery_provider", "engine")
+    asyncio.run(vr.run_video_research(db_session, case, job))
+    rows = db_session.query(VideoSource).filter(VideoSource.video_id == "againagain").all()
+    assert len(rows) == 1 and rows[0].transcript_status != "skipped"
+
+
 def test_extraction_stores_visual_leads_with_timestamp_and_owner(db_session, monkeypatch):
     """Part 3(d): a lead records what real footage is shown, where (timestamp
     from the cited segments, not the model), and the owner only if named;

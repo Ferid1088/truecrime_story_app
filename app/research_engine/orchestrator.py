@@ -806,7 +806,8 @@ class ResearchOrchestrator:
         backend = self.registry
         for lang in (languages or ["en"]):
             qs = ["site:youtube.com " + s.format(t=title)
-                  for s in ai_config.multilingual.video_stems(lang)]
+                  for s in ai_config.multilingual.video_stems(lang)[
+                      :ai_config.youtube_research.max_queries_per_language]]
             for q in qs:
                 progress.stage(f"searching:{lang}")
                 queries_out.append({

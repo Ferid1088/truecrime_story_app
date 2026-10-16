@@ -43,6 +43,44 @@ def _queries_for(case: Case, languages: list[str]) -> dict[str, str]:
     }
 
 
+def video_rank_score(candidate: dict) -> float:
+    """Relevance plus the channel-type bonus from config: a documentary or
+    court video outranks an unrelated news page for the same entity. A
+    candidate with no relevance signal (YouTube API path) is neutral."""
+    relevance = candidate.get("relevance")
+    bonus = ai_config.youtube_research.classification_rank_bonus.get(
+        candidate.get("classification") or "unknown", 0.0)
+    return (0.5 if relevance is None else relevance) + bonus
+
+
+def _log_skipped_video(db: Session, case: Case, candidate: dict, reason: str) -> None:
+    """A video that is not transcribed stays visible with its reason."""
+    row = db.query(VideoSource).filter(
+        VideoSource.case_id == case.id, VideoSource.video_id == candidate["video_id"]
+    ).first()
+    if row is None:
+        db.add(VideoSource(
+            case_id=case.id, video_id=candidate["video_id"], url=candidate["url"],
+            title=candidate["title"][:1000],
+            channel_name=(candidate.get("channel_name") or None),
+            language=(candidate.get("language") or "unknown")[:20],
+            research_language=(candidate.get("research_language") or None),
+            classification=(candidate.get("classification") or "unknown")[:60],
+            relevance_score=candidate.get("relevance"),
+            discovery_query=(candidate.get("discovery_query") or None),
+            transcript_status="skipped", skip_reason=reason,
+        ))
+    elif row.transcript_status == "skipped":
+        row.skip_reason = reason
+
+
+def _skip_rest(db: Session, case: Case, rest: list[dict], reason: str) -> int:
+    for candidate in rest:
+        _log_skipped_video(db, case, candidate, reason)
+    db.commit()
+    return len(rest)
+
+
 async def _discover_youtube_api(case: Case) -> list[dict]:
     """YouTube Data API path — cheap metadata discovery."""
     from app.services.youtube import YouTubeSearchService
@@ -219,29 +257,38 @@ async def run_video_research(
 
     # Dedupe against existing video rows AND within this discovery round —
     # canonical video identity (video_id) prevents double processing (P39).
+    # A previously skipped video is reconsidered (its caps may have changed).
     existing_ids = {
         v.video_id
-        for v in db.query(VideoSource).filter(VideoSource.case_id == case.id)
+        for v in db.query(VideoSource).filter(
+            VideoSource.case_id == case.id, VideoSource.transcript_status != "skipped")
     }
     seen: set[str] = set()
     unique: list[dict] = []
     per_lang: dict[str, int] = {}
-    for c in sorted(
-        candidates, key=lambda c: -(c.get("relevance") or 0.0)
-    ):
+    skipped = 0
+    for c in sorted(candidates, key=lambda c: -video_rank_score(c)):
         vid = c.get("video_id")
         lang = c.get("research_language") or c.get("language") or "unknown"
         if not vid or vid in existing_ids or vid in seen:
             continue
-        if per_lang.get(lang, 0) >= cfg_yt.max_videos_per_language:
-            continue
         seen.add(vid)
+        relevance = c.get("relevance")
+        if relevance is not None and relevance < cfg_yt.min_video_relevance_score:
+            _log_skipped_video(db, case, c, "below_min_relevance")
+            skipped += 1
+            continue
+        if per_lang.get(lang, 0) >= cfg_yt.max_videos_per_language:
+            _log_skipped_video(db, case, c, "per_language_cap")
+            skipped += 1
+            continue
         per_lang[lang] = per_lang.get(lang, 0) + 1
         unique.append(c)
 
     stats = {
         "videos_discovered": len(candidates),
         "videos_new": len(unique),
+        "videos_skipped": skipped,
         "videos_processed": 0,
         "transcripts_unavailable": 0,
         "claims": 0,
@@ -255,10 +302,14 @@ async def run_video_research(
     ).count()
     low_value_streak = 0
 
-    for cand in unique:
+    for position, cand in enumerate(unique):
         if processed >= cfg_stop.max_transcripts_per_case:
             stats["stop_reason"] = "max_transcripts_per_case"
+            stats["videos_skipped"] += _skip_rest(db, case, unique[position:], stats["stop_reason"])
             break
+        db.query(VideoSource).filter(
+            VideoSource.case_id == case.id, VideoSource.video_id == cand["video_id"],
+            VideoSource.transcript_status == "skipped").delete()
         # Canonical Source row — the video joins the source layer too.
         src = Source(
             case_id=case.id,
@@ -329,6 +380,8 @@ async def run_video_research(
             low_value_streak += 1
             if low_value_streak >= cfg_stop.consecutive_low_value_stop:
                 stats["stop_reason"] = "consecutive_low_value"
+                stats["videos_skipped"] += _skip_rest(
+                    db, case, unique[position + 1:], stats["stop_reason"])
                 break
         else:
             low_value_streak = 0
@@ -359,7 +412,7 @@ async def run_video_research(
         }
     )
     job.result_summary = (
-        f"videos={stats['videos_new']} processed={stats['videos_processed']} "
+        f"videos={stats['videos_new']} skipped={stats['videos_skipped']} processed={stats['videos_processed']} "
         f"unavailable={stats['transcripts_unavailable']} "
         f"claims={stats['claims']} clusters={cl['clusters']} "
         f"promoted={prom['promoted']} stop={stats['stop_reason'] or 'complete'}"

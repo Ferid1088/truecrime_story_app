@@ -673,6 +673,13 @@ class YouTubeResearchConfig(BaseModel):
     max_results_per_language: int = Field(ge=1, le=50)
     max_videos_per_language: int = Field(ge=1, le=50)
     discovery_provider: str = "auto"  # auto | youtube_api | engine
+    # Part 3(e) item 4: the search for videos is strongly capped, their
+    # importance in ranking is not.
+    max_queries_per_language: int = Field(ge=1, le=10)
+    # Candidates scoring below this relevance are logged as skipped.
+    min_video_relevance_score: float = Field(ge=0.0, le=1.0)
+    # Added to a candidate's relevance when ranking: the channel type matters.
+    classification_rank_bonus: dict[str, float]
 
 
 class SearchEngineConfig(BaseModel):
