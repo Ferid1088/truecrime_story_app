@@ -167,13 +167,16 @@ async def _acquire_and_process(db: Session, case: Case, video: VideoSource) -> d
         video.transcript_status = "processed"
         video.processed_at = utc_now()
         db.flush()
-        from app.db.models import NarrativeInsight
+        from app.db.models import NarrativeInsight, VisualLead
 
         return {
             "segments": stored,
             "claims": len(video.claims),
             "insights": db.query(NarrativeInsight)
             .filter(NarrativeInsight.video_source_id == video.id)
+            .count(),
+            "visual_leads": db.query(VisualLead)
+            .filter(VisualLead.video_source_id == video.id)
             .count(),
             "cached": True,
         }

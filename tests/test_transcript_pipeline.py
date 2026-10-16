@@ -414,7 +414,7 @@ def test_extraction_produces_timestamped_typed_claims(db_session, monkeypatch):
     counts = asyncio.run(
         TranscriptIntelligenceAgent().extract(db_session, case, v))
 
-    assert counts == {"claims": 2, "insights": 1}
+    assert counts == {"claims": 2, "insights": 1, "visual_leads": 0}
 
     from app.db.models import NarrativeInsight, TranscriptClaim
     claims = db_session.query(TranscriptClaim).all()
@@ -1157,3 +1157,55 @@ def test_video_research_finding_no_video_fails_instead_of_completing(db_session,
     monkeypatch.setattr(vr.ai_config.youtube_research, "discovery_provider", "engine")
     with pytest.raises(vr.VideoDiscoveryError, match="No Video Case"):
         asyncio.run(vr.run_video_research(db_session, case, job))
+
+
+def test_extraction_stores_visual_leads_with_timestamp_and_owner(db_session, monkeypatch):
+    """Part 3(d): a lead records what real footage is shown, where (timestamp
+    from the cited segments, not the model), and the owner only if named;
+    an unknown lead type becomes "other"; an empty description is skipped."""
+    from app.agents.transcript_intel import TranscriptIntelligenceAgent
+    from app.db.models import VisualLead
+
+    fake = FakeGen()
+    fake.structured["transcript_intelligence_extractor"] = lambda s, u: {
+        "claims": [],
+        "visual_leads": [
+            {"type": "court_footage", "description_en": "Courtroom arraignment footage",
+             "original_owner": "County Court TV", "segment_indices": [1]},
+            {"type": "hologram", "description_en": "A strange clip",
+             "segment_indices": [0]},
+            {"type": "photo", "description_en": "  ", "segment_indices": [0]},
+        ],
+    }
+    _patch_gen(monkeypatch, fake)
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case)
+    _mk_segment(db_session, v, 0, "Here is a clip.", 0.0, 5.0, canonical="Here is a clip.")
+    _mk_segment(db_session, v, 1, "Footage from the courtroom.", 30.0, 35.0,
+                canonical="Footage from the courtroom.")
+
+    counts = asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
+    assert counts["visual_leads"] == 2
+    leads = {l.description_en: l for l in db_session.query(VisualLead).all()}
+    court = leads["Courtroom arraignment footage"]
+    assert (court.lead_type, court.original_owner, court.timestamp_start) == (
+        "court_footage", "County Court TV", 30.0)
+    other = leads["A strange clip"]
+    assert (other.lead_type, other.original_owner) == ("other", None)
+
+    asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
+    assert db_session.query(VisualLead).count() == 2
+
+
+def test_visual_leads_endpoints(client, db_session):
+    from app.db.models import VisualLead
+
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case)
+    db_session.add(VisualLead(case_id=case.id, video_source_id=v.id, lead_type="bodycam",
+                              description_en="Bodycam of the arrest", timestamp_start=12.0))
+    db_session.commit()
+    listing = client.get(f"/api/cases/{case.id}/visual-leads").json()
+    assert [(x["lead_type"], x["timestamp_start"]) for x in listing] == [("bodycam", 12.0)]
+    detail = client.get(f"/api/cases/{case.id}/videos/{v.id}").json()
+    assert detail["visual_leads"][0]["description_en"] == "Bodycam of the arrest"

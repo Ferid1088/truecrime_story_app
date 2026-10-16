@@ -299,3 +299,16 @@ def contradiction_counts_by_source(contradictions) -> dict[int, int]:
         for sid in set(json.loads(c.source_ids_json or "[]")):
             counts[sid] = counts.get(sid, 0) + 1
     return counts
+
+
+def visual_lead_dict(lead) -> dict:
+    return {
+        "id": lead.id,
+        "video_source_id": lead.video_source_id,
+        "lead_type": lead.lead_type,
+        "description_en": lead.description_en,
+        "original_owner": lead.original_owner,
+        "timestamp_start": lead.timestamp_start,
+        "timestamp_end": lead.timestamp_end,
+        "segment_ids": json.loads(lead.segment_ids_json or "[]"),
+    }

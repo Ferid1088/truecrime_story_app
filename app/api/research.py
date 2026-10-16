@@ -19,6 +19,7 @@ from app.db.models import (
     TranscriptClaim,
     ClaimCluster,
     NarrativeInsight,
+    VisualLead,
 )
 from app.core.ai_config import ai_config
 from app.utils import utc_now
@@ -31,7 +32,12 @@ from app.services.readiness import build_readiness
 
 
 from app.api.deps import get_case_or_404
-from app.api.serializers import claim_dict, contradiction_counts_by_source, video_dict
+from app.api.serializers import (
+    claim_dict,
+    contradiction_counts_by_source,
+    video_dict,
+    visual_lead_dict,
+)
 from app.api import deps
 
 router = APIRouter()
@@ -432,6 +438,18 @@ def list_videos(case_id: int, db: Session = Depends(get_db)):
     return [video_dict(v, counts.get(v.source_id, 0)) for v in videos]
 
 
+@router.get("/api/cases/{case_id}/visual-leads")
+def list_visual_leads(case_id: int, db: Session = Depends(get_db)):
+    case = get_case_or_404(db, case_id)
+    leads = (
+        db.query(VisualLead)
+        .filter(VisualLead.case_id == case.id)
+        .order_by(VisualLead.video_source_id, VisualLead.timestamp_start)
+        .all()
+    )
+    return [visual_lead_dict(x) for x in leads]
+
+
 @router.get("/api/cases/{case_id}/videos/{video_id}")
 def video_detail(case_id: int, video_id: int, db: Session = Depends(get_db)):
     case = get_case_or_404(db, case_id)
@@ -457,9 +475,16 @@ def video_detail(case_id: int, video_id: int, db: Session = Depends(get_db)):
     )
     counts = contradiction_counts_by_source(
         db.query(Contradiction).filter(Contradiction.case_id == case.id))
+    leads = (
+        db.query(VisualLead)
+        .filter(VisualLead.video_source_id == v.id)
+        .order_by(VisualLead.timestamp_start)
+        .all()
+    )
     out = video_dict(v, counts.get(v.source_id, 0))
     out.update(
         {
+            "visual_leads": [visual_lead_dict(x) for x in leads],
             "claims": [claim_dict(c) for c in claims],
             "insights": [
                 {

@@ -508,6 +508,32 @@ class ClaimCluster(Base):
     case = relationship("Case")
 
 
+class VisualLead(Base):
+    """Part 3(d): what real footage or photos a video shows (court, police,
+    bodycam, news clip, document...), at which timestamp, and the original
+    owner if the video names one. A lead for Part 4's media research, never
+    a downloaded asset and never evidence."""
+    __tablename__ = "visual_leads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    video_source_id: Mapped[int] = mapped_column(
+        ForeignKey("video_sources.id"), index=True
+    )
+
+    # court_footage|police_footage|bodycam|news_clip|document|photo|other
+    lead_type: Mapped[str] = mapped_column(String(40), default="other")
+    description_en: Mapped[str] = mapped_column(Text)
+    original_owner: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    segment_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    timestamp_start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    timestamp_end: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    case = relationship("Case")
+
+
 class NarrativeInsight(Base):
     """Narrative intelligence mined from transcripts — questions, framing,
     emphasized details. NOT factual evidence; never promoted into the Fact

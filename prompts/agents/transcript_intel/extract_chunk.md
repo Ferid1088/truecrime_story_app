@@ -23,8 +23,14 @@ RULES:
 - Set "people" and "locations" to the names of people/places central to
   the claim (short lists, [] if none) — the video's own entities, feeding
   the case's cross-source entity list.
+- Visual leads: when the excerpt shows or says the video shows real
+  footage or photos (court, police, bodycam, news clips, documents),
+  record what is shown, and its original owner ONLY if the excerpt names
+  one — never guess an owner. These are leads for finding the original
+  material, not evidence; [] if the excerpt mentions no such material.
 
 CLAIM TYPES: {_CLAIM_TYPES}
 INSIGHT TYPES: {_INSIGHT_TYPES}
+VISUAL LEAD TYPES: {_LEAD_TYPES}
 
 Return JSON only.

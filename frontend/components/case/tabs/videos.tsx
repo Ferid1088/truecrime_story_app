@@ -305,6 +305,28 @@ function VideoDetailSheet({ caseId, videoId }: { caseId: number; videoId: number
         <Field label="Contradictions" value={String(v.contradiction_count)} />
       </div>
 
+      {v.visual_leads.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Visual leads ({v.visual_leads.length}) — footage to find at the original owner, never downloaded from the video
+          </p>
+          <ul className="space-y-1.5">
+            {v.visual_leads.map((l) => (
+              <li key={l.id} className="rounded-md border border-border px-2.5 py-1.5 text-xs">
+                <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline">{l.lead_type.replace(/_/g, " ")}</Badge>
+                  <span className="tabular-nums text-muted-foreground">{ts(l.timestamp_start)}</span>
+                  {l.original_owner && (
+                    <span className="text-muted-foreground">owner: {l.original_owner}</span>
+                  )}
+                </div>
+                {l.description_en}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {v.insights.length > 0 && (
         <div>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">

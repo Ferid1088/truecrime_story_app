@@ -22,6 +22,7 @@ from app.db.models import (
     NarrativeInsight,
     TranscriptClaim,
     VideoSource,
+    VisualLead,
 )
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -38,6 +39,10 @@ _INSIGHT_TYPES = (
     "important_question|mystery_element|emotional_context|turning_point|"
     "reveal_candidate|frequently_emphasized_detail|commonly_omitted_detail|"
     "viewer_context|narrative_transition_topic"
+)
+
+_LEAD_TYPES = (
+    "court_footage|police_footage|bodycam|news_clip|document|photo|other"
 )
 
 
@@ -58,22 +63,26 @@ class TranscriptIntelligenceAgent:
         db.query(NarrativeInsight).filter(
             NarrativeInsight.video_source_id == video.id
         ).delete()
+        db.query(VisualLead).filter(
+            VisualLead.video_source_id == video.id
+        ).delete()
         db.flush()
 
-        n_claims = n_insights = 0
+        n_claims = n_insights = n_leads = 0
         for chunk in transcript_chunks(video):
-            claims, insights = await self._extract_chunk(
+            claims, insights, leads = await self._extract_chunk(
                 db, case, video, chunk
             )
             n_claims += claims
             n_insights += insights
+            n_leads += leads
         db.flush()
-        return {"claims": n_claims, "insights": n_insights}
+        return {"claims": n_claims, "insights": n_insights, "visual_leads": n_leads}
 
     async def _extract_chunk(
         self, db: Session, case: Case, video: VideoSource, chunk: dict
-    ) -> tuple[int, int]:
-        system = prompt("agents/transcript_intel/extract_chunk").format(_CLAIM_TYPES=_CLAIM_TYPES, _INSIGHT_TYPES=_INSIGHT_TYPES)
+    ) -> tuple[int, int, int]:
+        system = prompt("agents/transcript_intel/extract_chunk").format(_CLAIM_TYPES=_CLAIM_TYPES, _INSIGHT_TYPES=_INSIGHT_TYPES, _LEAD_TYPES=_LEAD_TYPES)
         user = json.dumps(
             {
                 "case": case.canonical_title,
@@ -111,6 +120,14 @@ class TranscriptIntelligenceAgent:
                         {
                             "type": "one of the insight types",
                             "canonical_text_en": "abstract insight, English",
+                            "segment_indices": [0],
+                        }
+                    ],
+                    "visual_leads": [
+                        {
+                            "type": "one of the lead types",
+                            "description_en": "what real footage/photo is shown",
+                            "original_owner": "named owner/source or null",
                             "segment_indices": [0],
                         }
                     ],
@@ -205,5 +222,31 @@ class TranscriptIntelligenceAgent:
                     )
                 )
                 n_insights += 1
-            run.output_summary = f"claims={n_claims} insights={n_insights}"
-        return n_claims, n_insights
+            n_leads = 0
+            for lead in data.get("visual_leads") or []:
+                description = (lead.get("description_en") or "").strip()
+                if not description:
+                    continue
+                idx = [
+                    seg_ids[i] for i in (lead.get("segment_indices") or [])
+                    if isinstance(i, int) and 0 <= i < len(seg_ids)
+                ]
+                segs = [s for s in video.segments if s.id in set(idx)]
+                lead_type = lead.get("type")
+                db.add(
+                    VisualLead(
+                        case_id=case.id,
+                        video_source_id=video.id,
+                        lead_type=lead_type if lead_type in _LEAD_TYPES.split("|") else "other",
+                        description_en=description,
+                        original_owner=(lead.get("original_owner") or None),
+                        segment_ids_json=json.dumps(idx),
+                        timestamp_start=min((s.start_seconds for s in segs), default=None),
+                        timestamp_end=max((s.end_seconds for s in segs), default=None),
+                    )
+                )
+                n_leads += 1
+            run.output_summary = (
+                f"claims={n_claims} insights={n_insights} visual_leads={n_leads}"
+            )
+        return n_claims, n_insights, n_leads

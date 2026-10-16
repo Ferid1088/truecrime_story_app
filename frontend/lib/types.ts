@@ -323,7 +323,19 @@ export interface TranscriptSegmentItem {
   canonical: string | null;
 }
 
+export interface VisualLeadItem {
+  id: number;
+  video_source_id: number;
+  lead_type: string;
+  description_en: string;
+  original_owner: string | null;
+  timestamp_start: number | null;
+  timestamp_end: number | null;
+  segment_ids: number[];
+}
+
 export interface VideoDetail extends VideoSourceItem {
+  visual_leads: VisualLeadItem[];
   claims: TranscriptClaimItem[];
   insights: NarrativeInsightItem[];
   segments: TranscriptSegmentItem[];
