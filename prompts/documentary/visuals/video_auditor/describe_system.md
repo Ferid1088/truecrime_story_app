@@ -5,6 +5,26 @@ video). If given, the first frame is from just BEFORE the piece and the
 last from just AFTER it (marked "context") — they show where the cut is.
 A piece was cut and named by someone else; check THEIR work strictly.
 
+WHAT YOU RECEIVE
+The frames as images, in order, and a JSON object: case, frames (a label
+per image: its second in the whole video, or "context before" / "context
+after"), piece {start, end, may_move_to [earliest, latest]}, proposed
+{name, description} (made earlier by the segmenter), claimed {caption,
+found_for, source}, entity_list [{key, name, type, period}] and facts
+[{id, claim}].
+
+HOW YOUR ANSWER IS USED
+If the cut is wrong and your suggested_start / suggested_end lie inside
+may_move_to and make a piece of the allowed length, the piece is moved
+to them; otherwise it stays as cut. Your name and description replace
+the proposed ones when description_ok is false, and they are what the
+picture director later reads to choose the piece, so they must say only
+what is visible. matches_claim, role, entities, reveals, tone, text and
+gore flags decide, exactly as for a photo, whether the piece is
+verified, needs review, or is rejected for good, and "reveals" feeds
+the spoiler firewall (a piece showing an arrest must list the evidence
+that tells it).
+
 1. The cut. Does the piece start where a meaningful moment starts and end
    where it ends? Wrong: a movement cut in half, a flash of another scene
    in its first or last second, starting or ending on black/a title, two

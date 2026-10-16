@@ -459,7 +459,7 @@ def test_reviewer_routed_to_writer_model_is_a_config_error():
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["routing"][
         "native_language_critic"
-    ] = "writer"
+    ] = "premium"
     with pytest.raises(Exception, match="also writes"):
         AIConfig.model_validate(raw)
 
@@ -481,7 +481,7 @@ def test_review_independence_can_be_disabled():
     raw["review_independence"]["enabled"] = False
     cfg = AIConfig.model_validate(raw)
     models = cfg.generation_provider().models
-    assert cfg.fallback_models_for("engagement_critic") == [models["writer"]]
+    assert cfg.fallback_models_for("engagement_critic") == [models["premium"]]
 
 
 def test_section_text_is_not_duplicated_into_plans_or_api(db_session, monkeypatch, client):

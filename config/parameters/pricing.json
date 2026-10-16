@@ -12,13 +12,13 @@
   },
   "models": {
     "cheap": {
-      "provider_model": "claude-haiku-4-5",
-      "input_usd_per_1m_tokens": 1.0,
-      "output_usd_per_1m_tokens": 5.0,
+      "provider_model": "gemini-3.8-flash",
+      "input_usd_per_1m_tokens": 0.75,
+      "output_usd_per_1m_tokens": 3.75,
       "currency": "USD",
-      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
-      "plan_or_tier": "Standard API list price per aggregators citing Anthropic (Anthropic page not opened); uncached input/output",
-      "last_verified": "2026-10-15",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "plan_or_tier": "Standard paid tier; introductory rate through 2026-12-31",
+      "last_verified": "2026-10-13",
       "verification_status": "verified"
     },
     "writer": {

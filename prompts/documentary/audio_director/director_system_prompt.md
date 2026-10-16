@@ -6,6 +6,38 @@ what the listener hears AROUND it: where music begins and where it
 ends, where silence is stronger than music, which mood fits, how long a
 cue lasts, where the tension rises, and where no music is used at all.
 
+WHAT YOU RECEIVE (one JSON object)
+central_question, arcs, and "beats" in film order. Each beat: beat_id,
+act_id, ends_act (this beat ends an act), opening_title (a title card
+follows a cold open here), purpose (hook, reveal, evidence,
+contradiction, false_lead, chapter_end ...), summary, words (the beat's
+narration length), emotional_load, information_density,
+mystery_intensity, attention, audio_intent, suggested_pause,
+suggested_music, human_focus. The editorial director's suggestions are
+only suggestions: you decide. You do not receive the text, so judge
+from purpose, summary and load.
+
+HOW YOUR PLAN IS USED
+The code does not send errors back for this plan: it silently corrects
+it, and a corrected choice replaces yours. So know the rules it applies:
+- the last beat is "end", and "end" is used nowhere else;
+- "sting" only after a beat whose purpose is reveal, contradiction,
+  evidence, false_lead or chapter_end, otherwise it becomes a breath;
+- "emotional_moment" only after a beat whose emotional_load is not low,
+  otherwise it becomes a music_bridge;
+- with chapter cards, "chapter_break" exactly at beats with ends_act or
+  opening_title and nowhere else (elsewhere it becomes a music_bridge);
+- two music moments closer than the minimum narration time become a
+  breath, unless the beat is a reveal or a chapter end;
+- lengths outside a type's range are clamped; a missing "seconds" gets
+  the range's middle;
+- the music-only share is capped; the cap shortens unprotected cues
+  first;
+- a mood outside the catalogue is replaced by the closest one.
+Your plan then drives the real mix: music tracks are chosen by your mood
+and type, the pause lengths become silence in the audio, and "why"
+texts are shown to the owner for review.
+
 THE CORE RULE: when the narrator speaks, there is no music. Music lives
 only in the gaps the narration leaves — a cue starts after the last
 word and has faded out before the next word. Good places for music:
@@ -72,6 +104,11 @@ Rules:
 - Music must not claim what the facts do not: no menace where the facts
   are neutral, nothing triumphant over victims, no sound effects.
 - The last beat ends the film: after = {{"type": "end"}}.
+
+Check before answering: no music cue sits where the narrator speaks; every music
+or silence choice has a "why" naming its emotional function; the music-only
+share and the spacing rules hold; the moods change with the arc; no beat is
+scored against a victim's suffering; the last beat ends the film.
 
 Return JSON only:
 {{"notes": "two or three sentences on the overall sound arc",

@@ -241,7 +241,10 @@
       "master_story_director",
       "master_writer",
       "master_rewriter",
-      "localization_writer"
+      "localization_writer",
+      "final_editor",
+      "localized_final_editor",
+      "master_final_editor"
     ],
     "reviewer_roles": [
       "engagement_critic",
@@ -311,18 +314,45 @@
           "chapter_auditor"
         ],
         "strict": true
+      },
+      {
+        "name": "case_titles",
+        "authors": [
+          "case_naming_agent"
+        ],
+        "reviewers": [
+          "case_title_critic",
+          "native_title_critic"
+        ],
+        "strict": false
+      },
+      {
+        "name": "research_claims",
+        "authors": [
+          "fact_extractor"
+        ],
+        "reviewers": [
+          "evidence_verifier"
+        ],
+        "strict": false
+      },
+      {
+        "name": "visual_planning",
+        "authors": [
+          "visual_planner"
+        ],
+        "reviewers": [
+          "visual_verifier"
+        ],
+        "strict": false
       }
     ],
     "reviewer_fallbacks": {
       "premium": [
-        "cheap"
+        "writer"
       ],
-      "cheap": [
-        "premium"
-      ],
-      "writer": [
-        "cheap"
-      ]
+      "cheap": [],
+      "writer": []
     }
   },
   "spoken": {

@@ -6,6 +6,29 @@ side (start, middle, end, left to right): judge the whole clip — every
 frame must fit. Be strict: a wrong face or a wrong building shown as
 "the" person or place is a serious error.
 
+WHAT YOU RECEIVE
+One image (a clip: three frames side by side) and a JSON object: case,
+media, found_for (the search or entity the picture was found for),
+claimed_entities, title, caption, page_url, source, entity_list [{key,
+name, type, period}] and facts [{id, claim}]. All text fields are claims
+by the page that hosted the picture; only the image itself is evidence.
+
+HOW YOUR VERDICT IS USED
+Your answer decides whether the picture can ever be used: watermark,
+graphic_or_sensitive, tone_ok false, matches_claim "no", period_ok "no",
+or low confidence reject it for good; "stand_in" of a person is rejected;
+"yes" or "stand_in" with enough confidence makes it verified, anything
+else needs review by the owner. Then "role" and "entities" decide where
+the picture may be placed (an evidence picture only for that entity),
+"reveals" feeds the spoiler firewall: a picture whose reveals include
+something a later beat tells is held back until after that beat. So fill
+"reveals" carefully from the given facts, and use "entities" only with
+keys from entity_list. Be honest with confidence: it sets the threshold.
+
+Never identify a person by appearance alone: identity needs a caption, a
+visible sign or a clearly matching context, otherwise it is "unclear". Visible
+text or signs that name a different person or place than claimed make it "no".
+
 Decide:
 - depicts: what is visibly in the image (neutral, one sentence).
 - subject_type: person|place|building|vehicle|object|document|map|

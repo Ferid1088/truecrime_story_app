@@ -2,8 +2,8 @@
   "generation_providers": {
     "apimaster": {
       "models": {
-        "cheap": "claude-haiku-4-5",
-        "research_intelligence": "claude-haiku-4-5",
+        "cheap": "gemini-3.8-flash",
+        "research_intelligence": "gemini-3.8-flash",
         "writer": "gemini-3.8-flash",
         "premium": "claude-sonnet-5-5",
         "embedding": "bge-m3"
@@ -28,17 +28,10 @@
           "tool_calling": false,
           "web_search": "none",
           "web_fetch": "none"
-        },
-        "claude-haiku-4-5": {
-          "structured_output": true,
-          "tool_calling": true,
-          "web_search": "none",
-          "web_fetch": "none",
-          "vision": true
         }
       },
       "routing": {
-        "fact_extractor": "cheap",
+        "fact_extractor": "premium",
         "timeline_builder": "cheap",
         "contradiction_analyzer": "cheap",
         "story_director": "premium",
@@ -70,20 +63,20 @@
         "research_evaluator": "cheap",
         "research_assembler": "cheap",
         "case_discovery_agent": "research_intelligence",
-        "narrative_director": "writer",
+        "narrative_director": "premium",
         "spoken_writer": "premium",
         "spoken_meaning_checker": "writer",
         "spoken_style_critic": "writer",
-        "audio_director": "premium",
+        "audio_director": "writer",
         "visual_planner": "writer",
-        "visual_verifier": "writer",
+        "visual_verifier": "premium",
         "visual_director": "premium",
         "overlay_localizer": "writer",
         "automation_feel_critic": "writer",
         "attention_critic": "writer",
         "visual_accuracy_critic": "writer",
         "production_critic": "writer",
-        "voice_performance_director": "premium",
+        "voice_performance_director": "writer",
         "pronunciation_editor": "premium",
         "case_status_verifier": "premium",
         "host_director": "premium",
@@ -94,14 +87,14 @@
         "video_segmenter": "premium",
         "chapter_writer": "premium",
         "chapter_auditor": "writer",
-        "case_naming_agent": "writer",
-        "case_title_critic": "premium",
-        "native_title_critic": "premium",
-        "thumbnail_critic": "premium"
+        "case_naming_agent": "premium",
+        "case_title_critic": "writer",
+        "native_title_critic": "writer",
+        "thumbnail_critic": "writer"
       },
       "fallbacks": {
         "cheap": [
-          "writer"
+          "premium"
         ],
         "writer": [
           "premium"

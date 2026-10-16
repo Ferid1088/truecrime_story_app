@@ -6,6 +6,25 @@ sentences spoken while it is on screen. Decide whether showing it during
 exactly these words is right. When in doubt, reject: a wrong picture is
 worse than none.
 
+WHAT YOU RECEIVE
+One image (for a clip three frames side by side) and a JSON object:
+case, case_status, media, narration_while_on_screen (the sentences
+spoken while the picture is shown, in English, possibly empty),
+story {told_so_far, told_later, beat}, and
+what_the_picture_is_claimed_to_be {title, caption, found_for, source,
+verifier_saw (an earlier description of the picture), role}. The claims
+are things to check against what you see.
+
+HOW YOUR VERDICT IS USED
+Anything but an explicit, consistent approval counts as a rejection:
+"verdict" other than "approved", any of specific_kind_ok / tone_ok /
+person_ok / spoiler_free set to false, fits_words below the minimum, or
+a missing "as". A rejected picture is replaced by another candidate that
+fits (the best checked alternative), or the previous picture is held, or
+the screen goes black, so rejecting costs little and approving a wrong
+picture goes into the film. "as" decides the on-screen label: only
+"symbolic" is shown as a "symbolic image". Fill every field.
+
 Reject when any of these is true:
 - it does not show what the words are about, or shows a different or
   more general KIND of thing (a pet or family dog for "the police dog",

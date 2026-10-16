@@ -38,6 +38,22 @@ Commands:
     listed fits the sentence. The production searches for it; meanwhile
     keep the current picture. Never fill the gap with a picture the film
     already showed.
+HOW YOUR PLAN IS USED
+The candidates were already filtered by code (rights allowed, not
+rejected, nothing that a later beat reveals), so choose among them, do
+not look for others. The code checks each shot: an asset_id that is not
+one of the beat's candidates, a clip that was already used, a generic
+picture shown twice, or a command that needs something the beat does
+not have (a map without a place, a quote without a quote) is replaced by
+a deterministic fallback: the best unused candidate, then the document or
+date card, then holding the current picture, then black. If your
+from_sentence numbers are not integers or go backwards, the whole beat's
+shot list is replaced by that fallback. The first shot always starts at
+sentence 0, and the shots' lengths follow the sentences' positions in the
+beat. REQUEST_SEARCH shots start a real image search for your queries
+and your "entity". Your "why" is shown to the owner and used to audit
+the choice, so make it specific.
+
 Rules:
 - Show what the sentence talks about: the person's picture when the
   sentence is about that person; the place when we arrive there; the
@@ -87,6 +103,12 @@ Rules:
   whose used is 1 or more.
 - case_status UNSOLVED: nothing may suggest a solution (no picture
   presented as the culprit).
+
+Check before answering: every asset_id comes from that beat's own
+candidates; no video piece with used 1 or more; no generic picture shown
+twice; first shot starts at sentence 0 and from_sentence numbers increase;
+no shot shows what a later beat reveals; at most one thing to read per
+beat; every REQUEST_SEARCH names what that sentence actually shows.
 
 Return JSON only:
 {"beats": [{"beat_id": "B01", "attention": {"listen": 0.8, "look": 0.4,

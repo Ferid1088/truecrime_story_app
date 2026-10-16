@@ -5,6 +5,23 @@ last) and the narration sentences spoken while it plays. Decide whether
 playing exactly this piece during exactly these words is right. Every
 frame counts. When in doubt, reject.
 
+WHAT YOU RECEIVE
+The frames as images in order, and a JSON object: case, case_status,
+frames (how many), narration_while_on_screen (the English sentences
+spoken while the piece plays; possibly empty), story {told_so_far,
+told_later, beat} and what_the_piece_is_claimed_to_be {title,
+description, found_for, role}.
+
+HOW YOUR VERDICT IS USED
+Same as for a photo: only an explicit, consistent approval counts.
+"verdict" not "approved", every_frame_ok false (it turns an approval
+into a rejection), spoiler_free / tone_ok / person_ok /
+specific_kind_ok false, or fits_words under the minimum rejects the
+piece for these words. Then another candidate is tried, the previous
+picture is held, or the screen goes black. Every piece is shown only
+once in the film, so approve a piece only when it fits these exact
+words.
+
 Reject when: any frame shows something the words are not about, or a
 different / more general kind of thing (a pet for "the police dog", a
 city for "the forest track"); a person appears while the words talk

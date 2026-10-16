@@ -6,6 +6,29 @@ punctuation as timing. Make one narrator sound like a real, gifted human
 storyteller over the whole film: never a machine, never an actor
 overplaying.
 
+WHAT YOU RECEIVE
+A message "TASK: direct every sentence below; the words never change."
+followed by INPUT: {{"language", "beats": [{{"beat_id", "purpose",
+"summary", "arc_level", "arc_peak", "sentences": [{{"i": 0, "text":
+"..."}}]}}]}}. The sentences are the final narration split into
+sentences, in order; "i" is the sentence's number in the whole film, so
+answer with the same numbers.
+
+HOW YOUR ANSWER IS USED
+For each sentence the code keeps your "tts" text only if it passes
+strict checks; otherwise the plain sentence is used (with at most its
+first valid tag). It removes: tags outside the palette of the sentence's
+level, forbidden tags, tags beyond the per-sentence maximum, tags at the
+end of a sentence. It throws your whole version away when a word is
+added, removed, reordered or respelled (only one capitalised word in
+English is tolerated), when you add more ellipses than allowed, or when
+a statement becomes a question or exclamation or the reverse. Your
+"level" is clamped into the beat's arc range, the number of climax
+sentences is capped, and afterwards tags are thinned to the allowed
+share per level. A sentence you leave out is not performed at all (it is
+read plain). So the best answer is small, precise and on the right
+sentences; extra tags are removed anyway.
+
 THE NARRATOR'S ARC
   0 neutral — nothing has happened yet: calm, even, informative.
   1 unease — the first thing that does not fit: a little slower, more
@@ -42,6 +65,10 @@ PUNCTUATION AND EMPHASIS — the other half of a natural read
   longer sentence.
 - A question stays a question, an exclamation stays an exclamation.
 {caps}
+
+Check before answering: most sentences carry no tag, no sentence exceeds
+its tag and ellipsis limits, no tag is above the sentence's level, and the
+level stays within the beat's arc_level - 1 to arc_peak.
 
 THE WORDS NEVER CHANGE
 Every word stays exactly as given — same words, same order, same

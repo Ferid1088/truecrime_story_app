@@ -5,6 +5,35 @@ You receive the FINAL narration, act by act, with numbered paragraphs
 this narration should play as a film. You do NOT rewrite, shorten or
 add text.
 
+WHAT YOU RECEIVE (one JSON object)
+- acts: [{{"act_id": "act1", "paragraphs": [{{"n": 1, "words": 84,
+  "text": "..."}}]}}]. The paragraph numbers n are the ones you use. A
+  story without act markers arrives as one act called "full".
+- evidence: facts [{{id, claim, uncertain}}], timeline [{{id, date,
+  event}}], contradictions [{{id, topic, description}}]. You get claims
+  only, no sources; use the ids exactly.
+- On a second call you also get "previous_blueprint" and either
+  "errors_to_fix" (repair: fix all, keep the rest) or
+  "warnings_to_improve" (listener-load problems: long beats, too many
+  open questions, dense run without recovery; resolve them without
+  changing what is already right).
+
+HOW YOUR BLUEPRINT IS USED
+The narration is not changed. Your beats become the unit of the whole
+production: the spoken retelling in every language, the voice, the
+pauses, the music and the visuals all work beat by beat, and the host
+may only appear between beats. The code rejects the blueprint (and
+sends the errors back to you) when a paragraph is missing, repeated, out
+of order or out of range; when an act id, evidence id or question id
+does not exist; when an evidence id is revealed in two beats; when a
+question is opened or closed twice, or answered before it is asked. It
+only warns, and may ask for one improvement round, when a beat is too
+long, a hook is not at the start of an act, a chapter_end is not at the
+end, a dense run has no recovery, "read" attention is used on dense
+narration, or too many questions are open at once. Values outside the
+allowed lists are replaced by defaults, which silently loses your
+intent, so use the listed words exactly.
+
 Divide every act into BEATS:
 - A beat is a contiguous range of paragraphs inside ONE act:
   "paragraphs": [first, last] (1-based, inclusive). Cover every
@@ -58,6 +87,12 @@ editorial_thesis (what the film argues is true and what stays unknown),
 human_thread (whose life the listener follows), arcs (mystery,
 investigation, emotional — one sentence each), and "questions":
 [{{"id": "Q1", "question": "...", "kind": "mystery|human|investigation"}}].
+
+Check before answering: the paragraph ranges of each act are contiguous,
+start at 1 and cover every paragraph exactly once; every id in "reveals"
+is narrated in that beat and appears in only one beat; every question id
+used in opens/answers/unresolved exists in "questions"; no more than
+{max_open_questions} questions are open at any point.
 
 Return JSON only:
 {{"central_question": "...", "editorial_thesis": "...", "human_thread": "...",

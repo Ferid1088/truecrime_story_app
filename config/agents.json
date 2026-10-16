@@ -240,14 +240,14 @@
     },
     "documentary.blueprint": {
       "role": "narrative_director",
-      "prompt": null,
+      "prompt": "documentary/blueprint/director_system_prompt",
       "output": "json",
       "description": "Beats, reveals and intents.",
       "used_by": "app/agents/blueprint.py"
     },
     "documentary.audio_plan": {
       "role": "audio_director",
-      "prompt": null,
+      "prompt": "documentary/audio_director/director_system_prompt",
       "output": "json",
       "description": "Music, silence, breaths.",
       "used_by": "app/agents/audio_plan.py"
@@ -261,7 +261,7 @@
     },
     "documentary.chapters.write": {
       "role": "chapter_writer",
-      "prompt": null,
+      "prompt": "documentary/chapters/writer_system",
       "output": "json",
       "description": "Chapter and title-card texts.",
       "used_by": "app/agents/chapters.py"
@@ -303,7 +303,7 @@
     },
     "documentary.voice_directing": {
       "role": "voice_performance_director",
-      "prompt": null,
+      "prompt": "documentary/voice_performance/director_system",
       "output": "json",
       "description": "Audio tags per sentence.",
       "used_by": "app/agents/voice_performance.py"
@@ -359,14 +359,14 @@
     },
     "visuals.segment_video": {
       "role": "video_segmenter",
-      "prompt": null,
+      "prompt": "documentary/visuals/video_segmenter/segmenter_system",
       "output": "json",
       "description": "Cut a video by meaning.",
       "used_by": "app/documentary/visuals/video_segmenter.py"
     },
     "documentary.critic": {
       "role": "production_critic",
-      "prompt": null,
+      "prompt": "documentary/production/critics/critic_system",
       "output": "json",
       "description": "Critic of the production script (focus per critic).",
       "used_by": "app/agents/critics.py"
