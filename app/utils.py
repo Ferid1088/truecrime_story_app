@@ -57,6 +57,15 @@ _DE_STOP = {
 _WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]+|[؀-ۿݐ-ࣿ]+")
 
 
+def primary_language(code: str | None) -> str | None:
+    """"en-US" / "de_DE" -> "en" / "de": the language the app configures and
+    compares by (a regional tag made one language look like two, and an
+    English "en-US" transcript was sent through the paid normalizer)."""
+    if not code:
+        return code
+    return code.replace("_", "-").split("-")[0].lower()
+
+
 def detect_language(text: str, min_chars: int = 80) -> tuple[str | None, float]:
     """Detect en/de/fa/ar from text.
 

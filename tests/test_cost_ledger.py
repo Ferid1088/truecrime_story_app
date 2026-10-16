@@ -31,11 +31,11 @@ from app.services.tracking import documentary_run_context, stamp_run, track_run
 
 def test_model_cost_eur_prices_a_dated_gateway_snapshot_like_its_base_model():
     """config/parameters/pricing.json only has the base alias ("cheap" ->
-    claude-haiku-4-5); a gateway response that echoes a dated snapshot of
-    it (claude-haiku-4-5-20251001, observed live on case 5) must price the
+    gemini-3.8-flash); a gateway response that echoes a dated snapshot of
+    it (gemini-3.8-flash-20251001, same shape as the one observed live on case 5) must price the
     same as the base model, not silently return no price."""
-    base = model_cost_eur("claude-haiku-4-5", 1000, 500)
-    dated = model_cost_eur("claude-haiku-4-5-20251001", 1000, 500)
+    base = model_cost_eur("gemini-3.8-flash", 1000, 500)
+    dated = model_cost_eur("gemini-3.8-flash-20251001", 1000, 500)
     assert base is not None
     assert dated == base
 

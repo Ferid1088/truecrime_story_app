@@ -78,7 +78,11 @@ def test_groups_are_independent_of_each_other():
     raw = _raw()
     # A story reviewer may share the spoken writer's model: it never
     # judges spoken text.
+    # (the spoken critics are moved to the other model so that the spoken
+    # group itself stays independent)
     _routing(raw)["spoken_writer"] = _routing(raw)["native_language_critic"]
+    for role in ("spoken_meaning_checker", "spoken_style_critic"):
+        _routing(raw)[role] = "premium"
     cfg = AIConfig.model_validate(raw)
     assert cfg.model_for("spoken_writer") == cfg.model_for("native_language_critic")
 

@@ -182,10 +182,10 @@ def test_every_required_role_is_routed():
 
 def test_specific_role_ownership():
     gen = ai_config.generation_provider()
-    assert ai_config.model_for("story_director") == gen.models["writer"]
+    assert ai_config.model_for("story_director") == gen.models["premium"]
     assert ai_config.model_for("final_editor") == gen.models["premium"]
-    assert ai_config.model_for("master_writer") == gen.models["writer"]
-    assert ai_config.model_for("fact_extractor") == gen.models["cheap"]
+    assert ai_config.model_for("master_writer") == gen.models["premium"]
+    assert ai_config.model_for("fact_extractor") == gen.models["premium"]
     assert ai_config.model_for("evidence_verifier") == gen.models["cheap"]
     # Research intelligence roles route to research_intelligence —
     # through the GENERATION provider, never the search engine.

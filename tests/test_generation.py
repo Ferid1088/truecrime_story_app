@@ -101,16 +101,16 @@ def test_missing_secret_env_fails():
 # ---------------------------------------------------------------------------
 
 EXPECTED_ROUTING = {
-    "fact_extractor": "cheap",
+    "fact_extractor": "premium",
     "timeline_builder": "cheap",
     "contradiction_analyzer": "cheap",
     "grounding_validator": "cheap",
     "consistency_checker": "cheap",
-    "story_director": "writer",
-    "writer": "writer",
-    "rewriter": "writer",
-    "engagement_critic": "premium",
-    "section_critic": "premium",
+    "story_director": "premium",
+    "writer": "premium",
+    "rewriter": "premium",
+    "engagement_critic": "writer",
+    "section_critic": "writer",
     "final_editor": "premium",
 }
 
@@ -132,11 +132,11 @@ def test_model_aliases_resolve():
 
 def test_fallback_chain_from_config():
     models = ai_config.generation_provider().models
-    assert ai_config.fallback_models_for("writer") == [models["premium"]]
+    assert ai_config.fallback_models_for("writer") == [models["writer"]]
     assert ai_config.fallback_models_for("fact_extractor") == [models["writer"]]
     # Reviewers never fall back to the writer model (review_independence):
     # a rate-limited critic must not become the author grading itself.
-    assert ai_config.fallback_models_for("engagement_critic") == [models["cheap"]]
+    assert ai_config.fallback_models_for("engagement_critic") == []
     assert models["writer"] not in ai_config.fallback_models_for(
         "native_language_critic"
     )
@@ -163,7 +163,7 @@ def _provider() -> APIMasterGenerationProvider:
 
 def test_generate_text_uses_routed_model():
     provider = _provider()
-    cheap = ai_config.generation_provider().models["cheap"]
+    routed = ai_config.generation_provider().models["premium"]
     seen = {}
 
     async def fake_chat(model, system, user, gen):
@@ -172,7 +172,7 @@ def test_generate_text_uses_routed_model():
 
     with patch.object(provider, "_chat", side_effect=fake_chat):
         res = asyncio.run(provider.generate_text("fact_extractor", "sys", "user"))
-    assert seen["model"] == cheap
+    assert seen["model"] == routed
     assert res.provider == "apimaster"
     assert res.fallback_used is False
 
@@ -190,8 +190,8 @@ def test_fallback_on_rate_limit_records_actual_model():
 
     with patch.object(provider, "_chat", side_effect=flaky):
         res = asyncio.run(provider.generate_text("writer", "sys", "user"))
-    assert calls == [models["writer"], models["premium"]]
-    assert res.model == models["premium"]
+    assert calls == [models["premium"], models["writer"]]
+    assert res.model == models["writer"]
     assert res.fallback_used is True
 
 
@@ -216,7 +216,7 @@ def test_discarded_billed_attempt_before_a_successful_fallback_is_not_lost():
 
     with patch.object(provider, "_chat", side_effect=first_truncated_then_ok):
         res = asyncio.run(provider.generate_text("writer", "sys", "user"))
-    assert calls == [models["writer"], models["writer"]]  # same-model retry, not a fallback
+    assert calls == [models["premium"], models["premium"]]  # same-model retry, not a fallback
     assert res.input_tokens == 250
     assert res.output_tokens == 120
     assert res.total_tokens == 370
@@ -657,8 +657,8 @@ def test_apimaster_status_shape(client):
     assert body["provider"] == "apimaster"
     assert set(body["models"]) == {
         "cheap", "research_intelligence", "writer", "premium", "embedding"}
-    assert body["routing"]["writer"] == "writer"
-    assert body["routing"]["engagement_critic"] == "premium"
+    assert body["routing"]["writer"] == "premium"
+    assert body["routing"]["engagement_critic"] == "writer"
     assert "apk" not in json.dumps(body)
 
 

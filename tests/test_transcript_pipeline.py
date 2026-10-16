@@ -1313,3 +1313,27 @@ def test_visual_leads_endpoints(client, db_session):
     assert [(x["lead_type"], x["timestamp_start"]) for x in listing] == [("bodycam", 12.0)]
     detail = client.get(f"/api/cases/{case.id}/videos/{v.id}").json()
     assert detail["visual_leads"][0]["description_en"] == "Bodycam of the arrest"
+
+
+def test_regional_caption_tag_is_stored_as_the_base_language(db_session):
+    """A YouTube "en-US"/"de-DE" caption tag made one language look like two
+    in the per-language view and sent an English transcript through the paid
+    normalizer; it is stored as the base language."""
+    from app.db.models import Source
+    from app.providers.transcript.base import TranscriptResult, TranscriptSegmentData
+    from app.services.transcripts import store_transcript
+
+    case = _mk_case(db_session)
+    src = Source(case_id=case.id, title="v", url="https://e/v", source_type="youtube_video")
+    db_session.add(src)
+    db_session.commit()
+    v = _mk_video(db_session, case, source_id=src.id, language="unknown")
+    result = TranscriptResult(
+        available=True, language="en-US", transcript_type="manual",
+        segments=[TranscriptSegmentData(0.0, 5.0, "The family disappeared.")],
+    )
+    store_transcript(db_session, v, result)
+    db_session.refresh(src)
+    assert (v.language, src.language) == ("en", "en")
+    assert v.segments[0].language == "en"
+    assert v.segments[0].canonical_text_en == "The family disappeared."

@@ -19,6 +19,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Source, TranscriptSegment, VideoSource
 from app.providers.transcript.base import TranscriptResult
 from app.services.tracking import stamp_run, track_run
+from app.utils import primary_language
 
 _WS = re.compile(r"\s+")
 _FILLER = re.compile(
@@ -100,6 +101,7 @@ def store_transcript(
         db.flush()
         return 0
 
+    language = primary_language(result.language)
     cleaned = clean_segments(
         [
             {"start_seconds": s.start_seconds, "end_seconds": s.end_seconds,
@@ -145,9 +147,9 @@ def store_transcript(
                 end_seconds=seg["end_seconds"],
                 segment_index=i,
                 text_original=seg["text"],
-                language=result.language or video.language or "unknown",
+                language=language or video.language or "unknown",
                 canonical_text_en=(
-                    seg["text"] if (result.language or "en") == "en" else None
+                    seg["text"] if (language or "en") == "en" else None
                 ),
                 content_hash=h,
                 is_garbled=garbled_flags[i],
@@ -157,14 +159,14 @@ def store_transcript(
 
     video.transcript_status = "available"
     video.transcript_type = result.transcript_type
-    video.language = result.language or video.language
+    video.language = language or video.language
     if video.source_id:
         src = db.get(Source, video.source_id)
         if src:
             src.content_status = "full_text"
             src.is_authorized_text = True
             src.retrieval_method = result.retrieval_method
-            src.language = result.language or src.language
+            src.language = language or src.language
             src.raw_text = None  # segments carry the text, with timestamps
     db.flush()
     return created
