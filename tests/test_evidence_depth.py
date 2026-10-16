@@ -380,6 +380,79 @@ def test_supporting_span_is_resolved_from_the_real_chunk_not_retyped(db_session)
     assert facts["No span given"].quote_verified is None
 
 
+class _SchemaRepairFake(_ExtractFake):
+    """Returns schema-invalid fact_extractor JSON on its first call, then
+    `valid_after` on every later call — simulates the model's one-shot
+    repair response (Part 2(b))."""
+
+    def __init__(self, invalid_first, valid_after):
+        super().__init__([])
+        self._invalid_first = invalid_first
+        self._valid_after = valid_after
+        self.fact_extractor_calls = 0
+
+    async def generate_structured(self, role, system, user):
+        from app.providers.generation.base import GenerationResult
+
+        res = GenerationResult(text="{}", model="m", provider="fake")
+        if role == "fact_extractor":
+            self.fact_extractor_calls += 1
+            if self.fact_extractor_calls == 1:
+                return self._invalid_first, res
+            return {"facts": self._valid_after}, res
+        if role == "timeline_builder":
+            return {"timeline": []}, res
+        return {"contradictions": []}, res
+
+
+def test_schema_invalid_fact_extractor_output_is_repaired_once(db_session):
+    """Part 2(b): a fact_extractor reply that fails the pydantic schema
+    (missing "claim", "confidence" not a number) gets exactly one repair
+    call; a valid repair reply is stored normally."""
+    from app.db.models import Fact
+
+    case = _mk_case(db_session)
+    # Content is unique per test (extraction cache is keyed by content hash
+    # across cases — identical text would silently serve another test's
+    # already-cached, already-valid result here instead of exercising the
+    # repair path at all).
+    marker = uuid.uuid4().hex[:8]
+    src = _mk_source(db_session, case, content_status="full_text",
+                     is_authorized_text=True, raw_text=f"Some real text about the case {marker}.")
+    fake = _SchemaRepairFake(
+        invalid_first={"facts": [{"confidence": "high", "source_ids": [src.id]}]},
+        valid_after=[{"claim": "Recovered claim", "category": "context", "confidence": 0.7,
+                      "source_ids": [src.id]}],
+    )
+    _run_extract(db_session, case, fake)
+    facts = db_session.query(Fact).filter(Fact.case_id == case.id).all()
+    assert [f.claim for f in facts] == ["Recovered claim"]
+    assert fake.fact_extractor_calls == 2
+
+
+def test_schema_invalid_fact_extractor_output_is_a_recorded_failure_not_a_silent_skip(db_session):
+    """Part 2(b): still schema-invalid after the one repair call is a
+    recorded failure (the AgentRun row and its error), never a silently
+    dropped batch — no facts are stored from an unrecoverable reply."""
+    from app.db.models import AgentRun, Fact
+    from app.providers.generation.base import GenerationError
+
+    case = _mk_case(db_session)
+    marker = uuid.uuid4().hex[:8]
+    src = _mk_source(db_session, case, content_status="full_text",
+                     is_authorized_text=True, raw_text=f"Some real text about the case {marker}.")
+    always_invalid = {"facts": [{"confidence": "still not a number"}]}
+    fake = _SchemaRepairFake(invalid_first=always_invalid, valid_after=[{"confidence": "also bad"}])
+
+    with pytest.raises(GenerationError):
+        _run_extract(db_session, case, fake)
+
+    assert db_session.query(Fact).filter(Fact.case_id == case.id).count() == 0
+    failed = db_session.query(AgentRun).filter_by(
+        case_id=case.id, agent_name="Fact Extractor", status="failed").all()
+    assert failed and "schema-invalid" in failed[0].error
+
+
 def test_hallucinated_out_of_bundle_ids_are_dropped_not_stored(db_session):
     """A model-hallucinated source_id/chunk_id that isn't actually one of
     this bundle's own ids must never reach the DB (or the cross-case

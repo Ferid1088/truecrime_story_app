@@ -1,7 +1,15 @@
 import asyncio
 import hashlib
+import logging
 from contextlib import contextmanager
 
+from pydantic import BaseModel, ValidationError
+
+from app.agents.research_schemas import (
+    ContradictionAnalyzerOutput,
+    FactExtractorOutput,
+    TimelineBuilderOutput,
+)
 from app.agents.runner import run_agent
 from app.core.prompts import prompt
 from app.core.quote_check import quote_is_supported
@@ -15,6 +23,8 @@ from app.research_engine.embeddings import cosine_matrix
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import track_research_call, track_run, stamp_run
+
+log = logging.getLogger(__name__)
 
 
 def _source_bundle(sources: list[Source], *, with_texts: bool = True,
@@ -251,6 +261,79 @@ def _track_embedding_cost(embedder, case_id: int, stage: str, detail: str):
         run.estimated_cost_usd = embedder.total_cost_usd - cost_before
 
 
+def _sum_optional(a: float | None, b: float | None) -> float | None:
+    """Sum two provider-reported usage values, None meaning "not reported"
+    rather than zero; None only when neither side reported anything
+    (mirrors app.providers.generation.openai_compat's own helper of the
+    same name — duplicated rather than imported across a provider/agent
+    layer boundary for a 4-line function)."""
+    if a is None and b is None:
+        return None
+    return (a or 0) + (b or 0)
+
+
+async def _validate_or_repair(
+    name: str, gen, user: str, system: str, schema: type[BaseModel], data: dict, res,
+) -> tuple[dict, object]:
+    """Part 2(b): every extraction/analysis stage's JSON is validated
+    against its own pydantic schema, not just checked for being parseable
+    JSON (generate_structured already guarantees that part, with its own
+    one-shot repair — see app.providers.generation.openai_compat). A
+    schema-shape failure (missing field, wrong type, malformed nested
+    object) gets exactly one repair call telling the model what failed;
+    still-invalid after that is a recorded failure, never a silent skip
+    (re-raised as the same GenerationError the JSON-parse path already
+    uses, carrying the summed real billed usage of both calls, so no
+    spend is lost from the ledger).
+
+    Takes the call site's own already-made run_agent() result rather than
+    making that first call itself: tests/test_architecture.py statically
+    scans the source for a literal run_agent call naming each agent, to
+    confirm every agent defined in config/agents.json is actually used —
+    a name passed through a shared helper as a variable wouldn't match
+    that scan. Only the (rare) repair call is made in here.
+
+    Returns the validated data as a plain dict, not the pydantic model, so
+    every existing call site keeps reading it exactly as before — dumped
+    with exclude_unset=True so a field the model never set (e.g. an old
+    fact giving "supporting_text" directly, with no "supporting_span" key
+    at all) stays ABSENT rather than appearing as an explicit null; several
+    downstream checks (_resolve_fact_span's backward-compat path chief
+    among them) distinguish "key absent" from "key present but null"."""
+    try:
+        return schema.model_validate(data).model_dump(exclude_unset=True), res
+    except ValidationError as first_error:
+        log.warning(
+            "schema validation failed for agent=%s model=%s; retrying with "
+            "the validation errors: %.300s", name, res.model, str(first_error),
+        )
+        repair_system = (
+            system
+            + "\n\nCRITICAL: your previous JSON output failed schema validation "
+              f"with these errors:\n{str(first_error)[:1000]}\n"
+              "Return ONLY corrected JSON with the same meaning, fixed to match "
+              "the schema exactly — no prose, no markdown fences."
+        )
+        repaired_data, repaired_res = await run_agent(name, gen, user, system=repair_system)
+        try:
+            return schema.model_validate(repaired_data).model_dump(exclude_unset=True), repaired_res
+        except ValidationError as second_error:
+            log.error(
+                "agent=%s model=%s returned schema-invalid output after one "
+                "repair attempt: %.300s", name, repaired_res.model, str(second_error),
+            )
+            raise GenerationError(
+                "invalid_output",
+                f"Model {repaired_res.model} returned schema-invalid output for "
+                f"agent {name} after one repair attempt: {str(second_error)[:300]}",
+                provider=repaired_res.provider, model=repaired_res.model,
+                input_tokens=_sum_optional(res.input_tokens, repaired_res.input_tokens),
+                output_tokens=_sum_optional(res.output_tokens, repaired_res.output_tokens),
+                total_tokens=_sum_optional(res.total_tokens, repaired_res.total_tokens),
+                cost_usd=_sum_optional(res.cost_usd, repaired_res.cost_usd),
+            ) from second_error
+
+
 def _extraction_batches(sources: list[Source], size: int) -> list[list[Source]]:
     """Single-language batches of at most `size` sources: one call over every
     source overruns the output limit and starves all but the first language."""
@@ -481,6 +564,8 @@ class ResearchAgent:
                 case_id=case.id,
             ) as run:
                 data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
+                data, res = await _validate_or_repair(
+                    "research.extract_facts", self.gen, user, system, FactExtractorOutput, data, res)
                 stamp_run(run, res, "fact_extractor")
                 chunk_text_by_id = {c["id"]: c["text"] for s in bundle for c in s.get("chunks", [])}
                 valid_source_ids = {s["id"] for s in bundle}
@@ -589,6 +674,8 @@ class ResearchAgent:
             input_summary=f"claims={len(fact_rows)}",
         ) as run:
             data, res = await run_agent("research.build_timeline", self.gen, user, system=system)
+            data, res = await _validate_or_repair(
+                "research.build_timeline", self.gen, user, system, TimelineBuilderOutput, data, res)
             stamp_run(run, res, "timeline_builder")
             dated = 0
             by_id = {f.id: f for f in fact_rows}
@@ -637,6 +724,9 @@ class ResearchAgent:
             input_summary=f"facts={len(fact_rows)} hints={len(hints)}",
         ) as run:
             data, res = await run_agent("research.analyze_contradictions", self.gen, user, system=system)
+            data, res = await _validate_or_repair(
+                "research.analyze_contradictions", self.gen, user, system,
+                ContradictionAnalyzerOutput, data, res)
             stamp_run(run, res, "contradiction_analyzer")
             contradictions = data.get("contradictions", [])
             run.output_summary = f"contradictions={len(contradictions)}"
