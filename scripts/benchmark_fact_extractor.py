@@ -29,7 +29,7 @@ from contextlib import contextmanager
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from app.agents.research import _FACT_SCHEMA, _resolve_fact_span, _source_bundle
+from app.agents.research import _FACT_SCHEMA, ResearchAgent, _resolve_fact_span, _source_bundle
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
@@ -198,7 +198,12 @@ async def main_async(source_case_id: int, bench_case_id: int, limit: int,
     system = prompt("agents/research/extract_facts")
     batch_size = batch_size_override or ai_config.source_chunking.max_sources_per_extraction_call
     batches = [sources[i:i + batch_size] for i in range(0, len(sources), batch_size)]
-    bundles = [_source_bundle(b) for b in batches]
+    # Same relevance-ranked chunk selection production uses (Part 2(e) item
+    # 2) — without this, a source with more chunks than the per-source
+    # limit would silently fall back to first-N-in-document-order here,
+    # which is not what any candidate would actually be fed in production.
+    chunk_ids_by_source = await ResearchAgent()._select_chunks_for_extraction(source_case, sources)
+    bundles = [_source_bundle(b, chunk_ids_by_source=chunk_ids_by_source) for b in batches]
 
     semaphore = asyncio.Semaphore(CONCURRENCY)
 

@@ -98,7 +98,7 @@ def _facts_for_cache(facts: list[dict], bundle: list[dict]) -> list[dict]:
     return [
         {**f,
          "source_ids": [source_key_by_id.get(sid, sid) for sid in f.get("source_ids", [])],
-         "chunk_ids": [chunk_key_by_id.get(cid, cid) for cid in f.get("chunk_ids", [])] or f.get("chunk_ids", [])}
+         "chunk_ids": [chunk_key_by_id.get(cid, cid) for cid in f.get("chunk_ids", [])]}
         for f in facts
     ]
 
@@ -151,6 +151,18 @@ def _extractable_content(source: Source) -> str:
     parts = [_source_text(source)]
     parts.extend(filter(None, (source.summary, source.summary_en, source.notes)))
     return " ".join(p for p in parts if p)
+
+
+def _drop_unknown_fact_ids(fact: dict, valid_source_ids: set[int], valid_chunk_ids: set[int]) -> dict:
+    """The model is only ever shown this bundle's own source/chunk ids, but
+    a hallucinated id in its reply must never reach the cache or the DB: a
+    cached fact's ids are later remapped onto a *different* bundle's real
+    ids (see _facts_for_cache/_facts_from_cache), so an out-of-bundle id
+    passed through here would silently resolve to the wrong source/chunk
+    (or a stale, case-specific raw id) on a future cross-case cache hit."""
+    source_ids = [sid for sid in fact.get("source_ids", []) if sid in valid_source_ids]
+    chunk_ids = [cid for cid in fact.get("chunk_ids", []) if cid in valid_chunk_ids]
+    return {**fact, "source_ids": source_ids, "chunk_ids": chunk_ids}
 
 
 def _resolve_fact_span(fact: dict, chunk_text_by_id: dict[int, str]) -> dict:
@@ -442,7 +454,10 @@ class ResearchAgent:
                 data, res = await run_agent("research.extract_facts", self.gen, user, system=system)
                 stamp_run(run, res, "fact_extractor")
                 chunk_text_by_id = {c["id"]: c["text"] for s in bundle for c in s.get("chunks", [])}
+                valid_source_ids = {s["id"] for s in bundle}
+                valid_chunk_ids = set(chunk_text_by_id)
                 found = [_resolve_fact_span(f, chunk_text_by_id) for f in data.get("facts", [])]
+                found = [_drop_unknown_fact_ids(f, valid_source_ids, valid_chunk_ids) for f in found]
                 run.output_summary = f"facts={len(found)}"
             if cacheable:
                 _extraction_cache_put(content_hash, prompt_version, model, _facts_for_cache(found, bundle))

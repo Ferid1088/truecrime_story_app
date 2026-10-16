@@ -380,6 +380,37 @@ def test_supporting_span_is_resolved_from_the_real_chunk_not_retyped(db_session)
     assert facts["No span given"].quote_verified is None
 
 
+def test_hallucinated_out_of_bundle_ids_are_dropped_not_stored(db_session):
+    """A model-hallucinated source_id/chunk_id that isn't actually one of
+    this bundle's own ids must never reach the DB (or the cross-case
+    extraction cache) — it could otherwise be a stale, case-specific id
+    that silently resolves to an unrelated source/chunk later. Real ids
+    from the bundle are kept; invented ones are dropped, not raised."""
+    from app.db.models import Fact, SourceChunk
+
+    case = _mk_case(db_session)
+    src = _mk_source(db_session, case, content_status="full_text")
+    chunk = SourceChunk(source_id=src.id, chunk_index=0, text="Real chunk text.",
+                       content_hash="y" * 64, language="en")
+    db_session.add(chunk)
+    db_session.commit()
+
+    other_source_id = src.id + 1000
+    other_chunk_id = chunk.id + 1000
+    fake = _ExtractFake([
+        {
+            "claim": "Mixed real and hallucinated ids", "category": "context", "confidence": 0.5,
+            "source_ids": [src.id, other_source_id],
+            "chunk_ids": [chunk.id, other_chunk_id],
+        },
+    ])
+    _run_extract(db_session, case, fake)
+
+    fact = db_session.query(Fact).filter(Fact.case_id == case.id).one()
+    assert json.loads(fact.source_ids_json) == [src.id]
+    assert json.loads(fact.chunk_ids_json) == [chunk.id]
+
+
 def test_chunk_selection_sends_the_most_relevant_chunks_not_the_first_n(db_session, monkeypatch):
     """Part 2(e) item 2: cut the text, not the source — a long source's
     chunks are ranked by relevance to the case, not truncated at the

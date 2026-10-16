@@ -207,6 +207,12 @@ def record_call(request: httpx.Request, started: float, response: httpx.Response
             else:
                 estimated = True
                 price_error = f"no price entry for model {resolved_model!r}"[:200]
+                log.error(
+                    "Provider ledger: %s has real token usage (in=%s out=%s) but no "
+                    "configured price — booked at a conservative upper-bound cost, "
+                    "not the real (unknown) one.",
+                    price_error, tin, tout,
+                )
                 cost_eur = conservative_unpriced_cost_eur(tin, tout)
         else:
             estimated = False
