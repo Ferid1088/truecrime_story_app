@@ -117,7 +117,15 @@ Status: IN_PROGRESS (fact_extractor resolved — keep Haiku; the owner paused fu
 | Live mini research+extraction run with new models, cost/quality vs old | | | TODO |
 
 ## Part 2 — Extraction as fixed JSON, parallelism, fewer better evidence items
-Status: TODO. Not started. Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+Status: IN_PROGRESS (item (e), step 6 done; steps 1-5 + baseline-survival measurement pending; items (a)-(d) not started). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+
+### Item (e) progress
+- **Baseline (free, from the ledger)**: 152 Fact Extractor calls, EUR 10.8079, 1708 facts stored on case 5 (137 of the calls / EUR 10.166268 on claude-haiku-4-5). Full table in docs/benchmarks/extraction.md. Acceptance target: <= EUR 5.40.
+- **"Fact survival" measurement**: could not be cheaply computed with the current schema (`Contradiction` stores `source_ids`, not `fact_ids`; `timeline_builder` touches every fact uniformly, not a selected subset; the stored master is Persian while fact claims are English, so string-matching against it is meaningless). Documented as a real, separate gap in docs/benchmarks/extraction.md, with a proposed fix (store `fact_ids_json` on `Contradiction` and on the story plan's evidence pack) for later.
+- **Step 6 (deterministic quote check) — DONE.** `app/core/quote_check.py` (fuzzy sliding-window match, no model call) + `Fact.quote_verified` (migration 0022, applied live to PostgreSQL and to the local truecrime.db golden fixture — confirmed by query both times). Tests: tests/test_quote_check.py (4), tests/test_evidence_depth.py::test_quote_verified_is_deterministic_not_a_model_call. This doesn't yet reduce EUR by itself (no LLM grounding step currently exists in the extraction pipeline to skip) — it's the determinism infrastructure Part 2(e) asks for; its EUR benefit lands once a future grounding step is built to actually skip "verified" facts.
+- **Steps 1-5**: not started (source selection/dedup, passage-level cutting, content-hash caching, compact output schema, concurrent batching).
+
+Commits: ec79347 (feature), b3867d4 (golden-fixture authorization). Full suite green (1272 passed/10 skipped) on b3867d4; /health verified after restart.
 
 > e) FACT EXTRACTOR: LESS TEXT IN, LESS TEXT OUT. On case 5 the Fact Extractor was the largest cost line (about 137 Haiku calls, about EUR 10.17 of EUR 19.92 total, measured live on 2026-10-16). Output tokens cost 5x input tokens, so both sides matter. Baseline first (from the stored ledger, no new spend): calls, tokens in/out and EUR per source and per call, and what share of extracted facts later survive (are used by a contradiction, the timeline, the story plan or the final story). Then reduce, in this order, measuring each change separately:
 >    1. Select before extracting: rank sources by relevance, quality and uniqueness and extract only from the best N per case (config); skip near-duplicate pages and syndicated copies (dedupe by content similarity, not only by URL); skip sources with no case-specific content (cheap deterministic pre-filter first, a cheap model only if needed). Record every skipped source with its reason.
