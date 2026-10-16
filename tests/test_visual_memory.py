@@ -101,3 +101,16 @@ def test_the_memory_is_listed_and_a_wrong_entry_can_be_removed(client, db_sessio
     assert [a["outfit_id"] for a in listing] == ["navy_knit"]
     assert client.delete(f"/api/host-appearances/{rid}").json()["deleted"] is True
     assert client.get(f"/api/host-appearances?channel={ch}").json() == []
+
+
+def test_direction_never_changes_the_audio(db_session):
+    """Part 7f: recording a direction leaves the scene's voice file, its sha256
+    and its timing untouched."""
+    scene = _scene(db_session, _ch())
+    scene.voice_sha256, scene.voice_seconds, scene.voice_path = "v" * 64, 18.5, "voice.mp3"
+    text_sha = scene.text_sha256
+    db_session.commit()
+    VM.record(db_session, scene, _direction(), [])
+    db_session.commit()
+    assert (scene.voice_sha256, scene.voice_seconds, scene.voice_path, scene.text_sha256) == (
+        "v" * 64, 18.5, "voice.mp3", text_sha)

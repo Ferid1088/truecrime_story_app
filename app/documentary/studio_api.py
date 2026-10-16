@@ -151,6 +151,110 @@ def delete_host_appearance(appearance_id: int, db: Session = Depends(get_db)):
     return {"id": appearance_id, "deleted": True}
 
 
+class LookRequest(BaseModel):
+    language: str
+    camera: str
+    framing: str
+    outfit_id: str
+    pose: str
+    prompt: str | None = None
+
+
+def _look(db: Session, look_id: int):
+    from app.db.models import HostLook
+
+    look = db.get(HostLook, look_id)
+    if look is None:
+        raise HTTPException(status_code=404, detail="Look not found")
+    return look
+
+
+def _looks_call(fn):
+    from app.documentary import looks as LK
+
+    try:
+        return LK.look_dict(fn())
+    except (LK.LookError, ST.StudioError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@router.get("/api/host-looks")
+def list_host_looks(language: str | None = None, db: Session = Depends(get_db)):
+    from app.db.models import HostLook
+    from app.documentary import looks as LK
+
+    q = db.query(HostLook)
+    if language:
+        q = q.filter(HostLook.language == language)
+    return [LK.look_dict(x) for x in q.order_by(HostLook.id.desc()).limit(200)]
+
+
+@router.post("/api/host-looks")
+def request_host_look(payload: LookRequest, db: Session = Depends(get_db)):
+    from app.documentary import looks as LK
+
+    return _looks_call(lambda: LK.request_look(
+        db, payload.language, payload.camera, payload.framing, payload.outfit_id,
+        payload.pose, payload.prompt))
+
+
+@router.post("/api/host-looks/{look_id}/generate")
+async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
+    """One real image generation (booked in the ledger): the locked studio
+    master and the outfit picture are the references."""
+    from app.core.ai_config import ai_config
+    from app.core.env import env_value
+    from app.documentary import looks as LK
+    from app.outfits.registry import OutfitRegistry
+
+    look = _look(db, look_id)
+    try:
+        reg = ST.load_registry()
+        masters = [a for a in reg.assets_of(look.language) if a.approved_for_host]
+        studio = ST.asset_path(reg, masters[0]) if masters else None
+        if studio is None or not studio.exists():
+            raise ST.StudioError(f"no studio master picture for {look.language} on disk "
+                                 f"(data/studio): add it before generating looks")
+        outfit = OutfitRegistry().resolve(look.outfit_id).poses["front"].path
+        gen = ai_config.generation_provider()
+        provider = LK.ApimasterImageProvider(
+            gen.base_url, env_value(gen.secret_env) or "", ai_config.host_looks.image_model,
+            ai_config.host_looks.image_timeout_s)
+        await LK.generate(db, look, provider, studio.read_bytes(), outfit.read_bytes())
+        return LK.look_dict(look)
+    except (LK.LookError, ST.StudioError, KeyError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+class LookDecision(BaseModel):
+    by: str | None = None
+    reason: str | None = None
+    prompt: str | None = None
+
+
+@router.post("/api/host-looks/{look_id}/approve")
+def approve_host_look(look_id: int, payload: LookDecision, db: Session = Depends(get_db)):
+    from app.documentary import looks as LK
+
+    return _looks_call(lambda: LK.approve(db, _look(db, look_id), payload.by or "owner"))
+
+
+@router.post("/api/host-looks/{look_id}/reject")
+def reject_host_look(look_id: int, payload: LookDecision, db: Session = Depends(get_db)):
+    from app.documentary import looks as LK
+
+    return _looks_call(lambda: LK.reject(db, _look(db, look_id), payload.reason or "rejected"))
+
+
+@router.post("/api/host-looks/{look_id}/regenerate")
+def regenerate_host_look(look_id: int, payload: LookDecision, db: Session = Depends(get_db)):
+    from app.documentary import looks as LK
+
+    if not (payload.prompt or "").strip():
+        raise HTTPException(status_code=422, detail="a prompt is required")
+    return _looks_call(lambda: LK.regenerate_with_prompt(db, _look(db, look_id), payload.prompt))
+
+
 @router.get("/api/host-scenes/{scene_id}")
 def get_host_scene(scene_id: int, db: Session = Depends(get_db)):
     s = db.get(HostScene, scene_id)

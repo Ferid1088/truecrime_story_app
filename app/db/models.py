@@ -2212,3 +2212,32 @@ class HostAppearance(Base):
     persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     direction_sha256: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+
+
+class HostLook(Base):
+    """One look of the host in a channel's studio (Part 7b): a picture of
+    him inside the locked studio master (camera, framing, outfit, pose) made
+    on request with an image model, approved by the owner, then uploaded to
+    HeyGen as a look. The stage director may only choose APPROVED looks."""
+
+    __tablename__ = "host_looks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    studio_profile_id: Mapped[str] = mapped_column(String(100), index=True)
+    language: Mapped[str] = mapped_column(String(10))
+    camera: Mapped[str] = mapped_column(String(20))
+    framing: Mapped[str] = mapped_column(String(20))
+    outfit_id: Mapped[str] = mapped_column(String(100))
+    pose: Mapped[str] = mapped_column(String(60))
+    prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    image_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # requested | generated | approved | rejected
+    status: Mapped[str] = mapped_column(String(20), default="requested", index=True)
+    approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    rejected_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    heygen_look_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

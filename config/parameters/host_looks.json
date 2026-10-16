@@ -1,0 +1,6 @@
+{
+  "host_looks": {
+    "image_model": "gpt-image-2",
+    "image_timeout_s": 240
+  }
+}

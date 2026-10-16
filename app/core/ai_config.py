@@ -557,6 +557,14 @@ class StageDirectionConfig(BaseModel):
     visual_memory_appearances: int = Field(ge=1, le=40)
 
 
+class HostLooksConfig(BaseModel):
+    """Image generation of the host's looks (Part 7b). The model is one the
+    gateway lists with the image-generation endpoint type (checked 2026-10-16);
+    the first real generation verifies the edit endpoint's response."""
+    image_model: str
+    image_timeout_s: float = Field(gt=0)
+
+
 class LocalizationConfig(BaseModel):
     require_master_ready: bool = True
     # Refuse to localize a master whose evidence fingerprint no longer
@@ -2302,6 +2310,7 @@ class AIConfig(BaseModel):
     claim_clustering: ClaimClusteringConfig
     story_plan: StoryPlanConfig
     stage_direction: StageDirectionConfig
+    host_looks: HostLooksConfig
     writer_metrics: WriterMetricsConfig
     embeddings: EmbeddingsConfig
     source_independence: SourceIndependenceConfig
