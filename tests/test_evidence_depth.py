@@ -257,7 +257,9 @@ class _ExtractFake:
 
 def test_human_scene_quote_evidence_stored(db_session):
     case = _mk_case(db_session)
-    src = _mk_source(db_session, case)
+    src = _mk_source(db_session, case, content_status="full_text", is_authorized_text=True,
+                     raw_text="Keeper James Ducat was married with children. "
+                              "The kitchen clock had stopped. \"The damage is done,\" Moore reportedly said.")
     fake = _ExtractFake([
         {
             "claim": "Keeper James Ducat was married with children",
@@ -843,8 +845,11 @@ def test_fact_extraction_runs_in_per_language_batches(db_session, monkeypatch):
 
     monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_extraction_call", 2)
     case = _mk_case(db_session)
-    en = [_mk_source(db_session, case, language="en") for _ in range(3)]
-    ar = [_mk_source(db_session, case, language="ar") for _ in range(1)]
+    en = [_mk_source(db_session, case, language="en", content_status="full_text",
+                     is_authorized_text=True, raw_text=f"distinct english content number {i}")
+          for i in range(3)]
+    ar = [_mk_source(db_session, case, language="ar", content_status="full_text",
+                     is_authorized_text=True, raw_text="distinct arabic content")]
     calls = []
 
     class BatchFake(_ExtractFake):
@@ -898,7 +903,10 @@ def test_failed_extraction_batch_is_split_and_retried(db_session, monkeypatch):
 
     monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_extraction_call", 4)
     case = _mk_case(db_session)
-    sources = [_mk_source(db_session, case, language="en") for _ in range(4)]
+    sources = [_mk_source(db_session, case, language="en", content_status="full_text",
+                          is_authorized_text=True,
+                          raw_text=f"split-and-retry-test content {uuid.uuid4().hex[:8]} number {i}")
+               for i in range(4)]
     sizes = []
 
     class FlakyFake(_ExtractFake):
@@ -923,8 +931,13 @@ def test_failed_extraction_batch_is_split_and_retried(db_session, monkeypatch):
                 raise ValueError("Expecting value: line 1 column 1 (char 0)")
             return await super().generate_structured(role, system, user)
 
+    # A fresh case/source: the first batch's content is already cached
+    # (Part 2(e) item 3) and would otherwise shadow this always-fails fake.
+    other_case = _mk_case(db_session)
+    _mk_source(db_session, other_case, language="en", content_status="full_text",
+              is_authorized_text=True, raw_text="a lone failing source's content")
     with pytest.raises(ValueError):
-        _run_extract(db_session, case, AlwaysFails([]))
+        _run_extract(db_session, other_case, AlwaysFails([]))
 
 
 def test_extraction_batches_run_concurrently_and_keep_batch_order(db_session, monkeypatch):
@@ -937,7 +950,10 @@ def test_extraction_batches_run_concurrently_and_keep_batch_order(db_session, mo
     monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_extraction_call", 1)
     monkeypatch.setattr(ai_config.source_chunking, "extraction_concurrency", 3)
     case = _mk_case(db_session)
-    sources = [_mk_source(db_session, case, language="en") for _ in range(5)]
+    sources = [_mk_source(db_session, case, language="en", content_status="full_text",
+                          is_authorized_text=True,
+                          raw_text=f"concurrent-order-test content {uuid.uuid4().hex[:8]} number {i}")
+               for i in range(5)]
     state = {"now": 0, "peak": 0}
 
     class SlowFake(_ExtractFake):
@@ -972,8 +988,10 @@ def test_research_merges_the_same_fact_from_different_languages(db_session):
             return np.ones((len(texts), 4), dtype=np.float32)
 
     case = _mk_case(db_session)
-    en = _mk_source(db_session, case, language="en")
-    de = _mk_source(db_session, case, language="de")
+    en = _mk_source(db_session, case, language="en", content_status="full_text",
+                    is_authorized_text=True, raw_text="Darrow defended both men in court.")
+    de = _mk_source(db_session, case, language="de", content_status="full_text",
+                    is_authorized_text=True, raw_text="Darrow verteidigte beide Männer vor Gericht.")
     facts = [
         {"claim": "Darrow defended both", "source_ids": [en.id], "category": "legal"},
         {"claim": "Darrow defended both men", "source_ids": [de.id], "category": "legal",
@@ -995,3 +1013,117 @@ def test_research_merges_the_same_fact_from_different_languages(db_session):
     merger_run = db_session.query(AgentRun).filter_by(
         case_id=case.id, agent_name="Fact Merger").one()
     assert merger_run.output_summary == "facts=1 merged=1"
+
+
+def test_a_source_with_no_content_is_skipped_with_a_reason_and_never_extracted(db_session):
+    """Part 2(e) item 1: skip sources with no case-specific content before
+    any extraction call, with the reason recorded, not silently dropped."""
+    case = _mk_case(db_session)
+    empty = _mk_source(db_session, case, language="en")  # no raw_text, no summary, no chunks
+    real = _mk_source(db_session, case, language="en", content_status="full_text",
+                      is_authorized_text=True, raw_text="a real article with real content")
+    seen_ids = []
+
+    class RecordingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                seen_ids.extend(s["id"] for s in json.loads(user)["sources"])
+            return await super().generate_structured(role, system, user)
+
+    _run_extract(db_session, case, RecordingFake([]))
+    db_session.refresh(empty)
+    db_session.refresh(real)
+    assert empty.id not in seen_ids
+    assert real.id in seen_ids
+    assert empty.extraction_skip_reason and "no extractable content" in empty.extraction_skip_reason
+    assert real.extraction_skip_reason is None
+
+
+def test_a_summary_only_source_still_counts_as_extractable(db_session):
+    """A source with no full text but a real summary is still extracted
+    from in production (app.agents.research._source_bundle sends the
+    summary) — item 1's filter must not skip it."""
+    case = _mk_case(db_session)
+    src = _mk_source(db_session, case, language="en", content_status="summary_only",
+                     summary_en="A human-written summary of the case coverage.")
+    seen_ids = []
+
+    class RecordingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                seen_ids.extend(s["id"] for s in json.loads(user)["sources"])
+            return await super().generate_structured(role, system, user)
+
+    _run_extract(db_session, case, RecordingFake([]))
+    assert src.id in seen_ids
+
+
+def test_a_near_duplicate_source_is_skipped_in_favour_of_the_more_reliable_one(db_session):
+    """Part 2(e) item 1: a near-duplicate/syndicated copy (same language,
+    high content similarity) is skipped, not extracted twice."""
+    class DuplicateAwareEmbedder(DistinctEmbedder):
+        async def embed(self, texts):
+            import numpy as np
+            # The two syndicated copies get an identical vector; the
+            # unrelated third source gets its own distinct direction.
+            vectors = []
+            for t in texts:
+                vectors.append([1.0, 0.0, 0.0, 0.0] if "syndicated" in t else [0.0, 1.0, 0.0, 0.0])
+            return np.array(vectors, dtype=np.float32)
+
+    case = _mk_case(db_session)
+    weak = _mk_source(db_session, case, language="en", content_status="full_text",
+                      is_authorized_text=True, reliability_score=0.3,
+                      raw_text="syndicated wire copy of the same article")
+    strong = _mk_source(db_session, case, language="en", content_status="full_text",
+                        is_authorized_text=True, reliability_score=0.9,
+                        raw_text="syndicated wire copy of the same article, published elsewhere")
+    unrelated = _mk_source(db_session, case, language="en", content_status="full_text",
+                           is_authorized_text=True, raw_text="a completely unrelated real article")
+    seen_ids = []
+
+    class RecordingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                seen_ids.extend(s["id"] for s in json.loads(user)["sources"])
+            return await super().generate_structured(role, system, user)
+
+    _run_extract(db_session, case, RecordingFake([]), DuplicateAwareEmbedder())
+    db_session.refresh(weak)
+    db_session.refresh(strong)
+    assert weak.id not in seen_ids
+    assert strong.id in seen_ids
+    assert unrelated.id in seen_ids
+    assert weak.extraction_skip_reason and f"source {strong.id}" in weak.extraction_skip_reason
+    assert strong.extraction_skip_reason is None
+
+
+def test_sources_beyond_the_per_case_limit_are_skipped_with_a_reason(db_session, monkeypatch):
+    """Part 2(e) item 1: only the configured top N sources per case are
+    ever sent to the extractor; the rest are skipped with a reason."""
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_sources_per_case_for_extraction", 2)
+    case = _mk_case(db_session)
+    sources = [
+        _mk_source(db_session, case, language="en", content_status="full_text",
+                  is_authorized_text=True, reliability_score=0.9 - i * 0.1,
+                  raw_text=f"limit-test unrelated content {uuid.uuid4().hex[:8]} rank {i}")
+        for i in range(4)
+    ]
+    seen_ids = []
+
+    class RecordingFake(_ExtractFake):
+        async def generate_structured(self, role, system, user):
+            if role == "fact_extractor":
+                seen_ids.extend(s["id"] for s in json.loads(user)["sources"])
+            return await super().generate_structured(role, system, user)
+
+    _run_extract(db_session, case, RecordingFake([]))
+    for s in sources:
+        db_session.refresh(s)
+    assert len(seen_ids) == 2
+    # The two highest-reliability sources (rank 0, 1) are kept.
+    assert {sources[0].id, sources[1].id} == set(seen_ids)
+    for s in sources[2:]:
+        assert s.extraction_skip_reason and "per-case extraction limit" in s.extraction_skip_reason

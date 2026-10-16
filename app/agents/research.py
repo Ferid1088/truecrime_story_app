@@ -10,6 +10,7 @@ from app.core.ai_config import ai_config
 from app.db.base import SessionLocal
 from app.db.models import Case, Source, Fact, Contradiction, ExtractionCache
 from app.agents.fact_merge import FactMerger, default_embedder
+from app.research_engine.embeddings import cosine_matrix
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import track_research_call, track_run, stamp_run
@@ -129,6 +130,18 @@ def _extraction_cache_put(content_hash: str, prompt_version: str, model: str, fa
         db.commit()
 
 
+def _extractable_content(source: Source) -> str:
+    """Everything _source_bundle actually sends the extractor for this
+    source, concatenated — chunks/raw text plus summary/notes, since a
+    summary_only source (no full text) is still extracted from its
+    summary in production. Used to decide whether a source has anything
+    worth extracting at all; narrower than this for quote verification,
+    where only the full text can confirm a verbatim quote."""
+    parts = [_source_text(source)]
+    parts.extend(filter(None, (source.summary, source.summary_en, source.notes)))
+    return " ".join(p for p in parts if p)
+
+
 def _source_text(source: Source) -> str:
     """All text a fact's supporting_text could plausibly quote: every
     extraction-eligible chunk, plus the raw page text if the extractor saw
@@ -192,13 +205,14 @@ class ResearchAgent:
         contradiction_hints: list | None = None,
     ) -> dict:
         sources = db.query(Source).filter(Source.case_id == case.id).all()
+        extraction_sources = await self._select_sources_for_extraction(db, case, sources)
 
         previous_status = case.status
         case.status = "researching"
         db.commit()
         try:
             facts_data = await self._merge_duplicates(
-                case, await self._extract_facts(db, case, sources))
+                case, await self._extract_facts(db, case, extraction_sources))
             fact_rows = self._store_facts(db, case, facts_data, sources)
 
             await self._build_timeline(db, case, fact_rows, sources)
@@ -215,6 +229,74 @@ class ResearchAgent:
             db.commit()
             raise
         return {"facts": len(fact_rows), "contradictions": n_contra}
+
+    # ------------------------------------------------------------------
+    # Part 2(e) item 1: select before extracting
+    # ------------------------------------------------------------------
+
+    async def _select_sources_for_extraction(
+        self, db: Session, case: Case, sources: list[Source]
+    ) -> list[Source]:
+        """Rank, dedupe and cap before any extraction call. Every skipped
+        source is recorded with its reason (never silently dropped);
+        re-running research clears stale reasons first, since which
+        sources are kept can change with newly-added sources."""
+        for s in sources:
+            s.extraction_skip_reason = None
+
+        with_content = []
+        for s in sources:
+            if _extractable_content(s).strip():
+                with_content.append(s)
+            else:
+                s.extraction_skip_reason = "no extractable content (no chunks, raw text or summary)"
+        if not with_content:
+            db.flush()
+            return []
+
+        # Dedup by content similarity, WITHIN THE SAME LANGUAGE ONLY: the
+        # same real event reported independently in two languages is
+        # valuable corroboration, not a syndicated copy, and each is kept
+        # so facts can be merged with both languages' original quotes
+        # (app.agents.fact_merge). A near-duplicate/syndicated copy is
+        # skipped in favour of the more reliable (or longer) source.
+        texts = [_extractable_content(s)[:4000] for s in with_content]
+        vectors = await self.embedder.embed(texts)
+        sims = cosine_matrix(vectors, vectors)
+        threshold = ai_config.source_chunking.duplicate_source_min_similarity
+        kept = [True] * len(with_content)
+        for i in range(len(with_content)):
+            if not kept[i]:
+                continue
+            for j in range(i + 1, len(with_content)):
+                if (not kept[j] or sims[i][j] < threshold
+                        or with_content[i].language != with_content[j].language):
+                    continue
+                key_i = (with_content[i].reliability_score, len(texts[i]))
+                key_j = (with_content[j].reliability_score, len(texts[j]))
+                loser = j if key_i >= key_j else i
+                winner = with_content[j if loser == i else i]
+                with_content[loser].extraction_skip_reason = (
+                    f"near-duplicate/syndicated copy of source {winner.id}"
+                )
+                kept[loser] = False
+                if loser == i:
+                    break
+        deduped = [s for s, k in zip(with_content, kept) if k]
+
+        # Rank the rest by reliability then content richness; keep only
+        # the configured top N per case.
+        ranked = sorted(
+            deduped,
+            key=lambda s: (s.reliability_score, len(_extractable_content(s))),
+            reverse=True,
+        )
+        limit = ai_config.source_chunking.max_sources_per_case_for_extraction
+        kept_ids = {s.id for s in ranked[:limit]}
+        for s in ranked[limit:]:
+            s.extraction_skip_reason = f"ranked below the per-case extraction limit ({limit})"
+        db.flush()
+        return [s for s in sources if s.id in kept_ids]
 
     # ------------------------------------------------------------------
     # fact_extractor (cheap)

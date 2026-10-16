@@ -576,6 +576,13 @@ class SourceChunkingConfig(BaseModel):
     extraction_concurrency: int = Field(ge=1, le=8)
     # Cosine similarity from which two extracted facts count as the same fact.
     merge_min_similarity: float = Field(ge=0.5, le=1.0)
+    # Part 2(e): select before extracting. Only the top N sources per case
+    # (ranked by reliability and content richness, after near-duplicate
+    # removal) are ever sent to the fact extractor.
+    max_sources_per_case_for_extraction: int = Field(ge=1, le=1000)
+    # Cosine similarity from which two sources' content counts as a
+    # near-duplicate/syndicated copy (one is skipped).
+    duplicate_source_min_similarity: float = Field(ge=0.5, le=1.0)
 
 
 class EvidenceStrengthConfig(BaseModel):

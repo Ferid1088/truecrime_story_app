@@ -122,6 +122,11 @@ class Source(Base):
     language_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     language_detection_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="active")
+    # Part 2(e) item 1: why fact extraction skipped this source (no
+    # case-specific content, a near-duplicate/syndicated copy of another
+    # source, or ranked below the per-case extraction limit). Null means
+    # it was (or will be) sent to the extractor.
+    extraction_skip_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     case = relationship("Case", back_populates="sources")

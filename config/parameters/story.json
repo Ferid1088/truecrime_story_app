@@ -78,7 +78,9 @@
     "max_chunks_per_source_for_extraction": 4,
     "max_sources_per_extraction_call": 2,
     "extraction_concurrency": 4,
-    "merge_min_similarity": 0.9
+    "merge_min_similarity": 0.9,
+    "max_sources_per_case_for_extraction": 50,
+    "duplicate_source_min_similarity": 0.92
   },
   "evidence_strength": {
     "weights": {
