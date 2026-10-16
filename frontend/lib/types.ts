@@ -2654,6 +2654,43 @@ export interface StudioPatch {
   confirm?: boolean;
 }
 
+export interface HostLookItem {
+  id: number;
+  studio_profile_id: string;
+  language: string;
+  camera: string;
+  framing: string;
+  outfit_id: string;
+  pose: string;
+  prompt: string | null;
+  image_path: string | null;
+  image_sha256: string | null;
+  image_model: string | null;
+  status: "requested" | "generated" | "approved" | "rejected";
+  approved_by: string | null;
+  rejected_reason: string | null;
+  heygen_look_id: string | null;
+  attempts: number;
+}
+
+export interface HostAppearanceItem {
+  id: number;
+  case_id: number;
+  host_scene_id: number;
+  language: string;
+  channel: string;
+  position: string | null;
+  shots: { camera: string; framing: string; movement: string; start_sec: number; end_sec: number }[];
+  outfit_id: string;
+  posture: string;
+  gestures: string[];
+  lighting: string;
+  emotion: string;
+  persona_sha256: string | null;
+  direction_sha256: string;
+  created_at: string;
+}
+
 export interface HostMemoryItem {
   id: number;
   ref: string;

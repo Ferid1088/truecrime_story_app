@@ -1,5 +1,6 @@
 "use client";
 
+import { HostLooksPanel } from "./host-looks";
 import { HostMemoryPanel } from "./host-memory";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
@@ -57,6 +58,7 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
         </p>
       </div>
       <HostMemoryPanel caseId={caseId} />
+      <HostLooksPanel language={language} channel={channel} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}
       {data && data.length === 0 && (

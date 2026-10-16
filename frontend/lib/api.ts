@@ -2,6 +2,8 @@ import type {
   MediaCoverage,
   MediaLinkItem,
   HostMemoryItem,
+  HostLookItem,
+  HostAppearanceItem,
   StoryPlan,
   StoryPlanPreview,
   ThumbnailOptions,
@@ -652,6 +654,19 @@ export const api = {
     }),
   approveStoryPlan: (planId: number, approvedBy: string) =>
     post<StoryPlan>(`/api/story-plans/${planId}/approve`, { approved_by: approvedBy }),
+  hostLooks: (language: string) =>
+    request<HostLookItem[]>(`/api/host-looks?language=${language}`),
+  requestHostLook: (payload: { language: string; camera: string; framing: string; outfit_id: string; pose: string }) =>
+    post<HostLookItem>("/api/host-looks", payload),
+  generateHostLook: (id: number) =>
+    request<HostLookItem>(`/api/host-looks/${id}/generate`, { method: "POST", body: "{}", timeoutMs: 300_000 }),
+  approveHostLook: (id: number) => post<HostLookItem>(`/api/host-looks/${id}/approve`, { by: "owner" }),
+  rejectHostLook: (id: number, reason: string) => post<HostLookItem>(`/api/host-looks/${id}/reject`, { reason }),
+  regenerateHostLook: (id: number, prompt: string) => post<HostLookItem>(`/api/host-looks/${id}/regenerate`, { prompt }),
+  uploadHostLook: (id: number) =>
+    request<HostLookItem>(`/api/host-looks/${id}/upload`, { method: "POST", body: "{}", timeoutMs: 600_000 }),
+  hostAppearances: (channel?: string) =>
+    request<HostAppearanceItem[]>(`/api/host-appearances${channel ? `?channel=${encodeURIComponent(channel)}` : ""}`),
   hostMemories: (caseId: number) =>
     request<HostMemoryItem[]>(`/api/documentary/host/memory?case_id=${caseId}`),
   addHostMemory: (payload: { case_id: number; kind: string; text: string }) =>
