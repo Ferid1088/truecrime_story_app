@@ -409,6 +409,31 @@ def build_act_pack(pack: dict, evidence_ids: list[str] | set[str] | None) -> dic
     }
 
 
+_ITEM_KEYS = ("facts", "disputed_facts", "timeline", "contradictions", "human_details",
+              "scene_details", "investigation_details", "physical_evidence",
+              "historical_context", "environment_details", "approved_quotes")
+
+
+def split_already_told(act_pack: dict, narrated: set[str]) -> tuple[dict, list[dict]]:
+    """Evidence an earlier act already narrated leaves the writer's evidence and
+    comes back as a short list (id and claim only): the writer may refer to it in
+    one clause but has nothing to retell, so a key fact is not told in full twice."""
+    told: list[dict] = []
+    seen: set[str] = set()
+    out = dict(act_pack)
+    for key in _ITEM_KEYS:
+        fresh = []
+        for item in act_pack.get(key) or []:
+            if item["id"] in narrated:
+                if item["id"] not in seen:
+                    seen.add(item["id"])
+                    told.append({"id": item["id"], "claim": item.get("claim") or item.get("description")})
+            else:
+                fresh.append(item)
+        out[key] = fresh
+    return out, told
+
+
 def estimate_narrative_capacity(
     facts: list[Fact],
     contradictions: list[Contradiction],
@@ -930,7 +955,8 @@ class WriterAgent:
         Keeps each generation call small, bounds context drift and prevents
         premature reveals — the act only sees its own assigned evidence.
         """
-        act_pack = build_act_pack(pack, act.get("evidence_ids"))
+        act_pack, already_told = split_already_told(
+            build_act_pack(pack, act.get("evidence_ids")), set(already_narrated or []))
 
         system = prompt("agents/story/write_act").format(language=language, tone=tone, target_words=act.get('target_words'), purpose=act.get('purpose', ''), open_loops=act.get('open_loops') or [], resolved_loops=act.get('resolved_loops') or [])
         user = json.dumps(
@@ -942,7 +968,7 @@ class WriterAgent:
                          "do_not_reveal")},
                 "episode_position": prior_position,
                 "reserved_for_later_acts": later_reserved,
-                "already_narrated": already_narrated or [],
+                "already_told": already_told,
                 "evidence": act_pack,
             },
             ensure_ascii=False,

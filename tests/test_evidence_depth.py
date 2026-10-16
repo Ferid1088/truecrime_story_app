@@ -884,6 +884,23 @@ def test_act_pack_only_contains_assigned_evidence():
     assert build_act_pack(pack, []) is pack
 
 
+def test_evidence_an_earlier_act_told_is_not_retold(monkeypatch):
+    """Case 8 master: the same key facts were narrated in full in three acts. An
+    item an earlier act narrated leaves the writer's evidence and comes back as
+    id + claim only."""
+    from app.agents.story import split_already_told
+
+    pack = {"facts": [{"id": "F001", "claim": "dress burned"}, {"id": "F002", "claim": "axe found"}],
+            "timeline": [{"id": "T001", "claim": "11:10 body found"}],
+            "human_details": [{"id": "F001", "claim": "dress burned"}], "approved_context": [{"id": "CTX1"}]}
+    fresh, told = split_already_told(pack, {"F001", "T001"})
+    assert [f["id"] for f in fresh["facts"]] == ["F002"]
+    assert fresh["timeline"] == [] and fresh["human_details"] == []
+    assert fresh["approved_context"] == pack["approved_context"]
+    assert told == [{"id": "F001", "claim": "dress burned"}, {"id": "T001", "claim": "11:10 body found"}]
+    assert split_already_told(pack, set())[1] == []
+
+
 def test_grounding_scoped_to_act_evidence(db_session, monkeypatch):
     """The per-act grounding validator receives the act-scoped pack, not
     the entire case database (Part 18)."""
