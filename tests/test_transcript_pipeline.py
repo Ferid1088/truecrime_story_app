@@ -428,6 +428,36 @@ def test_extraction_produces_timestamped_typed_claims(db_session, monkeypatch):
     assert ins[0].insight_type == "important_question"
 
 
+def test_extraction_stores_each_claims_own_people_and_locations(db_session, monkeypatch):
+    """Part 3(e) item 1: the extractor's own people/locations per claim are
+    stored on TranscriptClaim (not just left empty) — the raw material
+    promote_clusters later unions onto the canonical Fact."""
+    from app.agents.transcript_intel import TranscriptIntelligenceAgent
+    from app.db.models import TranscriptClaim
+
+    fake = FakeGen()
+    fake.structured["transcript_intelligence_extractor"] = lambda s, u: {
+        "claims": [
+            {"canonical_claim_en": "Jane Doe vanished near Lakeview",
+             "claim_type": "timeline_event", "confidence": 0.9,
+             "certainty": "supported", "segment_indices": [0],
+             "people": ["Jane Doe"], "locations": ["Lakeview"]},
+        ],
+        "narrative_insights": [],
+    }
+    _patch_gen(monkeypatch, fake)
+    case = _mk_case(db_session)
+    v = _mk_video(db_session, case)
+    _mk_segment(db_session, v, 0, "Jane Doe vanished near Lakeview.", 0.0, 5.0,
+                canonical="Jane Doe vanished near Lakeview.")
+
+    asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
+
+    claim = db_session.query(TranscriptClaim).filter_by(video_source_id=v.id).one()
+    assert json.loads(claim.people_json) == ["Jane Doe"]
+    assert json.loads(claim.locations_json) == ["Lakeview"]
+
+
 def test_quote_claim_verified_only_on_manual_caption_with_matching_text(db_session, monkeypatch):
     """Part 3(e) item 3: a direct quote is only ever safe to present as one
     when it is both (a) deterministically present in the real segment text
@@ -674,6 +704,36 @@ def test_verified_cluster_promotes_to_fact_with_provenance(
     member_ids = json.loads(fact.transcript_claim_ids_json)
     assert len(member_ids) == 2
     assert cl.promoted_fact_id == fact.id
+
+
+def test_video_entities_are_unioned_onto_the_promoted_fact(db_session):
+    """Part 3(e) item 1: a video's own people/locations (TranscriptClaim.
+    people_json/locations_json) reach the canonical Fact once promoted —
+    previously every video-promoted Fact had empty entity lists, so a
+    video's own entities never flowed anywhere, including the web
+    research job's query context (which reads Fact.people_json)."""
+    from app.db.models import ClaimCluster, Fact
+    from app.services.claims import promote_clusters
+
+    case = _mk_case(db_session)
+    v1 = _mk_video(db_session, case, channel="ChanA")
+    v2 = _mk_video(db_session, case, channel="ChanB")
+    cl = ClaimCluster(case_id=case.id, canonical_claim_en="Four people vanished in 2005",
+                      claim_type="fact", support_status="strongly_supported", confidence=0.8)
+    db_session.add(cl)
+    db_session.flush()
+    c1 = _claim(db_session, case, v1, "Four people vanished in 2005", cluster_id=cl.id,
+               people_json=json.dumps(["Jane Doe"]), locations_json=json.dumps(["Lakeview"]))
+    c2 = _claim(db_session, case, v2, "Four people vanished in 2005", cluster_id=cl.id,
+               people_json=json.dumps(["Jane Doe", "John Roe"]), locations_json=json.dumps([]))
+    cl.member_claim_ids_json = json.dumps([c1.id, c2.id])
+    db_session.commit()
+
+    res = promote_clusters(db_session, case)
+    assert res["promoted"] == 1
+    fact = db_session.query(Fact).filter(Fact.case_id == case.id).one()
+    assert json.loads(fact.people_json) == ["Jane Doe", "John Roe"]
+    assert json.loads(fact.locations_json) == ["Lakeview"]
 
 
 def test_unverified_cluster_never_promotes(db_session):

@@ -20,6 +20,9 @@ RULES:
   information — never copy the creator's wording, hooks or phrasing.
 - Timestamps are attached automatically via segment indices — do not
   invent times.
+- Set "people" and "locations" to the names of people/places central to
+  the claim (short lists, [] if none) — the video's own entities, feeding
+  the case's cross-source entity list.
 
 CLAIM TYPES: {_CLAIM_TYPES}
 INSIGHT TYPES: {_INSIGHT_TYPES}

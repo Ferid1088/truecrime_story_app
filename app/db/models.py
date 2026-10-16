@@ -437,6 +437,13 @@ class TranscriptClaim(Base):
     quote_classification: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # source_document_quote|interview_quote|reported_quote|creator_narration|uncertain
 
+    # Part 3(e) item 1: this video's own entities — feeds the case's
+    # cross-source entity list once promoted onto a Fact (app.services.
+    # claims.promote_clusters), which is how video-first research sharpens
+    # the web query plan.
+    people_json: Mapped[str] = mapped_column(Text, default="[]")
+    locations_json: Mapped[str] = mapped_column(Text, default="[]")
+
     # Part 3(e) item 3: True only for a quote-classified claim whose text
     # is deterministically confirmed present in the real (non-garbled)
     # segment text it cites, AND whose video has a manual (not

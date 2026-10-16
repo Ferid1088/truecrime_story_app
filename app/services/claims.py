@@ -472,6 +472,17 @@ def promote_clusters(db: Session, case: Case) -> dict:
             ),
             None,
         )
+        # Part 3(e) item 1: union every member claim's own entities onto the
+        # promoted Fact — this is how a video's people/places reach the
+        # case's cross-source entity list (app.services.research_jobs.
+        # start_research_job already builds its web-query context from
+        # Fact.people_json; a video-promoted Fact used to leave this empty).
+        people = sorted({
+            p for m in members for p in json.loads(m.people_json or "[]") if p
+        })
+        locations = sorted({
+            l for m in members for l in json.loads(m.locations_json or "[]") if l
+        })
         fact = Fact(
             case_id=case.id,
             claim=c.canonical_claim_en,
@@ -499,6 +510,8 @@ def promote_clusters(db: Session, case: Case) -> dict:
                 }.get(quote.quote_classification) if quote else None
             ),
             speaker=quote.speaker if quote else None,
+            people_json=json.dumps(people, ensure_ascii=False),
+            locations_json=json.dumps(locations, ensure_ascii=False),
         )
         db.add(fact)
         db.flush()

@@ -102,6 +102,8 @@ class TranscriptIntelligenceAgent:
                             "certainty": "unverified|supported|disputed|...",
                             "speaker": "or null",
                             "quote_classification": "or null",
+                            "people": ["..."],
+                            "locations": ["..."],
                             "segment_indices": [0],
                         }
                     ],
@@ -168,6 +170,12 @@ class TranscriptIntelligenceAgent:
                         speaker=(c.get("speaker") or None),
                         quote_classification=quote_classification,
                         quote_verified=quote_verified,
+                        people_json=json.dumps(
+                            [p for p in (c.get("people") or []) if p], ensure_ascii=False,
+                        ),
+                        locations_json=json.dumps(
+                            [l for l in (c.get("locations") or []) if l], ensure_ascii=False,
+                        ),
                         timestamp_start=(
                             min((s.start_seconds for s in segs), default=None)
                         ),

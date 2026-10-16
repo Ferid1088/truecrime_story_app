@@ -786,6 +786,19 @@ async def research_case(db: Session, case: Case, check_cancel,
                                         ResearchJob.job_type == "research",
                                         ResearchJob.status.in_(("queued", "running")))
            .order_by(ResearchJob.id.desc()).first())
+    # Part 3(e) item 1: VIDEO-FIRST for a genuine from-zero case (no
+    # existing/resumable web job, not a follow-up researching new
+    # developments — that keeps its own existing order). Video research's
+    # claims are promoted into Facts before the web job's query context is
+    # built (app.services.research_jobs.start_research_job reads
+    # Fact.people_json), and app.services.claims.promote_clusters already
+    # unions each promoted Fact's people/locations from its video claims
+    # (Part 3(e) item 1's other half) — so this ordering alone is what
+    # makes a video's real entities sharpen the web query plan, with no
+    # separate entity-passing code needed.
+    video_research_result = None
+    if job is None and not follow_up:
+        video_research_result = await _video_research(db, case)
     if job is None and follow_up:
         from app.lifecycle.followups import start_update_research
 
@@ -812,7 +825,7 @@ async def research_case(db: Session, case: Case, check_cancel,
     if not facts:
         raise RuntimeError(f"Research job {job.id} completed but no facts were saved for "
                            "the case — check the research job before writing a story.")
-    vr = await _video_research(db, case)
+    vr = video_research_result if video_research_result is not None else await _video_research(db, case)
     out = {"research_job_id": job.id, "facts": facts, "sources": job.sources_accepted,
            "video_research": vr}
     if vr.get("error"):

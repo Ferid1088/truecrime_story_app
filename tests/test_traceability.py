@@ -211,6 +211,69 @@ def test_research_that_saved_no_facts_stops_before_the_story(db_session, monkeyp
         asyncio.run(research_case(db_session, _case(db_session), lambda: None))
 
 
+def test_video_research_runs_before_web_research_for_a_fresh_case(db_session, monkeypatch):
+    """Part 3(e) item 1: video-first — for a genuine from-zero case (no
+    resumable job, not a follow-up), video research runs BEFORE the web
+    research job starts, so its promoted facts' entities (app.services.
+    claims.promote_clusters) are already in Fact.people_json by the time
+    the web query context is built."""
+    import app.documentary.jobs as jobs_mod
+    from app.documentary.jobs import research_case
+    from app.services import research_jobs
+
+    calls = []
+
+    async def fake_video_research(db, case):
+        calls.append("video")
+        return {"skipped": True, "reason": "test"}
+
+    async def fake_start_research_job(db, case, objective=None):
+        calls.append("web")
+        return SimpleNamespace(id=1, status="completed", error=None, sources_accepted=0)
+
+    monkeypatch.setattr(jobs_mod, "_video_research", fake_video_research)
+    monkeypatch.setattr(research_jobs, "start_research_job", fake_start_research_job)
+
+    with pytest.raises(RuntimeError, match="no facts"):
+        asyncio.run(research_case(db_session, _case(db_session), lambda: None))
+
+    assert calls == ["video", "web"]
+
+
+def test_video_research_keeps_its_existing_order_for_a_follow_up(db_session, monkeypatch):
+    """A follow-up film researches new developments first (its own
+    existing, different kind of "first") — video-first reordering is
+    scoped to a genuine from-zero case and does not apply here."""
+    import app.documentary.jobs as jobs_mod
+    from app.documentary.jobs import research_case
+    from app.db.models import DocumentaryJob, Fact
+    from app.lifecycle import followups
+
+    calls = []
+
+    async def fake_video_research(db, case):
+        calls.append("video")
+        return {"skipped": True, "reason": "test"}
+
+    async def fake_start_update_research(db, case, follow_up_id):
+        calls.append("web")
+        return SimpleNamespace(id=1, status="completed", error=None, sources_accepted=0)
+
+    monkeypatch.setattr(jobs_mod, "_video_research", fake_video_research)
+    monkeypatch.setattr(followups, "start_update_research", fake_start_update_research)
+
+    case = _case(db_session)
+    db_session.add(Fact(case_id=case.id, claim="existing fact", confidence=0.9))
+    db_session.commit()
+    doc_job = DocumentaryJob(case_id=case.id, production_type="follow_up",
+                             follow_up_id=1, status="running")
+    db_session.add(doc_job)
+    db_session.commit()
+
+    asyncio.run(research_case(db_session, case, lambda: None, doc_job=doc_job))
+    assert calls == ["web", "video"]
+
+
 @needs_ffmpeg
 def test_a_corrupt_voice_sidecar_is_paid_again_not_trusted(tmp_path, monkeypatch):
     from test_voice_render import TEXT_A, FakeTTS, _block, _render
