@@ -438,8 +438,12 @@ class TranscriptClaim(Base):
     cluster_id: Mapped[int | None] = mapped_column(
         ForeignKey("claim_clusters.id"), nullable=True, index=True
     )
+    # SET NULL, not the implicit NO ACTION default: a fresh research
+    # extraction deletes and re-inserts every Fact for the case (never an
+    # in-place update), and that must never be blocked by a stale
+    # "promoted to fact #N" pointer from an earlier run.
     promoted_fact_id: Mapped[int | None] = mapped_column(
-        ForeignKey("facts.id"), nullable=True
+        ForeignKey("facts.id", ondelete="SET NULL"), nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
@@ -466,8 +470,11 @@ class ClaimCluster(Base):
     support_status: Mapped[str] = mapped_column(String(40), default="unverified")
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
 
+    # SET NULL, not the implicit NO ACTION default: see TranscriptClaim's
+    # promoted_fact_id for why a stale pointer must never block a fresh
+    # research extraction's delete-and-reinsert of every Fact for the case.
     promoted_fact_id: Mapped[int | None] = mapped_column(
-        ForeignKey("facts.id"), nullable=True
+        ForeignKey("facts.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 

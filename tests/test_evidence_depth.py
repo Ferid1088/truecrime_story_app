@@ -434,6 +434,66 @@ def test_chunk_selection_sends_the_most_relevant_chunks_not_the_first_n(db_sessi
     assert set(seen_chunk_ids) == relevant_ids
 
 
+def test_deleting_a_promoted_fact_clears_the_reference_instead_of_blocking(tmp_path):
+    """A real bug found live on case 5, 2026-10-16: _store_facts deletes
+    and re-inserts every Fact for a case on each research run, but
+    claim_clusters.promoted_fact_id and transcript_claims.promoted_fact_id
+    pointed at a specific fact row with the implicit NO ACTION delete
+    behaviour — a stale "promoted to fact #N" pointer from an earlier run
+    blocked the delete outright (ForeignKeyViolation). Both are now
+    ON DELETE SET NULL (migration 0025).
+
+    A fully isolated, dedicated database: SQLite only enforces foreign
+    keys when PRAGMA foreign_keys=ON is set per-connection, and that
+    setting leaking onto a pooled connection the shared db_session fixture
+    hands to a later, unrelated test caused real cross-test failures
+    (tried first, reverted) — a throwaway engine sidesteps the pool
+    entirely, which also means this test needs no cleanup of its own.
+    """
+    from alembic import command
+    from sqlalchemy import create_engine, event
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db.migrate import alembic_config
+    from app.db.models import Case, ClaimCluster, Fact, TranscriptClaim, VideoSource
+
+    db_path = tmp_path / "promoted_fact_fk.db"
+    command.upgrade(alembic_config(f"sqlite:///{db_path}"), "head")
+    engine = create_engine(f"sqlite:///{db_path}")
+    event.listen(engine, "connect", lambda conn, _: conn.execute("PRAGMA foreign_keys=ON"))
+    db = sessionmaker(bind=engine)()
+    try:
+        case = Case(canonical_title="fk test", slug=f"fk-test-{uuid.uuid4().hex[:8]}", language="en")
+        db.add(case)
+        db.commit()
+        fact = Fact(case_id=case.id, claim="a promoted claim", confidence=0.9)
+        db.add(fact)
+        db.commit()
+        cluster = ClaimCluster(case_id=case.id, canonical_claim_en="a promoted claim",
+                               promoted_fact_id=fact.id)
+        video = VideoSource(case_id=case.id, video_id="v1", url="https://example/v1",
+                            title="v1", channel_name="c")
+        db.add_all([cluster, video])
+        db.commit()
+        claim = TranscriptClaim(case_id=case.id, video_source_id=video.id,
+                                canonical_claim_en="a promoted claim",
+                                original_claim="a promoted claim",
+                                promoted_fact_id=fact.id)
+        db.add(claim)
+        db.commit()
+
+        db.query(Fact).filter_by(id=fact.id).delete()
+        db.commit()
+
+        db.refresh(cluster)
+        db.refresh(claim)
+        assert cluster.promoted_fact_id is None
+        assert claim.promoted_fact_id is None
+    finally:
+        db.close()
+        engine.dispose()
+
+
 def test_extraction_cache_makes_no_provider_call_on_a_repeat(db_session):
     """Part 2(e) item 3: the same content, prompt version and model is
     never extracted twice — a restart must not pay for it again."""
