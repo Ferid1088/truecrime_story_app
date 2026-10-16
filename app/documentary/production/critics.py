@@ -337,7 +337,7 @@ def _replace(shots: list[dict], i: int, script: dict | None = None,
             if (c in alts and c not in assets)
             or (c in assets and assets[c].asset_type == "photo"
                 and assets[c].verification_status != "rejected"
-                and R.allowed(assets[c].rights_status)
+                and R.usable(assets[c])
                 and not fw.blocks(s.get("beat_id"), assets[c]))]
     tr = UsageTracker.from_shots(shots, {c: asset_facts(a) for c, a in assets.items()},
                                  skip={i})

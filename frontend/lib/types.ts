@@ -2146,6 +2146,8 @@ export interface VisualAsset {
   rights_reason: string | null;
   usable_preview: boolean;
   usable_publish: boolean;
+  editorial_approved_by: string | null;
+  editorial_approved_at: string | null;
   verification: VerificationStatus;
   verification_confidence: number | null;
   verification_detail: Record<string, unknown> | null;

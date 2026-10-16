@@ -82,5 +82,16 @@ def allowed(rights_status: str, profile: str | None = None) -> bool:
     return rights_status in ai_config.rights.allowed_for_render.get(profile, [])
 
 
+def usable(asset, profile: str | None = None) -> bool:
+    """Whether a picture may go into a film: its rights status is allowed for
+    the render profile AND, for editorial_review_required, a human approval
+    is recorded on the asset (a news photo is never used on a guess)."""
+    if not allowed(asset.rights_status, profile):
+        return False
+    if asset.rights_status == "editorial_review_required":
+        return asset.editorial_approved_at is not None
+    return True
+
+
 def needs_attribution(rights_status: str) -> bool:
     return rights_status in ai_config.rights.attribution_required

@@ -35,6 +35,7 @@ from app.documentary.visuals import rights as R
 from app.services.artifacts import ArtifactRegistry
 from app.services.stage_control import StageControlError, StageControlService
 from app.services.dry_run import documentary_dry_run
+from app.utils import utc_now
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["documentary"])
@@ -267,8 +268,10 @@ def asset_dict(a: VisualAsset) -> dict:
         "page_url": a.page_url, "source_name": a.source_name, "found_for": a.found_for,
         "license": a.license, "credit": a.credit, "rights": a.rights_status,
         "rights_reason": a.rights_reason,
-        "usable_preview": R.allowed(a.rights_status, "preview"),
-        "usable_publish": R.allowed(a.rights_status, "publish"),
+        "usable_preview": R.usable(a, "preview"),
+        "usable_publish": R.usable(a, "publish"),
+        "editorial_approved_by": a.editorial_approved_by,
+        "editorial_approved_at": a.editorial_approved_at.isoformat() if a.editorial_approved_at else None,
         "verification": a.verification_status,
         "verification_confidence": a.verification_confidence,
         "verification_detail": _loads(a.verification_json, None),
@@ -766,6 +769,35 @@ def update_visual(asset_id: int, payload: AssetUpdate, db: Session = Depends(get
     if payload.reveals is not None:
         a.reveals_json = json.dumps(payload.reveals)
     a.human_override = True
+    db.commit()
+    return asset_dict(a)
+
+
+class EditorialApproval(BaseModel):
+    approved_by: str = Field(min_length=1, max_length=120)
+
+
+@router.post("/api/visuals/{asset_id}/approve-editorial")
+def approve_editorial(asset_id: int, payload: EditorialApproval, db: Session = Depends(get_db)):
+    """Record who approved an editorial_review_required picture for use."""
+    a = db.get(VisualAsset, asset_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Visual not found")
+    if a.rights_status != "editorial_review_required":
+        raise HTTPException(status_code=409, detail="Only editorial_review_required pictures need this approval")
+    a.editorial_approved_by = payload.approved_by
+    a.editorial_approved_at = utc_now()
+    db.commit()
+    return asset_dict(a)
+
+
+@router.delete("/api/visuals/{asset_id}/approve-editorial")
+def revoke_editorial(asset_id: int, db: Session = Depends(get_db)):
+    a = db.get(VisualAsset, asset_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Visual not found")
+    a.editorial_approved_by = None
+    a.editorial_approved_at = None
     db.commit()
     return asset_dict(a)
 

@@ -510,6 +510,13 @@ function VisualDetailDialog({
               <RightsBadge rights={asset.rights} />
               {asset.rights_reason && <span className="ml-1.5 text-muted-foreground">{asset.rights_reason}</span>}
             </MetaRow>
+            {asset.rights === "editorial_review_required" && (
+              <MetaRow label="Editorial approval">
+                {asset.editorial_approved_at
+                  ? `approved by ${asset.editorial_approved_by} · ${formatDate(asset.editorial_approved_at)}`
+                  : "not approved — never used in a film until approved"}
+              </MetaRow>
+            )}
             <MetaRow label="Usable in">
               preview {asset.usable_preview ? "yes" : "no"} · publish {asset.usable_publish ? "yes" : "no"}
             </MetaRow>
@@ -587,6 +594,31 @@ function VisualDetailDialog({
           <Button size="sm" className="w-full" onClick={save} loading={saving} disabled={!dirty}>
             Save review
           </Button>
+          {asset.rights === "editorial_review_required" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full"
+              loading={saving}
+              onClick={async () => {
+                setSaving(true);
+                setError(null);
+                try {
+                  onSaved(
+                    asset.editorial_approved_at
+                      ? await api.revokeEditorial(asset.id)
+                      : await api.approveEditorial(asset.id, "owner"),
+                  );
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {asset.editorial_approved_at ? "Revoke editorial approval" : "Approve editorial use"}
+            </Button>
+          )}
           <p aria-live="polite" className="text-[11px] text-emerald-600 dark:text-emerald-400">
             {saved && !dirty ? "Saved." : ""}
           </p>

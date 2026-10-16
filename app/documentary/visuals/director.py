@@ -118,7 +118,7 @@ def _loads(text, default):
 def usable(asset: VisualAsset, profile: str | None = None) -> bool:
     return (asset.verification_status != "rejected"
             and asset.local_path is not None
-            and R.allowed(asset.rights_status, profile))
+            and R.usable(asset, profile))
 
 
 def firewall_ok(asset: VisualAsset, blocked: set[str]) -> bool:

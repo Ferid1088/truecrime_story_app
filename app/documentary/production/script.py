@@ -74,7 +74,7 @@ def _focus(path: str | None) -> list[int] | None:
 
 
 def _still_usable(a: VisualAsset) -> bool:
-    return a.verification_status != "rejected" and R.allowed(a.rights_status)
+    return a.verification_status != "rejected" and R.usable(a)
 
 
 def _clip_length(a: VisualAsset) -> float:

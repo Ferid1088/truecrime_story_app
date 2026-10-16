@@ -633,6 +633,11 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  /** Record who approved an editorial_review_required picture for use. */
+  approveEditorial: (assetId: number, approvedBy: string) =>
+    post<VisualAsset>(`/api/visuals/${assetId}/approve-editorial`, { approved_by: approvedBy }),
+  revokeEditorial: (assetId: number) =>
+    request<VisualAsset>(`/api/visuals/${assetId}/approve-editorial`, { method: "DELETE" }),
   /** Cut a kept video by meaning again (when the segmenter failed). */
   cutVideoAgain: (assetId: number) =>
     request<VisualAsset & { pieces: number }>(`/api/visuals/${assetId}/cut-again`, {

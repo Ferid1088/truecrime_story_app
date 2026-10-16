@@ -94,7 +94,7 @@ class VisualAuditor:
                 log.warning("verify %s before audit failed: %s", asset.asset_code, e)
         if asset.verification_status != "verified":
             return "rejected", None, [f"picture not verified ({asset.verification_status})"]
-        if not R.allowed(asset.rights_status):
+        if not R.usable(asset):
             return "rejected", None, [f"rights do not allow it ({asset.rights_status})"]
         early = firewall.why((story or {}).get("beat"), asset) if firewall else None
         if early:

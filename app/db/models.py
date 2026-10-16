@@ -1058,6 +1058,10 @@ class VisualAsset(Base):
     # Generated assets (maps, document/date/quote cards) keep their spec.
     spec_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     human_override: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Part 4: an editorial_review_required picture (news photo, case-source
+    # image) is usable in a film only with this recorded human approval.
+    editorial_approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    editorial_approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     # Media library: how directly the asset belongs to the case.
     # 1 exact case evidence/footage, 2 exact person/place/object,

@@ -178,7 +178,7 @@ def _replacement_pool(script: dict, shot: dict, assets: dict[str, VisualAsset],
     def ok(c):
         a = assets.get(c)
         return (a is not None and c not in exclude and a.asset_type in ("photo", "video")
-                and a.verification_status == "verified" and R.allowed(a.rights_status)
+                and a.verification_status == "verified" and R.usable(a)
                 and not fw.blocks(beat, a) and long_enough(a))
 
     return [c for c in dict.fromkeys(pool) if ok(c)]
