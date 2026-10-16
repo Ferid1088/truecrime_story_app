@@ -104,7 +104,6 @@ EXPECTED_ROUTING = {
     "fact_extractor": "cheap",
     "timeline_builder": "cheap",
     "contradiction_analyzer": "cheap",
-    "discovery": "cheap",
     "grounding_validator": "cheap",
     "consistency_checker": "cheap",
     "story_director": "writer",

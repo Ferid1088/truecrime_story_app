@@ -48,7 +48,6 @@ REQUIRED_ROLES = {
     "fact_extractor",
     "timeline_builder",
     "contradiction_analyzer",
-    "discovery",
     "story_director",
     "writer",
     "rewriter",
@@ -685,6 +684,16 @@ class TranscriptChunkingConfig(BaseModel):
     target_tokens: int = Field(gt=0)
     min_tokens: int = Field(gt=0)
     max_tokens: int = Field(gt=0)
+
+
+class TranscriptQualityConfig(BaseModel):
+    """Part 3(e) item 3: cheap, deterministic auto-caption quality gating
+    — no model call. Manual captions skip this entirely (trusted by type,
+    per app.providers.transcript.youtube's existing preference)."""
+    max_segment_noise_ratio: float = Field(ge=0.0, le=1.0, default=0.15)
+    degraded_garbled_rate: float = Field(ge=0.0, le=1.0, default=0.15)
+    max_acceptable_garbled_rate: float = Field(ge=0.0, le=1.0, default=0.35)
+    min_punctuation_ratio: float = Field(ge=0.0, le=1.0, default=0.2)
 
 
 class TranscriptValueConfig(BaseModel):
@@ -2180,6 +2189,7 @@ class AIConfig(BaseModel):
     youtube_research: YouTubeResearchConfig
     transcript_ingestion: TranscriptIngestionConfig
     transcript_chunking: TranscriptChunkingConfig
+    transcript_quality: TranscriptQualityConfig
     transcript_value: TranscriptValueConfig
     claim_clustering: ClaimClusteringConfig
     source_independence: SourceIndependenceConfig
