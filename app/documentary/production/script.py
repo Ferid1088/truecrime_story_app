@@ -1351,11 +1351,22 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                      reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),
                      production_type=production_type or "original", opening_strategy=opening)
+    script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")
+                       or manifest["files"].get("narration_wav")}
+    from app.documentary.production import host_timeline as HT
+
+    host = HT.host_items(db, version)
+    if host:
+        # Part 8a: the host's opening and mid appearances, shot and sound
+        script = HT.insert_host(script, host)
+        spliced = HT.splice_host_audio(
+            storage.resolve(script["audio"]["path"]), script["host"],
+            storage.production_dir(version.case_id, language) / f"audio_with_host_v{version.id}.wav",
+            storage.resolve)
+        script["audio"] = {"path": storage.rel(spliced), "with_host": True}
     script = ensure_pipeline_member_ids(f"production-script:{version.id}:{language}", script)
     film_key = film_key_of(plan_row, manifest)
     script["film_key"] = film_key
-    script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")
-                       or manifest["files"].get("narration_wav")}
     count = db.query(ProductionScript).filter(
         ProductionScript.story_version_id == version.id).count()
     row = ProductionScript(
@@ -1370,6 +1381,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     db.refresh(row)
     # production memory: every picture's appearance and every music cue
     # of this film/language point at this script
+    HT.mark_composited(db, script.get("host") or [])
     record_media_usage(db, row, script, film_key)
     link_music_usage(db, film_key, language, row.id)
     out = storage.production_dir(version.case_id, language) / f"production_v{version.id}_{row.version}.json"

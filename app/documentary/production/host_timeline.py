@@ -1,0 +1,179 @@
+"""Host scenes in the film timeline (Part 8a).
+
+The host's opening comes before beat 1 and each mid appearance after its
+planned beat. Everything after an insertion moves by the host's length: shots,
+beats, voice blocks, subtitles, overlays, music, silences and the intro; a shot
+that spans the insertion is split. Host shots are ordinary `video` shots (the
+renderer already plays clips); the host's own audio is spliced into the
+narration track at the same points, with a level gain."""
+
+from __future__ import annotations
+
+import copy
+import subprocess
+from pathlib import Path
+
+from app.core.ai_config import ai_config
+from app.core.media_tools import ffmpeg_bin
+
+_EPS = 0.02
+
+
+class HostTimelineError(RuntimeError):
+    pass
+
+
+def _insertion_point(script: dict, item: dict) -> float:
+    if item["position"] == "opening":
+        return 0.0
+    for b in script.get("beats") or []:
+        if b["beat_id"] == item.get("beat_id"):
+            return float(b["end"])
+    raise HostTimelineError(f"host scene {item['scene_id']}: beat {item.get('beat_id')!r} "
+                            "is not in the film")
+
+
+def _shift(rows: list[dict], t: float, d: float, keys=("start", "end")) -> None:
+    for r in rows:
+        if r.get("start") is not None and r["start"] >= t - _EPS:
+            for k in keys:
+                if r.get(k) is not None:
+                    r[k] = round(r[k] + d, 3)
+
+
+def _split_spanning(shots: list[dict], t: float) -> list[dict]:
+    out = []
+    for s in shots:
+        if s["start"] < t - _EPS and s["end"] > t + _EPS:
+            a, b = dict(s), dict(s)
+            a["end"] = round(t, 3)
+            b["start"] = round(t, 3)
+            b["transition_in"] = "CUT"
+            if s.get("kind") == "video" and s.get("clip_start") is not None:
+                b["clip_start"] = round(float(s["clip_start"]) + (t - s["start"]), 3)
+            out += [a, b]
+        else:
+            out.append(s)
+    return out
+
+
+def insert_host(script: dict, items: list[dict]) -> dict:
+    """items: [{scene_id, position (opening|mid), beat_id, seconds, video, audio,
+    gain_db, text}] -> a new script with the host in it."""
+    script = copy.deepcopy(script)
+    if not items:
+        return script
+    if sum(1 for i in items if i["position"] == "opening") > 1:
+        raise HostTimelineError("more than one host opening")
+    original = {id(i): _insertion_point(script, i) for i in items}
+    ordered = sorted(items, key=lambda i: (original[id(i)], i["position"] != "opening"))
+    offset = 0.0
+    host: list[dict] = []
+    for item in ordered:
+        d = float(item["seconds"])
+        t_orig = original[id(item)]
+        t = t_orig + offset
+        script["shots"] = _split_spanning(script["shots"], t)
+        for key in ("shots", "beats", "voice", "subtitles", "overlays", "silences"):
+            _shift(script.get(key) or [], t, d)
+        _shift(script.get("music") or [], t, d, keys=("start",))
+        if script.get("intro") and script["intro"].get("start") is not None \
+                and script["intro"]["start"] >= t - _EPS:
+            script["intro"]["start"] = round(script["intro"]["start"] + d, 3)
+        script["shots"].append({
+            "kind": "video", "command": "SHOW_CLIP", "motion": "NONE", "path": item["video"],
+            "clip_start": 0.0, "clip_end": round(d, 3), "start": round(t, 3),
+            "end": round(t + d, 3), "asset_id": None, "transition_in": "CUT",
+            "host_scene_id": item["scene_id"], "host_position": item["position"],
+            "beat_id": item.get("beat_id")})
+        host.append({"scene_id": item["scene_id"], "position": item["position"],
+                     "beat_id": item.get("beat_id"), "start": round(t, 3),
+                     "end": round(t + d, 3), "narration_at": round(t_orig, 3),
+                     "audio": item["audio"], "gain_db": item["gain_db"], "text": item.get("text")})
+        offset += d
+    script["shots"].sort(key=lambda s: (s["start"], s["end"]))
+    for n, s in enumerate(script["shots"]):
+        s["index"] = n
+    script["host"] = host
+    script["host_seconds"] = round(offset, 3)
+    script["duration"] = round(script["duration"] + offset, 3)
+    return script
+
+
+def host_share(script: dict) -> float:
+    d = float(script.get("duration") or 0.0)
+    return round(float(script.get("host_seconds") or 0.0) / d, 4) if d else 0.0
+
+
+def splice_command(narration: Path, host: list[dict], out: Path, resolve) -> list[str]:
+    """ffmpeg command: narration cut at each insertion point, the host's own
+    audio (with its gain) in between, one continuous track."""
+    ff = ffmpeg_bin()
+    if not ff:
+        raise HostTimelineError("ffmpeg is not available")
+    cmd = [ff, "-y", "-v", "error", "-i", str(narration)]
+    for h in host:
+        cmd += ["-i", str(resolve(h["audio"]))]
+    cuts = [h["narration_at"] for h in host]
+    parts, labels = [], []
+    start = 0.0
+    for n, c in enumerate(cuts):
+        if c - start > _EPS:
+            parts.append(f"[0:a]atrim={start:.3f}:{c:.3f},asetpts=PTS-STARTPTS[n{n}]")
+            labels.append(f"[n{n}]")
+        parts.append(f"[{n + 1}:a]volume={host[n]['gain_db']}dB,asetpts=PTS-STARTPTS[h{n}]")
+        labels.append(f"[h{n}]")
+        start = c
+    parts.append(f"[0:a]atrim=start={start:.3f},asetpts=PTS-STARTPTS[nend]")
+    labels.append("[nend]")
+    graph = ";".join(parts) + f";{''.join(labels)}concat=n={len(labels)}:v=0:a=1[a]"
+    return cmd + ["-filter_complex", graph, "-map", "[a]", str(out)]
+
+
+def splice_host_audio(narration: Path, host: list[dict], out: Path, resolve) -> Path:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(splice_command(narration, host, out, resolve), capture_output=True, text=True)
+    if r.returncode != 0:
+        raise HostTimelineError(f"ffmpeg splice failed: {r.stderr[-300:]}")
+    return out
+
+
+def host_gain_db() -> float:
+    return ai_config.host.audio_gain_db
+
+
+def host_items(db, version) -> list[dict]:
+    """The version's host scenes that are ready (their avatar video is on disk
+    and unchanged): what goes into the film."""
+    import hashlib
+
+    from app.db.models import HostScene
+    from app.documentary import storage
+    from app.documentary.host import latest_host_segments
+
+    seg = latest_host_segments(db, version.id)
+    if seg is None:
+        return []
+    items = []
+    for s in db.query(HostScene).filter(HostScene.host_segments_id == seg.id).order_by(HostScene.id):
+        video = storage.resolve(s.avatar_video_path) if s.avatar_video_path else None
+        voice = storage.resolve(s.voice_path) if s.voice_path else None
+        if (video is None or not video.exists() or voice is None or not voice.exists()
+                or hashlib.sha256(video.read_bytes()).hexdigest() != s.avatar_video_sha256
+                or not s.voice_seconds or s.position not in ("opening", "mid")):
+            continue
+        items.append({"scene_id": s.id, "position": s.position, "beat_id": s.beat_id,
+                      "seconds": float(s.voice_seconds), "video": s.avatar_video_path,
+                      "audio": s.voice_path, "gain_db": host_gain_db(), "text": s.text})
+    return items
+
+
+def mark_composited(db, host: list[dict]) -> None:
+    """The scenes that went into the film's timeline: status composited."""
+    from app.db.models import HostScene
+
+    ids = [h["scene_id"] for h in host]
+    if ids:
+        db.query(HostScene).filter(HostScene.id.in_(ids)).update(
+            {"status": "composited"}, synchronize_session=False)
+        db.commit()

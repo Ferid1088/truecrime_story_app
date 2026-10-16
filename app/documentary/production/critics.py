@@ -254,6 +254,17 @@ def deterministic_checks(script: dict, assets: dict[str, VisualAsset],
             issues.append({"check": "repetition", "severity": "low",
                            "why": f"{code} shown {n} times"})
     issues += repetition_issues(script, assets)
+    host_cfg = ai_config.host
+    host = script.get("host") or []
+    for h in host:
+        if h["end"] - h["start"] > host_cfg.max_appearance_seconds + 0.05:
+            issues.append({"check": "host_time", "severity": "high", "time": _mmss(h["start"]),
+                           "why": f"host appearance of {h['end'] - h['start']:.0f}s is over the "
+                                  f"{host_cfg.max_appearance_seconds:.0f}s cap"})
+    if script.get("host_seconds", 0) > host_cfg.max_total_seconds + 0.05:
+        issues.append({"check": "host_time", "severity": "high",
+                       "why": f"host time {script['host_seconds']:.0f}s is over the "
+                              f"{host_cfg.max_total_seconds:.0f}s cap"})
     for s in shots:
         a = assets.get(s.get("asset_id") or "")
         if a is not None and s.get("kind") in ("image", "video", "document") and not R.usable(a):

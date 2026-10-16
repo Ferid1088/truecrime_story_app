@@ -1289,6 +1289,8 @@ class HostConfig(BaseModel):
         "opening": [30.0, 120.0], "mid": [8.0, 60.0], "final": [10.0, 45.0]})
     # No appearance may be longer than this (real voice seconds).
     max_appearance_seconds: float = Field(default=120.0, gt=0.0)
+    # Level of the host's own audio against the narration track (Part 8a).
+    audio_gain_db: float = Field(default=0.0, ge=-12.0, le=6.0)
     # The final slot is off unless this switch is on.
     final_enabled: bool = False
     max_mid_segments: int = Field(default=2, ge=0, le=4)
