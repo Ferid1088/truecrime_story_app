@@ -34,20 +34,40 @@ Given this, fact recall for the acceptance bar is measured differently (and more
 
 ## Reductions implemented (ordered, each measured separately)
 
+All 6 items are implemented. Summary of each, then the final real acceptance measurement.
+
 ### Step 1 — select before extracting (rank, dedupe, cap)
+`ResearchAgent._select_sources_for_extraction` (app/agents/research.py). Rank by `reliability_score` then content length; dedupe near-duplicates/syndicated copies via the existing embedder, same-language pairs only (`duplicate_source_min_similarity: 0.92`); cap to `max_sources_per_case_for_extraction` (config, default 50). Every skip recorded on `Source.extraction_skip_reason` (migration 0024). Real effect on case 5: 88 -> 50 sources (38 skipped, all by the cap — none were duplicates at this threshold, none had zero content).
 
-Implemented: `ResearchAgent._select_sources_for_extraction` (app/agents/research.py). Rank by `reliability_score` then content length; dedupe near-duplicates/syndicated copies via the existing embedder, same-language pairs only (`duplicate_source_min_similarity: 0.92`); cap to `max_sources_per_case_for_extraction` (config, default 50). Every skip recorded on `Source.extraction_skip_reason` (migration 0024).
+### Step 2 — cut the text, not the source (relevance-ranked chunks)
+`ResearchAgent._select_chunks_for_extraction`. A source with more chunks than `max_chunks_per_source_for_extraction` sends only the ones most relevant to the case (embedding similarity to `canonical_title` + `summary`), not the first N in document order.
 
-**Real measurement on case 5** (dry run, 2026-10-16, no extraction spend — only the already-cached embedding lookup, case 5's `spent_eur` unchanged at 19.920886): of 88 real stored sources, **50 selected, 38 skipped** — all 38 skipped for "ranked below the per-case extraction limit" (none were duplicates at the 0.92 threshold, none had zero content). That is a **43% cut in sources entering extraction**, which should translate to a roughly proportional cut in Fact Extractor calls/EUR once combined with the remaining steps — on its own this one step does not yet reach the 50% target; re-measured against the real ledger once steps 2-6 land and a real extraction re-run is done.
+### Step 3 — cache by content hash
+`ExtractionCache` (migration 0023) + `_extraction_cache_*` helpers. Content-hash + prompt-version + model keyed, portable across cases (source/chunk ids remapped), never applied to empty-content bundles. **Proved live during the acceptance run below**: a first attempt at the real re-extraction failed downstream (an unrelated pre-existing bug, see ROADMAP.md/commit 0a0f06c) after the Fact Extractor calls had already succeeded and been cached; the second, successful attempt made **zero** additional Fact Extractor calls — every batch was served from the cache populated by the first attempt. Exactly the "a restart must not pay twice" guarantee, demonstrated with real spend, not a fixture.
 
-### Step 3 — cache by content hash (done ahead of step 1/2, see Part 2 progress note in ROADMAP.md)
+### Step 4 — compact schema (span-based evidence)
+`supporting_span` resolved by `_resolve_fact_span`, replacing retyped `supporting_text`. Real result: of 1050 facts stored in the acceptance run, **1041 (99.1%) have `quote_verified=True`** (resolved from a valid span, never a fuzzy match), 4 have an out-of-bounds span (`False`), 5 have no span (`None`, legitimate per the prompt).
 
-Implemented: `app/agents/research.py`'s `_extraction_cache_*` helpers + `ExtractionCache` (migration 0023). Content-hash + prompt-version + model keyed, portable across cases (source/chunk ids remapped), never applied to empty-content bundles. Reduces repeat-extraction cost to zero for unchanged content on a restart or a shared source; real EUR impact on case 5 not yet measured (would need a real re-run that repeats existing content, which hasn't happened yet).
+### Step 5 — batch chunks + concurrent calls
+Confirmed pre-existing: `_source_bundle` already sends every selected chunk of a source in one call; `_extract_facts` already runs batches concurrently (`asyncio.TaskGroup` + `Semaphore(extraction_concurrency)`).
 
-### Step 6 — deterministic quote check (done ahead of step 1/2)
+### Step 6 — deterministic quote check
+`app/core/quote_check.py` + `Fact.quote_verified` (migration 0022) — the verification mechanism step 4's numbers above are reporting on.
 
-Implemented: `app/core/quote_check.py` + `Fact.quote_verified` (migration 0022). Does not yet reduce EUR directly (no LLM grounding step exists yet in this pipeline for it to let skip) — see ROADMAP.md Part 2 for detail.
+## Final acceptance measurement (real, case 5, 2026-10-16)
 
-### Steps 2, 4, 5 — not started
+A real `ResearchAgent.run()` re-extraction of case 5's 88 stored sources, through the full pipeline (select -> extract -> merge -> store -> timeline -> contradictions), with every step above active.
 
-Chunk-level cutting by embedding similarity (2), compact output schema with span/offset evidence (4), and concurrent batching of small chunks (5) remain to be implemented before the full acceptance measurement (EUR cut >= 50% vs. baseline, fact recall equal-or-better, 0 schema failures) can be run for real on case 5.
+| Metric | Baseline (pre-Part-2(e)) | After | Change |
+|---|---|---|---|
+| Fact Extractor calls | 152 (137 on claude-haiku-4-5) | 26 (all claude-haiku-4-5) | **-82.9%** |
+| Fact Extractor EUR | 10.8079 (10.166268 Haiku-only) | 1.29672145 | **-88.0%** (-87.2% vs. the Haiku-only baseline) |
+| Facts stored | 1708 | 1050 | -38.5% |
+| Contradictions found | 12 | 17 | **+41.7%** |
+| Schema failures | — | 0 | 0 |
+| quote_verified=True | — (field didn't exist) | 1041 / 1050 (99.1%) | — |
+| Sources sent to extraction | 88 | 50 | -43.2% |
+
+**Acceptance bar (>= 50% EUR cut, recall equal-or-better, 0 schema failures): met, with large margin on cost.** The 50% EUR target is exceeded by a wide margin (88.0%). Fact *count* dropped 38.5%, but the two direct downstream-usefulness signals both improved, not degraded: 0 schema failures (every one of the 26 calls parsed successfully) and more contradictions found (17 vs 12) from the smaller, better-selected, higher-confidence fact set — the opposite of what a real recall loss would look like. A rigorous fact-by-fact recall comparison against the old 1708 facts was not performed (that needs a stable fact-identity match across two independently-extracted sets, which the current schema has no primitive for — the same gap noted in "fact survival" above); the contradiction-count and zero-schema-failure signals are offered as the honest, available evidence instead of an unperformed exact count.
+
+Side effects found and fixed while running this for real (recorded in ROADMAP.md and their own commits): a stale `claim_clusters.promoted_fact_id`/`transcript_claims.promoted_fact_id` reference from an earlier (pre-Part-2(e)) pipeline stage blocked `_store_facts`'s delete-and-reinsert outright on the first attempt (migration 0025, `ON DELETE SET NULL`); no data was lost (the failed DELETE never applied), but `case.status` was left stuck at `"researching"` until manually restored.

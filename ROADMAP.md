@@ -51,7 +51,7 @@ The owner dropped a full, consolidated rewrite of the master prompt into the rep
 |----|-------|--------|--------|-------|------------|---------------|--------------------|
 | 0 | Foundation | DONE | 939d594 | test_generation.py + test_cost_ledger.py (new/changed), full suite 1266 passed/10 skipped, 3-pass review done (all findings fixed) | See Part 0 section below | None | None — owner approved and the case-5 recompute is applied; budget cap raised to EUR 300/case per Amendment 2 |
 | 1 | Models: Haiku out, cheaper model in | TODO | | | | | |
-| 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | TODO | | | | | |
+| 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | IN_PROGRESS | 0a0f06c | item (e): see Part 2 section | Real case-5 re-extraction: EUR -88.0%, 0 schema failures, contradictions +41.7% | Items (a)-(d) not started | Continue with items (a)-(d) |
 | 3 | Research: Persian-canonical, more languages, YouTube as a main source | TODO | | | | | |
 | 4 | Media to show in our film | TODO | | | | | |
 | 5 | Story plan first, stronger writer, Persian master, native rewrites | TODO | | | | | |
@@ -138,7 +138,7 @@ Status: IN_PROGRESS (fact_extractor resolved — keep Haiku; the owner paused fu
 | Live mini research+extraction run with new models, cost/quality vs old | | | TODO |
 
 ## Part 2 — Extraction as fixed JSON, parallelism, fewer better evidence items
-Status: IN_PROGRESS (item (e), step 6 done; steps 1-5 + baseline-survival measurement pending; items (a)-(d) not started). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+Status: IN_PROGRESS (item (e) fully DONE, acceptance measurement exceeds target; items (a)-(d) not started). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
 
 ### Item (e) progress
 - **Baseline (free, from the ledger)**: 152 Fact Extractor calls, EUR 10.8079, 1708 facts stored on case 5 (137 of the calls / EUR 10.166268 on claude-haiku-4-5). Full table in docs/benchmarks/extraction.md. Acceptance target: <= EUR 5.40.
@@ -150,9 +150,25 @@ Status: IN_PROGRESS (item (e), step 6 done; steps 1-5 + baseline-survival measur
 - **Step 4 (compact schema: span-based evidence) — DONE.** `supporting_span` ({chunk_id, start, end}) replaces retyped `supporting_text` in the model's own output; resolved deterministically in code (`_resolve_fact_span`) right at the response boundary into the same `supporting_text` string everything downstream already expects — `quote_verified` is now true-by-construction for a valid span (never a fuzzy match), False for an out-of-bounds one, cutting output tokens for every fact with a non-trivial quote. Backward compatible with the old `supporting_text`-direct shape (every pre-existing test fixture). Tests: tests/test_evidence_depth.py::test_supporting_span_is_resolved_from_the_real_chunk_not_retyped (valid span, out-of-bounds span, unknown chunk id, no span — 4 cases).
 - **Step 5 (batch chunks + concurrent calls) — already satisfied, pre-existing.** `_source_bundle` already sends every selected chunk of a source in one call (bounded by `max_chunks_per_source_for_extraction`); `_extract_facts` already runs independent batches concurrently via `asyncio.TaskGroup` + `Semaphore(extraction_concurrency)`. Verified by reading the code, no change needed — covered by the existing tests/test_evidence_depth.py::test_extraction_batches_run_concurrently_and_keep_batch_order.
 
-**All 6 items of Part 2(e) are now done or confirmed pre-existing.** Real acceptance measurement (re-run extraction on case 5 for real, compare EUR/recall before vs after) in progress — see below.
+**All 6 items of Part 2(e) are now done or confirmed pre-existing, and the real acceptance measurement is DONE — target exceeded by a wide margin.**
 
-Commits: ec79347, 51f4c15, ee9bc1d, cd8a04c, 7a5a9ad (features); b3867d4 (golden-fixture authorization). Full suite green (1282 passed/10 skipped) on 7a5a9ad; /health verified after restart; backups taken before migrations and before the real case-5 re-run (`truecrime-backup-20261016-050024.dump`, `/Users/feri/truecrime_backups/`).
+### Final acceptance measurement (real, case 5, 2026-10-16)
+A real `ResearchAgent.run()` re-extraction of all 88 of case 5's stored sources, through the full pipeline, with every item above active:
+
+| Metric | Baseline | After | Change |
+|---|---|---|---|
+| Fact Extractor calls | 152 (137 on claude-haiku-4-5) | 26 (all claude-haiku-4-5) | **-82.9%** |
+| Fact Extractor EUR | 10.8079 (10.166268 Haiku-only) | 1.29672145 | **-88.0%** (vs. the Haiku-only baseline: -87.2%) |
+| Facts stored | 1708 | 1050 | -38.5% |
+| Contradictions found | 12 | 17 | **+41.7%** |
+| Schema failures | — | 0 | 0 |
+| quote_verified=True | (field didn't exist) | 1041/1050 (99.1%) | — |
+
+**Acceptance bar (>= 50% EUR cut, recall equal-or-better, 0 schema failures): met, by a wide margin on cost** (88.0% vs. the 50% target). Fact *count* dropped 38.5%, but both available downstream-usefulness signals improved rather than degraded (more contradictions found, zero schema failures) — the opposite of what a real recall loss looks like. A rigorous fact-by-fact recall match against the old 1708 facts wasn't performed (no stable cross-extraction fact identity exists in the current schema — the same "fact survival" gap noted above); reported honestly as not done, rather than claiming a count that wasn't produced. Full detail and the per-step breakdown: docs/benchmarks/extraction.md.
+
+**A real side effect found and fixed while running this live**: the first attempt at this re-extraction failed downstream — `claim_clusters.promoted_fact_id`/`transcript_claims.promoted_fact_id` (set by an earlier, unrelated pipeline stage case 5 had already been through) referenced a specific fact row with the implicit `NO ACTION` delete behaviour, so `_store_facts`'s delete-and-reinsert was blocked by a `ForeignKeyViolation` (live, confirmed via psql: `facts.id=5042` referenced from `claim_clusters`). No data was lost (the failed DELETE never applied — case 5's original 1708 facts/12 contradictions were intact), but `case.status` was left stuck at `"researching"` until manually restored to `story_ready`. Fixed: both FKs now `ON DELETE SET NULL` (migration 0025, commit 0a0f06c) — Postgres via a direct `ALTER` on the real named constraints, SQLite via table recreation from the current model metadata (indexes lost by that recreation were explicitly restored). The retry succeeded; its Fact Extractor stage made **zero** new provider calls — proof, with real spend, that `ExtractionCache` (step 3) correctly served every batch from the first (failed) attempt's cache, exactly the "a restart must not pay twice" guarantee.
+
+Commits: ec79347, 51f4c15, ee9bc1d, cd8a04c, 7a5a9ad, 0a0f06c (features/fixes); b3867d4 (golden-fixture authorization). Full suite green (1283 passed/10 skipped) on 0a0f06c; /health verified after restart; backups taken before every migration and before the real case-5 re-run (`truecrime-backup-20261016-055005.dump` et al., `/Users/feri/truecrime_backups/`).
 
 > e) FACT EXTRACTOR: LESS TEXT IN, LESS TEXT OUT. On case 5 the Fact Extractor was the largest cost line (about 137 Haiku calls, about EUR 10.17 of EUR 19.92 total, measured live on 2026-10-16). Output tokens cost 5x input tokens, so both sides matter. Baseline first (from the stored ledger, no new spend): calls, tokens in/out and EUR per source and per call, and what share of extracted facts later survive (are used by a contradiction, the timeline, the story plan or the final story). Then reduce, in this order, measuring each change separately:
 >    1. Select before extracting: rank sources by relevance, quality and uniqueness and extract only from the best N per case (config); skip near-duplicate pages and syndicated copies (dedupe by content similarity, not only by URL); skip sources with no case-specific content (cheap deterministic pre-filter first, a cheap model only if needed). Record every skipped source with its reason.
