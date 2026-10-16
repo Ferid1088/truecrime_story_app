@@ -71,3 +71,6 @@ data/evidence/
 
 # live-run browser helpers
 frontend/.live-run-*.mjs
+
+# live UI proof screenshots (never committed)
+data/ui_proof/
