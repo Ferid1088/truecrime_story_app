@@ -8,11 +8,13 @@ from pathlib import Path
 
 import pytest
 from alembic import command
+from alembic.script import ScriptDirectory
 
 from app.db import migrate
 from scripts import db_reconcile
 
 ROOT = Path(__file__).resolve().parents[1]
+CURRENT_HEAD = ScriptDirectory.from_config(migrate.alembic_config("sqlite://")).get_current_head()
 
 
 def _fresh_0009(path: Path) -> None:
@@ -43,7 +45,7 @@ def test_apply_live_success_uses_only_a_copy(tmp_path, monkeypatch):
 
     assert backup.exists()
     with sqlite3.connect(live) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0020"
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == CURRENT_HEAD
         assert all(connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0] == 0
                    for table in db_reconcile.NEW_TABLES)
 
@@ -59,7 +61,7 @@ def test_service_start_failure_after_apply_does_not_rollback(tmp_path, monkeypat
         raise RuntimeError("simulated service start failure")
 
     with sqlite3.connect(live) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0020"
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == CURRENT_HEAD
     assert backup.exists()
 
 

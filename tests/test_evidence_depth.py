@@ -296,6 +296,39 @@ def test_human_scene_quote_evidence_stored(db_session):
     assert len(pack["approved_quotes"]) == 1
 
 
+def test_quote_verified_is_deterministic_not_a_model_call(db_session):
+    """Part 2(e): a fact's supporting_text is checked against the real
+    source text in code, not trusted as-is from the model."""
+    case = _mk_case(db_session)
+    src = _mk_source(
+        db_session, case, content_status="full_text", is_authorized_text=True,
+        raw_text="Keeper James Ducat was married with three children in Edinburgh.",
+    )
+    fake = _ExtractFake([
+        {
+            "claim": "Ducat was married", "category": "person", "confidence": 0.9,
+            "source_ids": [src.id],
+            "supporting_text": "James Ducat was married with three children",
+        },
+        {
+            "claim": "A confession was made in court", "category": "evidence",
+            "confidence": 0.9, "source_ids": [src.id],
+            "supporting_text": "the defendant confessed in open court",
+        },
+        {
+            "claim": "No supporting text given", "category": "context",
+            "confidence": 0.5, "source_ids": [src.id],
+        },
+    ])
+    _run_extract(db_session, case, fake)
+    from app.db.models import Fact
+
+    facts = {f.claim: f for f in db_session.query(Fact).filter(Fact.case_id == case.id).all()}
+    assert facts["Ducat was married"].quote_verified is True
+    assert facts["A confession was made in court"].quote_verified is False
+    assert facts["No supporting text given"].quote_verified is None
+
+
 # ---------------------------------------------------------------------------
 # 13. EvidenceCoverageMatrix
 # ---------------------------------------------------------------------------

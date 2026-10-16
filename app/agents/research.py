@@ -2,6 +2,7 @@ import asyncio
 
 from app.agents.runner import run_agent
 from app.core.prompts import prompt
+from app.core.quote_check import quote_is_supported
 import json
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
@@ -42,6 +43,16 @@ def _source_bundle(sources: list[Source], *, with_texts: bool = True) -> list[di
         }
         for s in sources
     ]
+
+
+def _source_text(source: Source) -> str:
+    """All text a fact's supporting_text could plausibly quote: every
+    extraction-eligible chunk, plus the raw page text if the extractor saw
+    it directly (no chunks)."""
+    parts = [c.text for c in (source.chunks or [])]
+    if source.is_authorized_text and not source.chunks and source.raw_text:
+        parts.append(source.raw_text)
+    return " ".join(parts)
 
 
 _FACT_SCHEMA = {
@@ -104,7 +115,7 @@ class ResearchAgent:
         try:
             facts_data = await self._merge_duplicates(
                 case, await self._extract_facts(db, case, sources))
-            fact_rows = self._store_facts(db, case, facts_data)
+            fact_rows = self._store_facts(db, case, facts_data, sources)
 
             await self._build_timeline(db, case, fact_rows, sources)
 
@@ -189,10 +200,16 @@ class ResearchAgent:
             run.output_summary = f"facts={len(merged)} merged={len(facts) - len(merged)}"
         return merged
 
-    def _store_facts(self, db: Session, case: Case, facts_data: list[dict]) -> list[Fact]:
+    def _store_facts(self, db: Session, case: Case, facts_data: list[dict],
+                     sources: list[Source]) -> list[Fact]:
         db.query(Fact).filter(Fact.case_id == case.id).delete()
+        source_text_by_id = {s.id: _source_text(s) for s in sources}
         rows = []
         for f in facts_data:
+            supporting_text = f.get("supporting_text") or None
+            cited_text = " ".join(
+                source_text_by_id.get(sid, "") for sid in f.get("source_ids", [])
+            )
             row = Fact(
                 case_id=case.id,
                 claim=f["claim"],
@@ -202,10 +219,11 @@ class ResearchAgent:
                 confidence=float(f.get("confidence", 0.5)),
                 source_ids_json=json.dumps(f.get("source_ids", [])),
                 disputed=bool(f.get("disputed", False)),
+                quote_verified=quote_is_supported(supporting_text, cited_text),
                 event_date=f.get("event_date") or None,
                 narrative_value=(f.get("narrative_value") or None),
                 evidence_strength=(f.get("evidence_strength") or None),
-                supporting_text=(f.get("supporting_text") or None),
+                supporting_text=supporting_text,
                 chunk_ids_json=json.dumps(f.get("chunk_ids") or []),
                 quote_status=(f.get("quote_status") or None),
                 speaker=(f.get("speaker") or None),

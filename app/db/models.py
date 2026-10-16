@@ -169,6 +169,11 @@ class Fact(Base):
     speaker: Mapped[str | None] = mapped_column(String(300), nullable=True)
     people_json: Mapped[str] = mapped_column(Text, default="[]")
     locations_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Deterministic check (app.core.quote_check), never a model call: does
+    # supporting_text actually occur in the source(s) this fact cites? True
+    # = confirmed, False = not found (deserves scrutiny), None = nothing to
+    # check (no supporting_text, or no source text available for it).
+    quote_verified: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     case = relationship("Case", back_populates="facts")
 
