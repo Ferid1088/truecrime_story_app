@@ -51,7 +51,7 @@ The owner dropped a full, consolidated rewrite of the master prompt into the rep
 |----|-------|--------|--------|-------|------------|---------------|--------------------|
 | 0 | Foundation | DONE | 939d594 | test_generation.py + test_cost_ledger.py (new/changed), full suite 1266 passed/10 skipped, 3-pass review done (all findings fixed) | See Part 0 section below | None | None — owner approved and the case-5 recompute is applied; budget cap raised to EUR 300/case per Amendment 2 |
 | 1 | Models: Haiku out, cheaper model in | IN_PROGRESS | | scripts/benchmark_fact_extractor.py (fact_extractor role only) | fact_extractor: 7 real candidates vs sonnet gold on case 5, none beat Haiku | Other 17 roles + writer benchmark not started (paused by owner) | Resume remaining role benchmarks when asked, or proceed on judgement |
-| 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | IN_PROGRESS | 4fe970d | item (e): see Part 2 section | Real case-5 re-extraction: EUR -88.0%, 0 schema failures, contradictions +41.7%; 3-pass review done, all findings fixed | Items (a)-(d) not started | Continue with items (a)-(d) |
+| 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | IN_PROGRESS | 4fe970d (e), pending (a) | items (a),(e): see Part 2 section | Real case-5 re-extraction: EUR -88.0%, 0 schema failures, contradictions +41.7%; per-stage measure-first table; embedding-cost attribution bug found+fixed | Items (b)-(d) not started | Continue with items (b)-(d) |
 | 3 | Research: Persian-canonical, more languages, YouTube as a main source | TODO | | | | | |
 | 4 | Media to show in our film | TODO | | | | | |
 | 5 | Story plan first, stronger writer, Persian master, native rewrites | TODO | | | | | |
@@ -138,7 +138,21 @@ Status: IN_PROGRESS (fact_extractor resolved — keep Haiku; the owner paused fu
 | Live mini research+extraction run with new models, cost/quality vs old | | | TODO |
 
 ## Part 2 — Extraction as fixed JSON, parallelism, fewer better evidence items
-Status: IN_PROGRESS (item (e) fully DONE and closed — acceptance measurement exceeds target, 3-pass review done, all findings fixed, commit 4fe970d; items (a)-(d) not started). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+Status: IN_PROGRESS (item (e) fully DONE and closed — commit 4fe970d; item (a) DONE — commit (pending below); items (b)-(d) not started). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+
+### Item (a) — measure first (DONE)
+Per-stage table for case 5, from the live PostgreSQL ledger (`provider_calls`), no new spend. Two different runs are cited because they measure different things honestly: the LLM stages (Fact Extractor, Timeline Builder, Contradiction Analyzer) are from the most recent real `ResearchAgent.run()` (the Part 2(e) acceptance run, 2026-10-16) — the current pipeline's real behaviour. The embedding stages (source selection, chunk selection, fact merging) are from the run **before** that one (the first, failed attempt, same day) — the acceptance run's retry made **zero** new embedding API calls (every text was already in `EmbeddingClient`'s on-disk content-hash cache from the failed attempt), so its embedding stages show 0 tokens/EUR and would be a misleading "measure first" number; the failed attempt's numbers are the real, non-cached embedding cost.
+
+| Stage | Calls | tokens_in | tokens_out | EUR | Wall time |
+|---|---|---|---|---|---|
+| Fact Extractor | 26 (concurrent, bounded) | 414,346 | 207,290 | 1.296721 | ~883 s (14.7 min; concurrent batches, not additive) |
+| Timeline Builder | 1 | 161,524 | 8,148 | 0.180784 | 124.1 s |
+| Contradiction Analyzer | 1 | 155,916 | 2,483 | 0.150454 | 41.5 s |
+| Source Selection + Chunk Selection + Fact Merger (combined) | 3 embed calls | 178,667 (combined, see bug below) | 0 | 0.001644 | 130.0 s total |
+
+Sources: 88 total, 50 selected for extraction (38 skipped — all by the per-case cap at the current threshold, none were duplicates). Facts stored: 1050 (99.1% `quote_verified=True`). Contradictions found: 17.
+
+**A real bug found and fixed while building this table (commit pending below).** `app/research_engine/embeddings.EmbeddingClient.total_tokens`/`total_cost_usd` accumulate for the whole life of the embedder instance (never reset). `ResearchAgent` shares one embedder across three stages within a single `run()` — source-selection dedup, chunk-selection ranking, and fact-merge dedup — and only `_merge_duplicates` read `self.embedder.total_tokens` into the ledger, at the END of that chain. So every real run's "Fact Merger" ledger row was actually booking the **combined** embedding cost of all three stages (which is exactly why the row above is a single combined number — that mislabeling is what the live data actually shows), not fact-merging's own cost alone; the other two stages had no ledger row of their own at all, an invisible cost. Fixed: a new `_track_embedding_cost()` helper (app/agents/research.py) snapshots `total_tokens`/`total_cost_usd` before each stage's embedding work and books only the delta, under that stage's own name (`"Source Selection"`, `"Chunk Selection"`, `"Fact Merger"` are now three separate ledger rows). New test: `tests/test_evidence_depth.py::test_embedding_cost_is_booked_per_stage_not_as_one_running_total` — a counting fake embedder proves each stage's booked tokens equal only its own delta (20 / 50 / 20) and not the running total (90) the old code would have booked under "Fact Merger". Verified by test, not by a new live paid re-run (the owner's standing instruction is not to re-run case 5's extraction again; the three stages will show as separate real ledger rows the next time any case is genuinely (re-)researched — Part 2(c)/(d) or Part 10 will produce that live proof naturally).
 
 ### Item (e) progress
 - **Baseline (free, from the ledger)**: 152 Fact Extractor calls, EUR 10.8079, 1708 facts stored on case 5 (137 of the calls / EUR 10.166268 on claude-haiku-4-5). Full table in docs/benchmarks/extraction.md. Acceptance target: <= EUR 5.40.

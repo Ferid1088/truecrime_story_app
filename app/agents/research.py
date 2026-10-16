@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+from contextlib import contextmanager
 
 from app.agents.runner import run_agent
 from app.core.prompts import prompt
@@ -231,6 +232,25 @@ _FACT_SCHEMA = {
 }
 
 
+@contextmanager
+def _track_embedding_cost(embedder, case_id: int, stage: str, detail: str):
+    """Book only this block's own embedding usage under `stage` — never the
+    embedder's lifetime totals. `embedder.total_tokens`/`total_cost_usd`
+    accumulate for as long as the instance lives (app.research_engine.
+    embeddings.EmbeddingClient never resets them); a single ResearchAgent
+    shares one embedder across source selection, chunk selection and fact
+    merging within one run(), so reading the raw totals at the end (as
+    _merge_duplicates used to) silently folds every earlier stage's
+    embedding cost into whichever stage happens to read them last."""
+    tokens_before, cost_before = embedder.total_tokens, embedder.total_cost_usd
+    with track_research_call(stage, detail, case_id=case_id) as run:
+        yield run
+        run.provider, run.model = "embeddings", embedder.model
+        run.input_tokens = embedder.total_tokens - tokens_before
+        run.output_tokens = 0
+        run.estimated_cost_usd = embedder.total_cost_usd - cost_before
+
+
 def _extraction_batches(sources: list[Source], size: int) -> list[list[Source]]:
     """Single-language batches of at most `size` sources: one call over every
     source overruns the output limit and starves all but the first language."""
@@ -316,7 +336,11 @@ class ResearchAgent:
         # (app.agents.fact_merge). A near-duplicate/syndicated copy is
         # skipped in favour of the more reliable (or longer) source.
         texts = [_extractable_content(s)[:4000] for s in with_content]
-        vectors = await self.embedder.embed(texts)
+        with _track_embedding_cost(
+            self.embedder, case.id, "Source Selection", f"case={case.id} sources={len(with_content)}",
+        ) as run:
+            vectors = await self.embedder.embed(texts)
+            run.output_summary = f"candidates={len(with_content)}"
         sims = cosine_matrix(vectors, vectors)
         threshold = ai_config.source_chunking.duplicate_source_min_similarity
         kept = [True] * len(with_content)
@@ -383,16 +407,21 @@ class ResearchAgent:
                 result[s.id] = [c.id for c in (s.chunks or [])[:limit]]
             return result
 
-        for s in to_rank:
-            chunks = s.chunks or []
-            # The query and the chunks must come from the same embed() call:
-            # a fresh call can return a different vector space (dimension
-            # even varies with a fake/test embedder keyed on batch size).
-            vectors = await self.embedder.embed([query] + [c.text for c in chunks])
-            query_vector, chunk_vectors = vectors[:1], vectors[1:]
-            sims = cosine_matrix(query_vector, chunk_vectors)[0]
-            ranked = sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)[:limit]
-            result[s.id] = [chunks[i].id for i in sorted(ranked)]
+        with _track_embedding_cost(
+            self.embedder, case.id, "Chunk Selection",
+            f"case={case.id} sources_ranked={len(to_rank)}",
+        ) as run:
+            for s in to_rank:
+                chunks = s.chunks or []
+                # The query and the chunks must come from the same embed() call:
+                # a fresh call can return a different vector space (dimension
+                # even varies with a fake/test embedder keyed on batch size).
+                vectors = await self.embedder.embed([query] + [c.text for c in chunks])
+                query_vector, chunk_vectors = vectors[:1], vectors[1:]
+                sims = cosine_matrix(query_vector, chunk_vectors)[0]
+                ranked = sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)[:limit]
+                result[s.id] = [chunks[i].id for i in sorted(ranked)]
+            run.output_summary = f"sources_ranked={len(to_rank)}"
         return result
 
     # ------------------------------------------------------------------
@@ -475,13 +504,10 @@ class ResearchAgent:
         if len(facts) < 2:
             return facts
         merger = FactMerger(self.embedder, ai_config.source_chunking.merge_min_similarity)
-        with track_research_call(
-            "Fact Merger", f"case={case.id} facts={len(facts)}", case_id=case.id,
+        with _track_embedding_cost(
+            self.embedder, case.id, "Fact Merger", f"case={case.id} facts={len(facts)}",
         ) as run:
             merged = await merger.merge(facts)
-            run.provider, run.model = "embeddings", self.embedder.model
-            run.input_tokens, run.output_tokens = self.embedder.total_tokens, 0
-            run.estimated_cost_usd = self.embedder.total_cost_usd
             run.output_summary = f"facts={len(merged)} merged={len(facts) - len(merged)}"
         return merged
 

@@ -1209,6 +1209,64 @@ def test_research_merges_the_same_fact_from_different_languages(db_session):
     assert merger_run.output_summary == "facts=1 merged=1"
 
 
+def test_embedding_cost_is_booked_per_stage_not_as_one_running_total(db_session, monkeypatch):
+    """Part 2(a) measure-first fix: app.research_engine.embeddings.
+    EmbeddingClient.total_tokens/total_cost_usd accumulate for the whole
+    life of the embedder, and one ResearchAgent shares a single embedder
+    across source selection, chunk selection and fact merging within one
+    run() — so reading the raw running total at the end (the old
+    _merge_duplicates code) silently attributed every earlier stage's
+    embedding cost to whichever stage read it last (Fact Merger). Each
+    stage must book only its own delta."""
+    import numpy as np
+    from app.core.ai_config import ai_config
+    from app.db.models import AgentRun, SourceChunk
+
+    class CountingEmbedder(DistinctEmbedder):
+        def __init__(self):
+            self.total_tokens = 0
+            self.total_cost_usd = 0.0
+
+        async def embed(self, texts):
+            self.total_tokens += len(texts) * 10
+            self.total_cost_usd += len(texts) * 0.001
+            return np.eye(len(texts), dtype=np.float32)
+
+    monkeypatch.setattr(ai_config.source_chunking, "max_chunks_per_source_for_extraction", 2)
+    case = _mk_case(db_session)
+    small = _mk_source(db_session, case, content_status="full_text")
+    db_session.add(SourceChunk(source_id=small.id, chunk_index=0, text="A short passage.",
+                               content_hash="a" * 64, language="en"))
+    big = _mk_source(db_session, case, content_status="full_text")
+    db_session.add_all([
+        SourceChunk(source_id=big.id, chunk_index=i, text=f"Chunk number {i} of the big source.",
+                   content_hash=f"{i}" * 64, language="en")
+        for i in range(4)
+    ])
+    db_session.commit()
+
+    fake = _ExtractFake([
+        {"claim": "First claim", "category": "context", "confidence": 0.5, "source_ids": [small.id]},
+        {"claim": "Second unrelated claim", "category": "context", "confidence": 0.5,
+         "source_ids": [big.id]},
+    ])
+    embedder = CountingEmbedder()
+    _run_extract(db_session, case, fake, embedder)
+
+    def tokens_for(agent_name: str) -> int:
+        return db_session.query(AgentRun).filter_by(
+            case_id=case.id, agent_name=agent_name).one().input_tokens
+
+    # Source selection embeds both sources' dedupe text in one call (2 texts).
+    assert tokens_for("Source Selection") == 20
+    # Chunk selection embeds only the one over-limit source: 1 query + 4 chunks.
+    assert tokens_for("Chunk Selection") == 50
+    # Fact merger embeds only its own 2 claims — never the running total
+    # (20 + 50 + 20 = 90) accumulated by the earlier stages.
+    assert tokens_for("Fact Merger") == 20
+    assert embedder.total_tokens == 90
+
+
 def test_a_source_with_no_content_is_skipped_with_a_reason_and_never_extracted(db_session):
     """Part 2(e) item 1: skip sources with no case-specific content before
     any extraction call, with the reason recorded, not silently dropped."""
