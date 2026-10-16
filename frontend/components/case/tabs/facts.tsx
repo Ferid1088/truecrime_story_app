@@ -169,7 +169,12 @@ function FactsRow({
         <TD>
           <Badge variant={CONFIDENCE_VARIANT[conf]}>{conf}</Badge>
         </TD>
-        <TD className="text-right tabular-nums">{f.source_ids.length}</TD>
+        <TD className="text-right tabular-nums">
+          {f.source_ids.length}
+          {f.source_ids.length === 1 && (
+            <Badge variant="warning" className="ml-1.5">single source</Badge>
+          )}
+        </TD>
         <TD>{f.disputed ? <Badge variant="danger">disputed</Badge> : "—"}</TD>
       </TR>
       {expanded && (

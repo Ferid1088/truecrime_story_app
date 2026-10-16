@@ -31,7 +31,7 @@ from app.services.readiness import build_readiness
 
 
 from app.api.deps import get_case_or_404
-from app.api.serializers import claim_dict, video_dict
+from app.api.serializers import claim_dict, contradiction_counts_by_source, video_dict
 from app.api import deps
 
 router = APIRouter()
@@ -427,7 +427,9 @@ def list_videos(case_id: int, db: Session = Depends(get_db)):
         .order_by(VideoSource.value_score.desc().nullslast(), VideoSource.id)
         .all()
     )
-    return [video_dict(v) for v in videos]
+    counts = contradiction_counts_by_source(
+        db.query(Contradiction).filter(Contradiction.case_id == case.id))
+    return [video_dict(v, counts.get(v.source_id, 0)) for v in videos]
 
 
 @router.get("/api/cases/{case_id}/videos/{video_id}")
@@ -453,7 +455,9 @@ def video_detail(case_id: int, video_id: int, db: Session = Depends(get_db)):
         .filter(NarrativeInsight.video_source_id == v.id)
         .all()
     )
-    out = video_dict(v)
+    counts = contradiction_counts_by_source(
+        db.query(Contradiction).filter(Contradiction.case_id == case.id))
+    out = video_dict(v, counts.get(v.source_id, 0))
     out.update(
         {
             "claims": [claim_dict(c) for c in claims],

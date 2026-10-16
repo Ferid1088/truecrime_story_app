@@ -236,7 +236,7 @@ def generation_usage(db: Session, case_id: int) -> dict:
     }
 
 
-def video_dict(v: VideoSource) -> dict:
+def video_dict(v: VideoSource, contradiction_count: int = 0) -> dict:
     return {
         "id": v.id,
         "source_id": v.source_id,
@@ -264,6 +264,9 @@ def video_dict(v: VideoSource) -> dict:
         "transcript_type": v.transcript_type,
         "segment_count": len(v.segments) if v.segments else 0,
         "claim_count": len(v.claims) if v.claims else 0,
+        "transcript_quality_score": v.transcript_quality_score,
+        "transcript_quality_verdict": v.transcript_quality_verdict,
+        "contradiction_count": contradiction_count,
         "processed_at": v.processed_at.isoformat() if v.processed_at else None,
     }
 
@@ -286,3 +289,13 @@ def claim_dict(c: TranscriptClaim) -> dict:
         "promoted_fact_id": c.promoted_fact_id,
         "segment_ids": json.loads(c.segment_ids_json or "[]"),
     }
+
+
+def contradiction_counts_by_source(contradictions) -> dict[int, int]:
+    """How many stored Contradictions cite each source id (Part 3(e) item 5:
+    a video's contradictions are the ones citing its Source)."""
+    counts: dict[int, int] = {}
+    for c in contradictions:
+        for sid in set(json.loads(c.source_ids_json or "[]")):
+            counts[sid] = counts.get(sid, 0) + 1
+    return counts

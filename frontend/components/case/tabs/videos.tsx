@@ -30,6 +30,15 @@ function transcriptVariant(s: string): "success" | "warning" | "default" | "dang
   return "warning";
 }
 
+function qualityVariant(
+  s: string | null,
+): "success" | "warning" | "danger" | "default" {
+  if (s === "good") return "success";
+  if (s === "degraded") return "warning";
+  if (s === "poor") return "danger";
+  return "default";
+}
+
 function independenceVariant(
   s: string,
 ): "success" | "warning" | "default" {
@@ -180,9 +189,11 @@ export function VideosTab({
                       <TH>Language</TH>
                       <TH>Type</TH>
                       <TH>Transcript</TH>
+                      <TH>Caption quality</TH>
                       <TH>Independence</TH>
                       <TH className="text-right">Value</TH>
                       <TH className="text-right">Claims</TH>
+                      <TH className="text-right">Contradictions</TH>
                     </TR>
                   </THead>
                   <TBody>
@@ -206,6 +217,11 @@ export function VideosTab({
                           </Badge>
                         </TD>
                         <TD>
+                          <Badge variant={qualityVariant(v.transcript_quality_verdict)}>
+                            {v.transcript_quality_verdict ?? "—"}
+                          </Badge>
+                        </TD>
+                        <TD>
                           <Badge variant={independenceVariant(v.source_independence)}>
                             {v.source_independence.replace(/_/g, " ")}
                           </Badge>
@@ -214,6 +230,7 @@ export function VideosTab({
                           {v.value_score != null ? v.value_score.toFixed(1) : "—"}
                         </TD>
                         <TD className="text-right tabular-nums">{v.claim_count}</TD>
+                        <TD className="text-right tabular-nums">{v.contradiction_count}</TD>
                       </TR>
                     ))}
                   </TBody>
@@ -277,6 +294,15 @@ function VideoDetailSheet({ caseId, videoId }: { caseId: number; videoId: number
         />
         <Field label="Value score" value={v.value_score?.toFixed(2) ?? "—"} />
         <Field label="Claims" value={String(v.claim_count)} />
+        <Field
+          label="Caption quality"
+          value={
+            v.transcript_quality_verdict
+              ? `${v.transcript_quality_verdict}${v.transcript_quality_score != null ? ` (${v.transcript_quality_score.toFixed(2)})` : ""}`
+              : "—"
+          }
+        />
+        <Field label="Contradictions" value={String(v.contradiction_count)} />
       </div>
 
       {v.insights.length > 0 && (

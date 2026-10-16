@@ -1071,6 +1071,34 @@ def test_videos_endpoint_lists_case_videos(client, db_session):
     assert body[0]["channel_name"] == "DocChannel"
 
 
+def test_videos_endpoint_shows_caption_quality_and_contradiction_count(client, db_session):
+    """Part 3(e) item 5: each video's caption quality and the number of
+    stored contradictions citing its Source."""
+    import json
+
+    from app.db.models import Contradiction, Source
+
+    case = _mk_case(db_session)
+    src = Source(case_id=case.id, title="Video source", url="https://e/vs",
+                 source_type="youtube_video")
+    other = Source(case_id=case.id, title="Other", url="https://e/o", source_type="article")
+    db_session.add_all([src, other])
+    db_session.commit()
+    _mk_video(db_session, case, source_id=src.id, transcript_quality_verdict="degraded",
+              transcript_quality_score=0.6)
+    db_session.add_all([
+        Contradiction(case_id=case.id, topic="a", description="d",
+                      source_ids_json=json.dumps([src.id, other.id])),
+        Contradiction(case_id=case.id, topic="b", description="d",
+                      source_ids_json=json.dumps([other.id])),
+    ])
+    db_session.commit()
+    body = client.get(f"/api/cases/{case.id}/videos").json()[0]
+    assert body["transcript_quality_verdict"] == "degraded"
+    assert body["transcript_quality_score"] == 0.6
+    assert body["contradiction_count"] == 1
+
+
 def test_video_detail_includes_claims_and_segments(client, db_session):
     case = _mk_case(db_session)
     v = _mk_video(db_session, case)
