@@ -707,8 +707,20 @@ def host_segments_dict(row: HostSegments) -> dict:
             "validation": json.loads(row.validation_json or "{}")}
 
 
-def memory_dict(m: HostMemory) -> dict:
-    return {"id": m.id, "ref": f"M{m.id}", "case_id": m.case_id, "kind": m.kind,
+def memory_usage(db: Session) -> dict[str, list[dict]]:
+    """Which host-plan segments used which memory (by its M<id> reference)."""
+    used: dict[str, list[dict]] = {}
+    for plan in db.query(HostPlan).filter(HostPlan.status != "invalid").all():
+        for seg in json.loads(plan.plan_json or "{}").get("segments") or []:
+            ref = seg.get("memory_reference")
+            if ref:
+                used.setdefault(ref, []).append(
+                    {"plan_id": plan.id, "case_id": plan.case_id, "segment_id": seg.get("id")})
+    return used
+
+
+def memory_dict(m: HostMemory, usage: dict[str, list[dict]] | None = None) -> dict:
+    return {"used_by": (usage or {}).get(f"M{m.id}", []), "id": m.id, "ref": f"M{m.id}", "case_id": m.case_id, "kind": m.kind,
             "text": m.text, "origin": m.origin, "host_plan_id": m.host_plan_id,
             "active": m.active, "created_at": m.created_at}
 

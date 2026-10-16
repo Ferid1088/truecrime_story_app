@@ -573,3 +573,32 @@ def test_persona_hash_is_stored_changes_with_the_file_and_old_rows_say_unknown(
     persona.write_text("# Persona\nversion two", encoding="utf-8")
     assert persona_sha256() != first
     assert host_plan_dict(row)["persona_state"] == "persona changed"
+
+
+def test_memory_api_lists_usage_edits_deactivates_and_deletes_only_editor_memories(
+        client, db_session):
+    from test_blueprint_performance import _story
+    from app.db.models import HostMemory, HostPlan
+
+    case, master = _story(db_session)
+    bp = _with_blueprint(db_session, case, master)
+    editor = HostMemory(case_id=case.id, kind="theme", text="one witness", origin="editor")
+    planned = HostMemory(case_id=case.id, kind="reaction", text="a reaction", origin="host_plan")
+    db_session.add_all([editor, planned])
+    db_session.flush()
+    db_session.add(HostPlan(case_id=case.id, blueprint_id=bp.id, status="valid", plan_json=json.dumps(
+        {"segments": [{"id": "S2", "memory_reference": f"M{editor.id}"}]})))
+    db_session.commit()
+    editor_id, planned_id = editor.id, planned.id
+
+    rows = {m["id"]: m for m in client.get(f"/api/documentary/host/memory?case_id={case.id}").json()}
+    assert rows[editor_id]["used_by"][0]["segment_id"] == "S2" and rows[planned_id]["used_by"] == []
+    off = client.patch(f"/api/documentary/host/memory/{planned_id}", json={"active": False}).json()
+    assert off["active"] is False
+    edited = client.patch(f"/api/documentary/host/memory/{planned_id}", json={"text": "better words"}).json()
+    assert edited["origin"] == "editor"
+    assert client.delete(f"/api/documentary/host/memory/{editor_id}").json()["deleted"] is True
+    db_session.expire_all()
+    assert db_session.get(HostMemory, editor_id) is None
+    # a memory the host plan made cannot be deleted until an editor owns it... after the edit it can
+    assert client.delete(f"/api/documentary/host/memory/{planned_id}").status_code == 200

@@ -1,5 +1,6 @@
 "use client";
 
+import { HostMemoryPanel } from "./host-memory";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
@@ -55,6 +56,7 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
           {avatarOn ? "avatar generation on" : "avatar generation off (config avatar.enabled)"}
         </p>
       </div>
+      <HostMemoryPanel caseId={caseId} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}
       {data && data.length === 0 && (

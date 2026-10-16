@@ -2654,6 +2654,18 @@ export interface StudioPatch {
   confirm?: boolean;
 }
 
+export interface HostMemoryItem {
+  id: number;
+  ref: string;
+  case_id: number;
+  kind: "opinion" | "reaction" | "correction" | "open_question" | "theme";
+  text: string;
+  origin: "host_plan" | "editor";
+  host_plan_id: number | null;
+  active: boolean;
+  used_by: { plan_id: number; case_id: number; segment_id: string }[];
+}
+
 export interface HostScene {
   persona_file: string | null;
   persona_sha256: string | null;

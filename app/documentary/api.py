@@ -1125,7 +1125,10 @@ def list_host_memory(case_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(HostMemory)
     if case_id:
         q = q.filter(HostMemory.case_id == case_id)
-    return [memory_dict(m) for m in q.order_by(HostMemory.id.desc()).limit(500)]
+    from app.documentary.host import memory_usage
+
+    usage = memory_usage(db)
+    return [memory_dict(m, usage) for m in q.order_by(HostMemory.id.desc()).limit(500)]
 
 
 class HostMemoryRequest(BaseModel):
@@ -1152,6 +1155,23 @@ def add_host_memory(payload: HostMemoryRequest, db: Session = Depends(get_db)):
 class HostMemoryPatch(BaseModel):
     active: bool | None = None
     text: str | None = Field(default=None, min_length=3, max_length=500)
+
+
+@router.delete("/api/documentary/host/memory/{memory_id}")
+def delete_host_memory(memory_id: int, db: Session = Depends(get_db)):
+    """Delete an editor-made memory; a host-plan memory is deactivated instead
+    (the next plan replaces it)."""
+    from app.db.models import HostMemory
+
+    m = db.get(HostMemory, memory_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    if m.origin != "editor":
+        raise HTTPException(status_code=409,
+                            detail="Only editor memories can be deleted; deactivate this one")
+    db.delete(m)
+    db.commit()
+    return {"id": memory_id, "deleted": True}
 
 
 @router.patch("/api/documentary/host/memory/{memory_id}")

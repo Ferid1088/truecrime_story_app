@@ -1,6 +1,7 @@
 import type {
   MediaCoverage,
   MediaLinkItem,
+  HostMemoryItem,
   StoryPlan,
   StoryPlanPreview,
   ThumbnailOptions,
@@ -651,6 +652,14 @@ export const api = {
     }),
   approveStoryPlan: (planId: number, approvedBy: string) =>
     post<StoryPlan>(`/api/story-plans/${planId}/approve`, { approved_by: approvedBy }),
+  hostMemories: (caseId: number) =>
+    request<HostMemoryItem[]>(`/api/documentary/host/memory?case_id=${caseId}`),
+  addHostMemory: (payload: { case_id: number; kind: string; text: string }) =>
+    post<HostMemoryItem>("/api/documentary/host/memory", payload),
+  updateHostMemory: (id: number, payload: { active?: boolean; text?: string }) =>
+    patch<HostMemoryItem>(`/api/documentary/host/memory/${id}`, payload),
+  deleteHostMemory: (id: number) =>
+    request<{ id: number; deleted: boolean }>(`/api/documentary/host/memory/${id}`, { method: "DELETE" }),
   mediaLinks: (caseId: number) =>
     request<MediaLinkItem[]>(`/api/cases/${caseId}/media-links`),
   setMediaLinkStatus: (linkId: number, status: "new" | "dismissed") =>
