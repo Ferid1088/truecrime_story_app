@@ -24,6 +24,8 @@ from app.documentary.host import (
     director_input,
     director_system_prompt,
     memories,
+    persona_prompt,
+    persona_sha256,
     recent_segments,
     remember,
     segment_output,
@@ -40,8 +42,6 @@ class HostDirector:
 
     async def _json(self, db, case_id: int, label: str, role: str, system: str,
                     payload: dict) -> tuple[dict, object]:
-        from app.documentary.host import persona_prompt, persona_sha256
-
         if persona_prompt(self.cfg) not in system:
             raise RuntimeError(f"the host persona is missing from the {label} prompt")
         with track_run(db, case_id, label,
@@ -99,6 +99,7 @@ class HostDirector:
         count = db.query(HostPlan).filter(HostPlan.blueprint_id == bp_row.id).count()
         row = HostPlan(case_id=case.id, blueprint_id=bp_row.id, version=count + 1,
                        status=report["status"],
+                       persona_file=self.cfg.persona_file, persona_sha256=persona_sha256(self.cfg),
                        plan_json=json.dumps(plan, ensure_ascii=False),
                        validation_json=json.dumps(report, ensure_ascii=False),
                        generation_model=getattr(res, "model", None))
@@ -169,6 +170,8 @@ class HostDirector:
         row = HostSegments(case_id=case.id, story_version_id=version.id,
                            host_plan_id=plan_row.id, language=language, version=count + 1,
                            status=status,
+                           persona_file=self.cfg.persona_file,
+                           persona_sha256=persona_sha256(self.cfg),
                            segments_json=json.dumps(segments, ensure_ascii=False),
                            validation_json=json.dumps(report, ensure_ascii=False),
                            generation_model=getattr(res, "model", None))

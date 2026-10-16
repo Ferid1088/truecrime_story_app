@@ -101,6 +101,12 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
         </CardTitle>
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="outline">{scene.framing_preset.replace("HOST_", "").toLowerCase()}</Badge>
+          <Badge
+            variant={scene.persona_state === "current" ? "outline" : "warning"}
+            title={scene.persona_sha256 ?? "no persona hash stored for this scene"}
+          >
+            persona {scene.persona_state === "current" ? scene.persona_sha256?.slice(0, 8) : scene.persona_state}
+          </Badge>
           {scene.running && <Badge variant="info">running</Badge>}
           {scene.failed_step && <Badge variant="danger">failed: {scene.failed_step.replace("_", " ")}</Badge>}
         </div>

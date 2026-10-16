@@ -1844,6 +1844,9 @@ class HostPlan(Base):
     plan_json: Mapped[str] = mapped_column(Text, default="{}")
     validation_json: Mapped[str] = mapped_column(Text, default="{}")
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Part 6g: the persona file and its sha256 these results were made under.
+    persona_file: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
@@ -1866,6 +1869,9 @@ class HostSegments(Base):
     segments_json: Mapped[str] = mapped_column(Text, default="[]")
     validation_json: Mapped[str] = mapped_column(Text, default="{}")
     generation_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Part 6g: the persona file and its sha256 these results were made under.
+    persona_file: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
@@ -1949,6 +1955,9 @@ class HostScene(Base):
     attempts_json: Mapped[str] = mapped_column(Text, default="{}")
     history_json: Mapped[str] = mapped_column(Text, default="[]")
     running_since: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Part 6g: the persona file and its sha256 these results were made under.
+    persona_file: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 

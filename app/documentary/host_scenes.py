@@ -151,6 +151,7 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
             background_mode=r["profile"].background_mode,
             planned_duration=seg.get("estimated_seconds"),
             voice_id=cp["elevenlabs_voice_id"], avatar_provider=ai_config.avatar.provider,
+            persona_file=seg_row.persona_file, persona_sha256=seg_row.persona_sha256,
             status="planned")
         _log(scene, "plan", "ok", {"studio": asset.id, "preset": preset_name,
                                    "text_sha256": scene.text_sha256[:16]})
@@ -339,7 +340,10 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
 
 
 def scene_dict(s: HostScene) -> dict:
+    from app.documentary.host import persona_state
+
     return {
+        **persona_state(s),
         "id": s.id, "case_id": s.case_id, "story_version_id": s.story_version_id,
         "host_segments_id": s.host_segments_id, "host_segment_id": s.host_segment_id,
         "language": s.language, "channel": s.channel, "position": s.position,

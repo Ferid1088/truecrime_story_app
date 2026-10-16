@@ -2655,6 +2655,9 @@ export interface StudioPatch {
 }
 
 export interface HostScene {
+  persona_file: string | null;
+  persona_sha256: string | null;
+  persona_state: "current" | "persona changed" | "unknown persona";
   id: number;
   case_id: number;
   story_version_id: number;

@@ -680,8 +680,18 @@ def latest_host_segments(db: Session, version_id: int) -> HostSegments | None:
             .order_by(HostSegments.version.desc()).first())
 
 
+def persona_state(row) -> dict:
+    """Which persona a result was made under, and whether the file changed
+    since: unknown (made before the hash was stored), current or changed."""
+    stored = getattr(row, "persona_sha256", None)
+    current = persona_sha256()
+    return {"persona_file": getattr(row, "persona_file", None), "persona_sha256": stored,
+            "persona_state": "unknown persona" if not stored
+            else ("current" if stored == current else "persona changed")}
+
+
 def host_plan_dict(row: HostPlan) -> dict:
-    return {"id": row.id, "case_id": row.case_id, "blueprint_id": row.blueprint_id,
+    return {**persona_state(row), "id": row.id, "case_id": row.case_id, "blueprint_id": row.blueprint_id,
             "version": row.version, "status": row.status,
             "generation_model": row.generation_model, "created_at": row.created_at,
             "plan": json.loads(row.plan_json or "{}"),
@@ -689,7 +699,7 @@ def host_plan_dict(row: HostPlan) -> dict:
 
 
 def host_segments_dict(row: HostSegments) -> dict:
-    return {"id": row.id, "case_id": row.case_id, "story_version_id": row.story_version_id,
+    return {**persona_state(row), "id": row.id, "case_id": row.case_id, "story_version_id": row.story_version_id,
             "host_plan_id": row.host_plan_id, "language": row.language,
             "version": row.version, "status": row.status,
             "generation_model": row.generation_model, "created_at": row.created_at,

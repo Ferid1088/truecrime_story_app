@@ -251,6 +251,9 @@ def test_host_director_plans_remembers_and_writes(
     # a three-minute test story cannot hold an opening within the share
     assert plan_row.status == "needs_review" and not report["errors"], report
     assert report["repair_iterations"] == 1
+    from app.documentary.host import persona_sha256
+
+    assert plan_row.persona_sha256 == persona_sha256() and plan_row.persona_file
     director_in = gen.calls[0][1]
     assert f"A{old_case.id}" in {a["ref"] for a in director_in["archive"]}
     assert f"M{mem.id}" in {m["ref"] for m in director_in["host_memory"]}
@@ -545,3 +548,28 @@ def test_every_host_call_records_the_persona_sha256_in_the_run_store(db_session,
     run = db_session.query(AgentRun).filter(AgentRun.agent_name == "Host Critic").order_by(
         AgentRun.id.desc()).first()
     assert f"persona_sha256={persona_sha256()}" in run.input_summary
+
+
+def test_persona_hash_is_stored_changes_with_the_file_and_old_rows_say_unknown(
+        db_session, tmp_path, monkeypatch):
+    from app.db.models import HostPlan
+    from app.documentary.host import host_plan_dict, persona_sha256
+
+    persona = tmp_path / "persona.md"
+    persona.write_text("# Persona\nversion one", encoding="utf-8")
+    monkeypatch.setattr(ai_config.host, "persona_file", str(persona))
+    first = persona_sha256()
+    from test_blueprint_performance import _story
+
+    case, master = _story(db_session)
+    bp = _with_blueprint(db_session, case, master)
+    row = HostPlan(case_id=case.id, blueprint_id=bp.id, status="valid",
+                   persona_file=str(persona), persona_sha256=first)
+    old = HostPlan(case_id=case.id, blueprint_id=bp.id, status="valid")
+    db_session.add_all([row, old])
+    db_session.commit()
+    assert host_plan_dict(row)["persona_state"] == "current"
+    assert host_plan_dict(old)["persona_state"] == "unknown persona"
+    persona.write_text("# Persona\nversion two", encoding="utf-8")
+    assert persona_sha256() != first
+    assert host_plan_dict(row)["persona_state"] == "persona changed"
