@@ -1,0 +1,87 @@
+{
+  "text": "The central contradiction is easy to grasp, the household layout is unusually clear, and the trial's explanation of Bridget's laughter genuinely changes the opening detail rather than merely repeating it. The dress-burning event and the restrained return to Abby also work well; keep the final image and question. The main revision is to reduce repeated interpretation after discoveries and contradictions so that events carry more of the listening experience. The script also needs to meet the supplied minimum word count.",
+  "critic_notes": {
+    "verdict": "revise",
+    "scores": {
+      "native_naturalness": 89,
+      "spoken_quality": 81,
+      "narrative_flow": 76,
+      "engagement": 78
+    },
+    "items": [
+      {
+        "id": 1,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act1",
+        "quote": "The locked doors did not prove that no outsider could have entered. But an outsider would have needed to get in, move between the rooms, and leave without being seen.",
+        "problem": "The opening establishes a compelling contradiction, but then repeatedly explains the same enclosed-house problem. The locked doors, absent robbery, unseen attacker, and surviving women's locations are established before this paragraph, reconsidered through questions, and summarized again at the end. The act circles its premise after the listener already understands it.",
+        "instruction": "Merge the two discussions of entry and the absence of robbery. Compress the paragraph of questions about the surviving women, and retain only one closing return to the disagreement about Lizzie's location. Preserve the discovery of both bodies and the initial contradiction."
+      },
+      {
+        "id": 2,
+        "severity": "medium",
+        "kind": "spoken",
+        "act": "act3",
+        "quote": "The reported counts differ. The BBC gives eleven blows to Andrew; Legends of America gives ten, the number of head wounds also recorded by medical examiner Dr. William Dolan.",
+        "problem": "The website-by-website comparison interrupts the reconstruction of the morning with a source inventory. The listener must retain several competing tallies before hearing why the physical findings matter. The disagreement is clearly attributed, but its presentation receives more attention than its narrative consequence.",
+        "instruction": "Compress the tally comparison. Keep Dolan's recorded findings, acknowledge briefly that reported counts vary, and preserve the later contrast with the rhyme. Remove the website-by-website roll call without presenting one disputed tally as definitively correct."
+      },
+      {
+        "id": 3,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act3",
+        "quote": "The order of the deaths was the strongest consequence of the physical examination. Abby’s body had been upstairs for a substantial time before Andrew was killed below.",
+        "problem": "By this late paragraph, Abby's earlier death and the interval between attacks have already been established through body temperature, blood condition, medical estimates, and an explanation of the killer remaining undetected. Returning to the entire sequence adds no development and delays the transition to Lizzie's account.",
+        "instruction": "Keep the initial physical comparison, the medical timing estimates, and one explanation of their consequence. Remove the late restatement beginning with this passage, and compress the following inventory of what physicians and police could establish into the transition to act4."
+      },
+      {
+        "id": 4,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act3, act4, act6, act7",
+        "quote": "The blade’s possible fit did not settle whether this particular hatchet had been used, and the officers could not even agree on whether its handle had just been broken.",
+        "problem": "The script repeatedly presents a limitation and then explains that limitation again. This sentence restates disagreements already developed over several paragraphs. Similar explanatory tails follow the cloths, the missing note, the burned dress, the evidentiary rulings, and Bridget's alleged confession. The cumulative effect is to make each discovery end in another reminder of what it cannot establish.",
+        "instruction": "Compress each evidentiary sequence to the event or claim, the consequential disagreement, and one necessary limitation. In act3, merge the cloth-handling discussion with the relevant forensic limitation. In act4, shorten the interpretive paragraphs after the dress is consumed, while retaining the inability to identify or examine it. In acts6 and 7, remove second explanations of limitations already made clear. Preserve disputed attribution and meaningful uncertainty."
+      },
+      {
+        "id": 5,
+        "severity": "medium",
+        "kind": "engagement",
+        "act": "act5",
+        "quote": "A trip to fetch a piece for a repair and a search for fishing weights could both be ordinary errands. But they were different explanations for the same absence.",
+        "problem": "The inquest contains consequential changes in Lizzie's account, but each contrast is followed by a paragraph explaining why a contradiction matters. The stairs-versus-kitchen discussion receives the same treatment. These interruptions keep the examination at an analytical distance and reduce the force of Lizzie's existing quoted replies.",
+        "instruction": "Compress the explanatory paragraphs after the location changes and the changed barn errand. Retell this section around the sequence of questions, incompatible answers, and Lizzie's two existing quotations. Keep the conditions of her testimony and the competing interpretations of her performance, but let the contradictions register before interpreting them."
+      },
+      {
+        "id": 7,
+        "severity": "medium",
+        "kind": "selection",
+        "act": "act7",
+        "quote": "More speculative accounts named William Borden as an illegitimate son seeking money, placed Emma secretly back in Fall River, proposed Bridget’s involvement, or invoked abuse.",
+        "problem": "This paragraph introduces several new accusations only to dismiss them immediately. William is a new person to remember, while Emma, Bridget, and abuse open substantial narrative possibilities that receive no development. After the fabricated newspaper story, rhyme, Bridget rumor, Morse alibi, and outsider theory, this additional catalog contributes little to the distinction between documented events and later invention.",
+        "instruction": "Remove this speculative catalog. Keep the developed examples that already fulfill the act's purpose. Compress the Morse and outsider discussions to their narrative reasons for attracting suspicion and the existing reasons those theories did not develop, then move into the sisters' lives after the trial."
+      },
+      {
+        "id": 8,
+        "severity": "medium",
+        "kind": "production",
+        "act": "whole_script",
+        "quote": "",
+        "problem": "The supplied word count is 8,391, which is 609 words below the required minimum of 9,000. The seven act markers are present and follow the planned order, but the length constraint is not met. Recommended removals would increase the shortfall.",
+        "instruction": "Bring the revised script within 9,000–10,500 words and check the final count after editing. Use fuller progression and orientation within the existing household, inquest, and courtroom material rather than retaining redundant explanations as padding. Preserve all seven act markers and the planned closing image."
+      },
+      {
+        "id": 6,
+        "severity": "low",
+        "kind": "selection",
+        "act": "act6",
+        "quote": "Three Superior Court justices presided: Chief Justice Albert Mason, Caleb Blodget, and Justin Dewey.",
+        "problem": "The trial opening introduces three judges and four lawyers in quick succession, alongside juror backgrounds and a lawyer's later career. Several names have little subsequent narrative function, increasing the listener's orientation burden just as the courtroom story begins.",
+        "instruction": "Compress the personnel introductions. Retain the three-judge structure and the principal opposing lawyers; introduce individual judges when they act. Remove Moody's later-career aside unless it serves another supplied passage."
+      }
+    ],
+    "summary": "The central contradiction is easy to grasp, the household layout is unusually clear, and the trial's explanation of Bridget's laughter genuinely changes the opening detail rather than merely repeating it. The dress-burning event and the restrained return to Abby also work well; keep the final image and question. The main revision is to reduce repeated interpretation after discoveries and contradictions so that events carry more of the listening experience. The script also needs to meet the supplied minimum word count."
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "text": "The seven-act progression is clear, the English is generally natural, and the strongest passages let events carry their significance: the discovery of Abby, the different conditions of the bodies, the dress burning, and the opposing courtroom interpretations. Keep the final return to Abby's ordinary work and the staircase question; it follows the planned ending without restarting the verdict discussion. The main revision is to reduce repeated explanations of discrepancies and evidentiary limits, allowing discoveries, testimony, and consequences to move the narration forward.",
+  "critic_notes": {
+    "verdict": "revise",
+    "scores": {
+      "native_naturalness": 88,
+      "spoken_quality": 78,
+      "narrative_flow": 74,
+      "engagement": 77
+    },
+    "items": [
+      {
+        "id": 1,
+        "severity": "medium",
+        "kind": "production",
+        "act": "whole_script",
+        "quote": "",
+        "problem": "The supplied word count is 8,677, which is 323 words below the allowed range of 9,000–10,500. All seven act markers are present and correctly ordered.",
+        "instruction": "Retell within the permitted total range, using the existing material and planned purposes to guide any expansion. Address the editorial issues below independently of this length requirement."
+      },
+      {
+        "id": 2,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act1",
+        "quote": "Andrew’s return had been a fixed event in both women’s recollections. Bridget had let him in. Lizzie had been somewhere nearby. But the two women did not agree about where.",
+        "problem": "The opening establishes the staircase contradiction clearly, and the discovery of Abby gives that location additional significance. The last two paragraphs then restate the disagreement without another development. The act loses momentum after the police arrive.",
+        "instruction": "Compress the final two paragraphs into the transition to police questioning. Keep the consequential connection between the landing and the guest room, but remove the closing re-explanation of the two women's positions."
+      },
+      {
+        "id": 3,
+        "severity": "medium",
+        "kind": "selection",
+        "act": "act3",
+        "quote": "The BBC’s account gives 11 for Andrew; Legends of America gives ten, the number also recorded as head wounds by medical examiner Dr. William Dolan.",
+        "problem": "The comparison of publication names and competing counts interrupts the examination of the bodies with a source inventory. The listener needs the scale of the violence and the distinction from the later rhyme, not a publication-by-publication accounting.",
+        "instruction": "Compress the wound-count paragraph around the medical descriptions already supplied. Preserve the variation in counts briefly and the contrast with folklore, but remove the publication roster and the explanation about later versions turning estimates into fixed numbers."
+      },
+      {
+        "id": 4,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act3, act4",
+        "quote": "The point is narrower than later speculation sometimes makes it. The pail was noticed, Lizzie gave a domestic explanation, and her doctor supported it.",
+        "problem": "Several passages explain a limitation and then explain it again. The second pail paragraph repeats the discovery, explanation, and lack of a verified connection. Likewise, Act 4's final dress paragraph repeats the preceding paragraph's explanation that the destroyed garment could no longer be identified or examined. Repeated endings on what cannot be established flatten otherwise consequential discoveries.",
+        "instruction": "Merge the two pail paragraphs, retaining the discovery, the doctor's support, the officers' handling, and one concise statement of the testing limitation. Merge Act 4's final two dress paragraphs so the destruction's irreversible consequence lands once, followed by the transition to sworn questioning."
+      },
+      {
+        "id": 5,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act4",
+        "quote": "The boots were a small detail compared with the deaths, but they were an observable one. Unlike an impression of someone’s manner, they could be checked against the body and the photographs.",
+        "problem": "The footwear discrepancy has already been stated and interpreted in the preceding paragraph. This paragraph explains why an observable contradiction matters rather than advancing the inquiry. The note receives similar treatment: after the unsuccessful search and Lizzie's suggestion that Abby returned, another paragraph walks through the same unsupported errand.",
+        "instruction": "Merge the footwear discussion into one paragraph that presents the statement, the boots on the body, and the investigators' response. Compress the second explanatory pass over the note, preserving Lizzie's claim that Abby returned and the distinction between requesting an upstairs search and identifying the body's precise location."
+      },
+      {
+        "id": 6,
+        "severity": "medium",
+        "kind": "spoken",
+        "act": "act4",
+        "quote": "In the slippers version of the account, he had changed into comfortable footwear for his nap; some accounts also associate Bridget’s recollection with a mention of slippers.",
+        "problem": "The attribution becomes difficult to follow at the center of an important contradiction. 'The slippers version' and 'some accounts also associate' leave the listener unsure whether Lizzie, Bridget, or a later account supplies the detail.",
+        "instruction": "Retell the discrepancy using the clearly attributed content already present: Lizzie said she helped remove Andrew's outdoor shoes, while the body photographs show his boots still on. Remove the loosely attributed slippers material unless its owner can be identified from the supplied story."
+      },
+      {
+        "id": 7,
+        "severity": "medium",
+        "kind": "engagement",
+        "act": "act5",
+        "quote": "Knowlton was not asking about an incidental outing on another day. He was trying to establish where a person present at the property had been during the morning of two deaths.",
+        "problem": "The inquest has strong material—changing locations, a different barn errand, and Lizzie's own answers—but explanatory narration repeatedly interrupts it to establish stakes the listener already understands. This slows the passage where the questioning should become most immediate.",
+        "instruction": "Compress the commentary surrounding the contradictory answers. Keep the specific changes of location and purpose, the quoted exchanges, and the unusual conditions of questioning; remove explanations that merely reiterate why reconstructing this morning mattered."
+      },
+      {
+        "id": 9,
+        "severity": "medium",
+        "kind": "repetition",
+        "act": "act6",
+        "quote": "This was not a demonstration that the answers were consistent. It meant the case had to be decided without her sworn explanation of them.",
+        "problem": "The exclusion of the inquest transcript is clearly explained, but the next paragraph explains its absence again through Lizzie's decision not to testify, and a further paragraph summarizes both exclusions. The legal development is important; repeated explanations of what the jury could not hear delay the evidence it did hear.",
+        "instruction": "Keep each ruling and its immediate consequence once. State Lizzie's decision not to testify directly, remove the quoted explanatory gloss, and compress the paragraph beginning 'These rulings made the trial materially different' into a brief transition to Bridget's testimony."
+      },
+      {
+        "id": 10,
+        "severity": "medium",
+        "kind": "selection",
+        "act": "act7",
+        "quote": "Other theories named Emma, Bridget, or a supposed illegitimate son called William Borden, or proposed paternal abuse as the cause of the violence.",
+        "problem": "The final act introduces several additional accusations only to dismiss them immediately. Together with the general discussion of alternative solutions and the outsider paragraph, this becomes a catalogue of theories without developments or people carrying them. Attention drifts just before the sisters' consequential post-trial lives resume.",
+        "instruction": "Remove the catchall paragraph naming additional theories and compress the generic discussion of outsiders and proposed solutions. Preserve the statement that no one else was charged, Morse's corroborated movements, the fabricated newspaper story, and the unsupported Bridget confession rumor; those passages already fulfill the planned distinction between documented events and stories that grew around them."
+      },
+      {
+        "id": 8,
+        "severity": "low",
+        "kind": "selection",
+        "act": "act6",
+        "quote": "Three Superior Court justices presided: Chief Justice Albert Mason and Associate Justices Caleb Blodget and Justin Dewey.",
+        "problem": "The opening of the trial introduces a cluster of judicial and legal names before the first consequential ruling. Some have little continuing narrative function, and Moody's future office adds another biographical aside.",
+        "instruction": "Compress the personnel introductions. Prioritize Knowlton, Jennings, and Robinson, whose actions carry the courtroom account; introduce individual judges where their rulings, instructions, or discharge of Lizzie make the names useful. Remove Moody's future-office aside."
+      }
+    ],
+    "summary": "The seven-act progression is clear, the English is generally natural, and the strongest passages let events carry their significance: the discovery of Abby, the different conditions of the bodies, the dress burning, and the opposing courtroom interpretations. Keep the final return to Abby's ordinary work and the staircase question; it follows the planned ending without restarting the verdict discussion. The main revision is to reduce repeated explanations of discrepancies and evidentiary limits, allowing discoveries, testimony, and consequences to move the narration forward."
+  }
+}

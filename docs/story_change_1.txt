@@ -1,0 +1,409 @@
+TASK (LOOP): Replace the per-language story writing with ONE shared English
+draft followed by an independent finishing pipeline per language, and delete
+everything that served the old translation path. Implement in a loop until you
+can PROVE 100% of this text is done.
+
+STANDING RULES
+No push and no commit unless the owner asks (the repo is PUBLIC; never commit
+keys, tokens or private data). Work live in the real app (UI); no isolated test
+stack or mocks for live proof. Cost limit stays on ACTUAL spend per case,
+EUR 300 (only the owner changes it). Brave Search only. No OpenRouter, Docker,
+Finglish, Haiku. English UI. main branch. Clean OO code, no dead code, a test
+for every change, model names and numbers only in config/.
+
+This text supersedes the rule "Persian master first, then native rewrites":
+no language is derived from another language's final text any more. All
+languages derive from one shared English draft, the shared story plan and the
+shared evidence.
+
+OWNER DECISIONS (verbatim intent, final)
+"The process below is repeated for every language: 1. All texts, acts and so
+on are given to a Sonnet 5.5 agent. Sonnet writes the story. 2. What Sonnet
+wrote is given to GPT 6.1 Sol as the writer. It writes the video again for
+about 60 to 70 minutes. 3. An inspector agent, GPT 6.1 Sol, criticizes it.
+4. The critique and the last version of the text are given again to the writer
+GPT 6.1 Sol, which writes the final version. This is done once for fr, once for
+en, once for de, once for ar. All other things that are used for fr or other
+languages must be deleted from the base code." Then, decided later:
+ - No A/B tests of any kind; just implement.
+ - The draft is 90 minutes (not 120).
+ - The draft is written ONCE (not four times) and in ENGLISH.
+LANGUAGES: "fr" is read as fa (Persian): the app supports en, de, fa, ar. The
+list comes from the existing language catalog in config. French is NOT added
+unless the owner says so. Record this reading in the checklist.
+
+L. LOOP PROTOCOL (mandatory)
+Keep docs/language_pipeline_checklist.md: one row per requirement id below
+(T1...T17), status TODO/IN_PROGRESS/DONE, test names and live evidence (ids,
+numbers, screenshot paths). Repeat until every row is DONE:
+  1. take the first non-DONE row, write the test first, then the code,
+  2. run the targeted tests, then the full suite (exclude only tests proven
+     environment-bound and list them),
+  3. prove it live in the UI on case 8 ("Lizzie Borden axe murders"),
+  4. record the evidence; if a live proof fails, fix and repeat.
+Then run the COMPLETENESS AUDIT (T17) and a final line-by-line self-review of
+this text against the diff. Stop early ONLY for real owner blockers (Brave
+credit exhausted HTTP 402, a missing key, a decision only the owner can take)
+and continue with every row that is not blocked. Never mark a row DONE without
+evidence; never skip a row silently. Final report: the checklist, actual spend
+per stage and language, and what is unproven.
+
+THE PIPELINE
+Shared inputs, built once per case and used by every language: the story plan
+(acts, purposes, reveal order, do_not_reveal; language-neutral), the promoted
+facts, timeline, contradictions and claims from ALL sources with their source
+ids (video-backed facts first, contradictions never dropped), and the
+originality rules.
+
+ STAGE 1  (ONCE per case) draft_writer: Sonnet 5.5 (alias premium) receives ALL
+          texts, acts and evidence (no 100-fact cap here: config
+          story_quality.max_evidence_for_long_draft, none by default) plus the
+          English style guide, and writes ONE 90-minute story in ENGLISH.
+          Config: story_pipeline.draft_language = "en", long_draft_minutes = 90
+          (the validator rejects a draft shorter than the final range).
+
+ Then, FOR EACH language (fa, en, de, ar), independently and in parallel
+ (concurrency from config):
+
+ STAGE 2  rewrite_writer: GPT 6.1 Sol, high thinking, receives the English draft,
+          the plan and the 100-fact evidence pack, and writes the film text
+          NATIVELY in the target language for about 60 to 70 minutes (requested
+          minutes default 60 plus rewrite_headroom_minutes 10; a custom request
+          shifts the range). It re-tells in the language's own storytelling and
+          spoken register; it never translates sentence by sentence. For en it
+          rewrites the English draft to the shorter length in the same language.
+
+ STAGE 3  inspector: GPT 6.1 Sol, high thinking, a SEPARATE agent (own prompt,
+          fresh context, it never sees stage 2's reasoning) criticizes the
+          stage-2 text IN THE TARGET LANGUAGE: native wording, spoken register,
+          repetition, reveal timing, unsupported claims, source commentary,
+          tension, length. Its input is the stage-2 text, the plan and a compact
+          evidence list (id + claim + uncertainty flag), not the full pack.
+          Output: structured, actionable items.
+
+ STAGE 4  final_writer: GPT 6.1 Sol, high thinking, receives the stage-2 text (the
+          last version) + the stage-3 critique (+ the evidence pack) and writes
+          the FINAL text of that language.
+
+After stage 4 the deterministic gates run on each final text: grounding against
+the evidence, consistency, length tolerance, figures/names check against the
+evidence, reveal-order check against the plan, originality guard against the
+research transcripts. A gate failure returns to STAGE 4 only, bounded by config.
+
+CROSS-LANGUAGE FACTS CHECK (replaces the old semantic check against a master):
+a deterministic report compares the four final texts: dates, numbers, named
+persons and places, and which evidence ids each act uses. Any mismatch between
+languages is listed and fails the gate. No language is the reference.
+
+The draft (stage 1) is stored once as a shared version. Every language version
+records which draft it derives from (draft id, draft language, prompt sha256),
+so the UI and the API never present a language as independent of the draft.
+Expected large calls per case: 1 draft + 4 x 3 Sol = 13; report the real count.
+
+REQUIREMENTS
+
+T1  CONFIG AND ROLES. Alias "sol" = gpt-6.1-sol with capabilities in
+    config/models.json; verify the id with a live GET /v1/models. "High thinking"
+    must be real: read the provider code, test with one tiny live call and prove
+    from the response that the effort setting was applied; set it per role in
+    config generation params. Four roles/agents, each its own agents.json entry,
+    prompt in prompts/ and routing entry: language_draft_writer (premium),
+    language_rewrite_writer (sol), language_inspector (sol),
+    language_final_writer (sol). Pricing for gpt-6.1-sol from the real
+    usage.cost/usage fields or the provider's own pricing page, never assumed.
+
+T2  INDEPENDENCE. The validator forbids a reviewer on an author's model. The
+    inspector on Sol with Sol writers is the owner's explicit decision: add a
+    narrow, config-driven exception (a group flag same_model_allowed: true with
+    an owner_decision note) only for this group. Test: the exception works for
+    this group only; a reviewer on an author's model anywhere else is still a
+    config error.
+
+T3  PROMPTS. Write the four prompts (English, in prompts/), each stating its real
+    inputs, what the code does with the output, and the rules: truth only from
+    the evidence, no invented details, no commentary on sources, at most one
+    attribution note per paragraph and only for disputed claims, spoken style
+    per language, reveal order from the plan. The stage-2 prompt forbids
+    sentence-by-sentence translation. Language style guides live in config or
+    prompts per language.
+
+T4  LENGTH AND CONFIG. Allow 90 minutes (max_target_minutes is 90 today; check the
+    validator and any ceiling). Config values: long_draft_minutes = 90,
+    draft_language = "en", requested minutes default 60,
+    rewrite_headroom_minutes = 10. Tests: the draft is always 90 minutes and
+    English regardless of the target languages; stage 2 stays in the 60-70
+    range; a custom requested length shifts the range.
+
+T5  ORCHESTRATION. One draft run per case, then one orchestrator run per language
+    for stages 2-4 (parallel, concurrency from config). Each stage output is its
+    own story version row (language or "shared", stage, model, prompt sha256,
+    minutes, cost). A failed stage resumes without re-running earlier stages and
+    without double billing; the draft is never rewritten because a language
+    failed; one failing language does not stop the others.
+
+T6  CONSUMERS. Every place that used the old master story version or a localized
+    version (spoken adaptation, host, blueprint, chapters, shortform, visuals,
+    production, API, UI) now reads that language's FINAL version. Find them by
+    search, list them in the checklist and change each with a test.
+
+T7  OWNER GATE. Approval per language final version in the UI (the earlier
+    "approve the Persian master" gate becomes "approve the final version of a
+    language"); nothing downstream starts for a language before its approval,
+    and no language waits for another.
+
+T8  UI. The story page shows the shared English draft once, then one card per
+    language with stages 2-4, the critique, models, reasoning setting, minutes,
+    cost, gate results, the cross-language facts report and the
+    derived-from-draft note, plus a per-language start/resume button.
+
+T9  COST ESTIMATE. Before the first live run print the estimate (tokens in/out and
+    price per stage; 1 draft call + 4 x 3 Sol calls). After the run show the
+    actual ledger and the call count. The EUR 300 limit applies to actual spend
+    only. Never present an estimate as an actual price.
+
+T10 DELETE THE OLD PATH (base code, config, prompts, tests, docs). Remove
+    everything that existed only for the translation/localization route:
+    app/agents/localization.py and its helpers, the agents.json entries
+    localization.*, prompts/agents/localization/*, the localization block and the
+    roles localization_writer, native_language_critic,
+    localized_engagement_critic, localized_grounding_validator and
+    localized_final_editor in config/models.json, config/parameters/story.json
+    and the review_independence lists, API routes and UI parts for "localize",
+    their tests, and README/ROADMAP mentions. Check every role and helper for
+    OTHER users before deleting (semantic_consistency_checker is also used by
+    story.compression_semantics: keep what is shared). Also remove the
+    master-generation code (master_* roles, section-based revision cycles,
+    pilot-approval revisions) once the new pipeline is proven, as far as nothing
+    else uses it. DATABASE: do NOT drop tables, columns or existing rows
+    (history stays readable). If a schema cleanup is wanted, write the migration,
+    take a backup first, show it to the owner and do not apply it without
+    approval.
+
+T10b EXPLICIT AGENT DELETION (extends T10; same rules: check every user first,
+test first, no dead code, database rows and tables stay untouched).
+After the new pipeline is proven live, delete the agents, prompts, roles and
+config that only served the old story-writing path:
+ DELETE (candidates; delete each one only if a search shows no other user):
+  - agents.json entries: story.write, story.write_act, story.critique,
+    story.critique_section, story.improve, story.fit_section_length,
+    story.repair_spans, story.apply_revision_ops, story.section_pass,
+    story.final_edit, master_story_director, master_writer, master_rewriter,
+    master_engagement_critic, master_final_editor, and all localization.*
+  - their prompts under prompts/agents/story/ (write, write_act, critique,
+    critique_section, improve, fit_section_length, fit_section_length_2,
+    repair_section_spans, apply_revision_ops, section_pass, final_edit,
+    marker_instruction only if the new pipeline no longer uses it) and
+    prompts/agents/localization/*
+  - roles in config/models.json routing/generation and in
+    review_independence lists: writer, rewriter, engagement_critic,
+    section_critic, final_editor, story_director's act-writing duties,
+    master_*, localization_writer, native_language_critic,
+    localized_engagement_critic, localized_grounding_validator,
+    localized_final_editor; also REQUIRED_ROLES entries and tests that listed
+    them (EXPECTED_ROUTING etc.)
+  - config: master_generation block and the story_quality values used only by the
+    old loops (max_section_rewrites, section_engagement_threshold, revision
+    cycles, pilot-approval revisions), and code in app/agents/story.py,
+    app/services/background_jobs.py and app/documentary/jobs.py (write_master,
+    approve_master flow) that only served that path.
+ KEEP (still used; verify each by search and say why in the checklist):
+  - story.design and the story_director (the shared plan), story.grounding,
+    story.consistency and their roles (they run on the final texts),
+    story.compression_semantics (longform compression), all research.*,
+    claims.*, evidence.*, transcripts.*, host, spoken, documentary.*, visuals.*,
+    shorts.*, naming, status and thumbnail agents, and the four new
+    language_* agents.
+ For any agent where a second user is found (for example story.improve in
+ app/services/background_jobs.py): do not delete it blindly; either move that
+ user to the new pipeline or keep the agent, and write the decision into the
+ checklist.
+T17 AUDIT (extend): the audit test also fails if any removed agent name, prompt
+file or role listed above still appears in app/, config/, prompts/ or tests/
+(excluding migration history, CHANGELOG and past-decision docs, listed in the
+test), and tests/test_architecture.py must pass without any agent that is
+defined but never run.
+
+
+T11 TESTS. Stage order and inputs (stage 2 gets draft + plan + evidence; stage 3
+    does not get stage 2's reasoning and gets only the compact evidence list;
+    stage 4 gets the stage-2 text + the stage-3 critique); the draft runs ONCE for
+    four languages and every language reads the same draft and plan; each
+    language uses its own style guide and words per minute; stage resume does not
+    re-bill; one language failing leaves the others; the cross-language facts
+    check catches a changed date or number; gates run on the final text;
+    consumers read the final version.
+
+T12 PROMPT CACHING. Order every request as a stable prefix first (rules, style
+    guide, plan, evidence pack, source ids) and the variable part last (the
+    previous stage's text, the critique). The stable prefix is identical across
+    the four languages' stage-2 calls. Find out live whether the gateway/provider
+    supports prompt caching for the Sonnet and Sol calls (read the provider code
+    and docs, then one tiny real call with a repeated prefix) and use it if so.
+    Record cached input tokens separately in the ledger and show the saving per
+    stage and language. If caching is unsupported, say so plainly; do not fake it.
+
+T13 RE-RUN ONLY WHAT FAILED. A failed gate or stage re-runs only the last stage
+    that can fix it (gate failure -> stage 4 only), never earlier stages; resumed
+    runs bill only the missing stages. Test it.
+
+T14 COMPACT INSPECTOR INPUT. As in the pipeline: stage 3 receives the stage-2 text,
+    the plan and a compact evidence list (id + claim + uncertainty flag), not
+    the full pack. Test the content and size. Do not weaken the checklist.
+
+T15 THINKING PER STAGE. A separate config value for the reasoning effort of each
+    of stages 2, 3 and 4 (default high for all three). Test that each stage
+    sends its own value and the response proves it was applied.
+
+T16 COST VISIBILITY. Per stage and language the ledger stores tokens in, cached
+    tokens, reasoning tokens, tokens out and EUR; the UI shows a per-stage cost
+    table per language and the total next to the estimate. The draft's cost is
+    shown once and as part of the total, not split across languages.
+
+T17 COMPLETENESS AUDIT (this proves "100%"). Add a test that fails if app/,
+    config/, prompts/ or tests/ still contain any of: localization, localized_,
+    derived_from_master, native_language_critic, a semantic check against a
+    master, a per-language draft stage, or 120-minute drafts (excluding Alembic
+    migration history, CHANGELOG and docs of past decisions, which the test
+    lists explicitly). Then walk this text sentence by sentence and tick each in
+    the checklist with its evidence.
+
+FINAL LIVE PROOF (UI, case 8): run the pipeline for all four languages with the
+default 60 minutes. Show the shared English draft, per language the stored
+stage versions, the critique, models, reasoning setting, minutes, cost per
+stage, gate results, the cross-language facts report and the originality
+report, plus the actual spend and the call count. State exactly what could not
+be proven and why. Do not commit or push.
+
+
+
+
+---------------------
+MASTER TASK (LOOP): implement everything below until 100% is done and proven.
+No push, no commit unless the owner asks (repo is PUBLIC; never commit keys or
+private data). Work live in the real app (UI); no isolated test stack or mocks
+for live proof. Cost limit stays on ACTUAL spend per case, EUR 300 (only the
+owner changes it). Brave Search only. No OpenRouter, Docker, Finglish, Haiku.
+English UI. main branch. Clean OO code, no dead code, a test for every change,
+numbers and model names only in config/.
+
+SCOPE: this task covers research, videos, facts, pictures and rights ONLY. Story
+writing (draft, rewrite, inspection, final text per language) is defined in the
+separate LANGUAGE PIPELINE task (T1-T17) and is NOT part of this task. Do not
+change the writing stages here. Where this task needs a hook into the story text
+(facts cap, originality guard), it connects to the language pipeline as stated below.
+
+L. LOOP PROTOCOL (mandatory)
+Keep a checklist file docs/master_task_checklist.md with one row per
+requirement id below (0, V1-V3, F1, P1-P2, R1-R7), status
+TODO/IN_PROGRESS/DONE, the test names and the live evidence (ids, numbers,
+UI screenshot paths). Repeat until every row is DONE:
+  1. pick the first non-DONE row, implement it (test first, then code),
+  2. run the targeted tests, then the full suite (exclude only tests proven
+     environment-bound, and list them),
+  3. prove it live in the UI on the real case ("Lizzie Borden axe murders",
+     case 8),
+  4. update the row with evidence; if a live proof fails, fix and repeat.
+After the last row run a final self-review of the whole diff against this text,
+requirement by requirement, and fix gaps. Stop early ONLY for a real owner
+blocker (e.g. Brave credit exhausted HTTP 402, missing key, a legal decision):
+then list every blocker with the exact owner action and continue with all rows
+that are not blocked. Never mark a row DONE without evidence; never skip a row
+silently. Report at the end: the checklist, actual spend, what is unproven.
+
+0. ROLE OF OTHER CHANNELS' VIDEOS (applies to everything)
+Videos of other true-crime channels are our MOST IMPORTANT TEXT SOURCE: every
+one is discovered, transcribed and read, none is skipped for a count cap, and
+their transcripts are never shown, downloaded for rendering or quoted. They
+are raw material for OUR story, never the story itself.
+a) Transcript -> claims, each stored with channel, video id and timestamp.
+b) Cross-channel comparison: the same claim from several channels is one
+   cluster; count independence by ORIGIN, not by channels (channels repeating
+   one underlying source or each other count once).
+c) A claim becomes a fact when independent support exists; claims resting only
+   on creator narration stay "reported by creators" until a primary or
+   contemporary source (court record, period newspaper, official document)
+   supports them.
+d) Ranking: facts supported by several independent videos rank first;
+   contradictions between channels are kept and told with each account's owner.
+e) Structure, hook, act order and reveals come from OUR story plan, not from
+   any channel's order of telling.
+f) Writers receive facts with source ids only, never transcript text.
+g) The UI shows per fact which channels support it and how many independent
+   origins stand behind it.
+
+V. VIDEOS (no relevant video skipped)
+V1. Baseline (no spend): list every video with transcript_status "skipped"
+    (title, channel, language, duration, classification, relevance_score,
+    skip_reason), count per reason, have a separate reviewer judge relevance
+    from title+description; write docs/benchmarks/video_skips.md (ids/numbers).
+V2. Remove count-based skipping: per-language cap, transcript count cap and the
+    low-value stop (a video confirming known facts is still processed). Keep
+    only a relevance gate for clearly unrelated videos (threshold from the
+    baseline; borderline band decided by the video_relevance agent: when in
+    doubt, relevant). Deepen discovery (queries/results per language) until new
+    relevant videos stop appearing. Everything in config. A skipped or
+    unavailable video always shows its reason in the UI.
+V3. Tests: relevant video beyond old caps processed; unrelated video skipped
+    with reason; low-novelty video processed.
+
+F. FACTS CAP 100
+F1. story_quality.max_evidence_per_story = 100 and max_evidence_per_act <= 100
+    for the language pipeline's Sol stages (rewrite, inspect, final) and the
+    final gates. The shared English draft (stage 1) is the only consumer that
+    receives ALL promoted facts (config: story_quality.max_evidence_for_long_draft,
+    no cap by default). The same strongest-first selection feeds
+    research.build_timeline and research.analyze_contradictions (they get all
+    facts today). Never delete a Fact row; the evidence_diet record names what
+    was excluded and why. Ranking: independent-video-supported facts first, then
+    evidence_strength and confidence; contradiction/disputed/protected facts
+    never dropped. Tests for all three rules.
+
+P. PHOTOS AND RELATED VIDEOS FOR THE FILM
+P1. Audit what is searched and stored per beat today; fix gaps so photos and
+    related videos are searched for every case and every beat that needs a
+    picture (Brave only; links with source, rights and verification status;
+    respect the blocked-domain list; no downloads from untrusted sources).
+P2. Test that a case without stored pictures triggers the search.
+
+R. TWO KINDS OF VIDEO: RESEARCH-ONLY vs SHOWABLE
+R1. VideoSource gets: use (research_only | film_candidate), rights_status
+    (existing statuses), license_evidence_url, license_checked_at,
+    attribution_text. Migration with backup first (show it to the owner, do not
+    apply without approval); all existing videos become research_only.
+R2. Classify at discovery: film_candidate only for Internet Archive, Wikimedia
+    Commons, national/public archives with a stated open license or
+    public-domain mark, or a YouTube video whose Data API license is
+    creativeCommon and whose channel is not a re-uploader of others' work.
+    Public broadcasters only with a stored license page or written permission.
+    Videos of other true-crime channels are ALWAYS research_only. Doubt means
+    research_only. Source/channel lists live in config.
+R3. Rights gate: nothing is downloaded for rendering unless use=film_candidate,
+    rights_status allowed for the render profile, and evidence stored.
+    editorial_review_required needs the recorded owner approval that exists for
+    pictures. Research-only videos are never downloaded; only transcripts are
+    read.
+R4. Film use: film_candidate clips go through video_segmenter and video_auditor
+    and are placed beside photos and generated material; config limits: maximum
+    seconds per third-party clip, maximum share of film time from third-party
+    footage; our own and licensed pictures carry the story; attribution list
+    for the description.
+R5. Originality guard: deterministic comparison of each language's FINAL text
+    (output of language.final) with every research transcript of the case
+    (longest shared word run, share of 6-word sequences found in one source,
+    near-verbatim sentences by embedding similarity above a config threshold;
+    compare in the transcript's language and, for cross-language copies, against
+    the English draft's sources). Above the limits the text fails the gate, the
+    offending sentences are listed, and that language goes back to STAGE 4
+    (language.final) with the instruction to retell in own words and own order.
+    This gate is registered in the language pipeline's gate list; do not build a
+    second pipeline for it.
+R6. UI shows per video: type, rights status, evidence link, and why a video is
+    research_only.
+R7. Tests: other-channel video never becomes film_candidate; CC video with
+    evidence does; no evidence means no download; a copied story fails the
+    guard and a rewritten one passes.
+
+FINAL LIVE PROOF (UI, case 8): show the skipped-video baseline before and after,
+the video list with types and reasons, facts before/after the 100 cap, the
+originality report for each language's final text, and photo and related-video
+candidates per beat, plus actual spend. Report what could not be proven and why.

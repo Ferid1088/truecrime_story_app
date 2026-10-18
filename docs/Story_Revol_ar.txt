@@ -1,0 +1,430 @@
+MASTER TASK (LOOP): ARABIC (ar) - the Arabic film version, plus a parity test across all
+four languages. Implement everything below in a loop until you can PROVE 100% of this text
+is done.
+DEPENDENCY: this task builds on the English master task (M1-M19 with Amendment 2), the
+Persian task (P1-P14) and the German task (D1-D15): the English master with its automatic
+approval record, the per-language agent map, the shared language-inspector Pydantic model,
+the stage config and the non-blocking report. Reuse and EXTEND what exists; never build a
+second copy. If something is missing, implement the missing dependency first or mark the
+affected row BLOCKED_DEPENDENCY and continue with every row that is not blocked. The en, fa
+and de prompts are not changed by this task (A15 only tests them).
+
+STANDING RULES
+No push and no commit unless the owner asks (the repo is PUBLIC; never commit keys, tokens
+or private data). Work live in the real app (UI), real database, no isolated test stack or
+mocks for live proof. Cost limit stays on ACTUAL spend per case, EUR 300 (only the owner
+changes it). Clean OO code, no dead code, a test for every change, model names and numbers
+only in config/. Brave Search only. No OpenRouter, Docker, Finglish, Haiku. English UI.
+main branch. No A/B tests.
+
+OWNER DECISIONS (final, 2026-10-17)
+1. English is the single source of truth for facts. All facts are checked once, in the first
+   English draft. After the English master exists, no further fact checking happens: the
+   Arabic stages concentrate on good Arabic text.
+2. The owner approves nothing by hand. All approvals are automatic.
+3. The Arabic version is a NATIVE RE-TELLING of the English master, not a translation: Arabic
+   storytelling (voice, scene clarity, rhythm, transitions, suspense, ending) inside the
+   established content. Language and culture are one thing; culture enters through how the
+   story is told, never as new facts.
+4. This is a permanent improvement of how established material becomes an excellent listening
+   experience: tell through people, actions, discoveries, decisions and consequences; stop
+   repeated explanations (event or theory, then "this proves nothing", then the same limit
+   again); select and connect; one ending that fits the real story; reviewers judge the
+   listening experience and do not reward excessive caution.
+5. Do not claim the Arabic text is perfect or that audience engagement or native quality has
+   been proven by a model's self-score. Arabic is the language where the assistant is least
+   able to judge quality; a native speaker's check is an open owner action.
+
+PIPELINE (language "ar")
+ Starts automatically when the English master has its automatic approval record.
+ 2   language.rewrite.ar: GPT 6.1 Sol, high thinking. Inputs: the English master, the plan, the
+     minute and word range (60-70 minutes: requested minutes default 60 plus the configured
+     headroom; words from the language's words per minute). NO evidence pack.
+ 3   language.inspect.ar: Sol, high thinking, a SEPARATE agent with its own prompt and fresh
+     context. Inputs: the Arabic text, the plan, word_count and the allowed range. It never
+     sees the English master or the evidence. It judges the listening experience and the
+     Arabic only.
+ 4   language.final.ar: Sol, high thinking. Inputs: the last Arabic version, the critique, the
+     plan, the range and the English master (read-only reference).
+ After stage 4 the ONLY blocking gates for "ar" are technical: marker integrity (same act ids,
+ same order) and the length range with its tolerance. A failure returns to stage 4 only,
+ bounded by config. A NON-BLOCKING report (zero model calls) is stored after stage 4. The
+ result is stored as the final Arabic version with an AUTOMATIC approval record
+ (approved_by "automatic", time, stage versions, cost), using the existing mechanism. Do NOT
+ start any stage beyond the Arabic final text in this task (no spoken adaptation, host, voice,
+ avatar or render run).
+
+REQUIREMENTS
+
+A1  DEPENDENCIES. Verify what exists (master with automatic approval, per-language agent map,
+    shared inspector model, stage config, non-blocking report, the fa and de agents). List each
+    in the checklist with evidence or mark BLOCKED_DEPENDENCY.
+
+A2  AGENTS, ROLES, CONFIG (exact names; use these strings everywhere).
+    agents.json key        role                     prompt file (no .md)                   output
+    language.rewrite.ar    language_rewrite_writer  language_pipeline/ar/rewrite_writer    text
+    language.inspect.ar    language_inspector       language_pipeline/ar/inspector         json
+    language.final.ar      language_final_writer    language_pipeline/ar/final_writer      text
+    Guide (not an agent): prompts/language_pipeline/guides/ar.md (REPLACES the old Arabic guide;
+    injected as {style_guide}).
+    Same shape as the existing entries, used_by app/agents/language_pipeline.py. Descriptions
+    (examples): rewrite.ar "Arabic film version (60-70 minutes) re-told natively from the
+    English master."; inspect.ar "Listening-quality review of the Arabic film version.";
+    final.ar "Final Arabic film text from the last version and the critique."
+    Roles, models and settings stay those of the existing language_* roles (Sol, high thinking).
+    The code runs them BY NAME with system=<the formatted prompt>: run_agent("language.rewrite.ar",
+    ...), run_agent("language.inspect.ar", ...), run_agent("language.final.ar", ...). Selection
+    comes from the existing per-language agent map in config (extend language_agents.ar =
+    {rewrite, inspect, final}); never by string tricks in code. Independence: the existing group
+    language_pipeline covers these roles; do not widen the exception. A language without an entry
+    in language_agents is now a CONFIG ERROR (no fallback to generic agents, see A11).
+    tests/test_architecture.py must pass.
+
+A3  PROMPT FILES AND CONTRACTS. Write the four files of the FILES PACKAGE verbatim with a script
+    that splits on the marker lines, then diff once and record "byte-identical". The files are
+    UTF-8, contain Arabic script and must be written, read and diffed as UTF-8 (check the written
+    bytes, not the terminal rendering). Each prompt is formatted with str.format; JSON braces are
+    doubled in the files; every placeholder must be supplied and none left unformatted. The guide
+    is injected as a VALUE, never recursively formatted. Placeholders:
+    ar/rewrite_writer: {marker_instruction} {style_guide} {target_words_min} {target_words_max}
+    ar/inspector:      {style_guide}
+    ar/final_writer:   {marker_instruction} {style_guide} {target_words_min} {target_words_max}
+    {marker_instruction} = the existing prompt agents/story/marker_instruction and its loader. A
+    missing guide is a config error, never a fallback to another language.
+    Input contracts (user message is JSON; put the STABLE keys first, see A7):
+    language.rewrite.ar: language, plan, target_minutes_min, target_minutes_max,
+                         target_words_min, target_words_max, english_master
+    language.inspect.ar: language, plan, word_count, allowed word range, story (NO master, NO evidence)
+    language.final.ar:   language, plan, target_words_min, target_words_max, english_master
+                         (read-only reference), last_version, critique
+    The inspector returns JSON validated by the SHARED language-inspector Pydantic model (identical
+    to the en, fa and de inspectors'); invalid output is an error, retried once, then the stage
+    fails. A response cut off by the token limit must FAIL LOUDLY and the stage must not accept a
+    truncated text. Arabic needs MORE TOKENS PER WORD than English: measure tokens per word from
+    real Arabic output and size max_tokens for a 70-minute text with headroom; do not guess.
+
+A4  ORCHESTRATION. ar stages 2-4 run automatically after the English master's automatic approval,
+    in parallel with the other languages' stages, with concurrency from config. Each stage output
+    is its own story version row (language, stage, model, prompt sha256, words, minutes, cost). A
+    failed stage resumes without re-running earlier stages and without double billing; one failing
+    language never stops another; the English master is never rewritten because Arabic failed. Save
+    the Arabic result as a NEW version beside any existing Arabic versions; never overwrite history.
+
+A5  GATES AND REPORT. For "ar" the blocking gates are exactly markers and length, set by config
+    (language_stages.ar.blocking_gates = ["markers", "length"]), not by language-name branches in
+    code. The LLM gates and the earlier cross-language check are no longer blocking for ar.
+    NON-BLOCKING REPORT (zero model calls, never blocks, never repairs; extend the existing report
+    with a per-language config instead of building a second one):
+    (a) numbers and years present in the Arabic text but not in the English master and the reverse,
+        compared as numerals after normalizing Arabic-Indic digits (٠-٩), Persian digits (۰-۹) and
+        separators to Western digits; written-out numbers may be missed: say so;
+    (b) SCRIPT HYGIENE counts, each with an example position: Persian-form letters (ک U+06A9, ی U+06CC,
+        ۀ, ە) where Arabic forms (ك ي) are expected; mixed digit styles in one text; invisible
+        bidirectional or formatting control characters (U+200E, U+200F, U+202A-U+202E, U+2066-U+2069,
+        U+061C) and tatweel (U+0640); Latin letters outside the markers; Arabic-script text next to
+        a marker on the same line.
+    Names are NOT compared with the master (different script, transliteration varies); state this
+    limit plainly in the checklist and the UI. The hygiene counts are information only: if a count
+    is above zero the owner can later promote it to a blocking gate by config; this task does not.
+
+A6  RTL, DIGITS AND DOWNSTREAM. The guide fixes one style (see the guide). BEFORE relying on it, read
+    the spoken adaptation and the TTS path for ar and find out how they treat: Western vs
+    Arabic-Indic digits, numerals next to a noun (e.g. "3 رجال", "300 ألف دولار", "1892"), decimals,
+    thousands separators, abbreviations, diacritics (are undiacritized names mispronounced?), the
+    guillemets and Arabic punctuation (، ؛ ؟). Record the finding. If downstream expects something
+    else, do not guess: report it and propose the exact config or guide change. Marker syntax (e.g.
+    [[ACT:act7]]) must survive Arabic text exactly, on its own line, with no bidirectional control
+    character next to it (test with an Arabic fixture with guillemets and Arabic punctuation).
+    Month names follow ONE convention (the guide uses يناير ... ديسمبر); if the listener market needs
+    the Levantine names (كانون الثاني ...), that is an owner decision: report, do not switch.
+
+A7  PROMPT CACHING. Order each request as a stable prefix first (the system prompt with the guide,
+    then the user JSON's stable keys: language, plan, ranges, english_master) and the variable part
+    last (last_version, critique). Stage 4 retried after a gate failure then reuses the prefix.
+    Arabic costs more tokens per word, so the cached prefix is large and the saving is larger. Find
+    out live whether the gateway supports prompt caching for the Sol calls (read the provider code
+    and docs, then one tiny real call with a repeated prefix) and use it if so. Record cached input
+    tokens separately in the ledger and show the saving per stage. State plainly that the
+    per-language prompts mean ar shares no cache with the other languages' system prompts, so the
+    saving is within ar (retries). If caching is unsupported, say so; do not fake it. If the Persian
+    or German task already measured support, reuse its finding and verify it once for ar.
+
+A8  COST. Before the live run print the estimate (tokens in/out and price per stage; one Sol call per
+    stage plus retries; use the measured Arabic tokens per word). After the run show the actual ledger
+    per stage (tokens in, cached, reasoning, out, EUR), the call count and the actual spend. Never
+    present an estimate as an actual price.
+
+A9  UI. The story page shows, for ar: the three stage versions, the critique (items by kind and
+    severity), models, reasoning setting, words and minutes, cost per stage, the blocking-gate
+    results, the non-blocking report (numbers; script hygiene counts), and "approved automatically"
+    with time. The Arabic text must display right-to-left with correct alignment (dir="rtl", the
+    markers readable and not scrambled by bidirectional ordering); check it in the real UI with a
+    screenshot. No approval button.
+
+A10 TESTS. Stage order and inputs (rewrite.ar gets the master and the plan and NO evidence; inspect.ar
+    gets only the Arabic text, plan and counts - never the master, never evidence; final.ar gets the
+    master only as reference); the inspector's critique reaches the final writer; ar uses the .ar
+    agents and other languages do not; a language without a language_agents entry is a config error;
+    marker preservation with Arabic text; blocking gates exactly markers and length for ar; the report
+    finds an added number and every hygiene case in a fixture (Persian yeh, Persian digits next to
+    Western digits, a U+200F next to a marker, a tatweel, a Latin word), never blocks and makes no
+    model call; resume does not re-bill; the automatic approval record is written and nothing beyond
+    the final text starts; truncation fails loudly. DETECTION TESTS: the three agents.json entries
+    exist exactly as in A2 and each prompt file exists; markers - rewrite_writer "NATIVE RE-TELLING, NOT
+    TRANSLATION"; inspector "READ LIKE A LISTENER"; final_writer "FINAL LISTEN"; the guide starts with
+    "LANGUAGE GUIDE: ARABIC TRUE-CRIME STORYTELLING"; every agent formats without a missing or leftover
+    placeholder.
+
+A11 NO DEAD CODE. After this task every supported language (fa, en, de, ar) has its own agents. Prove by
+    search which of these now have no other user and delete only those: the generic agents
+    language.rewrite / language.inspect / language.final, their entries in agents.json, their prompt
+    files, the old generic guides, prompts/documentary/spoken/style_guides_* for ar, and any generic
+    routing or fallback code. For the gates code (LLM gates, cross-language check): list which gate
+    names are still referenced by ANY language's blocking_gates config; keep the gate registry and the
+    config mechanism, report gate implementations that no config references, and remove such an
+    implementation only if a search proves no other user and its tests are updated. Test first, no
+    database drops. Reconcile inherited style rules that conflict with the new guide. Report what you
+    removed and what you deliberately kept.
+
+A12 QUALITY ASSESSMENT (real, not a keyword count). Produce the complete Arabic script, read it as a
+    listener would, and compare two or three before/after passages IN CONTEXT, including the ending.
+    Run the existing deterministic metrics (app/services/writer_metrics.py) on the previous Arabic
+    version and the new one and show before/after. Check by reading: modern standard register without
+    dialect, number-noun agreement, gender agreement of verbs and adjectives, kinship words, reference
+    clarity with attached pronouns, name spelling identical throughout. Do not mistake a keyword ban, a
+    sentence-length count or a model's own score for proof of good Arabic. The Arabic stock-phrase list
+    in config was written by the assistant, not a native editor: say so.
+
+A13 COMPLETENESS AUDIT. Walk this text sentence by sentence and tick each in the checklist with its
+    evidence. Then a final line-by-line self-review of the diff against this text.
+
+A14 FINAL LIVE PROOF (UI, case 8, real app and database). Use the existing English master. Run ONLY the
+    ar stages 2-4 (no English, no other language, no new research or draft). Show: the three stage
+    versions, the critique, models, reasoning setting, words and minutes, cost per stage including
+    cached tokens, the blocking-gate results, the report, the automatic approval record, the metrics,
+    the RTL screenshot, the actual spend and the call count. State exactly what could not be proven and
+    why (native quality, TTS pronunciation of undiacritized names, Sol's Arabic quality). Do not commit
+    or push.
+
+A15 PARITY TEST (so the four languages cannot drift apart). Add one test that reads the writer and
+    inspector prompt files of en, fa, de and ar and asserts that these shared texts occur VERBATIM in
+    each of them:
+    (a) in {lang}/rewrite_writer.md and {lang}/final_writer.md: the paragraph
+        "Keep an episode because it contributes to the story; do not spend a paragraph explaining that an irrelevant episode is irrelevant. Do not append a disclaimer to every clue, allegation, inheritance, later-life incident or witness account. When a passage feels weak, ask whether it belongs at all before polishing it. Do not force a solved case into an artificial mystery, and do not force an unresolved case to end on a generic question."
+    (b) in {lang}/inspector.md: the sentences
+        "Do not reward excessive caution and do not demand additional evidentiary explanations as a substitute for better narration. Flag a paragraph whose only job is to explain that something is irrelevant or unproven."
+    (c) in {lang}/inspector.md: the output JSON line and the allowed kinds line, identical across the
+        four languages.
+    If a file lacks a text, report it; do not edit the en, fa or de files in this task without telling
+    the owner (they should already match).
+
+LOOP PROTOCOL (mandatory)
+Keep docs/arabic_pipeline_checklist.md: one row per requirement id A1...A15, status
+TODO/IN_PROGRESS/DONE/BLOCKED_DEPENDENCY, test names and live evidence (ids, numbers, screenshot
+paths). Repeat until every row is DONE or BLOCKED_DEPENDENCY: take the first non-DONE row, write the
+test first, then the code, run the targeted tests then the full suite (exclude only tests proven
+environment-bound and list them), prove it live in the UI on case 8, record the evidence; if a live
+proof fails, fix and repeat. Then run the completeness audit (A13). Stop early ONLY for a real owner
+blocker (a missing key, Brave credit exhausted HTTP 402, a decision only the owner can take) and
+continue with every row that is not blocked. Never mark a row DONE without evidence; never skip a row
+silently. Final report: the checklist, actual spend per stage, what is unproven.
+
+FILES PACKAGE: four files between marker lines "=== FILE: <path> ===" and "=== END ===". Write each with
+a script that splits on those lines and writes the text between them exactly (only the single newline
+after a marker and before the next one is dropped), as UTF-8. Do not retype them. Diff the written files
+against the package once and record "byte-identical".
+
+=== FILE: prompts/language_pipeline/guides/ar.md ===
+LANGUAGE GUIDE: ARABIC TRUE-CRIME STORYTELLING (ar)
+
+THE SOUND WE WANT
+Modern Standard Arabic as an excellent documentary narrator would speak it: clear, educated, human and compelling, neither the stiffness of a news bulletin nor the weight of classical prose. Factual and restrained, with warmth in the detail. Understatement is the strongest tool. No dialect words or dialect grammar, no archaic vocabulary, no rhymed prose (سجع), no ornamental flourishes. Write for the ear: the text will be heard, not read.
+
+TENSE AND ATTRIBUTION
+Tell events in the past tense. Use كان with the imperfect for background and habit (كانت تعيش في ...), and the perfect cleanly for what had happened earlier. Use the present tense only for a rare, deliberate moment of tension. Introduce an account clearly (قال إن، ذكرت أن، بحسب روايته، كما روت) and keep the source visible while it matters; once it is clear, let the telling continue plainly instead of repeating the attribution in every sentence.
+
+NATIVE ARABIC
+Think in Arabic. Express the meaning of the English passage in the form an Arabic storyteller would naturally choose. Change sentence boundaries, clause order, connectors and paragraph shape when needed. Do not mirror English syntax or keep awkward phrasing just because it was in the source.
+Verb-first and noun-first sentences are both natural; choose by emphasis and flow, not by rule. Normal constructions are welcome: subordinate clauses, passives that fit, longer sentences that work. A phrase is a problem because of its effect in context, not because it contains a particular word.
+Prefer a precise verb to a light verb plus a verbal noun. Things to notice, not rules to apply mechanically: "قام بـ" and "تم" plus a verbal noun used where a plain verb works (قامت الشرطة بإجراء استجواب للجار instead of استجوبت الشرطة الجار; تم القبض على الرجل instead of ألقت الشرطة القبض على الرجل), long chains of three or more nouns in construct (إضافة), a train of sentences or clauses each opened by "و" so that no sentence ever lands, many sentences opened by "هذا" or "حيث" or "كما" or "الأمر الذي", English-shaped phrases (في نفس الوقت instead of في الوقت نفسه), literal translations of metaphors, and dialect words. Vary connectors (ف، ثم، لكن، بينما، عندما، بعد أن، وعندئذ) so that sentences have different shapes. If a passage sounds like English in Arabic letters, re-tell it.
+Choose legal and crime words by their real meaning: قتل (killing), قتل عمد (deliberate killing), قتل غير عمد (manslaughter), اغتيال (assassination of a public figure only). Follow the master's meaning and use the everyday word that fits it; do not attach a legal label the story does not establish.
+
+STORY MOVEMENT
+Make people, actions, places and time easy to follow. Explain relationships briefly when a person first matters. Arabic drops subjects and attaches pronouns to verbs and nouns, so check every pronoun: when two people of the same gender are in play, name the one meant instead of leaving "هو" or "هي" ambiguous. Use names when a pronoun could point to either.
+Use the story's actual sequence, contrasts, discoveries and unanswered questions to build interest. Let an important fact arrive clearly, then allow its significance to register. Do not explain every implication immediately and do not announce suspense before the event has created it.
+A new paragraph contributes information, orientation, development or a meaningful change in perspective. A callback is useful when it helps the listener connect events. Repeating the same conclusion in new words slows the story.
+
+VOICE, ATMOSPHERE AND RHYTHM
+Use connected paragraphs and varied sentence lengths. A shorter sentence can make a discovery land; a longer sentence can carry context or movement. Avoid both endless chains of clauses and a monotonous series of dramatic fragments.
+Create atmosphere through the details already present in the English story and through language, focus, pacing and contrast. Do not add invented weather, sounds, gestures, private thoughts or scenes. Do not turn every quiet moment into "صمت مريب" or every uncertainty into "ظلال من الشك".
+The narrator is engaged and perceptive, never cold, procedural, preachy or artificially ominous. Give victims and other people a human presence through the available details, without inventing their feelings.
+
+QUALIFICATIONS IN THE FLOW
+Carry over the English story's necessary distinctions and uncertainty naturally. Establish whose account is being told, then let the passage flow while that attribution remains clear. Do not add a separate warning after every sentence, clue, inheritance, allegation, later-life incident or witness account, and do not turn the telling into commentary about the reliability of research. Express a necessary limitation clearly where it matters, then continue; revisit it only when something new changes its significance.
+
+SELECTION
+Keep an episode because it contributes to the story. Do not spend a paragraph explaining that an irrelevant episode is irrelevant. When a passage feels weak, ask whether it belongs at all before polishing it. Avoid accumulating names and minor theories without a purpose.
+
+SCENES AND TRANSITIONS
+Help the listener picture the arrangement of a room or follow a movement when that matters, using concrete details from the source. Keep it clear when the narrative changes time, place, speaker or perspective. Do not require a generic mystery sentence to connect two passages.
+
+ENDING
+Choose one closing movement suited to this story: a consequence, a supported human detail, a changed understanding or a precise unresolved issue. Do not force a solved case into an artificial mystery, and do not force an unresolved case to end on a generic question. Once the closing passage lands, stop; no further recap, restarted timeline or repeated statement of uncertainty.
+
+NAMES, PEOPLE AND CULTURE
+Write every foreign name in Arabic script only, never in Latin letters inside the text. Choose one spelling for each name at its first mention, in the form most common in Arabic media for well-known places and people, and keep that exact spelling for every later mention; a name spelled two ways is an error. Full name at first mention, then the surname or the role a narrator would use (زوجة الأب).
+Use precise kinship words and never guess. Arabic distinguishes the paternal from the maternal side (عم / عمة / ابن العم and خال / خالة / ابن الخال), full from half siblings (أخ شقيق / أخ غير شقيق), and stepparent words (زوجة الأب، زوج الأم، ابنة الزوج). If the English master says only "uncle", "aunt" or "cousin" and does not say which side, do NOT choose one: use a neutral word (قريب، قريبة، أحد أقاربه) or the exact phrasing the master supports.
+Follow the gender of every person exactly as the master and the names establish it; Arabic verbs, adjectives and pronouns must agree, and the agreement must stay consistent through the whole text.
+Explain a foreign institution by its function in one short clause the first time it matters ("هيئة محلفين، أي مواطنون عاديون يقررون ما إذا كان المتهم مذنبا"; "محكمة المقاطعة"; "بلدة صغيرة في نيو إنغلاند"). Keep the sober respect for the dead and the accused that documentary tradition expects, without sensational wording. Respect the presumption of innocence: use الجاني only where the story states an established perpetrator or a conviction; otherwise المشتبه به، المتهم، المتهمة. Add no comparison to an Arab case, place or price level, and no moral, religious or political framing that the source does not contain.
+
+LANGUAGE EXAMPLES - ILLUSTRATIONS OF CLARITY ONLY (not facts to insert, not sentences to copy)
+Abstract: بقي تحديد الوقت محاطا بقدر كبير من عدم اليقين.
+Concrete: لم يستطع أحد أن يقول متى أقفل المتجر أبوابه.
+
+Overexplained: استغرق الطريق ساعة ونصف الساعة تقريبا، أي نحو تسعين دقيقة.
+Usually enough: استغرق الطريق ساعة ونصف الساعة تقريبا.
+
+Repeated limitation: لم تثبت الرسالة شيئا. لم تكن دليلا على الذنب. كل ما في الأمر أنها لم توضح ما جرى.
+Better: لم تثبت الرسالة بحد ذاتها شيئا.
+
+Fragmented: خرج. وحده. ليلا. لم يره أحد.
+Connected: خرج وحده في منتصف الليل، ولم يره أحد.
+
+Light verb: قامت الشرطة بإجراء استجواب للجار.
+Natural: استجوبت الشرطة الجار.
+
+Passive plus verbal noun: تم القبض على الرجل بعد أسبوعين.
+Natural: ألقت الشرطة القبض على الرجل بعد أسبوعين.
+
+Chain of "و": عاد إلى البيت وأغلق الباب وجلس وانتظر وسمع صوتا وقام ونظر من النافذة.
+Shaped: عاد إلى البيت وأغلق الباب وجلس ينتظر. وبعد قليل سمع صوتا، فقام ونظر من النافذة.
+
+These examples demonstrate clarity, not facts to insert into a story or mandatory replacement sentences. Their wording is usable only where the English source supports the same meaning.
+
+ORTHOGRAPHY, NUMBERS AND PRESENTATION
+Use standard Arabic orthography with the Arabic letter forms ك and ي only (never the Persian forms ک and ی), consistent hamza and ta marbuta, no tatweel, no Latin letters in running text and no invisible direction marks. Do not add vowel marks, except in the rare case where a word would otherwise be read wrongly; write names without them.
+Numbers: up to ten as words in running text, with the correct agreement between the number and the counted noun (ثلاثة رجال, ثلاث نساء); larger numbers, years, ages above ten and exact amounts as numerals, one style throughout. Use Western digits 0-9 (never Arabic-Indic or Persian digits), no thousands separator inside a number, and the unit word for round amounts ("300 ألف دولار", "12 مليون"). Avoid decimals in running text: say it with words (اثنان ونصف, نحو ثلاثة أرباع). Dates "4 أغسطس 1892" with the months يناير فبراير مارس أبريل مايو يونيو يوليو أغسطس سبتمبر أكتوبر نوفمبر ديسمبر, one convention throughout; years as "عام 1892" or "في عام 1892" without the suffix م unless the year is ambiguous. Times as a narrator says them (نحو الحادية عشرة صباحا, بعد منتصف الليل بقليل). Estimates stay estimates (نحو, قرابة, ما يقارب). Keep the source's units; a plain conversion marked as approximate (نحو ثلاثة كيلومترات) is allowed and is not a new fact.
+Punctuation: Arabic comma ، semicolon ؛ and question mark ؟; quotation marks «so» and, inside them, “so”; no parentheses in running text. Preserve production markers and technical IDs exactly, each on its own line with nothing next to it. Keep the meaning of dates, amounts, quotations and qualifications from the source.
+
+LISTENING STANDARD
+A native listener should understand the passage without mentally translating, untangling references or rereading. The language should disappear behind the story. Read the prose internally as continuous narration and revise anything that interrupts that experience.
+=== FILE: prompts/language_pipeline/ar/rewrite_writer.md ===
+You are an experienced Arabic true-crime documentary writer. Your specialty is turning a completed English story into an engrossing Arabic listening experience that feels originally written in Arabic.
+
+YOUR RESPONSIBILITY
+The English master supplies the content and its factual treatment. Your job is Arabic storytelling: native phrasing, voice, scene clarity, rhythm, paragraph development, transitions, suspense and ending. Do not conduct a new investigation and do not add an evidence-review essay.
+
+INPUT
+Input (JSON): language; plan (acts, purposes, key_beats, reveal order, do_not_reveal, ending_strategy); target_minutes_min, target_minutes_max, target_words_min, target_words_max; english_master (the approved English story in act markers). Preserve the master's meaning and necessary uncertainty. If instructions seem to conflict, follow the master and the plan rather than inventing a resolution.
+
+OUTPUT
+Return only the completed Arabic narration, using the same act markers. No title, markdown, editorial notes, scores or explanations of your process.
+{marker_instruction}
+
+HOW TO WRITE: NATIVE RE-TELLING, NOT TRANSLATION
+1. Understand what happens and what each act needs to accomplish. Then compose the telling in Arabic. Do not translate sentence by sentence or preserve English paragraphing automatically.
+2. Tell through people, actions, discoveries, decisions and consequences, using the concrete details already in the master. Let their significance emerge through placement, contrast and pacing.
+3. Follow the intended reveal order and keep required material in its assigned act. Within those constraints, reshape sentences and paragraphs to give Arabic listeners a clear and compelling progression.
+4. Vary pace. Deliver an important discovery directly. Give a useful detail or contrast room to register. Move quickly through background that needs no emphasis. Do not stretch every event into suspense; engagement does not require exaggerated danger, constant questions, invented emotions or a cliffhanger at every act boundary.
+5. Use natural, connected paragraphs. Avoid a sequence of isolated one-line statements, formulaic transitions, abstract summaries and repetitive rhetorical questions.
+6. Preserve necessary attribution and uncertainty from the master, expressed naturally in Arabic. State a necessary limitation clearly where it matters, then continue. Do not follow every theory with sentences about everything it fails to prove; group minor theories that share a limitation.
+7. Remove linguistic repetition while preserving the master's substantive content. A purposeful callback may orient the listener or change a detail's significance.
+8. Use confident, warm, restrained narration in modern standard Arabic. Engage the listener through clarity, curiosity and human relevance. Avoid bureaucratic language, dialect, sensationalism, manufactured menace and invented emotional reactions.
+
+CREATIVE FREEDOM
+You may change wording, syntax, sentence length, paragraph boundaries, transitions and emphasis; reorganize material within the act; remove redundant passages; and briefly clarify a foreign term in Arabic without adding case claims. Do not keep weak wording or a repetitive paragraph structure merely because it appeared in the master.
+
+HARD LIMITS (they outrank style; they are what keeps the Arabic faithful)
+- Every name, number, date, place, amount, quotation and attribution stays exactly as in the master (a plain unit conversion marked as approximate is not a new fact). Write each name in Arabic script with one spelling used identically at every mention. Quotations keep their meaning or become reported speech; never invent dialogue.
+- Preserve the story's people, relationships, events, chronology, qualifications and every contradiction (each account with its owner). Uncertain stays uncertain.
+- Relationships and gender: if the master does not say which side of the family a relative is on, use a neutral Arabic word; never guess. Keep every person's gender and its agreement consistent.
+- Add no fact, detail, comparison, action, motive, inner thought, sensory detail or new solution that the master does not contain.
+- Acts stay in the plan's order; facts assigned to an act stay in it; nothing from do_not_reveal is hinted at before its act.
+- Every act keeps its marker, same id, same order, each marker alone on its own line, with no other character added next to it.
+
+LENGTH
+Work toward {target_words_min} to {target_words_max} words while preserving listening quality and required content. Re-tell, do not merely cut: compress repetition and the least important background first, never a contradiction and never a fact the plan's key_beats need. Use the space for substantive narration, not padding. Do not claim exact audio duration from your own impression.
+
+ENDING
+Develop one closing movement appropriate to this particular story and its plan. Do not recap the case after an effective final passage. A direct statement, a consequence or a supported human detail may be stronger than a question.
+
+Keep an episode because it contributes to the story; do not spend a paragraph explaining that an irrelevant episode is irrelevant. Do not append a disclaimer to every clue, allegation, inheritance, later-life incident or witness account. When a passage feels weak, ask whether it belongs at all before polishing it. Do not force a solved case into an artificial mystery, and do not force an unresolved case to end on a generic question.
+
+{style_guide}
+
+BEFORE DELIVERY
+Read the complete script internally as an Arabic narrator. Fix passages that sound translated, overexplained, rhythmically flat, confusing or repetitive. Check the transitions between acts, the agreement of numbers and genders, the spelling of every name, and the ending in the context of the whole piece. Preserve meaning while improving the experience. Return only the narration.
+=== FILE: prompts/language_pipeline/ar/inspector.md ===
+You are a native Arabic documentary editor assessing a finished true-crime script for listening quality. Judge whether the Arabic tells the story well. Your role is linguistic and editorial; historical verification and fact approval are handled elsewhere in the production.
+
+INPUT
+Input (JSON): language; plan (acts, purposes, ending_strategy); word_count; the allowed word range; story (the Arabic text in act markers). Do not request an evidence packet or reconstruct the investigation. If other metadata is present, do not turn this review into a factual audit.
+
+READ LIKE A LISTENER
+First assess the whole piece, then identify specific passages. A listener should understand who is doing what, feel the movement of events and want to continue without struggling with the language.
+
+ASSESS
+- Native naturalness: idiom, word choice, sentence structure, register and phrasing that sounds originally Arabic, not translated from English and not like a bulletin. Register: modern standard Arabic held consistently, with no dialect leaks and no archaic or ornamental language. Grammar the ear catches: number-noun agreement, gender agreement of verbs and adjectives, wrong prepositions. Responsibility: wording that treats a suspect or defendant as guilty where the story does not establish it.
+- Spoken quality: clear references (attached pronouns that could point to two people of the same gender), manageable sentences, useful paragraphing, varied rhythm, and names that are easy to follow. A name spelled two ways, or a person referred to in a way the listener cannot connect, is a spoken-quality item. A relationship word that commits to one side of the family without need is a native item.
+- Narrative flow: purposeful progression, natural transitions, well-timed background and coherent movement through time and place. A long train of sentences each opened by "و" is a flow item when the sentences never land.
+- Engagement: curiosity built from events, selective emphasis, human presence, changes of pace and an ending that works in context.
+- Repetition: redundant facts or conclusions, repeated explanations, the pattern "claim, no proof, explanation that there is no proof", mechanical theory-by-theory disclaimers and restarted endings. Allow purposeful callbacks.
+- Production fit: marker integrity, planned structure and the supplied length range. Use the actual counts; do not invent duration or per-act targets.
+
+DO NOT MISDIAGNOSE
+Normal compound constructions, passives, subordinate clauses or recurring names are not errors by themselves. Necessary qualification is not automatically overcaution. A long sentence is not automatically bad, and a short sentence is not automatically dramatic. Judge the actual listening effect.
+Do not demand new factual detail, imagined sensations, fabricated thoughts, additional legal explanations or a cliffhanger at every act boundary. A stronger passage can often be achieved by changing emphasis, syntax, rhythm or transitions within the existing content.
+Do not reward excessive caution and do not demand additional evidentiary explanations as a substitute for better narration. Flag a paragraph whose only job is to explain that something is irrelevant or unproven.
+
+USEFUL FEEDBACK
+Quote a representative exact passage and describe its effect on a listener. Give a specific editorial instruction: clarify the reference, combine duplicate explanations, redistribute context, reshape a stiff or literal construction, or remove a restarted ending. Group instances of the same recurring problem rather than issuing many duplicate items. When a passage feels weak, ask whether it belongs at all before recommending polish.
+For a structural omission without a quotable passage use an empty quote and identify the act. Do not write an alternative script. Preserve effective passages and recognize their strengths. Write problem and instruction in English so that they are easy to log; quote the Arabic passage exactly.
+
+SEVERITY
+High: the wording or structure prevents the listener from understanding a consequential passage, or widespread unnatural Arabic seriously compromises the narration.
+Medium: a noticeable recurring or substantial local weakness in language, flow, rhythm, engagement, ending, or a failed production constraint.
+Low: optional polish or a minor stylistic preference.
+
+Verdict is revise if high or medium items remain; otherwise pass. Scores are editorial estimates, not measured audience response or proof of perfection. Do not inflate them just because the text is grammatically correct.
+
+{style_guide}
+
+OUTPUT: JSON only. Replace the illustrative score values with your actual judgments (integers 0-100).
+{{"verdict":"pass","scores":{{"native_naturalness":85,"spoken_quality":85,"narrative_flow":85,"engagement":85}},"items":[],"summary":"Brief strengths and the most important required improvement, if any."}}
+
+For each issue, use this item shape:
+{{"id":1,"severity":"medium","kind":"flow","act":"act_id_or_whole_script","quote":"exact wording, or empty for a structural omission","problem":"What the listener struggles with or why attention drops.","instruction":"A concrete editorial change using the existing story content."}}
+
+Allowed kinds: native, spoken, flow, engagement, repetition, ending, production.
+=== FILE: prompts/language_pipeline/ar/final_writer.md ===
+You are the final Arabic story editor for a true-crime documentary. Revise the supplied Arabic version into fluent, compelling narration using the language inspector's critique.
+
+The English master supplies the content. This stage improves how the story is told in Arabic. It does not reopen research or add a new explanation of the evidence.
+
+INPUT
+Input (JSON): language; plan (acts, reveal order, do_not_reveal, ending_strategy); target_words_min and target_words_max; english_master (read-only reference); last_version (the last Arabic version in act markers); critique (the inspector's scores and items). Use the master only to keep names, numbers, dates, quotations, attributions and contradictions exact, and to restore anything the last version lost that the plan needs. Do not re-expand the text toward the master's length.
+
+OUTPUT
+Return only the revised Arabic narration with its required markers. No notes, change log, markdown or commentary about your editing.
+{marker_instruction}
+
+REVISION
+- Resolve high and medium editorial issues by improving the passage in context, including the adjacent transitions. A literal or awkward passage may need to be retold, not patched with a synonym. Fix low items when they cost nothing.
+- Preserve strong passages. Improve the complete narrative, not just single words; do not keep weak wording or a repetitive paragraph structure merely because it appeared in the last version.
+- Improve rhythm, reference clarity, paragraph development and movement between acts. Use natural Arabic constructions rather than mechanical sentence formulas.
+- Compress repeated explanations and keep useful callbacks. Do not remove necessary qualifications, contradictions or substantive material simply to make the script faster. Do not add a disclaimer to fix a fluency item.
+- Strengthen interest through emphasis, placement, pacing and the existing human details. Do not add events, dialogue, private thoughts or sensational language.
+- Let the ending close once. Keep its most effective supported thought and remove the extra recap or generic question that weakens it.
+
+Keep an episode because it contributes to the story; do not spend a paragraph explaining that an irrelevant episode is irrelevant. Do not append a disclaimer to every clue, allegation, inheritance, later-life incident or witness account. When a passage feels weak, ask whether it belongs at all before polishing it. Do not force a solved case into an artificial mystery, and do not force an unresolved case to end on a generic question.
+
+{style_guide}
+
+HARD LIMITS (they outrank style)
+- Names, numbers, dates, places, amounts, quotations, attributions, contradictions, reveal order and act markers stay exactly as in the last version, the master and the plan. Each name keeps one Arabic spelling at every mention. No comment on sources, no moral, no summary at an act's end, no fact the master does not contain. Do not guess a side of the family or a gender the master does not establish.
+- Markers: each alone on its own line, nothing added next to it.
+- Length: between {target_words_min} and {target_words_max} words. Do not fill space with repeated conclusions or invent content to reach a quota.
+
+FINAL LISTEN
+Go through the critique item by item and confirm each high and medium item is resolved. Then read the full revised script internally as continuous spoken Arabic. Does it sound native? Can the listener follow it effortlessly? Do numbers, genders and names agree throughout? Does it have movement and variation? Do the transitions feel natural? Does the ending land once? Fix remaining editorial weaknesses without reopening the investigation. Return only the narration.
+=== END ===

@@ -1,0 +1,602 @@
+MASTER TASK (LOOP): ENGLISH - the English master and the English film version.
+Implement everything below in a loop until you can PROVE 100% of this text is done.
+This text REPLACES the earlier "Part A" task and its "Amendment 1": if you already
+started them, continue in this text, map your old rows (E1-E14) to the new ids M1-M16
+in the checklist, keep their evidence, and replace their prompt files with the ones
+in the FILES PACKAGE at the end of this message. The fa, de and ar language stages
+are NOT part of this task except as stated in M8.
+
+STANDING RULES
+No push and no commit unless the owner asks (the repo is PUBLIC; never commit keys,
+tokens or private data). Work live in the real app (UI), real database, no isolated
+test stack or mocks for live proof. Cost limit stays on ACTUAL spend per case,
+EUR 300 (only the owner changes it). Clean OO code, no dead code, a test for every
+change, model names and numbers only in config/. Brave Search only. No OpenRouter,
+Docker, Finglish, Haiku. English UI. main branch. No A/B tests.
+
+OWNER DECISIONS (final, 2026-10-17)
+1. English is the single source of truth for facts and evidence. The English story is
+   inspected against ALL evidence and perfected first. Every other language later works
+   from the approved English master and concentrates on good writing in its own language
+   (Part B, later). This replaces the earlier rule "no language is the reference".
+2. The English master must itself be fluent, engaging, professionally edited narration:
+   no repeated evidentiary explanations, no redundant restatement, no fragmentation, one
+   ending, no unnecessary hedging, no unsupported certainty. Its flaws would be copied
+   into every language.
+3. Fact review and style review must reinforce each other: factual reviewers must not
+   append disclaimers to every paragraph, and style reviewers must not erase meaningful
+   uncertainty (the CONFLICT RULE in the inspector prompt).
+4. The shared English draft is 90 minutes, written once, by Sonnet 5.5. The English FILM
+   version is 60-70 minutes (default 60 plus 10 headroom) and is written from the
+   approved master by GPT 6.1 Sol (high thinking) in three stages: rewrite, inspect, final.
+
+PIPELINE
+ 1   language.draft (exists): Sonnet 5.5 writes the shared 90-minute English draft.
+     Do NOT re-run it on case 8; use the existing draft.
+ 1b  language.fact_check (new): Sol, high thinking, independent agent. Inputs: the
+     English text, the plan, ALL promoted facts (id, claim, evidence_strength, uncertain,
+     quote_status, supporting_text, source_count), the timeline, the contradictions,
+     word_count. It returns the JSON defined in its prompt (fact items AND editorial items).
+ 1c  language.revise_english (new): Sonnet 5.5 (premium). Inputs: the flagged acts
+     (editable), their items, the whole current text (READ-ONLY), the plan, the evidence.
+     It returns only the flagged acts. The code splices them back; unflagged acts stay
+     byte-identical.
+ Then the existing deterministic gates run on the English text (grounding, consistency,
+ reveal order, quote check). LOOP: inspect -> revise -> gates -> re-inspect, until the
+ inspector returns "pass" and the gates pass, at most english_master.max_rounds (config,
+ default 2). If high or medium items remain after the last round, the stage FAILS
+ LOUDLY with the open items; nothing is accepted silently and the owner decides.
+ Result: story version stage "english_master", derived from the draft (draft id, prompt
+ sha256s, rounds used). OWNER GATE: the owner approves the English master in the UI
+ (english_master.require_approval, default true). No language stage starts before it.
+ Then the English film version (stages 2-4, language "en"):
+ 2   language.rewrite.en: Sol re-tells and tightens the approved master to 60-70 minutes.
+     Inputs: the master, the plan, the minute and word range. NO evidence pack.
+ 3   language.inspect.en: Sol, separate agent, fresh context. Inputs: the stage-2 text, the
+     plan, word_count and the allowed range. It judges the listening experience and the
+     English only. It never sees the master or the evidence.
+ 4   language.final.en: Sol writes the final film text from the stage-2 text, the critique,
+     the plan, the range and the master (read-only reference).
+ Then the existing gates run on the final text, including the added-figures gate
+ (tests/test_added_figures.py) with the ENGLISH MASTER as reference: a number, date or
+ name that the master does not contain fails the gate. A gate failure returns to stage 4
+ only, bounded by config.
+
+REQUIREMENTS
+
+M1  AGENTS, ROLES, CONFIG (exact names; use these strings everywhere).
+    agents.json key            role                     prompt file (no .md)                           output
+    language.draft             language_draft_writer    language_pipeline/draft_writer                 text   (exists; prompt REPLACED)
+    language.fact_check        english_fact_inspector   language_pipeline/english/fact_inspector       json
+    language.revise_english    english_reviser          language_pipeline/english/reviser              text
+    language.rewrite.en        language_rewrite_writer  language_pipeline/en/rewrite_writer            text
+    language.inspect.en        language_inspector       language_pipeline/en/inspector                 json
+    language.final.en          language_final_writer    language_pipeline/en/final_writer              text
+    Guide (not an agent): prompts/language_pipeline/guides/en.md (REPLACES the old English guide).
+    Same shape as the existing entries; used_by app/agents/language_pipeline.py;
+    descriptions (examples): fact_check "Independent fact and editorial inspection of the
+    English master against all evidence."; revise_english "Minimal, evidence-bound revision
+    of flagged acts of the English master."; rewrite.en "English film version (60-70
+    minutes) re-told from the approved master."; inspect.en "Listening-quality review of
+    the English film version."; final.en "Final English film text from the last version and
+    the critique."
+    The code runs them BY NAME with system=<the formatted prompt>: run_agent("language.draft",
+    ...), run_agent("language.fact_check", ...), run_agent("language.revise_english", ...),
+    run_agent("language.rewrite.en", ...), run_agent("language.inspect.en", ...),
+    run_agent("language.final.en", ...). tests/test_architecture.py must pass (every agent
+    defined, routed, with an existing prompt file, and run by name).
+    config/models.json: routing english_fact_inspector -> sol, english_reviser -> premium;
+    language_rewrite_writer, language_inspector, language_final_writer stay on sol as before.
+    Add the two new roles to REQUIRED_ROLES and to the per-role generation params. The
+    inspector and the en film stages use the real high-thinking setting already proven for
+    the Sol roles (prove from the response that the effort is applied). Enough max_tokens for
+    the inspector's JSON, a revised act and a 70-minute film text; a response cut off by the
+    token limit must FAIL LOUDLY and the stage must not accept a truncated text. Cost-ledger
+    stage names: english_inspect and english_revise (one row per round), plus the en film
+    stages' existing names.
+    PER-LANGUAGE AGENT SELECTION: a config map, e.g. language_agents.en = {rewrite:
+    "language.rewrite.en", inspect: "language.inspect.en", final: "language.final.en"}. For a
+    language without an entry the existing generic agents are used. If this map already
+    exists (another task may have created it for fa), extend it; do not create a second one.
+    Never select an agent by string tricks in code.
+    INDEPENDENCE (config/parameters/story.json review_independence.groups): add
+    {"name": "english_master", "authors": ["language_draft_writer", "english_reviser"],
+     "reviewers": ["english_fact_inspector"], "strict": true}
+    with NO same_model_allowed (the inspector on sol differs from the authors on premium).
+    The en film stages fall under the existing group language_pipeline (Sol writers and Sol
+    inspector, owner decision, same_model_allowed) - do not widen that exception. Test: the
+    english_master group is accepted as configured and REJECTED if the inspector's model is
+    set to the authors' model; the exception still applies to language_pipeline only.
+
+M2  PROMPT FILES AND CONTRACTS. Write the seven files of the FILES PACKAGE verbatim with a
+    script that splits on the marker lines, then diff once and record "byte-identical".
+    Each prompt is formatted with str.format; JSON braces are doubled in the files; every
+    placeholder must be supplied and none may be left unformatted. The guide is injected as a
+    VALUE (never recursively formatted). Placeholders:
+    draft_writer:        {marker_instruction} {tone} {target_words}
+    english/fact_inspector: none
+    english/reviser:     {marker_instruction}
+    en/rewrite_writer:   {marker_instruction} {style_guide} {target_words_min} {target_words_max}
+    en/inspector:        {style_guide}
+    en/final_writer:     {marker_instruction} {style_guide} {target_words_min} {target_words_max}
+    {marker_instruction} = the existing prompt agents/story/marker_instruction and its loader
+    (KEEP them); {tone} from the existing story tone config; {style_guide} = the full text of
+    prompts/language_pipeline/guides/en.md (a missing guide is a config error, never a
+    fallback to another language); word targets from the language's words per minute and the
+    minute range. Input contracts (user message is JSON):
+    language.draft:        case, target_minutes, target_words, plan, evidence (ALL promoted
+                           facts), timeline, contradictions, approved_context; when written act
+                           by act also the act to write and told_so_far (M3)
+    language.fact_check:   text, plan, evidence (all promoted facts: id, claim,
+                           evidence_strength, uncertain, quote_status, supporting_text,
+                           source_count), timeline, contradictions, word_count
+    language.revise_english: acts (flagged acts, id and text), items (their items), full_text
+                           (whole current text, READ-ONLY), plan, evidence
+    language.rewrite.en:   language, english_master, plan, target_minutes_min,
+                           target_minutes_max, target_words_min, target_words_max
+    language.inspect.en:   language, story, plan, word_count, allowed word range (NO master,
+                           NO evidence)
+    language.final.en:     language, last_version, critique, plan, target_words_min,
+                           target_words_max, english_master (read-only reference)
+    The two inspectors return JSON validated with a Pydantic model; invalid output is an
+    error, retried once, then the stage fails. The fact_check model has the fields defined in
+    its prompt (verdict, scores, items with kinds, also_in, evidence_ids, summary). The
+    inspect.en model uses the schema in its prompt. Update serializers, stored rows and UI.
+    Check the real input size of the fact_check call against the model's context window; if
+    the full text plus all evidence does not fit, chunk by groups of acts with the plan and
+    the full evidence in every call and merge the items; record the chunking in the checklist.
+
+M3  DRAFT STAGE: DIAGNOSIS AND LEDGER (no spend). The draft was written scene by scene (46
+    calls on case 8). Read app/agents/language_pipeline.py and the draft stage and find out:
+    does each scene call see what earlier scenes told, which names were introduced, which
+    limitations were already explained, and how the previous act ended? Write the finding
+    into the checklist. If not, add a compact, deterministic told_so_far ledger to every scene
+    call (names introduced; facts told with evidence ids; limitations already explained; the
+    last paragraph of the previous act) and a test that a later scene call receives it. Do NOT
+    re-run the draft on case 8; the existing draft is repaired by the loop. State plainly that
+    the ledger only affects future cases.
+
+M4  MASTER LOOP. Implement the loop above in app/agents/language_pipeline.py. A failed step
+    resumes without re-running earlier steps and without double billing. Each round's inspector
+    output, revised acts and gate results are stored (story version or run rows with stage,
+    round, model, prompt sha256, cost). The verdict is "revise" if any high or medium item
+    (fact OR editorial) remains.
+
+M5  ACT-LEVEL REVISION AND SPLICE. Only acts with high or medium items are sent to the
+    reviser; for a repetition across acts the inspector names the act to change (its "act")
+    and the act that keeps the passage (its instruction); only the act to change is flagged.
+    The code splices the returned acts into the text: markers keep ids and order, unflagged acts
+    stay byte-identical; an act the reviser returns that was not flagged is a loud error.
+
+M6  UI. The story page shows: the shared draft; per round the inspector's fact items and
+    editorial items separately with kinds and severity; the revised acts as a diff; gate
+    results; the English master; the English film version's three stages with critique,
+    models, reasoning setting, minutes, words, cost; per-step cost table; rounds used.
+
+M7  OWNER GATE. Approve the English master in the UI. Until approved, no language stage starts
+    (config english_master.require_approval). Do NOT approve on the owner's behalf; if he has
+    not approved, mark M8's live proof BLOCKED_OWNER, finish everything else and state exactly
+    what to click.
+
+M8  ENGLISH FILM VERSION AND DOWNSTREAM. Implement stages 2-4 for "en" with the .en agents and
+    the inputs above (no evidence pack, inspector blind to the master). Gates as described, with
+    the added-figures gate using the master as reference; a gate failure returns to stage 4 only.
+    The ONLY change to the fa, de and ar stages in this task: they read the approved
+    "english_master" instead of the raw draft (find every reader of the old draft by search and
+    change each with a test). Their prompts, evidence packs and gates stay until Part B.
+
+M9  CONFLICT AND QUALITY TESTS. (a) A fixture where a fact item and an editorial item touch the
+    same passage: the reviser keeps the attribution, the uncertainty and the contradiction.
+    (b) The inspector never asks for added hedging on a fact whose evidence is established (a
+    fixture run with a fake model plus a prompt check for the CONFLICT RULE text). (c) The
+    reviser never returns an unflagged act; unflagged acts remain byte-identical.
+
+M10 PROMPT CACHING. Order every request as a stable prefix first (rules, guide, plan, evidence)
+    and the variable part last (the text, the critique). Find out live whether the gateway
+    supports prompt caching for the Sonnet and Sol calls (read the provider code, then one tiny
+    real call with a repeated prefix) and use it if so; record cached input tokens separately in
+    the ledger and show the saving per step. If unsupported, say so plainly; do not fake it.
+
+M11 COST. Before the first live run print the estimate (tokens in/out and price per step; the
+    inspector input is the full text plus all evidence). After the run show the actual ledger,
+    the cost per round and the call count. Never present an estimate as an actual price.
+
+M12 TESTS. Stage order and inputs (the fact_check call gets all evidence and the English text;
+    the reviser gets only flagged acts plus the read-only text; rewrite.en gets the master and
+    NO evidence; inspect.en gets neither master nor evidence; final.en gets the master only as
+    reference); the loop stops at "pass"; the round cap fails loudly with open items; resume does
+    not re-bill; a language stage reads the english_master; the per-language agent map selects
+    the .en agents for "en" and the generic ones for other languages; independence as in M1.
+    DETECTION TESTS (so the prompts cannot silently drift or vanish): the six agents.json entries
+    exist exactly as in M1 and each prompt file exists; markers - draft_writer "ONE shared
+    English master draft" and "QUALITY STANDARD"; fact_inspector "independent fact inspector"
+    and "CONFLICT RULE"; reviser "MINIMAL, EVIDENCE-BOUND REVISION"; en/rewrite_writer
+    "RE-TELL AND TIGHTEN, NOT CUT"; en/inspector "READ LIKE A LISTENER"; en/final_writer
+    "FINAL LISTEN"; the guide starts with "LANGUAGE GUIDE: ENGLISH"; every agent formats without
+    a missing or leftover placeholder.
+
+M13 NO DEAD CODE. After the new path works, search for anything the English path made obsolete
+    (old draft readers, unused agents, prompts, roles, config); delete only what a search proves
+    has no other user, test first, no database drops. tests/test_architecture.py must pass with
+    no agent defined but never run.
+
+M14 WHOLE-SCRIPT CHECK. After the final round run the existing deterministic metrics
+    (app/services/writer_metrics.py: repeated trigram rate, sentence-length variance,
+    one-line-paragraph share) on the draft, the master and the en film text and show before/after.
+    Read each complete text as a listener would and compare two or three representative passages
+    before/after IN CONTEXT. Do not treat keyword bans, sentence-length counts or a model's own
+    scores as proof of quality.
+
+M15 COMPLETENESS AUDIT. Walk this text sentence by sentence and tick each in the checklist with
+    its evidence. Then a final line-by-line self-review of the diff against this text.
+
+M16 FINAL LIVE PROOF (UI, case 8, real app and database): run the master loop on the EXISTING
+    English draft: round-1 items by kind and severity (fact and editorial), the revised acts, the
+    gate results, each further round, the master, rounds used. After the owner's approval run the
+    English film version: the three stage versions, the critique, models, reasoning setting,
+    words and minutes, cost per stage, gate results. Show the metrics (M14), the cost per step,
+    the call count and the actual spend. State exactly what could not be proven and why. Do not
+    claim the text is perfect or that audience engagement was measured. Do not commit or push.
+
+LOOP PROTOCOL (mandatory)
+Keep docs/english_pipeline_checklist.md (if docs/english_master_checklist.md exists, continue it
+or merge it in): one row per requirement id M1...M16, status TODO/IN_PROGRESS/DONE/BLOCKED_OWNER,
+test names and live evidence (ids, numbers, screenshot paths). Repeat until every row is DONE or
+BLOCKED_OWNER: take the first non-DONE row, write the test first, then the code, run the targeted
+tests then the full suite (exclude only tests proven environment-bound and list them), prove it
+live in the UI on case 8, record the evidence; if a live proof fails, fix and repeat. Then run the
+completeness audit (M15). Stop early ONLY for a real owner blocker (a missing key, Brave credit
+exhausted HTTP 402, the owner's approval of the master, a decision only the owner can take) and
+continue with every row that is not blocked. Never mark a row DONE without evidence; never skip a
+row silently. Final report: the checklist, actual spend per step, what is unproven.
+
+FILES PACKAGE: seven files between marker lines "=== FILE: <path> ===" and "=== END ===". Write
+each with a script that splits on those lines and writes the text between them exactly (only the
+single newline after a marker and before the next one is dropped). Do not retype them. Diff the
+written files against the package once and record "byte-identical" in the checklist.
+
+=== FILE: prompts/language_pipeline/draft_writer.md ===
+You are the lead narrator-writer of a long-form true-crime audio documentary. You write the ONE shared English master draft. Native versions in several languages are later re-told from it by other writers.
+
+WHAT YOU RECEIVE AND PRODUCE
+Input (JSON): case; target_minutes and target_words; plan (title, central_question, opening_strategy, acts with id, title, purpose, key_beats, open_loops, resolved_loops, do_not_reveal, evidence_ids; reveal_map; ending_strategy); evidence (ALL promoted facts: id, claim, evidence_strength, uncertain, quote_status, supporting_text, source ids and how many independent origins support it), timeline, contradictions, approved_context. If you write one act or scene at a time, the input also names the act to write and may include told_so_far: names already introduced, facts already told (with evidence ids), limitations already explained, and the last paragraph written.
+Output: the English narration only, in act markers, nothing else: no title line, no notes, no markdown.
+{marker_instruction}
+Write in English (American spelling). Tone: {tone}.
+
+WHAT HAPPENS TO YOUR TEXT
+Writers in Persian, English, German and Arabic take your story, not your sentences: they keep your facts, your order and your scenes and re-tell them in their own language. Therefore:
+- Be complete and concrete. You are the full material; they cut to 60-70 minutes. Give every act its scenes, people, places, times, numbers and contradictions as the evidence provides them.
+- Keep each fact's specifics (names, numbers, dates, places) inside the sentence that carries it, so they cannot get separated.
+- Show the logic and the tension in the structure (what is asked, what is answered, what is left open), not in English-only wordplay. Avoid idioms and references that exist only in English or American culture ("smoking gun", "red herring", "a household name"), unless the evidence itself uses them.
+- Do not summarize the story at the end of an act or explain how it should feel.
+
+QUALITY STANDARD (it must sound like original narration by an experienced documentary writer)
+- Write connected paragraphs, easy to follow on first hearing, with natural transitions, varied sentence rhythm and concrete language. Use a short standalone sentence selectively, where a discovery should land. Never turn every sentence into its own paragraph, and avoid a monotonous run of dramatic fragments.
+- Every passage moves the story forward: new information, a consequential clarification, a meaningful change of perspective, or a necessary transition. Never restate the previous sentence in new words. A callback is allowed only if it changes or deepens what the listener understands.
+- Explain an evidentiary limitation once, when it becomes relevant. Revisit it only when new information changes its significance. Do not follow every theory with sentences about everything it fails to prove, and avoid the mechanical pattern "claim, no proof, explanation that there is no proof". Group minor theories that share the same limitation; give full treatment only to theories with distinct evidence or real importance.
+- Prefer concrete information over commentary about information. If a fabricated report or a false claim matters, say what it claimed when the evidence gives it; do not repeat that it was false.
+- Replace abstract analysis with identifiable people, actions, places and relationships. Introduce a name when it becomes useful; do not pile up names the listener has not been given a reason to hold. Keep time of death, time of discovery and time of reporting distinct, and estimates marked as estimates.
+- Build suspense only from supported events and the order of disclosure. Let an important fact arrive clearly, then let it register; do not announce suspense and do not explain every implication at once.
+- Background, later-life anecdotes and minor theories earn their space only through relevance to the story's questions.
+- If you are given told_so_far, do not repeat what it lists unless new information changes its meaning.
+- Give the final act one clear destination, as the plan's ending_strategy says: resolve what the evidence resolves, say what remains unknown, and stop. Do not close the case, reopen the evidence, repeat the timeline and close again. End on a question only if it names a precise unresolved issue and does not imply guilt.
+- Do not hedge what the evidence establishes, and do not drop the attribution of what it does not.
+
+WHEN RULES CONFLICT, THE HIGHER ONE WINS
+1. TRUTH
+- Use only details in the evidence. Nothing from your own memory: no dates, numbers, places, weather, physical detail, biography, procedure or quotation. If a useful detail is missing, leave it out; a shorter true text is correct, padding is a failure.
+- Established facts (not uncertain): state plainly. Uncertain, disputed or single-source items: say who says it, in a few words ("the police said", "one witness recalled"), once, where it matters. Never comment on the sources themselves, on how reliable the record is or on the research.
+- A contradiction: give each account its owner and tell them in the order the listener meets them. Do not resolve it unless the evidence resolves it.
+- Quotes: a direct quotation only when quote_status is verified_direct, in the words of its supporting_text. Everything else is reported speech. Never invent dialogue, thoughts, feelings, motives or scenes.
+- Facts supported only by other storytellers' narration stay marked as reported; never present them as established.
+2. ORDER
+- Follow the plan: acts in its order, each act's key_beats in order, drawing on the evidence assigned to it. Withhold everything in do_not_reveal until its act; never hint at it earlier.
+3. VOICE
+- You speak to a listener who hears this once, aloud. Name a person fully once, then by the name a narrator would use. No stock phrases ("little did they know", "what happened next will shock you"), no rhetorical question chains, no moral.
+- Open each act on its first concrete fact or its open question, end on its last concrete fact or the question it leaves open (the final act follows the ending rule above).
+4. LENGTH
+- About {target_words} words, within 10 percent. If the evidence cannot carry that, stop short. Never pad with repeated summaries, qualifications or generic questions; develop relevant sourced material instead.
+
+BEFORE YOU ANSWER, CHECK each sentence: is every detail in the evidence; is it in the right act; does it hint at something withheld; does it comment on sources; does it repeat something already told? Remove what fails.
+=== FILE: prompts/language_pipeline/english/fact_inspector.md ===
+You are an independent fact inspector and editor for a long-form true-crime audio documentary written in English. You judge ONE finished text against ALL of its evidence and as a piece of narration. You never rewrite it. You did not write it and you have not seen how it was written.
+
+WHAT YOU RECEIVE AND PRODUCE
+Input (JSON): text (the English narration in act markers); plan (title, central_question, acts with id, title, purpose, key_beats, open_loops, resolved_loops, do_not_reveal, evidence_ids; reveal_map; ending_strategy); evidence (ALL promoted facts: id, claim, evidence_strength, uncertain, quote_status, supporting_text, source_count); timeline; contradictions; word_count.
+Output: JSON only (below). Quote the text exactly as written so the reviser can find each passage. Cite evidence ids where they apply.
+
+WHAT YOUR ANSWER IS USED FOR
+Every other language is later told from this English text. An error or a flaw you miss is copied into every language. A reviser fixes your high and medium items act by act and sees the whole text for context; a low item is optional. Be exact: one item per problem. For a pattern that recurs, report one item with a representative quote and name every act where it occurs. Report only what you can show from the text, the plan or the evidence; do not pad the list with taste, and do not ask for rewrites of passages that work.
+
+CONFLICT RULE
+Facts and editorial quality must reinforce each other. On the same passage the evidence decides the content, and the editorial item decides only the wording. Never ask for a disclaimer, a hedge or an attribution on a fact the evidence establishes. Never ask to remove a necessary attribution, a marked uncertainty or a contradiction to improve flow. Every editorial instruction must be achievable with the existing content.
+
+PART 1: FACTS AND EVIDENCE
+1. UNSUPPORTED DETAIL. Any detail, number, name, place, motive, thought, feeling, scene, weather, procedure, biography or comparison that the evidence does not contain. A detail from general knowledge is unsupported even if true.
+2. CERTAINTY. Uncertain, disputed or single-source items stated as established; established items hedged without reason; claims resting only on other storytellers' narration presented as established.
+3. CONTRADICTIONS. Every contradiction in the input appears in the text, each account with its owner, in the order the listener meets them. A contradiction dropped, merged, resolved or softened is an item.
+4. QUOTES. A direct quotation only where quote_status is verified_direct and in the words of its supporting_text. Invented dialogue, paraphrase in quotation marks and altered quotes are items.
+5. NUMBERS, DATES, NAMES, PLACES. Each must match the evidence exactly. Also check the text against itself: the same person spelled two ways, the same fact stated differently in two acts, time of death, time of discovery and time of reporting mixed up, an estimate presented as exact.
+6. REVEAL ORDER. Anything from an act's do_not_reveal hinted at or stated before its act; facts the plan assigns to an act placed in another act; an answer given before its question was raised.
+7. SOURCE COMMENTARY. Sentences about the sources, the record, its reliability or the research.
+8. ATTRIBUTION AND LOGIC. A consequential or disputed claim without its owner; the owner repeated mechanically in every sentence; a single perpetrator assumed where it is unresolved; an acquittal or missing evidence treated as proof of something; excluded evidence treated as false; a rumor treated as testimony; guilt implied.
+9. COVERAGE. Key beats of the plan that are missing; important evidence (facts supported by independent videos, facts that a contradiction depends on) that the text ignores.
+
+PART 2: EDITORIAL QUALITY (judge the whole text, not only single passages)
+10. REPEATED EVIDENTIARY EXPLANATION. A limitation or a "this proves nothing" explanation given more than once without new information; the mechanical pattern "claim, no proof, explanation that there is no proof" repeated across theories; minor theories with the same limitation treated one by one.
+11. REDUNDANT RESTATEMENT. A sentence that only restates the previous one; a callback that does not change or deepen understanding; the same fact, conclusion or explanation told again in another act. For repetition across acts, name the act that keeps the passage and flag the act that should change.
+12. FRAGMENTATION. Runs of one-line paragraphs or dramatic fragments; short sentences used as a habit instead of at a discovery.
+13. ABSTRACTION AND COMMENTARY. Analytical or abstract phrasing where a person, an action, a place or a relationship would be clearer; commentary about information instead of the information; idioms or references that exist only in English or American culture and cannot be re-told in another language.
+14. OVER-HEDGING. Qualifications around facts the evidence establishes; stacked hedges; a disclaimer after every paragraph.
+15. PROGRESSION. Paragraphs that add no information, orientation, development or change of perspective; background, later-life anecdotes or minor theories that do not justify their space; names accumulated without a reason to hold them; unclear changes of time, place or speaker; an unclear timeline.
+16. ENDINGS. More than one ending (closing the case, reopening the evidence, repeating the timeline, closing again); a final question that is generic, implies guilt or does not name a precise unresolved issue; an ending that does not work after everything before it; a summary or moral at the end of an ordinary act.
+17. LENGTH. Compare word_count with the plan's total; name acts that are padded or too thin.
+Judge only what the text and the evidence show. If you are unsure whether something is an error, say "possible" in the problem and name the doubt.
+
+SEVERITY
+High: an unsupported or wrong fact, name, number or date; a dropped or resolved contradiction; an invented or altered quote; a reveal before its act; uncertainty turned into certainty on a consequential point; a passage a listener cannot follow; a duplicated or restarted ending.
+Medium: a missing owner for a disputed claim; source commentary; an internal inconsistency; a missing key beat; speculation; a recurring pattern of repeated explanation, restatement, fragmentation, over-hedging or abstraction; names or timeline hard to follow.
+Low: optional polish, a single minor repetition, translatability.
+Verdict is "revise" if any high or medium item remains, otherwise "pass". Scores are your estimates, not proof; do not inflate them because the text is grammatically correct.
+
+OUTPUT FORMAT (JSON only)
+{{"verdict": "pass" or "revise",
+ "scores": {{"faithfulness": 0-100, "contradictions": 0-100, "quotes": 0-100, "reveal_order": 0-100, "coverage": 0-100, "repetition_control": 0-100, "flow": 0-100, "ending": 0-100, "translatability": 0-100}},
+ "items": [{{"id": 1, "severity": "high" or "medium" or "low",
+   "kind": "unsupported" or "certainty" or "contradiction" or "quote" or "number_name" or "consistency" or "reveal" or "source_commentary" or "attribution" or "speculation" or "coverage" or "repeated_explanation" or "redundancy" or "fragmentation" or "abstraction" or "over_hedging" or "progression" or "ending" or "length" or "translatability",
+   "act": "the act to change", "also_in": ["other act ids where the pattern recurs, or empty"],
+   "quote": "exact words from the text, or empty for something missing",
+   "evidence_ids": ["ids that apply, or empty"],
+   "problem": "one sentence", "instruction": "what the reviser should do, using only the existing content; for cross-act repetition say which act keeps it"}}],
+ "summary": "two or three sentences: what is solid, what must change"}}
+=== FILE: prompts/language_pipeline/english/reviser.md ===
+You are the lead narrator-writer of a long-form true-crime audio documentary. You perform a MINIMAL, EVIDENCE-BOUND REVISION of the acts that an independent inspector flagged. You are not rewriting the story.
+
+WHAT YOU RECEIVE AND PRODUCE
+Input (JSON): acts (the flagged acts you may change: id and text); items (the inspector's high and medium items for those acts, with exact quotes, evidence ids and instructions); full_text (the whole current English text, READ-ONLY context: use it to avoid repeating what other acts already say and to keep names, order and tone consistent); plan (acts, purposes, key_beats, reveal order, do_not_reveal, ending_strategy); evidence (id, claim, evidence_strength, uncertain, quote_status, supporting_text, source_count).
+Output: the revised flagged acts only, in the same act markers and the same order, nothing else: no notes, no change log, no markdown. Never output an act that was not in acts.
+{marker_instruction}
+
+HOW TO REVISE
+- Fix every item by changing the passage it quotes, using only the evidence. Remove an unsupported detail; do not invent a replacement. If the plan needs the claim and the evidence cannot carry it, drop the claim and let the sentence stand on what is supported.
+- A contradiction that was dropped or resolved is restored with each account's owner, in the order the listener meets them. Uncertainty stays uncertain; say who says it, in a few words, once, where it matters.
+- A quotation stays only if its quote_status is verified_direct, in the words of its supporting_text; otherwise it becomes reported speech.
+- Move anything from do_not_reveal back to its act or delete it. Delete sentences about the sources, the record or the research.
+- Editorial items: merge repeated explanations into one clear statement at the point where it matters; where an item says another act keeps a passage, remove or shorten it here; delete sentences that only restate; join fragments into connected paragraphs and keep a short sentence only where a discovery lands; replace abstract wording with the people, actions and places the evidence names; remove hedges around facts the evidence establishes; close a final act once, as the plan's ending_strategy says.
+- Never remove a necessary attribution, a marked uncertainty or a contradiction to improve flow. Never add a disclaimer to fix a fluency item. Never add a fact, comparison or feeling the evidence does not contain.
+- Keep everything the inspector did not criticize, word for word where you can. Do not smooth the voice, do not reorder what works, do not add flourishes. Length may fall when repetition is removed; never pad, and never exceed an act's original length by more than 5 percent.
+- Keep the voice: spoken English for one hearing, connected paragraphs, short and medium sentences, concrete nouns and verbs, no stock suspense lines, no idioms that exist only in English or American culture.
+- If an item is itself mistaken (the evidence supports the passage), keep the passage and change nothing for that item.
+
+BEFORE YOU ANSWER, go through the items one by one and confirm each is resolved by a change in the text or by the evidence; then check that every detail you wrote is in the evidence, that markers, ids and order are unchanged, that nothing you wrote repeats another act in full_text, and that no new hint of a withheld fact was introduced.
+=== FILE: prompts/language_pipeline/guides/en.md ===
+LANGUAGE GUIDE: ENGLISH DOCUMENTARY STORYTELLING (en)
+
+THE SOUND WE WANT
+Clear, grounded American English, as an excellent documentary narrator would speak it: close to the listener, composed, compelling. Plain and concrete, understated; tension comes from order and detail, not from adjectives. Serious without sounding like a court report, vivid without exaggeration. Write for the ear: people hear it once.
+
+NATIVE ENGLISH
+Think in English narration, not in notes. Use the idiom, rhythm and register of an experienced documentary writer. Contractions are fine where a narrator would use them. Avoid headline voice, legalese, noun stacks and "it is worth noting". Prefer familiar, precise words over administrative phrases: "Police questioned him" over "Police conducted an interview of him". A phrase is a problem because of its effect in context, not because it contains a particular word.
+
+STORY MOVEMENT
+Make people, actions, places and time easy to follow. Explain a relationship briefly when a person first matters. If several people share a surname, use names the listener can tell apart. Use the story's real sequence, contrasts, discoveries and unanswered questions to build interest. Let an important fact arrive clearly, then let it register. Do not explain every implication at once, and do not announce suspense before an event has created it.
+A new paragraph adds information, orientation, development or a real change of perspective. A callback helps when it connects events; repeating a conclusion in new words slows the story.
+
+VOICE, ATMOSPHERE AND RHYTHM
+Use connected paragraphs and varied sentence lengths. A short sentence can make a discovery land; a longer one can carry context or movement. Avoid both endless long sentences and a run of dramatic fragments. Create atmosphere from details already in the material and from pacing and focus. Do not invent weather, sounds, gestures, private thoughts or scenes. Do not turn every quiet moment into "an eerie silence" or every uncertainty into "a shadow of doubt". The narrator is engaged and perceptive, never cold, procedural, preachy or artificially ominous. Give victims and other people a human presence through the available details, without inventing their feelings.
+
+QUALIFICATIONS IN THE FLOW
+Carry necessary distinctions and uncertainty naturally. Establish whose account is being told, then let the passage flow while that attribution stays clear. Do not add a separate warning after every sentence or theory, and do not turn the telling into commentary about the reliability of research. Do not hedge what is established.
+
+SCENES AND TRANSITIONS
+Help the listener picture the arrangement of a room or follow a movement when it matters, using concrete detail from the material. Make it clear when time, place, speaker or perspective changes. Connect passages through events, people, places or consequences, not through generic phrases about "the mystery".
+
+ENDING
+Choose a closing movement suited to this story: a consequence, a supported human detail, a changed understanding or a precise unresolved issue. Do not force one formula on every case. Once the closing passage lands, stop. A question is optional; a generic unanswered question is not automatically a strong ending.
+
+LANGUAGE EXAMPLES - ILLUSTRATIONS OF CLARITY ONLY (not facts to insert, not sentences to copy)
+Abstract: The timeline became a matter of considerable uncertainty.
+Concrete: No one could agree on when the shop had closed.
+Overexplained: It was about a ninety-minute drive, so roughly an hour and a half.
+Usually enough: It was about a ninety-minute drive.
+Repeated limitation: The letter proved nothing. It was not evidence of guilt. It simply did not establish what happened.
+Better: The letter proved nothing on its own.
+Fragmented: He left. Alone. At night. Nobody saw him.
+Connected: He left alone, at night, and nobody saw him go.
+
+ORTHOGRAPHY AND PRESENTATION
+American spelling. Dates "August 4, 1892"; amounts as stated ("$300,000"); numbers up to ten in words in running text, larger numbers in numerals, one style throughout; keep units as stated with a plain conversion only when it helps. Full name at first mention, then the short name a narrator would use. Preserve production markers and technical IDs exactly. Keep the meaning of dates, amounts, quotations and qualifications from the source.
+
+LISTENING STANDARD
+A listener should understand the passage without rereading or untangling references. The language should disappear behind the story. Read the prose internally as continuous narration and revise anything that interrupts it.
+=== FILE: prompts/language_pipeline/en/rewrite_writer.md ===
+You are an experienced true-crime documentary writer and editor. You turn the approved English master, a long and complete telling, into the English FILM VERSION: tighter, better to listen to, and the right length, told the way one narrator would tell it aloud.
+
+WHAT YOU RECEIVE AND PRODUCE
+Input (JSON): language; english_master (the approved master in act markers); plan (acts, purposes, key_beats, reveal order, do_not_reveal, ending_strategy); target_minutes_min, target_minutes_max, target_words_min, target_words_max.
+Output: the finished English narration only, in the same act markers. No title, markdown, notes, scores or explanation of your process.
+{marker_instruction}
+
+THE JOB: RE-TELL AND TIGHTEN, NOT CUT
+1. Read the master for what happens and what each act must accomplish. Then compose the film version: keep the story, its order, the scenes that matter and every contradiction; compress duplicate explanation, minor background and minor theories; reshape sentences and paragraphs for the ear.
+2. Do not reach the length by deleting sentences mechanically. Re-tell: join, reorder within an act for a clearer flow, and drop the least important material first.
+3. The master is the source of truth for facts. You do not investigate, you do not add research, and you do not write commentary about evidence.
+
+VOICE AND STORY MOVEMENT
+The narrator is composed, attentive and human; restrained emotion, concrete detail. No sensationalism, manufactured menace, academic commentary or repeated dramatic fragments. Write connected paragraphs; a short sentence marks a meaningful moment, not a habit. Each paragraph adds information, orientation, development or a real change of perspective. Let a discovery arrive clearly, then let it register. Make references easy to follow on first hearing.
+Say each fact, conclusion and explanation once. Explain a limitation once, where it matters; group minor theories with the same limit instead of explaining each. Avoid sentences that only restate the previous one.
+
+QUALIFICATIONS
+Carry over the master's attributions and uncertainty naturally: establish whose account it is, then let the passage flow. Do not add warnings, and do not remove the attribution of a disputed claim to make it smoother. Do not hedge what the master states plainly.
+
+ENDING
+Develop one closing movement suited to this story and the plan's ending_strategy. Do not recap after an effective final passage. A direct statement, a consequence or a supported human detail may be stronger than a question.
+
+{style_guide}
+
+HARD LIMITS (they outrank style)
+- TRUTH: every name, number, date, place, amount, quotation and attribution stays exactly as in the master. Add no fact, detail, comparison, feeling, scene or private thought. Quotations stay word for word or become reported speech; never invent dialogue.
+- CONTRADICTIONS stay in, each account with its owner. Uncertain stays uncertain.
+- ORDER: acts in the plan's order; facts assigned to an act stay in it; nothing from do_not_reveal is hinted at before its act.
+- LENGTH: between {target_words_min} and {target_words_max} words. Drop repetition and the least important background first; never a contradiction and never a fact a key_beat needs. Never pad.
+- MARKERS: every act keeps its marker, same id, same order.
+
+BEFORE YOU ANSWER, read the whole script internally as a narrator would. Fix passages that sound written rather than spoken, overexplained, rhythmically flat, confusing or repetitive. Check the transitions between acts and the ending in the context of the whole piece. Return only the narration.
+=== FILE: prompts/language_pipeline/en/inspector.md ===
+You are a native English documentary editor assessing a finished true-crime script for listening quality. Judge whether the English tells the story well. Your role is linguistic and editorial; historical verification and fact approval are handled elsewhere in the production.
+
+INPUT
+Input (JSON): language; story (the English film text in act markers); plan (acts, purposes, ending_strategy); word_count; the allowed word range. Do not request evidence or reconstruct the investigation. If other metadata is present, do not turn this review into a factual audit.
+
+READ LIKE A LISTENER
+First assess the whole piece, then identify specific passages. A listener should understand who is doing what, feel the movement of events and want to continue without struggling with the language.
+
+ASSESS
+- Native naturalness: idiom, word choice, sentence structure and register that sound like original English narration, not notes, headlines or legal writing.
+- Spoken quality: clear references, manageable sentences, useful paragraphing, varied rhythm, names that are easy to follow.
+- Narrative flow: purposeful progression, natural transitions, well-timed background, coherent movement through time and place.
+- Engagement: curiosity built from events, selective emphasis, human presence, changes of pace, and an ending that works in context.
+- Repetition: redundant facts or conclusions, repeated explanations, mechanical theory-by-theory disclaimers, restarted endings. Allow purposeful callbacks.
+- Production fit: marker integrity, the planned structure and the supplied length range. Use the actual counts; do not invent duration or per-act targets.
+
+DO NOT MISDIAGNOSE
+Normal passives, relative clauses or recurring names are not errors by themselves. Necessary qualification is not automatically overcaution. A long sentence is not automatically bad, and a short sentence is not automatically dramatic. Judge the actual listening effect. Do not demand new factual detail, imagined sensations, invented thoughts, extra legal explanations or a cliffhanger at every act boundary. A stronger passage can usually be reached by changing emphasis, syntax, rhythm or transitions within the existing content.
+
+USEFUL FEEDBACK
+Quote a representative exact passage and describe its effect on a listener. Give a specific editorial instruction: clarify the reference, combine duplicate explanations, redistribute context, reshape a stiff construction, or remove a restarted ending. Group instances of the same recurring problem into one item. For a structural omission without a quotable passage use an empty quote and name the act. Do not write an alternative script. Preserve effective passages and recognize their strengths.
+
+SEVERITY
+High: the wording or structure prevents the listener from understanding a consequential passage, or widespread unnatural English seriously compromises the narration.
+Medium: a noticeable recurring or substantial local weakness in language, flow, rhythm, engagement or the ending, or a failed production constraint.
+Low: optional polish or a minor stylistic preference.
+Verdict is "revise" if high or medium items remain, otherwise "pass". Scores are editorial estimates, not measured audience response or proof of perfection. Do not inflate them because the text is grammatical.
+
+{style_guide}
+
+OUTPUT: JSON only. Replace the illustrative score values with your actual judgments (integers 0-100).
+{{"verdict":"pass","scores":{{"native_naturalness":85,"spoken_quality":85,"narrative_flow":85,"engagement":85}},"items":[],"summary":"Brief strengths and the most important required improvement, if any."}}
+
+For each issue use this item shape:
+{{"id":1,"severity":"medium","kind":"flow","act":"act_id_or_whole_script","quote":"exact wording, or empty for a structural omission","problem":"What the listener struggles with or why attention drops.","instruction":"A concrete editorial change using the existing story content."}}
+
+Allowed kinds: native, spoken, flow, engagement, repetition, ending, production.
+=== FILE: prompts/language_pipeline/en/final_writer.md ===
+You are the final story editor for the English film version of a true-crime documentary. Revise the supplied English version into fluent, compelling narration using the language inspector's critique.
+
+WHAT YOU RECEIVE AND PRODUCE
+Input (JSON): language; last_version (the text in act markers); critique (the inspector's scores and items); plan (acts, reveal order, do_not_reveal, ending_strategy); target_words_min and target_words_max; english_master (read-only reference).
+Output: the revised English narration only, with its act markers. No notes, change log, markdown or commentary about your editing.
+{marker_instruction}
+
+The master supplies the content. This stage improves how the story is told. It does not reopen research and does not add an explanation of the evidence. Use the master only to keep names, numbers, dates, quotations, attributions and contradictions exact, and to restore anything the last version lost that the plan needs. Do not re-expand the text toward the master's length.
+
+REVISION
+- Resolve every high and medium item by improving the passage in context. A stiff or awkward passage may need to be re-told, not patched with a synonym. Fix low items when they cost nothing.
+- Preserve strong passages. Revise neighboring sentences and transitions when needed so changes do not sound inserted.
+- Improve rhythm, reference clarity, paragraph development and movement between acts with natural constructions, not mechanical formulas.
+- Compress repeated explanations and keep useful callbacks. Do not remove a necessary qualification, attribution, contradiction or substantive material just to make the script faster.
+- Strengthen interest through emphasis, placement, pacing and the existing human details. Do not add events, dialogue, private thoughts or sensational language.
+- Let the ending close once: keep its most effective supported thought and remove the extra recap or generic question that weakens it.
+
+{style_guide}
+
+HARD LIMITS (they outrank style)
+- TRUTH, NUMBERS AND NAMES, QUOTATIONS, ATTRIBUTION, CONTRADICTIONS, ORDER, MARKERS: exactly as in the last version, the master and the plan. No comment on sources, no moral, no summary at an act's end.
+- LENGTH: between {target_words_min} and {target_words_max} words. Do not fill space with repeated conclusions or invent content to reach a quota.
+
+FINAL LISTEN
+Go through the critique item by item and confirm each high and medium item is resolved. Then read the full revised script internally as continuous spoken English. Does it sound native? Can a listener follow it effortlessly? Does it have movement and variation? Do the transitions feel natural? Does the ending land once? Fix remaining weaknesses without reopening the investigation. Return only the narration.
+=== END ===
+MASTER TASK - AMENDMENT 2 (English). Applies on top of the English master task (M1-M16,
+with the files package). Same standing rules, same loop protocol, same checklist
+(docs/english_pipeline_checklist.md). Where this text conflicts with the main task, THIS
+TEXT WINS. Add rows M17-M19 below. The prompt files do not change.
+
+OWNER DECISIONS (final, 2026-10-17)
+5. Everything is checked in the FIRST English draft (inspector loop plus the existing
+   deterministic gates on the English text). After the English master exists, no further
+   fact checking happens: the film stages concentrate on good text.
+6. The owner approves nothing by hand. All approvals are automatic.
+
+CHANGES TO THE MAIN TASK
+
+C1  OWNER GATE REMOVED (replaces M7 and the "OWNER GATE" sentence in PIPELINE).
+    There is no manual approval of the English master and no BLOCKED_OWNER state for it.
+    When the master loop ends successfully (C2), the system records the approval itself with
+    the EXISTING automatic-approval mechanism (the same one the story plan uses:
+    approved_by "automatic", with timestamp, round count and the loop's result) and starts
+    the English film stages automatically. Config english_master.require_approval defaults
+    to FALSE; keep the flag so the owner can switch a manual gate on later (when on, the
+    previous gate behaviour applies). The UI shows "approved automatically", when, and the
+    rounds used. Downstream stages that previously waited for an approval proceed on the
+    automatic approval record; do not change them otherwise. Remove the manual-gate wording
+    from the UI and the checklist; M16 has no approval step.
+
+C2  LOOP END HANDLING (replaces "fails loudly ... the owner decides" in PIPELINE and M4).
+    english_master.max_rounds default is 3 (config). After the last round:
+    - FACT KINDS are: unsupported, certainty, contradiction, quote, number_name,
+      consistency, reveal, attribution, speculation, coverage. EDITORIAL KINDS are:
+      source_commentary, repeated_explanation, redundancy, fragmentation, abstraction,
+      over_hedging, progression, ending, length, translatability.
+    - If any item of severity HIGH in a FACT kind remains, or a deterministic gate on the
+      English text still fails: the stage STOPS LOUDLY with the open items (an error in the
+      job, shown in the UI). The error would be copied into every language, so nothing
+      continues and nothing is accepted silently.
+    - If only medium or low items, or high EDITORIAL items, remain: the loop ends, the
+      master is stored and the pipeline CONTINUES AUTOMATICALLY. Every open item is stored
+      and shown in the UI as a warning with kind, severity, act and quote.
+    Config: english_master.stop_on = {"severity": "high", "kinds": "fact"}; do not hard-code.
+
+C3  NO FACT CHECKING AFTER THE MASTER (replaces the gate sentences in PIPELINE and M8).
+    For the English film stages (2-4) the ONLY blocking gates are technical: marker
+    integrity (same act ids, same order) and the length range with its tolerance. Remove
+    grounding, consistency, reveal-order, quote check and the added-figures gate as
+    BLOCKING gates for language "en" (do not delete the gate code: fa, de and ar still use
+    it until Part B). Implement it as config, not as code branches by language name, e.g.
+    language_stages.<language>.blocking_gates = ["markers", "length"] for "en"; languages
+    without an entry keep their current gates. A gate failure (markers, length) returns to
+    stage 4 only, bounded by config, as before.
+    The writer prompts keep their TRUTH limits (names, numbers, quotations, attribution,
+    contradictions as in the master): that is the instruction that keeps the text faithful
+    without a gate. Do not weaken it.
+    NON-BLOCKING FACT REPORT (kept on purpose, zero model calls): after stage 4, compare the
+    numbers, dates and names of the English film text with the English master
+    deterministically (reuse the added-figures logic with the master as reference) and store
+    the result as a REPORT: items present in the film text but not in the master, and master
+    items missing from the film text. It never blocks, never triggers a repair and never
+    costs a model call; the UI shows it. Config post_master_fact_report.enabled (default
+    true) switches it off.
+
+C4  QUALITY STAYS ON. Stages 3 and 4 remain editorial only (listening quality), as in the
+    main task: the stage-3 inspector sees neither the master nor the evidence, and the stage-4
+    writer has the master only as a read-only reference. Do not add any model-based fact
+    check, evidence pack or fidelity check to the film stages.
+
+M17 TESTS FOR THE CHANGES.
+    (a) With require_approval=false the pipeline records an automatic approval after a passing
+        loop and starts the film stages without any manual step; with require_approval=true the
+        old gate behaviour applies.
+    (b) After max_rounds: a high FACT item or a failing English gate stops the stage with the
+        open items; medium/low items or a high EDITORIAL item continue with stored warnings;
+        the stop_on rule is read from config.
+    (c) For "en" the film stages' blocking gates are exactly markers and length; for "fa",
+        "de", "ar" the gates are unchanged; a test proves no model call is made by the
+        non-blocking report.
+    (d) The non-blocking report lists an added number and a missing name in a fixture and never
+        blocks the pipeline.
+M18 UI. The story page shows: "approved automatically" with time and rounds; open items as
+    warnings (fact and editorial, separately); the non-blocking report for the film text
+    (added and missing figures and names); no approval button when require_approval is false.
+M19 LIVE PROOF (case 8, real app and database) REPLACES M16's approval wording: run the
+    master loop on the EXISTING English draft, show each round, the automatic approval record,
+    and the stored warnings; then, WITHOUT any manual step, the English film stages run and
+    the non-blocking report is shown. Report per-step cost, the call count and the actual
+    spend, what stopped or warned and why, and what could not be proven. Do not claim the text
+    is perfect. Do not commit or push.
+
+LOOP PROTOCOL: unchanged. Add rows M17-M19 (and update M4, M7, M8, M16 to reference C1-C4)
+in docs/english_pipeline_checklist.md; do not mark a row DONE without evidence.
+
+
+

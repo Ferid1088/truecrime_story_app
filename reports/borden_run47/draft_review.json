@@ -1,0 +1,122 @@
+{
+  "status": "ok",
+  "report_only": true,
+  "verdict": "revise",
+  "scores": {
+    "native_naturalness": 81,
+    "spoken_quality": 72,
+    "narrative_flow": 66,
+    "engagement": 71
+  },
+  "summary": "The opening staircase contradiction is a strong hook, the divided house is intelligible, and the dress-burning encounter and competing courtroom witnesses provide effective event-driven passages. The principal weakness is repeated interpretation: the script explains the locked-house problem, evidentiary gaps, inquest conditions, and verdict limits several times. Substantial compression can meet the word limit while improving momentum. Resolve the internal clock-time conflicts, distinguish Abby's possible return from an actual contradiction, and let the final return to Abby finish without another conclusion.",
+  "items": [
+    {
+      "id": 2,
+      "severity": "medium",
+      "kind": "repetition",
+      "act": "whole_script",
+      "quote": "For an outsider to have been responsible, a stranger would have had to slip through locked doors in broad daylight, strike Abby Borden down in the upstairs guest room, and then remain hidden somewhere inside the house for more than an hour while ordinary household chores continued below.",
+      "problem": "Acts 1, 3, and 7 reconstruct essentially the same hypothetical intruder journey. Acts 1 and 3 also repeatedly summarize the locked doors, absent valuables, two deaths, and small number of occupants. These passages repeatedly restore the starting puzzle rather than change the listener's understanding.",
+      "instruction": "Keep one concise statement of the intruder problem in act1. Remove the full hypothetical reconstruction from act3 and its replay in act7. In act1, compress the police-arrival paragraphs that redescribe both bodies and the same domestic puzzle; in act3, retain only the new consequence of the physical findings."
+    },
+    {
+      "id": 3,
+      "severity": "medium",
+      "kind": "selection",
+      "act": "act3",
+      "quote": "In reporting by the BBC, police documented eleven distinct hatchet blows to his head and face. Conversely, an account published by Legends of America records that Andrew was struck ten times, while other forensic summaries place the number between ten and twelve.",
+      "problem": "The source-by-source comparison of wound counts turns the examination into a research digest. The following Abby tally and combined summary repeat that function. Listeners must retain competing numbers and publication names that do not change the sequence, weapon question, or investigative stakes.",
+      "instruction": "Remove the publication-by-publication tally and compress both injury accounts into a concise description of the attacks. Retain only the numerical context needed for the later rhyme comparison, without narrating the process of comparing sources. Give greater emphasis to the contrasting condition of the bodies, which actually establishes a consequential sequence."
+    },
+    {
+      "id": 4,
+      "severity": "medium",
+      "kind": "flow",
+      "act": "act3",
+      "quote": "When investigators and physicians examined the two crime scenes inside the house, the physical destruction inflicted on both victims was unmistakable.",
+      "problem": "The act follows the morning until Andrew encounters the locked front door, then abruptly jumps to examination of two discovered bodies. Because the opening promises a morning timeline, this unannounced jump feels like missing narration rather than a deliberate return to events already heard.",
+      "instruction": "Clarify the time transition with a brief reference to the discoveries already established in act1. Explicitly move from the morning's movements to the subsequent examination, without retelling both discoveries."
+    },
+    {
+      "id": 5,
+      "severity": "medium",
+      "kind": "spoken",
+      "act": "whole_script",
+      "quote": "The twelve jurors withdrew to consider their verdict shortly before midday.",
+      "problem": "Consequential clock times are inconsistent internally. Andrew returns shortly before eleven in act1 but around half-past ten in acts 3 and 4. In act6, the jury is about to retire in the afternoon, then withdraws before midday; its stated roughly ninety-minute deliberation is also difficult to reconcile with agreement announced at half-past three. These differences make the listener's timeline unstable.",
+      "instruction": "Reconcile the repeated time anchors, leaving the choice of correct values to the separate audit. Make act6's retirement, deliberation interval, and return read as one coherent sequence. Also clarify act4's reference to a 'crucial hour' between Andrew's return and discovery against the clock times used elsewhere."
+    },
+    {
+      "id": 6,
+      "severity": "medium",
+      "kind": "flow",
+      "act": "act4",
+      "quote": "In one account, Abby was out of the house on an errand of mercy; in the other, before anyone had climbed the front staircase to investigate the upper floor, Lizzie was directing searchers straight to the room where her stepmother lay dead.",
+      "problem": "The narration calls these accounts directly conflicting, but the supplied explanation—that Lizzie believed she had heard Abby return—allows them to describe successive beliefs. It also escalates a request to look upstairs into apparent knowledge of the specific death room. The listener is pushed toward a conclusion that the passage's own sequence does not establish.",
+      "instruction": "Retell this as a change in Lizzie's stated understanding of Abby's whereabouts. Preserve the missing note and any clearly attributed investigative suspicion, but distinguish those concerns from a demonstrated contradiction or knowledge of the body's location."
+    },
+    {
+      "id": 7,
+      "severity": "medium",
+      "kind": "repetition",
+      "act": "act4",
+      "quote": "The destruction of the gown created an immediate, permanent void in the investigation.",
+      "problem": "Act4 repeatedly explains clues after their significance is already clear. The note is introduced twice; the boots discrepancy receives several successive descriptions and interpretations; after the dress burns, four paragraphs revisit the clean clothing, blue color, lost testing opportunity, and competing explanations. The strongest event in the act is followed by an extended explanation that drains its impact.",
+      "instruction": "Merge the note's introduction with the unsuccessful search for it. Compress the footwear passage to Lizzie's account, the observed boots, and a brief attributed response. Keep the kitchen encounter and Alice's warning, then end the dress sequence with one concise statement that its identity and stains could no longer be examined. Remove the repeated clean-clothing summary and hypothetical decisive solution."
+    },
+    {
+      "id": 8,
+      "severity": "medium",
+      "kind": "repetition",
+      "act": "act5",
+      "quote": "Lizzie was sitting in that closed room under circumstances that would have unsettled any witness.",
+      "problem": "The absence of counsel and prescribed morphine are explained before the testimony, explained again after it, and repeated once more in the closing trial setup. The opening also repeatedly establishes that Lizzie remained at home under surveillance. These repetitions interrupt the progression from questioning to arrest and indictment.",
+      "instruction": "Keep the initial explanation of the inquest conditions and the concrete contradictory answers. Compress the later interpretation to a brief acknowledgment of the competing readings, without restating both conditions in full. Merge the opening home-and-surveillance material, and let the final transition pose admissibility without another summary of the entire inquest."
+    },
+    {
+      "id": 9,
+      "severity": "medium",
+      "kind": "flow",
+      "act": "act6",
+      "quote": "Even the evidence the state was permitted to present suffered from critical gaps, most notably regarding the dress destroyed in the kitchen stove.",
+      "problem": "The act declares the dress evidence ineffective before presenting Alice, Emma, the painter, and Robinson's argument. It then returns to the same issue as the central courtroom clash. This preemptive assessment flattens the witnesses' contributions and makes the courtroom sequence feel like a summary followed by a replay.",
+      "instruction": "Remove this advance assessment and carry the dress dispute through the existing witnesses and opposing arguments. Keep the inquest and pharmacy exclusions as developments, then let the admitted testimony show how the remaining case was contested."
+    },
+    {
+      "id": 10,
+      "severity": "medium",
+      "kind": "repetition",
+      "act": "act6",
+      "quote": "A verdict of not guilty represents an evidentiary boundary, not an explanation of the truth.",
+      "problem": "After the verdict, multiple paragraphs explain that the state failed to prove its case, that acquittal does not certify innocence, that it does not identify another killer, and that the charges remain unproven. Much of this repeats Dewey's instructions and the first verdict explanation. The legal outcome lands, then the act repeatedly concludes again.",
+      "instruction": "Merge the verdict's limits into one concise explanation after the announcement. Preserve the discharge and protection against retrial, but remove the repeated formulations of reasonable doubt and the separate paragraph explaining whom the verdict did not implicate. Retain the departure from the courthouse as the act's final movement."
+    },
+    {
+      "id": 11,
+      "severity": "medium",
+      "kind": "selection",
+      "act": "act7",
+      "quote": "Later decades spawned even more speculative hypotheses.",
+      "problem": "The final act accumulates theories chiefly to dismiss them. Bridget's alleged confession receives an elaborate setup followed by an elaborate lack-of-support explanation; Morse, the outsider scenario, William Borden, Emma, collusion, and abuse then extend the same function. The William name and rapid allegations add cognitive load without producing a new development.",
+      "instruction": "Keep the Globe fabrication and rhyme correction as distinct examples of the story changing. Compress Bridget's rumor and its unsupported status into one passage. Remove the rapid William/Emma/collusion/abuse catalogue and its blanket rejection paragraph; compress Morse's alibi to its narrative consequence. Preserve the act's required distinction between documented events, fabrication, and unsupported stories without cataloguing every proposed solution."
+    },
+    {
+      "id": 12,
+      "severity": "medium",
+      "kind": "spoken",
+      "act": "whole_script",
+      "quote": "But that period of liberty within the family home was merely the quiet prelude to a formal legal reckoning.",
+      "problem": "Recurring suspense announcements and abstract judgments make the narration feel written in a stock true-crime register. Phrases such as 'impossible domestic puzzle,' 'insoluble ambiguity,' and 'formal legal reckoning' repeatedly tell listeners how consequential or mysterious events are, while the events themselves already convey that. Repeated descriptions of savage violence similarly lose force through reuse.",
+      "instruction": "Remove transitions whose only function is to announce impending significance. Use the existing next event—the summons, ruling, testimony, or arrest—to move the narration forward. Retain concrete violence where it explains the scene or evidence, and compress later repetitions of the same brutality rather than replacing them with fresh dramatic adjectives."
+    },
+    {
+      "id": 13,
+      "severity": "medium",
+      "kind": "ending",
+      "act": "act7",
+      "quote": "The legal record closed more than a century ago, but the physical house on Second Street remains.",
+      "problem": "The return to Abby and the staircase is well chosen, but the last paragraph restarts the conclusion after 'She never walked back down.' It returns to the legal record, house preservation, theories, and enduring mystery before adding 'who was the second killing for?' That additional question opens an unclear new line of interpretation instead of completing the planned image.",
+      "instruction": "Keep the return to Abby's ordinary guest-room task and the staircase. Remove the final paragraph's renewed legal and mystery summary, and remove the question about whom the second killing was for. End the closing movement on the physical image and the single question of who climbed the stairs, as planned."
+    }
+  ]
+}
