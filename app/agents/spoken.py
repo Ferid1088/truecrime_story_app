@@ -3,19 +3,27 @@ the domain rules and storage helpers stay in app.documentary.spoken."""
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
-from app.core.prompts import prompt
 import json
 import re
+
 from sqlalchemy.orm import Session
-from app.agents.story import StoryPipeline, _join_sections, _mark_sections, build_evidence_pack, evidence_fingerprint, realign_sections, strip_section_markers, structure_without_text
+
+from app.agents.runner import run_agent
+from app.agents.story import (
+    _join_sections,
+    _mark_sections,
+    build_evidence_pack,
+    evidence_fingerprint,
+    realign_sections,
+    save_story_version,
+    strip_section_markers,
+    structure_without_text,
+)
 from app.core.ai_config import ai_config
-from app.db.models import Case, Contradiction, Fact, Source, StoryVersion
 from app.core.concurrency import gather_limited
+from app.core.prompts import prompt
+from app.db.models import Case, Contradiction, Fact, Source, StoryVersion
 from app.documentary.blueprint import latest_blueprint, version_sections
-from app.providers.generation import get_generation_provider
-from app.services.tracking import stamp_run, track_run
-from app.utils import language_quality
 from app.documentary.spoken import (
     MEANING_SYSTEM,
     _meaning_ok,
@@ -28,6 +36,9 @@ from app.documentary.spoken import (
     read_aloud_metrics,
     writer_system_prompt,
 )
+from app.providers.generation import get_generation_provider
+from app.services.tracking import stamp_run, track_run
+from app.utils import language_quality
 
 
 class SpokenNarrator:
@@ -127,7 +138,7 @@ class SpokenNarrator:
         chunks = [subset[i:i + size] for i in range(0, len(subset), size)]
 
         def meaning_payload(chunk):
-            return {"source_language": "en", "spoken_language": language,
+            return {"source_language": language, "spoken_language": language,
                     "beats": [{"beat_id": s["id"], "source": src[s["id"]],
                                "spoken": s["text"]} for s in chunk]}
 
@@ -324,12 +335,11 @@ class SpokenNarrator:
             plan = structure_without_text(json.loads(master.narrative_structure or "{}"))
         except (ValueError, TypeError):
             plan = {}
-        version = StoryPipeline()._new_version(
+        version = save_story_version(
             db, case, plan, spoken, text, 0.0, None, "not_evaluated", critique,
             language, writer_res, kind="spoken",
             writer_prompt="documentary/spoken/writer_system_prompt",
             master_version_id=master.id,
-            derived_from_master_version=master.version,
             native_quality_score=round(100 * storyteller / n, 1),
             semantic_consistency_score=round(100 * meaning_ok / n, 1),
             factual_consistency_score=round(meaning_ok / n, 3),

@@ -245,8 +245,8 @@ def test_video_research_keeps_its_existing_order_for_a_follow_up(db_session, mon
     existing, different kind of "first") — video-first reordering is
     scoped to a genuine from-zero case and does not apply here."""
     import app.documentary.jobs as jobs_mod
-    from app.documentary.jobs import research_case
     from app.db.models import DocumentaryJob, Fact
+    from app.documentary.jobs import research_case
     from app.lifecycle import followups
 
     calls = []
@@ -369,7 +369,7 @@ def test_an_interrupted_render_leaves_no_film_under_the_final_name(tmp_path):
 def _master(db, case, status, failures=()):
     from app.db.models import StoryVersion
 
-    v = StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+    v = StoryVersion(case_id=case.id, version=1, kind="final", language="en",
                      narrative_angle="test", story_text="x", narrative_structure="{}",
                      status=status, critic_notes=json.dumps(
                          {"quality_gates": {"pass": not failures, "failures": list(failures)},
@@ -379,41 +379,6 @@ def _master(db, case, status, failures=()):
     return v
 
 
-def test_a_master_its_critics_rejected_is_revised_with_their_reasons(db_session, monkeypatch):
-    from app.agents.story import StoryPipeline
-    from app.documentary.jobs import approve_master
-
-    case = _case(db_session)
-    first = _master(db_session, case, "needs_revision", ["engagement_below_threshold"])
-    seen = []
-
-    async def improve(self, db, case_, v, instruction):
-        seen.append(instruction)
-        # the first revision still fails, the second passes its critics
-        ok = len(seen) == 2
-        return _master(db, case_, "ready" if ok else "needs_revision",
-                       () if ok else ["grounding"])
-
-    monkeypatch.setattr(StoryPipeline, "improve", improve)
-    v, history = asyncio.run(approve_master(db_session, case, first))
-    assert v.status == "ready" and len(history) == 2
-    assert "engagement_below_threshold" in seen[0] and "too slow in act two" in seen[0]
-    assert "grounding" in seen[1]
-
-    # never approved within max_redos: no film is made from it
-    seen.clear()
-
-    async def never(self, db, case_, v, instruction):
-        seen.append(instruction)
-        return _master(db, case_, "needs_revision", ["grounding"])
-
-    monkeypatch.setattr(StoryPipeline, "improve", never)
-    with pytest.raises(RuntimeError, match="not approved after 2"):
-        asyncio.run(approve_master(db_session, case, first, max_redos=2))
-    assert len(seen) == 2
-    # an approved master passes untouched
-    ok = _master(db_session, case, "ready")
-    assert asyncio.run(approve_master(db_session, case, ok)) == (ok, [])
 
 
 def test_host_segments_the_critic_rejected_get_no_scene(db_session, tmp_path, monkeypatch):

@@ -259,7 +259,7 @@ export function BlueprintTab({ caseId, overview, refreshKey }: DocumentaryTabPro
         </Card>
       </div>
 
-      <ChaptersCard caseId={caseId} versionId={overview.master_version_id ?? null} refreshKey={refreshKey} />
+      <ChaptersCard caseId={caseId} versionId={overview.final_version_id ?? null} refreshKey={refreshKey} />
 
       <Card>
         <CardHeader>

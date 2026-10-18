@@ -229,8 +229,7 @@ export default function SettingsPage() {
               {(
                 [
                   ["Research languages", data.multilingual.research_languages],
-                  ["Canonical language", [data.multilingual.canonical_language]],
-                  ["Localization targets", data.multilingual.localization_languages],
+                  ["Production languages", data.multilingual.production_languages],
                   ["Research-only languages", data.multilingual.research_only_languages],
                   [
                     "Ready to enable (config/parameters/story.json)",

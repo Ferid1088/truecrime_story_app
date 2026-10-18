@@ -62,7 +62,6 @@ def test_decision_limits_are_explicit_json_keys():
         "production_policies.timeline.empty_calendar_markers",
         "production_policies.publishing.default_visibility",
         "production_policies.publishing.live_mode_default",
-        "production_policies.retry_policy.master_story",
         "production_policies.retry_policy.chapter_texts",
         "production_policies.retry_policy.spoken_versions",
         "production_policies.retry_policy.host_segments",

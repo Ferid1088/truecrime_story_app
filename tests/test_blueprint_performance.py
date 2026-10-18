@@ -15,6 +15,7 @@ from app.documentary.blueprint import (
 from app.documentary.performance import build_performance, direct_pauses
 from app.documentary.voice_blocks import plan_voice_blocks
 from app.providers.generation.base import GenerationResult
+from datetime import datetime, timezone
 
 
 def _para(tag, words=60):
@@ -172,10 +173,11 @@ def _story(db, sections=SECTIONS, fingerprint=None, title=None):
     if fingerprint:
         struct["evidence_fingerprint"] = fingerprint
     v = StoryVersion(
-        case_id=case.id, version=1, kind="master", language="en",
+        case_id=case.id, version=1, kind="final", language="en",
         narrative_angle="{}", narrative_structure=json.dumps(struct),
         story_text="\n\n".join(s["text"] for s in sections), text_hash="h1",
         engagement_score=80.0, status="ready",
+        approved_by="test", approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
     db.add(v)
     db.commit()
@@ -337,6 +339,7 @@ def workdir(tmp_path, monkeypatch):
 
 def test_render_uses_styles_pauses_and_reports_beat_times(workdir):
     from test_voice_render import FakeASR, FakeTTS
+
     from app.documentary.voice_render import VoiceRenderer
 
     sections = [
@@ -366,6 +369,7 @@ def test_render_uses_styles_pauses_and_reports_beat_times(workdir):
 
 def test_cache_follows_content_not_block_id(workdir):
     from test_voice_render import FakeASR, FakeTTS, _block
+
     from app.documentary.voice_render import VoiceRenderer
 
     tts = FakeTTS()

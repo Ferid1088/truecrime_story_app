@@ -9,20 +9,16 @@ import json
 import uuid
 
 import pytest
-
-from tests.factories import DistinctEmbedder
 from fastapi import HTTPException
 
 from app.agents.story import (
-    StoryPipeline,
-    build_act_pack,
     build_evidence_pack,
     estimate_narrative_capacity,
-    evidence_coverage_matrix,
     research_gap_plan,
 )
 from app.services.chunking import chunk_source, split_chunks
 from app.services.research_jobs import _ingest_research, _source_content
+from tests.factories import DistinctEmbedder
 
 
 def _mk_case(db):
@@ -711,27 +707,6 @@ def test_extraction_cache_is_portable_across_cases_with_remapped_ids(db_session)
 # ---------------------------------------------------------------------------
 
 
-def test_coverage_matrix_counts_assigned_buckets():
-    pack = {
-        "facts": [
-            {"id": "F001", "narrative_value": "fact"},
-            {"id": "F002", "narrative_value": "human_detail"},
-            {"id": "F003", "narrative_value": "scene_detail"},
-        ],
-        "timeline": [{"id": "T001"}],
-        "contradictions": [{"id": "C001"}],
-        "approved_quotes": [{"id": "F004", "narrative_value": "quote"}],
-        "human_details": [{"id": "F002", "narrative_value": "human_detail"}],
-        "scene_details": [{"id": "F003", "narrative_value": "scene_detail"}],
-    }
-    acts = [
-        {"id": "a1", "evidence_ids": ["F001", "T001"]},
-        {"id": "a2", "evidence_ids": ["F002", "F003", "C001", "F004"]},
-    ]
-    m = evidence_coverage_matrix(acts, pack)
-    assert m["a1"]["facts"] == 1 and m["a1"]["timeline"] == 1
-    assert m["a2"]["human_details"] == 1 and m["a2"]["scene_details"] == 1
-    assert m["a2"]["contradictions"] == 1 and m["a2"]["quotes"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -857,132 +832,12 @@ def test_followup_builds_targeted_objective(client, db_session, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_act_pack_only_contains_assigned_evidence():
-    pack = {
-        "facts": [{"id": "F001"}, {"id": "F002"}, {"id": "F003"}],
-        "disputed_facts": [{"id": "F002"}],
-        "timeline": [{"id": "T001"}, {"id": "T002"}],
-        "contradictions": [{"id": "C001"}],
-        "approved_context": [{"id": "CTX001"}],
-        "human_details": [{"id": "F002"}],
-        "scene_details": [],
-        "investigation_details": [],
-        "physical_evidence": [],
-        "historical_context": [],
-        "environment_details": [],
-        "approved_quotes": [],
-        "research_gaps": [],
-    }
-    act = build_act_pack(pack, ["F002", "T001"])
-    assert [f["id"] for f in act["facts"]] == ["F002"]
-    assert [t["id"] for t in act["timeline"]] == ["T001"]
-    assert act["contradictions"] == []
-    assert act["human_details"][0]["id"] == "F002"
-    # context survives — acts may need shared background
-    assert act["approved_context"]
-    # unassigned -> full pack fallback
-    assert build_act_pack(pack, []) is pack
 
 
-def test_evidence_an_earlier_act_told_is_not_retold(monkeypatch):
-    """Case 8 master: the same key facts were narrated in full in three acts. An
-    item an earlier act narrated leaves the writer's evidence and comes back as
-    id + claim only."""
-    from app.agents.story import split_already_told
-
-    pack = {"facts": [{"id": "F001", "claim": "dress burned"}, {"id": "F002", "claim": "axe found"}],
-            "timeline": [{"id": "T001", "claim": "11:10 body found"}],
-            "human_details": [{"id": "F001", "claim": "dress burned"}], "approved_context": [{"id": "CTX1"}]}
-    fresh, told = split_already_told(pack, {"F001", "T001"})
-    assert [f["id"] for f in fresh["facts"]] == ["F002"]
-    assert fresh["timeline"] == [] and fresh["human_details"] == []
-    assert fresh["approved_context"] == pack["approved_context"]
-    assert told == [{"id": "F001", "claim": "dress burned"}, {"id": "T001", "claim": "11:10 body found"}]
-    assert split_already_told(pack, set())[1] == []
 
 
-def test_grounding_scoped_to_act_evidence(db_session, monkeypatch):
-    """The per-act grounding validator receives the act-scoped pack, not
-    the entire case database (Part 18)."""
-    from app.db.models import Fact
-    from app.providers.generation.base import GenerationResult
-    import app.agents.story as story_mod
-
-    case = _mk_case(db_session)
-    _mk_fact(db_session, case, "alpha claim")
-    _mk_fact(db_session, case, "beta claim")
-    _mk_fact(db_session, case, "gamma claim")
-
-    captured = {}
-
-    class Fake:
-        def is_configured(self):
-            return True
-
-        async def generate_text(self, role, system, user):
-            return GenerationResult(
-                text="some narration text", model="m", provider="f"
-            )
-
-        async def generate_structured(self, role, system, user):
-            u = json.loads(user)
-            if role == "grounding_validator":
-                captured["evidence"] = u["evidence"]
-            return {
-                "grounding_score": 1.0, "unsupported_claims": [],
-                "uncertainty_errors": [],
-            }, GenerationResult(text="{}", model="m", provider="f")
-
-    monkeypatch.setattr(story_mod, "get_generation_provider", lambda: Fake())
-    pipe = StoryPipeline()
-    pack = build_evidence_pack(
-        db_session.query(Fact).filter(Fact.case_id == case.id).all(), [], []
-    )
-    # The pipeline grounds each section against its act-scoped pack.
-    act_pack = build_act_pack(pack, ["F001"])
-    asyncio.run(
-        pipe._grounding_check_only(
-            db_session,
-            case,
-            # unmatched token forces the LLM path past deterministic triage
-            "para mentions only alpha and the year 1901",
-            act_pack,
-        )
-    )
-    ids = [f["id"] for f in captured["evidence"]["facts"]]
-    assert ids == ["F001"]  # F002/F003 never reached the validator
 
 
-def test_claim_first_skips_llm_when_clean(db_session, monkeypatch):
-    """Paragraphs whose specifics all match the pack never reach the LLM
-    (Part 19) — deterministic pass costs zero tokens."""
-    called = {"n": 0}
-
-    class Fake:
-        async def generate_structured(self, role, system, user):
-            called["n"] += 1
-            raise AssertionError("should not be called")
-
-    pipe = StoryPipeline()
-    pipe.gen = Fake()
-    pack = {
-        "facts": [{"id": "F001", "claim": "The lighthouse stood at 23 metres "
-                   "and keeper James Ducat logged the weather daily"}],
-        "timeline": [], "contradictions": [],
-        "approved_context": [],
-    }
-    rep = asyncio.run(
-        pipe._grounding_check_only(
-            db_session,
-            case := _mk_case(db_session),
-            "The lighthouse stood at 23 metres and keeper James Ducat "
-            "logged the weather daily.",
-            pack,
-        )
-    )
-    assert called["n"] == 0
-    assert rep["method"] == "deterministic_scan"
-    assert rep["grounding_score"] == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -1036,10 +891,7 @@ def test_no_live_generation_when_unauthorized(
     work — Part 23."""
     _real_preflight(monkeypatch, _QuotaProvider())
     case = _mk_case(db_session)
-    r = client.post(
-        f"/api/cases/{case.id}/master-story/generate",
-        json={"target_minutes": 45, "language": "en"},
-    )
+    r = client.post(f"/api/cases/{case.id}/language-pipeline/run", json={})
     assert r.status_code == 503
     assert r.json()["detail"]["code"] == "provider_unauthorized"
 
@@ -1309,6 +1161,7 @@ def test_research_merges_the_same_fact_from_different_languages(db_session):
     """The same event extracted from an English and a German source is stored
     once, with both sources behind it, and the merge is a tracked run."""
     import numpy as np
+
     from app.db.models import AgentRun, Fact
 
     class SameEmbedder(DistinctEmbedder):
@@ -1353,6 +1206,7 @@ def test_embedding_cost_is_booked_per_stage_not_as_one_running_total(db_session,
     embedding cost to whichever stage read it last (Fact Merger). Each
     stage must book only its own delta."""
     import numpy as np
+
     from app.core.ai_config import ai_config
     from app.db.models import AgentRun, SourceChunk
 

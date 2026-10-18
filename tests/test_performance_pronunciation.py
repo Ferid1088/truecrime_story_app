@@ -303,8 +303,8 @@ def test_director_builds_the_arc_and_validates_every_sentence(db_session, monkey
 
 
 def test_directed_blocks_carry_tags_display_and_level_styles(db_session, monkeypatch):
-    from app.documentary.performance import performance_for_version
     from app.documentary.audio_director import AudioDirector
+    from app.documentary.performance import performance_for_version
 
     case, master, sv = _spoken_en(db_session, monkeypatch)
     gen = PerformanceGen()
@@ -471,7 +471,7 @@ def test_job_stages_include_performance_and_from_zero():
     from app.documentary.jobs import plan_stages
 
     names = [s["name"] for s in plan_stages(["en", "fa"], from_zero=True)]
-    assert names[:5] == ["research", "master_story", "master_approval", "blueprint", "audio_plan"]
+    assert names[:5] == ["research", "language_pipeline", "final_approval", "blueprint", "audio_plan"]
     assert names.index("performance:fa") < names.index("voice:fa") < names.index("render:fa")
 
 
@@ -494,19 +494,23 @@ def test_batch_api_starts_one_job_per_case(client, db_session, monkeypatch):
         "languages": ["en", "fa"], "mode": "pilot", "pilot_seconds": 180})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert len(body["jobs"]) == 3 and len(launched) == 3
-    assert body["rejected"] == [{"case_id": 999999, "reason": "case not found"}]
+    # one job per case AND language; c1 and c2 only have an English final text
+    assert len(body["jobs"]) == 4 and len(launched) == 4
+    assert {(j["case_id"], tuple(j["languages"])) for j in body["jobs"]} == {
+        (c1.id, ("en",)), (c2.id, ("en",)), (c3.id, ("en",)), (c3.id, ("fa",))}
+    assert [r["reason"] for r in body["rejected"] if r["case_id"] == 999999] == ["case not found"]
+    assert {(r["case_id"], r.get("language")) for r in body["rejected"]} >= {(c1.id, "fa"), (c2.id, "fa")}
     fresh = next(j for j in body["jobs"] if j["case_id"] == c3.id)
-    assert fresh["from_zero"] and fresh["master_version_id"] is None
+    assert fresh["from_zero"] and fresh["final_version_id"] is None
     # In pilot mode the pilot is the editorial target too: 180 seconds is a
     # three-minute master target, even when the batch item supplied the old
     # full-film target field.
     assert fresh["stages"][0]["name"] == "research" and fresh["target_minutes"] == 3.0
     batch = client.get(f"/api/documentary/batches/{body['batch_id']}").json()
-    assert len(batch["jobs"]) == 3 and batch["statuses"] == {"queued": 3}
+    assert len(batch["jobs"]) == 4 and batch["statuses"] == {"queued": 4}
     sched = client.get("/api/documentary/scheduler").json()
     assert sched["max_parallel_jobs"] == ai_config.concurrency.jobs
-    assert len(sched["queued"]) >= 3
+    assert len(sched["queued"]) >= 4
     listed = client.get("/api/documentary/jobs?status=queued").json()
     assert {j["case_title"] for j in listed} >= {"Fresh case"}
     # without from_zero a case needs a master story
@@ -516,9 +520,10 @@ def test_batch_api_starts_one_job_per_case(client, db_session, monkeypatch):
 
 def test_parallel_languages_never_lose_each_others_overlay_texts(db_session, monkeypatch):
     """Two languages localize at the same time; both results stay."""
+    from test_blueprint_performance import _story
+
     from app.db.models import VisualPlan
     from app.documentary.production import script as PS
-    from test_blueprint_performance import _story
 
     case, master = _story(db_session)
     from app.documentary.blueprint import NarrativeDirector  # noqa: F401
@@ -541,8 +546,8 @@ def test_parallel_languages_never_lose_each_others_overlay_texts(db_session, mon
     monkeypatch.setattr(PS, "stored_sections", lambda v: [{"id": "B01", "text": "x"}])
 
     async def both():
-        return await asyncio.gather(PS.localized_plan_texts(db_session, V("de"), row),
-                                    PS.localized_plan_texts(db_session, V("fa"), row))
+        return await asyncio.gather(PS.plan_texts_in_language(db_session, V("de"), row),
+                                    PS.plan_texts_in_language(db_session, V("fa"), row))
 
     asyncio.run(both())
     db_session.refresh(row)
@@ -642,6 +647,7 @@ class _Listener:
 
 def test_voice_render_fixes_a_misread_word_and_checks_again(tmp_path, monkeypatch):
     from pathlib import Path as _P  # noqa: F401
+
     from test_voice_render import FakeASR, FakeTTS
 
     monkeypatch.setattr(ai_config.voice, "work_dir", str(tmp_path))

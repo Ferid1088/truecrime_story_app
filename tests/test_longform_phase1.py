@@ -43,7 +43,7 @@ def _blueprint(db_session):
     db_session.add(case)
     db_session.flush()
     story = StoryVersion(
-        case_id=case.id, version=1, kind="master", language="en",
+        case_id=case.id, version=1, kind="final", language="en",
         narrative_angle="test", story_text="First paragraph.\n\nSecond paragraph.",
         engagement_score=0.0,
     )

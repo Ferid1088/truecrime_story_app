@@ -65,7 +65,7 @@ def observe(db, root: Path) -> dict:
                 language = productions[row["production_script_id"]]["language"]
             key = f"db:{table}:{row['id']}"
             if table == "story_versions":
-                owner = "master_story" if row["kind"] == "master" else "spoken_version"
+                owner = "master_story" if row["kind"] == "final" else "spoken_version"
             elif table == "music_tracks":
                 # An unconsumed library row is still observed, never dropped.
                 for lang in track_langs[row["id"]] or {None}:

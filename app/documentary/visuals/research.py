@@ -64,6 +64,15 @@ class Candidate:
     query_kind: str | None = None   # source | exact | context
 
 
+def date_span(value: str | None) -> tuple[str | None, str | None]:
+    """A provider's date ("1892-08-04", or a range "1900-01-01/1900-12-31") as the asset's start
+    and end date; each fits the column."""
+    if not value:
+        return None, None
+    start, _, end = value.partition("/")
+    return (start.strip()[:20] or None), (end.strip()[:20] or None)
+
+
 def source_candidate_has_relevance(candidate: Candidate, case: Case) -> bool:
     """Require an image-level case signal for source-page candidates."""
     try:

@@ -38,13 +38,13 @@ def _director(case_facts):
 
 @pytest.fixture
 def director(monkeypatch):
-    from tests.test_master_pipeline import ScriptGen
     import app.agents.story as story_mod
+    from tests.factories import ScriptGen
 
     fake = ScriptGen()
-    fake.structured["master_story_director"] = _director(3)
+    fake.structured["story_director"] = _director(3)
     monkeypatch.setattr(story_mod, "get_generation_provider", lambda: fake)
-    monkeypatch.setattr(ai_config.story, "words_per_minute", 120)
+    monkeypatch.setitem(ai_config.language_pipeline.words_per_minute, "fa", 120)
     return fake
 
 
@@ -101,7 +101,7 @@ def test_redo_runs_the_director_with_the_instruction(db_session, director):
     assert preview["director_calls"] == 1
     new = asyncio.run(service.redo(plan, "open on the court", preview["token"]))
     assert new.origin == "redo" and new.instruction == "open on the court"
-    users = [json.loads(c[2]) for c in director.calls if c[1] == "master_story_director"]
+    users = [json.loads(c[2]) for c in director.calls if c[1] == "story_director"]
     assert users[-1]["editorial_context"]["user_instruction"] == "open on the court"
 
 
@@ -126,65 +126,10 @@ def test_ensure_approved_plans_by_itself_only_when_the_config_allows(db_session,
     assert asyncio.run(service.ensure_approved(case, 10, "fa")).id == plan.id   # reused
 
 
-def test_the_master_endpoint_refuses_to_write_without_an_approved_plan(client, db_session, monkeypatch):
-    from app.api import masters
-
-    async def authorized():
-        return {"authorized": True}
-
-    monkeypatch.setattr(masters.deps, "require_generation_authorized", authorized)
-    monkeypatch.setattr(masters, "build_readiness", lambda *a, **k: {
-        "master_readiness": {"status": "ready"}})
-    monkeypatch.setattr(ai_config.story_plan, "require_approved_plan", True)
-    case = _case(db_session)
-    r = client.post(f"/api/cases/{case.id}/master-story/generate",
-                    json={"target_minutes": 45, "language": "fa"})
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "story_plan_required"
 
 
-def test_the_pipeline_writes_to_the_plan_without_a_new_director_call(db_session, monkeypatch):
-    from tests.test_master_pipeline import ScriptGen, _pipeline
-
-    fake = ScriptGen()
-    fake.structured["master_story_director"] = _director(3)
-    pipe = _pipeline(fake, monkeypatch)
-    case = _case(db_session)
-    service = StoryPlanService(db_session)
-    plan = service.approve(asyncio.run(service.create(case, 45, "fa")), "owner")
-    directors_before = fake.count("json", "master_story_director")
-
-    from app.agents.story import MASTER_ROLES
-
-    pipe.roles = MASTER_ROLES
-    version = asyncio.run(pipe.run(
-        db=db_session, case=case, target_minutes=45, language="fa", tone="documentary",
-        iterations=0, kind="master",
-        words_per_minute=ai_config.words_per_minute_for("fa"), story_plan=plan))
-    assert fake.count("json", "master_story_director") == directors_before   # plan reused
-    assert version.story_plan_id == plan.id
-    structure = json.loads(version.narrative_structure)
-    assert structure["story_plan_id"] == plan.id
-    assert [a["id"] for a in structure["acts"]] == ["act1", "act2", "act3"]
-    gates = json.loads(version.critic_notes)["quality_gates"]
-    assert "plan_check" in gates
 
 
-def test_every_new_master_records_its_writer_prompt_name_and_sha256(db_session, monkeypatch):
-    from app.core.prompts import prompt_sha256
-    from tests.test_master_pipeline import ScriptGen, _pipeline
-    from app.agents.story import MASTER_ROLES
-
-    fake = ScriptGen()
-    fake.structured["master_story_director"] = _director(3)
-    pipe = _pipeline(fake, monkeypatch)
-    pipe.roles = MASTER_ROLES
-    case = _case(db_session)
-    version = asyncio.run(pipe.run(
-        db=db_session, case=case, target_minutes=45, language="fa", tone="documentary",
-        iterations=0, kind="master", words_per_minute=ai_config.words_per_minute_for("fa")))
-    assert version.writer_prompt_name == "agents/story/write_act"
-    assert version.writer_prompt_sha256 == prompt_sha256("agents/story/write_act")
-    assert len(version.writer_prompt_sha256) == 64
 
 
 def test_prompt_sha256_is_the_hash_of_the_file_bytes():
@@ -193,5 +138,5 @@ def test_prompt_sha256_is_the_hash_of_the_file_bytes():
 
     from app.core.prompts import prompt_sha256
 
-    raw = Path("prompts/agents/story/write_act.md").read_bytes()
-    assert prompt_sha256("agents/story/write_act") == hashlib.sha256(raw).hexdigest()
+    raw = Path("prompts/language_pipeline/draft_writer.md").read_bytes()
+    assert prompt_sha256("language_pipeline/draft_writer") == hashlib.sha256(raw).hexdigest()

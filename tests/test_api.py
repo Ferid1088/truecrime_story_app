@@ -90,9 +90,10 @@ def test_health_reports_degraded_when_discovery_probe_has_too_few_results(monkey
 
 
 def test_twenty_health_requests_make_at_most_one_brave_probe(monkeypatch):
+    import httpx
+
     from app.api import system
     from app.research_engine.search_adapters import brave
-    import httpx
 
     calls = []
 
@@ -233,7 +234,7 @@ def test_empty_research_views():
     assert client.get(f"/api/cases/{case_id}/agent-runs").json() == []
     r = client.get(f"/api/cases/{case_id}/evidence-diet")
     assert r.status_code == 200
-    assert r.json() == {"total_facts": 0, "cap": r.json()["cap"], "kept": 0, "dropped": []}
+    assert r.json() == {"total_facts": 0, "cap": r.json()["cap"], "kept": 0, "added_beyond_cap": 0, "dropped": []}
 
 
 def test_missing_case_404s():
@@ -250,14 +251,18 @@ def test_missing_case_404s():
         assert client.get(path).status_code == 404, path
 
 
-def test_generate_story_without_facts_fails():
+def test_language_pipeline_refuses_a_case_without_evidence(monkeypatch):
+    from app.api import deps
+
+    async def authorized():
+        return {"authorized": True}
+
+    monkeypatch.setattr(deps, "require_generation_authorized", authorized)
     r = client.post("/api/cases", json={"canonical_title": "No Facts Case"})
     case_id = r.json()["id"]
-    r = client.post(f"/api/cases/{case_id}/generate-story", json={"target_minutes": 45})
-    assert r.status_code == 200
-    job = client.get(f"/api/jobs/{r.json()['job_id']}").json()
-    assert job["status"] == "failed"
-    assert "facts" in (job["error"] or "").lower()
+    r = client.post(f"/api/cases/{case_id}/language-pipeline/run", json={})
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] in ("evidence_incomplete", "insufficient_research")
 
 
 def test_latest_story_404_when_none():

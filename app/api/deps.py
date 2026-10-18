@@ -12,8 +12,6 @@ from app.providers.generation import get_generation_provider
 from app.core.policy import PolicyError
 
 
-
-
 def get_case_or_404(db: Session, case_id: int) -> Case:
     case = db.get(Case, case_id)
     if not case:
@@ -83,15 +81,6 @@ def story_or_404(db: Session, case_id: int, version_id: int) -> StoryVersion:
     if not story:
         raise HTTPException(status_code=404, detail="Story version not found")
     return story
-
-
-def best_master(db: Session, case_id: int) -> StoryVersion | None:
-    return (
-        db.query(StoryVersion)
-        .filter(StoryVersion.case_id == case_id, StoryVersion.kind == "master")
-        .order_by(StoryVersion.is_best.desc(), StoryVersion.version.desc())
-        .first()
-    )
 
 
 def duplicate_or_409(db: Session, identity, force: bool, exclude_candidate: int | None = None):

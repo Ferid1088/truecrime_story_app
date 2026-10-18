@@ -30,7 +30,7 @@ def database_name(database_url: str | None = None) -> str:
 def is_disposable_e2e_database(database_url: str | None = None) -> bool:
     """`truecrime_e2e` is always disposable (the default E2E stack). A
     different isolated stack (its own database, its own ports — see
-    scripts/e2e_approve_pilot_stack.sh) names its own database via
+    scripts/e2e_stack.sh) names its own database via
     E2E_DB_NAME, which must match the database actually being used —
     comparing it to the fixed default name would accept ANY database
     whose name happened to equal $E2E_DB_NAME's value elsewhere."""

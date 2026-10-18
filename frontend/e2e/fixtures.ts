@@ -152,9 +152,12 @@ export const fixtures = {
         central_question: "What happened inside the lighthouse that night?",
       }),
       language: "en",
-      kind: "master",
+      kind: "final",
       master_version_id: null,
-      derived_from_master_version: null,
+      draft_version_id: 9,
+      reasoning_effort: "high",
+      minutes: 62.4,
+      cost_eur: 0.61,
       native_quality_score: null,
       semantic_consistency_score: null,
       factual_consistency_score: null,
@@ -181,80 +184,99 @@ export const fixtures = {
       story_text: "The boat scraped against the rocks of Eilean Mòr.\n\nInside, the lighthouse stood silent.",
     },
   ],
-  masterStory: {
-    master: {
-      id: 5,
-      case_id: 1,
-      version: 2,
-      narrative_angle: JSON.stringify({
-        title: "Three Men and a Locked Door",
-        central_question: "What happened inside the lighthouse that night?",
-      }),
-      language: "en",
-      kind: "master",
-      master_version_id: null,
-      derived_from_master_version: null,
-      native_quality_score: null,
-      semantic_consistency_score: null,
-      factual_consistency_score: null,
-      engagement_score: 38,
-      similarity_score: 0.1,
-      similarity_status: "ok",
-      status: "ready",
-      is_best: true,
-      word_count: 2400,
-      dimensions: { hook: 40, pacing: 35 },
-      problems: [],
-      rewrite_instructions: [],
-      generation_provider: "apimaster",
-      generation_model: "google/gemini-3.8-flash",
-      text_hash: "abc123",
-      narrative_structure: {
-        title: "Three Men and a Locked Door",
-        central_question: "What happened inside the lighthouse that night?",
-        acts: [{ id: "act1", title: "Arrival", purpose: "Setup", word_target: 800 }],
-        sections: [{ id: "s1", words: 2400 }],
-        evidence_usage: { facts_used: 3, facts_total: 4 },
+  languagePipeline: {
+    draft: { id: 9, stage: "draft", language: "en", status: "ready", model: "claude-sonnet-5-5", provider: "apimaster", reasoning_effort: "low", minutes: 91.2, words: 13680, cost_eur: 1.52, prompt: "language_pipeline/draft_writer", prompt_sha256: "0123abcd0123abcd", derived_from: null, usage: null, approved_by: "automatic", approved_at: "2026-10-17T12:00:00Z", requested_minutes: 60,
+      approval: { by: "automatic", at: "2026-10-17T12:00:00Z", draft_version_id: 9, cost_eur: 1.52, evidence_audit: "ok" },
+      evidence_audit: {
+        status: "ok", verdict: "issues", report_only: true, note: "Report only: nothing was changed.",
+        models: ["gpt-6.1-sol"], summary: "Checked acts 1-7 against the supplied facts.",
+        counts: { severity: { high: 1, low: 1 }, kind: { wrong_detail: 1, distortion: 1 } },
+        usage: { calls: 4, tokens_in: 520000, tokens_cached: 340000, tokens_reasoning: 20000, tokens_out: 24000, cost_eur: 0.91 },
+        chunks: [],
+        items: [
+          { id: 1, severity: "high", kind: "wrong_detail", act: "act1", quote: "Andrew Borden was 71 years old.", claim: "Andrew was 71.", evidence_ids: ["F001"], evidence: "He was 70.", problem: "Age differs.", correction: "Say 70.", evidence_facts: [{ id: "F001", text: "Andrew Borden was 70 years old." }] },
+          { id: 2, severity: "low", kind: "distortion", act: "act2", quote: "about a minute", claim: "A minute.", evidence_ids: [], evidence: "Not stated.", problem: "Rounded.", correction: "remove", evidence_facts: [] },
+        ],
       },
-      created_at: "2024-06-02T09:00:00Z",
-      story_text: "The boat scraped against the rocks of Eilean Mòr.\n\nInside, the lighthouse stood silent.",
-    },
-    localizations: [],
+      draft_checks: {
+        numbers_and_names: { unsupported_figures: [{ figure: "1893", context: "in 1893 he left" }], names_not_in_evidence: ["Hosea Knowlton"], model_calls: 0 },
+        coverage: { facts_in_pack: 156, told: 140, not_told: ["F150"], key_facts_not_told: ["F150"], model_calls: 0 },
+      } },
+    retired_method: [
+      { id: 27, kind: "master_inspect", status: "retired", cost_eur: 3.83, round: 0, created_at: "2026-10-17T10:45:00Z", retired: { reason: "The fact-check loop was retired on 2026-10-17.", at: "2026-10-17T18:00:00Z", was: "stage_output" } },
+      { id: 36, kind: "english_master", status: "retired", cost_eur: 11.6, round: null, created_at: "2026-10-17T11:30:00Z", retired: { reason: "The fact-check loop was retired on 2026-10-17.", at: "2026-10-17T18:00:00Z", was: "stopped" } },
+    ],
+    languages: [
+      {
+        language: "fa",
+        direction: "rtl",
+        stages: {
+          rewrite: { id: 21, stage: "rewrite", language: "fa", status: "stage_output", model: "gpt-6.1-sol", reasoning_effort: "high", minutes: 66.0, words: 8910, cost_eur: 0.72, prompt: "language_pipeline/rewrite_writer", prompt_sha256: "abcdef0123456789", derived_from: { id: 9, kind: "draft", language: "en", prompt_sha256: "0123abcd" }, usage: null, approved_by: null, approved_at: null, requested_minutes: 60 },
+          inspection: { id: 22, stage: "inspection", language: "fa", status: "stage_output", model: "gpt-6.1-sol", reasoning_effort: "high", minutes: 0.0, words: 0, cost_eur: 0.09, prompt: "language_pipeline/inspection_writer", prompt_sha256: "abcdef0123456789", derived_from: { id: 9, kind: "draft", language: "en", prompt_sha256: "0123abcd" }, usage: null, approved_by: null, approved_at: null, requested_minutes: 60 },
+          final: { id: 31, stage: "final", language: "fa", status: "ready", model: "gpt-6.1-sol", reasoning_effort: "high", minutes: 62.4, words: 8424, cost_eur: 0.61, prompt: "language_pipeline/final_writer", prompt_sha256: "abcdef0123456789", derived_from: { id: 9, kind: "draft", language: "en", prompt_sha256: "0123abcd" }, usage: null, approved_by: "automatic", approved_at: "2026-10-17T12:30:00Z", requested_minutes: 60, length_corrected: true, acts_changed: ["act2"], corrects_version_id: 30 },
+        },
+        critique: {
+          verdict: "revise",
+          scores: { native_naturalness: 82, faithfulness_to_evidence: 95 },
+          items: [{ id: 1, severity: "high", kind: "translationese", act: "act1", quote: "جمله نمونه", problem: "English word order", instruction: "Re-tell it" }],
+          summary: "Strong voice; two calqued sentences.",
+        },
+        gates: { pass: true, failures: [], details: [], reports: { markers: { pass: true }, length: { pass: true }, originality: { pass: true } } },
+        gate_history: [{ words: 8424, failures: [] }],
+        blocking_gates: ["markers", "length"],
+        automatic_approval: true,
+        evidence_audit: { status: "ok", verdict: "issues", report_only: true, note: "Report only: nothing was changed.", models: ["gpt-6.1-sol"], summary: "Checked the final.", counts: { severity: { medium: 1 }, kind: { unsupported: 1 } }, usage: { calls: 4, tokens_in: 1, tokens_cached: 0, tokens_reasoning: 0, tokens_out: 1, cost_eur: 0.7 }, chunks: [], items: [{ id: 1, severity: "medium", kind: "unsupported", act: "act2", quote: "a quiet street", claim: "The street was quiet.", evidence_ids: [], evidence: "Not stated.", problem: "Added in the final.", correction: "remove", evidence_facts: [] }] },
+        act_lengths: { act1: { target: 4200, words: 4150, ratio: 0.99, within_tolerance: true }, act2: { target: 4300, words: 4274, ratio: 0.99, within_tolerance: true } },
+        length_correction: { status: "stored", corrects_version_id: 30, acts_changed: ["act2"], not_inspected: true,
+          shortfalls: [{ act_id: "act1", current_words: 4150, target_words: 4200, shortfall_words: 50, master_words: 4100, qualifies: false }, { act_id: "act2", current_words: 3400, target_words: 4300, shortfall_words: 900, master_words: 5200, qualifies: true }],
+          repetition: { act2: { trigram_before: 0.04, trigram_after: 0.06, likely_padded: true } } },
+        fact_report: { added: { figures: [{ figure: "1894", context: "in 1894 the trial" }], names: [] }, missing: { figures: ["1893"], names: [], evidence_names: [] }, master_figures: 30, film_figures: 29, master_names: 0, film_names: 0, blocking: false, model_calls: 0, script_hygiene: { persian_letters: { count: 2, example: { line: 3, column: 5, context: "كتب ک" } }, tatweel: { count: 0, example: null }, blocking: false, model_calls: 0 }, names_compared: false, note: "Numbers only. Names are not compared (transliteration between scripts cannot be matched reliably)." },
+        originality: { pass: true, worst: { longest_run: 4, ngram_share: 0.004 }, near_verbatim_count: 0, transcripts_compared: 12 },
+        approved: true,
+        final_version_id: 31,
+      },
+      { language: "en", direction: "ltr", stages: {}, critique: null, gates: null, gate_history: null, blocking_gates: ["markers", "length"], automatic_approval: false, fact_report: null, act_lengths: null, evidence_audit: null, length_correction: null, originality: null, approved: false, final_version_id: null },
+      { language: "de", direction: "ltr", stages: {}, critique: null, gates: null, gate_history: null, originality: null, approved: false, final_version_id: null },
+      { language: "ar", direction: "rtl", stages: {}, critique: null, gates: null, gate_history: null, originality: null, approved: false, final_version_id: null },
+    ],
+    ledger: [
+      { stage: "language_draft", language: null, calls: 42, tokens_in: 8400000, tokens_cached: 7700000, tokens_reasoning: 0, tokens_out: 21000, eur: 1.52, cache_share: 0.917, cache_saving_eur: 13.1 },
+      { stage: "language_final", language: "fa", calls: 1, tokens_in: 52000, tokens_cached: 30000, tokens_reasoning: 12000, tokens_out: 21000, eur: 0.61, cache_share: 0.577, cache_saving_eur: 0.05 },
+    ],
+    cost_total_eur: 2.13,
+    calls_total: 43,
   },
-  needsRevisionMaster: {
-    master: {
-      id: 6,
-      case_id: 1,
-      version: 3,
-      narrative_angle: null,
-      language: "en",
-      kind: "master",
-      master_version_id: null,
-      derived_from_master_version: null,
-      native_quality_score: null,
-      semantic_consistency_score: null,
-      factual_consistency_score: null,
-      engagement_score: 41,
-      similarity_score: 0.2,
-      similarity_status: "ok",
-      status: "needs_revision",
-      is_best: false,
-      word_count: 1800,
-      dimensions: {},
-      problems: ["Act 3 engagement below threshold (42 < 55)", "2 unsupported claims"],
-      rewrite_instructions: ["Strengthen the Act 3 reveal"],
-      generation_provider: "apimaster",
-      generation_model: "google/gemini-3.8-flash",
-      text_hash: "def456",
-      narrative_structure: null,
-      created_at: "2024-06-03T09:00:00Z",
-      story_text: "Draft text.",
-    },
-    localizations: [],
+  glossary: {
+    languages: ["fa", "en", "de", "ar"],
+    approved: { fa: false, en: true, de: false, ar: false },
+    entities: [
+      {
+        entity: "Abby Borden",
+        kind: "people",
+        evidence_ids: ["F001", "F002"],
+        languages: {
+          fa: { spellings: ["ابی بوردن", "بوردن"], status: "proposed", origin: "agent" },
+          en: { spellings: ["Abby Borden", "Borden"], status: "approved", origin: "evidence" },
+          de: { spellings: ["Abby Borden"], status: "proposed", origin: "agent" },
+          ar: { spellings: ["آبي بوردن"], status: "proposed", origin: "agent" },
+        },
+      },
+    ],
   },
-  localizations: [],
+  languagePipelineEmpty: {
+    draft: null,
+    retired_method: [],
+    languages: ["fa", "en", "de", "ar"].map((language) => ({ language, stages: {} })),
+    ledger: [],
+    cost_total_eur: 0,
+  },
+  languagePipelineEstimate: {
+    note: "ESTIMATE from planning figures, not a price and not a spend. The actual cost is the ledger.",
+    estimate: true, assumptions: "planning figures", large_calls: 13, calls: 60, lines: [],
+    total_eur: 4.2, total_tokens_in: 602937, total_tokens_out: 350746,
+  },
   researchLanguages: {
-    canonical_language: "en",
+    production_languages: ["fa", "en", "de", "ar"],
     total_sources: 3,
     languages: {
       en: { searched: true, queries: ["keeper disappearance 1900"], sources: 2, full_text_sources: 1, evidence_items: 3, unique_evidence: 2 },
@@ -325,8 +347,9 @@ export const fixtures = {
     research_provider: { provider: "truecrime", configured: true },
     multilingual: {
       research_languages: ["en", "de", "fa", "ar"],
-      canonical_language: "en",
-      localization_languages: ["de", "fa", "ar"],
+      production_languages: ["fa", "en", "de", "ar"],
+      research_only_languages: [],
+      available_languages: { en: "English", de: "German", fa: "Persian", ar: "Arabic", ja: "Japanese" },
     },
     database: { connected: true, url: "sqlite" },
   },
@@ -346,8 +369,7 @@ export const fixtures = {
     facts: { count: 4, items: [] },
     contradictions: { count: 1, items: [] },
     stories: { count: 2, items: [] },
-    localizations: { count: 0, items: [] },
-    research_jobs: { count: 0, items: [] },
+        research_jobs: { count: 0, items: [] },
     agent_runs: { count: 2, items: [] },
     discovery_history: { count: 0, items: [] },
   },
@@ -482,8 +504,7 @@ export interface MockOptions {
   dashboardStatus?: number;
   /** Per-request responses for /api/dashboard, in call order. */
   dashboardSequence?: { status: number; body: unknown }[];
-  master?: unknown;
-  masterStatus?: number;
+  languagePipeline?: unknown;
   researchJob?: (call: number) => unknown;
 }
 
@@ -607,13 +628,19 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/cases/1/stories") return json(route, fixtures.stories);
     if (path === "/api/cases/1/stories/5") return json(route, fixtures.stories[0]);
     if (path === "/api/cases/1/research/languages") return json(route, fixtures.researchLanguages);
-    if (path === "/api/cases/1/master-story" && method === "GET") {
-      if (opts.masterStatus && opts.masterStatus >= 400)
-        return json(route, { detail: "No master story found" }, opts.masterStatus);
-      return json(route, opts.master ?? fixtures.masterStory);
-    }
-    if (path === "/api/cases/1/localizations" && method === "GET")
-      return json(route, fixtures.localizations);
+    if (path === "/api/cases/1/language-pipeline" && method === "GET")
+      return json(route, opts.languagePipeline ?? fixtures.languagePipeline);
+    if (path === "/api/cases/1/language-pipeline/glossary" && method === "GET") return json(route, fixtures.glossary);
+    if (path === "/api/cases/1/language-pipeline/glossary/fa" && method === "PUT")
+      return json(route, {
+        ...fixtures.glossary,
+        entities: [{ ...fixtures.glossary.entities[0], languages: {
+          ...fixtures.glossary.entities[0].languages,
+          fa: { spellings: route.request().postDataJSON().spellings, status: "proposed", origin: "owner" } } }],
+      });
+    if (path === "/api/cases/1/language-pipeline/glossary/fa/approve" && method === "POST")
+      return json(route, { ...fixtures.glossary, approved: { ...fixtures.glossary.approved, fa: true } });
+    if (path === "/api/cases/1/language-pipeline/estimate") return json(route, fixtures.languagePipelineEstimate);
     if (path === "/api/cases/1/agent-runs") return json(route, fixtures.agentRuns);
     if (path === "/api/cases/1/research" && method === "POST")
       return json(route, { job_id: 99, status: "queued" });

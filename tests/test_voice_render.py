@@ -82,8 +82,9 @@ class FakeASR:
         self.calls = 0
 
     def transcribe(self, audio_path: str, language: str) -> dict:
-        from app.core.ai_config import ai_config
         from mock_payload import asr_request_payload, provider_request
+
+        from app.core.ai_config import ai_config
 
         self.calls += 1
         wav = Path(audio_path)
@@ -394,7 +395,7 @@ def test_voice_render_api(client, db_session, workdir, monkeypatch):
     db_session.add(case)
     db_session.commit()
     story = StoryVersion(
-        case_id=case.id, version=1, kind="master", language="en",
+        case_id=case.id, version=1, kind="final", language="en",
         narrative_angle="{}", narrative_structure=json.dumps({"sections": [
             {"id": "act1", "text": TEXT_A}, {"id": "act2", "text": TEXT_C}]}),
         story_text=TEXT_A + "\n\n" + TEXT_C, text_hash="h",

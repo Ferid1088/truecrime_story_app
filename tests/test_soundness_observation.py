@@ -108,7 +108,7 @@ def test_german_card_edit_does_not_change_shared_or_other_language_observation(t
         master = StoryVersion(
             case_id=1,
             language="en",
-            kind="master",
+            kind="final",
             version=1,
             status="approved",
             narrative_angle="chronological",

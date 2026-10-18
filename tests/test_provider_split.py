@@ -183,8 +183,8 @@ def test_every_required_role_is_routed():
 def test_specific_role_ownership():
     gen = ai_config.generation_provider()
     assert ai_config.model_for("story_director") == gen.models["premium"]
-    assert ai_config.model_for("final_editor") == gen.models["premium"]
-    assert ai_config.model_for("master_writer") == gen.models["premium"]
+    assert ai_config.model_for("language_draft_writer") == gen.models["writer"]      # Gemini Flash (2026-10-18)
+    assert ai_config.model_for("language_rewrite_writer") == gen.models["sol"]
     assert ai_config.model_for("fact_extractor") == gen.models["premium"]
     assert ai_config.model_for("evidence_verifier") == gen.models["cheap"]
     # Research intelligence roles route to research_intelligence —
@@ -240,7 +240,7 @@ def test_generation_routing_unknown_role_fails():
 
 def test_generation_routing_unknown_alias_fails():
     raw = _raw_config()
-    raw["generation_providers"]["apimaster"]["routing"]["writer"] = \
+    raw["generation_providers"]["apimaster"]["routing"]["fact_extractor"] = \
         "missing_alias"
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
@@ -372,7 +372,7 @@ def test_agent_run_stamps_apimaster(db_session):
         input_tokens=10, output_tokens=5, total_tokens=15,
         cost_usd=0.0002,
     )
-    stamp_run(run, res, "writer")
+    stamp_run(run, res, "fact_extractor")
     db_session.commit()
     assert run.provider == "apimaster"
     assert run.model == "gemini-3.8-flash"
@@ -418,11 +418,12 @@ def test_env_example_declares_only_current_keys():
 
 
 def test_cost_split_by_provider(db_session):
+    import uuid
+
     from app.api.serializers import generation_usage as _generation_usage
+    from app.db.models import Case
     from app.services.tracking import record_run
     from app.utils import slugify
-    from app.db.models import Case
-    import uuid
 
     title = f"CostSplit {uuid.uuid4().hex[:8]}"
     case = Case(canonical_title=title, slug=slugify(title), language="en")
@@ -437,7 +438,7 @@ def test_cost_split_by_provider(db_session):
             cost_usd=cost,
         )
         from app.services.tracking import stamp_run
-        stamp_run(run, stamp, "writer")
+        stamp_run(run, stamp, "fact_extractor")
     db_session.commit()
 
     usage = _generation_usage(db_session, case.id)

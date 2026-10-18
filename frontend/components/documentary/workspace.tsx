@@ -51,15 +51,15 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("Run");
   const [tick, setTick] = useState(0);
-  const [masterChoice, setMasterChoice] = useState<number | null>(null);
+  const [finalChoice, setFinalChoice] = useState<number | null>(null);
   const [languageChoice, setLanguageChoice] = useState<string | null>(null);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   const caseState = useApi(() => api.getCase(caseId), [caseId]);
   const settingsState = useApi(() => api.documentarySettings(), []);
   const overviewState = useApi(
-    () => api.documentaryOverview(caseId, masterChoice),
-    [caseId, masterChoice, tick],
+    () => api.documentaryOverview(caseId, finalChoice, languageChoice),
+    [caseId, finalChoice, languageChoice, tick],
     { keepPrevious: true },
   );
   const overview = overviewState.data;
@@ -91,11 +91,11 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
     );
   }
 
-  const masterId = masterChoice ?? overview.master_version_id;
+  const finalId = finalChoice ?? overview.final_version_id;
   const language =
     languageChoice ?? productionLanguages(settings.languages, overview)[0] ?? settings.languages[0] ?? "en";
   const common = { caseId, settings, overview, refreshKey: tick };
-  const languageProps = { ...common, language, onLanguageChange: setLanguageChoice, masterId };
+  const languageProps = { ...common, language, onLanguageChange: setLanguageChoice, finalId };
 
   return (
     <div>
@@ -169,9 +169,9 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
             caseId={caseId}
             settings={settings}
             overview={overview}
-            masterId={masterId}
+            finalId={finalId}
             job={job}
-            onMasterChange={setMasterChoice}
+            onFinalChange={setFinalChoice}
             onJobChange={track}
             onRefresh={refresh}
           />

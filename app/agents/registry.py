@@ -4,7 +4,7 @@ class of their own, only when invoked.
 
     from app.agents.registry import get_agent, invoke, catalog
     await invoke("case_title_critic", language="de", ...)     # class agents
-    await run_agent("story.consistency", gen, user, system=s) # any agent, by name
+    await run_agent("language.inspect.en", gen, user, system=s) # any agent, by name
     catalog()        # every agent: name, role, model alias, prompt, class, used_by"""
 
 from __future__ import annotations

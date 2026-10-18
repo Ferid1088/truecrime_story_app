@@ -282,6 +282,13 @@ export interface VideoSourceItem {
   segment_count: number;
   claim_count: number;
   skip_reason: string | null;
+  /** research_only: its transcript is read, it is never shown; film_candidate: open license with stored evidence. */
+  use: "research_only" | "film_candidate";
+  use_reason: string | null;
+  rights_status: string;
+  license_evidence_url: string | null;
+  license_checked_at: string | null;
+  attribution_text: string | null;
   transcript_quality_score: number | null;
   transcript_quality_verdict: "good" | "degraded" | "poor" | null;
   contradiction_count: number;
@@ -456,7 +463,7 @@ export type StoryStatus =
   | "outdated"
   | "failed";
 
-export type StoryKind = "master" | "localized" | "direct" | "spoken";
+export type StoryKind = "draft" | "rewrite" | "inspection" | "final" | "direct" | "spoken";
 
 export interface StoryMeta {
   id: number;
@@ -469,7 +476,10 @@ export interface StoryMeta {
   writer_prompt_name: string | null;
   writer_prompt_sha256: string | null;
   master_version_id: number | null;
-  derived_from_master_version: number | null;
+  draft_version_id: number | null;
+  reasoning_effort: string | null;
+  minutes: number | null;
+  cost_eur: number | null;
   native_quality_score: number | null;
   semantic_consistency_score: number | null;
   factual_consistency_score: number | null;
@@ -1011,8 +1021,7 @@ export interface SettingsStatus {
   research_provider: { provider: string; configured: boolean };
   multilingual?: {
     research_languages: string[];
-    canonical_language: string;
-    localization_languages: string[];
+    production_languages: string[];
     research_only_languages: string[];
     available_languages: Record<string, string>;
   };
@@ -1217,7 +1226,7 @@ export interface ResearchLanguageStats {
 }
 
 export interface ResearchLanguages {
-  canonical_language: string;
+  production_languages: string[];
   languages: Record<string, ResearchLanguageStats>;
   total_sources: number;
 }
@@ -1306,29 +1315,6 @@ export interface CorpusSearchResponse {
   chunks_indexed: number;
   dense_enabled: boolean;
   hits: CorpusHit[];
-}
-
-export interface MasterStoryResponse {
-  master: StoryFull;
-  localizations: StoryMeta[];
-}
-
-export interface SemanticReport {
-  semantic_consistency_score?: number;
-  missing_information?: unknown[];
-  added_information?: unknown[];
-  meaning_changes?: unknown[];
-  uncertainty_changes?: unknown[];
-  name_date_number_errors?: unknown[];
-}
-
-export interface LocalizationCompare {
-  localization: StoryMeta;
-  localized_text: string;
-  master_text: string | null;
-  master_version: number | null;
-  semantic_consistency: SemanticReport;
-  native_quality: Record<string, unknown>;
 }
 
 export interface DbOverviewSection<T> {
@@ -1586,9 +1572,7 @@ export interface StageControlAuditEvent {
 export type CaseControlAction =
   | "naming_approve"
   | "thumbnail_approve"
-  | "thumbnail_reject"
-  | "localization_approve"
-  | "localization_regenerate";
+  | "thumbnail_reject";
 
 export interface CaseControlPreview {
   case_id: number;
@@ -1612,17 +1596,17 @@ export interface CaseControlApplyResult {
 export interface DocumentaryJob {
   id: number;
   case_id: number;
-  /** null until a from-zero job has written its master story. */
-  master_version_id: number | null;
+  /** The language's final version the job starts from; null until a from-zero job has written it. */
+  final_version_id: number | null;
   mode: DocumentaryMode;
   languages: string[];
   pilot_seconds: number | null;
   render_profile: RenderProfile;
   /** Re-run visual research, verification and shot direction. */
   refresh_visuals: boolean;
-  /** Researches the case and writes the master story first. */
+  /** Researches the case and runs the language pipeline first. */
   from_zero: boolean;
-  /** Length the master story is written for (from-zero jobs). */
+  /** Film length the final text is written for (from-zero jobs). */
   target_minutes: number | null;
   batch_id: string | null;
   /** "follow_up": an update video about a case covered before (approved follow-up). */
@@ -1728,10 +1712,12 @@ export interface DocumentaryRunOptions {
   refresh_visuals: boolean;
 }
 
-export interface DocumentaryJobRequest extends DocumentaryRunOptions {
-  master_version_id: number | null;
+/** One documentary of ONE language, from that language's approved final version. */
+export interface DocumentaryJobRequest extends Omit<DocumentaryRunOptions, "languages"> {
+  language: string;
+  final_version_id: number | null;
   from_zero: boolean;
-  /** 45–120 min: the master story's length when starting from zero. */
+  /** Film length in minutes when starting from zero. */
   target_minutes: number | null;
 }
 
@@ -2093,18 +2079,19 @@ export interface DocumentaryLanguage {
   production: ProductionSummary | null;
 }
 
-export interface DocumentaryMaster {
+export interface DocumentaryFinal {
   id: number;
   version: number;
   language: string;
   status: string;
   words: number;
-  kind: StoryKind;
+  approved_by: string | null;
+  approved_at: string | null;
 }
 
 export interface DocumentaryOverview {
-  masters: DocumentaryMaster[];
-  master_version_id: number | null;
+  finals: DocumentaryFinal[];
+  final_version_id: number | null;
   film_minutes: FilmMinutesRange;
   blueprint: BlueprintRecord | null;
   audio_plan: AudioPlanRecord | null;
@@ -2940,4 +2927,277 @@ export interface ShortQueueItem {
   provider_cost_usd: number;
   created_at: string;
   updated_at: string;
+}
+
+
+// ---------------------------------------------------------------------------
+// Language pipeline: one shared English draft, then an independent pipeline per language
+// ---------------------------------------------------------------------------
+
+export interface PipelineUsage {
+  calls: number;
+  tokens_in: number;
+  tokens_cached: number;
+  tokens_reasoning: number;
+  tokens_out: number;
+  cost_eur: number;
+}
+
+export interface PipelineStage {
+  id: number;
+  stage: "draft" | "rewrite" | "inspection" | "final";
+  language: string;
+  status: string;
+  model: string | null;
+  reasoning_effort: string | null;
+  minutes: number | null;
+  words: number;
+  cost_eur: number | null;
+  prompt: string | null;
+  prompt_sha256: string | null;
+  derived_from: { id: number; kind: string; language: string; prompt_sha256: string | null } | null;
+  usage: PipelineUsage | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  requested_minutes: number | null;
+  /** This version is the result of the bounded length correction (its acts were not inspected). */
+  length_corrected: boolean;
+  acts_changed: string[];
+  corrects_version_id: number | null;
+  text?: string;
+}
+
+export interface ActLength {
+  target: number;
+  words: number;
+  ratio: number | null;
+  within_tolerance: boolean;
+}
+
+export interface ActShortfall {
+  act_id: string;
+  current_words: number;
+  target_words: number;
+  shortfall_words: number;
+  master_words: number;
+  qualifies: boolean;
+}
+
+/** The bounded length correction of one chain: skipped, rejected or stored, never more than once. */
+export interface LengthCorrectionReport {
+  status: "skipped" | "started" | "rejected" | "stored";
+  reason?: string;
+  shortfalls?: ActShortfall[];
+  acts_changed?: string[];
+  not_inspected?: boolean;
+  repetition?: Record<string, { trigram_before: number; trigram_after: number; likely_padded: boolean }>;
+  corrected_version_id?: number;
+  corrects_version_id?: number;
+}
+
+export interface CritiqueItem {
+  id?: number;
+  severity: "high" | "medium" | "low";
+  kind: string;
+  act?: string;
+  quote?: string;
+  problem?: string;
+  instruction?: string;
+}
+
+export interface PipelineCritique {
+  verdict: string | null;
+  scores: Record<string, number | null>;
+  items: CritiqueItem[];
+  summary: string;
+}
+
+export interface GateFailure {
+  gate: string;
+  problem: string;
+  passages: string[];
+}
+
+export interface PipelineGates {
+  pass: boolean;
+  failures: string[];
+  details: GateFailure[];
+  reports: Record<string, Record<string, unknown>>;
+}
+
+export interface PipelineLanguage {
+  language: string;
+  /** The writing direction of the language's script. */
+  direction: "ltr" | "rtl";
+  stages: Partial<Record<"rewrite" | "inspection" | "final", PipelineStage>>;
+  critique: PipelineCritique | null;
+  gates: PipelineGates | null;
+  gate_history: { words: number; failures: string[] }[] | null;
+  /** Gates that block this language's final text; null = all of them. */
+  blocking_gates: string[] | null;
+  /** The system approves this language's final text itself (no approval button). */
+  automatic_approval: boolean;
+  fact_report: FilmFactReport | null;
+  /** Words per act against the act's target; information only, never blocks. */
+  act_lengths: Record<string, ActLength> | null;
+  /** The one-pass evidence audit run on this language's final text (report only). */
+  evidence_audit: EvidenceAuditReport | null;
+  length_correction: LengthCorrectionReport | null;
+  originality: Record<string, unknown> | null;
+  approved: boolean;
+  final_version_id: number | null;
+}
+
+export interface LedgerRow {
+  stage: string;
+  language: string | null;
+  calls: number;
+  tokens_in: number;
+  tokens_cached: number;
+  tokens_reasoning: number;
+  tokens_out: number;
+  eur: number;
+  cache_share: number;
+  cache_saving_eur: number;
+}
+
+export interface GlossaryLanguageEntry {
+  spellings: string[];
+  status: "proposed" | "approved";
+  origin: "evidence" | "agent" | "owner";
+}
+
+export interface GlossaryEntity {
+  entity: string;
+  kind: "people" | "locations";
+  evidence_ids: string[];
+  languages: Record<string, GlossaryLanguageEntry>;
+}
+
+export interface GlossaryView {
+  languages: string[];
+  approved: Record<string, boolean>;
+  entities: GlossaryEntity[];
+}
+
+/** The English film text against the English master (deterministic, never blocks). */
+export interface FilmFactReport {
+  added: { figures: { figure: string; context: string | null }[]; names: string[] };
+  missing: { figures: string[]; names: string[]; evidence_names: string[] };
+  master_figures: number;
+  film_figures: number;
+  master_names: number;
+  film_names: number;
+  blocking: false;
+  model_calls: 0;
+  /** false for a film text in another script: only numbers are compared. */
+  names_compared?: boolean;
+  names_mode?: "added_and_missing" | "missing" | "none";
+  /** Arabic-script texts: counts of what a right-to-left display or a voice can trip over. */
+  script_hygiene?: Record<string, { count: number; styles?: string[]; example: { line: number; column: number; context: string } | null } | boolean | number>;
+  note?: string;
+}
+export interface AuditItem {
+  id: number;
+  severity: "high" | "medium" | "low";
+  kind: string;
+  act: string;
+  quote: string;
+  claim: string;
+  evidence_ids: string[];
+  evidence: string;
+  problem: string;
+  correction: string;
+  evidence_facts: { id: string; text: string | null }[];
+}
+export interface AuditChunk {
+  acts: string[];
+  status: "ok" | "failed";
+  error: string | null;
+  model: string | null;
+  verdict: string | null;
+  summary: string | null;
+  usage: PipelineUsage;
+}
+/** The one-pass evidence audit of the English draft: a model's report, nothing was changed. */
+export interface EvidenceAuditReport {
+  status: "ok" | "partial" | "failed";
+  verdict?: "pass" | "issues" | "failed";
+  report_only: true;
+  note?: string;
+  error?: string;
+  items?: AuditItem[];
+  counts?: { severity: Record<string, number>; kind: Record<string, number> };
+  chunks?: AuditChunk[];
+  chunks_expected?: number;
+  models?: string[];
+  usage?: PipelineUsage;
+  summary?: string;
+}
+export interface DraftChecks {
+  numbers_and_names: {
+    unsupported_figures: { figure: string; context: string }[];
+    names_not_in_evidence: string[];
+    model_calls: 0;
+  };
+  coverage: {
+    skipped?: string;
+    facts_in_pack?: number;
+    told?: number;
+    not_told?: string[];
+    key_facts_not_told?: string[];
+    model_calls: 0;
+  };
+}
+/** The English draft with its audit, its reports and its automatic approval record. */
+export type PipelineDraft = PipelineStage & {
+  evidence_audit: EvidenceAuditReport | null;
+  draft_checks: DraftChecks | null;
+  approval: { by: string; at: string; draft_version_id: number; cost_eur: number | null; evidence_audit: string | null } | null;
+};
+export interface LanguagePipelineState {
+  draft: PipelineDraft | null;
+  /** Rows of the retired fact-check loop: history, never the source of a stage. */
+  retired_method: { id: number; kind: string; status: string; cost_eur: number | null; round: number | null; retired: { reason: string; at: string; was: string } | null; created_at: string }[];
+  languages: PipelineLanguage[];
+  ledger: LedgerRow[];
+  cost_total_eur: number;
+  calls_total?: number;
+}
+
+export interface PipelineEstimateLine {
+  calls: number;
+  stage: string;
+  language: string | null;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  reasoning_tokens: number;
+  eur: number;
+}
+
+export interface EstimateVsActual {
+  stage: string;
+  language: string | null;
+  estimated_calls: number | null;
+  estimated_eur: number | null;
+  actual_calls: number | null;
+  actual_eur: number | null;
+  actual_tokens_in: number | null;
+  actual_tokens_cached: number | null;
+  actual_tokens_out: number | null;
+  ratio: number | null;
+}
+
+export interface PipelineEstimate {
+  vs_actual?: EstimateVsActual[];
+  note: string;
+  estimate: true;
+  assumptions: string;
+  large_calls: number;
+  calls: number;
+  lines: PipelineEstimateLine[];
+  total_eur: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
 }

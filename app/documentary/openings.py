@@ -33,7 +33,7 @@ def _structure(version: StoryVersion | None) -> dict:
 
 
 def master_of(db: Session, version: StoryVersion | None) -> StoryVersion | None:
-    """The master a version is told from (a master is its own)."""
+    """The final version a spoken version is told from (a final is its own)."""
     if version is not None and version.kind == "spoken" and version.master_version_id:
         return db.get(StoryVersion, version.master_version_id) or version
     return version
@@ -55,13 +55,13 @@ def opening_of_blueprint(db: Session, blueprint: EditorialBlueprint | None) -> d
 def recent_openings(db: Session, n: int | None = None, exclude_case_id: int | None = None
                     ) -> list[str]:
     """Opening strategies of the most recent films (newest first; one per
-    case — the newest master of each case)."""
+    case — the newest final version of each case)."""
     n = ai_config.opening.avoid_recent if n is None else n
     if n <= 0:
         return []
     out: list[str] = []
     seen: set[int] = set()
-    rows = (db.query(StoryVersion).filter(StoryVersion.kind == "master")
+    rows = (db.query(StoryVersion).filter(StoryVersion.kind == "final")
             .order_by(StoryVersion.id.desc()).limit(200).all())
     for v in rows:
         if v.case_id in seen or v.case_id == exclude_case_id:

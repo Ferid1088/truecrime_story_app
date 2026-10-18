@@ -149,7 +149,7 @@ class StageControlService:
         # Research and master-story can be valid redo targets before their
         # root artifact exists. Include the real downstream artifacts in the
         # scope when they exist; otherwise retain a virtual stage boundary.
-        if action != "run_automatically" and not scope and stage_name in {"research", "master_story"}:
+        if action != "run_automatically" and not scope and stage_name in {"research", "master_story", "language_pipeline"}:
             stages = [item["name"] for item in json.loads(job.stages_json or "[]")]
             try:
                 selected = stages[stages.index(stage_name):]
@@ -170,7 +170,7 @@ class StageControlService:
                             "will_change": row.id in {root.id for root in roots},
                            "may_change": row.id not in {root.id for root in roots}}
                            for row in scope]
-        if action != "run_automatically" and not estimated_scope and stage_name in {"research", "master_story"}:
+        if action != "run_automatically" and not estimated_scope and stage_name in {"research", "master_story", "language_pipeline"}:
             stages = [item["name"] for item in json.loads(job.stages_json or "[]")]
             try:
                 start = stages.index(stage_name)
@@ -193,7 +193,7 @@ class StageControlService:
                     languages.append(language)
             stage_names = list(dict.fromkeys(stage_names))
             languages = sorted(set(languages))
-        if (action != "run_automatically" and stage_name in {"research", "master_story"}
+        if (action != "run_automatically" and stage_name in {"research", "master_story", "language_pipeline"}
                 and estimated_scope and not any(item.get("stage") == stage_name for item in estimated_scope)):
             base = stage_name.split(":", 1)[0]
             estimated_scope.insert(0, {
@@ -475,10 +475,7 @@ class StageControlService:
             payload = {"id": row.id, "status": row.status, "sha256": row.sha256,
                        "critic": row.critic_json, "language": row.language}
         else:
-            assert isinstance(row, StoryVersion)
-            payload = {"id": row.id, "version": row.version, "status": row.status,
-                       "text_hash": row.text_hash, "story_text": row.story_text,
-                       "language": row.language}
+            raise StageControlError(f"unsupported case action {action!r}")
         encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
         return hashlib.sha256(encoded).hexdigest()
 
@@ -496,14 +493,10 @@ class StageControlService:
             if row is None or row.case_id != case_id:
                 raise StageControlError("thumbnail does not belong to case")
             return row, row.language
-        row = self.db.get(StoryVersion, target_id)
-        if row is None or row.case_id != case_id or row.kind != "localized":
-            raise StageControlError("localization does not belong to case")
-        return row, row.language
+        raise StageControlError(f"unsupported case action {action!r}")
 
     def preview_case_action(self, case_id: int, action: str, target_id: int) -> dict:
-        allowed = {"naming_approve", "thumbnail_approve", "thumbnail_reject",
-                   "localization_approve", "localization_regenerate"}
+        allowed = {"naming_approve", "thumbnail_approve", "thumbnail_reject"}
         if action not in allowed:
             raise StageControlError(f"unsupported case action {action!r}")
         target, language = self._case_action_target(case_id, action, target_id)
@@ -514,10 +507,7 @@ class StageControlService:
             "target_id": target_id,
             "scope": [{"id": scope_id, "type": action, "language": language,
                        "may_change": False}],
-            "estimated_provider_calls": {
-                "total": 1 if action == "localization_regenerate" else 0,
-                "by_stage": {"localization": 1} if action == "localization_regenerate" else {},
-            },
+            "estimated_provider_calls": {"total": 0, "by_stage": {}},
             "bound_hashes": {scope_id: self._case_action_hash(target, action)},
         }
         row = EditLog(
@@ -573,20 +563,6 @@ class StageControlService:
                     override=action == "thumbnail_approve" and
                     json.loads(target.critic_json or "{}").get("verdict") == "fail",
                 )
-            elif action == "localization_regenerate":
-                from app.agents.localization import LocalizationPipeline
-                from app.api.masters import best_master
-                case = self.db.get(Case, actual_case_id)
-                assert case is not None and isinstance(target, StoryVersion)
-                master = best_master(self.db, actual_case_id)
-                if master is None:
-                    raise StageControlError("no master story found")
-                await LocalizationPipeline().localize(self.db, case, master, target.language)
-            elif action == "localization_approve":
-                assert isinstance(target, StoryVersion)
-                target.status = "approved"
-                target.is_best = True
-                self.db.commit()
             else:
                 raise StageControlError(f"unsupported case action {action!r}")
         except StageControlError:

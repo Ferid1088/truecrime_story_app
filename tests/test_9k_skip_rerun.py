@@ -157,7 +157,7 @@ def test_9k_rerun_real_job(isolated_pipeline_db, db_session, documentary_env, cl
         monkeypatch.setattr(ai_config.case_naming, "generate_in_pipeline", True)
     _perturb(db_session, scenario)
     if gate == "out_of_band":
-        row = db_session.query(StoryVersion).filter_by(kind="master").one()
+        row = db_session.query(StoryVersion).filter_by(kind="final").one()
         edited_text = row.story_text + " [9K out-of-band output edit]"
         edited_hash = hashlib.sha256(edited_text.encode("utf-8")).hexdigest()
         db_session.execute(

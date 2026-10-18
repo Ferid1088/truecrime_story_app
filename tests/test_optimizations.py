@@ -1,3 +1,6 @@
+import pytest
+from fastapi import HTTPException
+
 """Behaviour added by the optimization pass (no network)."""
 
 import asyncio
@@ -202,40 +205,29 @@ def _master(db, case, version, language):
     from app.db.models import StoryVersion
 
     v = StoryVersion(case_id=case.id, version=version, narrative_angle="{}", story_text="x",
-                     engagement_score=1.0, kind="master", language=language)
+                     engagement_score=1.0, kind="final", language=language)
     db.add(v)
     db.commit()
     return v
 
 
-def test_pick_master_prefers_the_canonical_language_master(db_session):
-    """Part 3(a): the canonical (configured) language wins over a newer
-    master in another language."""
-    from app.core.ai_config import ai_config
-    from app.documentary.api import _pick_master
+def test_pick_final_serves_the_asked_language_and_prefers_one_with_a_blueprint(db_session):
+    """A film starts from the final version of its own language; with no language the first
+    production language that has a final text."""
+    from app.documentary.api import _pick_final
 
-    canonical = ai_config.multilingual.canonical_language
-    case = _case(db_session, "Opt canonical master")
-    canonical_master = _master(db_session, case, 1, canonical)
-    _master(db_session, case, 2, "en" if canonical != "en" else "de")
-    assert _pick_master(db_session, case.id, None).id == canonical_master.id
-
-
-def test_pick_master_keeps_a_legacy_master_usable_when_no_canonical_one_exists(db_session):
-    """Part 3(a), existing data: cases written when the master language was
-    English (cases 1 and 2) keep a usable master after the canonical
-    language became Persian — nothing orphaned."""
-    from app.core.ai_config import ai_config
-    from app.documentary.api import _pick_master
-
-    legacy_language = "en" if ai_config.multilingual.canonical_language != "en" else "de"
-    case = _case(db_session, "Opt legacy master")
-    legacy = _master(db_session, case, 1, legacy_language)
-    assert _pick_master(db_session, case.id, None).id == legacy.id
-    assert _pick_master(db_session, case.id, legacy.id).id == legacy.id
+    case = _case(db_session, "Opt final")
+    de = _master(db_session, case, 1, "de")
+    en = _master(db_session, case, 2, "en")
+    assert _pick_final(db_session, case.id, None, "de").id == de.id
+    assert _pick_final(db_session, case.id, None, "en").id == en.id
+    assert _pick_final(db_session, case.id, None).id == en.id        # fa has none, en comes next
+    assert _pick_final(db_session, case.id, de.id, "de").id == de.id
+    with pytest.raises(HTTPException):
+        _pick_final(db_session, case.id, de.id, "en")           # a de final is not an en film
 
 
-def test_pick_master_requires_a_master(client, db_session):
+def test_a_film_starts_only_from_a_final_version(client, db_session):
     from app.db.models import StoryVersion
 
     case = _case(db_session, "Opt master")
@@ -244,7 +236,7 @@ def test_pick_master_requires_a_master(client, db_session):
     db_session.add(direct)
     db_session.commit()
     r = client.post(f"/api/cases/{case.id}/documentary/jobs",
-                    json={"languages": ["en"], "master_version_id": direct.id})
+                    json={"language": "en", "final_version_id": direct.id})
     assert r.status_code in (409, 422)
 
 

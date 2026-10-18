@@ -37,9 +37,9 @@ import {
 } from "../shared";
 
 interface RunTabProps extends Omit<DocumentaryTabProps, "refreshKey"> {
-  masterId: number | null;
+  finalId: number | null;
   job: DocumentaryJob | null;
-  onMasterChange: (versionId: number) => void;
+  onFinalChange: (versionId: number) => void;
   /** Follow this job (just started, cancelled or resumed). */
   onJobChange: (job: DocumentaryJob) => void;
   onRefresh: () => void;
@@ -54,9 +54,9 @@ export function RunTab({
   caseId,
   settings,
   overview,
-  masterId,
+  finalId,
   job,
-  onMasterChange,
+  onFinalChange,
   onJobChange,
   onRefresh,
 }: RunTabProps) {
@@ -72,21 +72,27 @@ export function RunTab({
   const [costs, setCosts] = useState<CaseCostPanel | null>(null);
   const ids = useId();
 
-  const noMaster = overview.masters.length === 0;
-  const fromZero = noMaster || fromZeroChoice;
+  const noFinal = overview.finals.length === 0;
+  const fromZero = noFinal || fromZeroChoice;
   const target = parseTargetMinutes(targetMinutes, range);
   const outOfRange = options.languages.filter((l) =>
     filmLengthIssue(overview.languages[l]?.estimated_film_minutes, range),
   );
 
   const blockers = runOptionsBlockers(options, settings);
-  if (!fromZero && masterId == null) blockers.unshift("Choose a master story.");
+  if (!fromZero && finalId == null) blockers.unshift("Choose a final version.");
+  const unapproved = options.languages.filter((l) => {
+    const f = overview.finals.find((x) => x.language === l);
+    return !fromZero && (!f || !f.approved_at);
+  });
+  if (unapproved.length)
+    blockers.push(`The final version of ${unapproved.map(langLabel).join(", ")} is not approved yet (approve it in the Story Studio).`);
   if (fromZero && target == null) blockers.push(`Target length must be ${range.min}–${range.max} minutes.`);
   if (!fromZero && options.mode === "full" && outOfRange.length)
     blockers.push(
       `A full film needs every language between ${range.min} and ${range.max} minutes — ${outOfRange
         .map(langLabel)
-        .join(", ")} ${outOfRange.length === 1 ? "falls" : "fall"} outside. Run a pilot, or write a longer master story.`,
+        .join(", ")} ${outOfRange.length === 1 ? "falls" : "fall"} outside. Run a pilot, or run the language pipeline for a longer film.`,
     );
   if (isJobActive(job)) blockers.push(`Job #${job?.id} is still running.`);
 
@@ -132,15 +138,26 @@ export function RunTab({
     }
   }
 
+  // One documentary per language, each from that language's own final version.
   const start = () =>
-    act("start", () =>
-      api.startDocumentaryJob(caseId, {
-        ...runOptionsPayload(options),
-        master_version_id: fromZero ? null : masterId,
-        from_zero: fromZero,
-        target_minutes: fromZero ? target : null,
-      }),
-    );
+    act("start", async () => {
+      const { languages, ...rest } = runOptionsPayload(options);
+      const jobs = await Promise.all(
+        languages.map((language) =>
+          api.startDocumentaryJob(caseId, {
+            ...rest,
+            language,
+            final_version_id: fromZero
+              ? null
+              : (overview.finals.find((f) => f.language === language && f.id === finalId)?.id ??
+                 overview.finals.find((f) => f.language === language)?.id ?? null),
+            from_zero: fromZero,
+            target_minutes: fromZero ? target : null,
+          }),
+        ),
+      );
+      return jobs[0];
+    });
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
@@ -155,16 +172,17 @@ export function RunTab({
               <span className="font-medium text-foreground">
                 {range.min}–{range.max} minutes
               </span>
-              . A pilot sets the research notes, master story, narration, performance, pictures,
+              . A pilot sets the research notes, final text, narration, performance, pictures,
               music and Shorts selection to its selected length before producing the whole film.
             </p>
 
-            {noMaster ? (
+            {noFinal ? (
               <div className="rounded-md border border-border bg-subtle px-3 py-2 text-xs leading-5">
-                <p className="font-medium">No master story yet</p>
+                <p className="font-medium">No final version yet</p>
                 <p className="text-muted-foreground">
-                  This run starts from zero: it researches the case and writes the master story
-                  at the target length first. You can also write it yourself.
+                  This run starts from zero: it researches the case and runs the language pipeline
+                  (one shared draft, then a native final text per language) first. The final text of
+                  each language still needs your approval before its film is produced.
                 </p>
                 <Button
                   variant="link"
@@ -177,24 +195,24 @@ export function RunTab({
               </div>
             ) : (
               <div>
-                <label htmlFor={`${ids}-master`} className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Master story
+                <label htmlFor={`${ids}-final`} className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Final version
                 </label>
                 <Select
-                  id={`${ids}-master`}
-                  value={masterId ?? ""}
+                  id={`${ids}-final`}
+                  value={finalId ?? ""}
                   disabled={fromZero}
-                  onChange={(e) => onMasterChange(Number(e.target.value))}
+                  onChange={(e) => onFinalChange(Number(e.target.value))}
                 >
-                  {masterId == null && (
+                  {finalId == null && (
                     <option value="" disabled>
-                      Choose a master story…
+                      Choose a final version…
                     </option>
                   )}
-                  {overview.masters.map((m) => (
+                  {overview.finals.map((m) => (
                     <option key={m.id} value={m.id}>
-                      v{m.version} · {langLabel(m.language)} · {m.kind} · {m.words.toLocaleString()} words ·{" "}
-                      {humanize(m.status)}
+                      v{m.version} · {langLabel(m.language)} · {m.words.toLocaleString()} words ·{" "}
+                      {humanize(m.status)}{m.approved_at ? " · approved" : " · awaiting approval"}
                     </option>
                   ))}
                 </Select>
@@ -203,14 +221,14 @@ export function RunTab({
 
             <div className="space-y-2">
               <Checkbox
-                label="Start from zero (research + write the master story)"
+                label="Start from zero (research + the language pipeline)"
                 checked={fromZero}
-                disabled={noMaster}
+                disabled={noFinal}
                 onChange={(e) => setFromZeroChoice(e.target.checked)}
                 aria-describedby={`${ids}-zero-hint`}
               />
               <p id={`${ids}-zero-hint`} className="text-[11px] leading-4 text-muted-foreground">
-                Research runs only when the case has no facts yet; an existing master story is
+                Research runs only when the case has no facts yet; existing final texts are
                 reused instead of written again.
               </p>
               {fromZero && (
@@ -219,7 +237,7 @@ export function RunTab({
                   value={targetMinutes}
                   onChange={setTargetMinutes}
                   range={range}
-                  label="Master story length (minutes)"
+                  label="Film length (minutes)"
                 />
               )}
             </div>
@@ -362,7 +380,7 @@ function EstimateCard({ estimate }: { estimate: DocumentaryDryRunResult }) {
         Low {money(estimate.estimate_range_eur.low)} · expected {money(estimate.estimate_range_eur.expected)} · high {money(estimate.estimate_range_eur.high)}
       </p>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        Tokens are input/output separately: research source text → notes; master input = notes → the selected pilot length;
+        Tokens are input/output separately: research source text → notes; final-text input = notes → the selected pilot length;
         spoken story × 1.2 → × 1.05; performance story × 1.1 → output scaled to that length.
       </p>
       {estimate.price_warnings.length > 0 && (
@@ -505,21 +523,10 @@ function JobPanel({
     job.status === "interrupted";
   const resumeDisabled = canResume && job.resume_allowed === false;
   const languageErrors = Object.entries(job.result.errors ?? {});
-  const approvalStage = job.stages.find((stage) => stage.name === "master_approval");
+  const approvalStage = job.stages.find((stage) => stage.name === "final_approval");
   const approvalDetail = approvalStage?.detail && typeof approvalStage.detail === "object"
     ? approvalStage.detail as Record<string, unknown>
     : null;
-  const approvalAttempts = approvalDetail && Array.isArray(approvalDetail.attempts)
-    ? approvalDetail.attempts as Array<Record<string, unknown>>
-    : [];
-  const lastAttempt = approvalAttempts.at(-1);
-  const gates = lastAttempt?.quality_gates && typeof lastAttempt.quality_gates === "object"
-    ? lastAttempt.quality_gates as Record<string, unknown>
-    : null;
-  const failures = Array.isArray(approvalDetail?.reasons)
-    ? approvalDetail.reasons.map(String)
-    : [];
-  const manuallyApproved = approvalDetail?.manually_approved === true;
   const approvedBy = typeof approvalDetail?.approved_by === "string" ? approvalDetail.approved_by : null;
   const callProgress = job.result.call_progress;
 
@@ -561,7 +568,7 @@ function JobPanel({
         <p className="text-xs text-muted-foreground">
           {job.mode === "pilot" ? `Pilot · opening ${formatTimecode(job.pilot_seconds)}` : "Full film"}
           {job.from_zero &&
-            ` · from zero${job.target_minutes ? ` (master story ${job.target_minutes} min)` : ""}`}{" "}
+            ` · from zero${job.target_minutes ? ` (final text ${job.target_minutes} min)` : ""}`}{" "}
           · {job.languages.map(langLabel).join(", ")} · {job.render_profile} profile · started{" "}
           {formatDateTime(job.created_at)}
           {job.completed_at && ` · finished ${formatDateTime(job.completed_at)}`}
@@ -619,32 +626,9 @@ function JobPanel({
             <span className="font-medium">Next:</span> {job.next_action}
           </p>
         )}
-        {manuallyApproved && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs leading-5" data-testid="master-approval-manual">
-            <span className="font-medium">Master approved manually</span>
-            {approvedBy && <> by {approvedBy}</>} — over its own critics&apos; objections; no critic/writer
-            calls ran for this stage.
-          </div>
-        )}
-        {gates && failures.length > 0 && (
-          <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs leading-5" data-testid="master-approval-diagnostics">
-            <p className="font-medium">Master approval checks</p>
-            <ul className="mt-1 space-y-0.5">
-              {failures.map((failure) => {
-                if (failure === "length_out_of_range" && typeof gates.actual_minutes === "number") {
-                  const target = Number(gates.target_minutes ?? approvalDetail?.target_minutes ?? 0);
-                  const allowed = gates.allowed_minutes as { min?: number; max?: number } | undefined;
-                  return <li key={failure}>Length failed: story {gates.actual_minutes.toFixed(1)} min, allowed {target.toFixed(1)} min ({Number(allowed?.min ?? 0).toFixed(1)}–{Number(allowed?.max ?? 0).toFixed(1)} min).</li>;
-                }
-                if (failure === "grounding" && typeof gates.grounding_score === "number") {
-                  return <li key={failure}>Grounding failed: score {gates.grounding_score.toFixed(2)}, required {Number(gates.grounding_threshold ?? 0).toFixed(2)}; unsupported claims {Number(gates.grounding_unsupported_claims ?? 0)}/{Number(gates.grounding_max_unsupported_claims ?? 0)}.</li>;
-                }
-                if (failure === "engagement_below_threshold" && typeof gates.engagement_score === "number") {
-                  return <li key={failure}>Engagement failed: score {gates.engagement_score.toFixed(1)}, required {Number(gates.engagement_threshold ?? 0).toFixed(1)}.</li>;
-                }
-                return <li key={failure}>{humanize(failure)} failed.</li>;
-              })}
-            </ul>
+        {approvalStage?.status === "done" && approvedBy && (
+          <div className="rounded-md border border-border px-3 py-2 text-xs leading-5" data-testid="final-approval">
+            <span className="font-medium">Final version approved</span> by {approvedBy}.
           </div>
         )}
         <WarningList warnings={job.result.warnings ?? []} />

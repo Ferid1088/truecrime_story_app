@@ -261,7 +261,7 @@ def _version(db, case, sections=None, story_text=None, fingerprint=None):
     if fingerprint:
         struct["evidence_fingerprint"] = fingerprint
     v = StoryVersion(
-        case_id=case.id, version=1, kind="master", language="en",
+        case_id=case.id, version=1, kind="final", language="en",
         narrative_angle="{}", narrative_structure=json.dumps(struct),
         story_text=story_text, text_hash="h", engagement_score=80.0,
         status="ready",

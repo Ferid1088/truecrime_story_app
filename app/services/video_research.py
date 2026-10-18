@@ -22,6 +22,7 @@ from app.db.models import Case, ResearchJob, Source, VideoSource
 from app.providers.transcript import get_transcript_provider
 from app.services.tracking import record_run
 from app.utils import utc_now
+from app.services.video_rights import VideoUseClassifier
 
 _YT_ID = re.compile(
     r"(?:youtube\.com/(?:watch\?.*v=|shorts/|embed/)|youtu\.be/)"
@@ -70,6 +71,7 @@ def _log_skipped_video(db: Session, case: Case, candidate: dict, reason: str) ->
             description=(candidate.get("description") or None),
             discovery_query=(candidate.get("discovery_query") or None),
             transcript_status="skipped", skip_reason=reason[:80],
+            **VideoUseClassifier().classify(candidate).fields(),
         ))
     elif row.transcript_status == "skipped":
         row.skip_reason = reason[:80]
@@ -345,6 +347,7 @@ async def run_video_research(
             classification=(cand.get("classification") or "unknown")[:60],
             relevance_score=cand.get("relevance"),
             transcript_status="pending",
+            **VideoUseClassifier().classify(cand).fields(),
         )
         db.add(video)
         db.commit()

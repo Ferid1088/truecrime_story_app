@@ -143,6 +143,7 @@
   "evidence_selection": {
     "max_facts_per_research_stage": 100,
     "term_min_length": 4,
-    "contradiction_min_shared_terms": 3
+    "contradiction_min_shared_terms": 3,
+    "same_contradiction_ratio": 85
   }
 }

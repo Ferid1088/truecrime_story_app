@@ -1,0 +1,61 @@
+{
+  "video_rights": {
+    "film_candidate_hosts": {
+      "open_archives": {
+        "archive.org": "Internet Archive",
+        "commons.wikimedia.org": "Wikimedia Commons",
+        "upload.wikimedia.org": "Wikimedia Commons"
+      },
+      "public_archives": {
+        "loc.gov": "Library of Congress",
+        "archives.gov": "US National Archives",
+        "nationalarchives.gov.uk": "UK National Archives",
+        "bundesarchiv.de": "Bundesarchiv",
+        "europeana.eu": "Europeana"
+      },
+      "public_broadcasters": {
+        "bbc.co.uk": "BBC",
+        "zdf.de": "ZDF",
+        "ard.de": "ARD"
+      }
+    },
+    "youtube": {
+      "film_candidate_license": "creativeCommon",
+      "film_candidate_classifications": [
+        "official",
+        "archive"
+      ],
+      "reuploader_channel_patterns": [
+        "clips",
+        "highlights",
+        "reupload",
+        "re-upload",
+        "mirror",
+        "compilation",
+        "best of"
+      ]
+    },
+    "open_license_markers": [
+      "creative commons",
+      "cc-by",
+      "cc by",
+      "cc0",
+      "public domain",
+      "pdm",
+      "publicdomain"
+    ],
+    "evidence_url_fields": [
+      "license_url",
+      "license_evidence_url"
+    ],
+    "reasons": {
+      "other_channel": "a video of another channel is raw material for our story, never footage",
+      "no_license_evidence": "no stored license evidence",
+      "not_open_source": "the source is not an open archive or a public body with an open license",
+      "reuploader": "the channel re-uploads others' work",
+      "youtube_not_cc": "the YouTube Data API does not mark it as Creative Commons",
+      "unknown_host": "the host is not in the film-candidate lists",
+      "broadcaster_without_license": "a public broadcaster needs a stored license page or written permission"
+    }
+  }
+}

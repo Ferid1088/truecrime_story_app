@@ -17,8 +17,6 @@ from app.agents.story import (
 )
 
 
-
-
 def source_dict(s: Source) -> dict:
     return {
         "id": s.id,
@@ -106,7 +104,10 @@ def story_meta_dict(s: StoryVersion) -> dict:
         "story_plan_id": s.story_plan_id,
         "writer_prompt_name": s.writer_prompt_name,
         "writer_prompt_sha256": s.writer_prompt_sha256,
-        "derived_from_master_version": s.derived_from_master_version,
+        "draft_version_id": s.draft_version_id,
+        "reasoning_effort": s.reasoning_effort,
+        "minutes": s.minutes,
+        "cost_eur": s.cost_eur,
         "native_quality_score": s.native_quality_score,
         "semantic_consistency_score": s.semantic_consistency_score,
         "factual_consistency_score": s.factual_consistency_score,
@@ -268,6 +269,12 @@ def video_dict(v: VideoSource, contradiction_count: int = 0) -> dict:
         "segment_count": len(v.segments) if v.segments else 0,
         "claim_count": len(v.claims) if v.claims else 0,
         "skip_reason": v.skip_reason,
+        "use": v.use,
+        "use_reason": v.use_reason,
+        "rights_status": v.rights_status,
+        "license_evidence_url": v.license_evidence_url,
+        "license_checked_at": v.license_checked_at.isoformat() if v.license_checked_at else None,
+        "attribution_text": v.attribution_text,
         "transcript_quality_score": v.transcript_quality_score,
         "transcript_quality_verdict": v.transcript_quality_verdict,
         "contradiction_count": contradiction_count,

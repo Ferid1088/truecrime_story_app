@@ -31,7 +31,7 @@ def test_recorded_provider_mode_is_allowed_only_for_disposable_e2e_database(monk
 
 def test_recorded_provider_mode_is_allowed_for_a_differently_named_e2e_stack(monkeypatch):
     # A second, isolated E2E stack (its own database, its own ports — see
-    # scripts/e2e_approve_pilot_stack.sh) names its database via E2E_DB_NAME
+    # scripts/e2e_stack.sh) names its database via E2E_DB_NAME
     # rather than reusing the shared stack's "truecrime_e2e".
     monkeypatch.setenv("TC_TEST_NO_NETWORK", "1")
     monkeypatch.setenv(

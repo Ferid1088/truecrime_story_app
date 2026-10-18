@@ -7,6 +7,7 @@ application-level taxonomy so agents and fallback logic never see raw
 HTTP details.
 """
 
+import hashlib
 import json
 import logging
 from typing import Any
@@ -23,6 +24,21 @@ from app.providers.generation.base import (
 )
 
 log = logging.getLogger(__name__)
+
+# The request id the gateway (new-api) puts on every response; the only route information it gives.
+GATEWAY_REQUEST_ID_HEADER = "x-oneapi-request-id"
+
+
+def cache_write_tokens(usage: dict[str, Any]) -> int | None:
+    """Tokens the gateway says it wrote to the prompt cache for this request: the OpenAI-style detail
+    when present, else the sum of the Claude cache-creation counters. None = the gateway reported none
+    (a missing value, not zero)."""
+    detail = (usage.get("prompt_tokens_details") or {}).get("cache_write_tokens")
+    if detail is not None:
+        return detail
+    counters = [usage.get(k) for k in ("claude_cache_creation_5_m_tokens", "claude_cache_creation_1_h_tokens")]
+    reported = [c for c in counters if c is not None]
+    return sum(reported) if reported else None
 
 
 def _sum_optional(a: float | None, b: float | None) -> float | None:
@@ -185,8 +201,71 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         base["status"] = "models_missing" if missing else "ok"
         return base
 
+    @staticmethod
+    def _system_message(model: str, system: str, prefix: str | None) -> dict[str, Any]:
+        """The system message. A stable `prefix` goes first so a repeated prefix is
+        a repeated prompt start; a model that caches by marker gets the marker on it."""
+        if not prefix:
+            return {"role": "system", "content": system}
+        if ai_config.capabilities_of(model).prompt_caching == "cache_control":
+            return {"role": "system", "content": [
+                {"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": system},
+            ]}
+        return {"role": "system", "content": f"{prefix}\n\n{system}"}
+
+    @staticmethod
+    def _request_options(model: str, gen, cache_key: str | None) -> dict[str, Any]:
+        """Per-request fields a model's declared capabilities allow."""
+        caps = ai_config.capabilities_of(model)
+        options: dict[str, Any] = {}
+        if gen.reasoning_effort and caps.reasoning_effort:
+            options["reasoning_effort"] = gen.reasoning_effort
+        if cache_key and caps.prompt_caching == "prompt_cache_key":
+            options["prompt_cache_key"] = cache_key
+        return options
+
+    async def _post_stream(self, client: httpx.AsyncClient, body: dict[str, Any]) -> dict[str, Any]:
+        """A streamed completion folded into the shape of a non-streamed response."""
+        parts: list[str] = []
+        finish = usage = identifier = reported_model = request_id = None
+        async with client.stream("POST", f"{self.base_url}{self.chat_path}",
+                                 headers=self._headers(), json=body) as r:
+            request_id = r.headers.get(GATEWAY_REQUEST_ID_HEADER)
+            if r.status_code >= 400:
+                await r.aread()
+                r.raise_for_status()
+            async for line in r.aiter_lines():
+                if not line.startswith("data:") or line.strip() == "data: [DONE]":
+                    continue
+                try:
+                    chunk = json.loads(line[5:])
+                except ValueError:
+                    continue
+                identifier = chunk.get("id") or identifier
+                reported_model = chunk.get("model") or reported_model
+                usage = chunk.get("usage") or usage
+                for choice in chunk.get("choices") or []:
+                    parts.append((choice.get("delta") or {}).get("content") or "")
+                    finish = choice.get("finish_reason") or finish
+        if finish is None:
+            # a stream that ends without a finish reason was cut off (a gateway or proxy closed
+            # it): what was received is a part of the answer and must never be taken for all of it
+            raise GenerationError(
+                "invalid_output",
+                f"{self.label} stream ended without a finish reason after "
+                f"{sum(map(len, parts))} characters (cut off).",
+                provider=self.name, model=body.get("model"),
+                input_tokens=(usage or {}).get("prompt_tokens"),
+                output_tokens=(usage or {}).get("completion_tokens"),
+                total_tokens=(usage or {}).get("total_tokens"), cost_usd=(usage or {}).get("cost"))
+        return {"id": identifier, "model": reported_model, "usage": usage or {},
+                "gateway_request_id": request_id,
+                "choices": [{"message": {"content": "".join(parts)}, "finish_reason": finish}]}
+
     async def _chat(self, model: str, system: str, user: str, gen,
-                    images: list[str] | None = None) -> str:
+                    images: list[str] | None = None, prefix: str | None = None,
+                    cache_key: str | None = None):
         content: Any = user
         if images:
             # OpenAI-compatible multimodal message: text + image parts
@@ -199,25 +278,24 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             "temperature": gen.temperature,
             "max_tokens": gen.max_tokens,
             "messages": [
-                {"role": "system", "content": system},
+                self._system_message(model, system, prefix),
                 {"role": "user", "content": content},
             ],
+            **self._request_options(model, gen, cache_key),
             **self.extra_body,
         }
         if gen.seed is not None:
             body["seed"] = gen.seed
+        streaming = ai_config.capabilities_of(model).streaming
+        if streaming:
+            body["stream"] = True
+            body["stream_options"] = {"include_usage": True}
         try:
             cfg = ai_config.generation_provider()
-            # The request below does not set "stream": true, so this is NOT
-            # a true per-token inactivity timeout — the provider can legally
-            # hold the connection open with no bytes at all until the whole
-            # completion is ready, then deliver it in one write. httpx's
-            # `read` timeout only resets on bytes actually received, so for
-            # a non-streaming call it is effectively a hard ceiling on total
-            # generation time. Measured master writer/rewriter calls take
-            # 330-400s end to end (see tests/test_pilot_master_regressions.py),
-            # so this must stay comfortably above that — not a short "idle"
-            # window — until real token streaming is implemented here.
+            # Non-streaming: the provider may hold the connection with no bytes until the
+            # whole completion is ready, so httpx's `read` timeout is then a ceiling on the
+            # total call. A model that streams resets it with every chunk: a true inactivity
+            # timeout, which long, high-effort generations need.
             timeout = httpx.Timeout(
                 connect=30.0,
                 read=cfg.inactivity_timeout_s,
@@ -225,13 +303,17 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                 pool=30.0,
             )
             async with httpx.AsyncClient(timeout=timeout) as client:
-                r = await client.post(
-                    f"{self.base_url}{self.chat_path}",
-                    headers=self._headers(),
-                    json=body,
-                )
-                r.raise_for_status()
-                data = r.json()
+                if streaming:
+                    data = await self._post_stream(client, body)
+                else:
+                    r = await client.post(
+                        f"{self.base_url}{self.chat_path}",
+                        headers=self._headers(),
+                        json=body,
+                    )
+                    r.raise_for_status()
+                    data = r.json()
+                    data["gateway_request_id"] = r.headers.get(GATEWAY_REQUEST_ID_HEADER)
         except httpx.HTTPStatusError as e:
             raise self._map_http_error(e) from e
         except httpx.TimeoutException as e:
@@ -247,6 +329,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         # billed call — its usage must be attached to any GenerationError
         # raised from here, or the cost is lost rather than booked.
         usage = data.get("usage") or {}
+        cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+        reasoning = (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
         billed = {
             "provider": self.name,
             "model": model,
@@ -254,6 +338,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             "output_tokens": usage.get("completion_tokens"),
             "total_tokens": usage.get("total_tokens"),
             "cost_usd": usage.get("cost"),
+            "cached_tokens": cached,
+            "reasoning_tokens": reasoning,
         }
         choice = (data.get("choices") or [{}])[0]
         content = choice.get("message", {}).get("content")
@@ -275,6 +361,13 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             "total_tokens": usage.get("total_tokens"),
             "cost_usd": usage.get("cost"),
             "generation_id": data.get("id"),
+            "cached_tokens": cached,
+            "cache_write_tokens": cache_write_tokens(usage),
+            "prefix_sha256": hashlib.sha256((prefix or system).encode("utf-8")).hexdigest(),
+            "gateway_request_id": data.get("gateway_request_id"),
+            "usage_source": usage.get("usage_source"),
+            "reasoning_tokens": reasoning,
+            "reasoning_effort": body.get("reasoning_effort"),
         }
         reported_model = data.get("model")
         if reported_model and reported_model != model:
@@ -291,7 +384,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         return content, model, meta
 
     async def generate_text(
-        self, role: str, system: str, user: str, images: list[str] | None = None
+        self, role: str, system: str, user: str, images: list[str] | None = None,
+        *, prefix: str | None = None, cache_key: str | None = None,
     ) -> GenerationResult:
         gen = ai_config.generation_for(role)
         attempted = ai_config.model_for(role)
@@ -307,6 +401,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         # them with None on the error that ultimately gets raised.
         discarded_provider = discarded_model = None
         discarded_input = discarded_output = discarded_total = discarded_cost = None
+        discarded_cached = discarded_reasoning = None
         for model in candidates:
             # Provider hiccups (empty body, truncation, transport errors)
             # deserve one retry on the same model before giving up or
@@ -316,11 +411,9 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                     # Process-wide limit on parallel model calls (agents
                     # run in parallel inside and across documentaries).
                     async with slot("vision" if images else "llm"):
-                        if images:
-                            text, used, meta = await self._chat(
-                                model, system, user, gen, images)
-                        else:
-                            text, used, meta = await self._chat(model, system, user, gen)
+                        extra = {k: v for k, v in (("images", images), ("prefix", prefix),
+                                                   ("cache_key", cache_key)) if v}
+                        text, used, meta = await self._chat(model, system, user, gen, **extra)
                     fallback_used = model != attempted
                     if fallback_used:
                         log.warning(
@@ -339,6 +432,14 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                         total_tokens=_sum_optional(discarded_total, meta.get("total_tokens")),
                         cost_usd=_sum_optional(discarded_cost, meta.get("cost_usd")),
                         generation_id=meta.get("generation_id"),
+                        cached_tokens=_sum_optional(discarded_cached, meta.get("cached_tokens")),
+                        cache_write_tokens=meta.get("cache_write_tokens"),
+                        prefix_sha256=meta.get("prefix_sha256"),
+                        gateway_request_id=meta.get("gateway_request_id"),
+                        usage_source=meta.get("usage_source"),
+                        reasoning_tokens=_sum_optional(
+                            discarded_reasoning, meta.get("reasoning_tokens")),
+                        reasoning_effort=meta.get("reasoning_effort"),
                     )
                 except GenerationError as e:
                     last_error = e
@@ -348,6 +449,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                     discarded_output = _sum_optional(discarded_output, e.output_tokens)
                     discarded_total = _sum_optional(discarded_total, e.total_tokens)
                     discarded_cost = _sum_optional(discarded_cost, e.cost_usd)
+                    discarded_cached = _sum_optional(discarded_cached, e.cached_tokens)
+                    discarded_reasoning = _sum_optional(discarded_reasoning, e.reasoning_tokens)
                     if e.kind not in _FALLABLE_KINDS | {
                         "invalid_output", "unreachable"
                     }:
@@ -356,6 +459,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                         e.output_tokens = discarded_output
                         e.total_tokens = discarded_total
                         e.cost_usd = discarded_cost
+                        e.cached_tokens = discarded_cached
+                        e.reasoning_tokens = discarded_reasoning
                         raise
                     if e.kind in _FALLABLE_KINDS:
                         break  # straight to the fallback candidate
@@ -365,6 +470,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             last_error.output_tokens = discarded_output
             last_error.total_tokens = discarded_total
             last_error.cost_usd = discarded_cost
+            last_error.cached_tokens = discarded_cached
+            last_error.reasoning_tokens = discarded_reasoning
             raise last_error
         raise GenerationError(
             "provider_error",
@@ -388,9 +495,11 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         raise json.JSONDecodeError("no JSON object found", cleaned, 0)
 
     async def generate_structured(
-        self, role: str, system: str, user: str, images: list[str] | None = None
+        self, role: str, system: str, user: str, images: list[str] | None = None,
+        *, prefix: str | None = None, cache_key: str | None = None,
     ) -> tuple[dict[str, Any], GenerationResult]:
-        first = await self.generate_text(role, system, user, images)
+        first = await self.generate_text(role, system, user, images,
+                                         prefix=prefix, cache_key=cache_key)
         try:
             return self._extract_json(first.text), first
         except json.JSONDecodeError:
@@ -407,7 +516,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             + "\n\nCRITICAL: return ONLY one valid JSON object — no prose, "
               "no markdown fences, no trailing text."
         )
-        repaired = await self.generate_text(role, strict, user, images)
+        repaired = await self.generate_text(role, strict, user, images,
+                                            prefix=prefix, cache_key=cache_key)
         try:
             return self._extract_json(repaired.text), repaired
         except json.JSONDecodeError as e:
@@ -427,4 +537,6 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                 output_tokens=_sum_optional(first.output_tokens, repaired.output_tokens),
                 total_tokens=_sum_optional(first.total_tokens, repaired.total_tokens),
                 cost_usd=_sum_optional(first.cost_usd, repaired.cost_usd),
+                cached_tokens=_sum_optional(first.cached_tokens, repaired.cached_tokens),
+                reasoning_tokens=_sum_optional(first.reasoning_tokens, repaired.reasoning_tokens),
             ) from e

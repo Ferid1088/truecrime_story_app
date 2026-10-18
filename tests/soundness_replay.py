@@ -318,10 +318,9 @@ NO_EFFECT_REASONS = {
         "agent_model_routing only reassigns routing['chapter_writer'] "
         "(tests/soundness_replay.py config_edit, 'agent_model_routing' branch); the "
         "mocked request payload embeds ai_config.model_for(role) "
-        "(tests/mock_payload.py:126,133), and master_story is produced by the "
-        "master_story_director/master_writer roles (config/agents.json:396,403) — "
-        "different roles, so their embedded model string is unchanged by this "
-        "perturbation."
+        "(tests/mock_payload.py:126,133), and the final story is produced by the "
+        "language_* roles — different roles, so their embedded model string is "
+        "unchanged by this perturbation."
     ),
     ("agent_model_routing", "naming"): (
         "agent_model_routing only reassigns routing['chapter_writer'] "
@@ -481,7 +480,7 @@ def prepare_phase5(db, run: Path, source: str) -> dict:
         overlay["marker"] = "research-result"
     elif source == "master_story":
         row = (
-            db.query(StoryVersion).filter_by(kind="master").order_by(StoryVersion.id.desc()).first()
+            db.query(StoryVersion).filter_by(kind="final").order_by(StoryVersion.id.desc()).first()
         )
         assert row is not None
         _append_master_story(row, "Soundness master edit.")
@@ -698,7 +697,7 @@ def install_phase5(monkeypatch):
             elif source == "master_story" and name == "master_story":
                 row = (
                     db.query(StoryVersion)
-                    .filter_by(kind="master")
+                    .filter_by(kind="final")
                     .order_by(StoryVersion.id.desc())
                     .first()
                 )

@@ -1,7 +1,39 @@
-LANGUAGE GUIDE: PERSIAN (fa)
-VOICE: a calm, authoritative narrator of a good Persian documentary: educated, standard spoken-written register ("گفتار معیار"), neither bureaucratic nor slangy. Persian script only; never Latin letters for Persian words.
-SENTENCES: short and medium, verb at the end, natural spoken rhythm. Prefer active verbs. Avoid long ezafe chains and stacked "که" clauses; split them. Do not carry over the English article logic ("یک" only where a Persian speaker would say it). Replace the translated passive ("توسط ... انجام شد / صورت گرفت") with an active verb.
-WORDS TO AVOID (bureaucratic or calqued): بنا به، مذکور، لذا، نامبرده، به منظور، در خصوص، با توجه به این که، "این ... است که" openings, literal English idioms. Use plain Persian equivalents.
-CULTURE: tell family, household and money relations in the terms a Persian listener knows (precise kinship words such as نامادری، ناپدری، دختر خوانده), the sense of rumor and reputation in a small community, of a closed household and of inheritance, only as the evidence shows them. Explain foreign institutions by function in one clause (the jury, the bank, the church, the town). Use sensory images that fit the evidence (heat, light, a locked room), never decorative poetry that adds facts. No religious, political or moral framing that the evidence does not contain.
-NAMES AND NUMBERS: transliterate foreign names with the common Persian spelling and keep it identical throughout (full name at first mention, then the short name a narrator would use). Dates in the Gregorian calendar as the evidence gives them (say "ماه اوت ۱۸۹۲" style once, consistently); amounts in dollars as stated; distances by plain conversion "حدود". Write numbers the way a narrator says them; a later pronunciation stage resolves readings.
-CHECK: read each paragraph aloud in your head. If the sentence sounds like English in Persian clothes, re-tell it.
+LANGUAGE GUIDE: PERSIAN TRUE-CRIME STORYTELLING (fa)
+
+صدا و لحن
+فارسی معیارِ امروزی بنویس؛ همان زبانی که یک راوی حرفه‌ای و خوش‌بیان برای تعریف یک پرونده به کار می‌برد: روشن، زنده، صمیمی و دقیق. متن باید برای شنیدن نوشته شده باشد. صورت‌هایی مثل «می‌رفت» و «گفت» با این لحن سازگارند؛ محاورهٔ شکسته مثل «می‌خواد» لحن پیش‌فرض راوی نیست. جدی‌بودن به معنی خشک یا بی‌احساس‌بودن نیست.
+
+فارسی طبیعی
+معنای روایت انگلیسی را بفهم و آن را به فارسی از نو تعریف کن. جای جمله‌ها، طول آن‌ها و شکل پاراگراف را برای فارسی تنظیم کن. شنونده نباید ترتیب واژه‌های انگلیسی را پشت جمله احساس کند.
+
+فعل‌های مرکب مثل «تصمیم گرفت»، «ادامه داد» و «شهادت داد» کاملاً طبیعی‌اند. مجهول، جملهٔ وابسته و اضافه نیز وقتی روشن و روان باشند اشکالی ندارند. هیچ ساختی را فقط به دلیل داشتن «کرد»، «شد»، «که» یا «توسط» خطا ندان. عبارت‌هایی مثل «اقدام به … نمود» را وقتی بی‌جهت رسمی‌اند ساده کن؛ «اقدام کرد» در هر بافتی غلط نیست.
+
+جمله‌ها را نه همیشه کوتاه کن و نه با زنجیره‌ای از بندها سنگین. جملهٔ کوتاه برای تأکید مفید است، اما رشته‌ای از جمله‌های تک‌واژه‌ای، لحن نمایشی و یکنواخت می‌سازد. به‌جای عبارت انتزاعی، بگو چه کسی چه کاری کرد یا چه چیزی تغییر کرد.
+
+ارجاع و زمان
+وقتی چند نفر در صحنه‌اند، روشن کن «او» به چه کسی اشاره دارد. اگر اعضای خانواده نام خانوادگی یکسان دارند، از نام کوچکِ ثابت و مشخص استفاده کن. نقش‌هایی مثل «نامادری» را جای شخصیت فرد ننشان.
+
+زمان قتل، پیدا شدن جسد، اعلام خبر و روایت بعدی را با واژه‌های روشن از هم متمایز نگه دار؛ همان تمایزی که متن انگلیسی برقرار کرده است. برای روان‌شدن جمله، «بعدتر» را به «فردا» یا «آن شب» را به «نیمه‌شب» تبدیل نکن.
+
+روایت شنیدنی
+کنجکاوی را از ترتیب رویدادها، جزئیات موجود و تغییر معنای اطلاعات بساز. مکث نوشتاری با جمله و پاراگراف شکل می‌گیرد، نه با سه‌نقطه‌های نمایشی یا پرسش در پایان هر بند. یک کشف مهم را مستقیم بگو و اجازه بده اثرش در ادامهٔ واقعی ماجرا روشن شود.
+
+لحن را به گزارش اداری یا بحث دائمی دربارهٔ اثبات‌نشدن ادعاها تبدیل نکن. صاحب یک روایت را جایی که لازم است معرفی کن و تا وقتی نسبت روشن است، آن را بی‌دلیل تکرار نکن. در عین حال، «به گفتهٔ شاهد» یا «حدود» را وقتی برای معنای جمله لازم‌اند حذف نکن.
+
+بازگشت به یک جزئیات باید به شنونده جهت بدهد یا معنای تازه‌ای بسازد. تکرار همان توضیح با واژه‌های دیگر، پیشروی داستان نیست. پایان می‌تواند بر پیامد، یک جزئیات انسانیِ موجود یا پرسش دقیق باقی‌مانده تکیه کند؛ پرسش پایانی اجباری نیست.
+
+نمونه‌های هم‌معنا، فقط برای زبان
+رسمی: پلیس اقدام به بازجویی از همسایه نمود.
+طبیعی: پلیس از همسایه بازجویی کرد.
+
+تکه‌تکه: او رفت. تنها. شبانه.
+پیوسته: او شبانه و تنها رفت.
+
+در این نمونه‌ها، تغییر زبان نباید شخص، زمان یا جزئیات تازه‌ای بسازد. آن‌ها اطلاعات پرونده یا جمله‌های آماده برای درج در داستان نیستند.
+
+نام‌ها و ارائه
+از صورت تأییدشدهٔ نام‌ها، اگر داده شده، پیروی کن. در غیر این صورت، آوانویسی رایج و یکدست انتخاب کن. روابطی مثل نامادری، ناپدری، دخترخوانده و خواهر ناتنی را دقیق نگه دار. نقل‌قول مستقیم را می‌توان وفادارانه ترجمه کرد یا به نقل غیرمستقیم تبدیل کرد؛ لازم نیست واژه‌های انگلیسی داخل متن فارسی بمانند.
+
+از «ی» و «ک» فارسی، نیم‌فاصله و نشانه‌گذاری طبیعی استفاده کن: می‌کرد، خانه‌اش، کتاب‌ها، دربارهٔ، «…»، ، و ؟. سبک عددنویسی تولید، اگر مشخص شده، مقدم است؛ در حالت عادی اعداد کوچک تا ده با حروف و مقادیر بزرگ‌تر با رقم فارسی نوشته می‌شوند. تاریخ میلادی و ارزش اعداد و واحدها حفظ می‌شود؛ تبدیل نمایش عدد، مجوز تغییر مقدار یا میزان دقت آن نیست. شناسه‌ها و نشانگرهای تولید را عیناً نگه دار.
+
+یک‌بار متن را در ذهن به‌صورت روایت پیوسته بخوان. اگر برای فهم جمله مجبور به ترجمهٔ ذهنی یا بازخوانی می‌شوی، آن را از نو تعریف کن.

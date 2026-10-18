@@ -23,6 +23,7 @@ from app.research_engine.embeddings import cosine_matrix
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import track_research_call, track_run, stamp_run
+from rapidfuzz import fuzz
 
 log = logging.getLogger(__name__)
 
@@ -768,8 +769,16 @@ class ResearchAgent:
     def _store_contradictions(
         self, db: Session, case: Case, contradictions: list[dict]
     ) -> int:
-        db.query(Contradiction).filter(Contradiction.case_id == case.id).delete()
+        """Adds the analyzer's contradictions to the case's stored ones; an
+        earlier contradiction (also one promoted from video transcripts) is not
+        deleted because a capped run did not find it again. Returns how many
+        the case has."""
+        existing = db.query(Contradiction).filter(Contradiction.case_id == case.id).all()
+        topics = [c.topic for c in existing]
         for c in contradictions:
+            if any(fuzz.token_set_ratio(c["topic"], t) >= ai_config.evidence_selection.same_contradiction_ratio for t in topics):
+                continue
+            topics.append(c["topic"])
             db.add(
                 Contradiction(
                     case_id=case.id,
@@ -779,4 +788,4 @@ class ResearchAgent:
                     severity=c.get("severity", "medium"),
                 )
             )
-        return len(contradictions)
+        return len(topics)

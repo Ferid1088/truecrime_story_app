@@ -174,15 +174,12 @@ def research_languages(case_id: int, db: Session = Depends(get_db)):
             except (ValueError, TypeError):
                 pass
 
-    # The canonical language (the one the owner checks first) leads, then the
-    # configured research order, then any other language that turned up.
-    canonical = ai_config.multilingual.canonical_language
-    seen = {canonical, *ai_config.multilingual.research_languages}
+    # The configured research order, then any other language that turned up.
+    seen = set(ai_config.multilingual.research_languages)
     extra = sorted(
         ({s.language for s in sources if s.language} | set(queries)) - seen
     )
-    langs = [canonical, *[l for l in ai_config.multilingual.research_languages
-                          if l != canonical], *extra]
+    langs = [*ai_config.multilingual.research_languages, *extra]
     out = {}
     for lang in langs:
         lang_sources = [s for s in sources if s.language == lang]
@@ -235,7 +232,7 @@ def research_languages(case_id: int, db: Session = Depends(get_db)):
             ),
         }
     return {
-        "canonical_language": ai_config.multilingual.canonical_language,
+        "production_languages": ai_config.multilingual.production_languages,
         "languages": out,
         "total_sources": len(sources),
     }

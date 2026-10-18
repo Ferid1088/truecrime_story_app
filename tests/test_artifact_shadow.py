@@ -57,7 +57,7 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
     case = Case(canonical_title=f"Asset test {suffix}", slug=f"asset-test-{suffix}", language="en")
     db_session.add(case)
     db_session.flush()
-    story = StoryVersion(case_id=case.id, version=1, kind="master", narrative_angle="test",
+    story = StoryVersion(case_id=case.id, version=1, kind="final", narrative_angle="test",
                          language="en", story_text="test", status="approved")
     db_session.add(story)
     db_session.flush()

@@ -67,6 +67,7 @@
     "max_total_seconds": 240,
     "min_beats_between": 3,
     "pace_factor": 1.08,
+    "voice_style": "host_conversational",
     "max_repair_iterations": 2,
     "max_appearance_seconds": 120,
     "final_enabled": false,

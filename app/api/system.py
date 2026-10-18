@@ -127,8 +127,7 @@ def settings_status(db: Session = Depends(get_db)):
         },
         "multilingual": {
             "research_languages": ai_config.multilingual.research_languages,
-            "canonical_language": ai_config.multilingual.canonical_language,
-            "localization_languages": ai_config.multilingual.localization_languages,
+            "production_languages": ai_config.multilingual.production_languages,
             "research_only_languages": ai_config.multilingual.research_only_languages,
             "available_languages": {
                 code: entry.name

@@ -168,8 +168,8 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
 
 
 async def _step_voice(db: Session, scene: HostScene, provider=None) -> dict | None:
-    """ElevenLabs audio of exactly the frozen text (reused when the saved
-    file still matches text, voice and model)."""
+    """ElevenLabs audio of exactly the frozen text, in the host's own style
+    (reused when the saved file still matches text, voice, model and settings)."""
     from app.providers.voice import get_voice_provider
     from app.providers.voice.base import VoiceRequest
 
@@ -177,12 +177,13 @@ async def _step_voice(db: Session, scene: HostScene, provider=None) -> dict | No
     if vcfg is None or not scene.voice_id:
         raise ST.StudioError(f"no voice configured for {scene.language}")
     meta = _loads(scene.voice_meta_json, {})
+    # the host speaks in its own style (host.voice_style), not the narration's
+    settings = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
     p = storage.resolve(scene.voice_path) if scene.voice_path else None
     if (p is not None and p.exists() and meta.get("text_sha256") == scene.text_sha256
             and meta.get("voice_id") == scene.voice_id and meta.get("model_id") == vcfg.model_id
-            and _sha(p.read_bytes()) == scene.voice_sha256):
-        return {"skipped": "saved audio matches the text"}
-    settings = ai_config.voice.styles[ai_config.voice.default_style].model_dump()
+            and meta.get("settings") == settings and _sha(p.read_bytes()) == scene.voice_sha256):
+        return {"skipped": "saved audio matches the text, voice and settings"}
     req = VoiceRequest(text=scene.text, voice_id=scene.voice_id, model_id=vcfg.model_id,
                        settings=settings, language=scene.language,
                        language_code=vcfg.language_code)

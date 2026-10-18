@@ -4,8 +4,10 @@ the domain rules and storage helpers stay in app.documentary.visuals.research.""
 from __future__ import annotations
 
 import json
+
 import httpx
 from sqlalchemy.orm import Session
+
 from app.core.ai_config import ai_config
 from app.db.models import Case, Source, VisualAsset, VisualLead
 from app.documentary import storage
@@ -13,19 +15,20 @@ from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import (
+    _KIND_ORDER,
+    RIGHTS_KNOWN_PROVIDERS,
     BraveImageProvider,
     Candidate,
     LeadSourceProvider,
-    brave_backend,
-    store_video_links,
-    RIGHTS_KNOWN_PROVIDERS,
     SourcePageProvider,
     WikimediaProvider,
-    _KIND_ORDER,
+    brave_backend,
+    date_span,
     footage_queries,
     next_asset_code,
     query_kind,
     source_candidate_has_relevance,
+    store_video_links,
 )
 
 
@@ -144,7 +147,8 @@ class VisualResearchAgent:
                     entities_json=json.dumps(c.entities, ensure_ascii=False),
                     provider=c.provider, source_url=c.url, page_url=c.page_url,
                     source_name=c.source_name, found_for=c.found_for,
-                    license=c.license, credit=c.credit, date_start=c.date,
+                    license=c.license, credit=c.credit,
+                    date_start=date_span(c.date)[0], date_end=date_span(c.date)[1],
                     rights_status=status, rights_reason=reason,
                     local_path=storage.rel(master), thumbnail_path=storage.rel(thumb),
                     width=img.width, height=img.height, phash=ph, sha256=IM.sha256(data),

@@ -16,8 +16,9 @@ def test_dry_run_builds_english_prompts_and_sends_nothing(db_session):
     assert result["estimated_cost_eur"] == result["estimate_range_eur"]["expected"]
     assert result["estimate_range_eur"]["low"] < result["estimate_range_eur"]["expected"] < result["estimate_range_eur"]["high"]
     assert {row["stage"] for row in result["stages"]} >= {
-        "research", "master_story", "spoken:en", "performance:en", "tts:en",
-        "thumbnail", "short_selection", "short_render:en", "translation", "host:en",
+        "research", "language_draft", "language_rewrite:en", "language_inspect:en",
+        "language_final:en", "spoken:en", "performance:en", "tts:en",
+        "thumbnail", "short_selection", "short_render:en", "host:en",
     }
     assert any(row["status"] == "skipped" for row in result["stages"])
     assert result["within_cap"] is True
@@ -31,7 +32,7 @@ def test_dry_run_changes_when_story_length_changes(db_session):
     db_session.commit()
     short = documentary_dry_run(db_session, case, ["en"])
     from app.db.models import StoryVersion
-    db_session.add(StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+    db_session.add(StoryVersion(case_id=case.id, version=1, kind="final", language="en",
                                 narrative_angle="angle", story_text="word " * 20000,
                                 status="approved"))
     db_session.commit()
@@ -48,14 +49,14 @@ def test_120_second_pilot_scales_the_editorial_token_target(db_session):
     from app.db.models import StoryVersion
 
     # A pre-existing long master must not make the pilot estimate a full film.
-    db_session.add(StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+    db_session.add(StoryVersion(case_id=case.id, version=1, kind="final", language="en",
                                 narrative_angle="angle", story_text="word " * 12000,
                                 status="approved"))
     db_session.commit()
     result = documentary_dry_run(db_session, case, ["en"], pilot_seconds=120)
     assert result["metrics"]["target_minutes"]["expected"] == 2.0
     assert result["metrics"]["story_words"]["expected"] == 300.0
-    assert result["token_assumptions"]["master_story_output"]["expected"] == 390.0
+    assert result["token_assumptions"]["story_tokens"]["expected"] == 390.0
     assert result["metrics"]["source_words_basis"] == "assumed"
 
 

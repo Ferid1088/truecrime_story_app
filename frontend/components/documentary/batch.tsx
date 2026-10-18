@@ -115,7 +115,7 @@ export function BatchPanel({
         <p className="text-xs leading-5 text-muted-foreground">
           One production job per case with the same options. Up to {settings.concurrency.jobs} run at the
           same time; the others wait in the queue. A case without a story starts from zero: research,
-          then the master story at its target length.
+          then the language pipeline (shared draft, a native final text per language).
         </p>
 
         <fieldset>
@@ -143,7 +143,7 @@ export function BatchPanel({
                       <div className="mt-2 flex flex-wrap items-start gap-x-4 gap-y-2 pl-5.5">
                         <div className="pt-1">
                           <Checkbox
-                            label="From zero (research + master story)"
+                            label="From zero (research + language pipeline)"
                             checked={pick.fromZero}
                             onChange={(e) => update(c.id, { fromZero: e.target.checked })}
                           />

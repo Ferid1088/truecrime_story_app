@@ -6,13 +6,13 @@ import json
 import uuid
 
 import pytest
+from test_stage_direction import good
+from test_visual_memory import _scene
 
 from app.agents import stage_director as SDA
 from app.db.models import HostAppearance, HostLook
 from app.documentary import visual_memory as VM
-from test_stage_direction import good
-from test_visual_memory import _scene
-from tests.test_master_pipeline import ScriptGen
+from tests.factories import ScriptGen
 
 
 def _direction(**over):

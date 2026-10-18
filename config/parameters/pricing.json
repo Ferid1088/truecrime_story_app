@@ -39,6 +39,32 @@
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "plan_or_tier": "Claude API standard token pricing; global routing, no batch/caching modifier",
       "last_verified": "2026-10-13",
+      "verification_status": "verified",
+      "cached_input_usd_per_1m_tokens": 0.1,
+      "cache_write_usd_per_1m_tokens": 2.5
+    },
+    "sol": {
+      "provider_model": "gpt-6.1-sol",
+      "input_usd_per_1m_tokens": 2.0,
+      "output_usd_per_1m_tokens": 10.0,
+      "cached_input_usd_per_1m_tokens": 0.1,
+      "cache_write_usd_per_1m_tokens": 2.5,
+      "currency": "USD",
+      "source_url": "https://apimaster.ai/api/pricing",
+      "plan_or_tier": "APIMaster gateway price list (pricing_version a42d372c...), tier 'standard' for prompts up to 272000 tokens: input 2, output 10 (reasoning tokens are output), cache read 0.1, cache write 2.5 USD per 1M tokens. The gateway reports no cost field for this model, so the ledger prices the reported tokens.",
+      "last_verified": "2026-10-17",
+      "verification_status": "verified"
+    },
+    "luna": {
+      "provider_model": "gpt-5.6-luna",
+      "input_usd_per_1m_tokens": 0.2,
+      "output_usd_per_1m_tokens": 1.2,
+      "cached_input_usd_per_1m_tokens": 0.02,
+      "cache_write_usd_per_1m_tokens": 0.25,
+      "currency": "USD",
+      "source_url": "https://apimaster.ai/api/pricing",
+      "plan_or_tier": "APIMaster gateway price list read on 2026-10-18, tier 'standard' for prompts up to 272000 tokens: input 0.2, output 1.2 (reasoning tokens are output), cache read 0.02, cache write 0.25 USD per 1M tokens. The gateway reports no cost field for this model, so the ledger prices the reported tokens.",
+      "last_verified": "2026-10-18",
       "verification_status": "verified"
     }
   },
@@ -102,8 +128,6 @@
       "story_tokens": "story_words * words_to_tokens",
       "research_source_text_read": "source_words * words_to_tokens",
       "research_notes_written": "target_story_words * 0.45 * words_to_tokens",
-      "master_story_input": "research_notes_tokens",
-      "master_story_output": "target_minutes * words_per_minute * words_to_tokens",
       "spoken_input": "story_tokens * 1.2",
       "spoken_output": "story_tokens * 1.05",
       "performance_input": "story_tokens * 1.1",

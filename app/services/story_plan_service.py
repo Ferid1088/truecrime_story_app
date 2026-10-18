@@ -11,8 +11,12 @@ import json
 from sqlalchemy.orm import Session
 
 from app.agents.story import (
-    MASTER_ROLES, StoryDirector, StoryPipeline, build_evidence_pack, choose_opening,
-    editorial_context, evidence_fingerprint,
+    StoryDirector,
+    build_evidence_pack,
+    choose_opening,
+    editorial_context,
+    evidence_fingerprint,
+    normalize_act_budgets,
 )
 from app.core.ai_config import ai_config
 from app.db.models import Case, Contradiction, Fact, Source, StoryPlan
@@ -93,7 +97,7 @@ class StoryPlanService:
         context = editorial_context(self.db, case, follow_up)
         if instruction:
             context["user_instruction"] = instruction
-        role = MASTER_ROLES["director"]
+        role = "story_director"
         with track_run(self.db, case.id, "Story Plan") as run:
             plan, res = await StoryDirector().design(
                 case, pack, int(target_minutes), language, role=role, context=context)
@@ -106,15 +110,17 @@ class StoryPlanService:
                 plan["follow_up"] = {k: follow_up.get(k) for k in (
                     "follow_up_id", "original_title", "episode_number", "original_published")}
             run.output_summary = f"beats={len(plan.get('acts', []))}"
-        StoryPipeline(roles=MASTER_ROLES)._normalize_act_budgets(
+        normalize_act_budgets(
             plan, int(target_minutes * ai_config.words_per_minute_for(language)))
         return self._store(case, plan, pack, language, target_minutes,
                            "redo" if supersedes else "director", instruction, supersedes,
                            getattr(res, "model", None))
 
     # -- editing -----------------------------------------------------------
+    PLAN_LEVEL_KEYS = ("central_question", "ending_strategy", "reveal_map", "open_loops", "human_threads")
+
     def preview(self, plan: StoryPlan, action: str, instruction: str | None = None,
-                beats: list[dict] | None = None) -> dict:
+                beats: list[dict] | None = None, changes: dict | None = None) -> dict:
         """The exact scope of a redo or an edit, shown before it is applied."""
         if action not in ("redo", "edit"):
             raise StoryPlanError("action must be redo or edit")
@@ -130,13 +136,20 @@ class StoryPlanService:
             "masters_written_from_this_plan": written,
             "director_calls": 1 if action == "redo" else 0,
             "changes": [b.get("id") for b in beats or []] if action == "edit" else None,
-            "token": _hash(plan.id, plan.plan_json, action, instruction, beats),
+            "plan_changes": sorted(changes or {}) if action == "edit" else None,
+            "token": _hash(plan.id, plan.plan_json, action, instruction, beats, changes),
         }
 
-    def edit(self, plan: StoryPlan, beats: list[dict], token: str) -> StoryPlan:
+    def edit(self, plan: StoryPlan, beats: list[dict], token: str, changes: dict | None = None) -> StoryPlan:
+        """Edit acts (title, purpose, key_beats, target_words, evidence_ids, do_not_reveal, open_loops,
+        resolved_loops) and, with `changes`, the plan-level fields in PLAN_LEVEL_KEYS. The result is a new
+        version of the plan (origin "edit"); the old one stays as history."""
         case = self.db.get(Case, plan.case_id)
-        if self.preview(plan, "edit", beats=beats)["token"] != token:
+        if self.preview(plan, "edit", beats=beats, changes=changes)["token"] != token:
             raise StoryPlanError("the plan changed since the preview; preview again")
+        unknown = sorted(set(changes or {}) - set(self.PLAN_LEVEL_KEYS))
+        if unknown:
+            raise StoryPlanError(f"cannot edit plan fields {unknown}")
         data = json.loads(plan.plan_json)
         by_id = {str(a.get("id")): a for a in data.get("acts") or []}
         for patch in beats:
@@ -144,9 +157,10 @@ class StoryPlanService:
             if act is None:
                 raise StoryPlanError(f"unknown beat {patch.get('id')!r}")
             for key in ("title", "purpose", "key_beats", "target_words", "evidence_ids",
-                        "do_not_reveal"):
+                        "do_not_reveal", "open_loops", "resolved_loops"):
                 if key in patch:
                     act[key] = patch[key]
+        data.update(changes or {})
         data.pop("host_slots", None)
         return self._store(case, data, _pack(self.db, case), plan.language, plan.target_minutes,
                            "edit", None, plan, plan.generation_model)

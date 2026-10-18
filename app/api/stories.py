@@ -4,27 +4,25 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.db.base import get_db
-from app.db.models import (
-    StoryVersion,
-    EditorialBlueprint,
-)
-from app.schemas import (
-    ApproveStoryRequest,
-    GenerateStoryRequest,
-    ImproveStoryRequest,
-    VoiceRenderRequest,
-    DynamicEQPreviewRequest,
-)
-from app.core.ai_config import ai_config
 from app.agents.story import (
-    StoryPipeline,
     current_evidence_fingerprint,
     stored_evidence_fingerprint,
 )
+from app.api import deps
+from app.api.deps import get_case_or_404, story_or_404
+from app.api.serializers import story_full_dict, story_meta_dict
+from app.core.ai_config import ai_config
+from app.db.base import get_db
+from app.db.models import (
+    EditorialBlueprint,
+    StoryVersion,
+)
 from app.documentary.audio import AudioToolError
-from app.documentary.voice_blocks import plan_for_version
-from app.documentary.voice_render import VoiceRenderer
+from app.documentary.audio_director import (
+    AudioDirector,
+    audio_plan_dict,
+    latest_audio_plan,
+)
 from app.documentary.blueprint import (
     NarrativeDirector,
     blueprint_dict,
@@ -33,81 +31,16 @@ from app.documentary.blueprint import (
 from app.documentary.performance import performance_for_version
 from app.documentary.production.audio import render_documentary_audio
 from app.documentary.spoken import SpokenNarrator
-from app.documentary.audio_director import (
-    AudioDirector,
-    audio_plan_dict,
-    latest_audio_plan,
-)
-from app.providers.voice import VoiceProviderError
+from app.documentary.voice_blocks import plan_for_version
+from app.documentary.voice_render import VoiceRenderer
 from app.providers.generation.base import GenerationError
-from app.utils import utc_now
-
-
-from app.api.deps import get_case_or_404, story_or_404
-from app.api.serializers import story_full_dict, story_meta_dict
-from app.api import deps
+from app.providers.voice import VoiceProviderError
+from app.schemas import (
+    DynamicEQPreviewRequest,
+    VoiceRenderRequest,
+)
 
 router = APIRouter()
-
-
-@router.post("/api/cases/{case_id}/generate-story")
-async def generate_story(case_id: int, payload: GenerateStoryRequest, db: Session = Depends(get_db)):
-    case = get_case_or_404(db, case_id)
-    from app.services import background_jobs
-
-    job = background_jobs.create_job(
-        db, case_id=case.id, kind="story_generate", input_data=payload.model_dump(),
-        timeout_seconds=300,
-    )
-    background_jobs.launch(job.id)
-    return {"job_id": job.id, "status": job.status}
-
-
-@router.post("/api/cases/{case_id}/improve-story")
-async def improve_story(case_id: int, payload: ImproveStoryRequest, db: Session = Depends(get_db)):
-    case = get_case_or_404(db, case_id)
-    story = (
-        db.query(StoryVersion)
-        .filter(StoryVersion.id == payload.story_version_id, StoryVersion.case_id == case_id)
-        .first()
-    )
-    if not story:
-        raise HTTPException(status_code=404, detail="Story version not found")
-
-    try:
-        new_version = await StoryPipeline().improve(
-            db=db, case=case, story_version=story, instruction=payload.instruction
-        )
-        return story_full_dict(new_version)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.post("/api/cases/{case_id}/stories/{version_id}/approve")
-def approve_story(case_id: int, version_id: int, payload: ApproveStoryRequest,
-                  db: Session = Depends(get_db)):
-    """Control at every stage means a human can approve a version its own
-    critics rejected — "as is", without editing it. The critic scores and
-    problems stay on the version untouched; only status and who/when
-    approved it change, so the record of what was flagged is never lost."""
-    from app.services.policy_events import record_override
-
-    story = story_or_404(db, case_id, version_id)
-    if story.status == "ready":
-        raise HTTPException(status_code=409, detail="This version is already ready.")
-    previous_status = story.status
-    story.status = "ready"
-    story.approved_by = payload.approved_by
-    story.approved_at = utc_now()
-    db.commit()
-    db.refresh(story)
-    record_override(
-        db, actor=payload.approved_by, scope_type="story_version",
-        scope_id=str(story.id), field="status",
-        old_value=previous_status, new_value="ready",
-        reason="Approved as is over open critic problems.",
-    )
-    return story_full_dict(story)
 
 
 @router.get("/api/cases/{case_id}/stories")

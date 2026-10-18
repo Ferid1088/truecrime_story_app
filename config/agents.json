@@ -98,145 +98,12 @@
       "description": "Acts, purpose and opening of the story.",
       "used_by": "app/agents/story.py"
     },
-    "story.write": {
-      "role": "writer",
-      "prompt": "agents/story/write",
-      "output": "text",
-      "description": "Whole-story draft.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.write_act": {
-      "role": "writer",
-      "prompt": "agents/story/write_act",
-      "output": "text",
-      "description": "One act against its budget and evidence.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.critique": {
-      "role": "engagement_critic",
-      "prompt": "agents/story/critique",
-      "output": "json",
-      "description": "Engagement score and revision requests.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.critique_section": {
-      "role": "section_critic",
-      "prompt": "agents/story/critique_section",
-      "output": "json",
-      "description": "One section's critique.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.improve": {
-      "role": "rewriter",
-      "prompt": "agents/story/improve",
-      "output": "text",
-      "description": "Revise the story on instruction.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.fit_section_length": {
-      "role": "rewriter",
-      "prompt": "agents/story/fit_section_length",
-      "output": "text",
-      "description": "Bring an act to its word budget.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.repair_spans": {
-      "role": "rewriter",
-      "prompt": "agents/story/repair_section_spans",
-      "output": "text",
-      "description": "Repair unsupported paragraphs.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.apply_revision_ops": {
-      "role": "rewriter",
-      "prompt": "agents/story/apply_revision_ops",
-      "output": "text",
-      "description": "Apply targeted revision operations.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.section_pass": {
-      "role": "rewriter",
-      "prompt": "agents/story/section_pass",
-      "output": "text",
-      "description": "Section-level revision.",
-      "used_by": "app/agents/story.py"
-    },
-    "story.grounding": {
-      "role": "grounding_validator",
-      "prompt": "agents/story/grounding_check_only",
-      "output": "json",
-      "description": "Claims supported by the evidence?",
-      "used_by": "app/agents/story.py"
-    },
-    "story.consistency": {
-      "role": "consistency_checker",
-      "prompt": "agents/story/consistency_check",
-      "output": "json",
-      "description": "Internal consistency and certainty.",
-      "used_by": "app/agents/story.py"
-    },
     "story.compression_semantics": {
       "role": "semantic_consistency_checker",
       "prompt": "agents/story/compression_semantics",
       "output": "json",
       "description": "Classify attribution preserved through compression.",
       "used_by": "app/longform/compression.py"
-    },
-    "story.final_edit": {
-      "role": "final_editor",
-      "prompt": "agents/story/final_edit",
-      "output": "text",
-      "description": "Final polish.",
-      "used_by": "app/agents/story.py"
-    },
-    "localization.write": {
-      "role": "localization_writer",
-      "prompt": null,
-      "output": "text",
-      "description": "Localized story, whole.",
-      "used_by": "app/agents/localization.py"
-    },
-    "localization.write_section": {
-      "role": "localization_writer",
-      "prompt": "agents/localization/write_per_section",
-      "output": "text",
-      "description": "Localize one act.",
-      "used_by": "app/agents/localization.py"
-    },
-    "localization.native_critic": {
-      "role": "native_language_critic",
-      "prompt": "agents/localization/native_critic",
-      "output": "json",
-      "description": "Reads as native?",
-      "used_by": "app/agents/localization.py"
-    },
-    "localization.semantic_check": {
-      "role": "semantic_consistency_checker",
-      "prompt": "agents/localization/semantic_check",
-      "output": "json",
-      "description": "Same meaning as the master?",
-      "used_by": "app/agents/localization.py"
-    },
-    "localization.grounding": {
-      "role": "localized_grounding_validator",
-      "prompt": "agents/localization/localized_grounding",
-      "output": "json",
-      "description": "Localized claims still grounded?",
-      "used_by": "app/agents/localization.py"
-    },
-    "localization.repair": {
-      "role": "localization_writer",
-      "prompt": "agents/localization/repair",
-      "output": "text",
-      "description": "Repair a localized section.",
-      "used_by": "app/agents/localization.py"
-    },
-    "localization.final_edit": {
-      "role": "localized_final_editor",
-      "prompt": "agents/localization/final_edit",
-      "output": "text",
-      "description": "Final polish of the localization.",
-      "used_by": "app/agents/localization.py"
     },
     "documentary.blueprint": {
       "role": "narrative_director",
@@ -406,41 +273,6 @@
       "description": "Solved/unsolved from documents.",
       "used_by": "app/agents/status.py"
     },
-    "master_story_director": {
-      "role": "master_story_director",
-      "prompt": null,
-      "output": "json",
-      "description": "Master story plan.",
-      "used_by": "app/agents/story.py"
-    },
-    "master_writer": {
-      "role": "master_writer",
-      "prompt": null,
-      "output": "text",
-      "description": "Master story writer.",
-      "used_by": "app/agents/story.py"
-    },
-    "master_rewriter": {
-      "role": "master_rewriter",
-      "prompt": null,
-      "output": "text",
-      "description": "Master story reviser.",
-      "used_by": "app/agents/story.py"
-    },
-    "master_engagement_critic": {
-      "role": "master_engagement_critic",
-      "prompt": null,
-      "output": "json",
-      "description": "Master engagement critic.",
-      "used_by": "app/agents/story.py"
-    },
-    "master_final_editor": {
-      "role": "master_final_editor",
-      "prompt": null,
-      "output": "text",
-      "description": "Master final editor.",
-      "used_by": "app/agents/story.py"
-    },
     "host_director": {
       "role": "host_director",
       "prompt": null,
@@ -482,6 +314,139 @@
       "output": "json",
       "description": "Told or read?",
       "used_by": "app/agents/spoken.py"
+    },
+    "language.draft": {
+      "role": "language_draft_writer",
+      "prompt": "language_pipeline/draft_writer",
+      "output": "text",
+      "description": "Stage 1: the one shared English draft of a case (90 minutes), from the plan and all the evidence.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "english.evidence_audit": {
+      "role": "english_evidence_auditor",
+      "prompt": "language_pipeline/audit/evidence_audit",
+      "output": "json",
+      "description": "One-pass audit of the English draft against the supplied facts and source excerpts only; a report, it changes nothing.",
+      "used_by": "app/language_pipeline/evidence_audit.py"
+    },
+    "language.rewrite.fa": {
+      "role": "language_rewrite_writer_fa_ar",
+      "prompt": "language_pipeline/fa/rewrite_writer",
+      "output": "text",
+      "description": "Persian film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.fa": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/fa/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the Persian film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.fa": {
+      "role": "language_final_writer_fa_ar",
+      "prompt": "language_pipeline/fa/final_writer",
+      "output": "text",
+      "description": "Final Persian film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.de": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/de/rewrite_writer",
+      "output": "text",
+      "description": "German film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.de": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/de/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the German film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.de": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/de/final_writer",
+      "output": "text",
+      "description": "Final German film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.ar": {
+      "role": "language_rewrite_writer_fa_ar",
+      "prompt": "language_pipeline/ar/rewrite_writer",
+      "output": "text",
+      "description": "Arabic film version (60-70 minutes) re-told natively from the English master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.ar": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/ar/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the Arabic film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.ar": {
+      "role": "language_final_writer_fa_ar",
+      "prompt": "language_pipeline/ar/final_writer",
+      "output": "text",
+      "description": "Final Arabic film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.rewrite.en": {
+      "role": "language_rewrite_writer",
+      "prompt": "language_pipeline/en/rewrite_writer",
+      "output": "text",
+      "description": "English film version (60-70 minutes) re-told from the approved master.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.inspect.en": {
+      "role": "language_inspector",
+      "prompt": "language_pipeline/en/inspector",
+      "output": "json",
+      "description": "Listening-quality review of the English film version.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.final.en": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/en/final_writer",
+      "output": "text",
+      "description": "Final English film text from the last version and the critique.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.glossary": {
+      "role": "evidence_normalizer",
+      "prompt": "language_pipeline/glossary",
+      "output": "json",
+      "description": "Standard spelling of the evidence's people and places in one language (owner approves).",
+      "used_by": "app/language_pipeline/glossary.py"
+    },
+    "language.length_correction": {
+      "role": "language_final_writer",
+      "prompt": "language_pipeline/length_correction",
+      "output": "text",
+      "description": "One-time bounded length correction: expands only the acts that are too short, from the English master's material for the same act.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.length_correction.fa_ar": {
+      "role": "language_final_writer_fa_ar",
+      "prompt": "language_pipeline/length_correction",
+      "output": "text",
+      "description": "The same bounded length correction for the Persian and Arabic texts, written by their own final-writer role.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "language.fidelity": {
+      "role": "english_evidence_auditor",
+      "prompt": "language_pipeline/fidelity",
+      "output": "json",
+      "description": "Checks that a translated film text keeps the meaning of the approved English text: events, relationships, values, attributions and certainty.",
+      "used_by": "app/language_pipeline/stages.py"
+    },
+    "english.audit_fix": {
+      "role": "english_evidence_auditor",
+      "prompt": "language_pipeline/audit/audit_fix",
+      "output": "json",
+      "description": "Checks each factual finding of the evidence audit against the evidence and gives the smallest edit for the confirmed ones.",
+      "used_by": "app/language_pipeline/stages.py"
     }
   }
 }

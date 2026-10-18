@@ -35,7 +35,7 @@ def _job(db, tmp_path, status="completed"):
     case = Case(canonical_title=f"Shorts proof {suffix}", slug=f"shorts-proof-{suffix}", language="en")
     db.add(case)
     db.flush()
-    story = StoryVersion(case_id=case.id, version=1, kind="master", narrative_angle="evidence",
+    story = StoryVersion(case_id=case.id, version=1, kind="final", narrative_angle="evidence",
                          language="en", story_text="A finished evidence-led story.", status="approved")
     db.add(story)
     db.flush()

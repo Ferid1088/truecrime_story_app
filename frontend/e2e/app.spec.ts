@@ -217,7 +217,6 @@ test.describe("Case workspace", () => {
       "Contradictions",
       "Story",
       "Research Languages",
-      "Localizations",
       "Agent Runs",
       "Overview",
     ]) {
@@ -302,35 +301,76 @@ test.describe("Case workspace", () => {
   });
 });
 
-test.describe("Master story & localization gating", () => {
-  test("ready master shows quality info and enables localization Generate", async ({ page }) => {
+test.describe("Language pipeline", () => {
+  test("shows the shared draft once, a card per language, the critique, the gates and the cost table", async ({ page }) => {
     await mockApi(page);
     await page.goto("/cases/1");
-    await page.getByRole("button", { name: "Localizations", exact: true }).click();
-    await expect(page.getByText("English Master")).toBeVisible();
-    await expect(page.getByText("ready", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Three Men and a Locked Door").first()).toBeVisible();
-    const genButtons = page.getByRole("button", { name: "Generate", exact: true });
-    await expect(genButtons.first()).toBeEnabled();
+    await page.getByRole("button", { name: "Story", exact: true }).click();
+    await expect(page.getByText("Shared English draft (stage 1, written once)")).toBeVisible();
+    await expect(page.getByText("claude-sonnet-5-5").first()).toBeVisible();
+    await expect(page.getByText(/Re-told from the English draft v9/).first()).toBeVisible();
+    await expect(page.getByTestId("draft-approval")).toContainText("approved automatically");
+    await expect(page.getByTestId("retired-method")).toContainText("retired method");
+    await expect(page.getByTestId("retired-method")).toContainText("2 rows of the fact-check loop");
+    const checks = page.getByTestId("evidence-audit");
+    await expect(checks.getByTestId("audit-model")).toContainText("model: gpt-6.1-sol");
+    await expect(checks.getByTestId("audit-model")).toContainText("Report only, nothing was changed");
+    await expect(checks.getByTestId("audit-counts")).toContainText("high 1 · medium 0 · low 1");
+    await expect(checks.getByTestId("audit-item").first()).toContainText("Andrew Borden was 70 years old.");
+    await expect(checks.getByTestId("audit-numbers")).toContainText("no model");
+    await expect(checks.getByTestId("audit-numbers")).toContainText("Hosea Knowlton");
+    await expect(checks.getByTestId("audit-coverage")).toContainText("140 of 156 facts told");
+    await expect(page.getByRole("button", { name: /apply|correct/i })).toHaveCount(0);
+    await expect(page.getByText("2 · Native rewrite").first()).toBeVisible();
+    await expect(page.getByText("gpt-6.1-sol").first()).toBeVisible();
+    await expect(page.getByText(/Inspector critique · 1 items/)).toBeVisible();
+    await expect(page.getByText("all passed").first()).toBeVisible();
+    await expect(page.getByText(/ESTIMATE, not a price and not a spend/)).toBeVisible();
+    await expect(page.getByText("Cost per stage and language (actual ledger)")).toBeVisible();
+    await expect(page.getByTestId("final-approval")).toContainText("approved automatically");
+    await expect(page.getByRole("button", { name: "Approve final" })).toHaveCount(0);
+    await expect(page.getByTestId("act-lengths")).toContainText("Words per act against the target");
+    await page.getByTestId("act-lengths").locator("summary").click();
+    await expect(page.getByTestId("act-lengths")).toContainText("4,274");
+    await expect(page.getByTestId("final-audit")).toContainText("Evidence audit of this final text");
+    await page.getByTestId("final-audit").locator("summary").click();
+    await expect(page.getByTestId("final-audit")).toContainText("Added in the final.");
+    await expect(page.getByTestId("length-correction")).toContainText("Bounded length correction");
+    await expect(page.getByTestId("length-correction")).toContainText("stored");
+    await expect(page.getByTestId("length-corrected-acts")).toContainText("length-corrected, not inspected");
+    await expect(page.getByTestId("length-corrected-acts")).toContainText("act2");
+    await expect(page.getByTestId("length-correction")).toContainText("likely padded");
+    await expect(page.getByTestId("fact-report")).toContainText("1 added, 1 missing");
+    await page.getByTestId("fact-report").locator("summary").click();
+    await expect(page.getByTestId("fact-report")).toContainText("Names are not compared");
+    await expect(page.getByTestId("script-hygiene")).toContainText("persian letters: 2 · first at line 3, column 5");
+    await expect(page.getByText(/Blocking gates: markers, length/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Start en/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Resume fa/ })).toBeVisible();
   });
 
-  test("needs_revision master shows gate failures and blocks Generate", async ({ page }) => {
-    await mockApi(page, { master: fixtures.needsRevisionMaster });
+  test("the owner reviews and approves the spellings of names and places per language", async ({ page }) => {
+    await mockApi(page);
     await page.goto("/cases/1");
-    await page.getByRole("button", { name: "Localizations", exact: true }).click();
-    await expect(page.getByText("needs revision").first()).toBeVisible();
-    await expect(page.getByText(/quality gate failure/i)).toBeVisible();
-    await expect(page.getByText(/Act 3 engagement below threshold/)).toBeVisible();
-    const genButtons = page.getByRole("button", { name: "Generate", exact: true });
-    await expect(genButtons.first()).toBeDisabled();
+    await page.getByRole("button", { name: "Story", exact: true }).click();
+    await expect(page.getByText("Names and places glossary")).toBeVisible();
+    const fa = page.getByLabel("Abby Borden in fa");
+    await expect(fa).toHaveValue("ابی بوردن | بوردن");
+    await expect(page.getByLabel("Abby Borden in en")).toHaveValue("Abby Borden | Borden");
+    await fa.fill("ابی بوردن | ابی بُردن");
+    await fa.blur();
+    await expect(page.getByLabel("Abby Borden in fa")).toHaveValue("ابی بوردن | ابی بُردن");
+    const request = page.waitForRequest((r) => r.url().includes("/glossary/fa/approve") && r.method() === "POST");
+    await page.getByRole("button", { name: /Approve Persian/i }).click();
+    await request;
   });
 
-  test("missing master shows blocking empty state", async ({ page }) => {
-    await mockApi(page, { masterStatus: 404 });
+  test("a case without a draft offers to run the pipeline", async ({ page }) => {
+    await mockApi(page, { languagePipeline: fixtures.languagePipelineEmpty });
     await page.goto("/cases/1");
-    await page.getByRole("button", { name: "Localizations", exact: true }).click();
-    await expect(page.getByText("No English Master yet")).toBeVisible();
-    await expect(page.getByRole("button", { name: /open story studio/i })).toBeVisible();
+    await page.getByRole("button", { name: "Story", exact: true }).click();
+    await expect(page.getByText(/Not written yet/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Run all languages" })).toBeEnabled();
   });
 });
 
@@ -353,45 +393,31 @@ test.describe("Other pages", () => {
   test("settings shows multilingual configuration", async ({ page }) => {
     await mockApi(page);
     await page.goto("/settings");
-    await expect(page.getByText("Multilingual")).toBeVisible();
+    await expect(page.getByText("Multilingual", { exact: true })).toBeVisible();
     await expect(page.getByText("Research languages")).toBeVisible();
   });
 });
 
 test.describe("RTL", () => {
-  for (const [lang, text, label] of [
-    ["fa", "نگهبان فانوس دریایی در نیمه شب ناپدید شد.", "Persian"],
-    ["ar", "اختفى حارس منارة في منتصف الليل.", "Arabic"],
-  ] as const) {
-    test(`${label} story renders dir=rtl`, async ({ page }) => {
-      const locMeta = {
-        ...fixtures.masterStory.master,
-        id: 91,
-        version: 6,
-        language: lang,
-        kind: "localized",
-        status: "ready",
-        story_text: undefined,
-      };
-      delete (locMeta as Record<string, unknown>).story_text;
-      await mockApi(page);
-      await page.route("**/api/cases/1/localizations", (route) =>
-        route.fulfill({ contentType: "application/json", body: JSON.stringify([locMeta]) }),
-      );
-      await page.route("**/api/localizations/91", (route) =>
-        route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ ...locMeta, story_text: `${text}\n\n${text} — Lighthouse.` }),
-        }),
-      );
-      await page.goto("/cases/1");
-      await page.getByRole("button", { name: "Localizations", exact: true }).click();
-      await page.getByRole("button", { name: /open v6/i }).click();
-      const article = page.locator('article[dir="rtl"]');
-      await expect(article).toBeVisible();
-      await expect(article).toContainText(text);
-    });
-  }
+  test("a right-to-left final text is shown right-to-left with its act markers left-to-right and intact", async ({ page }) => {
+    const text = "[[ACT:act1]]\n\nنگهبان فانوس دریایی در نیمه شب ناپدید شد.\n\n[[ACT:act2]]\n\nهیچ‌کس ندید.";
+    await mockApi(page);
+    await page.route("**/api/cases/1/language-pipeline/fa/final", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ...fixtures.languagePipeline.languages[0].stages.final, text }),
+      }),
+    );
+    await page.goto("/cases/1");
+    await page.getByRole("button", { name: "Story", exact: true }).click();
+    await page.getByRole("button", { name: "Read final" }).click();
+    const article = page.getByTestId("film-text");
+    await expect(article).toHaveAttribute("dir", "rtl");
+    await expect(article).toContainText("نگهبان فانوس دریایی");
+    const markers = article.getByTestId("film-marker");
+    await expect(markers).toHaveText(["[[ACT:act1]]", "[[ACT:act2]]"]);
+    await expect(markers.first()).toHaveAttribute("dir", "ltr");
+  });
 });
 
 test.describe("Hygiene", () => {

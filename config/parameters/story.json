@@ -2,20 +2,12 @@
   "story": {
     "default_target_minutes": 50,
     "min_target_minutes": 45,
-    "max_target_minutes": 120,
-    "words_per_minute": 135,
-    "minimum_length_ratio": 0.85,
-    "maximum_length_ratio": 1.15,
-    "max_rewrite_iterations": 3,
-    "max_length_repair_iterations": 2,
-    "engagement_threshold": 85
+    "max_target_minutes": 120
   },
   "story_quality": {
     "minimum_grounding_score": 0.85,
     "max_unsupported_claims": 2,
     "max_grounding_repair_iterations": 2,
-    "section_engagement_threshold": 55,
-    "max_section_rewrites": 2,
     "consistency_max_high_severity": 0,
     "disputed_confidence_threshold": 0.7,
     "strip_markdown_artifacts": true,
@@ -23,31 +15,8 @@
     "max_evidence_per_story": 100,
     "max_evidence_per_act": 100
   },
-  "master_generation": {
-    "section_based_generation": true,
-    "section_word_tolerance": 0.25,
-    "rewrite_length_tolerance": 0.15,
-    "max_sections_per_revision_cycle": 2,
-    "max_revision_cycles": 2,
-    "max_revision_calls": 6,
-    "max_pilot_approval_revisions": 1,
-    "minimum_engagement_improvement": 5,
-    "min_act_budget_share": 0.08,
-    "max_span_repairs_per_pass": 12
-  },
   "cost_control": {
-    "max_master_tokens_per_case": 1500000,
-    "max_master_cost_usd": 1.5,
-    "stage_time_budgets": {
-      "master_story": {
-        "base_seconds": 300,
-        "seconds_per_target_minute": 200
-      },
-      "master_approval": {
-        "base_seconds": 300,
-        "seconds_per_target_minute": 250
-      }
-    }
+    "stage_time_budgets": {}
   },
   "research_depth": {
     "minutes_per_fulltext_source": 2.5,
@@ -101,16 +70,11 @@
       "de",
       "ar"
     ],
-    "canonical_language": "fa",
     "evidence_language": "en",
-    "localization_languages": [
-      "en",
-      "de",
-      "ar"
-    ],
     "language_catalog": {
       "fa": {
         "name": "Persian",
+        "direction": "rtl",
         "brave_search_lang": null,
         "video_search_stems": [
           "{t} مستند پرونده",
@@ -154,6 +118,7 @@
       },
       "ar": {
         "name": "Arabic",
+        "direction": "rtl",
         "brave_search_lang": "ar",
         "video_search_stems": [
           "{t} وثائقي قضية",
@@ -216,24 +181,13 @@
         ],
         "video_query_stem": "{title} documentario indagine"
       }
-    }
-  },
-  "localization": {
-    "require_master_ready": true,
-    "words_per_minute": {
-      "en": 150,
-      "de": 140,
-      "fa": 135,
-      "ar": 130
     },
-    "minimum_native_quality_score": 75,
-    "minimum_semantic_consistency_score": 90,
-    "minimum_factual_consistency_score": 0.9,
-    "minimum_engagement_score": 80,
-    "max_localization_repair_iterations": 1,
-    "minimum_duration_ratio": 0.8,
-    "maximum_duration_ratio": 1.25,
-    "require_current_evidence": true
+    "production_languages": [
+      "fa",
+      "en",
+      "de",
+      "ar"
+    ]
   },
   "language_quality": {
     "fa": {
@@ -254,27 +208,12 @@
   "review_independence": {
     "enabled": true,
     "author_roles": [
-      "story_director",
-      "writer",
-      "rewriter",
-      "master_story_director",
-      "master_writer",
-      "master_rewriter",
-      "localization_writer",
-      "final_editor",
-      "localized_final_editor",
-      "master_final_editor"
+      "story_director"
     ],
     "reviewer_roles": [
-      "engagement_critic",
-      "section_critic",
-      "master_engagement_critic",
-      "native_language_critic",
-      "localized_engagement_critic",
       "grounding_validator",
       "consistency_checker",
-      "semantic_consistency_checker",
-      "localized_grounding_validator"
+      "semantic_consistency_checker"
     ],
     "groups": [
       {
@@ -364,6 +303,32 @@
           "visual_verifier"
         ],
         "strict": false
+      },
+      {
+        "name": "language_pipeline",
+        "authors": [
+          "language_draft_writer",
+          "language_rewrite_writer",
+          "language_final_writer",
+          "language_rewrite_writer_fa_ar",
+          "language_final_writer_fa_ar"
+        ],
+        "reviewers": [
+          "language_inspector"
+        ],
+        "strict": true,
+        "same_model_allowed": true,
+        "owner_decision": "Owner decision 2026-10-17 (docs/story_change_1.txt): the inspector runs on GPT 6.1 Sol, the same model as the rewrite and final writers; its independence is a separate agent with its own prompt and fresh context."
+      },
+      {
+        "name": "english_evidence_audit",
+        "authors": [
+          "language_draft_writer"
+        ],
+        "reviewers": [
+          "english_evidence_auditor"
+        ],
+        "strict": true
       }
     ],
     "reviewer_fallbacks": {

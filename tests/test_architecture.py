@@ -109,6 +109,7 @@ def test_every_model_call_goes_through_run_agent():
 
 def test_run_agent_uses_definition_and_role_override():
     import asyncio
+
     from app.agents.runner import run_agent
 
     seen = {}
@@ -122,19 +123,20 @@ def test_run_agent_uses_definition_and_role_override():
             seen.update(role=role, system=system)
             return "text-res"
 
-    d, _ = asyncio.run(run_agent("story.consistency", Gen(), "u", system="SYS"))
-    assert seen["role"] == "consistency_checker" and seen["system"] == "SYS" and d == {"ok": 1}
-    asyncio.run(run_agent("story.final_edit", Gen(), "u", system="S2", role="master_final_editor"))
-    assert seen["role"] == "master_final_editor"
-    out = asyncio.run(run_agent("localization.final_edit", Gen(), "u", language="German", marker_instruction=""))
-    assert out == "text-res" and "German" in seen["system"]
+    d, _ = asyncio.run(run_agent("language.inspect.en", Gen(), "u", system="SYS"))
+    assert seen["role"] == "language_inspector" and seen["system"] == "SYS" and d == {"ok": 1}
+    asyncio.run(run_agent("language.final.en", Gen(), "u", system="S2", role="language_rewrite_writer"))
+    assert seen["role"] == "language_rewrite_writer"
+    out = asyncio.run(run_agent("language.final.en", Gen(), "u", marker_instruction="M",
+                                style_guide="GUIDE-TEXT", target_words_min=1, target_words_max=2))
+    assert out == "text-res" and "GUIDE-TEXT" in seen["system"]
 
 
 def test_unknown_agent_and_class_less_agent_say_so():
     with pytest.raises(registry.AgentError, match="unknown"):
         registry.get_agent("nope")
     with pytest.raises(registry.AgentError, match="run_agent"):
-        registry.get_agent("story.consistency")
+        registry.get_agent("language.inspect.en")
 
 
 def test_config_layers_are_disjoint_and_complete():
@@ -154,7 +156,7 @@ def test_config_layers_are_disjoint_and_complete():
 def test_agents_endpoint(client):
     rows = client.get("/api/agents").json()
     ready = {r["name"] for r in rows}
-    assert {"case_naming_agent", "story.consistency", "visuals.audit", "documentary.blueprint"} <= ready
+    assert {"case_naming_agent", "language.inspect.en", "visuals.audit", "documentary.blueprint"} <= ready
     assert all(r["model_alias"] for r in rows)
 
 

@@ -70,8 +70,10 @@ import type {
   Fact,
   JobStartResponse,
   BackgroundJob,
-  LocalizationCompare,
-  MasterStoryResponse,
+  GlossaryView,
+  LanguagePipelineState,
+  PipelineEstimate,
+  PipelineStage,
   MusicTrack,
   NarrativeCapacity,
   Production,
@@ -418,33 +420,9 @@ export const api = {
   listContradictions: (caseId: number) =>
     request<Contradiction[]>(`/api/cases/${caseId}/contradictions`),
 
-  generateStory: async (
-    caseId: number,
-    payload: { target_minutes: number; language: string; tone: string; iterations?: number },
-  ) => {
-    const started = await post<JobStartResponse>(`/api/cases/${caseId}/generate-story`, payload);
-    return (await pollBackgroundJob(started.job_id, { timeoutMs: 6 * 60_000 })).result as {
-      story_version_id: number;
-      version: number;
-      engagement_score: number;
-      similarity_score: number | null;
-      similarity_status: string;
-      status: string;
-      story_text: string;
-    };
-  },
-  improveStory: (caseId: number, storyVersionId: number, instruction: string) =>
-    post<StoryFull>(`/api/cases/${caseId}/improve-story`, {
-      story_version_id: storyVersionId,
-      instruction,
-    }),
   listStories: (caseId: number) => request<StoryMeta[]>(`/api/cases/${caseId}/stories`),
   getStoryVersion: (caseId: number, versionId: number) =>
     request<StoryFull>(`/api/cases/${caseId}/stories/${versionId}`),
-  approveStory: (caseId: number, versionId: number, approvedBy: string) =>
-    post<StoryFull>(`/api/cases/${caseId}/stories/${versionId}/approve`, {
-      approved_by: approvedBy,
-    }),
 
   researchLanguages: (caseId: number) =>
     request<ResearchLanguages>(`/api/cases/${caseId}/research/languages`),
@@ -463,28 +441,38 @@ export const api = {
       `/api/cases/${caseId}/research/followup?target_minutes=${targetMinutes}`,
       { method: "POST" },
     ),
-  getMasterStory: (caseId: number) =>
-    request<MasterStoryResponse>(`/api/cases/${caseId}/master-story`),
-  generateMasterStory: async (
-    caseId: number,
-    payload: { target_minutes: number; language: string; tone: string; iterations?: number },
-  ) => {
-    const started = await post<JobStartResponse>(`/api/cases/${caseId}/master-story/generate`, payload);
-    return (await pollBackgroundJob(started.job_id, { timeoutMs: 6 * 60_000 })).result as unknown as StoryFull;
-  },
-  listLocalizations: (caseId: number) =>
-    request<StoryMeta[]>(`/api/cases/${caseId}/localizations`),
-  generateLocalization: (caseId: number, language: string, targetMinutes?: number) =>
-    post<StoryFull>(
-      `/api/cases/${caseId}/localizations/generate?language=${language}` +
-        (targetMinutes != null ? `&target_minutes=${targetMinutes}` : ""),
+  languagePipeline: (caseId: number, text = false) =>
+    request<LanguagePipelineState>(`/api/cases/${caseId}/language-pipeline${text ? "?text=true" : ""}`),
+  languagePipelineEstimate: (caseId: number, requestedMinutes: number) =>
+    request<PipelineEstimate>(
+      `/api/cases/${caseId}/language-pipeline/estimate?requested_minutes=${requestedMinutes}`,
     ),
-  getLocalization: (versionId: number) =>
-    request<StoryFull>(`/api/localizations/${versionId}`),
-  improveLocalization: (versionId: number) =>
-    post<StoryFull>(`/api/localizations/${versionId}/improve`),
-  compareMaster: (versionId: number) =>
-    request<LocalizationCompare>(`/api/localizations/${versionId}/compare-master`),
+  runLanguagePipeline: (caseId: number, payload: { languages?: string[]; requested_minutes?: number; tone?: string }) =>
+    post<{ job_id: number; status: string; languages: string[]; requested_minutes: number }>(
+      `/api/cases/${caseId}/language-pipeline/run`,
+      payload,
+    ),
+  improveFinal: (caseId: number, language: string, instruction: string, requestedMinutes?: number) =>
+    post<{ job_id: number; status: string }>(
+      `/api/cases/${caseId}/language-pipeline/${language}/improve`,
+      { instruction, requested_minutes: requestedMinutes },
+    ),
+  glossary: (caseId: number) =>
+    request<GlossaryView>(`/api/cases/${caseId}/language-pipeline/glossary`),
+  proposeGlossary: (caseId: number) =>
+    post<GlossaryView>(`/api/cases/${caseId}/language-pipeline/glossary/propose`),
+  editGlossary: (caseId: number, language: string, entity: string, spellings: string[]) =>
+    put<GlossaryView>(`/api/cases/${caseId}/language-pipeline/glossary/${language}`, { entity, spellings }),
+  approveGlossary: (caseId: number, language: string, approvedBy = "operator") =>
+    post<GlossaryView>(`/api/cases/${caseId}/language-pipeline/glossary/${language}/approve`, {
+      approved_by: approvedBy,
+    }),
+  getFinal: (caseId: number, language: string) =>
+    request<PipelineStage>(`/api/cases/${caseId}/language-pipeline/${language}/final`),
+  approveFinal: (caseId: number, language: string, approvedBy = "operator") =>
+    post<PipelineStage>(`/api/cases/${caseId}/language-pipeline/${language}/approve`, {
+      approved_by: approvedBy,
+    }),
 
   startVideoResearch: (caseId: number) =>
     post<JobStartResponse>(`/api/cases/${caseId}/video-research`),
@@ -523,9 +511,9 @@ export const api = {
     request<HostScene[]>(`/api/host-scenes${query(params)}`),
   runHostScene: (id: number, until: "voice" | "avatar") =>
     post<HostScene>(`/api/host-scenes/${id}/run`, { until }),
-  documentaryOverview: (caseId: number, versionId?: number | null) =>
+  documentaryOverview: (caseId: number, versionId?: number | null, language?: string | null) =>
     request<DocumentaryOverview>(
-      `/api/cases/${caseId}/documentary${versionId != null ? `?version_id=${versionId}` : ""}`,
+      `/api/cases/${caseId}/documentary${query({ version_id: versionId ?? undefined, language: language ?? undefined })}`,
     ),
   startDocumentaryJob: (caseId: number, payload: DocumentaryJobRequest) =>
     post<DocumentaryJob>(`/api/cases/${caseId}/documentary/jobs`, payload),

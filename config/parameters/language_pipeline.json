@@ -1,0 +1,290 @@
+{
+  "language_pipeline": {
+    "draft_language": "en",
+    "long_draft_minutes": 90,
+    "requested_minutes_default": 60,
+    "rewrite_headroom_minutes": 10,
+    "language_concurrency": 4,
+    "final_length_tolerance": 0.03,
+    "words_per_minute": {
+      "en": 150,
+      "de": 140,
+      "fa": 135,
+      "ar": 130
+    },
+    "max_inspector_items": 40,
+    "originality_min_words": 200,
+    "cross_language": {
+      "glossary": {
+        "kinds": [
+          "people",
+          "locations"
+        ],
+        "min_entity_chars": 4,
+        "seed_from_evidence": [
+          "en"
+        ],
+        "proposal_batch_entities": 40,
+        "attached_prefixes": {
+          "fa": [
+            "و",
+            "به",
+            "از",
+            "در",
+            "با",
+            "که",
+            "را"
+          ],
+          "ar": [
+            "و",
+            "ب",
+            "ل",
+            "ف",
+            "ك",
+            "ال",
+            "وال",
+            "بال",
+            "لل"
+          ]
+        },
+        "attached_suffixes": {
+          "fa": [
+            "ها",
+            "های",
+            "ی",
+            "را",
+            "ام",
+            "ات",
+            "اش",
+            "هایش",
+            "ایی"
+          ],
+          "ar": [
+            "ها",
+            "هم",
+            "ه",
+            "ة",
+            "ين",
+            "ون"
+          ],
+          "de": [
+            "s",
+            "es"
+          ],
+          "en": []
+        },
+        "name_connectors": [
+          "of",
+          "the",
+          "de",
+          "van",
+          "von",
+          "der",
+          "la",
+          "le",
+          "du",
+          "del",
+          "and"
+        ]
+      },
+      "space_free_names": [
+        "fa",
+        "ar"
+      ]
+    },
+    "estimate": {
+      "tokens_per_word": {
+        "en": 1.18,
+        "de": 1.47,
+        "fa": 1.71,
+        "ar": 1.8
+      },
+      "plan_tokens": 3500,
+      "critique_tokens": 5100,
+      "reasoning_tokens_ratio": {
+        "language_rewrite_writer": 0.07,
+        "language_inspector": 0.43,
+        "language_final_writer": 0.06,
+        "language_rewrite_writer_fa_ar": 0.07,
+        "language_final_writer_fa_ar": 0.06,
+        "english_evidence_auditor": 0.43
+      },
+      "note": "Planning figures calibrated on the ledger of case 8 (see calibration_source), not provider prices. The real spend is the ledger.",
+      "chars_per_token": 3.7,
+      "words_share_of_max": {
+        "language_rewrite_writer": 0.85,
+        "language_final_writer": 0.89,
+        "language_rewrite_writer_fa_ar": 0.85,
+        "language_final_writer_fa_ar": 0.89
+      },
+      "draft_attempt_factor": 2.4,
+      "audit_output_tokens_per_call": 6000,
+      "calibration_source": "case 8 ledger of 2026-10-17: every call, including failed drafts, repaired finals and gate repairs. One case: the factors describe it; app/language_pipeline/calibration.py measures them again from any case's ledger.",
+      "cache_share_without_data": 0.0,
+      "audit_fix_input_tokens": 30000,
+      "fidelity_output_tokens": 3000
+    },
+    "gates": {
+      "max_unsupported_figures": 2,
+      "max_listed_passages": 12,
+      "coverage": {
+        "min_similarity": 0.62,
+        "reveal_similarity": 0.75,
+        "max_reveal_violations": 0,
+        "min_sentence_words": 4
+      },
+      "originality": {
+        "ngram_size": 6,
+        "max_ngram_share": 0.03,
+        "max_run_words": 14,
+        "near_verbatim_similarity": 0.93,
+        "max_near_verbatim_sentences": 3,
+        "min_sentence_words": 6,
+        "max_listed_sentences": 10
+      }
+    },
+    "job_timeout_seconds": 21600,
+    "stage2_cache_primer": true,
+    "evidence_audit": {
+      "enabled": true,
+      "acts_per_call": 2,
+      "max_items_per_call": 25,
+      "key_fact_count": 40,
+      "invalid_output_retries": 1
+    },
+    "ledger": {
+      "limitation_patterns": [
+        "\\bno (?:proof|evidence|record|trace|witness)\\b",
+        "\\b(?:proved|proves|prove|proven) nothing\\b",
+        "\\bnot (?:proof|evidence)\\b",
+        "\\b(?:cannot|could not|can't|couldn't) be (?:verified|confirmed|proved|proven)\\b",
+        "\\bnever (?:confirmed|verified|proved|proven)\\b",
+        "\\bonly (?:one|a single) (?:source|account|witness)\\b"
+      ],
+      "max_limitation_words": 45,
+      "max_limitations": 12
+    },
+    "language_agents": {
+      "fa": {
+        "rewrite": "language.rewrite.fa",
+        "inspect": "language.inspect.fa",
+        "final": "language.final.fa",
+        "length_correction": "language.length_correction.fa_ar",
+        "fidelity": "language.fidelity"
+      },
+      "de": {
+        "rewrite": "language.rewrite.de",
+        "inspect": "language.inspect.de",
+        "final": "language.final.de",
+        "length_correction": "language.length_correction",
+        "fidelity": "language.fidelity"
+      },
+      "ar": {
+        "rewrite": "language.rewrite.ar",
+        "inspect": "language.inspect.ar",
+        "final": "language.final.ar",
+        "length_correction": "language.length_correction.fa_ar",
+        "fidelity": "language.fidelity"
+      },
+      "en": {
+        "rewrite": "language.rewrite.en",
+        "inspect": "language.inspect.en",
+        "final": "language.final.en",
+        "length_correction": "language.length_correction"
+      }
+    },
+    "language_stages": {
+      "fa": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "none",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "de": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "missing",
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "ar": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "automatic_approval": true,
+        "report_names": "none",
+        "report_script_hygiene": true,
+        "act_target_cap_ratio": 2.0,
+        "source": "english_final",
+        "check": "fidelity"
+      },
+      "en": {
+        "blocking_gates": [
+          "markers",
+          "length"
+        ],
+        "report_names": "added_and_missing",
+        "automatic_approval": true,
+        "act_target_cap_ratio": 2.0,
+        "source": "draft",
+        "check": "evidence_audit"
+      }
+    },
+    "post_master_fact_report": {
+      "enabled": true
+    },
+    "draft_review": {
+      "enabled": true
+    },
+    "draft_scene_check": {
+      "max_words_ratio": 1.3,
+      "max_trigram_overlap": 0.3
+    },
+    "length_correction": {
+      "enabled": true,
+      "min_material_ratio": 1.0,
+      "max_act_overshoot": 1.15,
+      "repetition_flag_factor": 1.2,
+      "max_removed_sentences": 12,
+      "reintroduction_overlap": 0.7,
+      "goal_margin_ratio": 0.25,
+      "min_needed_words": 25,
+      "accepted_shortfall": 0.2
+    },
+    "act_length_tolerance": 0.15,
+    "review": {
+      "blocking_severities": [
+        "high"
+      ],
+      "revision_severities": [
+        "high",
+        "medium"
+      ]
+    },
+    "audit_fix": {
+      "severities": [
+        "high",
+        "medium"
+      ],
+      "max_findings": 40,
+      "evidence_per_finding": 6,
+      "repeat_overlap": 0.5,
+      "max_paragraphs_per_finding": 4
+    },
+    "draft_packaging": {
+      "mode": "full",
+      "scenes_per_call": 1,
+      "related_facts_per_contradiction": 6
+    }
+  }
+}

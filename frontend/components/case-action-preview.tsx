@@ -12,8 +12,6 @@ const ACTION_LABEL: Record<CaseControlAction, string> = {
   naming_approve: "Approve title",
   thumbnail_approve: "Approve",
   thumbnail_reject: "Reject",
-  localization_approve: "Approve localization",
-  localization_regenerate: "Regenerate",
 };
 
 /** One reusable preview/apply boundary for case-level actions outside a job. */

@@ -23,7 +23,7 @@ inside «…» quotations, separates a speaker intro ending in ":" from its
 quote, and treats Arabic abbreviations such as «د.» (Dr.) as sentence
 ends. The repairs only ever MERGE pieces — they never introduce a cut.
 
-Durations are estimates from ``localization.words_per_minute`` until
+Durations are estimates from ``language_pipeline.words_per_minute`` until
 real audio exists; after TTS, actual audio length replaces them.
 """
 

@@ -27,11 +27,13 @@ class PlanPreview(BaseModel):
     action: str
     instruction: str | None = None
     beats: list[dict] | None = None
+    changes: dict | None = None
 
 
 class PlanEdit(BaseModel):
     token: str
     beats: list[dict]
+    changes: dict | None = None
 
 
 class PlanRedo(BaseModel):
@@ -70,7 +72,7 @@ def get_story_plan(case_id: int, language: str | None = None, db: Session = Depe
 async def create_story_plan(case_id: int, payload: CreatePlan, db: Session = Depends(get_db)):
     case = get_case_or_404(db, case_id)
     await deps.require_generation_authorized()
-    language = payload.language or ai_config.multilingual.canonical_language
+    language = payload.language or ai_config.language_pipeline.draft_language
     service = StoryPlanService(db)
     previous = service.latest(case_id, language)
     try:
@@ -85,13 +87,13 @@ async def create_story_plan(case_id: int, payload: CreatePlan, db: Session = Dep
 @router.post("/api/story-plans/{plan_id}/preview")
 def preview_story_plan(plan_id: int, payload: PlanPreview, db: Session = Depends(get_db)):
     return _guard(lambda: StoryPlanService(db).preview(
-        _plan(db, plan_id), payload.action, payload.instruction, payload.beats))
+        _plan(db, plan_id), payload.action, payload.instruction, payload.beats, payload.changes))
 
 
 @router.post("/api/story-plans/{plan_id}/edit")
 def edit_story_plan(plan_id: int, payload: PlanEdit, db: Session = Depends(get_db)):
     service = StoryPlanService(db)
-    return plan_dict(_guard(lambda: service.edit(_plan(db, plan_id), payload.beats, payload.token)))
+    return plan_dict(_guard(lambda: service.edit(_plan(db, plan_id), payload.beats, payload.token, payload.changes)))
 
 
 @router.post("/api/story-plans/{plan_id}/redo")

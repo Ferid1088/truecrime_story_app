@@ -82,10 +82,7 @@ class StageAutomaticRequest(BaseModel):
 
 
 class CaseControlPreviewRequest(BaseModel):
-    action: Literal[
-        "naming_approve", "thumbnail_approve", "thumbnail_reject",
-        "localization_approve", "localization_regenerate",
-    ]
+    action: Literal["naming_approve", "thumbnail_approve", "thumbnail_reject"]
     target_id: int
 
 
@@ -228,36 +225,34 @@ def _loads(text, default):
         return default
 
 
-def _masters(db: Session, case_id: int) -> list[StoryVersion]:
+def _finals(db: Session, case_id: int) -> list[StoryVersion]:
+    """The final versions of the case, newest first (one set per language)."""
     return (db.query(StoryVersion)
-            .filter(StoryVersion.case_id == case_id,
-                    StoryVersion.kind.in_(("master", "direct")))
+            .filter(StoryVersion.case_id == case_id, StoryVersion.kind == "final")
             .order_by(StoryVersion.id.desc()).all())
 
 
-def _pick_master(db: Session, case_id: int, version_id: int | None) -> StoryVersion:
-    """The master a film starts from: the configured canonical-language master
-    when the case has one. A case written before the canonical language
-    changed keeps its older-language master, which stays usable (never
-    orphaned) until a canonical master exists."""
-    canonical = ai_config.multilingual.canonical_language
+def _pick_final(db: Session, case_id: int, version_id: int | None,
+                language: str | None = None) -> StoryVersion:
+    """The final version a language's film starts from: the one asked for, else that
+    language's newest one that already has a blueprint (work is reused), else its newest.
+    Without a language: the first production language that has a final version."""
     if version_id:
         v = db.get(StoryVersion, version_id)
         if not v or v.case_id != case_id:
             raise HTTPException(status_code=404, detail="Story version not found")
-        if v.kind != "master":
-            raise HTTPException(status_code=409, detail="A film starts from a master story.")
+        if v.kind != "final" or (language and v.language != language):
+            raise HTTPException(status_code=409,
+                                detail="A film starts from the final version of its language.")
         return v
-    masters = [m for m in _masters(db, case_id) if m.kind == "master"]
-    if not masters:
-        raise HTTPException(status_code=409,
-                            detail=f"Write a master story first (master language: {canonical}).")
-    masters.sort(key=lambda m: (m.language or "en") != canonical)
-    # prefer one that already has a blueprint (work is reused)
-    for m in masters:
-        if (m.language or "en") == (masters[0].language or "en") and latest_blueprint(db, m.id):
-            return m
-    return masters[0]
+    finals = _finals(db, case_id)
+    languages = [language] if language else ai_config.multilingual.production_languages
+    for lang in languages:
+        mine = [f for f in finals if f.language == lang]
+        if mine:
+            return next((f for f in mine if latest_blueprint(db, f.id)), mine[0])
+    raise HTTPException(status_code=409,
+                        detail="Run the language pipeline first (no final version yet).")
 
 
 def asset_dict(a: VisualAsset) -> dict:
@@ -423,19 +418,19 @@ def update_dynamic_eq_settings(payload: DynamicEQPatch):
 
 @router.get("/api/cases/{case_id}/documentary")
 def documentary_overview(case_id: int, version_id: int | None = None,
-                         db: Session = Depends(get_db)):
+                         language: str | None = None, db: Session = Depends(get_db)):
     case = _case(db, case_id)
-    masters = _masters(db, case_id)
+    finals = _finals(db, case_id)
     master = None
     try:
-        master = _pick_master(db, case_id, version_id)
+        master = _pick_final(db, case_id, version_id, language)
     except HTTPException:
         pass
     out = {
-        "masters": [{"id": m.id, "version": m.version, "language": m.language,
-                     "status": m.status, "words": len((m.story_text or "").split()),
-                     "kind": m.kind} for m in masters],
-        "master_version_id": master.id if master else None,
+        "finals": [{"id": m.id, "version": m.version, "language": m.language,
+                    "status": m.status, "words": len((m.story_text or "").split()),
+                    "approved_by": m.approved_by, "approved_at": m.approved_at} for m in finals],
+        "final_version_id": master.id if master else None,
         "film_minutes": {"min": ai_config.documentary.min_film_minutes,
                          "max": ai_config.documentary.max_film_minutes},
         "blueprint": None, "audio_plan": None, "languages": {}, "visual_plan": None,
@@ -461,7 +456,7 @@ def documentary_overview(case_id: int, version_id: int | None = None,
             out["visual_plan"] = {"id": vp.id, "status": vp.status, "version": vp.version,
                                   "validation": _loads(vp.validation_json, {})}
         plan = json.loads(ap.plan_json) if ap else None
-        for lang in ai_config.documentary.languages:
+        for lang in [master.language]:
             v = J.latest_spoken(db, master, lang, bp.id)
             if not v:
                 out["languages"][lang] = None
@@ -486,13 +481,14 @@ def documentary_overview(case_id: int, version_id: int | None = None,
 
 
 class JobRequest(BaseModel):
-    master_version_id: int | None = None
-    languages: list[str] = Field(default_factory=lambda: list(ai_config.documentary.languages))
+    """One documentary of ONE language, from that language's approved final version."""
+    language: str
+    final_version_id: int | None = None
     mode: Literal["pilot", "full"] = "pilot"
     pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
     render_profile: Literal["preview", "publish"] = "preview"
     refresh_visuals: bool = False
-    # "From zero": research the case and write the master story first.
+    # "From zero": research the case and run the language pipeline first.
     from_zero: bool = False
     target_minutes: float | None = Field(default=None, ge=45, le=120)
 
@@ -510,15 +506,16 @@ def _check_languages(languages: list[str]) -> list[str]:
 def _start_job(db: Session, case: Case, payload: JobRequest, langs: list[str],
                batch_id: str | None = None) -> DocumentaryJob:
     master = None
-    if payload.master_version_id or not payload.from_zero:
+    if payload.final_version_id or not payload.from_zero:
         try:
-            master = _pick_master(db, case.id, payload.master_version_id)
+            master = _pick_final(db, case.id, payload.final_version_id, langs[0])
         except HTTPException:
             if not payload.from_zero:
                 raise
     running = db.query(DocumentaryJob).filter(
         DocumentaryJob.case_id == case.id,
-        DocumentaryJob.status.in_(("queued", "running", "cancelling"))).first()
+        DocumentaryJob.status.in_(("queued", "running", "cancelling")),
+        DocumentaryJob.languages_json == json.dumps(langs)).first()
     if running:
         raise HTTPException(status_code=409, detail=f"Job {running.id} is still running.")
     job = J.create_job(db, case, master, langs, payload.mode,
@@ -535,13 +532,12 @@ def _start_job(db: Session, case: Case, payload: JobRequest, langs: list[str],
 async def start_documentary_job(case_id: int, payload: JobRequest,
                                 db: Session = Depends(get_db)):
     case = _case(db, case_id)
-    langs = _check_languages(payload.languages)
+    langs = _check_languages([payload.language])
     return J.job_dict(_start_job(db, case, payload, langs))
 
 
 class BatchItem(BaseModel):
     case_id: int
-    master_version_id: int | None = None
     from_zero: bool = False
     target_minutes: float | None = Field(default=None, ge=45, le=120)
 
@@ -557,7 +553,7 @@ class BatchRequest(BaseModel):
 
 @router.post("/api/documentary/batch")
 async def start_documentary_batch(payload: BatchRequest, db: Session = Depends(get_db)):
-    """Several documentaries at once: one job per case, run in parallel up
+    """Several documentaries at once: one job per case and language, run in parallel up
     to concurrency.jobs (the rest wait in "queued")."""
     langs = _check_languages(payload.languages)
     batch_id = J.new_batch_id()
@@ -567,15 +563,17 @@ async def start_documentary_batch(payload: BatchRequest, db: Session = Depends(g
         if not case:
             rejected.append({"case_id": item.case_id, "reason": "case not found"})
             continue
-        req = JobRequest(master_version_id=item.master_version_id, languages=langs,
-                         mode=payload.mode, pilot_seconds=payload.pilot_seconds,
-                         render_profile=payload.render_profile,
-                         refresh_visuals=payload.refresh_visuals,
-                         from_zero=item.from_zero, target_minutes=item.target_minutes)
-        try:
-            started.append(J.job_dict(_start_job(db, case, req, langs, batch_id)))
-        except HTTPException as e:
-            rejected.append({"case_id": item.case_id, "reason": str(e.detail)})
+        for language in langs:
+            req = JobRequest(language=language, mode=payload.mode,
+                             pilot_seconds=payload.pilot_seconds,
+                             render_profile=payload.render_profile,
+                             refresh_visuals=payload.refresh_visuals,
+                             from_zero=item.from_zero, target_minutes=item.target_minutes)
+            try:
+                started.append(J.job_dict(_start_job(db, case, req, [language], batch_id)))
+            except HTTPException as e:
+                rejected.append({"case_id": item.case_id, "language": language,
+                                 "reason": str(e.detail)})
     if not started:
         raise HTTPException(status_code=409, detail={"message": "No job could start.",
                                                      "rejected": rejected})
@@ -956,7 +954,7 @@ def _verify_later(case_id: int, asset_id: int) -> None:
 
 @router.get("/api/cases/{case_id}/documentary/visual-plan")
 def get_visual_plan(case_id: int, version_id: int | None = None, db: Session = Depends(get_db)):
-    master = _pick_master(db, case_id, version_id)
+    master = _pick_final(db, case_id, version_id)
     bp = latest_blueprint(db, master.id)
     vp = J.latest_visual_plan(db, bp.id) if bp else None
     if not vp:
@@ -970,7 +968,7 @@ def get_visual_plan(case_id: int, version_id: int | None = None, db: Session = D
 @router.get("/api/cases/{case_id}/documentary/production/{language}")
 def get_production(case_id: int, language: str, version_id: int | None = None,
                    db: Session = Depends(get_db)):
-    master = _pick_master(db, case_id, version_id)
+    master = _pick_final(db, case_id, version_id, language)
     bp = latest_blueprint(db, master.id)
     v = J.latest_spoken(db, master, language, bp.id if bp else None)
     ps = J.latest_production(db, v.id) if v else None
@@ -993,7 +991,7 @@ def get_media_coverage(case_id: int, language: str, version_id: int | None = Non
     per beat, with the gap list (Part 4a)."""
     from app.documentary.visuals import coverage as C
 
-    master = _pick_master(db, case_id, version_id)
+    master = _pick_final(db, case_id, version_id, language)
     bp = latest_blueprint(db, master.id)
     v = J.latest_spoken(db, master, language, bp.id if bp else None)
     ps = J.latest_production(db, v.id) if v else None
@@ -1054,7 +1052,7 @@ def get_chapters(case_id: int, version_id: int | None = None, db: Session = Depe
     from app.documentary.chapters import latest_chapter_plan
 
     _case(db, case_id)
-    bp = latest_blueprint(db, _pick_master(db, case_id, version_id).id)
+    bp = latest_blueprint(db, _pick_final(db, case_id, version_id).id)
     row = latest_chapter_plan(db, bp.id) if bp else None
     if not row:
         raise HTTPException(status_code=404, detail="No chapters yet.")
@@ -1069,7 +1067,7 @@ def get_host_plan(case_id: int, version_id: int | None = None, db: Session = Dep
     from app.documentary.host import host_plan_dict, latest_host_plan
 
     _case(db, case_id)
-    bp = latest_blueprint(db, _pick_master(db, case_id, version_id).id)
+    bp = latest_blueprint(db, _pick_final(db, case_id, version_id).id)
     row = latest_host_plan(db, bp.id) if bp else None
     if not row:
         raise HTTPException(status_code=404, detail="No host plan yet.")
@@ -1082,7 +1080,7 @@ async def create_host_plan(case_id: int, version_id: int | None = None,
     from app.documentary.host import HostDirector, host_plan_dict
 
     case = _case(db, case_id)
-    master = _pick_master(db, case_id, version_id)
+    master = _pick_final(db, case_id, version_id)
     bp = latest_blueprint(db, master.id)
     if not bp or bp.status == "invalid":
         raise HTTPException(status_code=409, detail="This story needs a valid blueprint first.")

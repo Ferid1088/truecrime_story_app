@@ -3,6 +3,7 @@
     "require_approved_plan": true,
     "automatic_approval_in_pipeline": true,
     "max_total_words_deviation": 0.15,
-    "mid_host_slots": 2
+    "mid_host_slots": 2,
+    "min_act_budget_share": 0.08
   }
 }

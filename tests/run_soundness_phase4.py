@@ -48,7 +48,7 @@ def run_case(template, parent, source):
             "pytest",
             "-q",
             "-s",
-            "tests/test_visual_production.py::test_four_language_shadow_pipeline_real_job",
+            "tests/test_visual_production.py::test_shadow_pipeline_real_job",
         ],
         cwd=ROOT,
         env=env,

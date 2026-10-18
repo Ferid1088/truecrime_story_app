@@ -80,16 +80,16 @@ def test_groups_are_independent_of_each_other():
     # judges spoken text.
     # (the spoken critics are moved to the other model so that the spoken
     # group itself stays independent)
-    _routing(raw)["spoken_writer"] = _routing(raw)["native_language_critic"]
+    _routing(raw)["spoken_writer"] = _routing(raw)["grounding_validator"]
     for role in ("spoken_meaning_checker", "spoken_style_critic"):
         _routing(raw)[role] = "premium"
     cfg = AIConfig.model_validate(raw)
-    assert cfg.model_for("spoken_writer") == cfg.model_for("native_language_critic")
+    assert cfg.model_for("spoken_writer") == cfg.model_for("grounding_validator")
 
 
 @pytest.mark.parametrize("mutate, match", [
     (lambda ri: ri["groups"][0]["reviewers"].append("no_such_role"), "unknown roles"),
-    (lambda ri: ri["groups"][0]["authors"].append("engagement_critic"),
+    (lambda ri: ri["groups"][0]["authors"].append("spoken_style_critic"),
      "both author and reviewer"),
 ])
 def test_group_config_errors(mutate, match):
@@ -148,7 +148,8 @@ def test_writer_prompt_is_native_per_language(lang, needle):
     limit = ai_config.spoken.max_sentence_words[lang]
     assert f"{limit} words" in prompt
     assert "if_mentioned_keep_uncertain" in prompt
-    assert ("never as a translation" in prompt) == (lang != "en")
+    # the text is already in the film's own language: never told as a translation
+    assert "never as a translation" not in prompt and "{source_note}" not in prompt
 
 
 def test_persian_is_told_in_colloquial_persian_script():

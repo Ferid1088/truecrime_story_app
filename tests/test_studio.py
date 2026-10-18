@@ -490,3 +490,53 @@ def test_heygen_client_uses_own_audio_transparent_output_and_idempotency(tmp_pat
     with pytest.raises(AvatarProviderError) as e:
         asyncio.run(missing_key_provider.upload_asset(audio, "audio/mpeg"))
     assert e.value.kind == "missing_credentials"
+
+
+class RecordingVoice(FakeVoice):
+    def __init__(self):
+        super().__init__()
+        self.settings = []
+
+    async def synthesize(self, req):
+        self.settings.append(req.settings)
+        return await super().synthesize(req)
+
+
+def test_the_host_speaks_in_its_own_style_not_the_narrations(db_session, tmp_path, monkeypatch):
+    """The persona asks for an audible switch from narration to conversation: the host's voice
+    uses host.voice_style, which is faster and less stable than the narration's default style."""
+    from app.documentary.host_scenes import plan_host_scenes, run_scene
+
+    monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    scene = plan_host_scenes(db_session, _segments(db_session, "de"))[0]
+    voice = RecordingVoice()
+    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    host = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
+    narration = ai_config.voice.styles[ai_config.voice.default_style].model_dump()
+    assert voice.settings == [host] and ai_config.host.voice_style == "host_conversational"
+    assert host["speed"] > narration["speed"] and host["stability"] < narration["stability"]
+    assert json.loads(scene.voice_meta_json)["settings"] == host
+
+
+def test_a_changed_host_style_makes_the_voice_again_and_the_same_style_does_not(db_session, tmp_path,
+                                                                                 monkeypatch):
+    from app.documentary.host_scenes import plan_host_scenes, run_scene
+
+    monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    scene = plan_host_scenes(db_session, _segments(db_session, "en"))[0]
+    voice = RecordingVoice()
+    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    assert voice.calls == 1                                  # same text, voice and settings: kept
+    monkeypatch.setattr(ai_config.host, "voice_style", "factual")
+    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    assert voice.calls == 2 and voice.settings[-1] == ai_config.voice.styles["factual"].model_dump()
+
+
+def test_a_host_voice_style_that_is_not_a_voice_style_is_a_config_error():
+    from app.core.ai_config import AIConfig
+
+    data = ai_config.model_dump()
+    data["host"]["voice_style"] = "no_such_style"
+    with pytest.raises(ValueError, match="host.voice_style"):
+        AIConfig.model_validate(data)

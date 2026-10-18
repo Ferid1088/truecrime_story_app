@@ -212,9 +212,9 @@ function AudioPlanMoments({ overview }: LanguageTabProps) {
   );
 }
 
-function Placements({ caseId, settings, overview, refreshKey, language, onLanguageChange, masterId }: LanguageTabProps) {
+function Placements({ caseId, settings, overview, refreshKey, language, onLanguageChange, finalId }: LanguageTabProps) {
   const expected = overview.languages[language]?.production ?? null;
-  const { data, error, loading, refetch } = useProduction(caseId, language, masterId, expected != null, refreshKey);
+  const { data, error, loading, refetch } = useProduction(caseId, language, finalId, expected != null, refreshKey);
   const production = data && expected && data.id === expected.id ? data : null;
   const music = production?.script.music ?? [];
 

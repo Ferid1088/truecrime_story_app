@@ -2,8 +2,10 @@
 
 Stages (each idempotent — a re-run resumes and reuses what exists):
   research           (from zero) research the case with the search engine
-  master_story       (from zero) write the master story (in the configured master language)
-  blueprint          editorial blueprint for the master story
+  language_pipeline  (from zero) the language's final text: shared draft, native rewrite,
+                     inspection, final (app/language_pipeline)
+  final_approval     the owner approved the final version of this language
+  blueprint          editorial blueprint for the language's final version
   audio_plan         breaths, music beds/moments, silences
   spoken:<lang>      storyteller version per language
   host_plan          when/why the on-screen host appears (persona)
@@ -38,6 +40,9 @@ Several documentaries run at once up to concurrency.jobs; more wait in
 mode "pilot" renders the opening `pilot_seconds` of every language;
 mode "full" renders the whole film and refuses stories that would run
 shorter than documentary.min_film_minutes.
+
+A job belongs to ONE language and starts from that language's approved final
+version (job.master_version_id); no language waits for another.
 """
 
 from __future__ import annotations
@@ -53,7 +58,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.agents.stages import get_stage_agent
-from app.agents.story import MASTER_ROLES, stored_sections
+from app.agents.story import stored_sections
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, slot
 from app.core.policy import PolicyDecision
@@ -79,132 +84,16 @@ RESEARCH_POLL_SECONDS = 15.0
 RESEARCH_MAX_HOURS = 6.0
 
 
-class MasterApprovalError(RuntimeError):
-    """A failed master gate with safe, UI-ready diagnostics."""
-
-    def __init__(self, message: str, detail: dict):
-        super().__init__(message)
-        self.detail = detail
-
-
 from app.documentary.pipeline.base import StageRunner  # noqa: E402
-from app.documentary.pipeline.errors import JobCancelled, LanguageFailed, SpokenRejected  # noqa: E402,F401
-from app.services.policy_events import record_decision  # noqa: E402
-from app.services.retry_policy import ExhaustedAction, RetryAuditPolicy  # noqa: E402
+from app.documentary.pipeline.errors import (  # noqa: E402,F401
+    AwaitingApproval,
+    JobCancelled,
+    LanguageFailed,
+    SpokenRejected,
+)
 from app.services.budget import BudgetStopped  # noqa: E402
-
-
-async def approve_master(db: Session, case: Case, v: StoryVersion,
-                         max_redos: int | None = None,
-                         target_minutes: float | None = None,
-                         words_per_minute: int | None = None) -> tuple[StoryVersion, list[dict]]:
-    """The master story's approval gate: its critics and quality gates
-    must have passed (status "ready"). A master marked needs_revision is
-    revised with exactly the reasons it failed — the revision is a new
-    version, judged again by the same critics — at most max_redos times.
-    Returns (approved version, the rejected attempts). Raises when it is
-    still not approved: there is no film without an approved story."""
-    from app.agents.story import StoryPipeline
-
-    limit = ai_config.documentary.max_redos if max_redos is None else max_redos
-    if (target_minutes is not None
-            and target_minutes < ai_config.story.min_target_minutes):
-        limit = min(limit, ai_config.master_generation.max_pilot_approval_revisions)
-    current = v
-    rejected: list[dict] = []
-
-    async def produce(feedback: dict) -> StoryVersion:
-        nonlocal current
-        if feedback["reasons"]:
-            notes = json.loads(current.critic_notes or "{}")
-            instruction = (
-                "Revise the story so that it passes these failed quality checks, and change "
-                "nothing else: " + json.dumps(feedback["reasons"], ensure_ascii=False)
-                + (". Critic notes: " + str(notes.get("summary") or notes.get("notes"))[:1500]
-                   if notes.get("summary") or notes.get("notes") else ""))
-            if target_minutes is None:
-                # Preserve the small public helper's historical behavior for
-                # callers that are not running inside a documentary job.
-                current = await StoryPipeline(roles=MASTER_ROLES).improve(
-                    db, case, current, instruction)
-            else:
-                current = await StoryPipeline(roles=MASTER_ROLES).improve(
-                    db, case, current, instruction,
-                    target_minutes=target_minutes,
-                    words_per_minute=words_per_minute,
-                )
-        return current
-
-    async def audit(version: StoryVersion) -> dict:
-        notes = json.loads(version.critic_notes or "{}")
-        failures = (notes.get("quality_gates") or {}).get("failures") or []
-        # A human can approve a version "as is" over its own critics'
-        # objections (control at every stage). That sets status "ready"
-        # directly but deliberately keeps the original critic scores and
-        # problems, so `failures` here can be non-empty for an approved
-        # version — the manual override, not an empty failures list, is
-        # what makes it approved.
-        manually_approved = bool(version.approved_by)
-        if version.status == "needs_revision":
-            rejected.append({
-                "version_id": version.id,
-                "failures": failures,
-                "quality_gates": notes.get("quality_gates") or {},
-            })
-        # A deterministic length miss is not made better by repeating the
-        # same approval rewrite. The caller will surface the measured band.
-        return {
-            "approved": version.status != "needs_revision" and (not failures or manually_approved),
-            "reasons": [] if manually_approved else failures,
-            "quality_gates": notes.get("quality_gates") or {},
-            "terminal": "length_out_of_range" in failures and not manually_approved,
-            "manually_approved": manually_approved,
-        }
-
-    # A deterministic length miss cannot be repaired by a quality revision.
-    # Check it before the retry policy starts so a pilot never spends another
-    # writer/validator/critic graph on a story that is already the wrong
-    # size. This reads `current`'s own stored notes directly rather than
-    # calling the shared `audit()` closure above: that closure also records
-    # the version into `rejected` as a side effect, and the retry policy's
-    # own first iteration below audits this same, unchanged version again
-    # (its first `produce()` call is a no-op with no revision reasons yet) —
-    # calling `audit()` here too would double-count that one version.
-    initial_notes = json.loads(current.critic_notes or "{}")
-    initial_quality_gates = initial_notes.get("quality_gates") or {}
-    initial_failures = initial_quality_gates.get("failures") or []
-    if current.status == "needs_revision" and "length_out_of_range" in initial_failures:
-        raise MasterApprovalError(
-            f"Master story not approved after 0 revision(s): "
-            f"{', '.join(map(str, initial_failures)) or 'quality gates failed'}",
-            {
-                "reasons": list(initial_failures),
-                "attempts": [{
-                    "version_id": current.id,
-                    "failures": initial_failures,
-                    "quality_gates": initial_quality_gates,
-                }],
-                "target_minutes": target_minutes,
-                "terminal": True,
-            },
-        )
-
-    outcome = await RetryAuditPolicy(db, case_id=case.id).run_with_audit(
-        produce, audit, limit, ExhaustedAction.STOP, stage="master_story")
-    if outcome.status == "stopped":
-        reasons = ", ".join(map(str, outcome.reasons)) or "quality gates failed"
-        detail = {
-            "reasons": list(outcome.reasons),
-            "attempts": rejected,
-            "target_minutes": target_minutes,
-            "terminal": bool(rejected and "length_out_of_range" in rejected[-1].get("failures", [])),
-        }
-        raise MasterApprovalError(
-            f"Master story not approved after {max(0, outcome.attempts - 1)} revision(s): {reasons}",
-            detail,
-        )
-    return current, rejected
-
+from app.services.policy_events import record_decision  # noqa: E402
+from app.services.retry_policy import RetryAuditPolicy  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # helpers shared with the API
@@ -285,7 +174,7 @@ def job_dict(job: DocumentaryJob) -> dict:
                 pass
     failure = result.get("failure") or {}
     return {
-        "id": job.id, "case_id": job.case_id, "master_version_id": job.master_version_id,
+        "id": job.id, "case_id": job.case_id, "final_version_id": job.master_version_id,
         "mode": job.mode, "languages": json.loads(job.languages_json or "[]"),
         "pilot_seconds": job.pilot_seconds, "render_profile": job.render_profile,
         "refresh_visuals": bool(job.refresh_visuals),
@@ -323,6 +212,12 @@ def failure_details(message: str, error_code: str | None = None) -> dict:
                 "Check Brave Search availability and query results, then start a new research run."
             ),
         }
+    if error_code == "awaiting_approval":
+        return {
+            "resume_allowed": True,
+            "resume_disabled_reason": None,
+            "next_action": "Approve the final version of this language on the story page, then resume.",
+        }
     if error_code == "no_relevant_sources" or message.startswith("No relevant sources found"):
         return {
             "resume_allowed": False,
@@ -350,8 +245,8 @@ def host_active() -> bool:
 
 def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
     host = host_active()
-    names = (["research", "master_story"] if from_zero else []) + [
-        "master_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
+    names = (["research", "language_pipeline"] if from_zero else []) + [
+        "final_approval", "blueprint", "audio_plan"] + [f"spoken:{l}" for l in languages] + (
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
         ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
@@ -389,38 +284,26 @@ class DocumentaryPipeline(StageRunner):
         if job.from_zero:
             await self._stage("research",
                               lambda: research_case(db, case, self._check_cancel, job))
-            d = await self._stage("master_story", lambda: write_master(db, case, job))
-            if d and d.get("master_version_id"):
-                job.master_version_id = d["master_version_id"]
+            d = await self._stage("language_pipeline", lambda: write_final(db, case, job, langs))
+            if d and d.get("final_version_id"):
+                job.master_version_id = d["final_version_id"]
                 db.commit()
         if not job.master_version_id:
-            raise RuntimeError("No master story for this job.")
+            raise RuntimeError("No final version for this job.")
 
-        async def master_approval():
-            # nothing goes into production unapproved: a master its own
-            # critics did not pass is revised with their reasons (each
-            # revision judged again), at most max_redos times
-            target_minutes = float(job.target_minutes or (
-                (job.pilot_seconds or ai_config.documentary.pilot_seconds) / 60
-                if pilot else ai_config.story.default_target_minutes
-            ))
-            v, history = await approve_master(
-                db, case, db.get(StoryVersion, job.master_version_id),
-                target_minutes=target_minutes,
-                words_per_minute=ai_config.words_per_minute_for(
-                    ai_config.multilingual.canonical_language
-                ),
-            )
-            if v.id != job.master_version_id:
-                job.master_version_id = v.id
-                db.commit()
-            return {"master_version_id": v.id,
-                    "verdict": "approved manually" if v.approved_by else "approved",
-                    "manually_approved": bool(v.approved_by),
-                    "approved_by": v.approved_by,
-                    "redos": len(history), "history": history}
+        async def final_approval():
+            # nothing goes into production before the owner approved this language's
+            # final version; other languages are not affected
+            final = db.get(StoryVersion, job.master_version_id)
+            if final is None or final.kind != "final" or final.language not in langs:
+                raise RuntimeError("The job must start from the final version of its language.")
+            if final.approved_at is None:
+                raise AwaitingApproval(
+                    f"The {final.language} final version (v{final.version}) is not approved yet.")
+            return {"final_version_id": final.id, "language": final.language,
+                    "approved_by": final.approved_by}
 
-        await self._stage("master_approval", master_approval)
+        await self._stage("final_approval", final_approval)
         master = db.get(StoryVersion, job.master_version_id)
 
         async def blueprint():
@@ -621,7 +504,7 @@ class DocumentaryPipeline(StageRunner):
                     f"Film length outside {ai_config.documentary.min_film_minutes:g}–"
                     f"{ai_config.documentary.max_film_minutes:g} min: "
                     + ", ".join(f"{l} {m} min" for l, m in {**short, **long_}.items())
-                    + ". Generate a longer (or shorter) master story first.")
+                    + ". Run the language pipeline for a longer (or shorter) final text first.")
             return {"estimated_minutes": est,
                     "warning": (f"Story too short for a {ai_config.documentary.min_film_minutes:g}-"
                                 "minute film (pilot only)") if short else None}
@@ -857,59 +740,35 @@ async def _video_research(db: Session, case: Case) -> dict:
         return {"error": f"{type(e).__name__}: {e}"[:300]}
 
 
-async def write_master(db: Session, case: Case, job: DocumentaryJob) -> dict:
-    """From zero, step 2: the master story at the film's length
-    (reuses a master that already exists)."""
-    from app.agents.story import StoryPipeline
-    from app.services.readiness import build_readiness
+async def write_final(db: Session, case: Case, job: DocumentaryJob, languages: list[str]) -> dict:
+    """From zero, step 2: the language's final text. A final that exists for the evidence as it is
+    now is reused; otherwise the language pipeline runs (it resumes whatever stages it has)."""
+    from app.agents.story import current_evidence_fingerprint, stored_evidence_fingerprint
+    from app.language_pipeline.orchestrator import LanguagePipeline
+    from app.naming.agent import default_embedder
 
-    canonical = ai_config.multilingual.canonical_language
+    current = current_evidence_fingerprint(db, case.id)
+    existing = (db.query(StoryVersion)
+                .filter(StoryVersion.case_id == case.id, StoryVersion.kind == "final",
+                        StoryVersion.language == languages[0])
+                .order_by(StoryVersion.id.desc()).first())
+    if existing is not None and stored_evidence_fingerprint(existing) == current:
+        return {"final_version_id": existing.id, "reused": True}
+
     follow_up = None
     if job.production_type == "follow_up" and job.follow_up_id:
         from app.db.models import FollowUpCandidate
         from app.lifecycle.followups import context as follow_up_context
 
-        fu = db.get(FollowUpCandidate, job.follow_up_id)
-        follow_up = follow_up_context(db, fu) if fu else None
-    existing = (db.query(StoryVersion)
-                .filter(StoryVersion.case_id == case.id, StoryVersion.kind == "master",
-                        StoryVersion.language == canonical)
-                .order_by(StoryVersion.id.desc()).all())
-    for row in existing:
-        struct = json.loads(row.narrative_structure or "{}")
-        same_film = ((struct.get("follow_up") or {}).get("follow_up_id") == job.follow_up_id
-                     if follow_up else not struct.get("follow_up"))
-        if same_film:
-            return {"master_version_id": row.id, "reused": True}
-    from app.schemas import GenerateStoryRequest
-
-    defaults = GenerateStoryRequest()
-    minutes = int(job.target_minutes or max(ai_config.story.default_target_minutes,
-                                            ai_config.documentary.min_film_minutes))
-    report = build_readiness(db, case.id, minutes, provider_status={})
-    status = report["master_readiness"]["status"]
-    if status in ("incomplete_evidence", "failed", "insufficient_research"):
-        raise RuntimeError(
-            f"Master story blocked ({status}): {report['master_readiness'].get('reason')}")
-    instruction = None
-    try:
-        instruction = json.loads(job.result_json or "{}").get("stage_control_prompt")
-    except (TypeError, ValueError):
-        pass
-    from app.services.story_plan_service import StoryPlanService
-
-    plan = (await StoryPlanService(db).ensure_approved(
-        case, minutes, canonical, follow_up=follow_up, instruction=instruction)
-        if ai_config.story_plan.require_approved_plan else None)
-    story = await StoryPipeline(roles=MASTER_ROLES).run(
-        db=db, case=case, target_minutes=minutes, language=canonical, story_plan=plan,
-        tone=defaults.tone, iterations=defaults.iterations, kind="master",
-        words_per_minute=ai_config.words_per_minute_for(canonical), follow_up=follow_up,
-        instruction=instruction)
-    struct = json.loads(story.narrative_structure or "{}")
-    return {"master_version_id": story.id, "minutes": minutes, "status": story.status,
-            "opening_strategy": struct.get("opening_strategy"),
-            "production_type": job.production_type or "original"}
+        candidate = db.get(FollowUpCandidate, job.follow_up_id)
+        follow_up = follow_up_context(db, candidate) if candidate else None
+    result = await LanguagePipeline(embedder=default_embedder()).run_case(
+        case.id, languages, job.target_minutes, follow_up=follow_up)
+    outcome = next(l for l in result["languages"] if l["language"] == languages[0])
+    if outcome["status"] != "done":
+        raise RuntimeError(f"The {languages[0]} final text failed: {outcome['error']}")
+    return {"final_version_id": outcome["final_version_id"],
+            "draft_version_id": result["draft_version_id"]}
 
 
 def _load_manifest(case_id: int, version: StoryVersion) -> dict:
@@ -996,7 +855,11 @@ def create_job(db: Session, case: Case, master: StoryVersion | None, languages: 
                target_minutes: float | None = None, batch_id: str | None = None
                ) -> DocumentaryJob:
     if master is None and not from_zero:
-        raise ValueError("A job needs a master story unless it starts from zero.")
+        raise ValueError("A job needs the final version of its language unless it starts from zero.")
+    if len(languages) != 1:
+        raise ValueError("A documentary job belongs to one language.")
+    if master is not None and master.language != languages[0]:
+        raise ValueError("The final version must be in the job's language.")
     effective_target_minutes = (float(pilot_seconds) / 60.0
                                 if mode == "pilot" and pilot_seconds else target_minutes)
     job = DocumentaryJob(
@@ -1146,7 +1009,9 @@ async def run_job(job_id: int, session_factory=None):
                 job.status = "failed"
                 job.error = plain_failure(e)[:1000]
                 result = json.loads(job.result_json or "{}")
-                result["failure"] = {**failure_details(job.error), "reason": job.error}
+                result["failure"] = {**failure_details(
+                    job.error, "awaiting_approval" if isinstance(e, AwaitingApproval) else None),
+                    "reason": job.error}
                 job.result_json = json.dumps(result, ensure_ascii=False)
             from app.services.cost_model import estimate_vs_actual_report
 

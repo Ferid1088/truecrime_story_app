@@ -35,3 +35,11 @@ def test_stored_quality_reads_the_validators_own_record():
     q = WM.stored_quality(notes)
     assert (q["grounding_score"], q["unsupported_claims"], q["engagement_score"]) == (0.88, 3, 71)
     assert q["gate_failures"] == ["grounding"]
+
+
+def test_one_line_paragraph_share_counts_single_sentence_paragraphs_and_skips_act_markers():
+    text = ("[[ACT:act1]]\n\nHe left. Nobody saw him go.\n\nShe waited.\n\nThe door was open. The lamp was lit.\n\n"
+            "[[ACT:act2]]\n\nIt rained.")
+    assert WM.one_line_paragraph_share(text) == 0.5          # 2 of 4 paragraphs are one sentence
+    assert WM.one_line_paragraph_share("") == 0.0
+    assert WM.beat_metrics(text, "en")["one_line_paragraph_share"] == 0.5

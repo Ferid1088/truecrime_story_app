@@ -13,8 +13,8 @@ WHAT YOU RECEIVE
 A TASK line and INPUT: {"language": "fa", "passages": [{"beat_id",
 "english_source", "sentences": [{"i": 0, "text": "..."}]}]}. "text" is
 a sentence of the final Persian narration exactly as the voice will get
-it. "english_source" is the written master passage of the same beat
-(today English; when the master is Persian it is Persian). Use it only
+it. "english_source" is the written final-text passage of the same beat
+(in the film's own language). Use it only
 to understand the meaning. "i" numbers the sentences of the whole film:
 answer with the same numbers.
 

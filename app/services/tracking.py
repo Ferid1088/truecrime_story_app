@@ -144,6 +144,8 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
                 row.output_tokens = e.output_tokens
                 row.total_tokens = e.total_tokens
                 row.estimated_cost_usd = e.cost_usd
+                row.cached_tokens = e.cached_tokens
+                row.reasoning_tokens = e.reasoning_tokens
         try:
             # stamp_run may already have copied real provider/model/token
             # usage onto `row` before the failure (e.g. a successful,
@@ -298,7 +300,11 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     """
     if run.case_id is None or run.provider is None:
         return
-    from app.services.cost_model import conservative_unpriced_cost_eur, estimate_stage_eur, model_cost_eur
+    from app.services.cost_model import (
+        conservative_unpriced_cost_eur,
+        estimate_stage_eur,
+        model_cost_eur,
+    )
 
     stage = run.pipeline_stage or run.agent_name
     tokens_reported = run.input_tokens is not None and run.output_tokens is not None
@@ -308,7 +314,9 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
     if cost_usd is not None:
         cost_eur = float(cost_usd) * ai_config.budget.usd_to_eur
     elif tokens_reported:
-        cost_eur = model_cost_eur(run.model, run.input_tokens, run.output_tokens)
+        cost_eur = model_cost_eur(run.model, run.input_tokens, run.output_tokens,
+                                  cached_tokens=run.cached_tokens,
+                                  cache_write_tokens=run.cache_write_tokens)
         price_missing = cost_eur is None
     estimated = cost_eur is None
     error = None
@@ -338,6 +346,11 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
         is_test_data=(run.model == "recorded-e2e"),
         documentary_job_id=run.documentary_job_id,
         duration_ms=run.duration_ms,
+        tokens_cached=run.cached_tokens, tokens_reasoning=run.reasoning_tokens,
+        reasoning_effort=run.reasoning_effort, cache_write_tokens=run.cache_write_tokens,
+        prompt_prefix_sha256=run.prompt_prefix_sha256, request_id=run.gateway_request_id,
+        cost_source=("estimate" if estimated else "provider_reported" if cost_usd is not None
+                     else "computed_from_tokens"),
     )
 
 
@@ -364,6 +377,12 @@ def stamp_run(
     run.output_tokens = result.output_tokens
     run.total_tokens = result.total_tokens
     run.estimated_cost_usd = result.cost_usd
+    run.cached_tokens = result.cached_tokens
+    run.cache_write_tokens = result.cache_write_tokens
+    run.prompt_prefix_sha256 = result.prefix_sha256
+    run.gateway_request_id = result.gateway_request_id
+    run.reasoning_tokens = result.reasoning_tokens
+    run.reasoning_effort = result.reasoning_effort
     run.generation_id = result.generation_id
     if text_hash is not None:
         run.text_hash = text_hash

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.tasks import spawn
 from app.db.base import SessionLocal
-from app.db.models import BackgroundJob, Case, StoryVersion
+from app.db.models import BackgroundJob, Case
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -53,8 +53,8 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         raise RuntimeError("case not found")
 
     if job.kind == "naming_generate":
-        from app.naming import api as naming_api
         from app.naming import agent as naming_agent
+        from app.naming import api as naming_api
 
         result = await naming_agent.generate_case_titles(
             db, case, naming_api._gen(), naming_api._embedder(),
@@ -62,51 +62,58 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         )
         return {**result, "state": naming_api.naming_state(db, case)}
 
-    if job.kind in {"story_generate", "master_story_generate"}:
-        from app.core.ai_config import ai_config
-        from app.agents.story import MASTER_ROLES, StoryPipeline
+    if job.kind == "language_pipeline":
         from app.api import deps
-        from app.api.serializers import story_full_dict
+        from app.language_pipeline.orchestrator import LanguagePipeline
+        from app.naming.agent import default_embedder
 
         await deps.require_generation_authorized()
-        kwargs = {
-            "db": db, "case": case, "target_minutes": data["target_minutes"],
-            "language": data.get("language") or "en",
-            "tone": data.get("tone") or "documentary",
-            "iterations": data.get("iterations", 1),
-        }
-        if job.kind == "master_story_generate":
-            kwargs.update({
-                "kind": "master",
-                "words_per_minute": ai_config.words_per_minute_for(kwargs["language"]),
-            })
-            if ai_config.story_plan.require_approved_plan:
-                from app.services.story_plan_service import StoryPlanService
+        events: list[dict] = []
 
-                plan = StoryPlanService(db).usable_approved(
-                    case, kwargs["language"], kwargs["target_minutes"])
-                if plan is None:
-                    raise RuntimeError("story_plan_required: no approved plan for this "
-                                       "evidence and length")
-                kwargs["story_plan"] = plan
-            story = await StoryPipeline(roles=MASTER_ROLES).run(**kwargs)
-        else:
-            story = await StoryPipeline().run(**kwargs)
-        return story_full_dict(story)
+        def progress(event: dict) -> None:
+            events.append({**event, "at": utc_now().isoformat()})
+            with SessionLocal() as other:
+                row = other.get(BackgroundJob, job.id)
+                row.result_json = json.dumps({"events": events[-200:]}, ensure_ascii=False, default=str)
+                row.updated_at = utc_now()
+                other.commit()
 
-    if job.kind == "story_improve":
-        from app.agents.story import StoryPipeline
-        from app.api.serializers import story_full_dict
+        pipeline = LanguagePipeline(embedder=default_embedder(), progress=progress)
+        result = await pipeline.run_case(case.id, data.get("languages"),
+                                         data.get("requested_minutes"),
+                                         data.get("tone") or "documentary",
+                                         new_attempt=bool(data.get("new_attempt")))
+        return {**result, "events": events[-200:]}
 
-        story = db.query(StoryVersion).filter(
-            StoryVersion.id == data["story_version_id"],
-            StoryVersion.case_id == case.id,
-        ).first()
-        if story is None:
-            raise RuntimeError("story version not found")
-        return story_full_dict(await StoryPipeline().improve(
-            db=db, case=case, story_version=story, instruction=data["instruction"],
-        ))
+    if job.kind == "language_improve":
+        from app.api import deps
+        from app.language_pipeline.orchestrator import LanguagePipeline
+        from app.naming.agent import default_embedder
+
+        await deps.require_generation_authorized()
+        row = await LanguagePipeline(embedder=default_embedder()).improve_final(
+            case.id, data["language"], data["instruction"], data.get("requested_minutes"))
+        return {"final_version_id": row.id, "status": row.status}
+
+    if job.kind == "language_revise":
+        from app.api import deps
+        from app.language_pipeline.orchestrator import LanguagePipeline
+        from app.naming.agent import default_embedder
+
+        await deps.require_generation_authorized()
+        row = await LanguagePipeline(embedder=default_embedder()).revise_final(
+            case.id, data["language"], data.get("requested_minutes"))
+        return {"final_version_id": row.id, "status": row.status}
+
+    if job.kind == "language_final_audit":
+        from app.api import deps
+        from app.language_pipeline.orchestrator import LanguagePipeline
+        from app.naming.agent import default_embedder
+
+        await deps.require_generation_authorized()
+        report = await LanguagePipeline(embedder=default_embedder()).audit_final(case.id, data["language"])
+        return {"status": report["status"], "items": len(report["items"]),
+                "cost_eur": (report.get("usage") or {}).get("cost_eur")}
 
     raise RuntimeError(f"unknown background job kind: {job.kind}")
 
@@ -124,7 +131,7 @@ async def _run(job_id: int) -> None:
         db.commit()
         try:
             result = await asyncio.wait_for(_dispatch(db, job), timeout=job.timeout_seconds)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             job.status = "failed"
             job.error = f"Timed out after {job.timeout_seconds} seconds. Retry the job."
             job.completed_at = utc_now()

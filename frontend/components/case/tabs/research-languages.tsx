@@ -43,8 +43,10 @@ export function ResearchLanguagesTab({ caseId, refreshKey = 0 }: { caseId: numbe
       {depth && <ResearchDepthPanel depth={depth} />}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span>
-          Canonical language:{" "}
-          <span className="font-medium text-foreground">{langLabel(data.canonical_language)}</span>
+          Production languages:{" "}
+          <span className="font-medium text-foreground">
+            {data.production_languages.map((l) => langLabel(l)).join(", ")}
+          </span>
         </span>
         <span>
           Total sources:{" "}

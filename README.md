@@ -156,19 +156,16 @@ they ask `ai_config.model_for(role)` / `generation_for(role)`.
 
 Groundwork for the audio-first documentary engine (`app/documentary/`).
 
-- **Act structure survives every step.** Stories are written per act with
-  `[[ACT:id]]` markers; repairs, the final editor, `improve` and
-  localization now keep those markers, and each StoryVersion stores its
-  act text in `narrative_structure.sections`. Localization falls back to
-  act-by-act transcreation if a one-call rewrite drops markers. A final
-  polish that would destroy the structure is rejected.
-  `structure_lost_at` records any step that still lost it.
+- **Act structure survives every step.** Stories carry `[[ACT:id]]`
+  markers and each StoryVersion stores its act text in
+  `narrative_structure.sections`; a text that loses the plan's acts is
+  rejected at its stage.
 - **Evidence meaning is tracked.** Evidence IDs (F001…) follow database
-  order, and every version stores an `evidence_fingerprint`. Localizing a
-  master written from an older evidence set is refused
-  (`localization.require_current_evidence`).
-- **Pilot length.** `story.min_target_minutes` / `max_target_minutes`
-  (default 3–90) replace the hard-coded 10-minute floor.
+  order, and every version stores an `evidence_fingerprint`; a stage row
+  written from older evidence is not reused.
+- **Film length.** `language_pipeline.requested_minutes_default` (60) plus
+  `rewrite_headroom_minutes` (10) is the range of every language's text;
+  `long_draft_minutes` (90) is the shared draft.
 - **Reviewers stay independent.** `review_independence` lists author and
   reviewer roles; a reviewer never routes or falls back to a model that
   writes narration.
@@ -368,8 +365,9 @@ still work. If they open them, the visuals deepen understanding."
    attributed material.
 
 **One button**: the Documentary section of the app (`/documentary`)
-runs `POST /api/cases/{id}/documentary/jobs` — (from zero: research →
-master story →) blueprint → audio plan → storyteller text per language →
+runs `POST /api/cases/{id}/documentary/jobs` (one job per language, from
+that language's owner-approved final text) — (from zero: research →
+language pipeline →) blueprint → audio plan → storyteller text per language →
 film-length check → visual needs → research → verification → visual plan
 → voice performance → voice → production script → critique → render. Stages are resumable; a re-run reuses everything that
 exists (`refresh_visuals` re-plans pictures). `mode: "pilot"` renders the
@@ -430,13 +428,13 @@ follow-up.
   SOLVED appears on the dashboard: "PREVIOUSLY COVERED UNSOLVED CASE —
   NOW SOLVED … Do you want to create an update video?". Nothing is
   produced before approval (`POST /api/follow-ups/{id}/approve`), which
-  starts one `follow_up` job: update research, a master that opens with
+  starts one `follow_up` job: update research, final texts that open with
   the earlier episode ("We first told this story in Episode 27 …"), and a
   video linked to the original.
 - **Videos** (`videos`): one per rendered language with status at
   production/publication, opening strategy and YouTube metadata —
   "UNSOLVED: <title>", follow-ups "SOLVED: The <case> Case — What
-  Happened After Our Original Video" (localized). Publish sets the
+  Happened After Our Original Video" (per language). Publish sets the
   episode number and freezes the status at publication.
 - **Openings vary**: the story director chooses an opening strategy
   (critical moment, mysterious statement, victim introduction, evidence
@@ -592,9 +590,10 @@ result is made again with the auditor's reasons and judged again, at most
 `documentary.max_redos` (2) times; if it is still rejected it is left out
 and reported (the job never waits for a person).
 
-- **Master story** (`master_approval` stage): its critics must have passed
-  it; otherwise it is revised with exactly the failed checks. Still
-  failing: the job stops (there is no film without an approved story).
+- **Final text** (`final_approval` stage): the owner must have approved the
+  language's final version (Story Studio); until then the job stops with
+  "approve the final version, then resume" (there is no film without an
+  approved story). The gates of the language pipeline ran before.
 - **Blueprint / visual needs**: an invalid result is made again.
 - **Spoken versions**: a version its meaning/style checks rejected is
   made again; still rejected → that language is left out of the film.
@@ -697,7 +696,7 @@ Host time is capped at `host.max_total_seconds` (180 s) per film.
 On-screen cards made from the story itself (`app/documentary/chapters.py`,
 config `chapters`, stage **chapters** after the spoken versions).
 
-- **Chapters = the master story's acts.** The audio plan puts a
+- **Chapters = the final text's acts.** The audio plan puts a
   `chapter_break` (music, 12–22 s) after the last beat of every act — and
   after the opening hook when the film has a cold open — and nowhere else
   (`act_end_is_chapter_break`, `title_after_cold_open`,
@@ -844,8 +843,8 @@ Two levels (limits in the `config/` layers → `concurrency`):
   (`{"items": [{"case_id": 3}, {"case_id": 7, "from_zero": true,
   "target_minutes": 60}], "languages": [...], "mode": "pilot"}`) starts one
   job per case; `concurrency.jobs` run at the same time, the rest wait in
-  `queued`. `from_zero` jobs first research the case with the search
-  engine and write the master story. `GET /api/documentary/scheduler`
+  `queued` (one job per case and language). `from_zero` jobs first research
+  the case with the search engine and run the language pipeline. `GET /api/documentary/scheduler`
   shows what runs and how full every limit is.
 - Shared limits pace everything in the process: `llm`, `vision`,
   `elevenlabs_tts` (the ElevenLabs plan allows 5 parallel requests; a
@@ -934,3 +933,48 @@ an agent name is undefined or unused, or when an agent's role/prompt is missing.
 | Releases, dependencies | `docs/release.md` |
 | Architecture decisions | `docs/adr/` |
 | Changes | `CHANGELOG.md` |
+
+
+## Language pipeline (the story)
+
+`app/language_pipeline/`, config `config/parameters/language_pipeline.json`,
+prompts `prompts/language_pipeline/`. One shared English draft per case, then an
+independent finishing pipeline per language (fa, en, de, ar):
+
+1. **Draft** (Sonnet 5.5, once, `language.draft`): the 90-minute English story from the shared
+   plan and ALL promoted facts, written scene by scene (one call per key beat, the cached
+   evidence block shared by all calls, a `told_so_far` ledger of what the earlier scenes told).
+   A draft written with another draft prompt is history, not a source.
+1b. **Evidence audit** (`english.evidence_audit`, Sol, high reasoning, once, report only): an
+   independent agent reads the draft in groups of acts against the supplied facts and excerpts only
+   and reports every claim they do not support. It changes nothing, blocks nothing and may retry only
+   once on invalid JSON. Beside it, two reports without a language model: figures and names the draft
+   states that the evidence does not, and which facts the draft tells.
+1c. **Approval**: the draft gets an automatic approval record (`approved_by` `automatic`, time, draft
+   version, cost). The audit result does not gate it. No language starts before it.
+2. **Rewrite**, 3. **Inspection**, 4. **Final** (`language.rewrite.<lang>`, `language.inspect.<lang>`,
+   `language.final.<lang>`, GPT 6.1 Sol, high reasoning) for each of en, fa, de and ar, from the approved
+   draft, the plan and the length range, never from evidence: **three model calls per language, no
+   revision round.** The rewrite and the final also get `act_word_targets` (words per act, adding up to
+   the middle of the range). An inspector answer that does not validate is asked for once more; a
+   failed gate or a second invalid inspection fails that language with its reason and stops that
+   language only.
+5. **Bounded length correction** (`language.length_correction`, Sol, at most once per chain): only for a
+   final below the length minimum. The acts whose shortfall the English draft has the material to fill
+   go in one call; the code splices the answer into the final (every other act stays byte-identical), the
+   gates and the report run again, and only a passing text is approved automatically. The corrected acts
+   are not inspected and the page says so.
+
+The only blocking gates of a film text are the act markers and the length range
+(`language_stages.<lang>.blocking_gates`). A final that passes gets an automatic approval record. A
+deterministic report (`post_master_fact_report`, no model call, never blocking) lists the numbers the
+film text has beyond the draft or lacks from it, and, as each language's config says, names; Arabic adds
+script-hygiene counts. Every stage output is a `story_versions` row (kind `draft`, `rewrite`,
+`inspection`, `final`); a re-run reuses the rows it has. The rows of the retired fact-check loop
+(`master_inspect`, `master_revise`, `english_master`) stay as history and are labelled "retired method".
+After the draft no model checks facts in English except the one-pass audit; the guards are the
+evidence-bound drafting, the deterministic gates, the audit and the non-blocking reports.
+
+API: `GET /api/cases/{id}/language-pipeline` (state, ledger), `…/estimate`,
+`POST …/run`, `POST …/{lang}/improve`, `POST …/{lang}/audit` (the evidence audit on a final text, report
+only), `POST …/{lang}/approve`.

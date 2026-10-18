@@ -35,6 +35,16 @@ def sentence_length_stats(text: str) -> dict:
     }
 
 
+def one_line_paragraph_share(text: str) -> float:
+    """Share of paragraphs (act marker lines left out) that are a single sentence: a run of
+    them is the fragmentation the English master's inspector looks for."""
+    paragraphs = [p for p in re.split(r"\n\s*\n", text or "")
+                  if p.strip() and not p.strip().startswith("[[")]
+    if not paragraphs:
+        return 0.0
+    return round(sum(1 for p in paragraphs if len(sentences(p)) == 1) / len(paragraphs), 3)
+
+
 def repeated_trigram_rate(text: str) -> float:
     """Share of word trigrams that occur more than once (0 = never repeats)."""
     w = words(text)
@@ -43,6 +53,17 @@ def repeated_trigram_rate(text: str) -> float:
         return 0.0
     counts = Counter(grams)
     return round(sum(c for c in counts.values() if c > 1) / len(grams), 4)
+
+
+def trigram_overlap(text: str, earlier: str) -> float:
+    """Share of the text's word trigrams that already stand in `earlier`: how much of it retells."""
+    before = words(earlier)
+    seen = {tuple(before[i:i + 3]) for i in range(len(before) - 2)}
+    now = words(text)
+    grams = [tuple(now[i:i + 3]) for i in range(len(now) - 2)]
+    if not grams:
+        return 0.0
+    return round(sum(1 for g in grams if g in seen) / len(grams), 4)
 
 
 def stock_phrase_hits(text: str, language: str) -> list[str]:
@@ -62,6 +83,7 @@ def beat_metrics(text: str, language: str, target_words: int | None = None) -> d
         "words": len(words(text)),
         "sentence_length": sentence_length_stats(text),
         "repeated_trigram_rate": repeated_trigram_rate(text),
+        "one_line_paragraph_share": one_line_paragraph_share(text),
         "stock_phrases": stock_phrase_hits(text, language),
     }
     if target_words:

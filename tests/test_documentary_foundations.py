@@ -4,17 +4,12 @@ stories, and reviewer independence.
 
 All generation calls are scripted — no real credits are spent.
 """
-import asyncio
 import json
-import re
 
 import pytest
 
 from app.core.ai_config import ai_config
-from app.providers.generation.base import GenerationResult
-
-from test_master_pipeline import ScriptGen, _add_fact, _mk_case, _pipeline
-
+from tests.factories import _add_fact, _mk_case
 
 TWO_ACTS = {
     "title": "t", "central_question": "q",
@@ -25,15 +20,8 @@ TWO_ACTS = {
 }
 
 
-def _structure(v):
-    return json.loads(v.narrative_structure)
 
 
-def _echo_marked(system, user):
-    """A well-behaved editor: returns the marked story with one word
-    changed in every act, markers untouched."""
-    story = json.loads(user)["story"]
-    return story.replace("narration", "polished", 2)
 
 
 # ---------------------------------------------------------------------------
@@ -141,90 +129,14 @@ def test_stored_sections_require_exact_story_text():
 # ---------------------------------------------------------------------------
 
 
-def _run_master(db_session, monkeypatch, fake):
-    fake.structured.setdefault("story_director", TWO_ACTS)
-    pipe = _pipeline(fake, monkeypatch)
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    v = asyncio.run(pipe.run(
-        db_session, case, target_minutes=10, language="en",
-        tone="t", iterations=1,
-    ))
-    return case, v
 
 
-def test_master_stores_act_text_and_evidence_fingerprint(db_session, monkeypatch):
-    from app.agents.story import stored_sections
-
-    fake = ScriptGen()
-    fake.texts["final_editor"] = _echo_marked
-    _, v = _run_master(db_session, monkeypatch, fake)
-    struct = _structure(v)
-    assert struct["structured"] is True
-    assert [s["id"] for s in struct["sections"]] == ["act1", "act2"]
-    assert all(s["text"] for s in struct["sections"])
-    assert struct["evidence_fingerprint"]
-    assert struct["structure_lost_at"] == []
-    secs = stored_sections(v)
-    assert secs and "\n\n".join(s["text"] for s in secs) == v.story_text
-    # The editor kept the markers, so its polish was accepted …
-    assert "polished" in v.story_text
-    # … and no marker ever leaks into narration.
-    assert "[[ACT" not in v.story_text
 
 
-def test_final_edit_that_drops_structure_is_rejected(db_session, monkeypatch):
-    fake = ScriptGen()
-    fake.texts["final_editor"] = lambda s, u: "flattened " + " ".join(
-        json.loads(u)["story"].split()[2:]
-    ).replace("[[ACT:act2]]", "")
-    _, v = _run_master(db_session, monkeypatch, fake)
-    struct = _structure(v)
-    assert struct["structured"] is True
-    assert "flattened" not in v.story_text
-    log = json.loads(v.critic_notes)["revision_log"]
-    assert any(e.get("reason") == "structure_lost" for e in log)
 
 
-def test_consistency_repair_keeps_structure(db_session, monkeypatch):
-    fake = ScriptGen()
-    calls = {"n": 0}
-
-    def consistency(system, user):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return {"violations": [{
-                "type": "timeline", "severity": "high",
-                "detail": "wrong order", "location": "w1 w2 w3",
-            }]}
-        return {"violations": []}
-
-    fake.structured["consistency_checker"] = consistency
-    fake.texts["rewriter"] = lambda s, u: " ".join(
-        ["repaired"] * len(json.loads(u)["paragraph"].split())
-    )
-    _, v = _run_master(db_session, monkeypatch, fake)
-    struct = _structure(v)
-    assert struct["structured"] is True
-    assert [s["id"] for s in struct["sections"]] == ["act1", "act2"]
-    assert "repaired" in v.story_text
 
 
-def test_improve_keeps_structure(db_session, monkeypatch):
-    fake = ScriptGen()
-    fake.texts["final_editor"] = _echo_marked
-    case, v = _run_master(db_session, monkeypatch, fake)
-    fake.texts["rewriter"] = lambda s, u: json.loads(u)["story"].replace(
-        "polished", "improved"
-    )
-    new = asyncio.run(
-        _pipeline(fake, monkeypatch).improve(db_session, case, v, "sharpen")
-    )
-    struct = _structure(new)
-    assert struct["structured"] is True
-    assert [s["id"] for s in struct["sections"]] == ["act1", "act2"]
-    assert struct["structure_lost_at"] == []
-    assert "improved" in new.story_text and "[[ACT" not in new.story_text
 
 
 # ---------------------------------------------------------------------------
@@ -232,173 +144,20 @@ def test_improve_keeps_structure(db_session, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-class LocGen:
-    """Scripted localization provider. `marked` controls whether the
-    one-call writer keeps the [[ACT:id]] markers."""
-
-    def __init__(self, marked=True, words=28):
-        self.marked = marked
-        self.words = words
-        self.calls = []
-
-    def is_configured(self):
-        return True
-
-    def _res(self, text):
-        return GenerationResult(text=text, model="m/fake", provider="fake")
-
-    def _body(self, tag):
-        return " ".join([f"wort{tag}"] * self.words) + "."
-
-    async def generate_text(self, role, system, user):
-        self.calls.append((role, user))
-        if role == "localization_writer":
-            u = json.loads(user)
-            if "master_act" in u:  # per-act fallback
-                return self._res(self._body(u["act_id"]))
-            if "master_story" in u:
-                ids = re.findall(r"\[\[ACT:([^\]]+)\]\]", u["master_story"])
-                if self.marked and ids:
-                    return self._res("\n\n".join(
-                        f"[[ACT:{i}]]\n\n{self._body(i)}" for i in ids
-                    ))
-                return self._res(self._body("flat"))
-            return self._res(u["current_text"])  # repair: echo
-        if role == "localized_final_editor":
-            return self._res(user.replace("wort", "Wort"))
-        raise AssertionError(role)
-
-    async def generate_structured(self, role, system, user):
-        self.calls.append((role, user))
-        table = {
-            "native_language_critic": {"overall_native_quality": 92, "problems": []},
-            "semantic_consistency_checker": {
-                "semantic_consistency_score": 100, "missing_information": [],
-                "added_information": [], "meaning_changes": [],
-                "uncertainty_changes": [], "name_date_number_errors": [],
-            },
-            "localized_grounding_validator": {
-                "supported_claims": [], "unsupported_claims": [],
-                "uncertainty_errors": [], "grounding_score": 0.97,
-            },
-            "localized_engagement_critic": {"score": 90, "problems": []},
-        }
-        return table[role], self._res("{}")
 
 
-def _structured_master(db, case, fingerprint=None):
-    from app.db.models import StoryVersion
-
-    sections = [
-        {"id": "act1", "text": "The night it began. " * 10},
-        {"id": "act2", "text": "What the search found. " * 10},
-    ]
-    sections = [dict(s, text=s["text"].strip()) for s in sections]
-    struct = {
-        "title": "t", "acts": [{"id": "act1"}, {"id": "act2"}],
-        "sections": [dict(s, words=len(s["text"].split())) for s in sections],
-    }
-    if fingerprint:
-        struct["evidence_fingerprint"] = fingerprint
-    v = StoryVersion(
-        case_id=case.id, version=1, kind="master", language="en",
-        narrative_angle="{}", narrative_structure=json.dumps(struct),
-        story_text="\n\n".join(s["text"] for s in sections),
-        text_hash="h" * 32, engagement_score=80.0, status="ready", is_best=True,
-    )
-    db.add(v)
-    db.commit()
-    db.refresh(v)
-    return v
 
 
-def _localize(db_session, monkeypatch, gen, master, case, lang="de"):
-    import app.agents.localization as loc_mod
-    import app.agents.story as story_mod
-    from app.agents.localization import LocalizationPipeline
-
-    monkeypatch.setattr(loc_mod, "get_generation_provider", lambda: gen)
-    monkeypatch.setattr(story_mod, "get_generation_provider", lambda: gen)
-    return asyncio.run(
-        LocalizationPipeline().localize(
-            db_session, case, master, lang, target_minutes=1
-        )
-    )
 
 
-def test_localization_keeps_master_acts(db_session, monkeypatch):
-    from app.agents.story import stored_sections
-
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    master = _structured_master(db_session, case)
-    gen = LocGen(marked=True, words=60)
-    loc = _localize(db_session, monkeypatch, gen, master, case)
-    secs = stored_sections(loc)
-    assert [s["id"] for s in secs] == ["act1", "act2"]
-    assert "[[ACT" not in loc.story_text
-    notes = json.loads(loc.critic_notes)["localization"]
-    assert notes["structured"] is True and notes["per_section_fallback"] is False
-    # The final polish kept the markers, so it was accepted.
-    assert "Wort" in loc.story_text
-    # Only one writer call: no per-act fallback was needed.
-    assert sum(1 for r, _ in gen.calls if r == "localization_writer") == 1
 
 
-def test_localization_falls_back_to_per_act_when_markers_lost(db_session, monkeypatch):
-    from app.agents.story import stored_sections
-
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    master = _structured_master(db_session, case)
-    gen = LocGen(marked=False, words=60)
-    loc = _localize(db_session, monkeypatch, gen, master, case)
-    secs = stored_sections(loc)
-    assert [s["id"] for s in secs] == ["act1", "act2"]
-    assert "wortact1" in secs[0]["text"].lower()
-    assert "wortact2" in secs[1]["text"].lower()
-    writer_calls = [u for r, u in gen.calls if r == "localization_writer"]
-    per_act = [u for u in writer_calls if "master_act" in json.loads(u)]
-    assert len(per_act) == 2
-    # Act 2 sees the end of the localized act 1 for a natural transition.
-    assert json.loads(per_act[1])["previous_localized_act_ending"]
-    assert json.loads(loc.critic_notes)["localization"]["per_section_fallback"]
 
 
-def test_protected_payload_does_not_duplicate_story_text(db_session, monkeypatch):
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    master = _structured_master(db_session, case)
-    gen = LocGen(marked=True)
-    _localize(db_session, monkeypatch, gen, master, case)
-    writer_user = json.loads(
-        next(u for r, u in gen.calls if r == "localization_writer")
-    )
-    secs = writer_user["protected"]["narrative_structure"]["sections"]
-    assert secs and all("text" not in s for s in secs)
 
 
-def test_localization_refuses_master_built_on_older_evidence(db_session, monkeypatch):
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    master = _structured_master(db_session, case, fingerprint="0" * 16)
-    with pytest.raises(RuntimeError, match="older evidence"):
-        _localize(db_session, monkeypatch, LocGen(), master, case)
 
 
-def test_localization_accepts_master_with_current_evidence(db_session, monkeypatch):
-    from app.agents.story import current_evidence_fingerprint
-
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    master = _structured_master(
-        db_session, case,
-        fingerprint=current_evidence_fingerprint(db_session, case.id),
-    )
-    loc = _localize(db_session, monkeypatch, LocGen(words=60), master, case)
-    assert _structure(loc)["evidence_fingerprint"] == _structure(master)[
-        "evidence_fingerprint"
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -407,29 +166,8 @@ def test_localization_accepts_master_with_current_evidence(db_session, monkeypat
 # ---------------------------------------------------------------------------
 
 
-def test_story_length_range_from_config():
-    from pydantic import ValidationError
-
-    from app.schemas import GenerateStoryRequest
-
-    lo = ai_config.story.min_target_minutes
-    hi = ai_config.story.max_target_minutes
-    assert (lo, hi) == (45, 120)
-    assert GenerateStoryRequest(target_minutes=lo).target_minutes == lo
-    with pytest.raises(ValidationError):
-        GenerateStoryRequest(target_minutes=lo - 1)
-    with pytest.raises(ValidationError):
-        GenerateStoryRequest(target_minutes=hi + 1)
 
 
-def test_localization_endpoint_rejects_out_of_range_minutes(client, db_session):
-    case = _mk_case(db_session)
-    too_short = ai_config.story.min_target_minutes - 1
-    r = client.post(
-        f"/api/cases/{case.id}/localizations/generate",
-        params={"language": "de", "target_minutes": too_short},
-    )
-    assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -447,10 +185,10 @@ def test_reviewer_fallbacks_skip_author_models():
     models = ai_config.generation_provider().models
     for role in ai_config.review_independence.reviewer_roles:
         chain = ai_config.fallback_models_for(role)
-        assert models["writer"] not in chain, role
+        assert models["premium"] not in chain, role
         assert ai_config.model_for(role) not in chain, role
     # Author-side roles keep their normal chain.
-    assert ai_config.fallback_models_for("final_editor") == [models["writer"]]
+    assert ai_config.fallback_models_for("story_director") == [models["writer"]]
 
 
 def test_reviewer_routed_to_writer_model_is_a_config_error():
@@ -458,7 +196,7 @@ def test_reviewer_routed_to_writer_model_is_a_config_error():
 
     raw = _raw_config()
     raw["generation_providers"]["apimaster"]["routing"][
-        "native_language_critic"
+        "grounding_validator"
     ] = "premium"
     with pytest.raises(Exception, match="also writes"):
         AIConfig.model_validate(raw)
@@ -468,10 +206,10 @@ def test_reviewer_with_only_author_fallback_gets_no_fallback():
     from app.core.ai_config import AIConfig
 
     raw = _raw_config()
-    raw["review_independence"]["reviewer_fallbacks"] = {"premium": ["writer"]}
+    raw["review_independence"]["reviewer_fallbacks"] = {"cheap": ["premium"]}
     cfg = AIConfig.model_validate(raw)
     # Better to fail loudly than to let the writer grade its own text.
-    assert cfg.fallback_models_for("native_language_critic") == []
+    assert cfg.fallback_models_for("grounding_validator") == []
 
 
 def test_review_independence_can_be_disabled():
@@ -481,18 +219,29 @@ def test_review_independence_can_be_disabled():
     raw["review_independence"]["enabled"] = False
     cfg = AIConfig.model_validate(raw)
     models = cfg.generation_provider().models
-    assert cfg.fallback_models_for("engagement_critic") == [models["premium"]]
+    assert cfg.fallback_models_for("grounding_validator") == [models["premium"]]
 
 
-def test_section_text_is_not_duplicated_into_plans_or_api(db_session, monkeypatch, client):
-    """Section text equals the story itself: it must not be re-sent to
-    models as 'plan' or returned twice by the story API."""
+
+
+def test_requested_film_length_comes_from_config():
+    from app.language_pipeline.lengths import check_requested_minutes
+
+    lo = ai_config.story.min_target_minutes
+    hi = ai_config.language_pipeline.long_draft_minutes - ai_config.language_pipeline.rewrite_headroom_minutes
+    check_requested_minutes(lo)
+    check_requested_minutes(hi)
+    with pytest.raises(ValueError):
+        check_requested_minutes(lo - 1)
+    with pytest.raises(ValueError):
+        check_requested_minutes(hi + 1)
+
+
+def test_the_pipeline_endpoint_rejects_out_of_range_minutes(client, db_session):
+    from tests.factories import _mk_case
+
     case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    master = _structured_master(db_session, case)
-    loc = _localize(db_session, monkeypatch, LocGen(words=60), master, case)
-    plan = json.loads(loc.narrative_angle)
-    assert all("text" not in s for s in plan.get("sections") or [])
-    body = client.get(f"/api/cases/{case.id}/stories/{loc.id}").json()
-    secs = body["narrative_structure"]["sections"]
-    assert secs and all("text" not in s for s in secs)
+    too_long = ai_config.language_pipeline.long_draft_minutes
+    r = client.post(f"/api/cases/{case.id}/language-pipeline/run",
+                    json={"requested_minutes": too_long})
+    assert r.status_code == 422

@@ -17,7 +17,7 @@ const settings = {
 };
 
 const overview = {
-  masters: [], master_version_id: null, film_minutes: { min: 45, max: 120 }, blueprint: null, audio_plan: null,
+  finals: [], master_version_id: null, film_minutes: { min: 45, max: 120 }, blueprint: null, audio_plan: null,
   languages: { en: null, de: null, fa: null, ar: null }, visual_plan: null, jobs: [], visual_counts: {},
 };
 

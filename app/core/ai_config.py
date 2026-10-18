@@ -49,25 +49,10 @@ REQUIRED_ROLES = {
     "timeline_builder",
     "contradiction_analyzer",
     "story_director",
-    "writer",
-    "rewriter",
-    "engagement_critic",
-    "final_editor",
-    "section_critic",
     "grounding_validator",
     "consistency_checker",
     "evidence_normalizer",
     "semantic_consistency_checker",
-    "localized_grounding_validator",
-    "master_story_director",
-    "master_writer",
-    "master_rewriter",
-    "localization_writer",
-    "master_engagement_critic",
-    "master_final_editor",
-    "native_language_critic",
-    "localized_engagement_critic",
-    "localized_final_editor",
     "transcript_normalizer",
     "transcript_intelligence_extractor",
     "claim_clusterer",
@@ -76,6 +61,17 @@ REQUIRED_ROLES = {
     "research_assembler",
     # Documentary engine: editorial blueprint (beats, reveals, intents).
     "narrative_director",
+    # Language pipeline: the shared English draft, then per language the native
+    # rewrite, the independent inspection and the final text.
+    "language_draft_writer",
+    "language_rewrite_writer",
+    "language_inspector",
+    "language_final_writer",
+    # The Persian and Arabic writers have their own roles, so that their model is chosen apart from
+    # the English and German writers (owner decision, 2026-10-18).
+    "language_rewrite_writer_fa_ar",
+    "language_final_writer_fa_ar",
+    "english_evidence_auditor",
     # Spoken storytelling adaptation (author) + its independent checks.
     "spoken_writer",
     "spoken_meaning_checker",
@@ -208,7 +204,6 @@ class PublishingPolicies(BaseModel):
 
 
 class RetryPolicyConfig(BaseModel):
-    master_story: Literal["STOP", "OMIT", "DEGRADE"]
     chapter_texts: Literal["STOP", "OMIT", "DEGRADE"]
     spoken_versions: Literal["STOP", "OMIT", "DEGRADE"]
     host_segments: Literal["STOP", "OMIT", "DEGRADE"]
@@ -244,6 +239,15 @@ class ModelCapabilities(BaseModel):
     structured_output: bool = True
     tool_calling: bool = False
     vision: bool = False
+    # How the gateway lets a request reuse a repeated prompt prefix:
+    # "cache_control" (an ephemeral marker on the prefix block), "prompt_cache_key"
+    # (a stable key on the request) or "none". Declared from live probes only.
+    prompt_caching: Literal["none", "cache_control", "prompt_cache_key"] = "none"
+    # Whether the model takes `reasoning_effort` (the gateway validates the value).
+    reasoning_effort: bool = False
+    # The gateway streams this model's answer (with usage in the last chunk), so the
+    # read timeout is a real inactivity timeout rather than a ceiling on the whole call.
+    streaming: bool = False
 
     @field_validator("web_search", "web_fetch")
     @classmethod
@@ -409,10 +413,16 @@ class GenerationProviderSection(BaseModel):
         return self
 
 
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
 class GenerationSettings(BaseModel):
     temperature: float = Field(ge=0.0, le=2.0)
     max_tokens: int = Field(ge=1, le=262144)
     seed: int | None = None
+    # Sent as `reasoning_effort` to a model that declares the capability;
+    # a role without it asks for the model's default.
+    reasoning_effort: ReasoningEffort | None = None
 
 
 class StoryConfig(BaseModel):
@@ -422,19 +432,9 @@ class StoryConfig(BaseModel):
     # changes; defaults keep the historical 10–90 minute range.
     min_target_minutes: int = Field(default=10, ge=1, le=120)
     max_target_minutes: int = Field(default=90, ge=1, le=240)
-    words_per_minute: int = Field(ge=50, le=300)
-    minimum_length_ratio: float = Field(gt=0.0, le=1.0)
-    maximum_length_ratio: float = Field(ge=1.0, le=3.0)
-    max_rewrite_iterations: int = Field(ge=1, le=10)
-    max_length_repair_iterations: int = Field(ge=0, le=5)
-    engagement_threshold: float = Field(ge=0, le=100)
 
     @model_validator(mode="after")
     def _validate(self):
-        if self.minimum_length_ratio > self.maximum_length_ratio:
-            raise ValueError(
-                "story.minimum_length_ratio must not exceed maximum_length_ratio"
-            )
         if not (
             self.min_target_minutes
             <= self.default_target_minutes
@@ -453,8 +453,6 @@ class StoryQualityConfig(BaseModel):
     minimum_grounding_score: float = Field(ge=0.0, le=1.0)
     max_unsupported_claims: int = Field(ge=0)
     max_grounding_repair_iterations: int = Field(ge=0, le=5)
-    section_engagement_threshold: float = Field(ge=0, le=100)
-    max_section_rewrites: int = Field(ge=0, le=10)
     consistency_max_high_severity: int = Field(ge=0)
     disputed_confidence_threshold: float = Field(ge=0.0, le=1.0)
     strip_markdown_artifacts: bool = True
@@ -466,12 +464,16 @@ class StoryQualityConfig(BaseModel):
     # facts (the strongest, spread over the fact types): all of a large case's
     # facts overrun the model's prompt limit and are paid for on every call.
     max_evidence_per_story: int = Field(ge=20, le=100, default=100)
+    # The long draft reads every promoted fact; set a number to cap it (none = no cap).
+    max_evidence_for_long_draft: int | None = Field(default=None, ge=20)
 
 
 class LanguageEntry(BaseModel):
     """One language the research can run in: how Brave is asked for it and
     the native query stems used to find videos about a case."""
     name: str
+    # The writing direction of the language's script: the page shows its text that way.
+    direction: Literal["ltr", "rtl"] = "ltr"
     # Brave's own search_lang code, or None when Brave rejects the parameter
     # (the query text then carries the language).
     brave_search_lang: str | None
@@ -484,36 +486,28 @@ class LanguageEntry(BaseModel):
 class MultilingualConfig(BaseModel):
     research_languages: list[str] = ["en", "de", "fa", "ar"]
     # Every language research or production can use. A language in here but
-    # not in research_languages is ready to enable by editing research_languages.
+    # not in research_languages / production_languages is ready to enable by
+    # editing those lists.
     language_catalog: dict[str, LanguageEntry] = {}
-    # Language of the master story (the narrative every localization derives from).
-    canonical_language: str = "en"
-    # Language the evidence is normalized into (summary_en, canonical_text_en);
-    # independent of the language the master is written in.
+    # Language the evidence is normalized into (summary_en, canonical_text_en).
     evidence_language: str = "en"
-    localization_languages: list[str] = ["de", "fa", "ar"]
+    # Languages a film is produced in. Each one is finished independently from the
+    # shared draft, the shared plan and the shared evidence; none is the reference.
+    production_languages: list[str] = ["fa", "en", "de", "ar"]
 
     @model_validator(mode="after")
     def _validate(self):
-        if self.canonical_language in self.localization_languages:
-            raise ValueError(
-                "canonical_language must not also be a localization target"
-            )
-        used = {*self.research_languages, self.canonical_language,
-                self.evidence_language, *self.localization_languages}
+        used = {*self.research_languages, self.evidence_language, *self.production_languages}
         missing = sorted(used - set(self.language_catalog))
         if missing:
             raise ValueError(f"languages missing from language_catalog: {missing}")
+        if len(set(self.production_languages)) != len(self.production_languages):
+            raise ValueError("production_languages must not repeat a language")
         return self
 
     @property
-    def produced_languages(self) -> list[str]:
-        """Languages a film is produced in: the master plus its rewrites."""
-        return [self.canonical_language, *self.localization_languages]
-
-    @property
     def research_only_languages(self) -> list[str]:
-        return [l for l in self.research_languages if l not in self.produced_languages]
+        return [l for l in self.research_languages if l not in self.production_languages]
 
     def video_stems(self, language: str) -> list[str]:
         return (self.language_catalog.get(language) or self.language_catalog["en"]).video_search_stems
@@ -538,6 +532,8 @@ class StoryPlanConfig(BaseModel):
     max_total_words_deviation: float = Field(gt=0.0, le=1.0)
     # Mid-film host slots planned (also capped by host.max_mid_segments).
     mid_host_slots: int = Field(ge=0, le=4)
+    # No act of a plan gets less than this share of the film's words.
+    min_act_budget_share: float = Field(gt=0.0, le=0.5)
 
 
 class WriterMetricsConfig(BaseModel):
@@ -582,44 +578,335 @@ class HostLooksConfig(BaseModel):
     image_timeout_s: float = Field(gt=0)
 
 
-class LocalizationConfig(BaseModel):
-    require_master_ready: bool = True
-    # Refuse to localize a master whose evidence fingerprint no longer
-    # matches the case's current facts (research re-ran since).
-    require_current_evidence: bool = True
-    words_per_minute: dict[str, int] = {}
-    minimum_native_quality_score: float = Field(ge=0, le=100)
-    minimum_semantic_consistency_score: float = Field(ge=0, le=100)
-    minimum_factual_consistency_score: float = Field(ge=0.0, le=1.0)
-    minimum_engagement_score: float = Field(ge=0, le=100)
-    max_localization_repair_iterations: int = Field(ge=0, le=5)
-    minimum_duration_ratio: float = Field(gt=0.0, le=1.0)
-    maximum_duration_ratio: float = Field(ge=1.0, le=3.0)
+class LanguagePipelineGlossaryConfig(BaseModel):
+    """The names and places of the evidence and how each language spells them. The owner
+    approves the spellings; the facts check requires an approved spelling of every named
+    entity of the evidence a text tells."""
+
+    kinds: list[str]
+    min_entity_chars: int = Field(ge=1)
+    # Lower-case words that may stand inside a proper name ("Bay of Pigs", "van Gogh").
+    name_connectors: list[str]
+    # Languages whose spellings start as the evidence's own names (Latin script); the others
+    # are proposed by the glossary agent. The owner approves both in the UI.
+    seed_from_evidence: list[str]
+    # Entities proposed to the glossary agent in one call.
+    proposal_batch_entities: int = Field(ge=1, le=300)
+    # Letters that attach to the front of a name in a script and still leave it spelled right.
+    attached_prefixes: dict[str, list[str]]
+    attached_suffixes: dict[str, list[str]]
+
+
+class LanguagePipelineCrossLanguageConfig(BaseModel):
+    glossary: LanguagePipelineGlossaryConfig
+    # Scripts in which a name may be written with or without a space inside it.
+    space_free_names: list[str]
+
+
+class LanguagePipelineEstimateConfig(BaseModel):
+    """Planning figures for the cost estimate printed before a run. They are
+    assumptions, never provider prices and never an actual cost."""
+
+    tokens_per_word: dict[str, float]
+    chars_per_token: float = Field(gt=0.0)
+    plan_tokens: int = Field(ge=0)
+    critique_tokens: int = Field(ge=0)
+    reasoning_tokens_ratio: dict[str, float]
+    # Of the shared draft block, the share every call after the first reads from the cache when the
+    # ledger holds no measurement yet. Nothing is assumed then: 0 (no cache) is the conservative figure.
+    cache_share_without_data: float = Field(ge=0.0, le=1.0)
+    # Planning figures for the checks of a delivered text (no ledger measured them before the first run):
+    # what the correction of audit findings reads and the visible answers of the meaning check.
+    audit_fix_input_tokens: int = Field(ge=0)
+    fidelity_output_tokens: int = Field(ge=0)
+    # Measured on a case's ledger, every attempt included (calibration.py measures them again):
+    # the share of the range maximum a writer delivers and the draft's calls over its scenes
+    # (failed and repeated scenes).
+    words_share_of_max: dict[str, float]
+    draft_attempt_factor: float = Field(ge=1.0)
+    # The evidence audit's visible answer per call (planning assumption, no ledger measured it yet).
+    audit_output_tokens_per_call: int = Field(ge=0)
+    calibration_source: str
+    note: str = ""
+
+
+class VideoRightsHosts(BaseModel):
+    """Hosts a video can be a film candidate from: host -> display name for the credits."""
+
+    open_archives: dict[str, str]
+    public_archives: dict[str, str]
+    public_broadcasters: dict[str, str]
+
+
+class VideoRightsYouTube(BaseModel):
+    film_candidate_license: str
+    # Only these channel kinds (video classification) can be film candidates at all; the
+    # videos of other true-crime channels (creator narration, analysis...) never are.
+    film_candidate_classifications: list[str]
+    reuploader_channel_patterns: list[str]
+
+
+class VideoRightsConfig(BaseModel):
+    """Which videos may ever go into our film, and why the others are research only.
+    Doubt means research only."""
+
+    film_candidate_hosts: VideoRightsHosts
+    youtube: VideoRightsYouTube
+    open_license_markers: list[str]
+    evidence_url_fields: list[str]
+    reasons: dict[str, str]
+
+
+class LanguagePipelineCoverageConfig(BaseModel):
+    # A sentence tells an evidence item when their embeddings are at least this
+    # similar; an item an act must withhold counts as told when it reaches reveal_similarity.
+    min_similarity: float = Field(ge=0.0, le=1.0)
+    reveal_similarity: float = Field(ge=0.0, le=1.0)
+    max_reveal_violations: int = Field(ge=0)
+    min_sentence_words: int = Field(ge=1)
+
+
+class LanguagePipelineOriginalityConfig(BaseModel):
+    """The originality guard: a final text may share facts with a research transcript but not
+    its telling."""
+
+    ngram_size: int = Field(ge=3, le=20)
+    # Share of the text's n-word sequences that one source also contains.
+    max_ngram_share: float = Field(ge=0.0, le=1.0)
+    # Longest run of words the text shares with one source.
+    max_run_words: int = Field(ge=3)
+    # Sentences whose embedding is at least this close to a source sentence are near-verbatim
+    # (the embedding is multilingual, so a copy across languages is found too).
+    near_verbatim_similarity: float = Field(ge=0.5, le=1.0)
+    max_near_verbatim_sentences: int = Field(ge=0)
+    min_sentence_words: int = Field(ge=1)
+    max_listed_sentences: int = Field(ge=1, le=100)
+
+
+class LanguagePipelineGatesConfig(BaseModel):
+    max_unsupported_figures: int = Field(ge=0)
+    max_listed_passages: int = Field(ge=1, le=100)
+    coverage: LanguagePipelineCoverageConfig
+    originality: LanguagePipelineOriginalityConfig
+
+
+class LanguagePipelineLedgerConfig(BaseModel):
+    """The told_so_far ledger a draft scene call receives (see app/language_pipeline/ledger.py)."""
+
+    # A sentence of the text so far that matches one of these (case-insensitive) already
+    # explained an evidentiary limitation.
+    limitation_patterns: list[str]
+    max_limitation_words: int = Field(ge=5)
+    max_limitations: int = Field(ge=1)
+
+
+class LanguageAgentsConfig(BaseModel):
+    """The agents of stages 2-4 for one language, by name (config/agents.json)."""
+
+    rewrite: str
+    inspect: str
+    final: str
+    # The one-time bounded length correction (stage 5); a language without it is a config error.
+    length_correction: str
+    # The meaning check of a translated language against the approved English text; required for a
+    # language whose stage config says check "fidelity".
+    fidelity: str | None = None
+
+
+class LanguageStageConfig(BaseModel):
+    """What one language's stages 2-4 are held to. Gates not listed here do not block."""
+
+    blocking_gates: list[str]
+    # A final text whose blocking gates pass is approved by the system itself (approved_by
+    # "automatic" with the time, the stage versions and the cost); the owner approves nothing.
+    automatic_approval: bool = False
+    # What the post-master report compares besides numbers: the names both ways ("added_and_missing"),
+    # only the master's names the text lacks ("missing"; a language that capitalises all nouns cannot
+    # tell added names from other words), or none (another script cannot be matched).
+    report_names: Literal["added_and_missing", "missing", "none"] = "none"
+    # Also count what a right-to-left display or a voice can trip over (Persian-form letters,
+    # mixed digit styles, bidirectional control characters, tatweel, Latin letters, text beside a
+    # marker). Information only.
+    report_script_hygiene: bool = False
+    # No act's word target exceeds this many times the average act target (the targets add up to
+    # the middle of the language's allowed word range; see lengths.act_word_targets).
+    act_target_cap_ratio: float = Field(ge=1.0, le=5.0)
+    # What the language is re-told from: the approved English draft (English itself) or the approved
+    # English final text (every other language), and what its delivered text is checked for after the
+    # inspection: the evidence ("evidence_audit", English) or the meaning of the English text ("fidelity").
+    source: Literal["draft", "english_final"]
+    check: Literal["evidence_audit", "fidelity"]
+
+
+class ReviewConfig(BaseModel):
+    """What the review of a delivered text (inspector, fidelity check, evidence audit) lets through."""
+
+    # An unresolved item of one of these severities keeps the text open (no approval).
+    blocking_severities: list[Literal["high", "medium", "low"]]
+    # The items of these severities go into the one revision round.
+    revision_severities: list[Literal["high", "medium", "low"]]
+
+
+class AuditFixConfig(BaseModel):
+    """The correction of confirmed factual findings in the English text: the findings are checked
+    against the evidence first, and only a confirmed one is edited."""
+
+    severities: list[Literal["high", "medium", "low"]]
+    max_findings: int = Field(ge=1, le=100)
+    # Facts nearest to a finding's quote (by embedding), besides the facts the finding cites.
+    evidence_per_finding: int = Field(ge=0, le=30)
+    # A paragraph repeats a finding's claim when this share of the quote's word trigrams stands in it.
+    repeat_overlap: float = Field(gt=0.0, le=1.0)
+    max_paragraphs_per_finding: int = Field(ge=1, le=20)
+
+
+class DraftSceneCheckConfig(BaseModel):
+    """A draft scene that runs long or retells what the draft already says is written again once."""
+
+    max_words_ratio: float = Field(gt=1.0, le=3.0)
+    # Share of the scene's word trigrams that already stand earlier in the draft.
+    max_trigram_overlap: float = Field(gt=0.0, le=1.0)
+
+
+class DraftPackagingConfig(BaseModel):
+    """How much of the evidence a draft call carries and how many beats it writes."""
+
+    # "full": every call carries the whole evidence block. "act": a call carries the evidence of its act only
+    # (its assigned facts and timeline entries, its contradictions with the facts that stand against them).
+    mode: Literal["full", "act"]
+    # Consecutive beats of one act written in one call (one "part" for the writer).
+    scenes_per_call: int = Field(ge=1, le=3)
+    # Facts nearest to a contradiction (by embedding) that go in the act package beside it.
+    related_facts_per_contradiction: int = Field(ge=0, le=20)
+
+
+class LengthCorrectionConfig(BaseModel):
+    """The bounded length correction: one expansion of the acts that are too short, from the master's
+    material for the same act. The count (once per chain) is not configurable."""
+
+    enabled: bool
+    # The master must hold at least this many times an act's shortfall in extra words.
+    min_material_ratio: float = Field(gt=0.0, le=5.0)
+    # The correction is told which passages were removed on purpose (at most this many sentences per
+    # act); an answer that brings one back is rejected when this share of its word trigrams returns.
+    max_removed_sentences: int = Field(ge=0, le=50)
+    reintroduction_overlap: float = Field(gt=0.0, le=1.0)
+    # The correction aims at the needed words plus this share, so a slightly short answer still passes.
+    goal_margin_ratio: float = Field(ge=0.0, le=1.0)
+    # An act that needs fewer words than this is not sent for them alone (a handful of words is not worth
+    # a rewrite of the act); they count again only if the whole text is still below its minimum.
+    min_needed_words: int = Field(ge=0, le=200)
+    # An expanded act longer than this many times its target rejects the correction.
+    max_act_overshoot: float = Field(gt=1.0, le=2.0)
+    # An act whose repeated-trigram rate rose by more than this factor is flagged "likely padded".
+    repetition_flag_factor: float = Field(gt=1.0, le=5.0)
+    # After the one correction the length gate accepts a text this far (share of the range's minimum)
+    # below the range; the first final is still held to final_length_tolerance, so the correction runs.
+    accepted_shortfall: float = Field(ge=0.0, le=0.5)
+
+
+class PostMasterFactReportConfig(BaseModel):
+    """A deterministic comparison of the film text's numbers, dates and names with the master;
+    it reports and never blocks or costs a model call."""
+
+    enabled: bool
+
+
+class EvidenceAuditConfig(BaseModel):
+    """The one-pass audit of the English draft against the supplied facts and source excerpts. It
+    is a report: it blocks nothing, repairs nothing and runs once per draft."""
+
+    enabled: bool
+    # Acts in one call: the evidence block is the same in every call (cached), the chunk is small.
+    acts_per_call: int = Field(ge=1, le=20)
+    max_items_per_call: int = Field(ge=1, le=100)
+    # The strongest facts of the evidence pack the story must not misstate (omission checks).
+    key_fact_count: int = Field(ge=0, le=500)
+    # An answer that does not validate is asked for again this many times; then the call is a failure.
+    invalid_output_retries: int = Field(ge=0, le=3)
+
+
+class DraftReviewConfig(BaseModel):
+    """The English inspector on the shared draft, once, before any language is told from it: an
+    editorial report on the draft as a listening text, handed to the English rewrite. It blocks
+    nothing and changes no text."""
+
+    enabled: bool
+
+
+class LanguagePipelineConfig(BaseModel):
+    """One shared draft, then an independent finishing pipeline per language."""
+
+    draft_language: str
+    long_draft_minutes: int = Field(ge=1, le=240)
+    requested_minutes_default: int = Field(ge=1, le=240)
+    rewrite_headroom_minutes: int = Field(ge=0, le=60)
+    language_concurrency: int = Field(ge=1, le=16)
+    # Stage 2 of one language runs to the end first so the other languages' stage 2 reads the
+    # shared prefix (plan, evidence, draft) from the provider's cache.
+    stage2_cache_primer: bool
+    final_length_tolerance: float = Field(ge=0.0, le=0.5)
+    # How far an act may stray from its word target before the non-blocking per-act report marks it.
+    act_length_tolerance: float = Field(ge=0.0, le=0.5)
+    words_per_minute: dict[str, int]
+    max_inspector_items: int = Field(ge=1, le=200)
+    job_timeout_seconds: int = Field(ge=60)
+    originality_min_words: int = Field(ge=1)
+    gates: LanguagePipelineGatesConfig
+    cross_language: LanguagePipelineCrossLanguageConfig
+    estimate: LanguagePipelineEstimateConfig
+    evidence_audit: EvidenceAuditConfig
+    draft_review: DraftReviewConfig
+    draft_scene_check: DraftSceneCheckConfig
+    draft_packaging: DraftPackagingConfig
+    length_correction: LengthCorrectionConfig
+    review: ReviewConfig
+    audit_fix: AuditFixConfig
+    ledger: LanguagePipelineLedgerConfig
+    # Stages 2-4 of every production language: its own agents and what its final text is held to.
+    # A language without an entry is a config error (validated against the production languages).
+    language_agents: dict[str, LanguageAgentsConfig]
+    language_stages: dict[str, LanguageStageConfig]
+    post_master_fact_report: PostMasterFactReportConfig
+
+    def agents_for(self, language: str) -> LanguageAgentsConfig:
+        try:
+            return self.language_agents[language]
+        except KeyError:
+            raise KeyError(f"language_pipeline.language_agents has no entry for {language!r}") from None
+
+    def stage_config_for(self, language: str) -> LanguageStageConfig:
+        try:
+            return self.language_stages[language]
+        except KeyError:
+            raise KeyError(f"language_pipeline.language_stages has no entry for {language!r}") from None
+
+    def blocking_gates_for(self, language: str) -> list[str]:
+        """The gates that block this language's final text."""
+        return self.stage_config_for(language).blocking_gates
+
+    def automatic_approval_for(self, language: str) -> bool:
+        return self.stage_config_for(language).automatic_approval
+
+    def minutes_range(self, requested: float | None = None) -> tuple[float, float]:
+        """The film length stages 2-4 write to: the requested minutes up to the
+        headroom above them."""
+        low = float(requested or self.requested_minutes_default)
+        return low, low + self.rewrite_headroom_minutes
+
+    def words_per_minute_for(self, language: str) -> int:
+        try:
+            return self.words_per_minute[language]
+        except KeyError:
+            raise KeyError(f"language_pipeline.words_per_minute has no entry for {language!r}") from None
 
     @model_validator(mode="after")
     def _validate(self):
-        if self.minimum_duration_ratio > self.maximum_duration_ratio:
+        if self.long_draft_minutes < self.requested_minutes_default + self.rewrite_headroom_minutes:
             raise ValueError(
-                "localization.minimum_duration_ratio must not exceed "
-                "maximum_duration_ratio"
-            )
+                "language_pipeline.long_draft_minutes must cover the longest final "
+                "(requested_minutes_default + rewrite_headroom_minutes)")
         return self
-
-
-class MasterGenerationConfig(BaseModel):
-    section_based_generation: bool = True
-    section_word_tolerance: float = Field(gt=0.0, le=1.0)
-    rewrite_length_tolerance: float = Field(gt=0.0, le=1.0)
-    max_sections_per_revision_cycle: int = Field(ge=1, le=10)
-    max_revision_cycles: int = Field(ge=0, le=6)
-    # A short pilot must not spend a full-film-sized repair budget. This is
-    # the total number of model-backed revision calls allowed by the master
-    # writer's repair paths for one generation attempt.
-    max_revision_calls: int = Field(default=6, ge=1, le=20)
-    max_pilot_approval_revisions: int = Field(default=1, ge=0, le=3)
-    minimum_engagement_improvement: float = Field(ge=0.0, le=50.0)
-    min_act_budget_share: float = Field(gt=0.0, le=0.5)
-    max_span_repairs_per_pass: int = Field(ge=1, le=50)
 
 
 class ScaledStageTimeBudgetConfig(BaseModel):
@@ -628,8 +915,6 @@ class ScaledStageTimeBudgetConfig(BaseModel):
 
 
 class CostControlConfig(BaseModel):
-    max_master_tokens_per_case: int = Field(gt=0)
-    max_master_cost_usd: float = Field(gt=0.0)
     stage_time_budgets: dict[str, ScaledStageTimeBudgetConfig] = Field(default_factory=dict)
 
 
@@ -639,7 +924,7 @@ class BudgetConfig(BaseModel):
     total_cap_eur: float = Field(default=20.0, gt=0.0)
     usd_to_eur: float = Field(default=0.92, gt=0.0)
     stage_estimate_eur: dict[str, float] = Field(default_factory=lambda: {
-        "research": 0.50, "master_story": 1.00, "translation": 0.50,
+        "research": 0.50,
         "tts": 2.00, "heygen": 2.00, "thumbnails": 0.20, "shorts": 2.00,
     })
 
@@ -748,6 +1033,9 @@ class EvidenceSelectionConfig(BaseModel):
     # shares a source and at least this many terms (of this length) with it.
     term_min_length: int = Field(ge=2, le=10)
     contradiction_min_shared_terms: int = Field(ge=1, le=10)
+    # A newly found contradiction whose topic is this similar (0-100) to a stored
+    # one is the same contradiction and is not added again.
+    same_contradiction_ratio: int = Field(ge=50, le=100)
 
 
 class YouTubeResearchConfig(BaseModel):
@@ -904,6 +1192,19 @@ class ReviewGroup(BaseModel):
     # models, so a rate-limited writer never hands its text to the model
     # that will grade it.
     strict: bool = False
+    # The owner explicitly allows a reviewer on the model of the authors it
+    # judges, for THIS group only; owner_decision records the decision.
+    same_model_allowed: bool = False
+    owner_decision: str = ""
+
+    @model_validator(mode="after")
+    def _exception_is_recorded(self):
+        if self.same_model_allowed and not self.owner_decision.strip():
+            raise ValueError(
+                f"review group {self.name!r} allows a reviewer on an author's model "
+                "but records no owner_decision"
+            )
+        return self
 
 
 ReviewIndependenceConfig.model_rebuild()
@@ -914,7 +1215,7 @@ class VoiceBlocksConfig(BaseModel):
 
     Blocks never split a sentence, never cross an act boundary and prefer
     paragraph ends. Durations are estimated from the per-language
-    localization.words_per_minute until real audio exists."""
+    language_pipeline.words_per_minute until real audio exists."""
 
     min_seconds: float = Field(default=30.0, gt=0)
     target_seconds: float = Field(default=60.0, gt=0)
@@ -1322,6 +1623,9 @@ class HostConfig(BaseModel):
     # The host talks a little faster than the narrator (words per minute
     # of the language x this factor).
     pace_factor: float = Field(default=1.08, ge=0.8, le=1.5)
+    # The host's voice settings (a style of voice.styles): audibly a conversation, not the
+    # narration's documentary delivery.
+    voice_style: str = "host_conversational"
     # Context sizes sent to the director/writer.
     archive_cases: int = Field(default=30, ge=0)
     memory_items: int = Field(default=80, ge=0)
@@ -2156,6 +2460,12 @@ class FootageConfig(BaseModel):
     piece_max_seconds: float = Field(default=20.0, gt=2)
     piece_overlap_seconds: float = Field(default=2.0, ge=0.0)
     max_pieces_per_source: int = Field(default=12, ge=1, le=60)
+    # Footage from other people (the providers below): no clip plays longer than this, and
+    # all of it together fills at most this share of the film; our own and licensed
+    # pictures carry the story.
+    max_third_party_clip_seconds: float = Field(default=20.0, gt=1)
+    max_third_party_share: float = Field(default=0.15, ge=0.0, le=1.0)
+    third_party_providers: list[str] = ["wikimedia_video", "internet_archive", "film_candidate"]
     # ffmpeg scene-change score above which a cut is detected (0..1)
     scene_threshold: float = Field(default=0.32, gt=0.0, lt=1.0)
     # The segmenter watches the video in windows of this many seconds
@@ -2322,15 +2632,13 @@ class AIConfig(BaseModel):
         minimum_grounding_score=0.85,
         max_unsupported_claims=2,
         max_grounding_repair_iterations=1,
-        section_engagement_threshold=55,
-        max_section_rewrites=2,
         consistency_max_high_severity=0,
         disputed_confidence_threshold=0.7,
     ))
     language_quality: dict[str, LanguageQualityConfig] = {}
     multilingual: MultilingualConfig = Field(default_factory=MultilingualConfig)
-    localization: LocalizationConfig
-    master_generation: MasterGenerationConfig
+    language_pipeline: LanguagePipelineConfig
+    video_rights: VideoRightsConfig
     cost_control: CostControlConfig
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     research_depth: ResearchDepthConfig
@@ -2444,6 +2752,8 @@ class AIConfig(BaseModel):
             for role in _WEB_FETCH_ROLES:
                 self._require_capability(rp, role, "web_fetch")
         self._validate_review_independence()
+        self._validate_language_agents()
+        self._validate_host_voice_style()
         gp = self.generation_provider()
         for role in VISION_ROLES:
             model = gp.models[gp.routing[role]]
@@ -2458,6 +2768,34 @@ class AIConfig(BaseModel):
                 f"performance.style_for_intent uses unknown voice styles: {sorted(unknown_styles)}"
             )
         return self
+
+    def _validate_host_voice_style(self) -> None:
+        if self.host.voice_style not in self.voice.styles:
+            raise ValueError(f"host.voice_style {self.host.voice_style!r} is not in voice.styles")
+
+    def _validate_language_agents(self) -> None:
+        lp = self.language_pipeline
+        named = {a for entry in lp.language_agents.values()
+                 for a in (entry.rewrite, entry.inspect, entry.final, entry.length_correction, entry.fidelity)
+                 if a}
+        unknown = named - set(self.agents)
+        if unknown:
+            raise ValueError(f"language_pipeline names agents that are not defined: {sorted(unknown)}")
+        languages = set(self.multilingual.production_languages)
+        for table in ("language_agents", "language_stages"):
+            entries = set(getattr(lp, table))
+            if entries != languages:
+                raise ValueError(
+                    f"language_pipeline.{table} must have exactly one entry per production language "
+                    f"{sorted(languages)}; missing {sorted(languages - entries)}, "
+                    f"unknown {sorted(entries - languages)}")
+        for language, stage in lp.language_stages.items():
+            if (stage.source == "draft") != (language == lp.draft_language):
+                raise ValueError(
+                    f"language_pipeline.language_stages.{language}.source must be 'draft' for the draft "
+                    f"language ({lp.draft_language}) and 'english_final' for every other language")
+            if stage.check == "fidelity" and not lp.language_agents[language].fidelity:
+                raise ValueError(f"language_pipeline.language_agents.{language} needs a fidelity agent")
 
     def _validate_review_independence(self) -> None:
         ri = self.review_independence
@@ -2485,6 +2823,8 @@ class AIConfig(BaseModel):
                         f"alias {a!r}"
                     )
         for g in groups:
+            if g.same_model_allowed:
+                continue
             author_models = {gp.models[gp.routing[r]] for r in g.authors}
             for role in g.reviewers:
                 model = gp.models[gp.routing[role]]
@@ -2612,10 +2952,8 @@ class AIConfig(BaseModel):
         return self.language_quality.get(language)
 
     def words_per_minute_for(self, language: str) -> int:
-        """Per-language narration rate; falls back to the story default."""
-        return self.localization.words_per_minute.get(
-            language, self.story.words_per_minute
-        )
+        """Per-language narration rate."""
+        return self.language_pipeline.words_per_minute_for(language)
 
 
 def config_files(config_dir: Path = CONFIG_DIR) -> list[Path]:

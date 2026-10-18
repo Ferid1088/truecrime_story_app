@@ -38,23 +38,23 @@ def test_config_file_loads():
 
 def test_invalid_config_fails():
     raw = _raw_config()
-    raw["generation_providers"]["apimaster"]["routing"]["writer"] = "nonexistent_alias"
+    raw["generation_providers"]["apimaster"]["routing"]["fact_extractor"] = "nonexistent_alias"
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
-    raw["generation_providers"]["apimaster"]["routing"]["writer"] = "unknown_role"
+    raw["generation_providers"]["apimaster"]["routing"]["fact_extractor"] = "unknown_role"
     del raw["generation_providers"]["apimaster"]["models"]["cheap"]
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
-    raw["generation"]["writer"]["temperature"] = 9.9
+    raw["generation"]["fact_extractor"]["temperature"] = 9.9
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
-    del raw["generation"]["engagement_critic"]
+    del raw["generation"]["grounding_validator"]
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
@@ -78,14 +78,13 @@ def test_invalid_fallback_config_fails():
 
 def test_invalid_story_config_fails():
     raw = _raw_config()
-    raw["story"]["minimum_length_ratio"] = 1.5
+    raw["story"]["default_target_minutes"] = raw["story"]["max_target_minutes"] + 1
     with pytest.raises(ValueError):
         AIConfig.model_validate(raw)
 
     raw = _raw_config()
-    raw["story"]["minimum_length_ratio"] = 0.9
-    raw["story"]["maximum_length_ratio"] = 0.5
-    with pytest.raises(ValueError):
+    raw["language_pipeline"]["long_draft_minutes"] = 40     # shorter than the final it feeds
+    with pytest.raises(ValueError, match="long_draft_minutes"):
         AIConfig.model_validate(raw)
 
 
@@ -107,11 +106,10 @@ EXPECTED_ROUTING = {
     "grounding_validator": "cheap",
     "consistency_checker": "cheap",
     "story_director": "premium",
-    "writer": "premium",
-    "rewriter": "premium",
-    "engagement_critic": "writer",
-    "section_critic": "writer",
-    "final_editor": "premium",
+    "language_draft_writer": "writer",
+    "language_rewrite_writer": "sol",
+    "language_inspector": "sol",
+    "language_final_writer": "sol",
 }
 
 
@@ -125,21 +123,19 @@ def test_logical_model_routing():
 def test_model_aliases_resolve():
     models = ai_config.generation_provider().models
     assert set(models) == {
-        "cheap", "research_intelligence", "writer", "premium", "embedding"}
+        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding"}
     for spec in models.values():
         assert "/" not in spec  # bare APIMaster model IDs
 
 
 def test_fallback_chain_from_config():
     models = ai_config.generation_provider().models
-    assert ai_config.fallback_models_for("writer") == [models["writer"]]
     assert ai_config.fallback_models_for("fact_extractor") == [models["writer"]]
+    assert ai_config.fallback_models_for("language_draft_writer") == [models["premium"]]   # Flash falls back to Sonnet
     # Reviewers never fall back to the writer model (review_independence):
     # a rate-limited critic must not become the author grading itself.
-    assert ai_config.fallback_models_for("engagement_critic") == []
-    assert models["writer"] not in ai_config.fallback_models_for(
-        "native_language_critic"
-    )
+    assert models["premium"] not in ai_config.fallback_models_for("grounding_validator")
+    assert ai_config.fallback_models_for("language_rewrite_writer") == []
 
 
 def test_unknown_role_raises():
@@ -189,7 +185,7 @@ def test_fallback_on_rate_limit_records_actual_model():
         return "text", model, {}
 
     with patch.object(provider, "_chat", side_effect=flaky):
-        res = asyncio.run(provider.generate_text("writer", "sys", "user"))
+        res = asyncio.run(provider.generate_text("fact_extractor", "sys", "user"))
     assert calls == [models["premium"], models["writer"]]
     assert res.model == models["writer"]
     assert res.fallback_used is True
@@ -215,7 +211,7 @@ def test_discarded_billed_attempt_before_a_successful_fallback_is_not_lost():
                                "total_tokens": 70, "cost_usd": 0.002}
 
     with patch.object(provider, "_chat", side_effect=first_truncated_then_ok):
-        res = asyncio.run(provider.generate_text("writer", "sys", "user"))
+        res = asyncio.run(provider.generate_text("fact_extractor", "sys", "user"))
     assert calls == [models["premium"], models["premium"]]  # same-model retry, not a fallback
     assert res.input_tokens == 250
     assert res.output_tokens == 120
@@ -243,7 +239,7 @@ def test_discarded_billed_attempts_are_kept_even_if_every_candidate_fails():
 
     with patch.object(provider, "_chat", side_effect=billed_then_unbilled_timeout):
         with pytest.raises(GenerationError) as exc:
-            asyncio.run(provider.generate_text("writer", "sys", "user"))
+            asyncio.run(provider.generate_text("fact_extractor", "sys", "user"))
     assert exc.value.provider == "apimaster"
     assert exc.value.input_tokens == 200
     assert exc.value.output_tokens == 100
@@ -258,7 +254,7 @@ def test_no_fallback_on_unauthorized():
 
     with patch.object(provider, "_chat", side_effect=denied):
         with pytest.raises(GenerationError) as exc:
-            asyncio.run(provider.generate_text("writer", "sys", "user"))
+            asyncio.run(provider.generate_text("fact_extractor", "sys", "user"))
     assert exc.value.kind == "unauthorized"
 
 
@@ -476,29 +472,8 @@ def test_language_quality_detects_script_leakage():
     assert language_quality("anything goes", "en", None)["pass"] is True
 
 
-def test_length_gate_boundaries():
-    from app.agents.story import StoryPipeline
-
-    pipe = StoryPipeline()
-    target = ai_config.story.default_target_minutes * ai_config.story.words_per_minute
-    inside = " ".join(["w"] * int(target * 0.95))
-    short = " ".join(["w"] * int(target * 0.5))
-    long = " ".join(["w"] * int(target * 1.5))
-
-    assert pipe._evaluate_gates(inside, "en", ai_config.story.default_target_minutes)["pass"]
-    assert not pipe._evaluate_gates(short, "en", ai_config.story.default_target_minutes)["pass"]
-    assert not pipe._evaluate_gates(long, "en", ai_config.story.default_target_minutes)["pass"]
 
 
-def test_purity_gate_flags_urls():
-    from app.agents.story import StoryPipeline
-
-    pipe = StoryPipeline()
-    target = ai_config.story.default_target_minutes
-    words = target * ai_config.story.words_per_minute
-    story = " ".join(["w"] * int(words)) + " https://example.com"
-    gates = pipe._evaluate_gates(story, "en", target)
-    assert "output_purity" in gates["failures"]
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +483,7 @@ def test_purity_gate_flags_urls():
 
 def _mk_case(db, title=None):
     import uuid
+
     from app.db.models import Case
     from app.utils import slugify
 
@@ -520,14 +496,13 @@ def _mk_case(db, title=None):
 
 
 def test_new_version_status_and_best_flag(db_session):
-    from app.agents.story import StoryPipeline
+    from app.agents.story import save_story_version
     from app.providers.generation.base import GenerationResult
 
-    pipe = StoryPipeline()
     case = _mk_case(db_session)
     res = GenerationResult(text="x", model="m/test", provider="legacy-provider")
 
-    v1 = pipe._new_version(
+    v1 = save_story_version(
         db_session, case, "plan", [{"id": "full", "text": "story one"}],
         "story one", 80.0, None, "not_evaluated",
         {"quality_gates": {"pass": True}}, "en", res,
@@ -537,7 +512,7 @@ def test_new_version_status_and_best_flag(db_session):
     assert v1.text_hash
 
     # Lower score must not dethrone v1.
-    v2 = pipe._new_version(
+    v2 = save_story_version(
         db_session, case, "plan", [{"id": "full", "text": "story two"}],
         "story two", 60.0, None, "not_evaluated",
         {"quality_gates": {"pass": False}}, "en", res,
@@ -547,7 +522,7 @@ def test_new_version_status_and_best_flag(db_session):
     assert v1.is_best is True
 
     # Higher score becomes the new best.
-    v3 = pipe._new_version(
+    v3 = save_story_version(
         db_session, case, "plan", [{"id": "full", "text": "story three"}],
         "story three", 90.0, None, "not_evaluated",
         {"quality_gates": {"pass": True}}, "en", res,
@@ -562,9 +537,9 @@ def test_stamp_run_records_role_and_fallback(db_session):
 
     run = record_run(db_session, None, "T", "completed")
     res = GenerationResult(text="x", model="m/fb", provider="legacy-provider", fallback_used=True)
-    stamp_run(run, res, "writer")
+    stamp_run(run, res, "fact_extractor")
     db_session.commit()
-    assert run.role == "writer"
+    assert run.role == "fact_extractor"
     assert run.fallback_used is True
     assert run.model == "m/fb"
 
@@ -577,32 +552,13 @@ def test_stamp_run_tolerates_a_missing_generation_result(db_session):
     from app.services.tracking import record_run, stamp_run
 
     run = record_run(db_session, None, "T", "completed")
-    stamp_run(run, None, "writer", text_hash="abc123")
+    stamp_run(run, None, "fact_extractor", text_hash="abc123")
     db_session.commit()
     assert run.provider is None
     assert run.model is None
     assert run.text_hash == "abc123"
 
 
-def test_similarity_not_evaluated_without_source_text(db_session):
-
-    from app.agents.story import StoryPipeline
-    from app.db.models import Source
-
-    pipe = StoryPipeline()
-    case = _mk_case(db_session)
-    db_session.add(
-        Source(
-            case_id=case.id, title="S", url="https://x.com",
-        source_type="article", research_provider="legacy-provider",
-            summary="Only a summary, no raw text.",
-        )
-    )
-    db_session.commit()
-    score, status = pipe._score_similarity(
-        db_session, case, "story text", case.sources
-    )
-    assert score is None and status == "not_evaluated"
 
 
 # ---------------------------------------------------------------------------
@@ -656,9 +612,9 @@ def test_apimaster_status_shape(client):
     body = r.json()
     assert body["provider"] == "apimaster"
     assert set(body["models"]) == {
-        "cheap", "research_intelligence", "writer", "premium", "embedding"}
-    assert body["routing"]["writer"] == "premium"
-    assert body["routing"]["engagement_critic"] == "writer"
+        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding"}
+    assert body["routing"]["story_director"] == "premium"
+    assert body["routing"]["grounding_validator"] == "cheap"
     assert "apk" not in json.dumps(body)
 
 
@@ -674,8 +630,8 @@ def test_settings_status_exposes_models_not_keys(client):
     gen = body["generation"]
     assert gen["provider"] == "apimaster"
     assert set(gen["models"]) == {
-        "cheap", "research_intelligence", "writer", "premium", "embedding"}
-    assert gen["routing"]["final_editor"] == "premium"
+        "cheap", "research_intelligence", "writer", "premium", "sol", "luna", "embedding"}
+    assert gen["routing"]["language_final_writer"] == "sol"
     res = body["research"]
     assert res["provider"] == "truecrime"
     assert "sk-" not in json.dumps(body)
@@ -736,7 +692,7 @@ def test_strip_narration_artifacts():
 
 
 def test_parse_sections_markers():
-    from app.agents.story import _parse_sections, _join_sections
+    from app.agents.story import _join_sections, _parse_sections
 
     raw = "[[ACT:act1]]\n\nFirst act text.\n\n[[ACT:act2]]\n\nSecond act text."
     sections = _parse_sections(raw)
@@ -746,48 +702,8 @@ def test_parse_sections_markers():
     assert "First act" in joined and "Second act" in joined
 
 
-def test_grounding_gate_failures():
-    from app.agents.story import StoryPipeline
-
-    pipe = StoryPipeline()
-    target = ai_config.story.default_target_minutes
-    story = _big_words(int(target * ai_config.story.words_per_minute))
-
-    bad = {
-        "grounding_score": 0.5,
-        "unsupported_claims": [{"claim": "x"}] * 5,
-        "uncertainty_errors": [],
-    }
-    g = pipe._evaluate_gates(story, "en", target, grounding=bad, engagement=95)
-    assert "grounding" in g["failures"]
-
-    certain = {
-        "grounding_score": 0.99,
-        "unsupported_claims": [],
-        "uncertainty_errors": [{"claim": "disputed told as fact", "evidence_id": "F001"}],
-    }
-    g = pipe._evaluate_gates(story, "en", target, grounding=certain, engagement=95)
-    assert "grounding" in g["failures"]
-
-    ok = {"grounding_score": 0.95, "unsupported_claims": [], "uncertainty_errors": []}
-    g = pipe._evaluate_gates(story, "en", target, grounding=ok, engagement=95)
-    assert g["pass"]
 
 
-def test_consistency_gate_fails_on_high_severity():
-    from app.agents.story import StoryPipeline
-
-    pipe = StoryPipeline()
-    target = ai_config.story.default_target_minutes
-    story = _big_words(int(target * ai_config.story.words_per_minute))
-
-    viol = {"violations": [{"severity": "high", "detail": "lamp extinguished forever but relit 1901"}]}
-    g = pipe._evaluate_gates(story, "en", target, consistency=viol, engagement=95)
-    assert "consistency" in g["failures"]
-
-    low = {"violations": [{"severity": "low", "detail": "minor"}]}
-    g = pipe._evaluate_gates(story, "en", target, consistency=low, engagement=95)
-    assert "consistency" not in g["failures"]
 
 
 def test_usage_metadata_recorded_and_nullable(db_session):
@@ -799,122 +715,26 @@ def test_usage_metadata_recorded_and_nullable(db_session):
         input_tokens=10, output_tokens=20, total_tokens=30,
         cost_usd=0.001, generation_id="gen-1",
     )
-    stamp_run(run, res, "writer")
+    stamp_run(run, res, "fact_extractor")
     db_session.commit()
     assert run.input_tokens == 10 and run.total_tokens == 30
     assert run.estimated_cost_usd == 0.001 and run.generation_id == "gen-1"
 
     run2 = record_run(db_session, None, "T", "completed")
-    stamp_run(run2, GenerationResult(text="x", model="m/t", provider="legacy-provider"), "writer")
+    stamp_run(run2, GenerationResult(text="x", model="m/t", provider="legacy-provider"), "fact_extractor")
     db_session.commit()
     assert run2.total_tokens is None and run2.estimated_cost_usd is None
 
 
-class _FakeGen:
-    """Scripted generation provider — no HTTP, deterministic outputs."""
-
-    def __init__(self, critic_score=90):
-        self.calls = []
-        self.critic_score = critic_score
-
-    def is_configured(self):
-        return True
-
-    async def generate_text(self, role, system, user):
-        self.calls.append(("text", role))
-        if role == "writer":
-            body = _big_words(650) + "\n\n"
-            text = f"[[ACT:act1]]\n\n{body}[[ACT:act2]]\n\n{body}"
-            return GenerationResult(text=text, model="m/w", provider="fake")
-        return GenerationResult(text=_big_words(1300), model="m/rw", provider="fake")
-
-    async def generate_structured(self, role, system, user):
-        self.calls.append(("json", role))
-        table = {
-            "story_director": {
-                "title": "t", "central_question": "q",
-                "acts": [{"id": "act1", "title": "a"}, {"id": "act2", "title": "b"}],
-            },
-            "engagement_critic": {
-                "score": self.critic_score, "dimensions": {},
-                "problems": [], "rewrite_instructions": [],
-            },
-            "section_critic": {"score": 90, "problems": []},
-            "grounding_validator": {
-                "supported_claims": [], "unsupported_claims": [],
-                "uncertainty_errors": [], "grounding_score": 0.95,
-            },
-            "consistency_checker": {"violations": []},
-        }
-        return table[role], GenerationResult(text="{}", model="m/j", provider="fake")
 
 
-def test_pipeline_final_critic_scores_stored_text(db_session, monkeypatch):
-    """The engagement score stored must be generated for the exact text saved."""
-    import app.agents.story as story_mod
-    from app.db.models import Fact
-    from app.utils import text_hash
-
-    fake = _FakeGen(critic_score=95)
-    monkeypatch.setattr(story_mod, "get_generation_provider", lambda: fake)
-
-    case = _mk_case(db_session)
-    db_session.add(Fact(case_id=case.id, claim="F", category="context", confidence=0.9))
-    db_session.commit()
-
-    pipe = story_mod.StoryPipeline()
-    v = asyncio.run(pipe.run(db_session, case, target_minutes=10, language="en", tone="t", iterations=1))
-
-    assert v.text_hash == text_hash(v.story_text)
-    assert "[[ACT" not in v.story_text
-    assert v.narrative_structure  # structure stored separately
-    struct = json.loads(v.narrative_structure)
-    assert struct["acts"] or struct["sections"]
-
-    # The critic run that produced the stored score must carry the same hash.
-    from app.db.models import AgentRun
-    critic_runs = [
-        r for r in db_session.query(AgentRun).filter(AgentRun.case_id == case.id)
-        if r.role == "engagement_critic"
-    ]
-    assert critic_runs and critic_runs[-1].text_hash == v.text_hash
 
 
-def test_pipeline_stale_critique_detectable(db_session, monkeypatch):
-    """If text changes after critique, the hashes provably differ."""
-    import app.agents.story as story_mod
-    from app.db.models import Fact, AgentRun
-    from app.utils import text_hash
-
-    class DriftyFake(_FakeGen):
-        async def generate_text(self, role, system, user):
-            if role == "final_editor":
-                return GenerationResult(
-                    text=_big_words(900) + " changed tail", model="m/e", provider="fake"
-                )
-            return await super().generate_text(role, system, user)
-
-    fake = DriftyFake(critic_score=95)
-    monkeypatch.setattr(story_mod, "get_generation_provider", lambda: fake)
-    case = _mk_case(db_session)
-    db_session.add(Fact(case_id=case.id, claim="F", category="context", confidence=0.9))
-    db_session.commit()
-    v = asyncio.run(
-        story_mod.StoryPipeline().run(
-            db_session, case, target_minutes=10, language="en", tone="t", iterations=1
-        )
-    )
-    final_critic = [
-        r for r in db_session.query(AgentRun).filter(AgentRun.case_id == case.id)
-        if r.role == "engagement_critic"
-    ][-1]
-    # Final critic ran on the post-edit text — hash matches the stored version.
-    assert final_critic.text_hash == v.text_hash == text_hash(v.story_text)
 
 
 def test_evidence_pack_ids_and_uncertainty(db_session):
     from app.agents.story import build_evidence_pack
-    from app.db.models import Fact, Contradiction, Source
+    from app.db.models import Contradiction, Fact, Source
 
     case = _mk_case(db_session)
     db_session.add(Fact(case_id=case.id, claim="low conf", category="x", confidence=0.5))
@@ -934,54 +754,5 @@ def test_evidence_pack_ids_and_uncertainty(db_session):
     assert [f["id"] for f in pack["disputed_facts"]] == ["F001"]
 
 
-def test_section_rewrite_preserves_other_sections(db_session, monkeypatch):
-    import app.agents.story as story_mod
-
-    async def weak_scores(self, title, text, position):
-        score = 20 if "weak" in title else 90
-        return {"score": score, "problems": ["flat"]}, GenerationResult(
-            text="{}", model="m/c", provider="fake"
-        )
-
-    monkeypatch.setattr(
-        story_mod.EngagementCritic, "critique_section", weak_scores
-    )
-    class SizedFake(_FakeGen):
-        async def generate_text(self, role, system, user):
-            if role == "writer":
-                return await super().generate_text(role, system, user)
-            return GenerationResult(
-                text="rewritten weak section", model="m/rw",
-                provider="fake",
-            )
-
-    fake = SizedFake()
-    monkeypatch.setattr(story_mod, "get_generation_provider", lambda: fake)
-    sections = [
-        {"id": "good", "text": "original good section"},
-        {"id": "weak", "text": "original weak section"},
-    ]
-    pipe = story_mod.StoryPipeline()
-    case = _mk_case(db_session)
-    out, scores = asyncio.run(
-        pipe._section_pass(db_session, case, sections, {"facts": []}, {}, "en")
-    )
-    assert out[0]["text"] == "original good section"
-    assert out[1]["text"] != "original weak section"  # rewritten
 
 
-def test_story_quality_config_drives_gates(monkeypatch):
-    from app.agents.story import StoryPipeline
-
-    pipe = StoryPipeline()
-    target = ai_config.story.default_target_minutes
-    story = _big_words(int(target * ai_config.story.words_per_minute))
-    marginal = {
-        "grounding_score": 0.5, "unsupported_claims": [],
-        "uncertainty_errors": [],
-    }
-    g1 = pipe._evaluate_gates(story, "en", target, grounding=marginal, engagement=95)
-    assert "grounding" in g1["failures"]
-    monkeypatch.setattr(ai_config.story_quality, "minimum_grounding_score", 0.4)
-    g2 = pipe._evaluate_gates(story, "en", target, grounding=marginal, engagement=95)
-    assert "grounding" not in g2["failures"]

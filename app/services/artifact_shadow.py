@@ -43,6 +43,9 @@ ROOT = Path(__file__).resolve().parents[2]
 STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
     "research": ("research_result",), "master_story": ("master_story",),
     "master_approval": ("master_story",),
+    # the language pipeline's stages; master_story / master_approval above stay so that jobs
+    # run before it remain readable
+    "language_pipeline": ("master_story",), "final_approval": ("master_story",),
     "blueprint": ("beats",), "audio_plan": ("audio_blocks",),
     "spoken": ("spoken_version",), "host_plan": ("host_plan",), "chapters": (
         "chapter_plan", "timeline_cards", "chapter_cards"),
@@ -256,7 +259,7 @@ def _source_payload(db, job, stage: str, language: str | None, detail: dict | No
             "resolution_status": case.resolution_status if case else None,
         }
     if artifact_type in ("master_story", "master_approval"):
-        source["story"] = _row_payload(_get(db, StoryVersion, detail.get("master_version_id")))
+        source["story"] = _row_payload(_get(db, StoryVersion, detail.get("final_version_id") or detail.get("master_version_id")))
     elif artifact_type == "beats":
         source["blueprint"] = _row_payload(_get(db, EditorialBlueprint, detail.get("blueprint_id")))
     elif artifact_type in ("audio_blocks", "music_cues"):
@@ -364,7 +367,7 @@ def _output_payload(db, job, stage: str, language: str | None, detail: dict,
     elif artifact_type == "visual_asset":
         payload["row"] = _row_payload(_get(db, VisualAsset, detail.get("asset_id")))
     elif artifact_type in ("master_story", "master_approval"):
-        payload["row"] = _row_payload(_get(db, StoryVersion, detail.get("master_version_id")))
+        payload["row"] = _row_payload(_get(db, StoryVersion, detail.get("final_version_id") or detail.get("master_version_id")))
     elif artifact_type == "beats":
         payload["row"] = _row_payload(_get(db, EditorialBlueprint, detail.get("blueprint_id")))
     elif artifact_type in ("audio_blocks", "music_cues"):
@@ -573,6 +576,7 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
                                 if scope.get("asset_id") == asset_row.asset_code:
                                     dependencies.append(candidate.id)
                     scope_stage = {"master_approval": "master_story",
+                                   "final_approval": "language_pipeline",
                                    "visual_gaps": "visual_plan",
                                    "critique": "production",
                                    "visual_audit": "production"}.get(stage, stage)

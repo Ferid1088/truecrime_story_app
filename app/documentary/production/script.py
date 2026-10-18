@@ -595,16 +595,27 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
     close) and an earned picture takes over — a frozen last frame is not
     a picture. Without an allowed picture the last frame holds."""
     hold = ai_config.motion.min_hold_seconds
+    footage = ai_config.footage
+    budget = footage.max_third_party_share * max((sh["end"] for sh in shots), default=0.0)
     out: list[dict] = []
     for sh in shots:
         if sh.get("kind") != "video" or sh.get("clip_end") is None:
             out.append(sh)
             continue
         length = float(sh["clip_end"]) - float(sh.get("clip_start") or 0.0)
-        if length <= 0 or sh["end"] - sh["start"] <= length + hold:
+        third_party = (assets.get(sh.get("asset_id")) is not None
+                       and assets[sh["asset_id"]].provider in footage.third_party_providers)
+        if third_party:
+            # other people's footage: capped per clip and in total
+            length = min(length, footage.max_third_party_clip_seconds, max(budget, 0.0))
+            budget -= min(length, sh["end"] - sh["start"])
+        if length <= 0 and not third_party:
             out.append(sh)
             continue
-        cut = round(sh["start"] + length, 3)
+        if sh["end"] - sh["start"] <= length + hold and length > 0:
+            out.append(sh)
+            continue
+        cut = round(sh["start"] + max(length, 0.0), 3)
         near = [x for x in sentence_starts if sh["start"] + hold <= x <= cut and cut - x <= 3.0]
         if near:
             cut = round(max(near), 3)
@@ -615,7 +626,8 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
             out.append(sh)
             continue
         tracker.discard(sh["asset_id"], cut, sh["end"])
-        out.append({**sh, "end": cut})
+        if cut > sh["start"]:
+            out.append({**sh, "end": cut})
         pick = assets[choice["asset_id"]]
         tracker.add(pick.asset_code, cut, sh["end"])
         out.append({**{k: v for k, v in _base(sh).items()
@@ -1274,7 +1286,7 @@ def overlay_texts(plan: dict) -> dict[str, str]:
     return items
 
 
-async def localized_plan_texts(db: Session, version: StoryVersion,
+async def plan_texts_in_language(db: Session, version: StoryVersion,
                                plan_row: VisualPlan) -> dict[str, str]:
     """On-screen texts of the plan in the version's language, cached on
     the plan (one localizer call per language, reused by every render)."""
@@ -1320,7 +1332,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                                   manifest: dict, mode: str = "pilot",
                                   production_type: str = "original") -> ProductionScript:
     language = version.language or "en"
-    texts = await localized_plan_texts(db, version, plan_row)
+    texts = await plan_texts_in_language(db, version, plan_row)
     plan = json.loads(plan_row.plan_json or "{}")
     assets = {a.asset_code: a for a in db.query(VisualAsset).filter(
         VisualAsset.case_id == version.case_id).all()}
@@ -1335,7 +1347,6 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                or (plan.get("opening") or {}).get("strategy"))
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     from app.documentary.chapters import cards_for, latest_chapter_plan
-
     from app.documentary.intros import intro_seconds
 
     cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)

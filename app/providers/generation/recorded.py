@@ -16,10 +16,12 @@ class RecordedE2EGenerationProvider(GenerationProvider):
     async def check_health(self) -> bool:
         return True
 
-    async def generate_text(self, role: str, system: str, user: str, images=None) -> GenerationResult:
+    async def generate_text(self, role: str, system: str, user: str, images=None, *,
+                            prefix=None, cache_key=None) -> GenerationResult:
         return GenerationResult(text="Recorded E2E response", model="recorded-e2e", provider=self.name)
 
-    async def generate_structured(self, role: str, system: str, user: str, images=None):
+    async def generate_structured(self, role: str, system: str, user: str, images=None, *,
+                                  prefix=None, cache_key=None):
         try:
             payload = json.loads(user)
         except (TypeError, ValueError):

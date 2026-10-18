@@ -35,6 +35,7 @@ from app.documentary.visuals.images import dhash, hamming
 from app.documentary.visuals.planner import research_queries, validate_requirements
 from app.documentary.visuals.research import page_images
 from app.providers.generation.base import GenerationResult
+from app.db.models import DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan
 
 needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
 
@@ -108,7 +109,7 @@ def test_dhash_finds_near_duplicates():
         ("de", "early June 2007", None),
     ],
 )
-def test_dates_are_localized_deterministically(lang, text, out):
+def test_dates_are_formatted_per_language_deterministically(lang, text, out):
     assert format_date(text, lang) == out
 
 
@@ -1101,15 +1102,18 @@ def documentary_env(tmp_path, monkeypatch):
                 # requires one beat coverage per source paragraph.
                 sections[-1]["text"] += f" Research anchor: {research.title}"
                 story_text = "\n\n".join(section["text"] for section in sections)
-                master = self.db.query(StoryVersion).filter_by(kind="master").first()
+                master = self.db.query(StoryVersion).filter_by(kind="final").first()
                 if master is None:
                     master = StoryVersion(
-                        case_id=case.id, version=1, kind="master",
-                        language=ai_config.multilingual.canonical_language,
+                        case_id=case.id, version=1, kind="final", language="en",
+                        approved_by="test", approved_at=APPROVED_AT,
                     )
                     self.db.add(master)
                 master.narrative_angle = "{}"
+                from app.agents.story import current_evidence_fingerprint
+
                 master.narrative_structure = json.dumps({
+                    "evidence_fingerprint": current_evidence_fingerprint(self.db, case.id),
                     "sections": [
                         {**section, "words": len(section["text"].split())}
                         for section in sections
@@ -1267,7 +1271,7 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     case, master = _story(db_session)
     case.resolution_status = "UNSOLVED"  # no public title without a solved/unsolved status
     db_session.commit()
-    job = J.create_job(db_session, case, master, ["en", "de"], "pilot", 80.0, "preview")
+    job = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
@@ -1280,10 +1284,10 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
         for name, s in stages.items()
     )
     film = stages["film_length"]["detail"]
-    assert film["warning"] and set(film["estimated_minutes"]) == {"en", "de"}
+    assert film["warning"] and set(film["estimated_minutes"]) == {"en"}
     assert stages["visual_check"]["detail"]["verified"] == 2
     result = json.loads(job.result_json)
-    for lang in ("en", "de"):
+    for lang in ("en",):
         r = result["renders"][lang]
         assert Path(r["path"]).exists() or (Path.cwd() / r["path"]).exists()
         ps = db_session.get(ProductionScript, r["production_script_id"])
@@ -1325,13 +1329,13 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert ch["status"] == "approved" and ch["chapters"] >= 1 and ch["left_out"] == []
     assert "film_title" in documentary_env.cards_audited
     vp = db_session.query(VisualPlan).filter_by(case_id=case.id).one()
-    assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en", "de"}
+    assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en"}
     # the narrator's performance (v3 audio tags) reached the voice
     assert stages["performance:en"]["detail"]["incident_beat"] == "B02"
     assert stages["voice:en"]["detail"]["audio_tags"] is True
     # the on-screen host: one plan, dialogue per language
     assert stages["host_plan"]["detail"]["segments"] == ["S1:opening", "S2:mid@B03"]
-    assert {stages[f"host:{language}"]["detail"]["status"] for language in ("en", "de")} == {
+    assert {stages[f"host:{language}"]["detail"]["status"] for language in ("en",)} == {
         "valid"
     }
     tagged = [r for r in documentary_env.tts.requests if "[softly]" in r.text]
@@ -1351,10 +1355,10 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
 
 
 @needs_ffmpeg
-def test_four_language_shadow_pipeline_real_job(
+def test_shadow_pipeline_real_job(
     isolated_pipeline_db, db_session, documentary_env, monkeypatch
 ):
-    """The four-language proof uses the real pipeline, with only providers mocked."""
+    """The shadow proof uses the real pipeline for one language, with only providers mocked."""
     from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
     from app.db.models import Artifact, ArtifactDep, MusicTrack, MusicUsage
     from app.documentary import jobs as J
@@ -1395,7 +1399,7 @@ def test_four_language_shadow_pipeline_real_job(
             monkeypatch
         )
         case = db_session.query(Case).one()
-        master = db_session.query(StoryVersion).filter_by(kind="master").one()
+        master = db_session.query(StoryVersion).filter_by(kind="final").one()
     elif os.environ.get("SOUNDNESS_FROM_ZERO") == "1":
         from app.db.models import Case
         from app.utils import slugify
@@ -1468,7 +1472,7 @@ def test_four_language_shadow_pipeline_real_job(
         return result
 
     monkeypatch.setattr(documentary_env.spoken, "generate_text", target_script)
-    languages = ["en", "de", "fa", "ar"]
+    languages = ["en"]       # a documentary job belongs to one language
     from_zero = os.environ.get("SOUNDNESS_FROM_ZERO") == "1"
     job = J.create_job(
         db_session, case, master, languages, "pilot", 80.0, "preview",
@@ -1480,7 +1484,7 @@ def test_four_language_shadow_pipeline_real_job(
     if from_zero:
         from app.db.models import StoryVersion
 
-        master = db_session.query(StoryVersion).filter_by(kind="master").one()
+        master = db_session.query(StoryVersion).filter_by(kind="final").one()
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
     assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
@@ -1580,15 +1584,15 @@ def test_four_language_shadow_pipeline_real_job(
     beat_row = next(row for row in rows if row.type == "beats")
     beat_affected = ArtifactRegistry(db_session).invalidate([beat_row.id], "beat text changed")
     assert set(beat_affected) == reachable_types("beats")
-    fa_timing = next(row for row in rows if row.type == "audio_timing" and row.language == "fa")
-    fa_take = next(
+    en_timing = next(row for row in rows if row.type == "audio_timing" and row.language == "en")
+    en_take = next(
         edge.depends_on_id
         for edge in db_session.query(ArtifactDep)
-        .filter(ArtifactDep.artifact_id == fa_timing.id)
+        .filter(ArtifactDep.artifact_id == en_timing.id)
         .all()
     )
-    fa_affected = ArtifactRegistry(db_session).invalidate([fa_take], "fa voice duration changed")
-    assert set(fa_affected) == {
+    en_affected = ArtifactRegistry(db_session).invalidate([en_take], "en voice duration changed")
+    assert set(en_affected) == {
         "voice_takes",
         "audio_timing",
         "music_cues",
@@ -1597,9 +1601,9 @@ def test_four_language_shadow_pipeline_real_job(
         "final_render",
     }
     assert all(
-        row.language in (None, "fa")
+        row.language in (None, "en")
         for row in db_session.query(Artifact).filter(
-            Artifact.id.in_([item for values in fa_affected.values() for item in values])
+            Artifact.id.in_([item for values in en_affected.values() for item in values])
         )
     )
 
@@ -1661,42 +1665,9 @@ def test_four_language_shadow_pipeline_real_job(
             return differences
         return [] if left == right else [f"{path}: {left!r} != {right!r}"]
 
-    differences = diff_values(first_scripts["fa"], second_scripts["fa"])
+    differences = diff_values(first_scripts["en"], second_scripts["en"])
     assert first_scripts == second_scripts, differences[:20]
 
-    # Full-documentary mode-off golden captured from the pre-incremental ref
-    # (05320d5), with only the Phase 2 mock commit applied there. Compare the
-    # clean first-run snapshot, before the resume and second-job checks above.
-    golden_path = Path(__file__).parent / "golden" / "documentary_pipeline_pre_incremental.json"
-    golden = json.loads(golden_path.read_text(encoding="utf-8"))
-    authorized_path = Path(__file__).parent / "golden" / "authorized_deltas.json"
-    authorized = json.loads(authorized_path.read_text(encoding="utf-8"))
-    pilot_authorized_path = Path(__file__).parent / "golden" / "pilot_authorized_deltas.json"
-    pilot_authorized = set(json.loads(pilot_authorized_path.read_text(encoding="utf-8")).get("keys", []))
-    current = baseline_snapshot
-    golden_diff = [
-        key for key in sorted(set(golden) | set(current)) if golden.get(key) != current.get(key)
-    ]
-    # Prompt 18 changes the pilot's editorial target, so the intentionally
-    # shorter spoken/performance/audio outputs have a separate exact-key
-    # authorization list. The regular golden remains strict for everything
-    # outside those declared pilot outputs.
-    unauthorized_diff = [key for key in golden_diff
-                         if key not in authorized and key not in pilot_authorized]
-    print(
-        "MODE_OFF_GOLDEN_DIFF",
-        json.dumps(
-            {
-                "pre_ref": "05320d5",
-                "different": len(golden_diff),
-                "authorized": len(golden_diff) - len(unauthorized_diff),
-                "unauthorized": len(unauthorized_diff),
-                "keys": golden_diff[:20],
-            },
-            sort_keys=True,
-        ),
-    )
-    assert unauthorized_diff == []
     # The real renderer's timeline layout is language-independent in direction.
     window = [{"id": "T1", "date": "1998"}, {"id": "T2", "date": "2007"}]
     for language in ("fa", "ar"):
@@ -1705,7 +1676,7 @@ def test_four_language_shadow_pipeline_real_job(
 
 
 @needs_ffmpeg
-def test_four_language_independent_run_determinism(tmp_path):
+def test_independent_run_determinism(tmp_path):
     """Compare two fresh-process, fresh-DB, fresh-output full runs."""
     from app.services.soundness import saved_request_snapshot
 
@@ -1736,7 +1707,7 @@ def test_four_language_independent_run_determinism(tmp_path):
                 "-m",
                 "pytest",
                 "-q",
-                __file__ + "::test_four_language_shadow_pipeline_real_job",
+                __file__ + "::test_shadow_pipeline_real_job",
             ],
             cwd=root,
             env=env,
@@ -1764,28 +1735,37 @@ def test_four_language_independent_run_determinism(tmp_path):
     )
 
 
-@needs_ffmpeg
-def test_a_failing_language_does_not_stop_the_others(db_session, documentary_env, monkeypatch):
+def test_a_job_belongs_to_one_language_so_a_failing_language_cannot_stop_another(db_session):
     from app.documentary import jobs as J
 
-    real = documentary_env.spoken.generate_text
-
-    async def flaky(role, system, user):
-        if role == "spoken_writer" and "German" in system:
-            raise RuntimeError("writer down for German")
-        return await real(role, system, user)
-
-    monkeypatch.setattr(documentary_env.spoken, "generate_text", flaky)
     case, master = _story(db_session)
-    job = J.create_job(db_session, case, master, ["en", "de"], "pilot", 60.0, "preview")
+    with pytest.raises(ValueError, match="one language"):
+        J.create_job(db_session, case, master, ["en", "de"], "pilot", 60.0, "preview")
+    de = StoryVersion(case_id=case.id, version=2, kind="final", language="de", narrative_angle="{}",
+                      story_text="x", status="ready")
+    db_session.add(de)
+    db_session.commit()
+    with pytest.raises(ValueError, match="job's language"):
+        J.create_job(db_session, case, de, ["en"], "pilot", 60.0, "preview")
+    first = J.create_job(db_session, case, master, ["en"], "pilot", 60.0, "preview")
+    second = J.create_job(db_session, case, de, ["de"], "pilot", 60.0, "preview")
+    assert first.id != second.id and first.master_version_id != second.master_version_id
+
+
+def test_a_job_waits_for_the_owner_to_approve_the_final_version(db_session, documentary_env):
+    from app.documentary import jobs as J
+
+    case, master = _story(db_session)
+    master.approved_at = master.approved_by = None
+    db_session.commit()
+    job = J.create_job(db_session, case, master, ["en"], "pilot", 60.0, "preview")
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
     stages = {s["name"]: s["status"] for s in json.loads(job.stages_json)}
-    assert job.status == "partial" and "writer down for German" in job.error
-    assert stages["spoken:de"] == "failed" and stages["render:de"] == "blocked"
-    assert stages["render:en"] == "done"
-    assert set(json.loads(job.result_json)["renders"]) == {"en"}
+    assert job.status == "failed" and "not approved yet" in job.error
+    assert stages["final_approval"] == "failed" and stages["blueprint"] == "pending"
+    assert "Approve the final version" in json.loads(job.result_json)["failure"]["next_action"]
 
 
 def test_full_film_refuses_short_stories(db_session, documentary_env):
@@ -1815,17 +1795,24 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert s["film_minutes"] == {"min": 45.0, "max": 120.0}
     assert "api_key" not in json.dumps(s).lower()
     ov = client.get(f"/api/cases/{case.id}/documentary").json()
-    assert ov["master_version_id"] == master.id and ov["blueprint"] is None
+    assert ov["final_version_id"] == master.id and ov["blueprint"] is None
+    assert [f["id"] for f in ov["finals"]] == [master.id]
     r = client.post(
         f"/api/cases/{case.id}/documentary/jobs",
-        json={"languages": ["en", "xx"], "mode": "pilot", "pilot_seconds": 60},
+        json={"language": "xx", "mode": "pilot", "pilot_seconds": 60},
+    )
+    assert r.status_code == 422                       # not a supported language
+    r = client.post(
+        f"/api/cases/{case.id}/documentary/jobs",
+        json={"language": "en", "mode": "pilot", "pilot_seconds": 60},
     )
     assert r.status_code == 200, r.text
     job = r.json()
     assert job["languages"] == ["en"] and launched == [job["id"]]
-    assert job["stages"][0] == {"name": "master_approval", "status": "pending", "detail": None}
+    assert job["final_version_id"] == master.id
+    assert job["stages"][0] == {"name": "final_approval", "status": "pending", "detail": None}
     assert job["stages"][1]["name"] == "blueprint"
-    again = client.post(f"/api/cases/{case.id}/documentary/jobs", json={"mode": "pilot"})
+    again = client.post(f"/api/cases/{case.id}/documentary/jobs", json={"language": "en", "mode": "pilot"})
     assert again.status_code == 409
     assert client.post(f"/api/documentary/jobs/{job['id']}/cancel").json()["status"] == "cancelling"
     # visual library: upload, list, review, file

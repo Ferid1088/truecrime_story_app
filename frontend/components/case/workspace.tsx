@@ -23,7 +23,6 @@ import { ContradictionsTab } from "./tabs/contradictions";
 import { StoryTab } from "./tabs/story";
 import { AgentRunsTab } from "./tabs/agent-runs";
 import { ResearchLanguagesTab } from "./tabs/research-languages";
-import { LocalizationsTab } from "./tabs/localizations";
 import { VideosTab } from "./tabs/videos";
 import { CorpusSearchTab } from "./tabs/corpus-search";
 import { StatusTab } from "./tabs/status";
@@ -49,7 +48,6 @@ const TABS = [
   "Story",
   "Videos",
   "Research Languages",
-  "Localizations",
   "Audit",
   "Agent Runs",
 ] as const;
@@ -189,7 +187,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
             <FlaskConical className="size-3.5" /> Run Research
           </Button>
           <Button size="sm" onClick={() => router.push(`/story-studio?case=${caseId}`)}>
-            <PenLine className="size-3.5" /> Generate Story
+            <PenLine className="size-3.5" /> Open Story Studio
           </Button>
           <Button variant="secondary" size="sm" onClick={() => router.push(`/documentary/${caseId}`)}>
             <Clapperboard className="size-3.5" /> Documentary
@@ -250,7 +248,6 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
       {tab === "Story" && <StoryTab caseId={caseId} />}
       {tab === "Videos" && <VideosTab caseId={caseId} refreshKey={researchTick} />}
       {tab === "Research Languages" && <ResearchLanguagesTab caseId={caseId} refreshKey={researchTick} />}
-      {tab === "Localizations" && <LocalizationsTab caseId={caseId} />}
       {tab === "Audit" && <AuditTab caseId={caseId} />}
       {tab === "Agent Runs" && <AgentRunsTab caseId={caseId} refreshKey={researchTick} />}
 

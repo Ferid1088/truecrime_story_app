@@ -150,7 +150,7 @@ def test_selection_edge_scoring_and_asset_normalization():
     assert asset.asset_id == "VIS_2" and asset.rights_status == "unknown" and asset.human_signoff
 
 
-def test_export_covers_fallback_fonts_and_all_localized_cues(tmp_path, monkeypatch):
+def test_export_covers_fallback_fonts_and_all_translated_cues(tmp_path, monkeypatch):
     original = X.ImageFont.truetype
     monkeypatch.setattr(X.ImageFont, "truetype", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError()))
     monkeypatch.setattr(X.ImageFont, "load_default", lambda: object())
@@ -291,7 +291,7 @@ def test_longform_service_validation_and_crud_error_paths(db_session):
     case = Case(canonical_title="Coverage service case", slug="coverage-service-case", language="en")
     db_session.add(case)
     db_session.flush()
-    story = StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+    story = StoryVersion(case_id=case.id, version=1, kind="final", language="en",
                          narrative_angle="test", story_text="One.", engagement_score=0.0)
     db_session.add(story)
     db_session.flush()

@@ -8,7 +8,7 @@ WHAT YOU RECEIVE
 - editorial_context: case_status; status_summary; opening_strategies (name -> what it means; choose one name); avoid_openings (names the channel's recent films used); follow_up (only for an update film); user_instruction (only if the owner gave one: follow it unless it contradicts the evidence or the fairness rules below).
 - evidence, in a compact view: facts (id F001..., a claim cut to about 220 characters, category, narrative_value, evidence_strength, uncertain, people); timeline (id T001... and event_date only: the same event is also a fact with that date, so assign a T id to the act that tells that event); contradictions (id C001..., topic, description, severity); approved_context (source summaries); research_gaps; and id lists per kind (human_details, scene_details, investigation_details, physical_evidence, historical_context, environment_details, approved_quotes, disputed_facts).
 - Facts with uncertain true or single-source support belong where the story can tell them with doubt, not as the film's backbone.
-Your plan is the only thing the act writers see of your thinking: each writer receives its act (purpose, key_beats, open_loops, resolved_loops, do_not_reveal) and only the evidence ids you assigned to it. Whatever you do not assign to an act cannot appear in the film.
+Your plan is the only thing the act writers see of your thinking: each writer receives its act (purpose, key_beats, open_loops, resolved_loops, do_not_reveal) and only the evidence ids you assigned to it. Whatever you do not assign to an act cannot appear in the film. You are choosing, not cataloguing: assign what the story needs, group minor theories in one act, and leave out secondary background and optional tangents. Never leave out what the owner's user_instruction requires, a contradiction that matters, or the evidence a protected reveal depends on.
 
 HOW MANY ACTS
 Scale to target_minutes: roughly one act per 8 to 12 minutes, never fewer than 3 and never more than 7. A 7-minute film has 3 short acts, a 50-minute film 5 or 6. An act is a turn in the listener's understanding, not a topic heading; its purpose is one sentence that names what the listener will understand or ask by its end.
@@ -19,7 +19,7 @@ The usual movement, which you adapt (rename, merge, reorder or drop acts when th
 - The last known world: who the people were (names, roles, duties, family status, documented behaviour; never invented inner feelings) and the timeline, reconstructed only as far as evidence allows.
 - The investigation: official observations, physical evidence, the official account and where it does not hold.
 - The story that grew: sensational claims, rumours, media versions, fabrications. Include this act ONLY if the evidence contains such material, and introduce it as the reveal that part of what the audience "knows" was never evidence. If there is none, leave the act out.
-- What remains: return to the real people; separate what we know, what is plausible, what stays unknowable; end on a strong factual image or question.
+- What remains: return to the real people; separate what we know, what is plausible, what stays unknowable; end on what the case supports: a consequence, a human detail, a changed understanding or a precise open question.
 A solved case may need investigation, arrest and trial instead of a myth act.
 
 OPENING (the first 20 to 40 seconds of act 1)
@@ -37,7 +37,14 @@ FOLLOW-UP FILM (editorial_context.follow_up present): this is an UPDATE to an ea
 ENDING: choose one that fits this story (a final fact, a person, a place, the open question), not a formula. Never a moral.
 
 TENSION AND CONTINUITY
-Tension comes from the order of information, from stakes already in the evidence and from questions the evidence leaves open. Plan the open loops on purpose: each act may open at most two questions, and every loop opened is either closed in a later act or named in the ending as still open. reveal_map says where each contradiction surfaces. An act ends on a fact or a question, never on a summary.
+Tension comes from the order of information, from stakes already in the evidence and from questions the evidence leaves open. Plan the open loops on purpose: each act may open at most two questions, and every loop opened is either closed in a later act or named in the ending as still open. reveal_map says where each contradiction surfaces. An act ends where the listener's understanding has changed: on a development, a consequence or an open question, as this act requires. Not every act needs a question, and none ends on a recap.
+
+ONE MAIN PLACE, AND A PLAN THAT AGREES WITH ITSELF
+- Give every important event, object, testimony or turn one act as its main telling. In the key_beats of later acts name only what is new at that point: a new fact, a witness, a decision, a consequence, a change in what is believed. A beat never says "retell" or "recall" for its own sake; a listener needs orientation, not the scene again.
+- Assign each explanatory task once. What a piece of evidence cannot prove, what a verdict does and does not settle, why a source is weak: name the one act where it is said, and say in the other acts only what is new. Two acts never carry the same explanation.
+- A hearing or trial act shows what happens there and nothing that was told before: what was allowed or kept out, who said what for the first time, what each side argued and what was decided. It does not replay the investigation, and its closing beat names the decision and its consequence, not a summary.
+- An act's purpose, its last key_beat and the film's ending_strategy must agree with each other. If the purpose says an act ends on an event, the last beat is that event and the next act starts from it. The ending_strategy names a closing image, person or consequence; it never asks for a recap of earlier acts or a second statement of what a verdict or a document does not prove.
+- Beats and purposes describe the story. They never narrate the film itself ("the film will show", "we will see").
 
 STYLE GUARD FOR THE PLAN
 No repeated symbolic motifs (silence, darkness, bureaucracy, "the sea knows"), no generic cinematic metaphors in titles or beats. Precise, controlled, visual.
@@ -64,8 +71,8 @@ Return JSON only:
 }
 
 ACT RULES
-- acts[].target_words are weights in proportion to each act's share of the film (the total is scaled afterwards to the target); no act below about one tenth of the whole.
+- acts[].target_words are weights in proportion to each act's share of the film (the total is scaled afterwards to the target); no act below about one tenth of the whole. Give the weights the story needs: acts are not equal, and a turning point may take several times the words of a transition.
 - acts[].evidence_ids assigns evidence to the act that owns it: fact, timeline AND contradiction ids (F..., T..., C...). An id appears in at most one act. Do not dump everything into act 1; reserve myth and fabrication evidence for the act that reveals it. Give each act enough evidence to carry its own words and nothing it could not use naturally.
 - List at most max_evidence_ids_per_act fact ids per act: the strongest and most relevant for that act. An act's writer cannot use more, and a plan that lists every fact is cut off. Facts you do not assign are simply left out.
 - do_not_reveal lists evidence ids the writer must withhold until a later act; every id in a later act's evidence_ids that bears on an earlier act's content belongs here for the earlier act.
-- key_beats are 3 to 6 concrete beats per act, in the order they are told; the writer covers them one by one, so each names a concrete event, person or question, never a theme.
+- key_beats are 3 to 6 concrete beats per act, in the order they are told; the writer covers them one by one, so each names a concrete event, person or question, never a theme. An event that returns in a later act is assigned there only for what is new at that stage (a beat names the new development, not a retelling), so later acts do not re-explain what an earlier act told.

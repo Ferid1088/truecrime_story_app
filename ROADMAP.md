@@ -3,6 +3,113 @@
 State file for the rebuild described in `docs/changing.txt`. One row per part. Status: TODO / IN_PROGRESS / DONE / WAITING_OWNER / BLOCKED.
 Inside each part: an inventory note, a requirement table (test + live evidence per requirement), the three review passes, and "not verified" items.
 
+## Language pipeline and research rules (2026-10-17): supersedes the Persian-master route
+
+Status: IMPLEMENTED and run live on case 8 ("Lizzie Borden axe murders"); gaps are listed below and are not closed.
+Sources: `docs/story_change_1.txt`, `docs/language_pipeline_checklist.md`, `docs/master_task_checklist.md`.
+
+The "Persian master first, then native rewrites" route of Part 5 (and every note below that speaks of a master
+story, its approval, a canonical writing language or a localization) is replaced. Those notes stay as history.
+
+**Owner decisions (final)**
+- No language is derived from another language's final text. ONE shared English draft per case (stage 1), then every
+  language (fa, en, de, ar; "fr" in the owner's message was read as fa) runs stages 2-4 independently and in parallel.
+- No A/B tests. The draft is 90 minutes (the owner first said 120 minutes and four drafts), written once, in English.
+- Stage 1 `language.draft`: Sonnet 5.5 (alias `premium`), receives ALL promoted facts (no 100 cap:
+  `story_quality.max_evidence_for_long_draft`).
+- Stage 2 `language.rewrite`: GPT 6.1 Sol (alias `sol`), high thinking, native re-telling (not translation) for
+  60-70 minutes (default 60 plus 10 headroom).
+- Stage 3 `language.inspect`: Sol, a separate agent with its own prompt and fresh context. It sees neither the English
+  draft nor stage 2's reasoning, only the text, the plan and a compact evidence list.
+- Stage 4 `language.final`: Sol writes the final text from the stage-2 text and the stage-3 critique.
+- Gates run on each final text: grounding, consistency, length, figures/names, reveal order, originality guard.
+  A cross-language facts check replaces the old semantic check against a master. A gate failure returns to stage 4 only.
+- Independence: reviewer and author on the same model is forbidden everywhere except the group `language_pipeline`
+  (`same_model_allowed`, owner decision: Sol writers and Sol inspector). Every other group stays strict.
+- Evidence cap is 100 for stages 2-4, the gates, the timeline builder and the contradiction analyzer.
+- Videos of other true-crime channels are the most important TEXT source and are always `research_only`.
+- Deleted: old master and localization code, agents, prompts and roles. Database rows, tables and columns stay.
+- Approval is per language: the owner approves the final version of each language in the UI; no language waits for another.
+
+**Working method (loop, mandatory for the language pipeline and the research/video/rights task)**
+- Each requirement has one row in a checklist (`docs/language_pipeline_checklist.md`: T1-T17; `docs/master_task_checklist.md`: 0, V1-V3, F1, P1-P2, R1-R7) with status TODO / IN_PROGRESS / DONE, test names and live evidence.
+- Loop until every row is DONE: take the first non-DONE row, write the test first, then the code, run the targeted tests and then the full suite, prove it live in the real app (UI, case 8), record the evidence; if a live proof fails, fix and repeat.
+- Then a completeness audit (T17: a test fails while deleted agents, prompts, roles or `localization` / `localized_` / `derived_from_master` terms remain in app/, config/, prompts/, tests/) and a line-by-line self-review of the prompt text against the diff.
+- Stop early only for a real owner blocker (Brave credit HTTP 402, a missing key, a decision only the owner can take) and continue with every row that is not blocked. Never mark a row DONE without evidence; never skip a row silently.
+- Rules for every run: no commit or push unless the owner asks; the repository is public (no keys, no private data); the EUR 300 cap is on actual spend; Brave Search only; no OpenRouter, Docker, Finglish or Haiku; model names and numbers only in config/.
+- The older Step loop / Fix loop of Amendment 4 (bounded fix rounds, error signatures, `run_findings`, never weaken a check) stays valid for Part 10.
+
+**English master (2026-10-17, `docs/Story_Revol_en.txt`, checklist `docs/english_pipeline_checklist.md`)**
+- Decision change (2026-10-17): the fact-check loop and the "English master" are retired; after the draft, no model checks facts in English except the one-pass report-only evidence audit, so the guards are the evidence-bound drafting, the deterministic gates, the audit and the non-blocking numbers-and-names report. The bullets below describe the retired method as history.
+- Live run of the new plan on case 8 (2026-10-17): draft 41 (15,426 words), audit 27 items, automatic draft approval, then en, fa, de all FAILED the length gate at the final (50.2, 51.9, 57.9 minutes against a 60-minute floor) and ar FAILED at the inspection (invalid `kind` "selection"); no retry by rule. Case 8 spend EUR 76.18 of 300.
+- Fix task R1-R8 (2026-10-17): inspector kind "selection" and one repeat of an invalid inspector answer; shorter, less repetitive draft (a scene over 1.3 times its budget or retelling is written again once); act word targets in the rewrite and final of all four languages with a non-blocking per-act report; the owner-approved bounded length correction (at most once per chain, only below the length minimum, only acts the English draft can fill, spliced by code, not inspected). English-only re-run on case 8: draft 52 (12,802 words, EUR 7.15), audit 34 items, final 55 passed both blocking gates (60.5 minutes) and is approved automatically; the correction was not needed. Case 8 spend EUR 85.10 of 300. fa, de and ar wait for the owner to read the English text. Details and the audit triage: `docs/english_pipeline_checklist.md`.
+- English prompt revision (2026-10-18): the owner's editorial text for the draft, audit, rewrite, inspector, final, English guide and the plan prompt, merged with the technical contracts (`docs/english_pipeline_checklist.md`). Live: the new draft (row 56, 10,374 words, EUR 9.35) is less repetitive but 126 words under the 10,500-word draft floor, so the run stopped at the draft check. Found on the way: the evidence audit did not receive the contradictions, timeline and approved context the writer used, so it flagged claims from them as unsupported (fixed; the earlier triage in this file was wrong about four items and is corrected). Case 8 spend EUR 94.45 of 300.
+- Implemented: the shared English draft is inspected against ALL evidence by `language.fact_check` (Sol) and revised act by act by
+  `language.revise_english` (Sonnet) until it passes or `english_master.max_rounds` is used; an open high fact item or a failing gate
+  stops the stage loudly, anything else is stored as warnings; approval is automatic (`require_approval` switches a manual gate on).
+  The English film version uses its own agents (`language_agents.en`), is blocked only by markers and length, and gets a deterministic,
+  non-blocking report against the master. fa/de/ar read the master instead of the raw draft.
+- Live on case 8: the loop ran (44 -> 13 -> 24 -> 20 items) and STOPPED on 7 open high fact items and failing gates; it did not converge.
+  After the owner topped up the gateway balance the resume (job 25) recomputed round 3's gates (all eight pass; the earlier two gate
+  failures were provider refusals, now handled as no finding) and stopped again on the same 7 open high fact items (classified in
+  `docs/english_pipeline_checklist.md`: real errors, none an inspector mistake). The film stages are not proven live. Owner decision: more
+  rounds, a different reviser approach, or accept the master with warnings.
+
+- One-pass evidence audit of the English draft (owner addition, `english.evidence_audit`, Sol, report only): ran once on draft 11,
+  78 items (28 high), EUR 0.84, my sample check found 3 of 14 items over-called; prompt cache on this gateway is erratic for large prefixes.
+  The draft prompt and the en inspector prompt were replaced from the owner's files (`docs/english_pipeline_checklist.md`).
+
+- Persian film version (`docs/Story_Revol_fa.txt`, checklist `docs/persian_pipeline_checklist.md`): implemented (`language.rewrite.fa`,
+  `language.inspect.fa`, `language.final.fa`; exactly three model calls by owner instruction, held to markers and length, numbers report,
+  automatic approval of a passing final). NOT run live: it needs an approved English master and case 8's master is stopped.
+
+- German and Arabic film versions (`docs/Story_Revol_de.txt`, `docs/Story_Revol_ar.txt`; checklists `docs/german_pipeline_checklist.md`,
+  `docs/arabic_pipeline_checklist.md`): implemented like Persian (exactly three model calls each, markers and length only, a report,
+  automatic approval of a passing final); Arabic adds script-hygiene counts, a right-to-left page, a config error for a language without
+  its own agents, and the deletion of the generic stage path and the unreachable cross-language check. NOT run live (no approved English master).
+
+**Live result on case 8 (agent report, 2026-10-17)**
+- Draft: one shared English draft, 14,357 words (95.7 minutes), EUR 2.56, 46 calls (scene by scene), 91 % of input from cache.
+- Finals (all four languages have one, all gates passed):
+
+| Language | Words | Minutes |
+|----------|-------|---------|
+| fa | 8,793 | 65.1 |
+| en | 9,514 | 63.4 |
+| de | 8,570 | 61.2 |
+| ar | 7,793 | 59.9 |
+
+- Repairs: en, de and ar needed one stage-4 repair each. The first cross-language facts check failed and implicated de;
+  after the repair it passed in round 1 with 0 errors.
+- Originality: longest shared word run with the transcripts 11 words (en); share of 6-word sequences below 0.2 %.
+- Spend: case 8 at EUR 44.00 of 300, 109 large calls (Sonnet and Sol) over all runs including failed attempts;
+  the language stages cost EUR 21.86.
+- Migrations 0038 and 0039 applied to the real PostgreSQL (0039 after the owner's approval, backup
+  `data/backups/truecrime-postgres-20261017-032248+0200.dump`, restore-checked). 0039 adds `use`, `use_reason`,
+  `rights_status`, `license_evidence_url`, `license_checked_at`, `attribution_text` to `video_sources`; 51 videos on case 8
+  are `research_only`.
+- Tests: full suite 1469 passed, 10 skipped, 0 failed.
+- Commits (local only, NOT pushed): `c9e1548` (research, 100-fact selection, case picture search, config, ROADMAP),
+  `b742051` (the eight language-pipeline prompt files). The owner must run `git push origin main` on the Mac after
+  `scripts/secret_scan.py` (the repository is public).
+
+**Not proven / open gaps**
+1. Text quality is not judged by humans: only the Sol inspector's scores exist. Persian: the owner reads it. Arabic needs a native speaker.
+2. The name/date part of the cross-language facts check compares only the Latin-script texts (en, de); fa and ar are
+   not covered for names, and single dates are only partly checked.
+3. Stage 2 had 0 % cache because the four calls started at the same time. Running one language first would cache the prefix.
+4. The cost estimate before the first run was EUR 4.21 (13 large calls) and far too low; the estimator was recalibrated
+   but its value stays an estimate. The EUR 300 cap applies to actual spend only.
+5. Stage 2 came in 0.7-1.5 minutes under the requested 60 minutes in every language; stage 4 recovered it
+   (ar 59.9 minutes is inside the 3 % tolerance).
+6. R4 (film use of `film_candidate` clips) is not live: case 8 has no film candidates and `yt-dlp` is not installed.
+   The attribution list for the video description is not extended.
+7. V1, V2, P1 and P2 come from the earlier commit `c9e1548`; their live proof is missing in the checklist.
+8. Proof that every run was started from the UI button on the real app and database (not from a script) was requested
+   from the agent and is NOT confirmed yet.
+9. Follow-up job sent to the agent (status unknown): cross-language check for all four languages (digit normalization,
+   per-entity glossary), cache warm-up, estimator calibration, live proof of V1/V2/P1/P2, R4 blocker list.
+
 ## Amendment 1 (received 2026-10-15, mid-Part-0)
 
 The owner sent an amendment to the master prompt. Recorded verbatim in effect, applied as follows:
@@ -49,16 +156,17 @@ The owner dropped a full, consolidated rewrite of the master prompt into the rep
 
 | ID | Title | Status | Commit | Tests | Live proof | Not verified | Next owner action |
 |----|-------|--------|--------|-------|------------|---------------|--------------------|
+| L | Language pipeline: shared English draft, native Sol re-telling per language (2026-10-17) | IMPLEMENTED, run live on case 8, gaps open | c9e1548, b742051 (local, not pushed) | full suite 1469 passed/10 skipped | Case 8: draft 14,357 words EUR 2.56; four finals, all gates passed; case spend EUR 44 of 300 | quality not human-judged; fa/ar names not covered by the cross-language check; R4 not live | owner: push, read fa, native check ar |
 | 0 | Foundation | DONE | 939d594 | test_generation.py + test_cost_ledger.py (new/changed), full suite 1266 passed/10 skipped, 3-pass review done (all findings fixed) | See Part 0 section below | None | None — owner approved and the case-5 recompute is applied; budget cap raised to EUR 300/case per Amendment 2 |
-| 1 | Models: Haiku out, cheaper model in | DONE (by owner instruction) | | scripts/benchmark_fact_extractor.py (fact_extractor role only) | fact_extractor: 7 real candidates vs sonnet gold on case 5, none beat Haiku | Other 17 roles + writer benchmark intentionally not benchmarked — owner said stop, keep Haiku | None — do not resume without being asked |
+| 1 | Models: Haiku out, cheaper model in | DONE (by owner instruction; Haiku later removed, Sol added 2026-10-17) | | scripts/benchmark_fact_extractor.py (fact_extractor role only) | fact_extractor: 7 real candidates vs sonnet gold on case 5, none beat Haiku | Other 17 roles + writer benchmark intentionally not benchmarked — owner said stop, keep Haiku | None — do not resume without being asked |
 | 2 | Extraction as fixed JSON, parallelism, fewer better evidence items | DONE | 4fe970d (e), 1bbbac7 (a), 60346e8 (b), b1cc5ca (c), 4bafc17 (d) | items (a)-(e): see Part 2 section | Real case-5 re-extraction: EUR -88.0%, 0 schema failures, contradictions +41.7%; per-stage measure-first table; embedding-cost attribution bug found+fixed; gateway structured-output capability tested live (no-op) vs. forced tool-calling (genuinely enforced); evidence diet now corroboration+contradiction-aware with auditable drop reasons; chunk-selection concurrency fixed | Per-language research concurrency (real gap, deliberately deferred, see Part 2(d)) | Part 2 fully closed; move to Part 3(e) or remaining Part 1 benchmarks |
-| 3 | Research: Persian-canonical, more languages, YouTube as a main source | DONE (self-reviewed only) | 32cc77d (e.3), c72a696 + 54bed1f (e.1), 99493d2 (e.2), e54ce64 (e.5), 66a4268 (e.4) | tests/test_transcript_quality.py, tests/test_transcript_pipeline.py (new) | Migration 0026 applied live to PostgreSQL, columns confirmed by query | See Part 3 live proof \"Not verified\" | None |
-| 4 | Media to show in our film | IN_PROGRESS | see section | code + tests + migrations 0031/0032 done; live proof pending a master for case 8 | See Part 4 section | live proof pending | continue per section |
-| 5 | Story plan first, stronger writer, Persian master, native rewrites | IN_PROGRESS | see section | 5(a) plan before writing DONE and proven live; prompt trace, baseline, added-figures gate done; 5(b) prompt rewrite, 5(c) A/B, Persian master NOT done | See Part 5 section | live proof pending | continue per section |
-| 6 | Host editorial: what Fereidoun says, when, persona and memory | IN_PROGRESS | see section | host caps/slots/persona/memory UI/real-seconds done; live proofs 6f/6g/6h and Persian stock phrases not done | See Part 6 section | live proof pending | continue per section |
+| 3 | Research: videos of other channels as the main text source, more languages | DONE (self-reviewed only); rules changed 2026-10-17 (see Part 3 update) | 32cc77d (e.3), c72a696 + 54bed1f (e.1), 99493d2 (e.2), e54ce64 (e.5), 66a4268 (e.4), c9e1548 (no relevant video skipped) | tests/test_transcript_quality.py, tests/test_transcript_pipeline.py (new) | Migrations 0026, 0039 applied live to PostgreSQL | See Part 3 live proof "Not verified"; V1/V2 live proof missing | None |
+| 4 | Media to show in our film | IN_PROGRESS | see section | code + tests + migrations 0031/0032 done; picture search for cases without pictures added (c9e1548) | See Part 4 section | live proof pending; R4 (third-party film clips) not live | continue per section |
+| 5 | Story plan first (kept); writer, Persian master and native rewrites REPLACED by the language pipeline | 5(a) DONE; 5(b)-(d) SUPERSEDED (2026-10-17) | see section | 5(a) plan before writing DONE and proven live; prompt trace, baseline, added-figures gate done | See Part 5 section and the Language pipeline section | none for 5(a) | owner: approve the final version of each language |
+| 6 | Host editorial: what Fereidoun says, when, persona and memory | IN_PROGRESS | see section | host caps/slots/persona/memory UI/real-seconds done; live proofs 6f/6g/6h and Persian stock phrases not done | See Part 6 section | live proof pending (needs an approved final fa version) | continue per section |
 | 7 | Fereidoun's visual direction: studio, looks, wardrobe, light, performance | IN_PROGRESS | see section | 7a/7b/7c/7d/7f built; live proof BLOCKED (no studio masters); 7e not started | See Part 7 section | live proof pending | continue per section |
 | 8 | Film integration and UI | IN_PROGRESS | see section | 8a/8b/8c built; live preview render not done | See Part 8 section | live proof pending | continue per section |
-| 10 | One real 60-minute film from zero (Amendment 1) | IN_PROGRESS (preparation) | see section | probe, platform profiles | none (run not started) | the whole run | owner: case choice, studio masters |
+| 10 | One real film from zero (Amendment 1) | IN_PROGRESS (preparation) | see section | probe, platform profiles | none (run not started); the language pipeline ran on case 8 up to approved-ready finals | the whole run | owner: pilot length, studio masters, approve finals |
 | 9 | Final live run, audit and report (runs last, after Part 10) | TODO | | | | | |
 
 ---
@@ -152,6 +260,14 @@ The Inventory below is the historical state at the time of the benchmark.
 
 ## Part 2 — Extraction as fixed JSON, parallelism, fewer better evidence items
 Status: DONE — all items (a)-(e) complete (item (e) fully DONE and closed — commit 4fe970d; item (a) DONE — commit 1bbbac7; item (b) DONE — commit 60346e8; item (c) DONE — commit b1cc5ca; item (d) DONE — commit 4bafc17, one real gap in per-language research concurrency deliberately deferred and recorded, not silently dropped). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+
+**Update 2026-10-17 (facts cap 100).** `story_quality.max_evidence_per_story` is now 100 and `max_evidence_per_act` is at most 100
+(was 160); the same strongest-first selection feeds the timeline builder and the contradiction analyzer (commit c9e1548,
+`app/services/evidence_selection.py`, `tests/test_evidence_selection.py`). Ranking: facts backed by independent videos first,
+then evidence_strength and confidence; contradiction, disputed and protected facts are never dropped; Fact rows are never
+deleted. The only consumer of ALL promoted facts is the shared English draft (`language.draft`,
+`story_quality.max_evidence_for_long_draft`, no cap). Case 8 had 711 facts before the cap. The "cap 160" text in item (c)
+below is history.
 
 ### Item (a) — measure first (DONE)
 Per-stage table for case 5, from the live PostgreSQL ledger (`provider_calls`), no new spend. Two different runs are cited because they measure different things honestly: the LLM stages (Fact Extractor, Timeline Builder, Contradiction Analyzer) are from the most recent real `ResearchAgent.run()` (the Part 2(e) acceptance run, 2026-10-16) — the current pipeline's real behaviour. The embedding stages (source selection, chunk selection, fact merging) are from the run **before** that one (the first, failed attempt, same day) — the acceptance run's retry made **zero** new embedding API calls (every text was already in `EmbeddingClient`'s on-disk content-hash cache from the failed attempt), so its embedding stages show 0 tokens/EUR and would be a misleading "measure first" number; the failed attempt's numbers are the real, non-cached embedding cost.
@@ -258,8 +374,30 @@ Full suite after these fixes: 1284 passed, 10 skipped (one more than 1283 — th
 >    Acceptance (measured on case 5's stored sources, same gold set as Part 1): Fact Extractor EUR reduced by at least half versus the baseline, with fact recall on the contradictions, the timeline and the story-plan evidence equal or better (state how you counted), 0 schema failures, and the reduction broken down per change in docs/benchmarks/extraction.md. If half is not reachable without losing recall, report the best trade-off you found and why; do not weaken the recall check to reach the number.
 >    Tests: skipped sources are logged with reasons; the cache returns the stored result and makes no provider call; a quoted passage that is not in the source is rejected; chunk selection keeps a known relevant passage (fixture). Live proof: re-run extraction on case 5's stored sources and show the ledger rows before/after by stage.
 
-## Part 3 — Research: Persian-canonical, more languages, YouTube as a main source
+## Part 3 — Research: more languages, videos of other channels as the main text source (title updated 2026-10-17)
 Status: DONE (all of (a)-(e) built, tested and run live on case 8; the independent 3-pass fresh-agent review was NOT run, see the review note below). Items (a)-(d) are the original prompt, unchanged. **Item (e) added by Amendment 3 (2026-10-16)**:
+
+**Rules changed 2026-10-17 (they replace the items below where they conflict).**
+- Videos of other true-crime channels are the MOST IMPORTANT TEXT SOURCE: every relevant video is discovered, transcribed
+  and read; none is skipped for a count cap. Only a relevance gate for clearly unrelated videos remains, with the borderline
+  band decided by the `video_relevance_checker` agent ("when in doubt, relevant"; role `cheap`,
+  `prompts/agents/research/video_relevance.md`). Every skipped or unavailable video shows its reason in the UI.
+  The caps in "Caps decided from this run" (per-language cap, transcripts per case, low-value stop) are history.
+- Their transcripts are raw material for OUR story: never shown, never downloaded for rendering, never quoted. Claims keep
+  channel, video id and timestamp; independence is counted by origin, not by channel; claims resting only on creator
+  narration stay "reported by creators" until a primary or contemporary source supports them.
+- Two kinds of video (R1-R3, migration 0039): `research_only` (default; transcripts only) and `film_candidate`
+  (Internet Archive, Wikimedia Commons, public archives with a stated open license or public-domain mark, YouTube
+  videos with Data API license creativeCommon from channels that are not re-uploaders). Other true-crime channels are ALWAYS
+  `research_only`. Nothing is downloaded for rendering unless `use=film_candidate`, the rights status is allowed for the
+  render profile and evidence is stored. The Videos tab shows type, rights status, evidence link and the reason.
+  R4 (film use) is not live: no film candidate on case 8, `yt-dlp` missing.
+- Photos and related videos for the film are searched for every case and every beat that needs a picture (Brave only,
+  links with source, rights and verification status, blocked domains respected; P1/P2).
+- Item (a): no language is the canonical WRITING language any more (see the Language pipeline section).
+  `multilingual.canonical_language` only orders research and UI languages (fa first).
+- Originality guard (R5): each language's final text is compared with every research transcript of the case; above the
+  limits it goes back to stage 4 of that language. Case 8: longest shared run 11 words.
 
 ### Item (a) — canonical language (DONE; one deliberate deviation recorded)
 Inventory: `multilingual.canonical_language` was already `fa` in config (commit c9bdfa4) and most code reads it. Real remaining English-master assumptions, now fixed: `app/documentary/api.py:_pick_master` filtered `language == "en"` and said "English master story" in its errors; `prompts/agents/localization/writer_rules.md` and `semantic_check.md` told the model the master is English; UI text in `documentary/tabs/run.tsx` and `case/tabs/localizations.tsx`; comments/docstrings in `jobs.py`, `models.py`, `story.py`, `localization.py`. **Existing data** (cases 1 and 2 have English masters): `_pick_master` prefers the canonical-language master and otherwise keeps the case's older-language master usable, never orphaned; the master list API already returns every master with its language and the Studio shows it.
@@ -351,6 +489,8 @@ Steps through the UI (screenshots in `data/ui_proof/`, gitignored): New Case for
 
 ## Part 4 — Media to show in our film
 Status: IN_PROGRESS — code, tests and migrations done; the live proof on the Part 3 case (case 8) is pending because the visual-research stage only runs inside the documentary pipeline, which needs a master and blueprint (Part 5). The live database has 0 visual assets, plans, blueprints and production scripts today (checked by SQL), so there is nothing real to measure coverage on yet.
+
+**Update 2026-10-17:** picture search now also runs for a case without stored pictures (P1/P2, commit c9e1548); videos are `research_only` or `film_candidate` (Part 3 update); film-candidate clips are R4 and not live. The coverage proof below needs an approved final story, which now exists per language after the owner approves it.
 ### Inventory (real code read)
 `visuals/research.py` (providers `source_pages`, `wikimedia`; Candidate -> VisualAsset via `app/agents/visual_research.py`), `footage.py` (wikimedia_video, internet_archive, muted), `rights.py` (`classify`, `allowed`), `tiers.py` (provisional/verified tiers), `usage.py` (category evidence/person/context/generic/map, per-shot `usage`, `MediaUsage` rows), `gaps.py` (production-time search for weak sentences), `director.py` (picture choice, `usable()`). The planner asks by semantic need (entities, kind exact/context) and the director keeps the reveal firewall; both pre-existing, not rebuilt.
 **Found while verifying "how the film treats editorial_review_required today"**: the `preview` render profile (the profile every film uses, `render.profile`) ALLOWED `editorial_review_required` pictures with no approval of any kind, and `human_override` was set by any edit. That contradicted "never in a film without a recorded approval".
@@ -363,9 +503,12 @@ Tests: tests/test_editorial_approval.py (11), tests/test_media_coverage.py (4), 
 **Not verified**: the live proof (coverage before/after, gap list, one item from each new source type with its rights status shown, nothing unapproved selectable for render) — pending a master/blueprint on case 8; Brave image/video search and lead pages against real case-8 data; whether Brave "safesearch strict" hides crime-scene photos.
 OWNER GATE (pending): may editorial_review_required news photos be used in published films? Default until answered: not used.
 
-## Part 5 — Story plan first, stronger writer, Persian master, native rewrites
-Status: IN_PROGRESS — 5(a) story plan DONE (below); 5(b)/(b2)/(c)/(d) not done.
-Model state (2026-10-16): the story authors (story_director, writer, rewriter and the master_* roles) are routed to `premium` (claude-sonnet-5-5), no longer the Gemini Flash `writer` alias; reviewers (engagement/section critics, native and localized critics) stay on Flash for independence. The old-vs-new comparison in (b2)/(c) must therefore name the exact models of both runs, because the baseline was written by the former Gemini writer.
+## Part 5 — Story plan first (kept); writer, Persian master, native rewrites superseded 2026-10-17
+Status: PARTLY SUPERSEDED (2026-10-17). 5(a) story plan is DONE and kept: the language-neutral plan is the shared input of the language pipeline. 5(b) writer prompt, 5(b2) baseline (kept as history), 5(c) A/B and 5(d) Persian master, approval and native rewrites are REPLACED by the language pipeline (top section): no A/B tests (owner decision), no Persian master, approval per language final version. Everything below about the master, its approval, Patch F's A/B or native rewrites is history.
+Model state (2026-10-17): alias `sol` = gpt-6.1-sol added. Roles: language_draft_writer -> premium (Sonnet 5.5); language_rewrite_writer, language_inspector, language_final_writer -> sol. The old story authors, master_* and localization roles are deleted. Independence: group `language_pipeline` with `same_model_allowed` (owner decision); all other groups strict.
+Model state update (2026-10-18, owner decision): the Persian and Arabic writers run on alias `luna` = gpt-5.6-luna (roles `language_rewrite_writer_fa_ar` and `language_final_writer_fa_ar`, agents `language.rewrite|final.fa|ar` and `language.length_correction.fa_ar`; reasoning effort high; priced 0.2/1.2 USD per 1M tokens from the gateway's list, no fallback). Why: with Sol, the Persian rewrite and final streams ended without a finish reason six times in a row (gateway: 502 upstream stream ended abnormally); with luna the same stages ran through (case 8: fa rewrite 116 s, EUR 0.036). Inspectors, the meaning check, the evidence audit and the English and German writers stay on Sol. Not measured: quality of luna against Sol beyond the one Persian text (fa final 135) and the Arabic text of the same run.
+Length gate update (2026-10-18, owner decision, all four languages): the first final is still held to `final_length_tolerance` (3 %), so the one bounded length correction is tried first; the gate that judges the corrected text accepts a text up to 20 % under the range's minimum (`length_correction.accepted_shortfall` = 0.2; the upper bound is not relaxed). The same lower bound judges every text written from a final of a corrected chain: the revision round after the checks, the owner's improve instruction and the English audit fix (found live on case 8, Arabic: the corrected 6,913 words passed, the revision's 7,093 failed the 7,566 minimum). Reason: after the one correction the Arabic final was 6,869 words (about 53 minutes at 130 words a minute) against 7,800-9,100; the English final 8,409 against 9,000-10,500.
+Model state (2026-10-16, replaced by the line above): the story authors (story_director, writer, rewriter and the master_* roles) are routed to `premium` (claude-sonnet-5-5), no longer the Gemini Flash `writer` alias; reviewers (engagement/section critics, native and localized critics) stay on Flash for independence. The old-vs-new comparison in (b2)/(c) must therefore name the exact models of both runs, because the baseline was written by the former Gemini writer.
 ### 5(a) Story plan before writing (DONE, commit 127ff36 + slot-spacing fix; live proof on case 8)
 **Relation to the EditorialBlueprint (decided before coding)**: the plan is the single source of structure. A plan beat is a director act; the blueprint's beats are paragraph ranges of the WRITTEN story that already must nest inside an act (`validate_blueprint` requires each beat's `act_id`), so the blueprint is derived from the story written to the plan, never a second divergent structure; `editorial_blueprints.story_plan_id` and `story_versions.story_plan_id` record the plan (migration 0033), the host code's blueprint API is unchanged. The host director's own placement (Part 6) will take its slots from the plan's `host_slots`; not yet wired.
 Built: table `story_plans` (version, language, target_minutes, status draft/approved/superseded, plan JSON, validation JSON, evidence fingerprint, origin director/redo/edit, approval). `app/services/story_plans.py` (pure): `enrich` adds per beat `reveals` (evidence first used there) and `introduces_people`, and `host_slots` (one opening before beat 1; up to `story_plan.mid_host_slots` (2, capped by host.max_mid_segments) mid slots after distinct, non-adjacent, non-final beats; the final slot is off); `validate_plan` (unknown evidence ids, a beat revealing what it reserves, missing title/purpose/length, beat lengths vs film length with `max_total_words_deviation`, slot rules); `check_plan_mapping` (same beat ids in the same order, each beat inside `master_generation.section_word_tolerance`). `app/services/story_plan_service.py`: create (one director call, `Story Plan` ledger stage), preview (exact scope + token), edit/redo (need the preview token, supersede the old plan), approve (an invalid plan cannot be approved), `usable_approved` (same language, length and evidence fingerprint only). `StoryPipeline.run(story_plan=...)` writes to the plan with no new director call and adds a `plan_mapping` quality gate. Entry points: `POST /api/cases/{id}/master-story/generate` answers 409 `story_plan_required` without an approved plan (config `story_plan.require_approved_plan`); the one-button `write_master` plans and approves itself as `automatic` (config `automatic_approval_in_pipeline`), unless a stage-control prompt is given (then a new plan is made with it). API: `GET/POST /api/cases/{id}/story-plan`, `POST /api/story-plans/{id}/preview|edit|redo|approve`. UI: Story plan card in the Studio (plan, beats with people introductions and host slots, redo with a prompt after a scope preview, approve).
@@ -377,8 +520,8 @@ Tests: tests/test_story_plan_logic.py (8), tests/test_story_plan_service.py (8, 
 - **b2 baseline (no spend, scripts/writer_baseline.py + app/services/writer_metrics.py, tests/test_writer_metrics.py)**: docs/benchmarks/writer.md has the table for the old writer's Persian master of case 5 (story version 6, gemini-3.8-flash, beats act1-act3): lengths 12/18/25% over plan, mean sentence length 29 words, sentence-length variance 205-227, repeated trigram rate 0.010-0.030, 0 stock-phrase hits (the per-language stock-phrase lists in config/parameters/writer_metrics.json are my own wording, not reviewed by a native speaker), validators' own record: grounding 0.78, 8 unsupported claims, engagement 61, failed gates grounding/consistency/engagement. The writer prompt rewrite itself (5b) is being done in the working tree by another session (uncommitted prompts/agents/story/*.md rewrite), so it is not in a commit of mine; per-beat parallel drafting from a shared story bible plus a stitch pass is not built.
 - **5(d) added-figures gate (tests/test_added_figures.py)**: a native rewrite fails the new `added_figures` gate when it contains a number (any script's digits) that neither the master nor the evidence contains. The rest of the rewrite flow (semantic check, grounding, native critic) pre-exists.
 - **5(c) not done**: the A/B needs the new prompt committed, real spend, and the blind rubric review by a fresh reviewer agent (not started: agents are only spawned on the owner's request in this setup); the 2-minute section and the owner's side-by-side reading are pending.
-OWNER GATE (pending): owner approves the Persian master before native rewrites proceed.
-OWNER GATE (pending, Patch F): the owner reads old vs new writer output side by side for the same beat and says which is better; the owner's judgement overrides the metrics.
+OWNER GATE (replaced 2026-10-17): the owner approves the FINAL version of each language in the UI; nothing downstream starts for a language before its approval, and no language waits for another.
+OWNER GATE (Patch F, withdrawn 2026-10-17): there is no old-vs-new A/B any more (owner decision: no A/B tests); the owner reads the finals instead.
 
 Item (a) (story plan before writing) is unchanged from the original prompt. **Items (b) and (c) are replaced by Patch F (Amendment 1, 2026-10-15)**, verbatim:
 
@@ -392,6 +535,7 @@ d) PERSIAN MASTER, then APPROVAL, then native rewrites for en, de, ar — unchan
 
 ## Part 6 — Host editorial: persona and memory
 Status: IN_PROGRESS — code and tests done for host time, slots, persona, memory UI, real-seconds enforcement; the live proofs (6f persona hash per gateway request, 6g SQL/API/UI equality, 6h memory behaviour) and the Persian stock-phrase list are NOT done.
+**Update 2026-10-17:** the host reads the approved FINAL version of the language in question (there is no master). Wherever this part says "master", read "final version of that language".
 HOST TIME (Amendment 4, owner decision) — `config/parameters/documentary.json` host: `max_appearance_seconds` 120, `max_total_seconds` 240, `seconds` opening [30,120] / mid [8,60], `final_enabled` false, `max_total_share` 0.08 (error only for narration of 600 s or more, else a warning). Validator rules (`app/documentary/host.py`): opening strictly the longest, each appearance clamped to 120 s, final slot refused while off, the story plan's host slots are the placement (a mid segment must sit in a planned slot's act or the slot is vetoed with a reason, `vetoes`). Tests: tests/test_host.py (cap values, opening longest, final off, 120 s total in a 420 s film = warning, 500 s target clamped, slots/vetoes).
 - **6b slots**: `HostDirector.create_plan` reads the plan's `host_slots` through the master's `story_plan_id` and sends `planned_host_slots` plus the veto rule in its input (the director prompt FILE was not changed: another session is editing prompts/).
 - **6e real seconds** (`host_scenes.py`): `real_time_report` (each appearance within its cap, total within 240 s, opening longest on the real voice seconds, share reported) behind `GET /api/cases/{id}/host-time/{language}`; after TTS an over-cap voice makes the writer rewrite the dialogue shorter (`HostDirector.shorten_scene`, bounded by `host.max_repair_iterations`) and the scene is voiced again, else `HostTooLong`. Tests: tests/test_host_real_time.py.
@@ -404,6 +548,8 @@ HOST TIME — RESOLVED (Amendment 4, owner decision, no open gate): max 120 s pe
 
 ## Part 7 — Fereidoun's visual direction
 Status: IN_PROGRESS — 7a, 7b (workflow), 7c, 7d, 7f built and tested; the live proof (REAL SPEND) is BLOCKED by missing owner assets and not run; 7e not started.
+
+**Update 2026-10-17:** "Persian master" below means the approved final fa version (output of `language.final`, owner approval needed).
 - **7a capability matrix**: docs/host-direction.md, from HeyGen's real docs (create-video: `motion_prompt`, `expressiveness` on photo avatars; Photo to Avatar: `POST /v3/avatars` type photo + `avatar_group_id` adds a look) and a real API read (`GET /v3/avatars`, `/v3/avatars/looks`: the account has one group with 7 photo-avatar looks, no motion/camera fields on a look). Gestures, eye contact and coarse intensity are EXECUTED_BY_PROVIDER (best-effort prompt, not frame-exact); camera, wardrobe, pose, WIDE framing are EXECUTED_BY_LOOK_CHOICE; MEDIUM/CLOSE crops, push-in/pull-back and the lighting grade are EXECUTED_IN_OUR_RENDERER but the renderer part is NOT built (PLANNED_ONLY in practice); emotion label, the per-second timeline and cuts inside a segment are PLANNED_ONLY.
 - **7b look library** (migration 0037 `host_looks`, `app/documentary/looks.py`): request one look at a time -> generate with an image model through the gateway (`host_looks.image_model` `gpt-image-2`, the locked studio master and the outfit picture as references; booked by the generic ledger) -> approve / reject / regenerate with a prompt -> upload to HeyGen only when approved (`require_approved_for_upload`, picture sha256 re-checked) -> HeyGen look id stored. API `/api/host-looks...`, Host page panel. Approved looks plus crops of an approved front/wide look define the cameras the director may use. The gateway's image-edit response shape is NOT verified (no studio master on disk, no spend made).
 - **7c stage director** (`app/agents/stage_director.py`, role `host_stage_director`, prompt `prompts/documentary/host/stage_director_system_prompt.md` = the director file with the project decisions on top, persona inside, persona sha256 logged): runs after the voice step from `voice_seconds` and the stored character alignment, pydantic `StageDirection`, repair loop, remembered only when valid; `host_scenes.direction_controls` turns the stored direction into `motion_prompt` + `expressiveness` for the HeyGen request. Guard-rails with one test each (tests/test_stage_direction.py): approved looks only, no new camera, CLOSE at most once and only for a reason, shot 8-20 s, cuts at sentence ends, timelines cover 0..voice without gaps, sensitive material -> L06 / <=1 gesture / static camera, forbidden emotions unless justified, outfit not repeated within the window, posture differs from the previous appearance, memory reference exists. The role is defined in config/parameters/stage_director_role.json (agent entry, routing `premium`, settings) because config/agents.json and models.json carry another session's uncommitted edits.
@@ -414,14 +560,18 @@ OWNER GATES (pending, non-blocking): owner approves look images before any HeyGe
 
 ## Part 8 — Film integration and UI
 Status: IN_PROGRESS — 8a/8b/8c built and unit-tested; the live proof (a real short preview with host scenes and media) is NOT done: it needs a Persian master, an approved look, studio master pictures and real spend (see Parts 5 and 7 blockers).
+
+**Update 2026-10-17:** "Persian master" below means the approved final fa version (output of `language.final`, owner approval needed).
 - **8a inventory**: `HostScene.status` had `composited` in its order but NOTHING put a host scene into the film (no reference in production/ or render/). Built `app/documentary/production/host_timeline.py`: `host_items` (ready scenes: avatar video on disk with unchanged sha256, real voice seconds), `insert_host` (opening before beat 1, mid after its planned beat; shots, beats, voice blocks, subtitles, overlays, silences, music and the intro all shift by the host's length; a shot spanning the insertion is split; host shots are ordinary `video` shots the renderer already plays), `splice_host_audio` (ffmpeg: narration cut at each insertion point, the host's own voice file in between with `host.audio_gain_db`), `mark_composited`; wired into `build_production_script` (`script["host"]`, `host_seconds`, `audio.with_host`). Order with the channel intro: the intro keeps its own placement logic (prepend / gap) and its start shifts with the host; with a prepended intro the film runs intro, host opening, beat 1. Chapter cards and the music cues shift like every other timed item. Reveal firewall: placement is the planned beat (host claims were already checked against reveal order by the host plan validator, and the host plan's slots come from the story plan). The final checks flag any appearance over 120 s or host time over 240 s (`host_time`, high). Tests: tests/test_host_timeline.py (opening/mid/split/accumulation, refusal of an unknown beat or two openings, a REAL ffmpeg splice measured with ffprobe: 30 s + 4 s + 3 s = 37 s, host-time checks, composited status). Not verified: a real render with a host video in it; host audio level by loudness (a fixed gain only); music ducking under the host (the music bed is cut with the narration, not ducked).
 - **8b Host page** (English): the plan with placements, each segment's dialogue, the critic verdict, the persona hash/state, the direction field by field marked EXECUTED vs PLANNED_ONLY (`stage_direction.execution_view`, `GET /api/host-scenes` carries `direction_execution`), the look library with preview/approve/upload, the visual memory, the memories (and which segment used each) and the run status of each scene. The usual controls (continue / redo with a prompt / edit / auto, each with a scope preview) are the existing stage-control panel for the `host_plan` and `host` stages on the Run tab; they are not duplicated on the Host page.
 - **8c**: the Host page also shows the media coverage panel (Part 4a) beside the host plan.
 Not done: the live preview render and its measured length and case-specific share.
 
 
-## Part 10 — One real 60-minute film from zero (Amendment 1, new part)
+## Part 10 — One real film from zero (Amendment 1; length see update below)
 Status: IN_PROGRESS (preparation only) — the run itself has NOT started; blocked on owner gates and missing assets (below). Runs AFTER Part 8 and BEFORE Part 9 (Part 9 is the final audit/report and runs last).
+**Update 2026-10-17:** the "Persian master and native rewrites" of this part are replaced by the language pipeline: one shared English draft (90 minutes), then fa, en, de, ar finals produced independently (stage 2 default 60 minutes, range 60-70), each approved by the owner per language. The language pipeline already ran on case 8 up to finals with all gates passed (see the Language pipeline section). Open decision: the 7-minute pilot below conflicts with stage 2's 60-70 minute default; the pilot length must be a run parameter (requested minutes), not a change of the caps.
+
 ### Pilot preparation done (2026-10-16) — the Part 10 text of docs/7_min_full_run.txt (7-minute pilot, four languages) supersedes the 60/50-minute text further down
 - **Case-choice probe** (`scripts/probe_candidate_cases.py`, Brave only, a few cents; counts are capped by the API at 10-20 per call, so they compare cases only roughly): Lizzie Borden axe murders: 16 distinct web domains, 10 YouTube results, 10 Brave images, 10 Brave videos, 1 Commons file (the narrow query; the case itself is richly covered); Hinterkaifeck murders: 16 / 10 / 10 / 10 / 22; Leopold and Loeb: 20 / 10 / 10 / 10 / 50; Black Dahlia Elizabeth Short: 17 / 10 / 10 / 10 / 50. **OWNER GATE (do not block): which case.** Recommendation: case 8 (Lizzie Borden), because it is already researched in the real app (711 facts, 15 transcribed videos, 22 visual leads, an approved 45-minute story plan; EUR 6.44 spent); Leopold and Loeb (case 5) is excluded unless the owner chooses it.
 - **Platform profiles**: docs/platform-profiles.md. Only YouTube Shorts (up to 3 minutes, official help page) and TikTok's upload chunk sizes could be read; Instagram and Facebook Reels limits are NOT VERIFIED (their pages are JavaScript-rendered); every short stays inside 1080x1920 and 15-60 s (`short_form.distribution`, `hard_max_seconds` 60). Shorts per platform are `short_form.distribution.<platform>.count`; to be set to 2 when the pilot starts. Publishers are stubs.
@@ -451,9 +601,19 @@ Status: TODO. Not started. Runs LAST, after Part 10.
 
 ---
 
+## Language pipeline: one English base, checked texts, cost telemetry (2026-10-18, local, not committed)
+- FA/DE/AR are written from the approved, checked English final (case 8: final 95) and record it in `derived_from` (id + text hash); a new English base marks their checks and approvals stale. Each delivered text is reviewed; English also by evidence audit + AuditFix, other languages by a fidelity check against the English; one revision round at most; unresolved blocking items give status `open_issues`, never automatic approval.
+- Bounded length correction against act tolerances with the editorial removal decisions passed in. Case 8's material carries about 50 minutes, not 60 (three 60-minute attempts failed length without repetition); run at 50.
+- `language.draft` runs on Flash (config/models.json only). Telemetry: migration 0041 (prefix hash, gateway request id, cache write tokens, cost source). The estimate uses the measured cache share, no 90% assumption.
+- Act-4 packaging benchmark (Flash, audited): full block 0.564 EUR, act package 0.191, two scenes per call 0.114; the Sonnet act cost 1.227 EUR (ledger). Audit findings per 1000 words: Sonnet 4.3, Flash 5.4 / 4.2 / 5.0 (high-severity 1 vs 3 / 5 / 4). Default stays `full`/1 until the high-severity count is understood.
+- Open: the closing question of all finals ("who went up the stairs to Abby before that?") presupposes a route the evidence does not give (flagged by the fidelity check in de/ar); UI for review/fidelity/stale/open status is not built; speaking rate (minutes) is estimated.
+
 ## WAITING_OWNER items (summary, kept in sync as they arise)
+- Push: `c9e1548` and `b742051` are local only; the owner runs `git push origin main` on the Mac after `scripts/secret_scan.py`.
+- Language pipeline: approve the final version of each language in the UI (fa first); a native speaker checks ar; the owner reads fa. Independence exception for Sol is recorded as his decision.
+- Brave Search credit: HTTP 402 was reported; top up before the next research run.
+- R4: install `yt-dlp` and name licensed sources if third-party film clips should be used; until then there are no film candidates.
 - Part 4: editorial_review_required news photos usable in published films? (default: not used)
-- Part 5: approval of the Persian master before native rewrites; (Patch F) owner's old-vs-new writer judgement overrides the metrics
-- Part 6: host time RESOLVED by Amendment 4 (120s/appearance, 240s/film, opening longest) — no longer open
-- Part 7: look-image approvals before HeyGen upload; per-channel outfit allow-list
-- Part 10: case choice for the 50-minute film (not case 5 unless chosen); approval of its Persian master mid-run; native-speaker check per language (owner names who, Stage C)
+- Part 6: host time RESOLVED by Amendment 4 (120s/appearance, 240s/film, opening longest) - no longer open
+- Part 7: look-image approvals before HeyGen upload; per-channel outfit allow-list; studio master pictures (data/studio/ is empty)
+- Part 10: case choice and pilot length (7-minute pilot vs the 60-70 minute stage 2 default); approval of the finals mid-run; native-speaker check per language (owner names who, Stage C)

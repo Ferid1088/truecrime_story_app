@@ -189,6 +189,7 @@ export function VideosTab({
                       <TH>Channel</TH>
                       <TH>Language</TH>
                       <TH>Type</TH>
+                      <TH>Use</TH>
                       <TH>Transcript</TH>
                       <TH>Caption quality</TH>
                       <TH>Independence</TH>
@@ -211,6 +212,30 @@ export function VideosTab({
                         <TD className="text-muted-foreground">{langLabel(v.language)}</TD>
                         <TD>
                           <Badge variant="outline">{v.classification.replace(/_/g, " ")}</Badge>
+                        </TD>
+                        <TD className="max-w-60">
+                          <Badge variant={v.use === "film_candidate" ? "success" : "default"}>
+                            {v.use === "film_candidate" ? "film candidate" : "research only"}
+                          </Badge>
+                          <span className="ml-1.5 text-[10px] text-muted-foreground">
+                            {v.rights_status.replace(/_/g, " ")}
+                          </span>
+                          {v.license_evidence_url ? (
+                            <a
+                              href={v.license_evidence_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="ml-1.5 text-[10px] text-primary underline"
+                            >
+                              license evidence
+                            </a>
+                          ) : null}
+                          {v.use_reason && (
+                            <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
+                              {v.use_reason}
+                            </span>
+                          )}
                         </TD>
                         <TD>
                           <Badge variant={transcriptVariant(v.transcript_status)}>

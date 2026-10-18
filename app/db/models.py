@@ -240,6 +240,13 @@ class StoryVersion(Base):
     # by POST .../stories/{id}/approve — never by the automated gate.
     approved_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Language pipeline: the shared draft this stage output derives from, the
+    # reasoning effort the stage ran with, the narration minutes of its text and
+    # the actual EUR its calls cost.
+    draft_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     case = relationship("Case", back_populates="stories")
 
@@ -312,6 +319,16 @@ class AgentRun(Base):
     estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     generation_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     text_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Prompt-cache and reasoning use of this run (None = provider reported none)
+    # and the reasoning effort that was sent with the request.
+    cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Tokens written to the prompt cache (None = not reported), the hash of the reusable start of the
+    # prompt as sent, and the gateway's request id for this call.
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    prompt_prefix_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    gateway_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     case = relationship("Case")
 
@@ -377,6 +394,14 @@ class VideoSource(Base):
 
     processed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # Two kinds of video: research_only (its transcript is read, it is never shown or
+    # downloaded) or film_candidate (open license / public domain, with stored evidence).
+    use: Mapped[str] = mapped_column(String(20), default="research_only", index=True)
+    use_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rights_status: Mapped[str] = mapped_column(String(40), default="unknown")
+    license_evidence_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    license_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    attribution_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     case = relationship("Case")
     source = relationship("Source")
@@ -514,6 +539,30 @@ class ClaimCluster(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
     case = relationship("Case")
+
+
+class EntityGlossaryEntry(Base):
+    """How one named entity of a case's evidence (a person or a place) is spelled in one language.
+    Proposed from the evidence, approved by the owner; the cross-language facts check accepts
+    only these spellings."""
+    __tablename__ = "entity_glossary"
+    __table_args__ = (UniqueConstraint("case_id", "entity", "language", name="uq_entity_glossary"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    entity: Mapped[str] = mapped_column(String(300))
+    kind: Mapped[str] = mapped_column(String(20))
+    # people | locations
+    language: Mapped[str] = mapped_column(String(10))
+    spellings: Mapped[str] = mapped_column(Text, default="[]")
+    evidence_ids: Mapped[str] = mapped_column(Text, default="[]")
+    status: Mapped[str] = mapped_column(String(20), default="proposed")
+    # proposed | approved
+    origin: Mapped[str] = mapped_column(String(20), default="evidence")
+    # evidence | agent | owner
+    approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
 class StoryPlan(Base):
@@ -2078,6 +2127,18 @@ class ProviderCall(Base):
     bytes_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Of tokens_in, the tokens the provider served from its prompt cache; and of
+    # tokens_out, the reasoning tokens.
+    tokens_cached: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_reasoning: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Tokens written to the prompt cache (None = the provider reported none) and the hash of the
+    # reusable start of the prompt as sent; request_id is the gateway's id for the call.
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    prompt_prefix_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Where cost_eur comes from: "provider_reported" (the gateway's own cost), "computed_from_tokens"
+    # (the configured price table applied to reported tokens) or "estimate" (the provider reported no usage).
+    cost_source: Mapped[str | None] = mapped_column(String(24), nullable=True)
     cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     error: Mapped[str | None] = mapped_column(String(200), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

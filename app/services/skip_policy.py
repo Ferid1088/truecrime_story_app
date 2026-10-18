@@ -77,8 +77,9 @@ class SkipPolicy:
             reasons.append(f"status is {row.status}")
         stage = json.loads(row.scope_json or "{}").get("stage", "")
         detail = _stage_detail(job, stage, row.language)
-        if not detail and stage == "master_story":
-            detail = _stage_detail(job, "master_approval", row.language)
+        if not detail and stage in ("master_story", "language_pipeline"):
+            detail = _stage_detail(job, "master_approval" if stage == "master_story" else "final_approval",
+                                   row.language)
         expected_inputs = _source_payload(self.db, job,
                                            stage,
                                            row.language, detail, row.type)

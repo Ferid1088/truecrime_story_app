@@ -56,7 +56,7 @@ def run_case(template: Path, parent: Path, source: str) -> dict:
             "pytest",
             "-q",
             "-s",
-            "tests/test_visual_production.py::test_four_language_shadow_pipeline_real_job",
+            "tests/test_visual_production.py::test_shadow_pipeline_real_job",
         ],
         cwd=ROOT,
         env=env,

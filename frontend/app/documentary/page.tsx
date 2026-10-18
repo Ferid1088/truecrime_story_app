@@ -99,7 +99,7 @@ export default function DocumentaryPage() {
               description={
                 needle
                   ? "Try a different search."
-                  : "Discover or create a case — a documentary can start from zero with research and the master story."
+                  : "Discover or create a case — a documentary can start from zero with research and the language pipeline."
               }
             />
           ) : (

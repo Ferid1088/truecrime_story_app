@@ -40,7 +40,7 @@ def main() -> None:
         db.add(case)
         db.flush()
         versions: dict[str, StoryVersion] = {}
-        master = StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+        master = StoryVersion(case_id=case.id, version=1, kind="final", language="en",
                               narrative_angle="angle", story_text="A stable master story.",
                               narrative_structure=json.dumps({"sections": [{
                                   "title": "Arrival", "text": "A stable master chapter."

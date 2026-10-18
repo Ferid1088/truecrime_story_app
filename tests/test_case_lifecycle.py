@@ -112,7 +112,7 @@ def _case(db, title, **kw) -> Case:
 
 def _covered(db, case: Case, language="en", episode=27) -> Video:
     """A published film about the case (the channel covered it)."""
-    master = StoryVersion(case_id=case.id, version=1, kind="master", narrative_angle="{}",
+    master = StoryVersion(case_id=case.id, version=1, kind="final", narrative_angle="{}",
                           language="en", story_text="x",
                           narrative_structure=json.dumps({"title": f"The {case.canonical_title}"}))
     db.add(master)
@@ -466,10 +466,8 @@ def test_follow_up_intro_and_title(db_session):
     ctx = F.context(db_session, fu)
     assert "Episode 12" in ctx["intro"] and original.youtube_title in ctx["intro"]
     assert "has now been solved" in ctx["intro"]
-    text, inserted = F.ensure_intro("Lena Sommer left home on a Friday.", ctx)
-    assert inserted and text.startswith(ctx["intro"])
-    already = ctx["intro"] + "\n\nShe left home on a Friday."
-    assert F.ensure_intro(already, ctx) == (already, False)
+    assert not F.opens_with_earlier_video("Lena Sommer left home on a Friday.", ctx)
+    assert F.opens_with_earlier_video(ctx["intro"] + "\n\nShe left home on a Friday.", ctx)
     title, rule = V.youtube_title(case, "en", "anything", production_type="follow_up")
     assert rule == "follow_up" and title.startswith("The Lena Sommer Case")
     assert title.endswith("(Solved) | ClueVera") and "Original Video" in title
@@ -478,11 +476,11 @@ def test_follow_up_intro_and_title(db_session):
 def test_story_director_gets_status_openings_and_follow_up(db_session):
     """The director prompt carries the opening catalogue, the openings
     of recent films to avoid, the case status and the follow-up intro;
-    the master stores the opening and keeps the intro."""
+    the final texts keep the intro."""
     from app.agents.story import choose_opening, editorial_context
 
     prev = _case(db_session, "Lifecycle Opening previous film")
-    db_session.add(StoryVersion(case_id=prev.id, version=1, kind="master", narrative_angle="{}",
+    db_session.add(StoryVersion(case_id=prev.id, version=1, kind="final", narrative_angle="{}",
                                 language="en", story_text="x", narrative_structure=json.dumps(
                                     {"opening_strategy": "courtroom_outcome"})))
     db_session.commit()
@@ -508,41 +506,6 @@ def test_audit_explains_decisions(client, db_session):
     assert {"suggestions", "status_checks", "productions", "films", "follow_ups"} <= set(data)
 
 
-def test_follow_up_master_opens_with_the_earlier_video(db_session, monkeypatch):
-    """G: the master story of an update video references the previous
-    video and says the case is now solved — even when the writer forgot."""
-    from test_master_pipeline import ScriptGen, _add_fact, _mk_case, _pipeline
-
-    fake = ScriptGen()
-    seen = {}
-
-    def director(system, user):
-        seen["context"] = json.loads(user)["editorial_context"]
-        return {"title": "t", "central_question": "q", "opening_strategy": "contradiction",
-                "acts": [{"id": "act1", "purpose": "p", "evidence_ids": []},
-                         {"id": "act2", "purpose": "p", "evidence_ids": []}]}
-
-    fake.structured["story_director"] = director
-    pipe = _pipeline(fake, monkeypatch)
-    case = _mk_case(db_session)
-    _add_fact(db_session, case)
-    set_resolution(db_session, case, "UNSOLVED", changed_by="user", reason="open")
-    _covered(db_session, case, episode=31)
-    set_resolution(db_session, case, "SOLVED", changed_by="monitor", reason="verdict")
-    fu = F.create_candidate(db_session, case, previous_status="UNSOLVED", new_status="SOLVED",
-                            check=None, development="The killer confessed and was convicted.",
-                            sources=[], confidence=0.9)
-    ctx = F.context(db_session, fu)
-    v = asyncio.run(pipe.run(db_session, case, target_minutes=10, language="en", tone="t",
-                             iterations=1, follow_up=ctx))
-    assert seen["context"]["follow_up"]["intro"] == ctx["intro"]
-    assert seen["context"]["case_status"] == "SOLVED"
-    assert v.story_text.startswith(ctx["intro"])
-    assert "Episode 31" in v.story_text.split("\n\n")[0]
-    struct = json.loads(v.narrative_structure)
-    assert struct["opening_strategy"] == "previous_coverage"
-    assert struct["follow_up"]["follow_up_id"] == fu.id
-    assert struct["sections"][0]["text"].startswith(ctx["intro"])
 
 
 def test_editing_a_published_film_keeps_its_history(db_session):

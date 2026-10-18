@@ -158,24 +158,3 @@ def _slot_errors(plan: dict, ids: list[str]) -> list[dict]:
     if any(b not in ids[:-1] for b in after) or len(set(after)) != len(after):
         out.append({"code": "mid_host_slot_must_follow_a_distinct_non_final_beat"})
     return out
-
-
-def check_plan_mapping(sections: list[dict], plan: dict) -> dict:
-    """The written story must map 1:1 onto the plan's beats: the same ids in
-    the same order, each within the per-beat length band."""
-    ids = _beat_ids(plan)
-    got = [str(s.get("id")) for s in sections or []]
-    issues: list[dict] = []
-    if got == ["full"] or not got:
-        issues.append({"code": "structure_lost", "why": "the story has no per-beat sections"})
-    elif got != ids:
-        issues.append({"code": "beats_do_not_match", "plan": ids, "story": got})
-    else:
-        tol = ai_config.master_generation.section_word_tolerance
-        for a, s in zip(plan.get("acts") or [], sections):
-            target = int(a.get("target_words") or 0)
-            words = len(s["text"].split())
-            if target and abs(words - target) / target > tol:
-                issues.append({"code": "beat_length", "beat": a.get("id"),
-                               "words": words, "target_words": target})
-    return {"ok": not issues, "issues": issues}

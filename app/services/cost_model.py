@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import re
-import statistics
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -178,8 +177,6 @@ def _metrics(db: Session, case: Case, target_minutes: float | None,
         "story_tokens": {key: result["story_words"][key] * words_to_tokens for key in SCENARIOS},
         "research_input": {key: result["source_words"][key] * words_to_tokens for key in SCENARIOS},
         "research_output": {key: result["target_story_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
-        "master_story_input": {key: result["target_story_words"][key] * 0.45 * words_to_tokens for key in SCENARIOS},
-        "master_story_output": {key: result["story_words"][key] * words_to_tokens for key in SCENARIOS},
         "spoken_input": {key: result["story_words"][key] * 1.2 * words_to_tokens for key in SCENARIOS},
         "spoken_output": {key: result["story_words"][key] * 1.05 * words_to_tokens for key in SCENARIOS},
         "performance_input": {key: result["story_words"][key] * 1.1 * words_to_tokens for key in SCENARIOS},
@@ -197,145 +194,30 @@ def _scale(metrics: dict[str, float], key: str, factor: float) -> dict[str, floa
     return {scenario: metrics[scenario] * factor for scenario in SCENARIOS}
 
 
-def _percentile(values: list[float], fraction: float) -> float:
-    ordered = sorted(values)
-    if not ordered:
-        return 0.0
-    if len(ordered) == 1:
-        return ordered[0]
-    position = (len(ordered) - 1) * fraction
-    low = int(position)
-    high = min(low + 1, len(ordered) - 1)
-    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
 
 
-def _calibrated_master_story_line(
-    db: Session,
-) -> tuple[CostLine | None, dict[str, Any]]:
-    """Estimate the master attempt from observed ledger usage.
+def _language_pipeline_lines(db: Session, case: Case, languages: list[str],
+                             target_minutes: float | None, pilot_seconds: float | None,
+                             multipliers: dict[str, float]) -> list[CostLine]:
+    """The shared draft and each language's rewrite, inspection and final text, from the
+    language pipeline's own planning estimate (a pilot writes no long text of its own here)."""
+    from app.language_pipeline import estimate as pipeline_estimate
+    from app.language_pipeline.materials import load_material
+    from app.services.story_plan_service import StoryPlanService
 
-    A master is a graph of writer, repair, critic and validator calls, not one
-    request with the final story as its output. Once recorded provider rows
-    exist, use their measured per-call tokens/cost and the bounded revision
-    budget. New installations retain the formula-based fallback.
-    """
-    rows = (db.query(ProviderCall)
-            .filter(ProviderCall.stage == "master_story",
-                    ProviderCall.model.is_not(None),
-                    ProviderCall.tokens_in.is_not(None),
-                    ProviderCall.tokens_out.is_not(None),
-                    ProviderCall.estimated.is_(False),
-                    ProviderCall.is_test_data.is_(False))
-            .all())
-    costs: list[float] = []
-    inputs: list[int] = []
-    outputs: list[int] = []
-    for row in rows:
-        cost = row.cost_eur
-        if cost is None:
-            cost = model_cost_eur(row.model, row.tokens_in, row.tokens_out)
-        if cost is None:
-            continue
-        costs.append(float(cost))
-        inputs.append(int(row.tokens_in))
-        outputs.append(int(row.tokens_out))
-    if len(costs) < 3:
-        return None, {"source": "formula", "observations": len(costs)}
-
-    expected_calls = 1 + int(ai_config.master_generation.max_revision_calls)
-    mean_cost = statistics.fmean(costs)
-    mean_input = statistics.fmean(inputs)
-    mean_output = statistics.fmean(outputs)
-    eur = {
-        "low": _percentile(costs, 0.25) * expected_calls,
-        "expected": mean_cost * expected_calls,
-        "high": _percentile(costs, 0.75) * expected_calls,
-    }
-    line = CostLine(
-        "master_story", "run", None,
-        {"input_tokens": mean_input * expected_calls,
-         "output_tokens": mean_output * expected_calls},
-        {"observed_eur_per_call": mean_cost,
-         "expected_calls": float(expected_calls)},
-        eur, "ledger-calibrated", "verified", None,
-    )
-    return line, {
-        "source": "provider_calls",
-        "observations": len(costs),
-        "expected_calls": expected_calls,
-        "mean_input_tokens_per_call": round(mean_input, 1),
-        "mean_output_tokens_per_call": round(mean_output, 1),
-        "mean_cost_eur_per_call": round(mean_cost, 6),
-    }
-
-
-def _calibrated_master_approval_line(
-    db: Session, pilot_seconds: float | None,
-) -> tuple[CostLine | None, dict[str, Any]]:
-    """Estimate the approval gate from observed ledger usage.
-
-    A master is never put into production unaudited: at least one writer
-    (rewrite), grounding, consistency and engagement-critic call run under
-    the ``master_approval`` stage for every revision the gate asks for, and
-    none of that is the ``master_story`` line above (which prices only the
-    first draft). Those calls are real, paid, and previously had no
-    estimate line at all, so they never showed up in the estimate-vs-actual
-    report."""
-    rows = (db.query(ProviderCall)
-            .filter(ProviderCall.stage == "master_approval",
-                    ProviderCall.model.is_not(None),
-                    ProviderCall.tokens_in.is_not(None),
-                    ProviderCall.tokens_out.is_not(None),
-                    ProviderCall.estimated.is_(False),
-                    ProviderCall.is_test_data.is_(False))
-            .all())
-    costs: list[float] = []
-    inputs: list[int] = []
-    outputs: list[int] = []
-    for row in rows:
-        cost = row.cost_eur
-        if cost is None:
-            cost = model_cost_eur(row.model, row.tokens_in, row.tokens_out)
-        if cost is None:
-            continue
-        costs.append(float(cost))
-        inputs.append(int(row.tokens_in))
-        outputs.append(int(row.tokens_out))
-    if len(costs) < 3:
-        return None, {"source": "formula", "observations": len(costs)}
-
-    # One revision pass is a writer rewrite plus grounding, consistency and
-    # engagement-critic checks on the result — four provider calls.
-    calls_per_revision = 4
-    max_revisions = (
-        ai_config.master_generation.max_pilot_approval_revisions
-        if pilot_seconds else ai_config.documentary.max_redos
-    )
-    expected_calls = calls_per_revision * max(1, max_revisions)
-    mean_cost = statistics.fmean(costs)
-    mean_input = statistics.fmean(inputs)
-    mean_output = statistics.fmean(outputs)
-    eur = {
-        "low": _percentile(costs, 0.25) * expected_calls,
-        "expected": mean_cost * expected_calls,
-        "high": _percentile(costs, 0.75) * expected_calls,
-    }
-    line = CostLine(
-        "master_approval", "run", None,
-        {"input_tokens": mean_input * expected_calls,
-         "output_tokens": mean_output * expected_calls},
-        {"observed_eur_per_call": mean_cost,
-         "expected_calls": float(expected_calls)},
-        eur, "ledger-calibrated", "verified", None,
-    )
-    return line, {
-        "source": "provider_calls",
-        "observations": len(costs),
-        "expected_calls": expected_calls,
-        "mean_input_tokens_per_call": round(mean_input, 1),
-        "mean_output_tokens_per_call": round(mean_output, 1),
-        "mean_cost_eur_per_call": round(mean_cost, 6),
-    }
+    cfg = ai_config.language_pipeline
+    plan = StoryPlanService(db).latest(case.id, cfg.draft_language)
+    requested = None if pilot_seconds else target_minutes
+    planned = pipeline_estimate.estimate(load_material(db, case, plan), languages, requested)
+    lines = []
+    for item in planned["lines"]:
+        name = f"language_{item['stage']}" + (f":{item['language']}" if item["language"] else "")
+        eur = {key: item["eur"] * float(multipliers[key]) for key in SCENARIOS}
+        lines.append(CostLine(name, "run", None,
+                              {"input_tokens": item["tokens_in"],
+                               "output_tokens": item["tokens_out"] + item["reasoning_tokens"]},
+                              {}, _round_range(eur), item["model"], "verified", None))
+    return lines
 
 
 def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
@@ -352,29 +234,8 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
     tokens = metrics["tokens"]
     lines.append(_llm_line(pricing, "research", "cheap",
                            tokens["research_input"], tokens["research_output"]))
-    master_line, calibration = _calibrated_master_story_line(
-        db
-    )
-    lines.append(master_line or _llm_line(
-        pricing, "master_story", "writer",
-        tokens["master_story_input"], tokens["master_story_output"]
-    ))
-    metrics["master_story_calibration"] = calibration
-    approval_line, approval_calibration = _calibrated_master_approval_line(
-        db, pilot_seconds
-    )
-    max_revisions = (
-        ai_config.master_generation.max_pilot_approval_revisions
-        if pilot_seconds else ai_config.documentary.max_redos
-    )
-    lines.append(approval_line or _llm_line(
-        pricing, "master_approval", "writer",
-        _scale(tokens["master_story_input"], "master_story_input",
-               max(1, max_revisions) / max(1, ai_config.master_generation.max_revision_calls)),
-        _scale(tokens["master_story_output"], "master_story_output",
-               max(1, max_revisions) / max(1, ai_config.master_generation.max_revision_calls)),
-    ))
-    metrics["master_approval_calibration"] = approval_calibration
+    lines.extend(_language_pipeline_lines(db, case, languages, target_minutes, pilot_seconds,
+                                          assumptions["range_multipliers"]))
     for language in languages:
         lines.append(_llm_line(pricing, f"spoken:{language}", "premium",
                                tokens["spoken_input"], tokens["spoken_output"]))
@@ -412,15 +273,6 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
             lines.append(_single_unit_line(pricing, f"host:{language}", "skipped",
                                            "Host/HeyGen is disabled in configuration.", {}, {},
                                            {key: 0.0 for key in SCENARIOS}))
-
-    if any(language != "en" for language in languages):
-        lines.append(_llm_line(pricing, "translation", "writer",
-                               {key: tokens["story_tokens"][key] * 1.1 for key in SCENARIOS},
-                               {key: tokens["story_tokens"][key] * 1.05 for key in SCENARIOS}))
-    else:
-        lines.append(_single_unit_line(pricing, "translation", "skipped",
-                                       "English is the canonical language; no translation call.",
-                                       {}, {}, {key: 0.0 for key in SCENARIOS}))
 
     short_count = int(assumptions["short_count"])
     lines.append(_llm_line(pricing, "short_selection", "writer",
@@ -488,8 +340,14 @@ def _price_spec(pricing: dict[str, Any], model: str) -> dict[str, Any] | None:
 
 
 def model_cost_eur(model: str | None, input_tokens: int | None,
-                   output_tokens: int | None) -> float | None:
-    """Price provider-reported token usage using the configured model rate."""
+                   output_tokens: int | None, cached_tokens: int | None = None,
+                   cache_write_tokens: int | None = None) -> float | None:
+    """Price provider-reported token usage using the configured model rate.
+
+    `input_tokens` includes the cached ones (the provider's prompt_tokens);
+    those are charged at the model's cached-input rate when it has one. Tokens the provider says it
+    wrote to the cache are charged at the model's cache-write rate when it has one (the part of
+    input_tokens that is neither read nor written is charged at the plain input rate)."""
     if not model or input_tokens is None or output_tokens is None:
         return None
     pricing = load_pricing()
@@ -497,8 +355,16 @@ def model_cost_eur(model: str | None, input_tokens: int | None,
     if not spec:
         return None
     rate = float(pricing["exchange_rates"]["usd_to_eur"])
-    return round((int(input_tokens) / 1_000_000 * float(spec["input_usd_per_1m_tokens"])
-                  + int(output_tokens) / 1_000_000 * float(spec["output_usd_per_1m_tokens"])) * rate, 8)
+    input_rate = float(spec["input_usd_per_1m_tokens"])
+    cached = min(int(cached_tokens or 0), int(input_tokens))
+    cached_rate = float(spec.get("cached_input_usd_per_1m_tokens", input_rate))
+    write_rate = float(spec.get("cache_write_usd_per_1m_tokens", input_rate))
+    written = min(int(cache_write_tokens or 0), int(input_tokens) - cached)
+    usd = ((int(input_tokens) - cached - written) / 1_000_000 * input_rate
+           + written / 1_000_000 * write_rate
+           + cached / 1_000_000 * cached_rate
+           + int(output_tokens) / 1_000_000 * float(spec["output_usd_per_1m_tokens"]))
+    return round(usd * rate, 8)
 
 
 def conservative_unpriced_cost_eur(input_tokens: int, output_tokens: int) -> float:

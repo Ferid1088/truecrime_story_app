@@ -34,6 +34,9 @@ from app.documentary.visuals.footage import (
     renderable,
     sheet_path,
 )
+from app.services.video_rights import RightsRefused, VideoRightsGate
+
+MEDIA_SUFFIXES = (".mp4", ".webm", ".ogv", ".mov", ".m4v", ".mkv")
 
 
 class FootageAgent:
@@ -103,6 +106,24 @@ class FootageAgent:
                         left -= 1
                         stats["by_provider"][prov.name] = stats["by_provider"].get(prov.name, 0) + 1
         return stats
+
+    async def ingest_film_candidate(self, db: Session, case: Case, video, profile: str | None = None,
+                                    found_during: str = "research") -> str:
+        """A research video that is a film candidate goes through the same download, cutting and
+        description as any footage, but only after the rights gate passed (use, rights status
+        for the render profile, stored license evidence). Only a direct media file of an
+        allowed host can be fetched; a page (a YouTube watch page) has no downloader."""
+        VideoRightsGate().require(video, profile)
+        media = video.url if video.url.lower().split("?")[0].endswith(MEDIA_SUFFIXES) else None
+        if media is None:
+            raise RightsRefused("the video is a web page, not a media file; no downloader fetches it")
+        candidate = FootageCandidate(
+            provider="film_candidate", url=media, page_url=video.license_evidence_url,
+            source_url=media, title=video.title, license=video.rights_status,
+            credit=video.attribution_text, source_name=video.channel_name or "archive",
+            found_for=video.discovery_query)
+        return await self._ingest(db, case, candidate, video.rights_status,
+                                  f"film candidate: {video.use_reason}", [], found_during)
 
     async def _ingest_pieces(self, db, case, c: FootageCandidate, status: str, reason: str,
                              hashes: list[str], found_during: str) -> str:

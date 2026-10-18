@@ -81,3 +81,20 @@ def test_storing_web_facts_keeps_the_facts_promoted_from_videos(db_session):
     db_session.commit()
     claims = {f.claim for f in db_session.query(Fact).filter(Fact.case_id == case.id)}
     assert claims == {"From a video", "New web fact"}
+
+
+def test_a_rerun_keeps_stored_contradictions_and_adds_only_new_topics(db_session):
+    case = Case(canonical_title="Contradictions", slug="contradictions-keep")
+    db_session.add(case)
+    db_session.commit()
+    db_session.add(Contradiction(case_id=case.id, topic="Number of wounds to Andrew Borden",
+                                 description="from a video", source_ids_json="[1]"))
+    db_session.commit()
+    agent = ResearchAgent.__new__(ResearchAgent)
+    total = agent._store_contradictions(db_session, case, [
+        {"topic": "Number of wounds to Andrew Borden", "description": "again"},
+        {"topic": "Timing of jury deliberation", "description": "new"}])
+    db_session.commit()
+    assert total == 2
+    assert {c.topic for c in db_session.query(Contradiction).filter(Contradiction.case_id == case.id)} == {
+        "Number of wounds to Andrew Borden", "Timing of jury deliberation"}

@@ -192,19 +192,13 @@ def _words_minutes(text: str, language: str) -> float:
     return len((text or "").split()) / max(ai_config.words_per_minute_for(language), 1)
 
 
-def writer_system_prompt(language: str, source_language: str = "en") -> str:
+def writer_system_prompt(language: str) -> str:
     name = LANG_NAMES.get(language, language)
     limit = ai_config.spoken.max_sentence_words.get(language, 24)
-    source_note = (
-        f"The script is in {LANG_NAMES.get(source_language, source_language)}. "
-        f"Tell it directly in {name}, the way a native {name} storyteller "
-        "would tell it — never as a translation."
-        if language != source_language else ""
-    )
     style = STYLE_GUIDES.get(language, STYLE_GUIDES["en"])
     connectors = CONNECTORS.get(language, CONNECTORS["en"])
 
-    return prompt("documentary/spoken/writer_system_prompt").format(name=name, source_note=source_note, limit=limit, connectors=connectors, style=style, examples_block=_examples_block(language), _MARKER_INSTRUCTION=_MARKER_INSTRUCTION)
+    return prompt("documentary/spoken/writer_system_prompt").format(name=name, limit=limit, connectors=connectors, style=style, examples_block=_examples_block(language), _MARKER_INSTRUCTION=_MARKER_INSTRUCTION)
 
 
 MEANING_SYSTEM = prompt("documentary/spoken/meaning_system")

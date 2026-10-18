@@ -148,9 +148,9 @@ def intro(ctx: dict) -> str:
         published=pub)
 
 
-def ensure_intro(text: str, ctx: dict) -> tuple[str, bool]:
-    """(text, inserted). The follow-up master must open by referencing
-    the earlier video; when the writer did not, the intro is put first."""
+def opens_with_earlier_video(text: str, ctx: dict) -> bool:
+    """True when the first words of a Latin-script text name the earlier video and say the
+    case is solved."""
     from app.lifecycle.identity import fold, tokens
 
     head = fold(" ".join(text.split()[:90]))
@@ -158,9 +158,7 @@ def ensure_intro(text: str, ctx: dict) -> tuple[str, bool]:
     mentions_video = bool(title_words) and sum(1 for w in title_words if w in head) >= max(
         1, len(title_words) * 2 // 3)
     says_solved = any(w in head for w in ("solved", "resolved", "geloest", "gelost"))
-    if mentions_video and says_solved:
-        return text, False
-    return intro(ctx) + "\n\n" + text.lstrip(), True
+    return mentions_video and says_solved
 
 
 def candidate_dict(db: Session, fu: FollowUpCandidate) -> dict:

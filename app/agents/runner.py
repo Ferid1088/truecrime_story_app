@@ -1,7 +1,7 @@
 """Run an agent by name: one place where a stage turns into a model call.
 
-    data, res = await run_agent("story.consistency", gen, user_json, system=system)
-    res       = await run_agent("story.write_act",   gen, user_json, system=system)
+    data, res = await run_agent("language.inspect.en", gen, user_json, system=system)
+    res       = await run_agent("language.final.en", gen, user_json, system=system)
 
 The agent definition (config/agents.json) says which model role it uses, which
 prompt file it loads and whether it returns JSON or text. A stage passes the
@@ -27,9 +27,11 @@ def agent_def(name: str):
 
 async def run_agent(name: str, gen, user: str, *, system: str | None = None,
                     role: str | None = None, images: list[str] | None = None,
+                    prefix: str | None = None, cache_key: str | None = None,
                     **fmt: Any):
     """Structured agents return (data, result), text agents return the result —
-    exactly what the generation provider returns."""
+    exactly what the generation provider returns. `prefix` is the stable text
+    that repeated calls share (sent first, so the provider can cache it)."""
     d = agent_def(name)
     if system is None:
         if d.prompt is None:
@@ -37,7 +39,9 @@ async def run_agent(name: str, gen, user: str, *, system: str | None = None,
         text = prompt(d.prompt)
         system = text.format(**fmt) if fmt else text
     use_role = role or d.role
-    extra = {"images": images} if images else {}
+    extra: dict[str, Any] = {"images": images} if images else {}
+    if prefix or cache_key:
+        extra.update({k: v for k, v in (("prefix", prefix), ("cache_key", cache_key)) if v})
     if d.output == "text":
         return await gen.generate_text(use_role, system, user, **extra)
     return await gen.generate_structured(use_role, system, user, **extra)

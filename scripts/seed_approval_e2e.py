@@ -45,28 +45,23 @@ def main(*, include_short_languages: bool = False) -> None:
         db.add(case)
         db.flush()
         master_text = "The lighthouse log records one final signal. The evidence remains disputed."
-        master = StoryVersion(case_id=case.id, version=1, kind="master", language="en",
+        master = StoryVersion(case_id=case.id, version=1, kind="final", language="en",
                               narrative_angle=json.dumps({"title": "The Final Signal",
                                                           "central_question": "What happened after the signal?"}),
                               story_text=master_text, status="approved", is_best=True,
                               text_hash=text_hash(master_text))
         db.add(master)
         db.flush()
-        localized_text = "آخرین سیگنال در دفتر فانوس ثبت شد."
-        localization = StoryVersion(case_id=case.id, version=1, kind="localized", language="fa",
-                                    master_version_id=master.id, narrative_angle="روایت مستند",
-                                    story_text=localized_text, status="ready", is_best=True,
-                                    text_hash=text_hash(localized_text), native_quality_score=0.95,
-                                    semantic_consistency_score=0.95, factual_consistency_score=0.95,
-                                    engagement_score=0.8)
-        db.add(localization)
+        persian_text = "آخرین سیگنال در دفتر فانوس ثبت شد."
+        db.add(StoryVersion(case_id=case.id, version=1, kind="final", language="fa",
+                            narrative_angle="روایت مستند", story_text=persian_text,
+                            status="approved", is_best=True, text_hash=text_hash(persian_text),
+                            engagement_score=0.8))
         if include_short_languages:
             arabic_text = "سُجِّلت الإشارة الأخيرة في دفتر المنارة."
-            db.add(StoryVersion(case_id=case.id, version=1, kind="localized", language="ar",
-                                master_version_id=master.id, narrative_angle="رواية وثائقية",
-                                story_text=arabic_text, status="approved", is_best=True,
-                                text_hash=text_hash(arabic_text), native_quality_score=0.95,
-                                semantic_consistency_score=0.95, factual_consistency_score=0.95,
+            db.add(StoryVersion(case_id=case.id, version=1, kind="final", language="ar",
+                                narrative_angle="رواية وثائقية", story_text=arabic_text,
+                                status="approved", is_best=True, text_hash=text_hash(arabic_text),
                                 engagement_score=0.8))
         db.flush()
         db.add(EpisodeIdentity(case_id=case.id, case_uid=case.case_uid, channel_id="en",
@@ -76,8 +71,6 @@ def main(*, include_short_languages: bool = False) -> None:
                                host_outfit_id="navy_cord_blazer_vest",
                                host_reference_asset="HOST_navy_cord_blazer_vest_front"))
         short_languages = ["en", "fa", "ar"] if include_short_languages else ["en"]
-        if include_short_languages:
-            localization.status = "approved"
         job = DocumentaryJob(case_id=case.id, master_version_id=master.id, status="completed",
                              mode="full", languages_json=json.dumps(short_languages), stages_json="[]")
         db.add(job)

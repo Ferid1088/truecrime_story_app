@@ -4,8 +4,6 @@
     "usd_to_eur": 0.92,
     "stage_estimate_eur": {
       "research": 0.5,
-      "master_story": 1.0,
-      "translation": 0.5,
       "tts": 2.0,
       "heygen": 2.0,
       "thumbnails": 0.2,
@@ -25,7 +23,12 @@
     },
     "audio_recovery": {
       "max_repair_attempts": 2,
-      "fallback_order": ["room_tone", "verified_ambience", "valid_music", "intentional_silence"]
+      "fallback_order": [
+        "room_tone",
+        "verified_ambience",
+        "valid_music",
+        "intentional_silence"
+      ]
     },
     "short_form": {
       "status": "prototype",
@@ -41,7 +44,6 @@
       "live_mode_default": false
     },
     "retry_policy": {
-      "master_story": "STOP",
       "chapter_texts": "OMIT",
       "spoken_versions": "OMIT",
       "host_segments": "OMIT",

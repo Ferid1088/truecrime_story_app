@@ -83,11 +83,11 @@ from app.api import (  # noqa: E402
     cases,
     costs,
     discovery,
-    masters,
-    story_plans,
+    language_pipeline,
     ops,
     research,
     stories,
+    story_plans,
     system,
 )
 from app.api import backup as backup_api  # noqa: E402
@@ -119,7 +119,7 @@ for _router in (
     cases.router,
     research.router,
     stories.router,
-    masters.router,
+    language_pipeline.router,
     story_plans.router,
     ops.router,
     backup_api.router,

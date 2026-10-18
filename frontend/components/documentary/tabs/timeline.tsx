@@ -225,10 +225,10 @@ export function TimelineTab({
   refreshKey,
   language,
   onLanguageChange,
-  masterId,
+  finalId,
 }: LanguageTabProps) {
   const expected = overview.languages[language]?.production ?? null;
-  const { data, error, loading, refetch } = useProduction(caseId, language, masterId, expected != null, refreshKey);
+  const { data, error, loading, refetch } = useProduction(caseId, language, finalId, expected != null, refreshKey);
   const { data: visuals } = useApi(() => api.listVisuals(caseId), [caseId, refreshKey], { keepPrevious: true });
   const production = data && expected && data.id === expected.id ? data : null;
 

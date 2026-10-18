@@ -33,7 +33,7 @@ export interface LanguageTabProps extends DocumentaryTabProps {
   language: string;
   onLanguageChange: (lang: string) => void;
   /** Master story the overview was built for (production scripts belong to it). */
-  masterId: number | null;
+  finalId: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,8 +79,10 @@ export function jobProgressTone(status: DocumentaryJobStatus): string | undefine
 
 const STAGE_LABELS: Record<string, string> = {
   research: "Research",
-  master_story: "Master story",
-  master_approval: "Master story approval",
+  language_pipeline: "Language pipeline (final text)",
+  final_approval: "Final version approved by the owner",
+  master_story: "Master story (earlier runs)",
+  master_approval: "Master story approval (earlier runs)",
   blueprint: "Editorial blueprint",
   audio_plan: "Audio plan",
   music: "Music",

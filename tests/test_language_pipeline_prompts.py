@@ -9,13 +9,6 @@ GUIDE_LANGUAGES = ("fa", "en", "de", "ar")
 FORMAT_ARGS = {
     "language_pipeline/draft_writer": dict(
         marker_instruction="M", tone="calm", target_words=9000),
-    "language_pipeline/rewrite_writer": dict(
-        language_name="German", marker_instruction="M", style_guide="G",
-        target_words_min=7000, target_words_max=9000),
-    "language_pipeline/inspector": dict(language_name="German", style_guide="G"),
-    "language_pipeline/final_writer": dict(
-        language_name="German", marker_instruction="M", style_guide="G",
-        target_words_min=7000, target_words_max=9000),
 }
 
 
@@ -27,8 +20,9 @@ def test_pipeline_prompt_formats_without_leftover_placeholders(name, args):
         assert str(value) in text
 
 
-def test_inspector_output_template_is_valid_json_shape():
-    text = prompt("language_pipeline/inspector").format(language_name="German", style_guide="G")
+@pytest.mark.parametrize("language", GUIDE_LANGUAGES)
+def test_inspector_output_template_is_valid_json_shape(language):
+    text = prompt(f"language_pipeline/{language}/inspector").format(style_guide="G")
     template = text[text.index('{"verdict"'):]
     assert template.count("{") == template.count("}")
     assert '"scores"' in template and '"items"' in template

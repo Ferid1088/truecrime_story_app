@@ -123,6 +123,13 @@
     "segment_window_seconds": 90.0,
     "segment_fps": 0.5,
     "segment_frame_width": 256,
-    "snap_seconds": 0.6
+    "snap_seconds": 0.6,
+    "max_third_party_clip_seconds": 20.0,
+    "max_third_party_share": 0.15,
+    "third_party_providers": [
+      "wikimedia_video",
+      "internet_archive",
+      "film_candidate"
+    ]
   }
 }

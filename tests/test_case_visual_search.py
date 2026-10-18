@@ -5,7 +5,10 @@ import json
 import uuid
 
 from app.db.models import Case, Fact, MediaLink
-from app.documentary.visuals.case_search import case_queries, has_stored_candidates, search_case_visuals
+from app.documentary.visuals.case_search import (
+    has_stored_candidates,
+    search_case_visuals,
+)
 from app.documentary.visuals.planner import research_queries
 from app.services.research_jobs import _search_case_visuals
 
@@ -78,3 +81,15 @@ def test_every_beat_that_needs_a_picture_gets_a_query_even_when_the_cap_cuts(db_
     out = research_queries({"entities": entities, "beats": beats}, max_queries=4)
     assert {"B query", "C query", "D query"} <= {q["query"] for q in out}
     assert len(out) == 4
+
+
+def test_a_providers_date_range_fits_the_assets_date_columns():
+    """A Wikimedia range ("1900-01-01/1900-12-31", 21 characters) overflowed date_start and
+    stopped the whole case search after the 23rd stored picture."""
+    from app.documentary.visuals.research import date_span
+
+    assert date_span("1900-01-01/1900-12-31") == ("1900-01-01", "1900-12-31")
+    assert date_span("1892-08-04") == ("1892-08-04", None)
+    assert date_span(None) == (None, None) and date_span("") == (None, None)
+    start, end = date_span("2026-10-17T10:11:12+00:00 and some more words/2027-01-01T00:00:00+00:00 trailing")
+    assert len(start) <= 20 and len(end) <= 20

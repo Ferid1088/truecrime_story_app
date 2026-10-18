@@ -6,7 +6,9 @@
         "research_intelligence": "gemini-3.8-flash",
         "writer": "gemini-3.8-flash",
         "premium": "claude-sonnet-5-5",
-        "embedding": "bge-m3"
+        "embedding": "bge-m3",
+        "sol": "gpt-6.1-sol",
+        "luna": "gpt-5.6-luna"
       },
       "capabilities": {
         "gemini-3.8-flash": {
@@ -21,13 +23,36 @@
           "tool_calling": true,
           "web_search": "none",
           "web_fetch": "none",
-          "vision": true
+          "vision": true,
+          "prompt_caching": "cache_control",
+          "streaming": true,
+          "reasoning_effort": true
         },
         "bge-m3": {
           "structured_output": false,
           "tool_calling": false,
           "web_search": "none",
           "web_fetch": "none"
+        },
+        "gpt-6.1-sol": {
+          "structured_output": true,
+          "tool_calling": true,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": true,
+          "prompt_caching": "prompt_cache_key",
+          "reasoning_effort": true,
+          "streaming": true
+        },
+        "gpt-5.6-luna": {
+          "structured_output": false,
+          "tool_calling": false,
+          "web_search": "none",
+          "web_fetch": "none",
+          "vision": false,
+          "prompt_caching": "none",
+          "reasoning_effort": true,
+          "streaming": true
         }
       },
       "routing": {
@@ -35,25 +60,10 @@
         "timeline_builder": "cheap",
         "contradiction_analyzer": "cheap",
         "story_director": "premium",
-        "writer": "premium",
-        "rewriter": "premium",
-        "engagement_critic": "writer",
-        "final_editor": "premium",
-        "section_critic": "writer",
         "grounding_validator": "cheap",
         "consistency_checker": "cheap",
         "evidence_normalizer": "cheap",
         "semantic_consistency_checker": "cheap",
-        "localized_grounding_validator": "cheap",
-        "master_story_director": "premium",
-        "master_writer": "premium",
-        "master_rewriter": "premium",
-        "localization_writer": "premium",
-        "master_engagement_critic": "writer",
-        "master_final_editor": "premium",
-        "native_language_critic": "writer",
-        "localized_engagement_critic": "writer",
-        "localized_final_editor": "premium",
         "transcript_normalizer": "cheap",
         "transcript_intelligence_extractor": "cheap",
         "claim_clusterer": "cheap",
@@ -90,7 +100,14 @@
         "case_naming_agent": "premium",
         "case_title_critic": "writer",
         "native_title_critic": "writer",
-        "thumbnail_critic": "writer"
+        "thumbnail_critic": "writer",
+        "language_draft_writer": "writer",
+        "language_rewrite_writer": "sol",
+        "language_inspector": "sol",
+        "language_final_writer": "sol",
+        "language_rewrite_writer_fa_ar": "luna",
+        "language_final_writer_fa_ar": "luna",
+        "english_evidence_auditor": "sol"
       },
       "fallbacks": {
         "cheap": [
@@ -122,33 +139,13 @@
       "temperature": 0.5,
       "max_tokens": 6000
     },
-    "writer": {
-      "temperature": 0.7,
-      "max_tokens": 20000
-    },
-    "engagement_critic": {
-      "temperature": 0.2,
-      "max_tokens": 8000
-    },
-    "rewriter": {
-      "temperature": 0.65,
-      "max_tokens": 20000
-    },
-    "final_editor": {
-      "temperature": 0.2,
-      "max_tokens": 16000
-    },
-    "section_critic": {
-      "temperature": 0.2,
-      "max_tokens": 4000
-    },
     "grounding_validator": {
       "temperature": 0.0,
-      "max_tokens": 8000
+      "max_tokens": 32000
     },
     "consistency_checker": {
       "temperature": 0.0,
-      "max_tokens": 6000,
+      "max_tokens": 16000,
       "seed": 17
     },
     "evidence_normalizer": {
@@ -158,46 +155,6 @@
     "semantic_consistency_checker": {
       "temperature": 0.0,
       "max_tokens": 8000
-    },
-    "localized_grounding_validator": {
-      "temperature": 0.0,
-      "max_tokens": 8000
-    },
-    "master_story_director": {
-      "temperature": 0.5,
-      "max_tokens": 24000
-    },
-    "master_writer": {
-      "temperature": 0.7,
-      "max_tokens": 20000
-    },
-    "master_rewriter": {
-      "temperature": 0.65,
-      "max_tokens": 20000
-    },
-    "localization_writer": {
-      "temperature": 0.6,
-      "max_tokens": 20000
-    },
-    "master_engagement_critic": {
-      "temperature": 0.2,
-      "max_tokens": 8000
-    },
-    "master_final_editor": {
-      "temperature": 0.2,
-      "max_tokens": 16000
-    },
-    "native_language_critic": {
-      "temperature": 0.2,
-      "max_tokens": 8000
-    },
-    "localized_engagement_critic": {
-      "temperature": 0.2,
-      "max_tokens": 8000
-    },
-    "localized_final_editor": {
-      "temperature": 0.2,
-      "max_tokens": 16000
     },
     "transcript_normalizer": {
       "temperature": 0.0,
@@ -213,7 +170,7 @@
     },
     "evidence_verifier": {
       "temperature": 0.0,
-      "max_tokens": 8000
+      "max_tokens": 24000
     },
     "research_query_planner": {
       "temperature": 0.3,
@@ -346,6 +303,41 @@
     "thumbnail_critic": {
       "temperature": 0.0,
       "max_tokens": 3000
+    },
+    "language_draft_writer": {
+      "temperature": 0.7,
+      "max_tokens": 64000,
+      "reasoning_effort": "low"
+    },
+    "language_rewrite_writer": {
+      "temperature": 0.6,
+      "max_tokens": 64000,
+      "reasoning_effort": "high"
+    },
+    "language_inspector": {
+      "temperature": 0.2,
+      "max_tokens": 32000,
+      "reasoning_effort": "high"
+    },
+    "language_final_writer": {
+      "temperature": 0.4,
+      "max_tokens": 64000,
+      "reasoning_effort": "high"
+    },
+    "language_rewrite_writer_fa_ar": {
+      "temperature": 0.6,
+      "max_tokens": 64000,
+      "reasoning_effort": "high"
+    },
+    "language_final_writer_fa_ar": {
+      "temperature": 0.4,
+      "max_tokens": 64000,
+      "reasoning_effort": "high"
+    },
+    "english_evidence_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 32000,
+      "reasoning_effort": "high"
     }
   }
 }

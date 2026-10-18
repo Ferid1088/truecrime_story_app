@@ -9,7 +9,7 @@ test.beforeEach(async ({ request }) => {
   expect((await response.json()).database).toBe("truecrime_e2e");
 });
 
-test("recorded naming succeeds, thumbnail approval applies, and localization approval applies", async ({ page }) => {
+test("recorded naming succeeds and thumbnail approval applies", async ({ page }) => {
   await page.goto("/cases/1");
   await page.getByRole("button", { name: "Naming", exact: true }).click();
   await page.getByRole("button", { name: /Generate 7 titles per language/ }).click();
@@ -17,12 +17,6 @@ test("recorded naming succeeds, thumbnail approval applies, and localization app
 
   await page.getByRole("button", { name: "Thumbnail", exact: true }).click();
   await page.getByRole("button", { name: "Approve", exact: true }).first().click();
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
-  await expect(page.getByText(/Applied; changed outside scope: none/)).toBeVisible();
-
-  await page.getByRole("button", { name: "Localizations", exact: true }).click();
-  await expect(page.getByText("ready for human review")).toBeVisible();
-  await page.getByRole("button", { name: "Approve localization", exact: true }).click();
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page.getByText(/Applied; changed outside scope: none/)).toBeVisible();
 });

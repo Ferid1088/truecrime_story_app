@@ -55,7 +55,7 @@ function stageLanguage(stage: string): string | null {
 }
 
 const STAGE_GROUPS: { label: string; bases: string[] }[] = [
-  { label: "Story", bases: ["research", "master_story", "master_approval", "blueprint", "chapters", "naming"] },
+  { label: "Story", bases: ["research", "language_pipeline", "final_approval", "master_story", "master_approval", "blueprint", "chapters", "naming"] },
   { label: "Audio", bases: ["audio_plan", "spoken", "performance", "voice", "host_plan", "host", "music"] },
   { label: "Visual", bases: ["film_length", "visual_needs", "visual_research", "visual_check", "visual_plan", "visual_gaps", "visual_audit", "pieces"] },
   { label: "Render", bases: ["production", "critique", "intro", "captions", "render", "final_render"] },
@@ -401,7 +401,7 @@ interface StageListProps {
 }
 
 const PER_LANGUAGE_STAGES = ["spoken", "host", "performance", "voice", "production", "critique", "visual_audit", "render"];
-const SHARED_STAGES = ["research", "master_story", "master_approval", "blueprint", "chapters", "naming", "audio_plan", "host_plan", "music", "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan", "visual_gaps"];
+const SHARED_STAGES = ["research", "language_pipeline", "final_approval", "master_story", "master_approval", "blueprint", "chapters", "naming", "audio_plan", "host_plan", "music", "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan", "visual_gaps"];
 const DISPLAY_ONLY_STAGES: Record<string, string> = {
   pieces: "Pieces are represented by the visual library, not a separate run stage.",
   intro: "The channel intro is included in the final render.",

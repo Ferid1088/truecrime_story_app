@@ -62,26 +62,10 @@ def test_host_slot_rules_are_checked():
             "host_final_slot_is_off"} <= codes
 
 
-def _sections(plan, words=None):
-    return [{"id": a["id"], "text": " ".join(["w"] * (words or a["target_words"]))}
-            for a in plan["acts"]]
 
 
-def test_mapping_passes_when_ids_order_and_lengths_match():
-    plan = _plan()
-    assert SP.check_plan_mapping(_sections(plan), plan)["ok"]
 
 
-def test_mapping_fails_on_wrong_order_lost_structure_and_length():
-    plan = _plan()
-    swapped = _sections(plan)
-    swapped[0], swapped[1] = swapped[1], swapped[0]
-    assert SP.check_plan_mapping(swapped, plan)["issues"][0]["code"] == "beats_do_not_match"
-    assert SP.check_plan_mapping([{"id": "full", "text": "x"}], plan)["issues"][0]["code"] == "structure_lost"
-    long = _sections(plan)
-    long[2]["text"] = " ".join(["w"] * 900)
-    issue = SP.check_plan_mapping(long, plan)["issues"][0]
-    assert (issue["code"], issue["beat"]) == ("beat_length", "act3")
 
 
 def test_mid_host_slots_are_not_placed_on_adjacent_beats_when_there_is_room():

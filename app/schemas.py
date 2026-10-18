@@ -64,42 +64,6 @@ class AddSourceRequest(BaseModel):
     is_authorized_text: bool = False
 
 
-def check_target_minutes(value: int) -> int:
-    """Story length must lie in the configured range (story.min/max_
-    target_minutes) — a low minimum enables short pilot segments."""
-    from app.core.ai_config import ai_config
-
-    lo = ai_config.story.min_target_minutes
-    hi = ai_config.story.max_target_minutes
-    if not lo <= value <= hi:
-        raise ValueError(f"target_minutes must be between {lo} and {hi}")
-    return value
-
-
-class GenerateStoryRequest(BaseModel):
-    target_minutes: int = Field(default=50, ge=1)
-    language: str = "fa"
-    tone: str = "cinematic, suspenseful, investigative, respectful"
-    iterations: int = Field(default=2, ge=1, le=5)
-
-    @field_validator("target_minutes")
-    @classmethod
-    def _target_in_configured_range(cls, v: int) -> int:
-        return check_target_minutes(v)
-
-
-class ImproveStoryRequest(BaseModel):
-    story_version_id: int
-    instruction: str = Field(min_length=3, max_length=2000)
-
-
-class ApproveStoryRequest(BaseModel):
-    # This app authenticates a single shared operator session (no per-user
-    # accounts), so the caller names who is approving; it is recorded as-is
-    # for traceability, not verified against an identity system.
-    approved_by: str = Field(default="operator", min_length=1, max_length=200)
-
-
 class VoiceRenderRequest(BaseModel):
     # Render only the opening (whole blocks) — e.g. 180 for a 3-minute
     # pilot. None renders the full story.
