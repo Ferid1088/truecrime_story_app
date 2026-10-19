@@ -179,3 +179,26 @@ def test_the_renderer_lays_the_logo_sound_into_the_silence_after_the_host_withou
     assert "adelay=10000|10000" in graph and "volume=" not in graph
     assert "duration=longest" not in graph
     assert "volume=" in _intro_audio_graph("gap", 10.0, 6.0)            # the cold-open break ducks
+
+
+def test_the_outro_goes_after_the_last_second_of_the_story():
+    items = [_item(1, "opening", None, 10.0), _item(2, "mid", "B2", 8.0), _item(3, "final", None, 12.0)]
+    out = HT.insert_host(_plain_script(), items, intro_seconds=6.0)
+    outro = next(h for h in out["host"] if h["scene_id"] == 3)
+    assert outro["position"] == "final" and outro["narration_at"] == 60.0 and outro["tail"] is True
+    assert (outro["start"], outro["end"]) == (16.0 + 60.0 + 8.0, 16.0 + 60.0 + 8.0 + 12.0)
+    assert out["duration"] == 60.0 + 10.0 + 6.0 + 8.0 + 12.0 and out["host_seconds"] == 30.0
+    last = out["shots"][-1]
+    assert (last["host_scene_id"], last["host_position"], last["end"]) == (3, "final", out["duration"])
+
+
+def test_the_splice_leaves_no_narration_after_an_outro():
+    host = [{"audio": "h1.wav", "narration_at": 40.0, "gain_db": 0.0, "pad_after": 0.0, "tail": False},
+            {"audio": "h2.wav", "narration_at": 60.0, "gain_db": 0.0, "pad_after": 0.0, "tail": True}]
+    path = __import__("pathlib").Path
+    graph = HT.splice_command(path("n.wav"), host, path("o.wav"), lambda p: p)
+    graph = graph[graph.index("-filter_complex") + 1]
+    assert "nend" not in graph and graph.endswith("concat=n=4:v=0:a=1[a]")
+    host[-1]["tail"] = False
+    graph = HT.splice_command(path("n.wav"), host, path("o.wav"), lambda p: p)
+    assert "nend" in graph[graph.index("-filter_complex") + 1]

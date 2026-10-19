@@ -1,7 +1,7 @@
 """Host scenes in the film timeline (Part 8a).
 
-The host's opening comes before beat 1 and each mid appearance after its
-planned beat. Everything after an insertion moves by the host's length: shots,
+The host's opening comes before beat 1, each mid appearance after its
+planned beat and the outro after the last second of the story. Everything after an insertion moves by the host's length: shots,
 beats, voice blocks, subtitles, overlays, music, silences and the intro; a shot
 that spans the insertion is split. Host shots are ordinary `video` shots (the
 renderer already plays clips); the host's own audio is spliced into the
@@ -26,6 +26,8 @@ class HostTimelineError(RuntimeError):
 def _insertion_point(script: dict, item: dict) -> float:
     if item["position"] == "opening":
         return 0.0
+    if item["position"] == "final":
+        return float(script["duration"])
     for b in script.get("beats") or []:
         if b["beat_id"] == item.get("beat_id"):
             return float(b["end"])
@@ -58,8 +60,8 @@ def _split_spanning(shots: list[dict], t: float) -> list[dict]:
 
 
 def insert_host(script: dict, items: list[dict], intro_seconds: float | None = None) -> dict:
-    """items: [{scene_id, position (opening|mid), beat_id, seconds, video, audio,
-    gain_db, text}] -> a new script with the host in it.
+    """items: [{scene_id, position (opening|mid|final), beat_id, seconds, video, audio,
+    gain_db, text}] -> a new script with the host in it (position: opening | mid | final).
 
     The film's order is the host's opening, then the channel's logo video (`intro_seconds`),
     then the story: the logo is placed right after the opening, so the script must not have
@@ -106,6 +108,7 @@ def insert_host(script: dict, items: list[dict], intro_seconds: float | None = N
         host.append({"scene_id": item["scene_id"], "position": item["position"],
                      "beat_id": item.get("beat_id"), "start": round(t, 3),
                      "end": round(t + d, 3), "narration_at": round(t_orig, 3),
+                     "tail": item["position"] == "final",
                      "audio": item["audio"], "gain_db": item["gain_db"], "text": item.get("text"),
                      "pad_after": logo})
         offset += d + logo
@@ -148,8 +151,9 @@ def splice_command(narration: Path, host: list[dict], out: Path, resolve) -> lis
         parts.append(f"[{n + 1}:a]volume={host[n]['gain_db']}dB{pad},asetpts=PTS-STARTPTS[h{n}]")
         labels.append(f"[h{n}]")
         start = c
-    parts.append(f"[0:a]atrim=start={start:.3f},asetpts=PTS-STARTPTS[nend]")
-    labels.append("[nend]")
+    if not (host and host[-1].get("tail")):     # an outro leaves no narration after it
+        parts.append(f"[0:a]atrim=start={start:.3f},asetpts=PTS-STARTPTS[nend]")
+        labels.append("[nend]")
     graph = ";".join(parts) + f";{''.join(labels)}concat=n={len(labels)}:v=0:a=1[a]"
     return cmd + ["-filter_complex", graph, "-map", "[a]", str(out)]
 
@@ -184,7 +188,7 @@ def host_items(db, version) -> list[dict]:
         voice = storage.resolve(s.voice_path) if s.voice_path else None
         if (video is None or not video.exists() or voice is None or not voice.exists()
                 or hashlib.sha256(video.read_bytes()).hexdigest() != s.avatar_video_sha256
-                or not s.voice_seconds or s.position not in ("opening", "mid")):
+                or not s.voice_seconds or s.position not in ("opening", "mid", "final")):
             continue
         items.append({"scene_id": s.id, "position": s.position, "beat_id": s.beat_id,
                       "seconds": float(s.voice_seconds), "video": s.avatar_video_path,
