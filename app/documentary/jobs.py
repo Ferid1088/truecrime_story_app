@@ -572,6 +572,25 @@ class DocumentaryPipeline(StageRunner):
                     if out.get("errors"):
                         out["degraded"] = (f"{out['errors']} vision checks failed — "
                                            "those candidates stay unverified")
+                    from app.documentary.visuals import supply
+
+                    minutes = max((self.result.get("film_minutes") or {0: 0}).values())
+                    film_seconds = pilot_seconds if pilot else minutes * 60.0
+
+                    async def research(queries):
+                        return await get_stage_agent("visual_research").run(db, case, queries)
+
+                    async def verify():
+                        return await verify_candidates(db, case, bp, requirements, focus_beats,
+                                                       job.render_profile)
+
+                    out["supply"] = await supply.top_up(
+                        db, case, requirements, focus_beats, film_seconds, research, verify)
+                    if not out["supply"]["reached"]:
+                        out["degraded"] = (
+                            f"{out['supply']['verified_after']} of {out['supply']['target']} verified "
+                            f"real pictures after {out['supply']['searches']} searches; "
+                            "illustrations fill the rest")
                     return out
 
                 await self._stage("visual_check", visual_check)

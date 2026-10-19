@@ -36,40 +36,74 @@
       "person": [
         "{name} historical photograph",
         "{name} newspaper 1890s portrait",
-        "{name} archive"
+        "{name} archive",
+        "{name} engraving",
+        "{name} photograph museum",
+        "{name} court sketch",
+        "{name} family",
+        "{name} grave",
+        "{name} wanted poster"
       ],
       "place": [
         "{name} historical photograph",
         "{name} old postcard",
-        "{name} archive"
+        "{name} archive",
+        "{name} street 19th century",
+        "{name} aerial view",
+        "{name} map",
+        "{name} museum",
+        "{name} demolished",
+        "{name} film footage"
       ],
       "building": [
         "{name} historical photograph",
         "{name} old postcard",
-        "{name} floor plan"
+        "{name} floor plan",
+        "{name} interior",
+        "{name} exterior",
+        "{name} museum",
+        "{name} archive",
+        "{name} restored",
+        "{name} film footage"
       ],
       "event": [
         "{name} newspaper illustration",
-        "{name} historical photograph"
+        "{name} historical photograph",
+        "{name} archive",
+        "{name} courtroom sketch",
+        "{name} newsreel",
+        "{name} aftermath"
       ],
       "document": [
         "{name} newspaper page",
-        "{name} original document"
+        "{name} original document",
+        "{name} archive",
+        "{name} handwritten",
+        "{name} headline",
+        "{name} clipping"
       ],
       "object": [
-        "{name} historical photograph"
+        "{name} historical photograph",
+        "{name} museum",
+        "{name} archive",
+        "{name} evidence photograph"
       ],
       "vehicle": [
-        "{name} historical photograph"
+        "{name} historical photograph",
+        "{name} museum",
+        "{name} archive"
       ],
       "organization": [
-        "{name} historical photograph"
+        "{name} historical photograph",
+        "{name} archive",
+        "{name} building"
       ]
     },
     "max_expansions_per_entity": 3,
     "wikimedia_categories": true,
     "category_max_files": 60,
-    "max_category_entities": 12
+    "max_category_entities": 12,
+    "max_expansion_entities": 8
   },
   "visual_verification": {
     "per_requirement": 12,
@@ -197,5 +231,9 @@
     "max_still_seconds": 12.0,
     "max_repair_rounds": 3,
     "black_screen_min_seconds": 1.0
+  },
+  "supply": {
+    "seconds_per_real_picture": 40.0,
+    "max_searches": 3
   }
 }

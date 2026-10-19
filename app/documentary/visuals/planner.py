@@ -253,15 +253,51 @@ def beat_first_queries(requirements: dict, beat_ids: list[str] | None, ents: dic
     return out
 
 
-def expansion_queries(entity: dict) -> list[str]:
+def expansion_queries(entity: dict, round_index: int = 0) -> list[str]:
     """Extra searches for one entity from the configured templates of its
-    type, named after the entity's name (config visual_search)."""
+    type, named after the entity's name (config visual_search). Round n
+    takes the n-th slice of max_expansions_per_entity templates, so a
+    follow-up search never repeats an earlier one."""
     cfg = ai_config.visual_search
     templates = cfg.expansion_templates.get(entity.get("type") or "object") or []
     name = (entity.get("name") or "").strip()
     if not name:
         return []
-    return [t.format(name=name)[:160] for t in templates[: cfg.max_expansions_per_entity]]
+    size = cfg.max_expansions_per_entity
+    return [t.format(name=name)[:160] for t in templates[round_index * size:(round_index + 1) * size]]
+
+
+def expansion_item(entity: dict, query: str) -> dict:
+    """An expansion search: it names the entity, so a candidate whose own
+    text names none of the entity's words is dropped before any download."""
+    return {**query_item(entity, query, "exact"),
+            "must_name": [entity.get("name") or ""] + list(entity.get("aliases") or [])}
+
+
+def _entities_by_need(requirements: dict, beat_ids: list[str] | None) -> list[dict]:
+    weight: Counter = Counter()
+    for b in requirements.get("beats") or []:
+        if beat_ids and b["beat_id"] not in beat_ids:
+            continue
+        for r in b["requirements"]:
+            weight[r["entity"]] += {"high": 3, "medium": 2, "low": 1}.get(r.get("priority"), 2)
+    ents = {e["key"]: e for e in requirements.get("entities") or []}
+    return [ents[k] for k, _ in weight.most_common() if k in ents]
+
+
+def supply_queries(requirements: dict, beat_ids: list[str] | None, round_index: int) -> list[dict]:
+    """The follow-up searches of supply round `round_index` (1 = the first
+    one after the initial research): the next slice of expansion templates
+    of every entity and, in the first follow-up, each alias as its own
+    search. Ordered by need, at most visual_search.max_queries."""
+    out, seen = [], set()
+    for e in _entities_by_need(requirements, beat_ids)[: ai_config.visual_search.max_expansion_entities]:
+        names = list(e.get("aliases") or []) if round_index == 1 else []
+        for q in names + expansion_queries(e, round_index):
+            if fold(q) not in seen:
+                seen.add(fold(q))
+                out.append(expansion_item(e, q))
+    return out[: ai_config.visual_search.max_queries]
 
 
 def research_queries(requirements: dict, beat_ids: list[str] | None = None,
@@ -271,18 +307,13 @@ def research_queries(requirements: dict, beat_ids: list[str] | None = None,
     CONTEXT query (a stand-in is only wanted where the real thing is
     missing, and the research budget runs out from the end), at most
     visual_search.max_queries."""
-    weight: Counter = Counter()
-    for b in requirements.get("beats") or []:
-        if beat_ids and b["beat_id"] not in beat_ids:
-            continue
-        for r in b["requirements"]:
-            weight[r["entity"]] += {"high": 3, "medium": 2, "low": 1}.get(r.get("priority"), 2)
     ents = {e["key"]: e for e in requirements.get("entities") or []}
-    ordered = [ents[k] for k, _ in weight.most_common() if k in ents]
+    ordered = _entities_by_need(requirements, beat_ids)
     exact = [query_item(e, q, "exact") for e in ordered for q in e.get("search_queries") or []]
     context = [query_item(e, q, "context") for e in ordered
                for q in e.get("context_queries") or []]
-    expanded = [query_item(e, q, "exact") for e in ordered for q in expansion_queries(e)]
+    expanded = [expansion_item(e, q) for e in ordered[: ai_config.visual_search.max_expansion_entities]
+                for q in expansion_queries(e)]
     out, seen = [], set()
     for q in beat_first_queries(requirements, beat_ids, ents) + exact + expanded + context:
         k = (fold(q["query"]), q["kind"])

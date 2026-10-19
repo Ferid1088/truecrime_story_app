@@ -25,6 +25,7 @@ from app.documentary.visuals.research import (
     brave_backend,
     date_span,
     footage_queries,
+    names_entity,
     next_asset_code,
     query_kind,
     source_candidate_has_relevance,
@@ -43,6 +44,10 @@ class VisualResearchAgent:
         return httpx.AsyncClient(
             timeout=self.cfg.request_timeout_s, follow_redirects=True,
             headers={"User-Agent": self.cfg.user_agent})
+
+    def asset_budget(self, existing: list[VisualAsset]) -> int:
+        """Assets still allowed: rejected pictures are kept but take no slot."""
+        return self.cfg.max_assets - sum(a.verification_status != "rejected" for a in existing)
 
     async def _category_candidates(self, wiki: WikimediaProvider,
                                    queries: list[dict]) -> list[Candidate]:
@@ -78,7 +83,7 @@ class VisualResearchAgent:
             existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
             hashes = [a.phash for a in existing if a.phash and a.asset_type != "video"]
             urls = {a.source_url for a in existing}
-            budget = self.cfg.max_assets - len(existing)
+            budget = self.asset_budget(existing)
             candidates: list[Candidate] = []
             # The case's own sources are case-level, not per query: read
             # them in the research pass when exact material is wanted (a
@@ -121,6 +126,9 @@ class VisualResearchAgent:
                     if kind == "context" and prov.name not in RIGHTS_KNOWN_PROVIDERS:
                         continue
                     for c in await prov.search(q["query"], self.cfg.max_candidates_per_query):
+                        if q.get("must_name") and not names_entity(c, q["must_name"]):
+                            stats["rejected"] += 1
+                            continue
                         c.entities = list(ents)
                         c.entity_key = q.get("entity")
                         c.entity_type = q.get("entity_type")

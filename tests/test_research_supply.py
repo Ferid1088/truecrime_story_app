@@ -82,3 +82,33 @@ def test_agent_category_candidates_one_lookup_per_entity(monkeypatch):
           {"query": "B ctx", "entity": "b", "kind": "context"}]
     asyncio.run(agent._category_candidates(Fake(), qs))
     assert seen == ["A"]
+
+
+def test_expansion_queries_carry_the_names_a_candidate_must_hold():
+    from app.documentary.visuals.planner import expansion_item
+    from app.documentary.visuals.research import Candidate, names_entity
+
+    q = expansion_item({"key": "lb", "type": "person", "name": "Lizzie Borden", "aliases": ["Lizzie"]},
+                       "Lizzie Borden archive")
+    assert q["must_name"] == ["Lizzie Borden", "Lizzie"]
+    assert names_entity(Candidate(url="u", provider="wikimedia", title="Lizzie Borden 1889.jpg"), q["must_name"])
+    assert not names_entity(Candidate(url="u", provider="wikimedia", title="French liberty.jpg"), q["must_name"])
+
+
+def test_only_the_most_needed_entities_are_expanded(monkeypatch):
+    from app.documentary.visuals.planner import research_queries
+
+    monkeypatch.setattr(ai_config.visual_search, "max_expansion_entities", 1)
+    ents = [{"key": k, "type": "person", "name": n, "search_queries": [n], "context_queries": []}
+            for k, n in (("a", "Anna Aaa"), ("b", "Bert Bbb"))]
+    req = {"entities": ents, "beats": [{"beat_id": "b1", "requirements": [
+        {"entity": "a", "priority": "high"}, {"entity": "b", "priority": "low"}]}]}
+    qs = [q["query"] for q in research_queries(req)]
+    assert "Anna Aaa archive" in qs and "Bert Bbb archive" not in qs
+
+
+def test_rejected_assets_do_not_use_up_the_asset_budget():
+    from app.db.models import VisualAsset
+
+    rows = [VisualAsset(verification_status=v) for v in ("rejected", "rejected", "verified", "unverified")]
+    assert VisualResearchAgent(client=object()).asset_budget(rows) == ai_config.visual_search.max_assets - 2

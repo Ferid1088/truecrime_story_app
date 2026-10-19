@@ -2029,6 +2029,8 @@ class VisualSearchConfig(BaseModel):
     # entity type, so a long film finds more than the planner's own queries.
     expansion_templates: dict[str, list[str]] = {}
     max_expansions_per_entity: int = Field(default=3, ge=0)
+    # Only the entities with the most need get expanded searches.
+    max_expansion_entities: int = Field(default=8, ge=0)
     # Wikimedia Commons category harvesting: the files of the category
     # named like an entity (and its direct subcategories).
     wikimedia_categories: bool = False
@@ -2147,6 +2149,14 @@ class IllustrationsConfig(BaseModel):
     max_per_film: int = Field(default=70, ge=0, le=300)
     # Illustrations never carry more than this share of a film's picture time.
     max_share: float = Field(default=0.85, gt=0, le=1.0)
+
+
+class SupplyConfig(BaseModel):
+    """How many verified real pictures a film needs and how often the search
+    may run to get them (the first research counts as search 1)."""
+
+    seconds_per_real_picture: float = Field(default=40.0, gt=0)
+    max_searches: int = Field(default=3, ge=1, le=3)
 
 
 class CoverageConfig(BaseModel):
@@ -2980,6 +2990,7 @@ class AIConfig(BaseModel):
     editorial_review: EditorialReviewConfig = Field(default_factory=EditorialReviewConfig)
     illustrations: IllustrationsConfig
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
+    supply: SupplyConfig = Field(default_factory=SupplyConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)

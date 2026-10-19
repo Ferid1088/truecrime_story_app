@@ -510,3 +510,11 @@ def __getattr__(name: str):
 
         return VisualResearchAgent
     raise AttributeError(name)
+
+
+def names_entity(candidate: Candidate, names: list[str]) -> bool:
+    """True when the candidate's own text (title, caption, page address) holds a word
+    (4+ letters) of one of the entity's names."""
+    text = " ".join(filter(None, [candidate.title, candidate.caption, candidate.page_url])).lower()
+    words = {w for n in names for w in re.findall(r"\w{4,}", n.lower())}
+    return not words or any(w in text for w in words)
