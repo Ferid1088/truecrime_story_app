@@ -46,6 +46,7 @@ from app.services.artifacts import ArtifactRegistry
 from app.shortform.agents import MockShortsTextAdapter, ProviderShortsTextAdapter, ShortsTextAdapter
 from app.shortform.director import ShortFormDirectorAgent
 from app.shortform.export import build_export_package
+from app.shortform.platform_packages import build_platform_packages
 from app.shortform.selection import evaluate_candidate, select_candidates
 from app.utils import detect_language, language_quality, utc_now
 
@@ -398,6 +399,8 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         if final_dir.exists():
             shutil.rmtree(final_dir)
         os.replace(temp_dir, final_dir)
+        platforms = build_platform_packages(final_dir, caption=script.caption_text, cta=script.cta,
+                                            language=script.language)
         rel_files = {key: storage.rel(final_dir / name) for key, name in {
             "video": manifest["video"], "cover": manifest["cover"],
             "captions": manifest["subtitles"], "manifest": "manifest.json"}.items()}
@@ -407,6 +410,8 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         row.caption_text, row.cta = script.caption_text, script.cta
         row.video_path, row.cover_path = rel_files["video"], rel_files["cover"]
         row.captions_path, row.manifest_path = rel_files["captions"], rel_files["manifest"]
+        rel_files["platforms"] = {p: storage.rel(final_dir / "platforms" / p / "package.json")
+                                  for p in platforms}
         row.files_json, row.content_hash = _json(rel_files), content_hash
         row.gate_results_json = candidate.gate_results_json
         db.commit()

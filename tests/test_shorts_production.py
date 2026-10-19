@@ -60,9 +60,18 @@ def _job(db, tmp_path, status="completed"):
 
 
 def _fake_export(output_dir: Path, **kwargs):
-    for name in ("short.mp4", "cover.png", "subtitles.srt", "manifest.json"):
+    from app.core.media_tools import ffmpeg_bin
+
+    manifest = {"video": "short.mp4", "cover": "cover.png", "subtitles": "subtitles.srt",
+                "captions_burned_in": False, "rights": {"status": "cleared"},
+                "disclosure": {"required": True, "label": "AI-assisted narration",
+                               "platforms": ["youtube", "tiktok", "meta"]}}
+    for name in ("cover.png", "subtitles.srt"):
         (output_dir / name).write_bytes(name.encode())
-    return {"video": "short.mp4", "cover": "cover.png", "subtitles": "subtitles.srt"}
+    subprocess.run([ffmpeg_bin(), "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=30",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(output_dir / "short.mp4")], check=True)
+    (output_dir / "manifest.json").write_text(json.dumps(manifest))
+    return manifest
 
 
 def test_finished_film_starts_isolated_language_shorts(db_session, tmp_path, monkeypatch):
@@ -519,3 +528,53 @@ def test_a_pilot_that_covers_every_beat_is_not_cut_and_a_shorter_one_keeps_host_
     assert render_cap_seconds(bp, ["B1", "B2", "B3"], 420.0, script) is None
     assert render_cap_seconds(bp, ["B1", "B2"], 420.0, script) == 494.0
     assert render_cap_seconds(bp, ["B1"], 420.0, {}) == 420.0
+
+
+def test_every_enabled_platform_gets_its_own_package_and_nothing_is_posted(tmp_path):
+    import shutil
+    import subprocess
+
+    from app.core.ai_config import ai_config
+    from app.core.media_tools import ffmpeg_bin
+    from app.shortform.export import build_export_package
+    from app.shortform.platform_packages import build_platform_packages
+
+    if not ffmpeg_bin():
+        pytest.skip("ffmpeg is required")
+    out = tmp_path / "short"
+    build_export_package(out, language="en", title="Hook", narration=["a", "b", "c"], duration_seconds=35)
+    packages = build_platform_packages(out, caption="Caption", cta="Watch the film", language="en")
+    enabled = {n for n, p in ai_config.short_form.distribution.items() if p.enabled}
+    assert set(packages) == enabled == {"youtube_short", "instagram_reel", "facebook_reel", "tiktok_video"}
+    for name, package in packages.items():
+        folder = out / "platforms" / name
+        assert (folder / "short.mp4").exists() and (folder / "cover.png").exists()
+        assert json.loads((folder / "package.json").read_text())["platform"] == name
+        assert package["length_ok"] is True and package["publisher"] == {"mode": "stub", "posted": False}
+        assert package["disclosure"]["required"] and package["caption"] == "Caption"
+    # a short outside a platform's limits is flagged, not silently shipped
+    shutil.rmtree(out / "platforms")
+    build_export_package(out, language="en", title="Hook", narration=["a"], duration_seconds=12)
+    short = build_platform_packages(out, caption="c", cta="x", language="en")
+    assert short["tiktok_video"]["length_ok"] is False
+    assert "outside" in short["tiktok_video"]["before_publishing"][0]
+
+
+def test_a_short_rendered_before_packages_existed_gets_them_afterwards(db_session, tmp_path, monkeypatch):
+    from app.documentary import storage
+    from app.shortform.platform_packages import package_rendered_short
+
+    job = _job(db_session, tmp_path)
+    monkeypatch.setattr(storage, "ROOT", tmp_path)
+    short_dir = tmp_path / "data" / "s"
+    short_dir.mkdir(parents=True)
+    _fake_export(short_dir)
+    short = pipeline.RenderedShort(case_id=job.case_id, film_job_id=job.id, language="en", status="done",
+                                   caption_text="c", cta="x", manifest_path="data/s/manifest.json",
+                                   files_json=json.dumps({"video": "data/s/short.mp4"}))
+    db_session.add(short)
+    db_session.commit()
+    packages = package_rendered_short(db_session, short)
+    listed = json.loads(short.files_json)
+    assert set(listed["platforms"]) == set(packages) and listed["video"] == "data/s/short.mp4"
+    assert (short_dir / "platforms" / "tiktok_video" / "package.json").exists()
