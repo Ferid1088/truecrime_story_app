@@ -253,6 +253,17 @@ def beat_first_queries(requirements: dict, beat_ids: list[str] | None, ents: dic
     return out
 
 
+def expansion_queries(entity: dict) -> list[str]:
+    """Extra searches for one entity from the configured templates of its
+    type, named after the entity's name (config visual_search)."""
+    cfg = ai_config.visual_search
+    templates = cfg.expansion_templates.get(entity.get("type") or "object") or []
+    name = (entity.get("name") or "").strip()
+    if not name:
+        return []
+    return [t.format(name=name)[:160] for t in templates[: cfg.max_expansions_per_entity]]
+
+
 def research_queries(requirements: dict, beat_ids: list[str] | None = None,
                      max_queries: int | None = None) -> list[dict]:
     """Search queries ordered by need: entities of high-priority
@@ -271,8 +282,9 @@ def research_queries(requirements: dict, beat_ids: list[str] | None = None,
     exact = [query_item(e, q, "exact") for e in ordered for q in e.get("search_queries") or []]
     context = [query_item(e, q, "context") for e in ordered
                for q in e.get("context_queries") or []]
+    expanded = [query_item(e, q, "exact") for e in ordered for q in expansion_queries(e)]
     out, seen = [], set()
-    for q in beat_first_queries(requirements, beat_ids, ents) + exact + context:
+    for q in beat_first_queries(requirements, beat_ids, ents) + exact + expanded + context:
         k = (fold(q["query"]), q["kind"])
         if k not in seen:
             seen.add(k)

@@ -125,6 +125,14 @@ def core_query(query: str, words: int = 3) -> str | None:
     return " ".join(toks[:words])
 
 
+def category_matches(name: str, category: str) -> bool:
+    """A Commons category belongs to an entity only when every word of the
+    entity's name is in the category title ('Lizzie Borden' ->
+    'Category:Lizzie Borden', not 'Category:Borden, Ontario')."""
+    words = set(re.findall(r"\w+", name.lower()))
+    return bool(words) and words <= set(re.findall(r"\w+", category.lower()))
+
+
 class WikimediaProvider:
     name = "wikimedia"
 
@@ -144,7 +152,7 @@ class WikimediaProvider:
                 c.found_for = query
         return out
 
-    async def _search(self, query: str, limit: int) -> list[Candidate]:
+    async def _get(self, params: dict) -> dict:
         import asyncio
         import time
 
@@ -152,16 +160,51 @@ class WikimediaProvider:
         if wait > 0:
             await asyncio.sleep(wait)
         WikimediaProvider._last = time.monotonic()
+        r = await self.client.get(self.cfg.wikimedia_api, params={"format": "json", **params})
+        r.raise_for_status()
+        return r.json()
+
+    async def category_files(self, name: str, limit: int) -> list[Candidate]:
+        """The files of the Commons category named like `name` (the best
+        category match for it) and of its direct subcategories, at most
+        `limit`: a curated set of everything Commons holds on the subject."""
+        try:
+            found = await self._get({
+                "action": "query", "list": "search", "srsearch": name,
+                "srnamespace": 14, "srlimit": 1})
+            hits = (found.get("query") or {}).get("search") or []
+            if not hits or not category_matches(name, hits[0]["title"]):
+                return []
+            category = hits[0]["title"]
+            subs = await self._get({
+                "action": "query", "list": "categorymembers", "cmtitle": category,
+                "cmtype": "subcat", "cmlimit": 10})
+            titles = [category] + [m["title"] for m in
+                                   (subs.get("query") or {}).get("categorymembers") or []]
+        except (httpx.HTTPError, ValueError, KeyError) as e:
+            log.warning("wikimedia category search failed for %r: %s", name, e)
+            return []
+        out: list[Candidate] = []
+        for title in titles:
+            if len(out) >= limit:
+                break
+            out.extend(await self._pages({
+                "generator": "categorymembers", "gcmtitle": title, "gcmtype": "file",
+                "gcmlimit": limit - len(out)}, name))
+        return out[:limit]
+
+    async def _search(self, query: str, limit: int) -> list[Candidate]:
+        return await self._pages({
+            "generator": "search", "gsrsearch": f"{query} filetype:bitmap",
+            "gsrnamespace": 6, "gsrlimit": limit}, query)
+
+    async def _pages(self, generator: dict, query: str) -> list[Candidate]:
         params = {
-            "action": "query", "format": "json", "generator": "search",
-            "gsrsearch": f"{query} filetype:bitmap", "gsrnamespace": 6,
-            "gsrlimit": limit, "prop": "imageinfo",
+            "action": "query", **generator, "prop": "imageinfo",
             "iiprop": "url|extmetadata|size|mime", "iiurlwidth": 2000,
         }
         try:
-            r = await self.client.get(self.cfg.wikimedia_api, params=params)
-            r.raise_for_status()
-            pages = (r.json().get("query") or {}).get("pages") or {}
+            pages = ((await self._get(params)).get("query") or {}).get("pages") or {}
         except (httpx.HTTPError, ValueError) as e:
             log.warning("wikimedia search failed for %r: %s", query, e)
             return []

@@ -9,10 +9,10 @@
     ],
     "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
     "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
-    "max_queries": 60,
-    "max_candidates_per_query": 5,
+    "max_queries": 150,
+    "max_candidates_per_query": 15,
     "max_source_pages": 25,
-    "max_assets": 120,
+    "max_assets": 400,
     "min_width": 600,
     "max_download_mb": 15,
     "request_timeout_s": 25,
@@ -31,7 +31,45 @@
     "max_lead_pages_per_lead": 2,
     "max_video_link_queries": 12,
     "video_links_per_query": 8,
-    "case_level_entities": 8
+    "case_level_entities": 8,
+    "expansion_templates": {
+      "person": [
+        "{name} historical photograph",
+        "{name} newspaper 1890s portrait",
+        "{name} archive"
+      ],
+      "place": [
+        "{name} historical photograph",
+        "{name} old postcard",
+        "{name} archive"
+      ],
+      "building": [
+        "{name} historical photograph",
+        "{name} old postcard",
+        "{name} floor plan"
+      ],
+      "event": [
+        "{name} newspaper illustration",
+        "{name} historical photograph"
+      ],
+      "document": [
+        "{name} newspaper page",
+        "{name} original document"
+      ],
+      "object": [
+        "{name} historical photograph"
+      ],
+      "vehicle": [
+        "{name} historical photograph"
+      ],
+      "organization": [
+        "{name} historical photograph"
+      ]
+    },
+    "max_expansions_per_entity": 3,
+    "wikimedia_categories": true,
+    "category_max_files": 60,
+    "max_category_entities": 12
   },
   "visual_verification": {
     "per_requirement": 12,
@@ -105,9 +143,9 @@
       "internet_archive"
     ],
     "internet_archive_api": "https://archive.org/advancedsearch.php",
-    "max_queries": 8,
-    "max_clips_per_case": 12,
-    "max_candidates_per_query": 3,
+    "max_queries": 25,
+    "max_clips_per_case": 40,
+    "max_candidates_per_query": 8,
     "max_download_mb": 250.0,
     "max_source_seconds": 1800.0,
     "clip_seconds": 24.0,

@@ -2025,6 +2025,15 @@ class VisualSearchConfig(BaseModel):
     wikimedia_api: str = "https://commons.wikimedia.org/w/api.php"
     max_queries: int = Field(default=30, ge=1)
     max_candidates_per_query: int = Field(default=5, ge=1)
+    # Extra searches per entity ("{name} historical photograph" ...), by
+    # entity type, so a long film finds more than the planner's own queries.
+    expansion_templates: dict[str, list[str]] = {}
+    max_expansions_per_entity: int = Field(default=3, ge=0)
+    # Wikimedia Commons category harvesting: the files of the category
+    # named like an entity (and its direct subcategories).
+    wikimedia_categories: bool = False
+    category_max_files: int = Field(default=60, ge=1)
+    max_category_entities: int = Field(default=12, ge=0)
     max_source_pages: int = Field(default=25, ge=0)
     max_assets: int = Field(default=120, ge=1)
     min_width: int = Field(default=600, ge=64)

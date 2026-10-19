@@ -44,6 +44,26 @@ class VisualResearchAgent:
             timeout=self.cfg.request_timeout_s, follow_redirects=True,
             headers={"User-Agent": self.cfg.user_agent})
 
+    async def _category_candidates(self, wiki: WikimediaProvider,
+                                   queries: list[dict]) -> list[Candidate]:
+        """The Commons category files of the entities named by the exact
+        queries (one lookup per entity name, the first query of each)."""
+        out, seen = [], set()
+        for q in queries:
+            key = q.get("entity")
+            if query_kind(q) != "exact" or not key or key in seen:
+                continue
+            if len(seen) >= self.cfg.max_category_entities:
+                break
+            seen.add(key)
+            for c in await wiki.category_files(q["query"], self.cfg.category_max_files):
+                c.entities = list(q.get("entities") or [key])
+                c.entity_key = key
+                c.entity_type = q.get("entity_type")
+                c.query_kind = "exact"
+                out.append(c)
+        return out
+
     async def run(self, db: Session, case: Case, queries: list[dict],
                   progress=None, found_during: str = "research") -> dict:
         """queries: [{"query": str, "entity": key, "entities": [...],
@@ -89,6 +109,9 @@ class VisualResearchAgent:
                 searchers.append(WikimediaProvider(client))
             if "brave_images" in self.cfg.providers and backend:
                 searchers.append(BraveImageProvider(backend))
+            if "wikimedia" in self.cfg.providers and self.cfg.wikimedia_categories:
+                candidates.extend(await self._category_candidates(
+                    WikimediaProvider(client), queries))
             for q in queries[: self.cfg.max_queries]:
                 kind = query_kind(q)
                 ents = list(q.get("entities") or [])
