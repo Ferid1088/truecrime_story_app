@@ -232,11 +232,13 @@ def test_the_stored_direction_becomes_a_motion_prompt_and_an_expressiveness_leve
     raw = good()
     scene.direction_json = json.dumps(raw)
     motion, level = direction_controls(scene)
-    assert "leans slightly forward" in motion and "small open-palm gesture" in motion
-    assert "mostly direct" in motion and level == "medium"        # intensity 0.4
-    raw["emotion"]["intensity"] = 0.1
+    assert "holds the hands loosely joined" in motion and "one small open-palm gesture" in motion
+    assert "around second 6" in motion and "hands rest still" in motion
+    assert "mostly direct" in motion and "no repeated hand movement" in motion
+    assert level == "low"          # intensity 0.4 would be medium; a calm host is never above low
+    raw["performance_timeline"] = [{"start_sec": 0, "end_sec": 18.5, "action": "hands_rest"}]
     scene.direction_json = json.dumps(raw)
-    assert direction_controls(scene)[1] == "low"
+    assert "keeps the hands resting and still" in direction_controls(scene)[0].lower().replace("keeps", "keeps")
 
 
 def test_heygen_create_video_sends_motion_prompt_and_expressiveness_only_when_given(monkeypatch):
@@ -283,3 +285,30 @@ def test_a_word_the_voice_still_says_wrong_makes_the_writer_use_other_words(monk
     assert asked == [["فاصله"]]                          # on the plan, but a word is wrong
     assert voiced_seconds == [] and HS.unresolved_words(scene) == []
     assert "avoid" in json.loads(scene.history_json)[0]["detail"]
+
+
+def test_a_scene_is_redone_with_a_new_direction_and_a_new_video_and_keeps_its_history(db_session):
+    from test_visual_memory import _ch, _scene
+    from app.db.models import HostAppearance
+    from app.documentary import host_scenes as HS
+    from app.documentary import stage_direction as SD
+    from app.documentary import visual_memory as VM
+    from test_stage_direction import good
+
+    scene = _scene(db_session, _ch())
+    VM.record(db_session, scene, SD.StageDirection(**good()), [])
+    scene.voice_path, scene.provider_job_id, scene.provider_generation = "v.mp3", "job-1", 0
+    scene.avatar_video_path, scene.avatar_video_sha256, scene.status = "a.mp4", "x" * 64, "avatar_ready"
+    db_session.commit()
+    HS.redo_video(db_session, scene, "calmer hands")
+    assert (scene.direction_json, scene.provider_job_id, scene.avatar_video_path) == (None, None, None)
+    assert scene.provider_generation == 1 and scene.status == "voice_ready"
+    redo = [h for h in json.loads(scene.history_json) if h["step"] == "redo"][0]["detail"]
+    assert redo["old_provider_job_id"] == "job-1" and redo["old_avatar_video_path"] == "a.mp4"
+    assert redo["old_direction"]["posture"] == "P05_HANDS_LOOSELY_JOINED" and redo["reason"] == "calmer hands"
+    calmer = good()
+    calmer["posture"] = "P04_ARMREST_RELAXED"
+    VM.record(db_session, scene, SD.StageDirection(**calmer), [])      # the memory keeps one row
+    db_session.commit()
+    rows = db_session.query(HostAppearance).filter_by(host_scene_id=scene.id).all()
+    assert len(rows) == 1 and rows[0].posture == "P04_ARMREST_RELAXED"

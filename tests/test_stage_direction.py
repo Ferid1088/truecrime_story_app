@@ -21,11 +21,12 @@ def good() -> dict:
              "movement": "STATIC"},
             {"start_sec": 9.0, "end_sec": 18.5, "camera": "CAM01_FRONT", "framing": "MEDIUM",
              "movement": "SUBTLE_PUSH_IN"}],
-        "outfit_id": "navy_knit", "stance": "SEATED", "posture": "P02_SLIGHT_FORWARD",
+        "outfit_id": "navy_knit", "stance": "SEATED", "posture": "P05_HANDS_LOOSELY_JOINED",
         "eye_contact": "MOSTLY_DIRECT",
         "performance_timeline": [
-            {"start_sec": 0, "end_sec": 9.0, "action": "direct_eye_contact_still"},
-            {"start_sec": 9.0, "end_sec": 18.5, "action": "G02_SMALL_OPEN_PALM", "hands": "both"}],
+            {"start_sec": 0, "end_sec": 6.0, "action": "direct_eye_contact_still"},
+            {"start_sec": 6.0, "end_sec": 8.0, "action": "G02_SMALL_OPEN_PALM", "hands": "both"},
+            {"start_sec": 8.0, "end_sec": 18.5, "action": "hands_rest_direct_delivery"}],
         "lighting": {"variation": "L03_ANALYTICAL_NEUTRAL"},
     }
 
@@ -83,9 +84,11 @@ def test_sensitive_material_gets_soft_lighting_few_gestures_and_a_static_camera(
     raw["lighting"]["variation"] = "L06_VICTIM_SENSITIVE_SOFT"
     raw["camera_plan"][1]["movement"] = "STATIC"
     raw["performance_timeline"] = [
-        {"start_sec": 0, "end_sec": 6, "action": "G02_SMALL_OPEN_PALM"},
-        {"start_sec": 6, "end_sec": 12, "action": "G04_SMALL_HEAD_TILT"},
-        {"start_sec": 12, "end_sec": 18.5, "action": "G06_SLIGHT_NOD"}]
+        {"start_sec": 0, "end_sec": 2.5, "action": "hands_rest"},
+        {"start_sec": 2.5, "end_sec": 4.5, "action": "G02_SMALL_OPEN_PALM"},
+        {"start_sec": 4.5, "end_sec": 6.5, "action": "G04_SMALL_HEAD_TILT"},
+        {"start_sec": 6.5, "end_sec": 8.5, "action": "G06_SLIGHT_NOD"},
+        {"start_sec": 8.5, "end_sec": 18.5, "action": "hands_rest"}]
     assert check(raw, sensitive=True) == {"sensitive_too_many_gestures"}
 
 
@@ -161,7 +164,7 @@ def test_body_language_uses_both_hands_never_repeats_back_to_back_and_respects_t
 
 def test_the_posture_differs_from_the_previous_appearance():
     assert "posture_same_as_previous" in check(
-        recent=[{"outfit_id": "stone_knit", "posture": "P02_SLIGHT_FORWARD"}])
+        recent=[{"outfit_id": "stone_knit", "posture": "P05_HANDS_LOOSELY_JOINED"}])
 
 
 def test_a_memory_reference_must_exist():
@@ -184,3 +187,69 @@ def test_the_execution_view_marks_what_is_executed_and_what_is_planned_only():
     assert view["movement"]["shown_as"] == "PLANNED_ONLY" and view["lighting"]["executed"] is False
     assert view["performance_timeline"]["shown_as"] == "PLANNED_ONLY"
     assert SD.execution_view(None) == []
+
+
+# ---------------------------------------------------------------------------
+# a calm host: hands rest, a gesture only at real emphasis
+# ---------------------------------------------------------------------------
+
+
+def _calm(**timeline):
+    raw = good()
+    raw["performance_timeline"] = timeline["actions"]
+    return raw
+
+
+REST = {"action": "hands_rest"}
+
+
+def test_a_calm_direction_with_one_small_gesture_passes():
+    assert check() == set()
+
+
+def test_a_busy_posture_needs_a_continuity_reason():
+    raw = good()
+    raw["posture"] = "P02_SLIGHT_FORWARD"
+    assert "posture_not_calm" in check(raw)
+    raw["continuity_reason"] = "the previous scene leaned forward"
+    assert "posture_not_calm" not in check(raw)
+
+
+def test_only_small_gestures_are_allowed():
+    raw = _calm(actions=[{**REST, "start_sec": 0, "end_sec": 6},
+                         {"action": "G03_SUBTLE_TWO_HAND_EXPLANATION", "hands": "both", "start_sec": 6, "end_sec": 8},
+                         {**REST, "start_sec": 8, "end_sec": 18.5}])
+    assert "gesture_not_calm" in check(raw)
+
+
+def test_at_most_one_hand_gesture_per_ten_seconds_and_never_in_a_sentences_first_second():
+    close = _calm(actions=[{**REST, "start_sec": 0, "end_sec": 3},
+                           {"action": "G02_SMALL_OPEN_PALM", "hands": "both", "start_sec": 3, "end_sec": 5},
+                           {**REST, "start_sec": 5, "end_sec": 8},
+                           {"action": "G02_SMALL_OPEN_PALM", "hands": "both", "start_sec": 8, "end_sec": 10},
+                           {**REST, "start_sec": 10, "end_sec": 18.5}])
+    assert {"hand_gestures_too_close", "too_many_hand_gestures"} <= check(close) | {"too_many_hand_gestures"}
+    assert "hand_gestures_too_close" in check(close)
+    early = _calm(actions=[{"action": "G02_SMALL_OPEN_PALM", "hands": "both", "start_sec": 9.4, "end_sec": 11.0},
+                           {**REST, "start_sec": 11.0, "end_sec": 18.5},
+                           {**REST, "start_sec": 0, "end_sec": 9.4}])
+    assert "gesture_in_a_sentences_first_second" in check(early)       # a sentence ends at 9.0
+
+
+def test_a_long_hand_gesture_is_rejected():
+    long = _calm(actions=[{**REST, "start_sec": 0, "end_sec": 5.0},
+                          {"action": "G02_SMALL_OPEN_PALM", "hands": "both", "start_sec": 5.0, "end_sec": 9.5},
+                          {**REST, "start_sec": 9.5, "end_sec": 18.5}])
+    assert "hand_gesture_too_long" in check(long)
+
+
+def test_the_count_limit_follows_the_length_of_the_speech():
+    # 6 a minute: a 40 s appearance may have 4, a 10 s one still has one
+    many = []
+    for i in range(5):
+        many += [{**REST, "start_sec": i * 8.0, "end_sec": i * 8.0 + 5.0},
+                 {"action": "G02_SMALL_OPEN_PALM", "hands": "both", "start_sec": i * 8.0 + 5.0, "end_sec": i * 8.0 + 7.0},
+                 {**REST, "start_sec": i * 8.0 + 7.0, "end_sec": i * 8.0 + 8.0}]
+    codes = {e["code"] for e in SD.calm_errors(
+        SD.StageDirection(**{**good(), "performance_timeline": many}), voice_seconds=40.0, sentence_ends=[])}
+    assert "too_many_hand_gestures" in codes

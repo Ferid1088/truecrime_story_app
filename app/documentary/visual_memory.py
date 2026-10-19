@@ -66,13 +66,14 @@ def record(db: Session, scene: HostScene, direction: SD.StageDirection,
     stored."""
     if errors:
         raise ValueError(f"a rejected direction is not remembered: {errors}")
-    if db.query(HostAppearance).filter(HostAppearance.host_scene_id == scene.id).count():
+    existing = db.query(HostAppearance).filter(HostAppearance.host_scene_id == scene.id).first()
+    if existing is not None and scene.direction_json:
         raise ValueError("this scene's appearance is already recorded")
     sha = direction_sha256(direction)
     scene.direction_json = direction.model_dump_json()
     scene.direction_sha256 = sha
     gestures = [a.action for a in direction.performance_timeline if a.action in SD.GESTURES]
-    row = HostAppearance(
+    fields = dict(
         case_id=scene.case_id, host_scene_id=scene.id, language=scene.language,
         channel=scene.channel, position=scene.position, studio_profile_id=direction.studio_id,
         shots_json=json.dumps([{"camera": s.camera, "framing": s.framing, "movement": s.movement,
@@ -82,6 +83,12 @@ def record(db: Session, scene: HostScene, direction: SD.StageDirection,
         gestures_json=json.dumps(gestures), lighting=direction.lighting.variation,
         emotion=direction.emotion.primary, interaction_pattern=direction.purpose,
         persona_sha256=persona_sha256, direction_sha256=sha, created_at=utc_now())
-    db.add(row)
+    if existing is not None:      # a redone scene: the memory keeps its newest direction
+        for key, value in fields.items():
+            setattr(existing, key, value)
+        row = existing
+    else:
+        row = HostAppearance(**fields)
+        db.add(row)
     db.flush()
     return row

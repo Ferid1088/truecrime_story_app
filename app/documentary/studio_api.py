@@ -362,6 +362,28 @@ async def run_host_scene(scene_id: int, payload: SceneRun, db: Session = Depends
     return scene_dict(s)
 
 
+class SceneRedo(BaseModel):
+    reason: str
+
+
+@router.post("/api/host-scenes/{scene_id}/redo")
+def redo_host_scene(scene_id: int, payload: SceneRedo, db: Session = Depends(get_db)):
+    """A new direction and a new avatar video for a scene (voice kept; the old ones stay in its
+    history). Run the scene afterwards."""
+    from app.documentary.host_scenes import redo_video
+
+    s = db.get(HostScene, scene_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail="Host scene not found")
+    task = _tasks.get(scene_id)
+    if task is not None and not task.done():
+        raise HTTPException(status_code=409, detail="This scene is running.")
+    try:
+        return scene_dict(redo_video(db, s, payload.reason))
+    except ST.StudioError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
 @router.get("/api/host-scenes/{scene_id}/voice")
 def host_scene_voice(scene_id: int, db: Session = Depends(get_db)):
     s = db.get(HostScene, scene_id)

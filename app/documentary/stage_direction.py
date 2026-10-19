@@ -142,6 +142,7 @@ def validate_direction(direction: StageDirection, *, voice_seconds: float,
         errors.append({"code": "posture_does_not_fit_the_stance", "posture": direction.posture,
                        "stance": direction.stance})
     errors += gesture_errors(direction, language)
+    errors += calm_errors(direction, voice_seconds=voice_seconds, sentence_ends=sentence_ends)
     if direction.memory_reference and direction.memory_reference not in memory_refs:
         errors.append({"code": "unknown_memory_reference", "ref": direction.memory_reference})
     if sensitive:
@@ -153,6 +154,44 @@ def validate_direction(direction: StageDirection, *, voice_seconds: float,
             errors.append({"code": "sensitive_too_many_gestures", "count": len(gestures)})
         if any(s.movement != "STATIC" for s in plan):
             errors.append({"code": "sensitive_needs_static_camera"})
+    return errors
+
+
+def calm_errors(direction: StageDirection, *, voice_seconds: float,
+                sentence_ends: list[float]) -> list[dict]:
+    """A calm host: the hands rest (seated postures with resting hands), only the allowed small
+    gestures, at most one hand gesture per min_gap seconds and max_hand_gestures_per_minute, none
+    in the first second of a sentence, none long. The words never change, only the performance."""
+    calm = ai_config.stage_direction.calm
+    errors: list[dict] = []
+    if (direction.stance == "SEATED" and direction.posture in SEATED_POSTURES
+            and direction.posture not in calm.seated_postures
+            and not (direction.continuity_reason or "").strip()):
+        errors.append({"code": "posture_not_calm", "posture": direction.posture,
+                       "calm_postures": calm.seated_postures})
+    actions = sorted((a for a in direction.performance_timeline if a.action in GESTURES),
+                     key=lambda a: a.start_sec)
+    for a in actions:
+        if a.action not in calm.allowed_gestures:
+            errors.append({"code": "gesture_not_calm", "gesture": a.action,
+                           "allowed": calm.allowed_gestures})
+    hands = [a for a in actions if a.action in calm.hand_gestures and a.action != "G01_NONE"]
+    allowed_count = max(1, int(calm.max_hand_gestures_per_minute * voice_seconds / 60.0))
+    if len(hands) > allowed_count:
+        errors.append({"code": "too_many_hand_gestures", "count": len(hands), "max": allowed_count})
+    starts = [0.0] + list(sentence_ends)
+    for before, after in zip(hands, hands[1:]):
+        if after.start_sec - before.start_sec < calm.min_gap_seconds:
+            errors.append({"code": "hand_gestures_too_close", "at": after.start_sec,
+                           "min_gap_seconds": calm.min_gap_seconds})
+    for a in hands:
+        if a.end_sec - a.start_sec > calm.max_gesture_seconds:
+            errors.append({"code": "hand_gesture_too_long", "at": a.start_sec,
+                           "seconds": round(a.end_sec - a.start_sec, 2),
+                           "max": calm.max_gesture_seconds})
+        sentence_start = max((t for t in starts if t <= a.start_sec + 1e-6), default=0.0)
+        if a.start_sec - sentence_start < calm.sentence_start_quiet_seconds - 1e-6:
+            errors.append({"code": "gesture_in_a_sentences_first_second", "at": a.start_sec})
     return errors
 
 

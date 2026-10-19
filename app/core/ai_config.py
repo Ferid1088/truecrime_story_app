@@ -547,6 +547,25 @@ class WriterMetricsConfig(BaseModel):
     short_sentence_words: int = Field(ge=1, le=12)
 
 
+class CalmConfig(BaseModel):
+    """How calm the host is: hands rest, a gesture only at real emphasis (the owner finds a busy
+    avatar annoying). The code rejects a direction that exceeds it."""
+
+    # Seated postures with the hands at rest; any other needs a continuity_reason.
+    seated_postures: list[str]
+    # Gestures a direction may use at all (the rest of the vocabulary is too big).
+    allowed_gestures: list[str]
+    # The gestures that move the hands (counted against the limits below).
+    hand_gestures: list[str]
+    max_hand_gestures_per_minute: float = Field(gt=0)
+    min_gap_seconds: float = Field(ge=0)
+    # No gesture within this many seconds of a sentence's start.
+    sentence_start_quiet_seconds: float = Field(ge=0)
+    max_gesture_seconds: float = Field(gt=0)
+    # HeyGen's expressiveness is never higher than this (low | medium | high).
+    max_expressiveness: str
+
+
 class StageDirectionConfig(BaseModel):
     """Deterministic guard-rails of the host's stage direction (Part 7c)."""
     min_shot_seconds: float = Field(gt=0)
@@ -575,6 +594,7 @@ class StageDirectionConfig(BaseModel):
     forbidden_gestures: dict[str, list[str]]
     # intensity below the first value -> low, below the second -> medium, else high
     expressiveness_thresholds: list[float]
+    calm: CalmConfig
 
 
 class PoseSetEntry(BaseModel):
@@ -1684,6 +1704,17 @@ class HostSpokenRules(BaseModel):
     min_length_variation: float = Field(ge=0.0, le=2.0)
 
 
+class HandMotionConfig(BaseModel):
+    """The measurement of how much the host's hands move in a finished avatar video: frames every
+    `every_seconds`, the difference between neighbouring frames inside the hand region (fractions
+    of the frame), a window counts as moving above `threshold` (mean grey-level difference)."""
+
+    every_seconds: float = Field(default=2.0, gt=0)
+    region: list[float] = [0.33, 0.60, 0.50, 0.72]    # x0, x1, y0, y1
+    threshold: float = Field(default=6.0, gt=0)
+    sample_width_px: int = Field(default=480, ge=64)
+
+
 class HostConfig(BaseModel):
     """The recurring on-screen host (persona_master_prompt.md): when the
     host appears, how long, and the deterministic guard-rails on what the
@@ -1710,6 +1741,7 @@ class HostConfig(BaseModel):
     short_film_min_gap_seconds: float = Field(default=90.0, ge=0.0)
     # A short film still gets an opening, one bridge and an outro.
     short_film_min_appearances: int = Field(default=3, ge=0)
+    hand_motion: HandMotionConfig = Field(default_factory=HandMotionConfig)
     # The kinds of appearance and their seconds [base, min, max] before the film's own weights.
     roles: dict[str, HostRole]
     # Seconds of an appearance grow with the weight of the act before it (its share of the

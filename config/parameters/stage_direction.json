@@ -72,9 +72,9 @@
     },
     "outfit_allow_list": {},
     "gesture_phrases": {
-      "G01_NONE": "keeps the hands still",
-      "G02_SMALL_OPEN_PALM": "makes a small open-palm gesture with {hands}",
-      "G03_SUBTLE_TWO_HAND_EXPLANATION": "makes a subtle explaining gesture with {hands}",
+      "G01_NONE": "keeps the hands resting and still",
+      "G02_SMALL_OPEN_PALM": "makes one small open-palm gesture with {hands}, then lets the hands rest again",
+      "G03_SUBTLE_TWO_HAND_EXPLANATION": "makes one subtle explaining gesture with {hands}, then lets the hands rest again",
       "G04_SMALL_HEAD_TILT": "tilts the head slightly once",
       "G05_THOUGHTFUL_PAUSE": "pauses thoughtfully for a moment",
       "G06_SLIGHT_NOD": "nods slightly once",
@@ -119,6 +119,33 @@
         "G10_THUMBS_UP",
         "G11_OK_SIGN"
       ]
+    },
+    "calm": {
+      "seated_postures": [
+        "P04_ARMREST_RELAXED",
+        "P05_HANDS_LOOSELY_JOINED"
+      ],
+      "allowed_gestures": [
+        "G01_NONE",
+        "G02_SMALL_OPEN_PALM",
+        "G04_SMALL_HEAD_TILT",
+        "G05_THOUGHTFUL_PAUSE",
+        "G06_SLIGHT_NOD",
+        "G07_SHORT_LOOK_AWAY_RETURN"
+      ],
+      "hand_gestures": [
+        "G02_SMALL_OPEN_PALM",
+        "G03_SUBTLE_TWO_HAND_EXPLANATION",
+        "G08_HANDS_SPREAD_APART",
+        "G09_POINT_AT_VIEWER",
+        "G10_THUMBS_UP",
+        "G11_OK_SIGN"
+      ],
+      "max_hand_gestures_per_minute": 6,
+      "min_gap_seconds": 10.0,
+      "sentence_start_quiet_seconds": 1.0,
+      "max_gesture_seconds": 3.0,
+      "max_expressiveness": "low"
     }
   }
 }

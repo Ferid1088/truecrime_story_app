@@ -362,9 +362,9 @@ async def _step_avatar_upload(db: Session, scene: HostScene, prov) -> dict | Non
 
 
 def direction_controls(scene: HostScene) -> tuple[str | None, str | None]:
-    """(motion_prompt, expressiveness) HeyGen can execute from the scene's
-    stored direction: gestures, posture and eye contact become one natural-
-    language prompt, the emotion's intensity a coarse expressiveness level.
+    """(motion_prompt, expressiveness) HeyGen can execute from the scene's stored direction:
+    a calm host. The prompt says in plain words that the hands rest and when (if at all) the one
+    small gesture happens; expressiveness is never above stage_direction.calm.max_expressiveness.
     None, None for a scene without a direction."""
     if not scene.direction_json:
         return None, None
@@ -372,18 +372,22 @@ def direction_controls(scene: HostScene) -> tuple[str | None, str | None]:
 
     cfg = ai_config.stage_direction
     d = json.loads(scene.direction_json)
-    gestures = [cfg.gesture_phrases[a["action"]].format(
+    hand_gestures = [
+        a for a in d.get("performance_timeline") or []
+        if a.get("action") in cfg.calm.hand_gestures and a["action"] in cfg.gesture_phrases]
+    gestures = [f"around second {a['start_sec']:.0f} he " + cfg.gesture_phrases[a["action"]].format(
         hands=cfg.hands_phrases.get(a.get("hands") or "both", cfg.hands_phrases["both"]))
-        for a in d.get("performance_timeline") or []
-        if a.get("action") in cfg.gesture_phrases and a["action"] != "G01_NONE"]
+        for a in hand_gestures]
     text = prompt("documentary/host/motion_prompt").format(
         posture=cfg.posture_phrases.get(d.get("posture"), "sits naturally"),
         eye_contact=str(d.get("eye_contact") or "DIRECT").lower().replace("_", " "),
-        gestures=("Over the speech he " + ", then ".join(gestures)) if gestures
-        else cfg.gesture_phrases["G01_NONE"].format(hands="").capitalize())
+        gestures=("; ".join(gestures) + ". At every other moment the hands rest still"
+                  if gestures else cfg.gesture_phrases["G01_NONE"].capitalize()))
     intensity = float((d.get("emotion") or {}).get("intensity") or 0.0)
     low, high = cfg.expressiveness_thresholds
-    return text, "low" if intensity < low else ("medium" if intensity < high else "high")
+    level = "low" if intensity < low else ("medium" if intensity < high else "high")
+    order = ("low", "medium", "high")
+    return text, order[min(order.index(level), order.index(cfg.calm.max_expressiveness))]
 
 
 async def _step_avatar_request(db: Session, scene: HostScene, prov, look_id: str) -> dict | None:
@@ -556,6 +560,26 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
     finally:
         scene.running_since = None
         db.commit()
+
+
+def redo_video(db: Session, scene: HostScene, reason: str) -> HostScene:
+    """A new direction and a new avatar video for a scene whose voice stays. The old direction,
+    job and video file are kept in the scene's history (nothing is deleted); the next run asks
+    the stage director again and requests a new HeyGen job (the next generation)."""
+    if scene.status in ("planned",) or not scene.voice_path:
+        raise ST.StudioError("the scene has no voice yet; run it first")
+    _log(scene, "redo", "requested", {
+        "reason": reason, "old_direction": _loads(scene.direction_json, None),
+        "old_direction_sha256": scene.direction_sha256, "old_provider_job_id": scene.provider_job_id,
+        "old_avatar_video_path": scene.avatar_video_path,
+        "old_avatar_video_sha256": scene.avatar_video_sha256})
+    scene.direction_json = scene.direction_sha256 = None
+    scene.provider_generation = (scene.provider_generation or 0) + 1
+    scene.provider_job_id = scene.provider_job_voice_sha = None
+    scene.avatar_video_path = scene.avatar_video_sha256 = None
+    scene.status = "voice_ready"
+    db.commit()
+    return scene
 
 
 def scene_dict(s: HostScene) -> dict:
