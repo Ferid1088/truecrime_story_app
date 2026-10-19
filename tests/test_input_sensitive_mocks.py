@@ -94,9 +94,7 @@ def test_generation_and_host_ignore_config_not_sent_to_provider(monkeypatch):
 
     from test_host import HostGen
 
-    user = json.dumps({"language": "en", "segments": [
-        {"id": "H1", "target_words": 5},
-    ]})
+    user = json.dumps({"language": "en", "segment": {"id": "S1", "target_words": 12}})
     host_a, _ = asyncio.run(HostGen().generate_structured("host_writer", "system", user))
     monkeypatch.setattr(ai_config.channels["en"], "name", "unrelated-test-channel")
     host_b, _ = asyncio.run(HostGen().generate_structured("host_writer", "system", user))

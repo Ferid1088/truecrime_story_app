@@ -1,4 +1,4 @@
-"""Part 5a: validation, host slots, enrichment and the 1:1 mapping check."""
+"""Part 5a: validation, enrichment and the 1:1 mapping check."""
 
 from app.services import story_plans as SP
 
@@ -29,13 +29,6 @@ def test_enrich_marks_what_each_beat_reveals_and_whom_it_introduces():
     assert acts[1]["reveals"] == ["F002"] and acts[1]["introduces_people"] == ["Karl"]
 
 
-def test_host_slots_are_one_opening_and_distinct_non_final_mid_slots():
-    slots = _plan()["host_slots"]
-    assert slots[0] == {"id": "H1", "position": "opening", "before_beat": "act1"}
-    mids = [s["after_beat"] for s in slots if s["position"] == "mid"]
-    assert 1 <= len(mids) <= 2 and len(set(mids)) == len(mids) and "act5" not in mids
-
-
 def test_a_good_plan_is_valid_and_bad_ones_are_named():
     assert SP.validate_plan(_plan(), PACK, 2000)["status"] == "valid"
     bad = _plan()
@@ -51,26 +44,3 @@ def test_lengths_that_miss_the_film_length_make_the_plan_invalid():
     report = SP.validate_plan(_plan(), PACK, 4000)
     assert report["status"] == "invalid"
     assert report["errors"][0]["code"] == "beats_do_not_add_up_to_the_film_length"
-
-
-def test_host_slot_rules_are_checked():
-    plan = _plan()
-    plan["host_slots"] = [{"id": "H1", "position": "opening", "before_beat": "act2"},
-                          {"id": "H2", "position": "final", "after_beat": "act5"}]
-    codes = {e["code"] for e in SP.validate_plan(plan, PACK, 2000)["errors"]}
-    assert {"host_opening_must_be_one_slot_before_the_first_beat",
-            "host_final_slot_is_off"} <= codes
-
-
-
-
-
-
-
-
-def test_mid_host_slots_are_not_placed_on_adjacent_beats_when_there_is_room():
-    plan = {"acts": [{"id": f"act{n}", "title": "t", "purpose": "p", "target_words": 500,
-                      "evidence_ids": []} for n in range(1, 7)]}
-    mids = [s["after_beat"] for s in SP.host_slots(plan) if s["position"] == "mid"]
-    numbers = sorted(int(m[3:]) for m in mids)
-    assert len(numbers) == 2 and numbers[1] - numbers[0] >= 2

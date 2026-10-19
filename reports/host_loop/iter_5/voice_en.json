@@ -1,0 +1,135 @@
+{
+ "segments_id": 41,
+ "report": {
+  "scenes": [
+   {
+    "scene": 150,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 24.32,
+    "deviation": 0.0718,
+    "cap": 45.0
+   },
+   {
+    "scene": 152,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 32.08,
+    "deviation": 0.012,
+    "cap": 50.0
+   },
+   {
+    "scene": 149,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 28.08,
+    "deviation": 0.025,
+    "cap": 75.0
+   },
+   {
+    "scene": 151,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 23.2,
+    "deviation": 0.0311,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 107.68,
+  "host_share": 0.032,
+  "timeline": {
+   "story_seconds": 3363.6,
+   "host_seconds": 107.68,
+   "intro_seconds": 0.0,
+   "total_seconds": 3471.28
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S2": {
+   "text": "Does hearing several suspicions together make you feel that they confirm each other? I feel that pull. The disputed drugstore visit, then the hatchet in the cellar—you can start joining them up almost without meaning to. But each connection still needs evidence of its own. That's where I hesitate. Before we weigh anyone's account of that morning, I'd want to know how much we're asking their words alone to establish.",
+   "seconds": 24.32,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Does hearing several suspicions together make you feel that they confirm each other? I feel that pull. The disputed drugstore visit, then the hatchet in the cellar. You can start joining them up almost without meaning to. But each connection still needs evidence of its own. That's where I hesitate. Before we weigh anyone's account of that morning, I'd want to know how much we're asking their words alone to establish."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "I wonder which version of this story you'll remember a month from now. That bothers me. The rhyme is so easy to carry around; the limits of the evidence take more effort. Even after hearing all this, I have to resist letting a familiar accusation feel like an answer. And Abby going upstairs to put a room in order stays with me more than the verse does. Nearly three decades in that home, and she's remembered mostly for her death. When you remember her, will there be room for that ordinary morning, before someone turned it into a mystery?",
+   "seconds": 32.08,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "I wonder which version of this story you'll remember a month from now. That bothers me. The rhyme is so easy to carry around. The limits of the evidence take more effort. Even after hearing all this, I have to resist letting a familiar accusation feel like an answer. And Abby going upstairs to put a room in order stays with me more than the verse does. Nearly three decades in that home, and she's remembered mostly for her death. When you remember her, will there be room for that ordinary morning before someone turned it into a mystery?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "Where was Lizzie Borden when Andrew came home? The maid said she was at the top of the stairs. Lizzie said she was downstairs. Put yourself in that house for a moment. Which account would you trust, and what would you need before choosing? Take your time. I can't choose between them just because one sounds more convincing to me. You'd want something you could check. But there's a bigger question to carry into this story: who was in that house with two dead people, and how?",
+   "seconds": 28.08,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "where was Lizzie Borden when Andrew came home? The maid said she was at the top of the stairs. Lizzie said she was downstairs. Put yourself in that house for a moment. Which account would you trust and what would you need before choosing? Take your time. I can't choose between them just because one sounds more convincing to me. You'd want something you could check. But there's a bigger question to carry into this story. Who was in that house with two dead people? And how?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "Those cheers in the courtroom leave me with an uneasy feeling. I understand the relief at Lizzie walking free. But if you turn your attention back to Andrew and Abby, there's still no answer to who killed them. Even the burned dress never supplied that missing connection. That's hard to sit with. Can you accept the jury's decision and still feel how much of that morning remains beyond our reach?",
+   "seconds": 23.2,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Those cheers in the courtroom leave me with an uneasy feeling. I understand the relief at Lizzie Walking Free, but if you turn your attention back to Andrew and Abby, there's still no answer to who killed them. Even the burned dress never supplied that missing connection. That's hard to sit with. Can you accept the jury's decision and still feel how much of that mourning remains beyond our reach?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

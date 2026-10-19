@@ -280,6 +280,19 @@ def test_spoken_version_is_told_beat_by_beat(db_session, monkeypatch):
     assert struct["blueprint_id"] == latest_blueprint(db_session, master.id).id
 
 
+@pytest.mark.parametrize("language", ["fa", "ar"])
+def test_the_story_meaning_check_covers_every_beat_in_fa_and_ar(db_session, monkeypatch, language):
+    """Part A6(5): the fact check of the narration runs for the Persian and the Arabic version on
+    all beats, in the language's own text (the host's meaning check is a separate prompt)."""
+    gen = SpokenGen()
+    _, _, sv = _narrate(db_session, monkeypatch, gen, language)
+    checks = [json.loads(u) for r, _, u in gen.calls if r == "spoken_meaning_checker"]
+    seen = {b["beat_id"] for c in checks for b in c["beats"]}
+    assert seen == {"B01", "B02", "B03", "B04", "B05"}
+    assert all(c["spoken_language"] == language for c in checks)
+    assert json.loads(sv.critic_notes)["spoken"]["per_beat"]["B05"]["meaning_ok"] is True
+
+
 def test_newsreader_tone_fails_the_gates(db_session, monkeypatch):
     stubborn = {"B03": "newsreader", "B04": "newsreader"}
     gen = SpokenGen(style_rounds=[stubborn, stubborn, stubborn])

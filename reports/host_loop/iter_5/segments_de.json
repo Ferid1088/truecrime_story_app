@@ -1,0 +1,182 @@
+{
+ "id": 42,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish a direct connection and opening tension before the logo and the first narrative act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational, with a brief pause after the opening question; curious rather than ominous.",
+   "avatar_dialogue": "Oben an der Treppe oder unten im Haus? Wo Lizzie Borden war, als Andrew nach Hause kam, darüber gibt es zwei verschiedene Aussagen: ihre und die des Dienstmädchens. Welcher würdest du vertrauen? Ich kann das noch nicht entscheiden. Dafür fehlt uns der Zusammenhang. Aber behalt diese Frage mal im Kopf, wenn wir jetzt in die Geschichte einsteigen: Wer war wann in diesem Haus, in dem zwei Menschen tot aufgefunden wurden?",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 27.8,
+   "transition_back": "The final question leads into the logo and then the narrative, inviting the viewer to pay attention to who was in the house and when.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Provide a reflective pause after the first substantial narrative movement, before the next stretch increases the pressure.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; slightly quicker than narration, with a brief pause after the short second sentence.",
+   "avatar_dialogue": "Bei dem Beilkopf würde ich gern kurz mit dir stehen bleiben. Der wirkt so greifbar. Und trotzdem ist er als Tatwaffe nicht nachgewiesen. Wenn du jetzt an die Berichte über Familienstreit und den umstrittenen Giftkauf denkst: Ergibt das für dich schon ein klares Bild? Ich merke, wie leicht ich diese Dinge gedanklich verbinde. Dabei bleibt bei jedem einzeln offen, was es tatsächlich mit den Morden zu tun hat.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 27.0,
+   "transition_back": "Returns to the survivors’ accounts with attention to how each claim can actually be supported.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff into the final act, allowing a brief change of pace after an uninterrupted three-act build.",
+   "personality_dimension": [
+    "curiosity",
+    "questioning_assumptions"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; restrained relief, then a more questioning tone.",
+   "avatar_dialogue": "Den Jubel im Gerichtssaal kann ich verstehen. Für Lizzie ging es um ihr Leben. Aber erinnerst du dich an die verschlossenen Türen im Haus? Der Freispruch erklärt uns nicht, wie jemand dort zwei Menschen töten konnte, ohne gesehen zu werden. Diese Frage lässt mich nicht los. Und mit der gehen wir jetzt weiter: Was wissen wir über diesen Vormittag, wenn wir Lizzie nicht einfach als Täterin voraussetzen?",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 26.6,
+   "transition_back": "Returns to the unresolved circumstances of the murders, inviting the viewer to reconsider the morning without assuming Lizzie's guilt.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close with a brief personal connection after the narrative has finished and its final movement has had room to land.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Warm and conversational, with restrained sadness; a brief beat before the question.",
+   "avatar_dialogue": "Mich beschäftigt, wie wenig Platz Abby in dieser Geschichte bekommt. Über Lizzie gibt es einen Reim, ganze Filme. Bei Abby landen wir immer wieder in diesem Gästezimmer. Das ist wenig. Wenn du an sie denkst, hast du dann überhaupt ein Bild von ihr jenseits dieses Morgens? Ich habe kaum eins. Fast drei Jahrzehnte hat sie diesen Haushalt mitgetragen, und trotzdem erfahren wir so wenig über sie selbst. Wer sie und Andrew getötet hat, bleibt offen. Über ihr Leben hätte ich gern mehr gewusst.",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 33.0,
+   "transition_back": "The film closes on the limited picture we have of Abby as a person, leaving the unresolved killings open.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 114.4,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

@@ -16,36 +16,36 @@
       "request_timeout_s": 120,
       "max_retries": 2,
       "no_context_models": [
-        "eleven_v3"
+        "eleven_v4"
       ],
       "language_code_models": [
-        "eleven_v3",
+        "eleven_v4",
         "eleven_turbo_v2_5",
         "eleven_flash_v2_5"
       ],
       "audio_tag_models": [
-        "eleven_v3"
+        "eleven_v4"
       ]
     },
     "languages": {
       "en": {
         "voice_id": "UF84IGrTBtegPkgbbrS2",
-        "model_id": "eleven_v3",
+        "model_id": "eleven_v4",
         "language_code": "en"
       },
       "de": {
         "voice_id": "02KhC7wycOLwuF6sc5Qu",
-        "model_id": "eleven_v3",
+        "model_id": "eleven_v4",
         "language_code": "de"
       },
       "fa": {
         "voice_id": "I3gMKh0nwZ8NQXKqUg6F",
-        "model_id": "eleven_v3",
+        "model_id": "eleven_v4",
         "language_code": "fa"
       },
       "ar": {
         "voice_id": "EFlRMcr2Nd9ah6iW85Z4",
-        "model_id": "eleven_v3",
+        "model_id": "eleven_v4",
         "language_code": "ar"
       }
     },
@@ -141,6 +141,12 @@
     "auto_retakes": 1,
     "languages": {
       "fa": {
+        "model": "large-v3-turbo",
+        "max_word_error_rate": 0.2,
+        "max_missing_run": 4,
+        "spelling_variant_similarity": 70
+      },
+      "ar": {
         "model": "large-v3-turbo",
         "max_word_error_rate": 0.2,
         "max_missing_run": 4,
@@ -440,10 +446,11 @@
   "pronunciation": {
     "enabled": true,
     "languages": [
-      "fa"
+      "fa",
+      "ar"
     ],
     "phoneme_model": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
-    "max_rounds": 3,
+    "max_rounds": 4,
     "pad_seconds": 0.12,
     "max_vowel_distance": 0.6,
     "fix_order": [

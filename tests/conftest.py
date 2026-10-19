@@ -250,8 +250,10 @@ def isolated_host_history(db_session):
     anti-repetition deliberately reads other cases' persisted segments.
     Clear that boundary explicitly; the test creates its own archive rows.
     """
-    from app.db.models import HostMemory, HostSegments
+    from app.db.models import HostMemory, HostScene, HostSegments
 
+    # scenes first: a row id is reused once its segments row is gone
+    db_session.query(HostScene).delete(synchronize_session=False)
     db_session.query(HostSegments).delete(synchronize_session=False)
     db_session.query(HostMemory).delete(synchronize_session=False)
     db_session.commit()

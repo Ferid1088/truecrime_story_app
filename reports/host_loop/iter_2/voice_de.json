@@ -1,0 +1,135 @@
+{
+ "segments_id": 30,
+ "report": {
+  "scenes": [
+   {
+    "scene": 109,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 29.52,
+    "deviation": 0.0688,
+    "cap": 50.0
+   },
+   {
+    "scene": 106,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 28.48,
+    "deviation": 0.0111,
+    "cap": 75.0
+   },
+   {
+    "scene": 107,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 17.0,
+    "seconds": 15.76,
+    "deviation": 0.0729,
+    "cap": 45.0
+   },
+   {
+    "scene": 108,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 27.3,
+    "seconds": 25.36,
+    "deviation": 0.0711,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 99.12,
+  "host_share": 0.0241,
+  "timeline": {
+   "story_seconds": 4105.78,
+   "host_seconds": 99.12,
+   "intro_seconds": 0.0,
+   "total_seconds": 4204.9
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S4": {
+   "text": "Der Freispruch zieht für mich eine Grenze: Die Anklage war nicht bewiesen. Wer Abby und Andrew getötet hat, wissen wir deshalb noch immer nicht. Das bleibt offen. Und dann diese Geschichten, die immer größer wurden … Ich finde es schwer, sie wieder aus dem Kopf zu bekommen, selbst wenn ihre Grundlage fehlt. Geht dir das auch so? Gerade Abby droht darin zu verschwinden. Wenn du an dieses Haus zurückdenkst: Ist sie für dich noch ein Mensch mit einem eigenen Leben oder schon Teil des Rätsels?",
+   "seconds": 29.52,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0238,
+     "failures": [],
+     "heard_text": "Der Freispruch zieht für mich eine Grenze. Die Anklage waren nicht bewiesen. Wer Abby und Andrew getötet hat, wissen wir deshalb noch immer nicht. Das bleibt offen. Und dann diese Geschichten, die immer größer wurden. Ich finde es schwer, sie wieder aus dem Kopf zu bekommen, selbst wenn ihre Grundlage fehlt. Geht ihr das auch so? Gerade Abby droht darin zu verschwinden. Wenn du an dieses Haus zurückdenkst, ist sie für dich noch ein Mensch mit einem eigenen Leben oder schon Teil des Rätsels."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "Zwei Menschen sind tot, und in diesem Haus passt schon der erste Augenblick nicht zusammen. Du hörst gleich zwei Versionen derselben Szene: Die Dienstmagd sagt, Lizzie habe oben an der Treppe gestanden, als Andrew nach Hause kam; Lizzie selbst sagt, sie sei unten gewesen. Welche Erinnerung klingt für dich glaubwürdiger? Und noch etwas: Wie kann jemand in einem Haus mit zwei Toten gewesen sein, ohne dass die Antwort sofort klar ist? Schauen wir genau hin.",
+   "seconds": 28.48,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0133,
+     "failures": [],
+     "heard_text": "Zwei Menschen sind tot und in diesem Haus passt schon der erste Augenblick nicht zusammen. Du hörst gleich zwei Versionen derselben Szene. Die Dienstmarkt sagt, Lizzie habe oben an der Treppe gestanden, als Andrew nach Hause kam. Lizzie selbst sagt, sie sei unten gewesen. Welche Erinnerung klingt für dich glaubwürdiger? Und noch etwas. Wie kann jemand in einem Haus mit zwei Toten gewesen sein, ohne dass die Antwort sofort klar ist? Schauen wir genau hin."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "Wenn du an den Streit über die Treppe zurückdenkst: Mit diesem Grundriss wird die Ortsangabe oben ziemlich ungenau. Mir reicht sie jedenfalls nicht. Welche Wege waren überhaupt möglich, ohne verschlossene Türen zu öffnen? Darauf würde ich jetzt mit dir achten.",
+   "seconds": 15.76,
+   "planned": 17.0,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Wenn du an den Streit über die Treppe zurückdenkst. Mit diesem Grundriss wird die Ortsangabe oben ziemlich ungenau. Mir reicht sie jedenfalls nicht. Welche Wege waren überhaupt möglich, ohne verschlossene Türen zu öffnen? Darauf würde ich jetzt mit dir achten."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "Das verbrannte Kleid macht mich misstrauisch. Dich auch? Ich muss mich da bremsen: Sobald du dir Blut auf diesem Stoff vorstellst, wird aus einer Möglichkeit schnell etwas scheinbar Sicheres. Untersuchen lässt es sich nicht mehr. Schon beim Beil blieb offen, ob es überhaupt die Tatwaffe war. Mich beschäftigt deshalb, was Lizzies Aussagen tatsächlich belegen können. Welche ihrer Widersprüche lassen sich klären, wenn sie unter Eid antworten muss?",
+   "seconds": 25.36,
+   "planned": 27.3,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Das verbrannte Kleid macht mich misstrauisch. Dich auch? Ich muss mich da bremsen. Sobald du dir Blut auf diesem Stoff vorstellst, wird aus einer Möglichkeit schnell etwas scheinbar Sicheres. Untersuchen lässt es sich nicht mehr. Schon beim Beil blieb offen, ob es überhaupt die Tatwaffe war. Mich beschäftigt deshalb, was Lizis Aussagen tatsächlich belegen können. Welche ihrer Widersprüche lassen sich klären, wenn sie unter Eid antworten muss?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

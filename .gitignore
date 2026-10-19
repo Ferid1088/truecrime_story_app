@@ -74,3 +74,6 @@ frontend/.live-run-*.mjs
 
 # live UI proof screenshots (never committed)
 data/ui_proof/
+
+# audio takes of the host/voice loop runs (large, regenerable)
+reports/host_loop/**/*_takes/

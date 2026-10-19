@@ -62,6 +62,59 @@ def test_opening_and_two_mids_accumulate_their_offsets():
     assert round(HT.host_share(out), 4) == round(24 / 84, 4)
 
 
+def _plain_script():
+    script = _script()
+    script.pop("intro")
+    return script
+
+
+def test_the_order_is_host_opening_then_logo_then_story():
+    out = HT.insert_host(_plain_script(), [_item(1, "opening", None, 10.0)], intro_seconds=6.0)
+    host, logo, first = out["shots"][0], out["shots"][1], out["shots"][2]
+    assert (host["kind"], host["start"], host["end"]) == ("video", 0.0, 10.0)
+    assert (logo["kind"], logo["command"], logo["start"], logo["end"]) == ("intro", "CHANNEL_INTRO", 10.0, 16.0)
+    assert (first["kind"], first["start"]) == ("image", 16.0)             # the story starts last
+    assert out["intro"] == {"mode": "after_host", "start": 10.0, "seconds": 6.0}
+    assert out["beats"][0]["start"] == 16.0 and out["voice"][0]["start"] == 16.0
+    assert out["subtitles"][0]["start"] == 17.0 and out["music"][0]["start"] == 46.0
+    assert [s["index"] for s in out["shots"]] == [0, 1, 2, 3]
+    # the host's own audio keeps a silence of the logo's length behind it
+    assert out["host"][0]["pad_after"] == 6.0 and out["host"][0]["narration_at"] == 0.0
+
+
+def test_the_film_is_story_plus_host_plus_logo_from_the_real_durations():
+    items = [_item(1, "opening", None, 10.0), _item(2, "mid", "B2", 8.0)]
+    out = HT.insert_host(_plain_script(), items, intro_seconds=6.0)
+    assert out["timeline"] == {"story_seconds": 60.0, "host_seconds": 18.0,
+                               "intro_seconds": 6.0, "total_seconds": 84.0}
+    assert out["duration"] == 84.0 and out["host_seconds"] == 18.0
+    # the mid appearance stands after beat 2 of the story, which now starts after host and logo
+    mid = next(h for h in out["host"] if h["scene_id"] == 2)
+    assert mid["start"] == 16.0 + 40.0 and mid["narration_at"] == 40.0
+    assert round(HT.host_share(out), 4) == round(18 / 84, 4)
+
+
+def test_without_an_opening_the_scripts_own_intro_stays_where_it_is():
+    out = HT.insert_host(_script(), [_item(2, "mid", "B1", 8.0)], intro_seconds=None)
+    assert out["intro"]["mode"] == "gap" and out["intro"]["start"] == 30.0
+    assert not [s for s in out["shots"] if s["kind"] == "intro"]
+    assert out["timeline"]["intro_seconds"] == 0.0
+
+
+def test_a_script_that_already_placed_the_logo_is_refused_when_a_host_opening_places_it():
+    with pytest.raises(HT.HostTimelineError, match="already placed"):
+        HT.insert_host(_script(), [_item(1, "opening", None, 10.0)], intro_seconds=6.0)
+
+
+def test_the_splice_pads_the_host_audio_with_the_logo_silence():
+    host = [{"audio": "h1.wav", "narration_at": 0.0, "gain_db": 0.0, "pad_after": 6.0},
+            {"audio": "h2.wav", "narration_at": 12.0, "gain_db": -3.0, "pad_after": 0.0}]
+    cmd = HT.splice_command(__import__("pathlib").Path("n.wav"), host, __import__("pathlib").Path("o.wav"),
+                            lambda p: p)
+    graph = cmd[cmd.index("-filter_complex") + 1]
+    assert "apad=pad_dur=6.000" in graph and graph.count("apad") == 1
+
+
 def test_a_planned_beat_that_is_not_in_the_film_and_two_openings_are_refused():
     with pytest.raises(HT.HostTimelineError, match="not in the film"):
         HT.insert_host(_script(), [_item(1, "mid", "B9", 5.0)])
@@ -91,6 +144,12 @@ def test_the_host_audio_is_spliced_into_the_narration_with_the_real_lengths(tmp_
         [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
         capture_output=True, text=True, check=True).stdout)
     assert abs(seconds - 37.0) < 0.15          # 30 s narration + 4 s + 3 s of host
+    padded = [{**host[0], "pad_after": 6.0}, host[1]]
+    out = HT.splice_host_audio(narration, padded, tmp_path / "padded.wav", lambda p: tmp_path / p)
+    seconds = float(subprocess.run(
+        [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
+        capture_output=True, text=True, check=True).stdout)
+    assert abs(seconds - 43.0) < 0.15          # ... and 6 s of silence for the channel logo
 
 
 def test_the_final_checks_flag_host_time_over_the_caps():
@@ -111,3 +170,12 @@ def test_scenes_that_went_into_the_film_are_marked_composited(db_session):
     HT.mark_composited(db_session, [{"scene_id": scene.id}])
     db_session.refresh(scene)
     assert scene.status == "composited"
+
+
+def test_the_renderer_lays_the_logo_sound_into_the_silence_after_the_host_without_ducking():
+    from app.documentary.render.engine import _intro_audio_graph
+
+    graph = _intro_audio_graph("after_host", 10.0, 6.0)
+    assert "adelay=10000|10000" in graph and "volume=" not in graph
+    assert "duration=longest" not in graph
+    assert "volume=" in _intro_audio_graph("gap", 10.0, 6.0)            # the cold-open break ducks

@@ -2144,7 +2144,6 @@ export interface StoryPlan {
   central_question: string | null;
   opening_strategy: string | null;
   beats: StoryPlanBeat[];
-  host_slots: { id: string; position: string; before_beat?: string; after_beat?: string }[];
   validation: { status: string; errors: { code: string }[]; warnings: { code: string }[] };
 }
 
@@ -2763,6 +2762,14 @@ export interface HostScene {
   voice_ready: boolean;
   voice_seconds: number | null;
   voice_sha256: string | null;
+  voice_flags: string[];
+  voice_checks: {
+    tts_text?: string | null;
+    asr?: { passed: boolean; word_error_rate: number; heard_text: string } | null;
+    pronunciation?: { word: string; ok: boolean | null; form: string; fix: string | null }[];
+    fixes?: { after_round: number; fixes: { word: string; form: string; fix: string }[] }[];
+    attempts?: number;
+  };
   avatar_provider: string | null;
   avatar_id: string | null;
   provider_job_id: string | null;

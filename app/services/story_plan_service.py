@@ -161,7 +161,6 @@ class StoryPlanService:
                 if key in patch:
                     act[key] = patch[key]
         data.update(changes or {})
-        data.pop("host_slots", None)
         return self._store(case, data, _pack(self.db, case), plan.language, plan.target_minutes,
                            "edit", None, plan, plan.generation_model)
 
@@ -212,7 +211,7 @@ def plan_dict(plan: StoryPlan) -> dict:
         "approved_at": plan.approved_at.isoformat() if plan.approved_at else None,
         "title": data.get("title"), "central_question": data.get("central_question"),
         "opening_strategy": data.get("opening_strategy"),
-        "beats": SP.beats_view(data), "host_slots": data.get("host_slots") or [],
+        "beats": SP.beats_view(data),
         "validation": json.loads(plan.validation_json or "{}"),
         "evidence_fingerprint": plan.evidence_fingerprint,
     }

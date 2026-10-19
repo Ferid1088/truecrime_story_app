@@ -1,0 +1,135 @@
+{
+ "segments_id": 26,
+ "report": {
+  "scenes": [
+   {
+    "scene": 93,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 16.8,
+    "seconds": 16.32,
+    "deviation": 0.0286,
+    "cap": 45.0
+   },
+   {
+    "scene": 92,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 28.64,
+    "deviation": 0.0056,
+    "cap": 75.0
+   },
+   {
+    "scene": 94,
+    "segment": "S4",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 23.2,
+    "deviation": 0.0311,
+    "cap": 45.0
+   },
+   {
+    "scene": 95,
+    "segment": "S5",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 31.12,
+    "deviation": 0.0183,
+    "cap": 50.0
+   }
+  ],
+  "host_seconds": 99.28,
+  "host_share": 0.0242,
+  "timeline": {
+   "story_seconds": 4105.78,
+   "host_seconds": 99.28,
+   "intro_seconds": 0.0,
+   "total_seconds": 4205.06
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S3": {
+   "text": "Du erinnerst dich: Nach dem Alarm wirkte Lizzies Kleid sauber. Jetzt ist ein Kleid verbrannt, das niemand mehr untersuchen kann. Ich finde diesen Verlust schwer einzuordnen. Wie viel Gewicht gibst du der Verbrennung, solange unklar ist, ob es überhaupt dasselbe Kleid war?",
+   "seconds": 16.32,
+   "planned": 16.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Du erinnerst dich, nach dem Alarm wirkte Lizzie's Kleid sauber. Jetzt ist ein Kleid verbrannt, das niemand mehr untersuchen kann. Ich finde diesen Verlust schwer einzuordnen. Wie viel Gewicht gibst du der Verbrennung, solange unklar ist, ob es überhaupt dasselbe Kleid war?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "War Lizzie oben an der Treppe oder unten im Haus? Du fragst dich vielleicht, warum das so wichtig sein soll. Aber wenn das Dienstmädchen sagt, Lizzie sei oben gewesen, und Lizzie selbst sagt, sie sei unten gewesen, als Andrew heimkam: Welcher Aussage folgst du da? Ich zögere da. Ich möchte erst verstehen, wie diese beiden Angaben zusammenpassen könnten. Denn dahinter steht die größere Frage: Wer war mit zwei Toten in diesem Haus, und wie kam es dazu?",
+   "seconds": 28.64,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.039,
+     "failures": [],
+     "heard_text": "War Lizzie oben an der Treppe oder unten im Haus? Du fragst dich vielleicht, warum das so wichtig sein soll. Aber wenn das Dienstmädchen sagt, Lizzie sei oben gewesen und Lizzie selbst sagt, sie sei unten gewesen, als Andrew heim kam. Welche Aussage folgst du da? Ich zögere da. Ich möchte erst verstehen, wie diese beiden Angaben zusammenpassen könnten. Denn dahinter steht die größere Frage. Wer war mit zwei Toten in diesem Haus und wie kam es dazu?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "Den Jubel im Gerichtssaal kann ich nachvollziehen. Für Lizzie ging es um ihr Leben. Trotzdem fällt es mir schwer, bei dieser Erleichterung stehen zu bleiben. Geht dir das auch so? Du hast die Widersprüche gehört, aber auch, wie wenig sich belegen ließ. Seit dem Fund im Haus suchen wir nach einer Antwort für Andrew und Abby. Lizzie darf gehen. Wer die beiden getötet hat, wissen wir weiterhin nicht.",
+   "seconds": 23.2,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Den Jubel im Gerichtssaal kann ich nachvollziehen. Für Lizzie ging es um ihr Leben. Trotzdem fällt es mir schwer, bei dieser Erleichterung stehen zu bleiben. Geht dir das auch so? Du hast die Widersprüche gehört, aber auch, wie wenig sich belegen ließ. Seit dem Fund im Haus suchen wir nach einer Antwort für Andrew und Abby. Lizzie darf gehen. Wer die beiden getötet hat, wissen wir weiterhin nicht."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S5": {
+   "text": "Am Ende lande ich wieder bei dieser Treppe. Nicht bei der Legende, sondern bei Abby, die dort oben ihrer Arbeit nachging. Du kannst dir den Weg durchs Haus vorstellen. Aber wer ihn an diesem Morgen nahm, bleibt offen. Und dann ist da noch Bridget: Dass sie auf dem Sterbebett gestanden haben soll, bei ihrer Aussage gelogen zu haben, ist nur ein Gerücht aus zweiter Hand. Das löst den Widerspruch nicht. Für mich bleibt genau diese Lücke. Was glaubst du: Welche Frage über Abby ist in all den Geschichten zu kurz gekommen?",
+   "seconds": 31.12,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Am Ende lande ich wieder bei dieser Treppe. Nicht bei der Legende, sondern bei Abby, die dort oben ihrer Arbeit nachging. Du kannst dir den Weg durchs Haus vorstellen. Aber wer ihn an diesem Morgen nahm, bleibt offen. Und dann ist da noch Bridget. Dass sie auf dem Sterbebett gestanden haben soll, bei ihrer Aussage gelogen zu haben, ist nur ein Gerücht aus zweiter Hand. Das löst den Widerspruch nicht. Für mich bleibt genau diese Lücke. Was glaubst du? Welche Frage über Abby ist in all den Geschichten zu kurz gekommen?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

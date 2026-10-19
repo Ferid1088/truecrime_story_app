@@ -1,0 +1,135 @@
+{
+ "segments_id": 38,
+ "report": {
+  "scenes": [
+   {
+    "scene": 137,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 29.12,
+    "deviation": 0.0111,
+    "cap": 75.0
+   },
+   {
+    "scene": 138,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 25.28,
+    "deviation": 0.0351,
+    "cap": 45.0
+   },
+   {
+    "scene": 139,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 23.76,
+    "deviation": 0.056,
+    "cap": 45.0
+   },
+   {
+    "scene": 140,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 29.92,
+    "deviation": 0.0562,
+    "cap": 50.0
+   }
+  ],
+  "host_seconds": 108.08,
+  "host_share": 0.0263,
+  "timeline": {
+   "story_seconds": 4105.78,
+   "host_seconds": 108.08,
+   "intro_seconds": 0.0,
+   "total_seconds": 4213.86
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S1": {
+   "text": "Oben an der Treppe oder unten: Wo war Lizzie? Das klingt erst mal nach einer Kleinigkeit. Aber wenn du hörst, dass das Hausmädchen sie oben verortet und Lizzie selbst sagt, sie sei unten gewesen, welcher Darstellung folgst du dann? Ich kann mich da noch nicht festlegen. Für mich hängt daran auch die Frage, wie viel du aus so einem Widerspruch überhaupt ableiten kannst. Zwei Tote in einem Haus. Wer war dort und wie? Schauen wir uns an, was sich darüber überhaupt sagen lässt.",
+   "seconds": 29.12,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Oben an der Treppe oder unten? Wo war Lizzie? Das klingt erst mal nach einer Kleinigkeit. Aber wenn du hörst, dass das Hausmädchen sie oben verortet und Lizzie selbst sagt, sie sei unten gewesen, welcher Darstellung folgst du dann? Ich kann mich da noch nicht festlegen. Für mich hängt daran auch die Frage, wie viel du aus so einem Widerspruch überhaupt ableiten kannst. Zwei Tote in einem Haus. Wer war dort? Und wie? Schauen wir uns an, was sich darüber überhaupt sagen lässt."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "Wenn du die Berichte über Streit und Geld im Hinterkopf hast, wirkt so ein Beilkopf schnell wie das fehlende Puzzlestück. Mich bremst da etwas. Schon der Familienstreit war schwach belegt, und jetzt widersprechen sich die Beamten beim Zustand des Werkzeugs. Da musst du aufpassen, dass sich die Unsicherheiten im Kopf nicht gegenseitig bestätigen. Was lässt sich denn tatsächlich mit einer bestimmten Person verbinden? Genau daran hänge ich gerade.",
+   "seconds": 25.28,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Wenn du die Berichte über Streit und Geld im Hinterkopf hast, wirkt so ein Beilkopf schnell wie das fehlende Puzzlestück. Mich bremst da etwas. Schon der Familienstreit war schwach belegt und jetzt widersprechen sich die Beamten beim Zustand des Werkzeugs. Da musst du aufpassen, dass sich die Unsicherheiten im Kopf nicht gegenseitig bestätigen. Was lässt sich denn tatsächlich mit einer bestimmten Person verbinden? Genau daran hänge ich gerade."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "Du kannst den Freispruch nachvollziehen und trotzdem weiter Fragen haben. Mir geht’s jedenfalls so. Das verbrannte Kleid lässt mich nicht los, auch wenn niemand nachweisen konnte, dass Lizzie es am Mordmorgen getragen hatte. Aber reicht dieses Unbehagen, um ihr weiter die Tat zuzutrauen? Da zögere ich. Sie ist jetzt frei. Wer Andrew und Abby getötet hat, wissen wir weiterhin nicht.",
+   "seconds": 23.76,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Du kannst den Freispruch nachvollziehen und trotzdem weiter Fragen haben. Mir geht's jedenfalls so. Das verbrannte Kleid lässt mich nicht los, auch wenn niemand nachweisen konnte, dass Lizzie es am Mordmorgen getragen hatte. Aber reicht dieses Unbehagen, um ihr weiter die Tat zuzutrauen? Da zögere ich. Sie ist jetzt frei. Wer Andrew und Abby getötet hat, wissen wir weiterhin nicht."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "An diesem Reim bleibe ich hängen. Du hörst einen Namen immer wieder zusammen mit einer Tat, und irgendwann klingt die Verbindung selbstverständlich. Ich frage mich, wie viel davon im Kopf bleibt, selbst wenn du die Fehler inzwischen kennst. Das ist schwer abzuschütteln. Und dann denke ich an Abby, über deren eigenes Leben wir so wenig erfahren haben. Wenn du später an diesen Fall zurückdenkst: Erinnerst du dich an etwas, das belegt ist, oder an die Geschichte, die sich am leichtesten erzählen lässt?",
+   "seconds": 29.92,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "An diesem Reim bleibe ich hängen. Du hörst einen Namen immer wieder zusammen mit einer Tat. Und irgendwann klingt die Verbindung selbstverständlich. Ich frage mich, wie viel davon im Kopf bleibt, selbst wenn du die Fehler inzwischen kennst. Das ist schwer abzuschütteln. Und dann denke ich an Abby, über deren eigenes Leben wir so wenig erfahren haben. Wenn du später an diesen Fall zurückdenkst, erinnerst du dich an etwas, das belegt ist oder an die Geschichte, die sich am leichtesten erzählen lässt."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

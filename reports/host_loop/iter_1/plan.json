@@ -1,0 +1,70 @@
+{
+ "id": 8,
+ "status": "valid",
+ "plan": {
+  "notes": "This is a long, steadily escalating film with several meaningful turns before the legal resolution, so three brief interventions plus the opening and outro provide pacing without competing with the narrative. The mid-story appearances are separated by substantial acts and avoid the boundary immediately before the payoff.",
+  "segments": [
+   {
+    "id": "S1",
+    "position": "opening",
+    "role": "opening",
+    "beat_id": null,
+    "cutoff": 0,
+    "target_seconds": 28.8,
+    "reason": "Establishes the central tension before the story begins and gives the viewer a question to carry into the first act."
+   },
+   {
+    "id": "S2",
+    "position": "mid",
+    "role": "reflection",
+    "beat_id": "act3",
+    "cutoff": 3,
+    "target_seconds": 26.2,
+    "reason": "Follows the first major investigative turn, allowing a brief pause before the story shifts from the initial reconstruction toward the subject's account."
+   },
+   {
+    "id": "S3",
+    "position": "mid",
+    "role": "viewer_question",
+    "beat_id": "act4",
+    "cutoff": 4,
+    "target_seconds": 16.8,
+    "reason": "Creates a compact questioning beat after the most consequential pretrial development and carries tension through the legal proceedings without standing immediately before the payoff."
+   },
+   {
+    "id": "S4",
+    "position": "mid",
+    "role": "transition",
+    "beat_id": "act6",
+    "cutoff": 6,
+    "target_seconds": 22.5,
+    "reason": "Marks the shift from the legal resolution to the later growth of the public story, giving the final act room to examine what endured beyond the trial."
+   },
+   {
+    "id": "S5",
+    "position": "final",
+    "role": "outro",
+    "beat_id": "act7",
+    "cutoff": 7,
+    "target_seconds": 31.7,
+    "reason": "Closes on the remaining uncertainty and gives the viewer a final question without summarizing the case or adding a moral."
+   }
+  ]
+ },
+ "validation": {
+  "status": "valid",
+  "errors": [],
+  "warnings": [],
+  "segments": 5,
+  "counts": {
+   "opening": 1,
+   "mid": 3,
+   "final": 1
+  },
+  "host_seconds": 126.0,
+  "narration_seconds": 3360.8,
+  "host_share": 0.0375,
+  "time_accounting": "added",
+  "repair_iterations": 0
+ }
+}

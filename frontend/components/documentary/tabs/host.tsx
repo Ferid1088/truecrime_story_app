@@ -157,6 +157,8 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
         {scene.last_error && <InlineAlert tone="error">{scene.last_error}</InlineAlert>}
         {err && <InlineAlert tone="error">{err}</InlineAlert>}
 
+        {scene.voice_ready && <VoiceChecks scene={scene} />}
+
         {scene.voice_ready && (
           <audio controls preload="none" src={apiFileUrl(`/api/host-scenes/${scene.id}/voice`)} className="h-8 w-full" />
         )}
@@ -198,5 +200,41 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
         )}
       </CardContent>
     </Card>
+  );
+}
+
+
+function VoiceChecks({ scene }: { scene: HostScene }) {
+  const checks = scene.voice_checks;
+  const wrong = (checks.pronunciation ?? []).filter((r) => r.ok === false);
+  const fixed = (checks.fixes ?? []).flatMap((f) => f.fixes);
+  return (
+    <div className="space-y-1.5 text-xs">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {scene.voice_flags.length === 0 ? (
+          <Badge variant="success">voice checks passed</Badge>
+        ) : (
+          scene.voice_flags.map((f) => (
+            <Badge key={f} variant="danger">
+              {f.replace(/_/g, " ").replace(":", ": ")}
+            </Badge>
+          ))
+        )}
+        {checks.asr && (
+          <Badge variant={checks.asr.passed ? "outline" : "warning"}>
+            Whisper {checks.asr.passed ? "ok" : "failed"} · word error {(checks.asr.word_error_rate * 100).toFixed(0)}%
+          </Badge>
+        )}
+        {fixed.length > 0 && <Badge variant="info">{fixed.length} pronunciation fix(es) applied</Badge>}
+      </div>
+      {wrong.length > 0 && (
+        <p className="text-muted-foreground">Still said wrong: {wrong.map((r) => r.word).join(", ")}</p>
+      )}
+      {checks.tts_text && (
+        <p dir={isRtl(scene.language) ? "rtl" : "ltr"} className="text-muted-foreground">
+          Sent to the voice (with added vowel marks; the text above stays as written): {checks.tts_text}
+        </p>
+      )}
+    </div>
   );
 }

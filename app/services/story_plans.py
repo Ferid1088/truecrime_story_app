@@ -36,40 +36,6 @@ def _people_by_evidence(pack: dict) -> dict[str, list[str]]:
             for f in pack.get("facts") or []}
 
 
-def host_slots(plan: dict) -> list[dict]:
-    """One opening before the first beat and up to `mid_host_slots` mid slots
-    after beats at about the 1/3 and 2/3 marks of the word budget, never after
-    the last beat and never twice after the same beat."""
-    ids = _beat_ids(plan)
-    if not ids:
-        return []
-    slots = [{"id": "H1", "position": "opening", "before_beat": ids[0]}]
-    wanted = min(ai_config.story_plan.mid_host_slots, ai_config.host.max_mid_segments,
-                 max(len(ids) - 2, 0))
-    words = [max(int(a.get("target_words") or 0), 0) for a in plan.get("acts") or []]
-    total = sum(words) or len(ids)
-    used: set[int] = set()
-    for n in range(1, wanted + 1):
-        mark = total * n / (wanted + 1)
-        run, pick = 0, 0
-        for i, w in enumerate(words or [1] * len(ids)):
-            run += w or 1
-            pick = i
-            if run >= mark:
-                break
-        pick = min(pick, len(ids) - 2)
-        # prefer a beat that is not next to another host slot, nearest first
-        order = sorted(range(len(ids) - 1), key=lambda i: abs(i - pick))
-        free = [i for i in order if i not in used]
-        apart = [i for i in free if i - 1 not in used and i + 1 not in used]
-        if not free:
-            continue
-        pick = (apart or free)[0]
-        used.add(pick)
-        slots.append({"id": f"H{len(slots) + 1}", "position": "mid", "after_beat": ids[pick]})
-    return slots
-
-
 def enrich(plan: dict, pack: dict) -> dict:
     """Adds, deterministically, what the writer and the host need and the
     director's schema does not carry: per beat `reveals` (evidence first used
@@ -89,7 +55,6 @@ def enrich(plan: dict, pack: dict) -> dict:
         act["introduces_people"] = intro
         seen_evidence.update(ids)
         seen_people.update(intro)
-    plan["host_slots"] = host_slots(plan)
     return plan
 
 
@@ -138,23 +103,7 @@ def validate_plan(plan: dict, pack: dict, target_words: int) -> dict:
     elif deviation > limit / 2:
         warnings.append({"code": "beat_lengths_drift_from_the_film_length", "words": total,
                          "target_words": target_words})
-    errors += _slot_errors(plan, [str(a.get("id")) for a in acts])
     status = "invalid" if errors else ("needs_review" if warnings else "valid")
     return {"status": status, "errors": errors, "warnings": warnings}
 
 
-def _slot_errors(plan: dict, ids: list[str]) -> list[dict]:
-    slots = plan.get("host_slots") or []
-    out: list[dict] = []
-    openings = [s for s in slots if s.get("position") == "opening"]
-    mids = [s for s in slots if s.get("position") == "mid"]
-    if len(openings) != 1 or openings[0].get("before_beat") != ids[0]:
-        out.append({"code": "host_opening_must_be_one_slot_before_the_first_beat"})
-    if any(s.get("position") == "final" for s in slots):
-        out.append({"code": "host_final_slot_is_off"})
-    if len(mids) > ai_config.host.max_mid_segments:
-        out.append({"code": "too_many_mid_host_slots", "count": len(mids)})
-    after = [s.get("after_beat") for s in mids]
-    if any(b not in ids[:-1] for b in after) or len(set(after)) != len(after):
-        out.append({"code": "mid_host_slot_must_follow_a_distinct_non_final_beat"})
-    return out

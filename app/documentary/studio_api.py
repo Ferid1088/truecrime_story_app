@@ -117,8 +117,11 @@ def host_time(case_id: int, language: str, db: Session = Depends(get_db)):
     scenes = db.query(HostScene).filter(HostScene.host_segments_id == latest.id).all()
     version = db.get(StoryVersion, latest.story_version_id)
     narration = len((version.story_text or "").split()) / ai_config.documentary.wpm(language) * 60
+    from app.documentary.intros import intro_seconds
+
     return {"host_segments_id": latest.id, "language": language,
-            "narration_seconds": round(narration, 1), **real_time_report(scenes, narration)}
+            "narration_seconds": round(narration, 1),
+            **real_time_report(scenes, narration, intro_seconds(language) or 0.0)}
 
 
 @router.get("/api/host-appearances")
@@ -309,7 +312,7 @@ async def _run_task(scene_id: int, until: str) -> None:
             from app.agents.stage_director import StageDirector
             from app.documentary.host import HostDirector
 
-            await run_scene(db, s, until, shortener=HostDirector().shorten_scene,
+            await run_scene(db, s, until, retimer=HostDirector().retime_scene,
                             director=StageDirector().direct)
     except Exception as e:  # recorded on the scene by run_scene
         log.warning("host scene %s stopped: %s", scene_id, e)

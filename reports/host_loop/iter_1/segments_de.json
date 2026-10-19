@@ -1,0 +1,221 @@
+{
+ "id": 26,
+ "status": "needs_review",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the story begins and gives the viewer a question to carry into the first act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; slight hesitation on the short sentence, then renewed curiosity for the final question.",
+   "avatar_dialogue": "War Lizzie oben an der Treppe oder unten im Haus? Du fragst dich vielleicht, warum das so wichtig sein soll. Aber wenn das Dienstmädchen sagt, Lizzie sei oben gewesen, und Lizzie selbst sagt, sie sei unten gewesen, als Andrew heimkam: Welcher Aussage folgst du da? Ich zögere da. Ich möchte erst verstehen, wie diese beiden Angaben zusammenpassen könnten. Denn dahinter steht die größere Frage: Wer war mit zwei Toten in diesem Haus, und wie kam es dazu?",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 30.6,
+   "transition_back": "The final question carries through the logo into the start of the narrative.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Follows the first major investigative turn, allowing a brief pause before the story shifts from the initial reconstruction toward the subject's account.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "awareness_of_bias"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; slightly faster than narration, with a brief pause before the final question.",
+   "avatar_dialogue": "Mich lässt dieser Abstand zwischen den Taten nicht los. Dazu die verschlossenen Türen und die wenigen Menschen im Haus. Du suchst da fast automatisch nach einer Erklärung, die alles verbindet. Das Beil im Keller scheint sie greifbar zu machen. Aber du weißt bisher nicht einmal sicher, ob es die Tatwaffe war. Mir fehlt diese Verbindung zwischen Gegenstand und Mensch. Können die Aussagen der Überlebenden sie herstellen, wenn sie ihre Wege erklären müssen?",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 28.6,
+   "transition_back": "Returns to the questioning of the survivors through the unresolved link between the physical evidence and a person.",
+   "quality": {
+    "pass": false,
+    "checks": {},
+    "problems": [],
+    "deterministic": [
+     {
+      "type": "no_short_sentences",
+      "shortest": 8,
+      "fix": "Add a very short sentence or two (a few words) between longer ones, the way people talk."
+     },
+     {
+      "type": "flat_rhythm",
+      "variation": 0.16,
+      "fix": "Vary the rhythm: short, long, a sentence that breaks off; not evenly long sentences."
+     }
+    ]
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "viewer_question",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Creates a compact questioning beat after the most consequential pretrial development and carries tension through the legal proceedings without standing immediately before the payoff.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; thoughtful, with a brief pause before the question.",
+   "avatar_dialogue": "Du erinnerst dich: Nach dem Alarm wirkte Lizzies Kleid sauber. Jetzt ist ein Kleid verbrannt, das niemand mehr untersuchen kann. Ich finde diesen Verlust schwer einzuordnen. Wie viel Gewicht gibst du der Verbrennung, solange unklar ist, ob es überhaupt dasselbe Kleid war?",
+   "target_duration": 16.8,
+   "target_seconds": 16.8,
+   "estimated_seconds": 16.7,
+   "transition_back": "Leaves the evidentiary weight of the burned dress unresolved as the narrative moves toward Lizzie's account under oath.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Marks the shift from the legal resolution to the later growth of the public story, giving the final act room to examine what endured beyond the trial.",
+   "personality_dimension": [
+    "empathy",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Warm and conversational, slightly faster than narration; a brief pause before the question, then quieter without becoming solemn.",
+   "avatar_dialogue": "Den Jubel im Gerichtssaal kann ich nachvollziehen. Für Lizzie ging es um ihr Leben. Trotzdem fällt es mir schwer, bei dieser Erleichterung stehen zu bleiben. Geht dir das auch so? Seit dem Fund im Haus suchen wir nach einer Antwort für Andrew und Abby. Lizzie darf gehen. Wer die beiden getötet hat, wissen wir weiterhin nicht.",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 22.3,
+   "transition_back": "Returns to the narrative through the unresolved identity of Andrew and Abby’s killer, without anticipating what follows.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S5",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes on the remaining uncertainty and gives the viewer a final question without summarizing the case or adding a moral.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and reflective; restrained warmth, with a brief pause before the final question.",
+   "avatar_dialogue": "Am Ende lande ich wieder bei dieser Treppe. Nicht bei der Legende, sondern bei Abby, die dort oben ihrer Arbeit nachging. Du kannst dir den Weg durchs Haus vorstellen. Aber wer ihn an diesem Morgen nahm, bleibt offen. Und dann ist da noch Bridget: Dass sie auf dem Sterbebett gestanden haben soll, bei ihrer Aussage gelogen zu haben, ist nur ein Gerücht aus zweiter Hand. Das löst den Widerspruch nicht. Für mich bleibt genau diese Lücke. Was glaubst du: Welche Frage über Abby ist in all den Geschichten zu kurz gekommen?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 36.2,
+   "transition_back": "The final question carries into the closing image, leaving the viewer with Abby rather than the legend.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "needs_review",
+  "failed_segments": [
+   "S2"
+  ],
+  "repair_iterations": 6,
+  "host_seconds": 134.4,
+  "planned_seconds": 126.0,
+  "plan_status": "valid"
+ }
+}

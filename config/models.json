@@ -87,10 +87,11 @@
         "visual_accuracy_critic": "writer",
         "production_critic": "writer",
         "voice_performance_director": "writer",
-        "pronunciation_editor": "premium",
+        "pronunciation_editor": "sol",
         "case_status_verifier": "premium",
-        "host_director": "premium",
-        "host_writer": "premium",
+        "host_director": "sol",
+        "host_writer": "sol",
+        "host_writer_fa_ar": "luna",
         "host_critic": "writer",
         "visual_auditor": "writer",
         "video_auditor": "writer",
@@ -107,7 +108,8 @@
         "language_final_writer": "sol",
         "language_rewrite_writer_fa_ar": "luna",
         "language_final_writer_fa_ar": "luna",
-        "english_evidence_auditor": "sol"
+        "english_evidence_auditor": "sol",
+        "host_meaning_checker": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -250,7 +252,8 @@
     },
     "pronunciation_editor": {
       "temperature": 0.0,
-      "max_tokens": 16000
+      "max_tokens": 16000,
+      "reasoning_effort": "medium"
     },
     "case_status_verifier": {
       "temperature": 0.0,
@@ -258,11 +261,18 @@
     },
     "host_director": {
       "temperature": 0.5,
-      "max_tokens": 12000
+      "max_tokens": 12000,
+      "reasoning_effort": "medium"
     },
     "host_writer": {
       "temperature": 0.7,
-      "max_tokens": 12000
+      "max_tokens": 12000,
+      "reasoning_effort": "medium"
+    },
+    "host_writer_fa_ar": {
+      "temperature": 0.7,
+      "max_tokens": 12000,
+      "reasoning_effort": "medium"
     },
     "host_critic": {
       "temperature": 0.1,
@@ -338,6 +348,10 @@
       "temperature": 0.0,
       "max_tokens": 32000,
       "reasoning_effort": "high"
+    },
+    "host_meaning_checker": {
+      "temperature": 0.0,
+      "max_tokens": 8000
     }
   }
 }

@@ -26,6 +26,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -150,7 +151,7 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
                                            "bottom": preset.host_bottom}),
             host_scale=preset.host_height_ratio,
             background_mode=r["profile"].background_mode,
-            planned_duration=seg.get("estimated_seconds"),
+            planned_duration=seg.get("target_seconds"),
             voice_id=cp["elevenlabs_voice_id"], avatar_provider=ai_config.avatar.provider,
             persona_file=seg_row.persona_file, persona_sha256=seg_row.persona_sha256,
             status="planned")
@@ -167,11 +168,54 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
 # ---------------------------------------------------------------------------
 
 
-async def _step_voice(db: Session, scene: HostScene, provider=None) -> dict | None:
-    """ElevenLabs audio of exactly the frozen text, in the host's own style
-    (reused when the saved file still matches text, voice, model and settings)."""
-    from app.providers.voice import get_voice_provider
-    from app.providers.voice.base import VoiceRequest
+_SENTENCE_END = re.compile(r"(?<=[.!?؟…])\s+")
+
+
+def _sentences(text: str) -> list[str]:
+    return [x for x in _SENTENCE_END.split(" ".join(text.split())) if x]
+
+
+def voice_flags(take: dict, listener_missing: bool, asr_missing: bool) -> list[str]:
+    """What a person has to look at in a voiced appearance: a Whisper check that failed after
+    the retake, words still said wrong after the fixes, a check that could not run."""
+    flags = []
+    asr = take.get("asr")
+    if asr and not asr["passed"]:
+        flags.append("asr_check_failed")
+    flags += [f"pronunciation_unresolved:{r['word']}"
+              for r in take.get("pronunciation") or [] if r.get("ok") is False]
+    if listener_missing:
+        flags.append("listener_unavailable")
+    if asr_missing:
+        flags.append("asr_unavailable")
+    return flags
+
+
+async def _pronunciation_key(db: Session, scene: HostScene, sentences: list[str], editor) -> dict:
+    """The words of the appearance a voice could misread, with the reading the meaning needs
+    (the same key as for the story's sentences). Kept per text, so a retake does not ask again."""
+    checks = _loads(scene.voice_checks_json, {})
+    key = checks.get("key") or {}
+    if key.get("text_sha256") == scene.text_sha256:
+        return {int(i): w for i, w in key["words"].items()}
+    from app.documentary.pronunciation import PronunciationEditor
+
+    items = [{"i": i, "beat_id": scene.host_segment_id, "text": t, "source": scene.text}
+             for i, t in enumerate(sentences)]
+    keyed, report = await (editor or PronunciationEditor()).annotate(
+        db, scene.case_id, scene.language, items)
+    checks["key"] = {"text_sha256": scene.text_sha256, "words": {str(i): w for i, w in keyed.items()},
+                     "report": report}
+    scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
+    return keyed
+
+
+async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None) -> dict | None:
+    """ElevenLabs audio of exactly the frozen text, in the host's own style, through the same
+    checks as the story's blocks: Whisper on the plain text, the pronunciation key and listening
+    with the fix ladder (harakat only in the text sent to the voice), flags for a person.
+    Reused when the saved file still matches text, voice, model and settings."""
+    from app.documentary.voice_render import VoiceRenderer
 
     vcfg = ai_config.voice.languages.get(scene.language)
     if vcfg is None or not scene.voice_id:
@@ -182,28 +226,54 @@ async def _step_voice(db: Session, scene: HostScene, provider=None) -> dict | No
     p = storage.resolve(scene.voice_path) if scene.voice_path else None
     if (p is not None and p.exists() and meta.get("text_sha256") == scene.text_sha256
             and meta.get("voice_id") == scene.voice_id and meta.get("model_id") == vcfg.model_id
-            and meta.get("settings") == settings and _sha(p.read_bytes()) == scene.voice_sha256):
+            and meta.get("settings") == settings and _sha(p.read_bytes()) == scene.voice_sha256
+            and "flags" in _loads(scene.voice_checks_json, {})):
         return {"skipped": "saved audio matches the text, voice and settings"}
-    req = VoiceRequest(text=scene.text, voice_id=scene.voice_id, model_id=vcfg.model_id,
-                       settings=settings, language=scene.language,
-                       language_code=vcfg.language_code)
-    res = await (provider or get_voice_provider()).synthesize(req)
+    from app.documentary.pronunciation import PronunciationEditor
+
+    renderer = renderer or VoiceRenderer(db=db, budget_case_id=scene.case_id,
+                                         budget_stage=f"tts:host:{scene.language}",
+                                         arbiter=PronunciationEditor())
+    sentences = _sentences(scene.text)
+    pron = ai_config.pronunciation
+    keyed = (await _pronunciation_key(db, scene, sentences, editor)
+             if pron.enabled and scene.language in pron.languages else {})
     d = scene_dir(scene)
+    block = {"block_id": f"host{scene.id}", "text": " ".join(sentences), "beats": [],
+             "sentences": [{"speech": t, "display": t, "tts": t, "level": None,
+                            "risky": keyed.get(i, [])} for i, t in enumerate(sentences)]}
+    result = await renderer.speak_block(block, scene.language, vcfg, settings,
+                                        ai_config.voice.seed, d / "takes",
+                                        synonyms=False)
+    take = result["take"]
+    audio = Path(take["raw_path"]).read_bytes()
     name = f"voice_{scene.text_sha256[:12]}_{scene.voice_id[:8]}.mp3"
-    _write_atomic(d / name, res.audio)
-    seconds = round(max(res.char_ends), 3) if res.char_ends else None
+    _write_atomic(d / name, audio)
+    al = take["alignment"]
+    seconds = round(max(al["ends"]), 3) if al.get("ends") else None
     meta = {"text_sha256": scene.text_sha256, "voice_id": scene.voice_id,
             "model_id": vcfg.model_id, "settings": settings,
-            "request_id": res.request_id, "character_cost": res.character_cost,
-            "audio_format": res.audio_format, "seconds": seconds,
+            "request_id": take.get("request_id"), "character_cost": take.get("character_cost"),
+            "audio_format": ai_config.voice.elevenlabs.output_format, "seconds": seconds,
             "created_at": utc_now().isoformat()}
     _write_atomic(d / (name + ".json"), json.dumps(
-        {**meta, "text": scene.text, "alignment": {"characters": res.characters,
-                                                   "starts": res.char_starts,
-                                                   "ends": res.char_ends}},
-        ensure_ascii=False).encode("utf-8"))
+        {**meta, "text": scene.text, "tts_text": take["text"],
+         "alignment": {"characters": al["characters"], "starts": al["starts"],
+                       "ends": al["ends"]}}, ensure_ascii=False).encode("utf-8"))
+    checks = _loads(scene.voice_checks_json, {})
+    checks.update({
+        "tts_text": take["text"] if take["text"] != block["text"] else None,
+        "asr": None if not take.get("asr") else {
+            k: take["asr"].get(k) for k in ("passed", "word_error_rate", "failures", "heard_text")},
+        "pronunciation": take.get("pronunciation") or [],
+        "fixes": result["fixes"], "attempts": result["attempts"],
+        "asr_engine": renderer.asr.name if renderer.asr else None,
+        "listener": getattr(renderer._listener, "name", None) if renderer._listener else None,
+        "flags": voice_flags(take, bool(keyed) and renderer._listener is None,
+                             renderer.asr is None)})
+    scene.voice_checks_json = json.dumps(checks, ensure_ascii=False)
     scene.voice_path = storage.rel(d / name)
-    scene.voice_sha256 = _sha(res.audio)
+    scene.voice_sha256 = _sha(audio)
     scene.voice_seconds = seconds
     scene.voice_meta_json = json.dumps(meta)
     # a new voice invalidates everything the provider made from the old one
@@ -213,6 +283,7 @@ async def _step_voice(db: Session, scene: HostScene, provider=None) -> dict | No
     scene.avatar_video_sha256 = None
     if ORDER.index(scene.status) > ORDER.index("voice_ready"):
         scene.status = "voice_ready"
+    return None
 
 
 async def _step_avatar_upload(db: Session, scene: HostScene, prov) -> dict | None:
@@ -321,26 +392,63 @@ class HostTooLong(ST.StudioError):
     """The real voice is longer than the appearance's cap."""
 
 
-async def _voice_within_cap(db: Session, scene: HostScene, voice_provider, shortener) -> dict | None:
-    """Synthesize, measure the REAL seconds, and when the voice is over its
-    cap have the text rewritten shorter (bounded) and voice it again."""
-    r = await _step_voice(db, scene, voice_provider)
+def deviation(seconds: float | None, planned: float | None) -> float:
+    """How far the real seconds are from the planned ones, as a share of the planned."""
+    if not seconds or not planned:
+        return 0.0
+    return abs(seconds - planned) / planned
+
+
+def unresolved_words(scene: HostScene) -> list[str]:
+    """Words the voice still says wrong after the whole fix ladder (from the saved checks)."""
+    return [f.split(":", 1)[1] for f in _loads(scene.voice_checks_json, {}).get("flags", [])
+            if f.startswith("pronunciation_unresolved:")]
+
+
+async def _voice_within_plan(db: Session, scene: HostScene, renderer, retimer,
+                             editor=None) -> dict | None:
+    """Synthesize and check, measure the REAL seconds, and have the text rewritten (bounded) and
+    voiced again when the voice misses the planned seconds by more than host.duration_tolerance
+    or still says a word wrong after the vowel-mark ladder: the host's own words cannot be
+    swapped for a synonym, so the writer says the same thing in other words. A voice still over
+    the appearance's hard cap after that fails the scene."""
+    r = await _step_voice(db, scene, renderer=renderer, editor=editor)
     attempts = 0
-    while (scene.voice_seconds or 0) > scene_cap(scene.position):
-        if shortener is None or attempts >= ai_config.host.max_repair_iterations:
-            raise HostTooLong(f"the host voice is {scene.voice_seconds}s, over the "
-                              f"{scene_cap(scene.position)}s cap for a {scene.position} appearance")
+    tolerance = ai_config.host.duration_tolerance
+    while ((deviation(scene.voice_seconds, scene.planned_duration) > tolerance
+            or unresolved_words(scene))
+           and retimer is not None and attempts < ai_config.host.max_retime_attempts):
         attempts += 1
-        _log(scene, "voice", "too_long", {"seconds": scene.voice_seconds,
-                                          "cap": scene_cap(scene.position), "attempt": attempts})
-        await shortener(db, scene, scene_cap(scene.position))
-        r = await _step_voice(db, scene, voice_provider)
+        avoid = unresolved_words(scene)
+        _log(scene, "voice", "retime", {"seconds": scene.voice_seconds,
+                                        "planned": scene.planned_duration, "attempt": attempts,
+                                        **({"avoid": avoid} if avoid else {})})
+        await retimer(db, scene, scene.planned_duration, avoid)
+        r = await _step_voice(db, scene, renderer=renderer, editor=editor)
+    if (scene.voice_seconds or 0) > scene_cap(scene.position):
+        raise HostTooLong(f"the host voice is {scene.voice_seconds}s, over the "
+                          f"{scene_cap(scene.position)}s cap for a {scene.position} appearance")
+    _record_real_seconds(db, scene)
     return r
 
 
+def _record_real_seconds(db: Session, scene: HostScene) -> None:
+    """The real voice seconds go into the stored segment next to the planned ones: the timeline
+    is planned from text, then corrected from the measured audio."""
+    row = db.get(HostSegments, scene.host_segments_id)
+    segments = _loads(row.segments_json, [])
+    for seg in segments:
+        if seg.get("segment_id") == scene.host_segment_id:
+            seg["real_seconds"] = scene.voice_seconds
+            seg["seconds_deviation"] = round(deviation(scene.voice_seconds,
+                                                       scene.planned_duration), 4)
+    row.segments_json = json.dumps(segments, ensure_ascii=False)
+    db.commit()
+
+
 async def run_scene(db: Session, scene: HostScene, until: str = "voice",
-                    voice_provider=None, avatar_provider=None, sleep=asyncio.sleep,
-                    shortener=None, director=None) -> HostScene:
+                    renderer=None, avatar_provider=None, sleep=asyncio.sleep,
+                    retimer=None, director=None, editor=None) -> HostScene:
     """Run the scene's steps up to `until` ("voice" or "avatar"), starting
     from the first one whose saved result is missing. Each step commits its
     result before the next begins; a failure is recorded and re-raised."""
@@ -350,7 +458,7 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
     db.commit()
     step = "voice"
     try:
-        r = await _voice_within_cap(db, scene, voice_provider, shortener)
+        r = await _voice_within_plan(db, scene, renderer, retimer, editor)
         _done(scene, "voice", db, r, {"voice_sha256": (scene.voice_sha256 or "")[:16],
                                       "seconds": scene.voice_seconds})
         if director is not None and not scene.direction_json:
@@ -412,6 +520,8 @@ def scene_dict(s: HostScene) -> dict:
         "host_scale": s.host_scale, "background_mode": s.background_mode,
         "planned_start": s.planned_start, "planned_duration": s.planned_duration,
         "voice_id": s.voice_id, "voice_ready": bool(s.voice_path),
+        "voice_checks": {k: v for k, v in _loads(s.voice_checks_json, {}).items() if k != "key"},
+        "voice_flags": _loads(s.voice_checks_json, {}).get("flags", []),
         "voice_seconds": s.voice_seconds, "voice_sha256": s.voice_sha256,
         "avatar_provider": s.avatar_provider, "avatar_id": s.avatar_id,
         "provider_job_id": s.provider_job_id, "provider_generation": s.provider_generation,
@@ -424,20 +534,25 @@ def scene_dict(s: HostScene) -> dict:
 
 
 def scene_cap(position: str | None) -> float:
-    """The most real voice seconds a host appearance may take."""
+    """The most real voice seconds a host appearance of this position may take."""
     cfg = ai_config.host
-    hi = cfg.seconds.get(position or "mid", [0, cfg.max_appearance_seconds])[1]
+    hi = max((r.max_seconds for r in cfg.roles.values() if r.position == (position or "mid")),
+             default=cfg.max_appearance_seconds)
     return min(float(hi), cfg.max_appearance_seconds)
 
 
-def real_time_report(scenes: list[HostScene], narration_seconds: float) -> dict:
-    """Host time of a film measured on the REAL voice seconds (after TTS):
-    each appearance within its cap, the total within host.max_total_seconds,
-    the opening strictly the longest; the share is reported, and only an
-    error for a film of 600 s or more."""
+def real_time_report(scenes: list[HostScene], narration_seconds: float,
+                     intro_seconds: float = 0.0) -> dict:
+    """Host time of a film measured on the REAL voice seconds (after TTS): planned against real
+    seconds per appearance (a miss beyond host.duration_tolerance is a warning), each appearance
+    within its cap, the total within host.max_total_seconds; the share is reported, and only an
+    error for a film of 600 s or more. The film's total is the story audio plus the host audio
+    plus the channel's logo video."""
     cfg = ai_config.host
     rows = [{"scene": s.id, "segment": s.host_segment_id, "position": s.position,
-             "seconds": s.voice_seconds, "cap": scene_cap(s.position)} for s in scenes]
+             "planned": s.planned_duration, "seconds": s.voice_seconds,
+             "deviation": round(deviation(s.voice_seconds, s.planned_duration), 4),
+             "cap": scene_cap(s.position)} for s in scenes]
     errors, warnings = [], []
     for r in rows:
         if r["seconds"] is None:
@@ -445,18 +560,24 @@ def real_time_report(scenes: list[HostScene], narration_seconds: float) -> dict:
         elif r["seconds"] > r["cap"]:
             errors.append({"code": "appearance_over_cap", "segment": r["segment"],
                            "seconds": r["seconds"], "cap": r["cap"]})
+        elif r["deviation"] > cfg.duration_tolerance:
+            warnings.append({"code": "seconds_off_plan", "segment": r["segment"],
+                             "planned": r["planned"], "seconds": r["seconds"]})
     timed = [r for r in rows if r["seconds"] is not None]
     total = round(sum(r["seconds"] for r in timed), 2)
     if total > cfg.max_total_seconds:
         errors.append({"code": "host_time_over_cap", "seconds": total, "cap": cfg.max_total_seconds})
-    opening = next((r for r in timed if r["position"] == "opening"), None)
-    if opening:
-        for r in timed:
-            if r["position"] != "opening" and r["seconds"] >= opening["seconds"]:
-                errors.append({"code": "opening_not_longest", "segment": r["segment"]})
     share = round(total / max(narration_seconds, 1.0), 4)
     if share > cfg.max_total_share:
         (errors if narration_seconds >= 600 else warnings).append(
             {"code": "host_share_too_high", "share": share, "max": cfg.max_total_share})
     return {"scenes": rows, "host_seconds": total, "host_share": share,
+            "timeline": film_timeline(narration_seconds, total, intro_seconds),
             "errors": errors, "warnings": warnings}
+
+
+def film_timeline(story_seconds: float, host_seconds: float, intro_seconds: float = 0.0) -> dict:
+    """The film's length from real durations: story audio + host audio + logo video."""
+    return {"story_seconds": round(story_seconds, 2), "host_seconds": round(host_seconds, 2),
+            "intro_seconds": round(intro_seconds, 2),
+            "total_seconds": round(story_seconds + host_seconds + intro_seconds, 2)}

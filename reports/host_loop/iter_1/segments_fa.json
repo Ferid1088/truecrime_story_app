@@ -1,0 +1,224 @@
+{
+ "id": 23,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the story begins and gives the viewer a question to carry into the first act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational, with curious energy; a brief pause after the first question and a quieter admission of uncertainty.",
+   "avatar_dialogue": "تو از کجا شروع می‌کنی؛ از دو کشته، یا از یک اختلاف توی حرف‌ها؟ وقتی اندرو برگشت خونه، لیزی بالای پله‌ها بود، اون‌طور که خدمتکار گفته، یا پایین، اون‌طور که خودش گفته؟ من همین‌جا مکث می‌کنم. چون اگه بخوای بفهمی کی توی اون خونه بوده، جای آدم‌ها برات مهم می‌شه. ولی با این دو روایت، هنوز نمی‌دونم از کجا باید مطمئن باشیم. بیا از اول وارد این خونه بشیم.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 28.4,
+   "transition_back": "The invitation to enter the house from the beginning leads into the logo and the opening narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Follows the first major investigative turn, allowing a brief pause before the story shifts from the initial reconstruction toward the subject's account.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; brief, hopeful phrases give way to hesitation, then a calm, firm ending.",
+   "avatar_dialogue": "وقتی تبرچه پیدا شد، تو هم انتظار داشتی بالاخره چیزی روشن بشه؟ من که امیدوار بودم. بالاخره یه وسیله بود. ولی خود مأمورها هم دربارهٔ شکستگی دسته توافق ندارن. دلم می‌خواست از اختلاف حرف‌ها برسیم به چیزی که بشه بررسیش کرد. حالا اگه تو بخوای جای خالیِ مدرک رو با روایت اختلاف‌های خانوادگی پُر کنی... اینجا همراهت نیستم. هنوز پیوند این تبرچه با یه آدم مشخص رو نداریم.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 27.9,
+   "transition_back": "Returns to the questioning of the survivors with the missing link between the proposed weapon and a person in focus.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "viewer_question",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Creates a compact questioning beat after the most consequential pretrial development and carries tension through the legal proceedings without standing immediately before the payoff.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; a brief pause before the question, with a quieter final sentence.",
+   "avatar_dialogue": "این لباس ذهنم رو مشغول کرده. تبرچه موند، ولی معلوم نشد سلاح قتل بوده؛ لباس سوخت و دیگه نمی‌شه بررسیش کرد. تو چقدر به سوزوندنش وزن می‌دی، وقتی هنوز نمی‌دونی همون لباس صبح قتل بوده یا نه؟ من نمی‌تونم این تردید رو کنار بذارم.",
+   "target_duration": 16.8,
+   "target_seconds": 16.8,
+   "estimated_seconds": 18.1,
+   "transition_back": "Leave the weight of the burned dress unresolved as the narrative moves to Lizzie being questioned under oath.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Marks the shift from the legal resolution to the later growth of the public story, giving the final act room to examine what endured beyond the trial.",
+   "personality_dimension": [
+    "emotional_honesty",
+    "respect_for_due_process"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; brief pauses after the short sentences, then a quieter question.",
+   "avatar_dialogue": "تو با شنیدن حکم، تونستی نفس راحت بکشی؟ من نه. هنوز نه. صدای تشویق توی دادگاه برام با فکر اندرو و ابی جور درنمیاد. ولی صبر کن. این حس نباید منو دوباره به متهم کردن لیزی برسونه. تو هم می‌تونی تبرئه رو بپذیری و با این سؤال بمونی که چه کسی اون دو نفر رو کشت؟",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 23.0,
+   "transition_back": "Leaves the unresolved question with the viewer as the narrative continues.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S5",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes on the remaining uncertainty and gives the viewer a final question without summarizing the case or adding a moral.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "awareness_of_bias"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and warm, with restrained concern; brief pauses after the two short sentences, then a genuinely curious final question.",
+   "avatar_dialogue": "آخرش، چیزی که منو اذیت می‌کنه اینه که قصه برای مردم از خود آدم‌ها موندگارتر شد. اسم لیزی موند، اما ابی پشت شعر و اتهام گم شد. این برام سخته. تو هم دیدی چطور تکرار یه ادعا می‌تونه شبیه حقیقت به گوش برسه، حتی وقتی مدرک به اون قطعیت نمی‌رسه. جواب رو ندارم. ولی نمی‌خوام با افسانه جاش رو پُر کنم. تو وقتی از این پرونده فاصله می‌گیری، چقدر از تصویری که از لیزی توی ذهنت مونده، از شواهده و چقدرش از قصه؟",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 34.1,
+   "transition_back": "Hold on the final question, then move into the end credits without further narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 4,
+  "host_seconds": 131.5,
+  "planned_seconds": 126.0,
+  "plan_status": "valid"
+ }
+}

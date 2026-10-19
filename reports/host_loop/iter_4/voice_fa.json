@@ -1,0 +1,1058 @@
+{
+ "segments_id": 35,
+ "report": {
+  "scenes": [
+   {
+    "scene": 127,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 24.64,
+    "deviation": 0.0951,
+    "cap": 45.0
+   },
+   {
+    "scene": 128,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 31.12,
+    "deviation": 0.0183,
+    "cap": 50.0
+   },
+   {
+    "scene": 125,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 30.48,
+    "deviation": 0.0583,
+    "cap": 75.0
+   },
+   {
+    "scene": 126,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 27.04,
+    "deviation": 0.0321,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 113.28,
+  "host_share": 0.0257,
+  "timeline": {
+   "story_seconds": 4406.38,
+   "host_seconds": 113.28,
+   "intro_seconds": 0.0,
+   "total_seconds": 4519.66
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S3": {
+   "text": "تو با شنیدن رأی، تونستی از شک‌هایی که داشتی فاصله بگیری؟ من هنوز به اون لباس فکر می‌کنم. ولی یه لحظه. این‌که از ذهنم بیرون نمی‌ره، جای مدرک رو نمی‌گیره. برام سخته یه سؤال رو بی‌جواب بذارم؛ شاید برای تو هم باشه. حالا لیزی آزاده، ولی سؤالِ این‌که چه کسی اندرو و ابی رو کشته، هنوز جواب نداره.",
+   "seconds": 24.64,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": "تو با شنیدن رأی، تونستی از شک‌هایی که داشتی فاصله بگیری؟ من هنوز به اون لباس فکر می‌کنم. ولی یه لحظه. این‌که از ذهنم بیرون نمی‌ره، جای مدرک رو نمی‌گیره. برام سخته یه سؤال رو بی‌جواب بذارم؛ شاید برای تو هم باشه. حالا لیزی آزاده، ولی سؤالِ این‌که چه کسی اندرو و اَبی رو کشته، هنوز جواب نداره.",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0345,
+     "failures": [],
+     "heard_text": "تو با شنیدن رعی تونستی از شکایی که داشتی فاصله بگیری؟ من هنوز به اون لباس فکر میکنم. ولی یه لحظه. این که از ذهنم بیرون نمیره، جای مدرک رو نمیگیره. برام سخت یه سوال رو بی جواب بذارم. شاید برای تو هم باشه. حالا لیزی آزاده. ولی سوال این که چه کسی انرو و عبی رو کشته هنوز جواب نداره."
+    },
+    "pronunciation": [
+     {
+      "word": "شک‌هایی",
+      "read": "shakkhaayi",
+      "sentence": 0,
+      "level": 0,
+      "form": "شک‌هایی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "A",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "o"
+      ],
+      "distance": 0.27,
+      "hard_errors": 0,
+      "heard_ipa": "s ʃ a k o k e",
+      "at": [
+       2.32,
+       2.68
+      ]
+     },
+     {
+      "word": "ذهنم",
+      "read": "zehnam",
+      "sentence": 3,
+      "level": 0,
+      "form": "ذهنم",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [
+       "e",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "z e h n a m b i",
+      "at": [
+       9.76,
+       10.16
+      ]
+     },
+     {
+      "word": "مدرک",
+      "read": "madrak",
+      "sentence": 3,
+      "level": 0,
+      "form": "مدرک",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "o"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "a d r a k r o",
+      "at": [
+       11.68,
+       11.92
+      ]
+     },
+     {
+      "word": "سخته",
+      "read": "sakhte",
+      "sentence": 4,
+      "level": 0,
+      "form": "سخته",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "s a x t e j e",
+      "at": [
+       13.6,
+       14.0
+      ]
+     },
+     {
+      "word": "لیزی",
+      "read": "lizi",
+      "sentence": 5,
+      "level": 0,
+      "form": "لیزی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "l i z i",
+      "at": [
+       18.16,
+       18.48
+      ]
+     },
+     {
+      "word": "اندرو",
+      "read": "andru",
+      "sentence": 5,
+      "level": 0,
+      "form": "اندرو",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "u"
+      ],
+      "heard": [
+       "a",
+       "o"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "a n d r o v a",
+      "at": [
+       21.2,
+       21.6
+      ]
+     },
+     {
+      "word": "ابی",
+      "read": "abi",
+      "sentence": 5,
+      "level": 1,
+      "form": "اَبی",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a a b i r o",
+      "at": [
+       21.76,
+       22.0
+      ]
+     },
+     {
+      "word": "کشته",
+      "read": "koshte",
+      "sentence": 5,
+      "level": 0,
+      "form": "کشته",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e"
+      ],
+      "heard": [
+       "o",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "k o ʃ t e",
+      "at": [
+       22.24,
+       22.72
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "ابی",
+        "read": "abi",
+        "form": "اَبی",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 5
+       }
+      ]
+     }
+    ],
+    "attempts": 2,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "آخرش، چیزی که برام می‌مونه اینه: یه شعر چطور می‌تونه از رأی دادگاه موندگارتر بشه و لیزی رو توی ذهن مردم محکوم کنه؟ ولی ابی چی؟ تو وقتی اسم این پرونده رو می‌شنوی، چقدر به خودش فکر می‌کنی؟ به زندگی‌ش، قبل از اون صبح. من دلم می‌خواد بیشتر ازش می‌دونستیم. همین. زنی که رفت یه اتاق رو مرتب کنه، حالا شناختنش زیر سایهٔ معمای مرگش مونده. تو از ابی چی یادت می‌مونه؟",
+   "seconds": 31.12,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": "آخرش، چیزی که برام می‌مونه اینه: یه شعر چطور می‌تونه از رأی دادگاه موندگارتر بشه و لیزی رو توی ذهن مردم محکوم کنه؟ ولی اَبی چی؟ تو وقتی اسم این پرونده رو می‌شنوی، چقدر به خودش فکر می‌کنی؟ به زندگی‌ش، قبل از اون صبح. من دلم می‌خواد بیشتر ازش می‌دونستیم. همین. زنی که رفت یه اتاق رو مرتب کنه، حالا شناختنش زیر سایهٔ معمای مرگش مونده. تو از اَبی چی یادت می‌مونه؟",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0417,
+     "failures": [],
+     "heard_text": "آخرش، چیزی که برام میمونه اینه. یه شعر چطور میتونه از رأی دادگاه موندگارتر بشه و لیزی رو توی ذهن مردم محکوم کنه. ولی عبیچی؟ تو وقتی اسم این پرونده رو میشنوی، چقدر به خودش فکر میکنی؟ به زندگیش، قبل از اون صبح. من دلم میخواد بیشتر ازش میدونستیم. همین. زنی که رفت یه اتاق رو مرتب کنه، حالا شناختنش زیر سایه مؤممای مرگش مونده. تو از عبی چی یادت میمونه؟"
+    },
+    "pronunciation": [
+     {
+      "word": "شعر",
+      "read": "sher",
+      "sentence": 0,
+      "level": 0,
+      "form": "شعر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e"
+      ],
+      "heard": [
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "ʃ ʃ eː r tʃ",
+      "at": [
+       3.44,
+       3.76
+      ]
+     },
+     {
+      "word": "لیزی",
+      "read": "lizi",
+      "sentence": 0,
+      "level": 0,
+      "form": "لیزی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "v a l l iː z i r o",
+      "at": [
+       7.52,
+       7.84
+      ]
+     },
+     {
+      "word": "ذهن",
+      "read": "zehne",
+      "sentence": 0,
+      "level": 0,
+      "form": "ذهن",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "e"
+      ],
+      "heard": [
+       "e",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "z e h n e m",
+      "at": [
+       8.32,
+       8.56
+      ]
+     },
+     {
+      "word": "ابی",
+      "read": "abi",
+      "sentence": 1,
+      "level": 1,
+      "form": "اَبی",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a b iː tʃ",
+      "at": [
+       10.8,
+       11.12
+      ]
+     },
+     {
+      "word": "دلم",
+      "read": "delam",
+      "sentence": 4,
+      "level": 0,
+      "form": "دلم",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [
+       "e",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a n d e l a m e",
+      "at": [
+       19.08,
+       19.28
+      ]
+     },
+     {
+      "word": "زنی",
+      "read": "zani",
+      "sentence": 6,
+      "level": 0,
+      "form": "زنی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "z a n i k e",
+      "at": [
+       22.4,
+       22.64
+      ]
+     },
+     {
+      "word": "مرتب",
+      "read": "morattab",
+      "sentence": 6,
+      "level": 0,
+      "form": "مرتب",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "o",
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "m o r a t a p k",
+      "at": [
+       23.8,
+       24.24
+      ]
+     },
+     {
+      "word": "شناختنش",
+      "read": "shenaakhtanesh",
+      "sentence": 6,
+      "level": 0,
+      "form": "شناختنش",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "e",
+       "o",
+       "a",
+       "i"
+      ],
+      "distance": 0.15,
+      "hard_errors": 0,
+      "heard_ipa": "ʃ e n o x t a n ɪ ʃ z",
+      "at": [
+       25.44,
+       26.16
+      ]
+     },
+     {
+      "word": "معمای",
+      "read": "moammaaye",
+      "sentence": 6,
+      "level": 0,
+      "form": "معمای",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "o",
+       "a",
+       "A",
+       "e"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "j e m o a m m oɪ j",
+      "at": [
+       27.04,
+       27.52
+      ]
+     },
+     {
+      "word": "مرگش",
+      "read": "margesh",
+      "sentence": 6,
+      "level": 0,
+      "form": "مرگش",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "m a r ɡ i ʃ m",
+      "at": [
+       27.68,
+       28.08
+      ]
+     },
+     {
+      "word": "ابی",
+      "read": "abi",
+      "sentence": 7,
+      "level": 1,
+      "form": "اَبی",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a b iː tʃ",
+      "at": [
+       29.6,
+       29.84
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "ابی",
+        "read": "abi",
+        "form": "اَبی",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       },
+       {
+        "word": "ابی",
+        "read": "abi",
+        "form": "اَبی",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 7
+       }
+      ]
+     }
+    ],
+    "attempts": 2,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "یک خانه، دو آدم مرده، و دو روایت که به هم نمی‌خورن. تو فعلاً کدوم رو باور می‌کنی؟ خدمتکار می‌گه لیزی بالای پله‌ها بود وقتی اندرو برگشت؛ خود لیزی می‌گه پایین بود. عجله نکن. من برای انتخاب بین این دوتا، هنوز دلیل می‌خوام. من هنوز نمی‌دونم این اختلاف چقدر مهمه. ولی یه سؤال دیگه هم هست: چه کسی توی خونه‌ای با دو آدم مرده حضور داشت، و چطور؟ بیا از اول ببینیم.",
+   "seconds": 30.48,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "یک خانه، دو آدم مرده و دو روایت که به هم نمیخورن. تو فعلاً کدوم رو باور میکنی؟ خدمتکار میگه لیزی بالای پله ها بود وقتی اندرو برگشت. خود لیزی میگه پایین بود. عجله نکن. من برای انتخاب بین این دوتا هنوز دلیل میخوام. من هنوز نمیدونم این اختلاف چقدر مهمه. ولی یه سوال دیگه هم هست. چه کسی توی خونهی با دو آدم مرده حضور داشت؟ و چطور؟ بیا از اول ببینیم."
+    },
+    "pronunciation": [
+     {
+      "word": "مرده",
+      "read": "morde",
+      "sentence": 0,
+      "level": 0,
+      "form": "مرده",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e"
+      ],
+      "heard": [
+       "o",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a m m o r d e",
+      "at": [
+       1.76,
+       2.24
+      ]
+     },
+     {
+      "word": "روایت",
+      "read": "revaayat",
+      "sentence": 0,
+      "level": 0,
+      "form": "روایت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "a"
+      ],
+      "heard": [
+       "e",
+       "O",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "d o r e v ɔ j a t k e",
+      "at": [
+       3.2,
+       3.68
+      ]
+     },
+     {
+      "word": "خدمتکار",
+      "read": "khedmatkaar",
+      "sentence": 2,
+      "level": 0,
+      "form": "خدمتکار",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a",
+       "A"
+      ],
+      "heard": [
+       "e",
+       "a",
+       "o"
+      ],
+      "distance": 0.03,
+      "hard_errors": 0,
+      "heard_ipa": "x e d m a t k o r m",
+      "at": [
+       7.6,
+       8.08
+      ]
+     },
+     {
+      "word": "لیزی",
+      "read": "lizi",
+      "sentence": 2,
+      "level": 0,
+      "form": "لیزی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "l iː z i b o",
+      "at": [
+       8.96,
+       9.28
+      ]
+     },
+     {
+      "word": "اندرو",
+      "read": "andru",
+      "sentence": 2,
+      "level": 0,
+      "form": "اندرو",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "u"
+      ],
+      "heard": [
+       "a",
+       "o"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "i a n d r o b a",
+      "at": [
+       10.8,
+       11.04
+      ]
+     },
+     {
+      "word": "عجله",
+      "read": "ajale",
+      "sentence": 3,
+      "level": 0,
+      "form": "عجله",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a dʒ a l e n a",
+      "at": [
+       14.4,
+       14.72
+      ]
+     },
+     {
+      "word": "مهمه",
+      "read": "mohemme",
+      "sentence": 5,
+      "level": 0,
+      "form": "مهمه",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e",
+       "e"
+      ],
+      "heard": [
+       "o",
+       "e"
+      ],
+      "distance": 0.23,
+      "hard_errors": 0,
+      "heard_ipa": "t r m o h e m m e",
+      "at": [
+       21.12,
+       21.52
+      ]
+     },
+     {
+      "word": "مرده",
+      "read": "morde",
+      "sentence": 6,
+      "level": 0,
+      "form": "مرده",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e"
+      ],
+      "heard": [
+       "o",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "m e m o r d e h u",
+      "at": [
+       26.56,
+       26.88
+      ]
+     },
+     {
+      "word": "اول",
+      "read": "avval",
+      "sentence": 7,
+      "level": 0,
+      "form": "اول",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "z a v a l b",
+      "at": [
+       29.6,
+       29.84
+      ]
+     }
+    ],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "تو هم ذهنت درگیر فاصلهٔ بین دو قتله؟ برای من، ترتیب مرگ‌ها از تعداد ضربه‌ها مهم‌تره، چون باید بفهمیم توی این فاصله چی گذشته. ولی هنوز نمی‌دونیم. حتی دربارهٔ تازه بودن شکستگی دستهٔ تبرچه هم اختلاف بود؛ خون روی تیغه هم قطعی نشد. تو حالا حرف‌های لیزی و بریجت رو چطور می‌سنجی، وقتی هنوز معلوم نیست اون ابزار اصلاً سلاح قتل بوده یا نه؟",
+   "seconds": 27.04,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "تو هم ذهنت درگیر فاصله بین دو قتله؟ برای من ترتیب مرک ها از تعداد زربه ها مهمتره چون باید بفهمیم توی این فاصله چی گذشته ولی هنوز نمیدونیم حتی در باره تازه بودن شکستگی دسته تبرچه هم اختلاف بود خون روی تیغه هم قطعی نشد تو حالا حرفای لیزی و بریجت رو چطور میسنجی؟ وقتی هنوز معلوم نیست اون ابزار اصلا سلاح قتل بوده یا نه؟"
+    },
+    "pronunciation": [
+     {
+      "word": "ذهنت",
+      "read": "zehnet",
+      "sentence": 0,
+      "level": 0,
+      "form": "ذهنت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "e"
+      ],
+      "heard": [
+       "e",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "h a m z e h n e",
+      "at": [
+       0.32,
+       0.64
+      ]
+     },
+     {
+      "word": "قتله",
+      "read": "ghatle",
+      "sentence": 0,
+      "level": 0,
+      "form": "قتله",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "d o ʁ a t l e",
+      "at": [
+       2.08,
+       2.64
+      ]
+     },
+     {
+      "word": "مهم‌تره",
+      "read": "mohemmtare",
+      "sentence": 1,
+      "level": 0,
+      "form": "مهم‌تره",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "o",
+       "e",
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "o m o h e m t a r e",
+      "at": [
+       6.4,
+       6.96
+      ]
+     },
+     {
+      "word": "حتی",
+      "read": "hattaa",
+      "sentence": 3,
+      "level": 0,
+      "form": "حتی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "A"
+      ],
+      "heard": [
+       "a",
+       "o"
+      ],
+      "distance": 0.05,
+      "hard_errors": 0,
+      "heard_ipa": "h a t o d a",
+      "at": [
+       12.24,
+       12.44
+      ]
+     },
+     {
+      "word": "تبرچه",
+      "read": "tabarche",
+      "sentence": 3,
+      "level": 0,
+      "form": "تبرچه",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "t a b a r tʃ e h a",
+      "at": [
+       14.96,
+       15.44
+      ]
+     },
+     {
+      "word": "لیزی",
+      "read": "lizi",
+      "sentence": 4,
+      "level": 0,
+      "form": "لیزی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i",
+       "o"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "l iː z i o",
+      "at": [
+       20.32,
+       20.68
+      ]
+     },
+     {
+      "word": "سلاح",
+      "read": "selaahe",
+      "sentence": 4,
+      "level": 0,
+      "form": "سلاح",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "e"
+      ],
+      "heard": [
+       "e",
+       "o",
+       "e"
+      ],
+      "distance": 0.03,
+      "hard_errors": 0,
+      "heard_ipa": "s e l o h e q",
+      "at": [
+       25.12,
+       25.44
+      ]
+     },
+     {
+      "word": "قتل",
+      "read": "ghatl",
+      "sentence": 4,
+      "level": 0,
+      "form": "قتل",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "q a t l b",
+      "at": [
+       25.52,
+       25.84
+      ]
+     }
+    ],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  }
+ }
+}

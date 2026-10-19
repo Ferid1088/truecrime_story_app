@@ -1,0 +1,550 @@
+{
+ "segments_id": 27,
+ "report": {
+  "scenes": [
+   {
+    "scene": 96,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 17.0,
+    "seconds": 18.4,
+    "deviation": 0.0824,
+    "cap": 45.0
+   },
+   {
+    "scene": 97,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 27.3,
+    "seconds": 28.72,
+    "deviation": 0.052,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 47.12,
+  "host_share": 0.0107,
+  "timeline": {
+   "story_seconds": 4406.38,
+   "host_seconds": 47.12,
+   "intro_seconds": 0.0,
+   "total_seconds": 4453.5
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S2": {
+   "text": "یه چیز منو نگه می‌داره. بعد از شنیدنِ مرگ اندرو و ابی و تنش‌های اون خونه، حرف کارکنان داروخونه راحت‌تر باور می‌شه. تو هم این حس رو داری؟ من دارم. ولی لیزی می‌گه اصلاً اون‌جا نرفته. فعلاً چطور می‌شه فهمید کدوم روایت درسته؟",
+   "seconds": 18.4,
+   "planned": 17.0,
+   "checks": {
+    "tts_text": "یه چیز منو نگه می‌داره. بعد از شنیدنِ مرگ اندرو و اَبی و تنش‌های اون خونه، حرف کارکنان داروخونه راحت‌تر باور می‌شه. تو هم این حس رو داری؟ من دارم. ولی لیزی می‌گه اصلاً اون‌جا نرفته. فعلاً چطور می‌شه فهمید کدوم روایت درسته؟",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.093,
+     "failures": [],
+     "heard_text": "یه چیز من رو نگه می داره. بعد از شنیدن مرگ اندرو و عبی و تنش های اون خونه، حرف کارکنان دارو خونه راحت تر باور می شه. تو هم این حس رو داری؟ من دارم. ولی لیزی می گه اصلا اونجا نرفته. فیلن چطور می شه فهمید کدوم روایت درسته؟"
+    },
+    "pronunciation": [
+     {
+      "word": "منو",
+      "read": "mano",
+      "sentence": 0,
+      "level": 0,
+      "form": "منو",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o"
+      ],
+      "heard": [
+       "a",
+       "u"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "z m a n u",
+      "at": [
+       0.64,
+       0.8
+      ]
+     },
+     {
+      "word": "مرگ",
+      "read": "marge",
+      "sentence": 1,
+      "level": 0,
+      "form": "مرگ",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "e",
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "m a r ɡ e a",
+      "at": [
+       3.24,
+       3.52
+      ]
+     },
+     {
+      "word": "اندرو",
+      "read": "andru",
+      "sentence": 1,
+      "level": 0,
+      "form": "اندرو",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "u"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "a n ʒ o",
+      "at": [
+       3.64,
+       4.0
+      ]
+     },
+     {
+      "word": "ابی",
+      "read": "abi",
+      "sentence": 1,
+      "level": 1,
+      "form": "اَبی",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a b iː",
+      "at": [
+       4.16,
+       4.64
+      ]
+     },
+     {
+      "word": "تنش‌های",
+      "read": "taneshhaaye",
+      "sentence": 1,
+      "level": 0,
+      "form": "تنش‌های",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "A",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "i",
+       "O",
+       "e"
+      ],
+      "distance": 0.12,
+      "hard_errors": 0,
+      "heard_ipa": "a t a n ɪ ʃ ɔ j e",
+      "at": [
+       4.96,
+       5.44
+      ]
+     },
+     {
+      "word": "حرف",
+      "read": "harfe",
+      "sentence": 1,
+      "level": 0,
+      "form": "حرف",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "h a r f ə k",
+      "at": [
+       6.72,
+       6.88
+      ]
+     },
+     {
+      "word": "حس",
+      "read": "hess",
+      "sentence": 2,
+      "level": 0,
+      "form": "حس",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e"
+      ],
+      "heard": [
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "i n h e s r o",
+      "at": [
+       10.32,
+       10.48
+      ]
+     },
+     {
+      "word": "لیزی",
+      "read": "lizi",
+      "sentence": 4,
+      "level": 0,
+      "form": "لیزی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "i l iː z i m i",
+      "at": [
+       12.8,
+       13.12
+      ]
+     },
+     {
+      "word": "روایت",
+      "read": "revaayat",
+      "sentence": 5,
+      "level": 0,
+      "form": "روایت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "a"
+      ],
+      "heard": [
+       "e",
+       "o",
+       "a"
+      ],
+      "distance": 0.03,
+      "hard_errors": 0,
+      "heard_ipa": "u m r e v o j a t d u",
+      "at": [
+       17.04,
+       17.44
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "ابی",
+        "read": "abi",
+        "form": "اَبی",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       }
+      ]
+     }
+    ],
+    "attempts": 2,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "تو با سوختن اون لباس، بیشتر به لیزی شک می‌کنی؟ من از اینکه دیگه نمی‌شه لکه‌هاش رو بررسی کرد، ناراحت می‌شم. فرصت از دست رفت. دربارهٔ تبرچه، خود وسیله باقی بود، هرچند ثابت نشد سلاح بوده. یادداشت هم هیچ‌وقت پیدا نشد. حالا تو برای اون لباس فقط حرف آلیس و توضیح خواهرها رو داری. من با این جای خالی مشکل دارم؛ نمی‌خوام چیزی رو که نمی‌دونیم، با حدس پُر کنم.",
+   "seconds": 28.72,
+   "planned": 27.3,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0857,
+     "failures": [],
+     "heard_text": "تو با سوختن اون لباس بیشتر به لیزی شک میکنی؟ من از این که دیگه نمیشه لکهاش رو بررسی کرد ناراحت میشم. فرصت از دست رفت. در برای تبرچه خود وسیله باقی بود. هرچند ثابت نشد سلاح بوده. یاد داشتم هیچ وقت پیدا نشد. حالا تو برای اون لباس فقط حرف آلیس و توضیح خوهرها رو داری. من با این جای خالی مشکل دارم. نمیخوام چیزی رو که نمیدونیم با حدس پر کنم"
+    },
+    "pronunciation": [
+     {
+      "word": "لیزی",
+      "read": "lizi",
+      "sentence": 0,
+      "level": 0,
+      "form": "لیزی",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "b e l i z i ʃ",
+      "at": [
+       2.44,
+       2.64
+      ]
+     },
+     {
+      "word": "شک",
+      "read": "shakk",
+      "sentence": 0,
+      "level": 0,
+      "form": "شک",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "i ʃ a k m i",
+      "at": [
+       2.72,
+       2.96
+      ]
+     },
+     {
+      "word": "لکه‌هاش",
+      "read": "lakkehaash",
+      "sentence": 1,
+      "level": 0,
+      "form": "لکه‌هاش",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "A"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "ʃ ə l a k j ɔ o ʃ r o",
+      "at": [
+       5.52,
+       6.0
+      ]
+     },
+     {
+      "word": "فرصت",
+      "read": "forsat",
+      "sentence": 2,
+      "level": 0,
+      "form": "فرصت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a"
+      ],
+      "heard": [
+       "o",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "f o r s a t a",
+      "at": [
+       8.48,
+       8.84
+      ]
+     },
+     {
+      "word": "تبرچه",
+      "read": "tabarche",
+      "sentence": 3,
+      "level": 0,
+      "form": "تبرچه",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "t h a b a r tʃ e",
+      "at": [
+       10.8,
+       11.52
+      ]
+     },
+     {
+      "word": "سلاح",
+      "read": "selaah",
+      "sentence": 3,
+      "level": 0,
+      "form": "سلاح",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A"
+      ],
+      "heard": [
+       "e",
+       "o",
+       "u"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "e l o h b u",
+      "at": [
+       15.0,
+       15.2
+      ]
+     },
+     {
+      "word": "حرف",
+      "read": "harfe",
+      "sentence": 5,
+      "level": 0,
+      "form": "حرف",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "e"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "h a r f ə",
+      "at": [
+       20.4,
+       20.56
+      ]
+     },
+     {
+      "word": "آلیس",
+      "read": "aalis",
+      "sentence": 5,
+      "level": 0,
+      "form": "آلیس",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "A",
+       "i"
+      ],
+      "heard": [
+       "o",
+       "i"
+      ],
+      "distance": 0.05,
+      "hard_errors": 0,
+      "heard_ipa": "ə o l iː s v",
+      "at": [
+       20.64,
+       21.12
+      ]
+     },
+     {
+      "word": "حدس",
+      "read": "hads",
+      "sentence": 6,
+      "level": 0,
+      "form": "حدس",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "h a t ts s p",
+      "at": [
+       27.68,
+       27.88
+      ]
+     },
+     {
+      "word": "پر",
+      "read": "por",
+      "sentence": 6,
+      "level": 0,
+      "form": "پر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o"
+      ],
+      "heard": [
+       "o"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "ts s p o r k",
+      "at": [
+       27.92,
+       28.08
+      ]
+     }
+    ],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  }
+ }
+}

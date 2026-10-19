@@ -172,7 +172,7 @@ class VoiceRenderer:
     def __init__(self, provider: VoiceProvider | None = None, asr=None,
                  use_asr: bool = True, listener=None, use_listener: bool = True,
                  db=None, budget_case_id: int | None = None,
-                 budget_stage: str | None = None,
+                 budget_stage: str | None = None, arbiter=None,
                  documentary_job_id: int | None = None,
                  budget_pilot_seconds: float | None = None):
         self.cfg = ai_config.voice
@@ -191,6 +191,8 @@ class VoiceRenderer:
         self._listener = listener
         self._use_listener = use_listener
         self.listener_error: str | None = None
+        # decides, for a word that stayed wrong, whether the voice or the key was wrong
+        self.arbiter = arbiter
         if asr is not None or not use_asr:
             self.asr = asr
         else:
@@ -273,7 +275,7 @@ class VoiceRenderer:
 
                 from app.services.cost_model import load_pricing
 
-                price = float(load_pricing()["tts"]["eleven_v3"]["eur_per_1m_characters"])
+                price = float(load_pricing()["tts"]["eleven_v4"]["eur_per_1m_characters"])
                 BudgetService(self.db).record(
                     case_id=self.budget_case_id,
                     stage=self.budget_stage or f"tts:{language}",
@@ -368,6 +370,89 @@ class VoiceRenderer:
         return listen(frames, take["text"], sentences, occurrences, take["alignment"],
                       take["trimmed"]["start"], self.pron_cfg)
 
+    async def speak_block(self, b: dict, language: str, lang_cfg, settings: dict, seed: int,
+                          blocks_dir: Path, synonyms: bool = True) -> dict:
+        """Takes of one block: a wrong-sounding word gets its next pronunciation fix and
+        the block is spoken again (pronunciation loop); a failed Whisper check gets a take
+        with another seed. The story's blocks and the host's appearances both go through here."""
+        from app.documentary.pronunciation import apply_fixes, risky_occurrences
+
+        takes: list[dict] = []
+        sentences = [dict(x) for x in b.get("sentences") or []]
+        # `synonyms=False`: the words are frozen (the host's text); only what the voice is
+        # given may change
+        occurrences = (risky_occurrences(sentences, synonyms)
+                       if self.pron_cfg.enabled and language in self.pron_cfg.languages
+                       and sentences else [])
+        if occurrences and self.listener() is None:
+            occurrences = []
+        text = b.get("tts_text") or b["text"]
+        asr_retakes = self.asr_cfg.auto_retakes
+        rounds = self.pron_cfg.max_rounds if occurrences else 0
+        fixes: list[dict] = []
+        for attempt in range(1 + asr_retakes + rounds):
+            blk = b
+            if sentences:
+                # what people read follows a synonym fix (never harakat)
+                blk = {**b, "sentences": sentences, "display_text": " ".join(
+                    x.get("display") or x["speech"] for x in sentences)}
+            req = VoiceRequest(
+                text=text, voice_id=lang_cfg.voice_id,
+                model_id=lang_cfg.model_id, settings=settings,
+                previous_text=b.get("previous_text") or "",
+                next_text=b.get("next_text") or "",
+                seed=seed, language=language,
+                language_code=lang_cfg.language_code,
+            )
+            take = await self._take(blk, req, blocks_dir, language)
+            if occurrences:
+                take["pronunciation"] = await self._listen(take, sentences, occurrences)
+            take["round"] = attempt
+            takes.append(take)
+            wrong = [r for r in take.get("pronunciation") or [] if r.get("ok") is False]
+            if wrong and rounds > 0:
+                sentences, applied = apply_fixes(sentences, occurrences, wrong)
+                if applied:
+                    rounds -= 1
+                    fixes.append({"after_round": attempt, "fixes": applied})
+                    text = " ".join(x.get("tts") or x["speech"] for x in sentences)
+                    continue
+            if take["asr"] and not take["asr"]["passed"] and asr_retakes > 0:
+                asr_retakes -= 1
+                seed += 1
+                continue
+            break
+        best = min(takes, key=self._take_rank)
+        await self._referee(best, sentences, language)
+        return {"block": b, "take": best, "attempts": len(takes), "takes": takes,
+                "fixes": fixes}
+
+    async def _referee(self, take: dict, sentences: list[dict], language: str) -> None:
+        """Words still wrong after the whole ladder go to the referee: when the key was the
+        mistake (the heard sounds are a right reading), the word is judged again against the
+        corrected reading and passes if it matches."""
+        from app.documentary.pronunciation import reading_vowels, vowel_distance
+
+        wrong = [r for r in take.get("pronunciation") or [] if r.get("ok") is False]
+        if not wrong or self.arbiter is None or self.budget_case_id is None:
+            return
+        items = [{"i": k, "sentence": sentences[r["sentence"]]["speech"], "word": r["word"],
+                  "meaning": next((w.get("meaning") for w in sentences[r["sentence"]].get("risky") or []
+                                   if w["w"] == r["word"]), None),
+                  "key_read": r["read"], "heard_phonemes": r.get("heard_ipa", ""),
+                  "form_sent": r.get("form") or r["word"]}
+                 for k, r in enumerate(wrong)]
+        verdicts = await self.arbiter.arbitrate(self.db, self.budget_case_id, language, items)
+        for k, r in enumerate(wrong):
+            v = verdicts.get(k)
+            r["referee"] = v["verdict"] if v else "unanswered"
+            if v and v["verdict"] == "key_wrong":
+                # the vowels the listener already cut out for this word, against the new reading
+                dist, hard = vowel_distance(reading_vowels(v["read"]), r.get("heard") or [])
+                r["referee_read"] = v["read"]
+                if r.get("heard") and hard == 0 and dist <= self.pron_cfg.max_vowel_distance:
+                    r["ok"], r["read"] = True, v["read"]
+
     # ------------------------------------------------------------------
     # whole plan
     # ------------------------------------------------------------------
@@ -395,61 +480,12 @@ class VoiceRenderer:
         chosen = select_blocks(plan["blocks"], max_seconds)
 
         async def one_block(b: dict) -> dict:
-            """Takes of one block: a wrong-sounding word gets its next
-            pronunciation fix and the block is spoken again (pronunciation
-            loop); a failed Whisper check gets a take with another seed."""
-            from app.documentary.pronunciation import apply_fixes, risky_occurrences
-
             # A forced re-render is a NEW take (different seed), still
             # reproducible; normal renders reuse the cached take.
             seed = self.cfg.seed + (10 if b["block_id"] in force else 0)
-            takes: list[dict] = []
-            settings = self.cfg.styles[block_style(b)].model_dump()
-            sentences = [dict(x) for x in b.get("sentences") or []]
-            occurrences = (risky_occurrences(sentences)
-                           if self.pron_cfg.enabled and language in self.pron_cfg.languages
-                           and sentences else [])
-            if occurrences and self.listener() is None:
-                occurrences = []
-            text = b.get("tts_text") or b["text"]
-            asr_retakes = self.asr_cfg.auto_retakes
-            rounds = self.pron_cfg.max_rounds if occurrences else 0
-            fixes: list[dict] = []
-            for attempt in range(1 + asr_retakes + rounds):
-                blk = b
-                if sentences:
-                    # what people read follows a synonym fix (never harakat)
-                    blk = {**b, "sentences": sentences, "display_text": " ".join(
-                        x.get("display") or x["speech"] for x in sentences)}
-                req = VoiceRequest(
-                    text=text, voice_id=lang_cfg.voice_id,
-                    model_id=lang_cfg.model_id, settings=settings,
-                    previous_text=b.get("previous_text") or "",
-                    next_text=b.get("next_text") or "",
-                    seed=seed, language=language,
-                    language_code=lang_cfg.language_code,
-                )
-                take = await self._take(blk, req, blocks_dir, language)
-                if occurrences:
-                    take["pronunciation"] = await self._listen(take, sentences, occurrences)
-                take["round"] = attempt
-                takes.append(take)
-                wrong = [r for r in take.get("pronunciation") or [] if r.get("ok") is False]
-                if wrong and rounds > 0:
-                    sentences, applied = apply_fixes(sentences, occurrences, wrong)
-                    if applied:
-                        rounds -= 1
-                        fixes.append({"after_round": attempt, "fixes": applied})
-                        text = " ".join(x.get("tts") or x["speech"] for x in sentences)
-                        continue
-                if take["asr"] and not take["asr"]["passed"] and asr_retakes > 0:
-                    asr_retakes -= 1
-                    seed += 1
-                    continue
-                break
-            best = min(takes, key=self._take_rank)
-            return {"block": b, "take": best, "attempts": len(takes), "takes": takes,
-                    "fixes": fixes}
+            return await self.speak_block(b, language, lang_cfg,
+                                          self.cfg.styles[block_style(b)].model_dump(), seed,
+                                          blocks_dir)
 
         # All blocks at once: the provider's limit (concurrency
         # .elevenlabs_tts) and the speech-to-text limit pace the requests.

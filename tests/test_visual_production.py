@@ -1265,9 +1265,19 @@ def documentary_env(tmp_path, monkeypatch):
 
 
 @needs_ffmpeg
-def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isolated_host_history):
+def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isolated_host_history,
+                                              monkeypatch):
+    from app.core.ai_config import ai_config
     from app.documentary import jobs as J
+    from test_host import HostGen
 
+    # the blueprint's four short beats cannot hold the real spacing rules of a film
+    monkeypatch.setattr(ai_config, "host", ai_config.host.model_copy(update={
+        "min_gap_seconds": 0, "min_acts_between": 0, "max_total_share": 0.5}))
+    documentary_env.host = HostGen(plans=[{"segments": [
+        {"id": "S1", "position": "opening", "role": "opening", "after_act": None, "reason": "r"},
+        {"id": "S2", "position": "mid", "role": "transition", "after_act": "B03", "reason": "r"},
+        {"id": "S4", "position": "final", "role": "outro", "after_act": None, "reason": "r"}]}])
     case, master = _story(db_session)
     case.resolution_status = "UNSOLVED"  # no public title without a solved/unsolved status
     db_session.commit()
@@ -1334,12 +1344,12 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert stages["performance:en"]["detail"]["incident_beat"] == "B02"
     assert stages["voice:en"]["detail"]["audio_tags"] is True
     # the on-screen host: one plan, dialogue per language
-    assert stages["host_plan"]["detail"]["segments"] == ["S1:opening", "S2:mid@B03"]
+    assert stages["host_plan"]["detail"]["segments"] == ["S1:opening", "S2:mid@B03", "S4:final"]
     assert {stages[f"host:{language}"]["detail"]["status"] for language in ("en",)} == {
         "valid"
     }
     tagged = [r for r in documentary_env.tts.requests if "[softly]" in r.text]
-    assert tagged and all(r.model_id == "eleven_v3" for r in documentary_env.tts.requests)
+    assert tagged and all(r.model_id == "eleven_v4" for r in documentary_env.tts.requests)
     # a re-run resumes without new model calls
     roles_before = len(documentary_env.roles)
     job2 = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")

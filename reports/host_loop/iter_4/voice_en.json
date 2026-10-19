@@ -1,0 +1,135 @@
+{
+ "segments_id": 37,
+ "report": {
+  "scenes": [
+   {
+    "scene": 134,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 24.8,
+    "deviation": 0.0534,
+    "cap": 45.0
+   },
+   {
+    "scene": 133,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 29.76,
+    "deviation": 0.0333,
+    "cap": 75.0
+   },
+   {
+    "scene": 135,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 22.08,
+    "deviation": 0.0187,
+    "cap": 45.0
+   },
+   {
+    "scene": 136,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 30.4,
+    "deviation": 0.041,
+    "cap": 50.0
+   }
+  ],
+  "host_seconds": 107.04,
+  "host_share": 0.0318,
+  "timeline": {
+   "story_seconds": 3363.6,
+   "host_seconds": 107.04,
+   "intro_seconds": 0.0,
+   "total_seconds": 3470.64
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S2": {
+   "text": "That hatchet leaves me uneasy. You hear about a broken handle and ash, and it's easy to picture someone hiding what they'd done. But the officers couldn't even agree the break was fresh. You had a disputed identification at the drugstore, too. I have to catch myself here: one uncertain claim can make another feel stronger. What actually connects either of those things to a person responsible for the killings?",
+   "seconds": 24.8,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "That hatchet leaves me uneasy. You hear about a broken handle and ash, and it's easy to picture someone hiding what they'd done. But the officers couldn't even agree the break was fresh. You had a disputed identification at the drugstore, too. I have to catch myself here. One uncertain claim can make another feel stronger. What actually connects either of those things to a person responsible for the killings?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "Where was Lizzie when Andrew came home? If you take the maid's account, she was at the top of the stairs. Take Lizzie's, and she was downstairs. Which account do you trust? I'm not ready to choose. Before you decide, though, there's something I'd want to ask: how much does that difference change who could have been inside the house? Maybe you're already picturing it. I am too. But I'd want to leave room for either account while we work through this. Two people dead. Who was there, and how?",
+   "seconds": 29.76,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Where was Lizzie when Andrew came home? If you take the maid's account, she was at the top of the stairs. Take Lizzie's and she was downstairs. Which account do you trust? I'm not ready to choose. Before you decide, though, there's something I'd want to ask. How much does that difference change who could have been inside the house? Maybe you're already picturing it. I am, too. But I'd want to leave room for either account while we work through this. Two people dead. Who was there? And how?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "Does the acquittal give you a sense of an ending? I'm caught there. I can accept that the state failed to prove its case and still want an answer for Andrew and Abby. You still have that burned dress, with its purpose unresolved. Lizzie can leave the courtroom now. But where does that leave the question we started with: who was responsible inside that house?",
+   "seconds": 22.08,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Does the acquittal give you a sense of an ending? I'm caught there. I can accept that the state failed to prove its case and still want an answer for Andrew and Abby. You still have that burned dress with its purpose unresolved. Lizzie can leave the courtroom now. But where does that leave the question we started with? Who was responsible inside that house?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "Abby changing that bed stays with me. Such an ordinary task. After all the arguments about Lizzie, I find myself wanting to know more about the woman upstairs, beyond what anyone said about her marriage or her death. You get so little of her in the story that became famous. And then there's that rhyme, giving you an answer the evidence never established. When you remember this case, will you hear the accusation first, or picture Abby going about her morning? I'm left with her.",
+   "seconds": 30.4,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Abby changing that bed stays with me. Such an ordinary task. After all the arguments about Lizzie, I find myself wanting to know more about the woman upstairs. Beyond what anyone said about her marriage or her death, you get so little of her in the story that became famous. And then there's that rhyme, giving you an answer the evidence never established. When you remember this case, will you hear the accusation first or picture Abby going about her mourning? I'm left with her."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

@@ -1,0 +1,182 @@
+{
+ "id": 34,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish the viewer connection before the logo and let the opening act unfold without interruption.",
+   "personality_dimension": [
+    "curiosity",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational, with quiet curiosity; a brief pause after Klar, then a slightly more deliberate question.",
+   "avatar_dialogue": "Oben an der Treppe oder unten: Wo war Lizzie, als Andrew nach Hause kam? Die Hausangestellte sagt das eine, Lizzie das andere. Du könntest sagen: Das ist doch nur ein Stockwerk Unterschied. Klar. Aber ich frage mich, wie du rekonstruieren willst, wer im Haus war, wenn schon dieser Punkt offen ist. Zwei Menschen sind dort tot. Wer war noch da, und wie kam es dazu? Schauen wir uns die Geschichte von Anfang an an.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 29.4,
+   "transition_back": "The invitation to examine the story from the beginning leads into the logo and opening narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Provide a brief reflective pause after the extended opening movement, at the boundary before the next sustained escalation.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; brief pause after the opening, genuine curiosity in the question.",
+   "avatar_dialogue": "Bei dem Beilkopf muss ich bremsen. Vielleicht hast du die Berichte über Streit ums Geld noch im Kopf. Die können einen Fund schnell verdächtiger wirken lassen, als er belegt ist. Mir geht’s jedenfalls so. Aber selbst die Beamten waren sich über die Bruchstelle uneinig. Wie viel Gewicht gibst du dann diesem Werkzeug? Ich möchte erst sehen, was sich tatsächlich mit einer bestimmten Person verbinden lässt.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 25.8,
+   "transition_back": "Returns to the investigation's effort to connect the available evidence and accounts to a specific person.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff and the final act after allowing the central narrative movement to run uninterrupted.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; slightly faster than narration, with a brief pause before the final question.",
+   "avatar_dialogue": "Den Jubel im Gerichtssaal kann ich nachvollziehen. Für Lizzie ging es um ihr Leben. Aber geh mit mir noch mal zurück zu dem verbrannten Kleid. Du hast gehört, wie unterschiedlich sich derselbe Vorgang erklären lässt. Genau da hänge ich. Welche Erklärung für diesen Vormittag trägt überhaupt noch, wenn wir offenlassen, was sich an solchen Verdachtsmomenten nie klären ließ?",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 23.0,
+   "transition_back": "Returns attention from the verdict to the unresolved interpretation of the evidence, carrying the question of what can still be explained into the next act.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close the viewer connection after the final act has fully resolved its narrative movement.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "curiosity"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Warm and reflective, with natural, uneven pacing and a brief pause before the final question.",
+   "avatar_dialogue": "Mich beschäftigt, wie wenig Platz für Abby bleibt, sobald Lizzies Name fällt. Geht dir das auch so? Du hörst von diesem Reim, den Theorien, dem Freispruch, und plötzlich kreist wieder alles um die mögliche Täterin. Abby verschwindet dahinter. Dabei lässt mich gerade ihr ganz gewöhnlicher Gang zum Bettenmachen nicht los. Da war ein Mensch mit einem Alltag, von dem wir so wenig kennen. Welche Frage würdest du ihr stellen, wenn du einmal etwas über ihr Leben erfahren könntest?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 31.0,
+   "transition_back": "The film closes on a personal question about Abby's life, leaving space for the end credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 109.2,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

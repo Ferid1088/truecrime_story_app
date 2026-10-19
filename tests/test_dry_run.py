@@ -66,6 +66,6 @@ def test_price_change_changes_estimate_and_redo_uses_same_stage_model(db_session
     db_session.commit()
     pricing = load_pricing()
     before = sum(line.expected for line in estimate_lines(db_session, case, ["en"], pricing=pricing)[0])
-    pricing["tts"]["eleven_v3"]["eur_per_1m_characters"] = 900.0
+    pricing["tts"]["eleven_v4"]["eur_per_1m_characters"] = 900.0
     after = sum(line.expected for line in estimate_lines(db_session, case, ["en"], pricing=pricing)[0])
     assert after > before

@@ -1,0 +1,182 @@
+{
+ "id": 29,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the logo and story begin, creating an immediate question without delaying the opening act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; curious emphasis on upstairs and downstairs; a brief pause before Can you?",
+   "avatar_dialogue": "Was Lizzie upstairs or downstairs? You might wonder why I'd start there, with two people dead in the house. But try placing her: the maid said she was at the top of the stairs when Andrew came home. Lizzie said she was downstairs. I can't put those accounts together. Can you? Before you settle on either one, I'd want to know who else was in that house, and how. Let's start with that question.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 27.4,
+   "transition_back": "Cut to the channel logo, then begin the narration with the question of who was in the house unresolved.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act2 (92 Second Street: The Household)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act2",
+   "cutoff": 2,
+   "purpose": "Provides a brief bridge after the household context and unresolved pre-event turn, then sends the viewer into the reconstruction of the morning.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; thoughtful emphasis on the question, with a brief pause afterward",
+   "avatar_dialogue": "The drugstore allegation troubles me. But if you’re using it to decide who to believe about the staircase, I’d pause. Neither dispute settles the other. Are you weighing each on its own, or is one making the other feel more convincing? I want to keep them separate.",
+   "target_duration": 17.0,
+   "target_seconds": 17.0,
+   "estimated_seconds": 17.4,
+   "transition_back": "Returns to the investigation with a reminder to assess disputed accounts independently.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Gives the film room to absorb the accumulated contradictions and the latest turning point before the legal consequences begin.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "curiosity"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; restrained frustration, with a brief pause after Completely",
+   "avatar_dialogue": "You know what's frustrating here? The hatchet could be examined, even if it couldn't be proved to be the weapon. With the dress, that chance is gone. Completely. I can understand wanting an explanation for burning it, especially after hearing about the blood spatter in those rooms. But you still need to know what was on that fabric. Now Lizzie has to answer under oath, and her words can't give us back something we could have tested.",
+   "target_duration": 27.3,
+   "target_seconds": 27.3,
+   "estimated_seconds": 28.5,
+   "transition_back": "Moves from the lost opportunity to examine the dress to Lizzie having to account for her statements under oath.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes after the final act with enough space for the remaining uncertainty to register without adding another summary or interrupting the payoff.",
+   "personality_dimension": [
+    "empathy",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and warm, with a restrained pause before the final question.",
+   "avatar_dialogue": "The rhyme gives you an answer in seconds. But the record we’ve been left with does not. Lizzie was acquitted; no one else was charged. That doesn’t tell you who climbed those stairs, or what happened in that room. And the stories that grew around the case don’t fill that gap. Some were invented; others remain unproven. I keep coming back to Abby, whose life can disappear behind the question of who killed her. You can hold the verdict and the uncertainty together. Which stays with you more: the legend, or what the evidence couldn’t establish?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 35.6,
+   "transition_back": "The story has ended; leave the viewer with the unresolved question.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 2,
+  "host_seconds": 108.9,
+  "planned_seconds": 104.8,
+  "plan_status": "valid"
+ }
+}

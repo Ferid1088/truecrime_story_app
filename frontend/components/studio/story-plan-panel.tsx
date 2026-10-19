@@ -87,14 +87,6 @@ export function StoryPlanPanel({
                       {i + 1}. {b.title}
                     </span>
                     <Badge variant="outline">{b.target_words} words</Badge>
-                    {plan.host_slots
-                      .filter((s) => s.before_beat === b.id || s.after_beat === b.id)
-                      .map((s) => (
-                        <Badge key={s.id} variant="info">
-                          host {s.position}
-                          {s.after_beat === b.id ? " after" : " before"}
-                        </Badge>
-                      ))}
                   </div>
                   <p className="text-muted-foreground">{b.purpose}</p>
                   {b.introduces_people.length > 0 && (

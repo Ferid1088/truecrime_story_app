@@ -1,0 +1,182 @@
+{
+ "id": 35,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish the viewer connection before the logo and let the opening act unfold without interruption.",
+   "personality_dimension": [
+    "curiosity",
+    "questioning_assumptions"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and curious; conversational pace; brief pause after the opening question and before the larger question",
+   "avatar_dialogue": "یک خانه، دو آدم مرده، و سؤالی که ولت نمی‌کنه. تو روی کدوم روایت مکث می‌کنی؟ لیزی بالای پله‌ها بود، آن‌طور که خدمتکار گفت، یا پایین، آن‌طور که خودش گفت؟ ظاهراً اختلاف کوچیکیه. ولی نیست. من فعلاً به هیچ‌کدوم تکیه نمی‌کنم. چون سؤال بزرگ‌تر هنوز سر جاشه: چه کسی در اون خانه، با دو آدم مرده، حضور داشت و اصلاً چطور؟ بیا از اول وارد همون خانه بشیم.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 27.9,
+   "transition_back": "Invites the viewer into the house and hands directly to the story's beginning without suggesting an answer.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Allow a brief reflective pause after the first substantial narrative movement, before the film begins its next sustained progression.",
+   "personality_dimension": [
+    "curiosity",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; a brief pause after the short sentence, then a questioning, thoughtful tone.",
+   "avatar_dialogue": "تو هم ذهنت درگیر فاصلهٔ بین دو قتله؟ برای من، ترتیب مرگ‌ها از تعداد ضربه‌ها مهم‌تره، چون باید بفهمیم توی این فاصله چی گذشته. ولی هنوز نمی‌دونیم. حتی دربارهٔ تازه بودن شکستگی دستهٔ تبرچه هم اختلاف بود؛ خون روی تیغه هم قطعی نشد. تو حالا حرف‌های لیزی و بریجت رو چطور می‌سنجی، وقتی هنوز معلوم نیست اون ابزار اصلاً سلاح قتل بوده یا نه؟",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 26.3,
+   "transition_back": "Returns to the survivors’ accounts with attention to what can actually connect the physical evidence to a person.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff and the final act after leaving the central three-act progression uninterrupted.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; a brief pause at the self-correction, then a quieter, thoughtful finish.",
+   "avatar_dialogue": "تو با شنیدن رأی، تونستی از شک‌هایی که داشتی فاصله بگیری؟ من هنوز به اون لباس فکر می‌کنم. ولی یه لحظه. این‌که از ذهنم بیرون نمی‌ره، جای مدرک رو نمی‌گیره. برام سخته یه سؤال رو بی‌جواب بذارم؛ شاید برای تو هم باشه. حالا لیزی آزاده، ولی سؤالِ این‌که چه کسی اندرو و ابی رو کشته، هنوز جواب نداره.",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 23.8,
+   "transition_back": "Return to the narrative with Lizzie free and the identity of the killer still unresolved.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close the viewer connection after the final act has had uninterrupted space to complete the film.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "questioning_assumptions"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "quiet and direct; restrained sadness; brief pause before turning attention to Abby and before the final question",
+   "avatar_dialogue": "آخرش، چیزی که برای من می‌مونه فقط معمای قاتل نیست. اینه که یک شعر چطور می‌تونه از رأی دادگاه ماندگارتر بشه و یک زن رو، بدون مدرک قطعی، در حافظهٔ مردم محکوم کنه. اما ابی چی؟ تو وقتی اسم این پرونده رو می‌شنوی، اصلاً اون رو به یاد میاری؟ زنی که برای مرتب کردن یک اتاق از پله‌ها بالا رفت و برنگشت. همین دردناکه. نه افسانه جوابمون رو می‌ده، نه تبرئه. فقط یک پرسش می‌مونه: اون صبح، چه کسی به اتاقی رفت که ابی اونجا بود؟",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 35.3,
+   "transition_back": "Ends on the unresolved human question at the center of Abby's death, leaving the viewer with uncertainty rather than the legend.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 4,
+  "host_seconds": 113.3,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

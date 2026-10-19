@@ -1,6 +1,6 @@
 """Voice performance director — how a real storyteller would SAY it.
 
-ElevenLabs v3 performs audio tags (words in square brackets that are not
+ElevenLabs v4 performs audio tags (words in square brackets that are not
 spoken but change how the next words are said: [whispers], [slowly],
 [pause] ...) and reads punctuation as timing. This stage turns the
 spoken text into the narrator's performance:

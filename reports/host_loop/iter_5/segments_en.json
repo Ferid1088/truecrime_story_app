@@ -1,0 +1,182 @@
+{
+ "id": 41,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish a direct connection and opening tension before the logo and the first narrative act.",
+   "personality_dimension": [
+    "curiosity",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; curious, with a brief pause after the first question.",
+   "avatar_dialogue": "Where was Lizzie Borden when Andrew came home? The maid said she was at the top of the stairs. Lizzie said she was downstairs. Put yourself in that house for a moment. Which account would you trust, and what would you need before choosing? Take your time. I find it hard to get past that disagreement. But there's a bigger question for you to carry into the story: who was in that house with two dead people, and how?",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 29.3,
+   "transition_back": "The question of who was inside the house carries through the logo into the opening narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Provide a reflective pause after the first substantial narrative movement, before the next stretch increases the pressure.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; thoughtful, with a brief pause after the opening question and slightly firmer emphasis on each connection needing evidence.",
+   "avatar_dialogue": "Does hearing several suspicions together make you feel that they confirm each other? I feel that pull. The disputed drugstore visit, then the hatchet in the cellar—you can start joining them up almost without meaning to. But each connection still needs evidence of its own. That's where I hesitate. Before we weigh anyone's account of that morning, I'd want to know how much we're asking their words alone to establish.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 25.9,
+   "transition_back": "Returns to the questioning of the survivors with attention on what their accounts can actually establish.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff into the final act, allowing a brief change of pace after an uninterrupted three-act build.",
+   "personality_dimension": [
+    "emotional_honesty",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; restrained unease; brief pause after the short sentence",
+   "avatar_dialogue": "Those cheers in the courtroom leave me with an uneasy feeling. I understand the relief at Lizzie walking free. But if you turn your attention back to Andrew and Abby, there's still no answer to who killed them. That's hard to sit with. Can you accept the jury's decision and still feel how much of that morning remains beyond our reach?",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 22.6,
+   "transition_back": "Return to the narrative with the acquittal settled and the identity of the killer unresolved.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close with a brief personal connection after the narrative has finished and its final movement has had room to land.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "sensitivity_to_victims_and_families"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "personal and conversational; measured warmth, with a brief pause after the second sentence",
+   "avatar_dialogue": "I wonder which version of this story you'll remember a month from now. That bothers me. The rhyme is so easy to carry around; the limits of the evidence take more effort. Even after hearing all this, I have to resist letting a familiar accusation feel like an answer. And Abby going upstairs to put a room in order stays with me more than the verse does. When you remember her, will there be room for that ordinary morning, before someone turned it into a mystery?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 31.9,
+   "transition_back": "Hold on the final question, then move into the closing credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 109.7,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

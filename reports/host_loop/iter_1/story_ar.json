@@ -1,0 +1,1190 @@
+{
+ "key_report": {
+  "sentences": 12,
+  "risky_words": 31,
+  "issues": [
+   "key_inconsistent:استعصى"
+  ],
+  "errors": []
+ },
+ "risky": {
+  "0": [
+   {
+    "w": "أندرو",
+    "read": "'andru",
+    "meaning": "Andrew",
+    "vowelled": "أَنْدْرُو",
+    "full": "أَنْدْرُو"
+   },
+   {
+    "w": "بوردن",
+    "read": "burdan",
+    "meaning": "Borden",
+    "vowelled": "بُورْدَن",
+    "full": "بُورْدَن"
+   },
+   {
+    "w": "تفتح",
+    "read": "taftah",
+    "meaning": "she opens",
+    "vowelled": "تَفتح",
+    "full": "تَفْتَح"
+   }
+  ],
+  "1": [
+   {
+    "w": "بريدجيت",
+    "read": "beridjit",
+    "meaning": "Bridget",
+    "vowelled": "بِرِيدْجِيت",
+    "full": "بِرِيدْجِيت"
+   },
+   {
+    "w": "سوليفان",
+    "read": "sulifaan",
+    "meaning": "Sullivan",
+    "vowelled": "سُولِيفَان",
+    "full": "سُولِيفَان"
+   },
+   {
+    "w": "القفل",
+    "read": "alqofl",
+    "meaning": "the lock",
+    "vowelled": "القُفْل",
+    "full": "الْقُفْل"
+   }
+  ],
+  "2": [
+   {
+    "w": "مؤمن",
+    "read": "mo'amman",
+    "meaning": "secured",
+    "vowelled": "مُؤَمَّن",
+    "full": "مُؤَمَّن",
+    "synonym": "مغلق",
+    "synonym_read": "moghlaq"
+   }
+  ],
+  "3": [
+   {
+    "w": "ضحكة",
+    "read": "dahka",
+    "meaning": "a laugh",
+    "vowelled": "ضَحْكة",
+    "full": "ضَحْكَة"
+   },
+   {
+    "w": "الدرج",
+    "read": "addaraj",
+    "meaning": "the stairs",
+    "vowelled": "الدَّرَج",
+    "full": "الدَّرَج",
+    "synonym": "السلالم",
+    "synonym_read": "assalaalem"
+   }
+  ],
+  "4": [
+   {
+    "w": "ليزي",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِيزِي",
+    "full": "لِيزِي"
+   },
+   {
+    "w": "أندرو",
+    "read": "'andru",
+    "meaning": "Andrew",
+    "vowelled": "أَنْدْرُو",
+    "full": "أَنْدْرُو"
+   }
+  ],
+  "5": [
+   {
+    "w": "نفت",
+    "read": "nafat",
+    "meaning": "she denied",
+    "vowelled": "نَفَت",
+    "full": "نَفَتْ",
+    "synonym": "أنكرت",
+    "synonym_read": "'ankarat"
+   },
+   {
+    "w": "ليزي",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِيزِي",
+    "full": "لِيزِي"
+   }
+  ],
+  "6": [
+   {
+    "w": "تضحك",
+    "read": "tadhak",
+    "meaning": "she laughs",
+    "vowelled": "تَضْحَك",
+    "full": "تَضْحَكْ"
+   },
+   {
+    "w": "العلوي",
+    "read": "al'olwi",
+    "meaning": "upper",
+    "vowelled": "العُلْوي",
+    "full": "الْعُلْوِيّ"
+   }
+  ],
+  "7": [
+   {
+    "w": "وضعت",
+    "read": "wada'at",
+    "meaning": "placed",
+    "vowelled": "وَضَعَت",
+    "full": "وَضَعَتْ"
+   },
+   {
+    "w": "ليزي",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِيزِي",
+    "full": "لِيزِي"
+   },
+   {
+    "w": "مختلفين",
+    "read": "mokhtalefayn",
+    "meaning": "different",
+    "vowelled": "مُختلِفَين",
+    "full": "مُخْتَلِفَيْن"
+   },
+   {
+    "w": "سيعثر",
+    "read": "sayo'thar",
+    "meaning": "will be found",
+    "vowelled": "سيُعْثَر",
+    "full": "سَيُعْثَر"
+   }
+  ],
+  "8": [
+   {
+    "w": "حددته",
+    "read": "haddadatho",
+    "meaning": "she identified it",
+    "vowelled": "حَدَّدَتْهُ",
+    "full": "حَدَّدَتْهُ"
+   },
+   {
+    "w": "بريدجيت",
+    "read": "beridjit",
+    "meaning": "Bridget",
+    "vowelled": "بِرِيدْجِيت",
+    "full": "بِرِيدْجِيت"
+   },
+   {
+    "w": "ستكتشف",
+    "read": "satoktashaf",
+    "meaning": "will be discovered",
+    "vowelled": "ستُكْتَشَف",
+    "full": "سَتُكْتَشَف"
+   },
+   {
+    "w": "جثة",
+    "read": "joththa",
+    "meaning": "body",
+    "vowelled": "جُثّة",
+    "full": "جُثَّة"
+   },
+   {
+    "w": "آبي",
+    "read": "'aabi",
+    "meaning": "Abby",
+    "vowelled": "آبِي",
+    "full": "آبِي"
+   },
+   {
+    "w": "أندرو",
+    "read": "'andru",
+    "meaning": "Andrew",
+    "vowelled": "أَنْدْرُو",
+    "full": "أَنْدْرُو"
+   }
+  ],
+  "9": [
+   {
+    "w": "ليزي",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِيزِي",
+    "full": "لِيزِي"
+   },
+   {
+    "w": "فوضعت",
+    "read": "fawada'at",
+    "meaning": "she placed",
+    "vowelled": "فوَضَعَت",
+    "full": "فَوَضَعَتْ"
+   }
+  ],
+  "10": [
+   {
+    "w": "بريدجيت",
+    "read": "beridjit",
+    "meaning": "Bridget",
+    "vowelled": "بِرِيدْجِيت",
+    "full": "بِرِيدْجِيت"
+   },
+   {
+    "w": "ليزي",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِيزِي",
+    "full": "لِيزِي"
+   },
+   {
+    "w": "لتنزل",
+    "read": "letanzel",
+    "meaning": "to come downstairs",
+    "vowelled": "لِتَنزِل",
+    "full": "لِتَنْزِل"
+   }
+  ],
+  "11": [
+   {
+    "w": "قتل",
+    "read": "qatala",
+    "meaning": "killed",
+    "vowelled": "قَتَلَ",
+    "full": "قَتَلَ"
+   }
+  ]
+ },
+ "blocks": [
+  {
+   "text": "كان أندرو بوردن واقفا أمام باب بيته، ينتظر أن تفتح له الخادمة. في الداخل، كانت بريدجيت سوليفان تحاول فتح القفل، لكنه استعصى عليها. الباب مؤمّن من الداخل، وصاحب البيت في الخارج. وبينما كانت تحاول إدخاله، سمعت، كما قالت لاحقا في شهادتها، ضحكة امرأة من أعلى الدرج.",
+   "tts_text": "كان أندرو بوردن واقفا أمام باب بيته، ينتظر أن تَفتح له الخادمة. في الداخل، كانت بريدجيت سوليفان تحاول فتح القُفْل، لكنه استعصى عليها. الباب مُؤَمَّن من الداخل، وصاحب البيت في الخارج. وبينما كانت تحاول إدخاله، سمعت، كما قالت لاحقا في شهادتها، ضَحْكة امرأة من أعلى الدرج.",
+   "flags": [
+    "pronunciation_unresolved:سوليفان"
+   ],
+   "asr": {
+    "passed": true,
+    "word_error_rate": 0.0,
+    "heard_text": "كان أندرو بوردن واقفاً أمام باب بيته، ينتظر أن تفتح له الخادمة. في الداخل، كانت بريجيت سوليفن تحاول فتح القفل، لكنه استعصى عليها. الباب مؤمن من الداخل، وصاحب البيت في الخارج. وبينما كانت تحاول إدخاله، سمعت، كما قالت لاحقاً في شهادتها، ضحكة امرأة من أعلى الدرج."
+   },
+   "pronunciation": [
+    {
+     "word": "أندرو",
+     "read": "'andru",
+     "sentence": 0,
+     "level": 0,
+     "form": "أندرو",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "u"
+     ],
+     "heard": [
+      "u"
+     ],
+     "distance": 0.35,
+     "hard_errors": 0,
+     "heard_ipa": "n aː n d ɹ uː b",
+     "at": [
+      0.32,
+      0.64
+     ]
+    },
+    {
+     "word": "بوردن",
+     "read": "burdan",
+     "sentence": 0,
+     "level": 0,
+     "form": "بوردن",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "u",
+      "a"
+     ],
+     "heard": [
+      "o"
+     ],
+     "distance": 0.6,
+     "hard_errors": 0,
+     "heard_ipa": "b oː d ə n w",
+     "at": [
+      0.72,
+      1.12
+     ]
+    },
+    {
+     "word": "تفتح",
+     "read": "taftah",
+     "sentence": 0,
+     "level": 1,
+     "form": "تَفتح",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "a n t a f t a h a",
+     "at": [
+      3.92,
+      4.24
+     ]
+    },
+    {
+     "word": "بريدجيت",
+     "read": "beridjit",
+     "sentence": 1,
+     "level": 0,
+     "form": "بريدجيت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "e"
+     ],
+     "distance": 0.4,
+     "hard_errors": 0,
+     "heard_ipa": "t b ɹ ɪ dʒ ə t s",
+     "at": [
+      6.8,
+      7.2
+     ]
+    },
+    {
+     "word": "سوليفان",
+     "read": "sulifaan",
+     "sentence": 1,
+     "level": 0,
+     "form": "سوليفان",
+     "fix": null,
+     "ok": false,
+     "expected": [
+      "u",
+      "i",
+      "A"
+     ],
+     "heard": [
+      "o",
+      "i",
+      "e"
+     ],
+     "distance": 0.5,
+     "hard_errors": 1,
+     "heard_ipa": "t s oː l ɪ v ə n",
+     "at": [
+      7.24,
+      7.68
+     ]
+    },
+    {
+     "word": "القفل",
+     "read": "alqofl",
+     "sentence": 1,
+     "level": 1,
+     "form": "القُفْل",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "a",
+      "o"
+     ],
+     "heard": [
+      "a",
+      "o",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "a l q o f ə l",
+     "at": [
+      8.72,
+      9.12
+     ]
+    },
+    {
+     "word": "مؤمن",
+     "read": "mo'amman",
+     "sentence": 2,
+     "level": 1,
+     "form": "مُؤَمَّن",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "o",
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a"
+     ],
+     "distance": 0.47,
+     "hard_errors": 0,
+     "heard_ipa": "b uː m u a m m a n u n",
+     "at": [
+      11.84,
+      12.32
+     ]
+    },
+    {
+     "word": "ضحكة",
+     "read": "dahka",
+     "sentence": 3,
+     "level": 1,
+     "form": "ضَحْكة",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "d a h k a t a m",
+     "at": [
+      20.76,
+      21.2
+     ]
+    },
+    {
+     "word": "الدرج",
+     "read": "addaraj",
+     "sentence": 3,
+     "level": 0,
+     "form": "الدرج",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "a",
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l a d a r a dʒ",
+     "at": [
+      22.36,
+      22.88
+     ]
+    }
+   ],
+   "fixes": [
+    {
+     "after_round": 0,
+     "fixes": [
+      {
+       "word": "القفل",
+       "read": "alqofl",
+       "form": "القُفْل",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 1
+      },
+      {
+       "word": "ضحكة",
+       "read": "dahka",
+       "form": "ضَحْكة",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 3
+      }
+     ]
+    },
+    {
+     "after_round": 1,
+     "fixes": [
+      {
+       "word": "تفتح",
+       "read": "taftah",
+       "form": "تَفتح",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      },
+      {
+       "word": "مؤمن",
+       "read": "mo'amman",
+       "form": "مُؤَمَّن",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 2
+      }
+     ]
+    },
+    {
+     "after_round": 2,
+     "fixes": [
+      {
+       "word": "سوليفان",
+       "read": "sulifaan",
+       "form": "سُولِيفَان",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 1
+      }
+     ]
+    }
+   ],
+   "attempts": 4
+  },
+  {
+   "text": "قالت إن الصوت كان صوت ليزي، ابنة أندرو. نفت ليزي ذلك. قالت إنها لم تضحك، وإنها لم تكن في الطابق العلوي أصلا عندما عاد أبوها؛ كانت في الطابق الأرضي. وضعت الروايتان ليزي في مكانين مختلفين من بيت سيُعثر فيه على قتيلين.",
+   "tts_text": "قالت إن الصوت كان صوت ليزي، ابنة أندرو. نفت ليزي ذلك. قالت إنها لم تضحك، وإنها لم تكن في الطابق العلوي أصلا عندما عاد أبوها؛ كانت في الطابق الأرضي. وضعت الروايتان ليزي في مكانين مختلفين من بيت سيُعثر فيه على قتيلين.",
+   "flags": [
+    "pronunciation_unresolved:العلوي",
+    "pronunciation_unresolved:مختلفين"
+   ],
+   "asr": {
+    "passed": true,
+    "word_error_rate": 0.0,
+    "heard_text": "قالت إن الصوت كان صوت ليزي ابنة أندرو، نفت ليزي ذلك، قالت إنها لم تضحك، وإنها لم تكن في الطابق العلوي أصلاً عندما عاد أبوها، كانت في الطابق الأرضي، وضعت الروايتان ليزي في مكانين مختلفين من بيت سيُعثر فيه على قتيلين."
+   },
+   "pronunciation": [
+    {
+     "word": "ليزي",
+     "read": "lizi",
+     "sentence": 0,
+     "level": 0,
+     "form": "ليزي",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i"
+     ],
+     "distance": 0.35,
+     "hard_errors": 0,
+     "heard_ipa": "t a k aː n a s ɔ l t a l iː",
+     "at": [
+      1.36,
+      2.0
+     ]
+    },
+    {
+     "word": "أندرو",
+     "read": "'andru",
+     "sentence": 0,
+     "level": 0,
+     "form": "أندرو",
+     "fix": null,
+     "ok": null,
+     "expected": [
+      "a",
+      "u"
+     ],
+     "heard": [],
+     "distance": null,
+     "reason": "nothing_heard",
+     "heard_ipa": "i b n a t a aː n d ɹ",
+     "at": [
+      2.76,
+      3.22
+     ]
+    },
+    {
+     "word": "نفت",
+     "read": "nafat",
+     "sentence": 1,
+     "level": 0,
+     "form": "نفت",
+     "fix": null,
+     "ok": null,
+     "expected": [
+      "a",
+      "a"
+     ],
+     "heard": [],
+     "distance": null,
+     "reason": "nothing_heard",
+     "heard_ipa": "d ɹ ɔ n",
+     "at": [
+      3.4,
+      3.92
+     ]
+    },
+    {
+     "word": "ليزي",
+     "read": "lizi",
+     "sentence": 1,
+     "level": 0,
+     "form": "ليزي",
+     "fix": null,
+     "ok": null,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [],
+     "distance": null,
+     "reason": "nothing_heard",
+     "heard_ipa": "n ɛ f a t l eɪ",
+     "at": [
+      4.0,
+      4.4
+     ]
+    },
+    {
+     "word": "تضحك",
+     "read": "tadhak",
+     "sentence": 2,
+     "level": 0,
+     "form": "تضحك",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a"
+     ],
+     "distance": 0.35,
+     "hard_errors": 0,
+     "heard_ipa": "h aː l a m t a b",
+     "at": [
+      6.24,
+      6.6
+     ]
+    },
+    {
+     "word": "العلوي",
+     "read": "al'olwi",
+     "sentence": 2,
+     "level": 0,
+     "form": "العلوي",
+     "fix": null,
+     "ok": false,
+     "expected": [
+      "a",
+      "o",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.57,
+     "hard_errors": 1,
+     "heard_ipa": "q i l ʔ l w iː j iː",
+     "at": [
+      8.72,
+      9.2
+     ]
+    },
+    {
+     "word": "وضعت",
+     "read": "wada'at",
+     "sentence": 3,
+     "level": 0,
+     "form": "وضعت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "a"
+     ],
+     "distance": 0.23,
+     "hard_errors": 0,
+     "heard_ipa": "w a d a ʕ t i",
+     "at": [
+      13.16,
+      13.44
+     ]
+    },
+    {
+     "word": "ليزي",
+     "read": "lizi",
+     "sentence": 3,
+     "level": 0,
+     "form": "ليزي",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l iː z iː f",
+     "at": [
+      14.36,
+      14.64
+     ]
+    },
+    {
+     "word": "مختلفين",
+     "read": "mokhtalefayn",
+     "sentence": 3,
+     "level": 0,
+     "form": "مختلفين",
+     "fix": null,
+     "ok": false,
+     "expected": [
+      "o",
+      "a",
+      "e",
+      "a"
+     ],
+     "heard": [
+      "i"
+     ],
+     "distance": 0.65,
+     "hard_errors": 0,
+     "heard_ipa": "n iː m u q t a l i f aɪ n iː",
+     "at": [
+      15.48,
+      16.08
+     ]
+    },
+    {
+     "word": "سيعثر",
+     "read": "sayo'thar",
+     "sentence": 3,
+     "level": 0,
+     "form": "سيعثر",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "o",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "u",
+      "a"
+     ],
+     "distance": 0.17,
+     "hard_errors": 0,
+     "heard_ipa": "s a j uː ʔ θ a r uː f",
+     "at": [
+      16.96,
+      17.52
+     ]
+    }
+   ],
+   "fixes": [
+    {
+     "after_round": 0,
+     "fixes": [
+      {
+       "word": "العلوي",
+       "read": "al'olwi",
+       "form": "العُلْوي",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 2
+      },
+      {
+       "word": "مختلفين",
+       "read": "mokhtalefayn",
+       "form": "مُختلِفَين",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 3
+      }
+     ]
+    },
+    {
+     "after_round": 1,
+     "fixes": [
+      {
+       "word": "العلوي",
+       "read": "al'olwi",
+       "form": "الْعُلْوِيّ",
+       "fix": "full",
+       "level": 2,
+       "sentence": 2
+      },
+      {
+       "word": "مختلفين",
+       "read": "mokhtalefayn",
+       "form": "مُخْتَلِفَيْن",
+       "fix": "full",
+       "level": 2,
+       "sentence": 3
+      }
+     ]
+    }
+   ],
+   "attempts": 3
+  },
+  {
+   "text": "فالمكان الذي حددته بريدجيت قريب من غرفة الضيوف، حيث ستُكتشف جثة آبي، زوجة أندرو. أما ليزي، فوضعت نفسها في الأسفل، بعيدا عن تلك الغرفة. في وقت لاحق من الصباح نفسه، سمعت بريدجيت ليزي تناديها لتنزل. قالت إن أحدا قتل أباها.",
+   "tts_text": "فالمكان الذي حَدَّدَتْهُ بريدجيت قريب من غرفة الضيوف، حيث ستُكْتَشَف جُثّة آبي، زوجة أندرو. أما ليزي، فوضعت نفسها في الأسفل، بعيدا عن تلك الغرفة. في وقت لاحق من الصباح نفسه، سمعت بريدجيت ليزي تناديها لتنزل. قالت إن أحدا قتل أباها.",
+   "flags": [],
+   "asr": {
+    "passed": true,
+    "word_error_rate": 0.025,
+    "heard_text": "فالمكان الذي حددته بريجيت قريب من غرفة الضيوف حيث ستكتشف جثة أبي زوجة أندرو أما ليزي فوضعت نفسها في الأسفل بعيداً عن تلك الغرفة في وقت لاحق من الصباح نفسه سمعت بريجيت ليزي تناديها لتنزل قالت إن أحداً قتل أباها"
+   },
+   "pronunciation": [
+    {
+     "word": "حددته",
+     "read": "haddadatho",
+     "sentence": 0,
+     "level": 1,
+     "form": "حَدَّدَتْهُ",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "a",
+      "a",
+      "a",
+      "o"
+     ],
+     "heard": [
+      "a",
+      "a",
+      "a"
+     ],
+     "distance": 0.17,
+     "hard_errors": 0,
+     "heard_ipa": "iː ħ a d a d a t h u",
+     "at": [
+      0.92,
+      1.44
+     ]
+    },
+    {
+     "word": "بريدجيت",
+     "read": "beridjit",
+     "sentence": 0,
+     "level": 0,
+     "form": "بريدجيت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i"
+     ],
+     "distance": 0.47,
+     "hard_errors": 0,
+     "heard_ipa": "h u b ɹ i dʒ t",
+     "at": [
+      1.52,
+      2.08
+     ]
+    },
+    {
+     "word": "ستكتشف",
+     "read": "satoktashaf",
+     "sentence": 0,
+     "level": 1,
+     "form": "ستُكْتَشَف",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "a",
+      "o",
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "u",
+      "a",
+      "a"
+     ],
+     "distance": 0.12,
+     "hard_errors": 0,
+     "heard_ipa": "θ uː s a t u k t a ʃ a f uː d dʒ ɹ",
+     "at": [
+      4.48,
+      5.2
+     ]
+    },
+    {
+     "word": "جثة",
+     "read": "joththa",
+     "sentence": 0,
+     "level": 1,
+     "form": "جُثّة",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "o",
+      "a"
+     ],
+     "heard": [
+      "u",
+      "a",
+      "A"
+     ],
+     "distance": 0.6,
+     "hard_errors": 0,
+     "heard_ipa": "uː d dʒ ɹ u θ t a aː",
+     "at": [
+      5.28,
+      5.76
+     ]
+    },
+    {
+     "word": "آبي",
+     "read": "'aabi",
+     "sentence": 0,
+     "level": 0,
+     "form": "آبي",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "i"
+     ],
+     "heard": [
+      "i"
+     ],
+     "distance": 0.35,
+     "hard_errors": 0,
+     "heard_ipa": "aː b i",
+     "at": [
+      5.84,
+      6.16
+     ]
+    },
+    {
+     "word": "أندرو",
+     "read": "'andru",
+     "sentence": 0,
+     "level": 0,
+     "form": "أندرو",
+     "fix": null,
+     "ok": null,
+     "expected": [
+      "a",
+      "u"
+     ],
+     "heard": [],
+     "distance": null,
+     "reason": "nothing_heard",
+     "heard_ipa": "ʔ aː n d ɹ",
+     "at": [
+      7.04,
+      7.44
+     ]
+    },
+    {
+     "word": "ليزي",
+     "read": "lizi",
+     "sentence": 1,
+     "level": 0,
+     "form": "ليزي",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "e",
+      "i"
+     ],
+     "distance": 0.25,
+     "hard_errors": 0,
+     "heard_ipa": "aː l eː z i",
+     "at": [
+      8.16,
+      8.56
+     ]
+    },
+    {
+     "word": "فوضعت",
+     "read": "fawada'at",
+     "sentence": 1,
+     "level": 0,
+     "form": "فوضعت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "a",
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "a",
+      "a"
+     ],
+     "distance": 0.17,
+     "hard_errors": 0,
+     "heard_ipa": "f a w a d ʕ a t n a",
+     "at": [
+      8.88,
+      9.36
+     ]
+    },
+    {
+     "word": "بريدجيت",
+     "read": "beridjit",
+     "sentence": 2,
+     "level": 0,
+     "form": "بريدجيت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i"
+     ],
+     "distance": 0.47,
+     "hard_errors": 0,
+     "heard_ipa": "b ɹ i dʒ t l iː",
+     "at": [
+      15.56,
+      15.92
+     ]
+    },
+    {
+     "word": "ليزي",
+     "read": "lizi",
+     "sentence": 2,
+     "level": 0,
+     "form": "ليزي",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l iː z iː t",
+     "at": [
+      16.04,
+      16.32
+     ]
+    },
+    {
+     "word": "لتنزل",
+     "read": "letanzel",
+     "sentence": 2,
+     "level": 0,
+     "form": "لتنزل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "a",
+      "e"
+     ],
+     "heard": [
+      "i",
+      "a",
+      "i"
+     ],
+     "distance": 0.33,
+     "hard_errors": 0,
+     "heard_ipa": "aː l i t a n z i l l",
+     "at": [
+      16.96,
+      17.52
+     ]
+    },
+    {
+     "word": "قتل",
+     "read": "qatala",
+     "sentence": 3,
+     "level": 0,
+     "form": "قتل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "a",
+      "a"
+     ],
+     "heard": [
+      "a",
+      "a",
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "m q a t l a a",
+     "at": [
+      19.36,
+      19.76
+     ]
+    }
+   ],
+   "fixes": [
+    {
+     "after_round": 0,
+     "fixes": [
+      {
+       "word": "حددته",
+       "read": "haddadatho",
+       "form": "حَدَّدَتْهُ",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      },
+      {
+       "word": "ستكتشف",
+       "read": "satoktashaf",
+       "form": "ستُكْتَشَف",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      },
+      {
+       "word": "جثة",
+       "read": "joththa",
+       "form": "جُثّة",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      }
+     ]
+    }
+   ],
+   "attempts": 2
+  }
+ ]
+}

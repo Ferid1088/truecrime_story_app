@@ -1,0 +1,1855 @@
+{
+ "segments_id": 40,
+ "report": {
+  "scenes": [
+   {
+    "scene": 147,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 24.16,
+    "deviation": 0.0738,
+    "cap": 45.0
+   },
+   {
+    "scene": 145,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 28.8,
+    "deviation": 0.0,
+    "cap": 75.0
+   },
+   {
+    "scene": 146,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 22.96,
+    "deviation": 0.1237,
+    "cap": 45.0
+   },
+   {
+    "scene": 148,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 30.56,
+    "deviation": 0.036,
+    "cap": 50.0
+   }
+  ],
+  "host_seconds": 106.48,
+  "host_share": 0.0272,
+  "timeline": {
+   "story_seconds": 3916.15,
+   "host_seconds": 106.48,
+   "intro_seconds": 0.0,
+   "total_seconds": 4022.63
+  },
+  "errors": [],
+  "warnings": [
+   {
+    "code": "seconds_off_plan",
+    "segment": "S2",
+    "planned": 26.2,
+    "seconds": 22.96
+   }
+  ]
+ },
+ "scenes": {
+  "S3": {
+   "text": "تتذكر الفستان اللي قالت ليزي إنه ملطخ بالطلاء؟ وصلنا منه إلى محاكمة، لكن ما ثبت أنه يربطها بالقتل. والهتاف بعد الحكم ما أبعد عن بالي أندرو وآبي. لحظة بس. أنت تقدر تقفل باب الاتهام، ويبقى عندك سؤال ما يهدأ: إذا المحكمة انتهت، كيف نبحث عمّن قتلهما من غير ما نرجع نحاكم ليزي بأنفسنا؟",
+   "seconds": 24.16,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": "تتذكر الفستان اللي قالت ليزي إنه ملطخ بالطلاء؟ وَصَلْنا منه إلى محاكمة، لكن ما ثبت أنه يربطها بِالقَتْل. والهتاف بعد الْحُكْم ما أبعد عن بالي أندرو وَآبِي. لحظة بس. أنت تقدر تقفل باب الاتهام، ويبقى عندك سؤال ما يهدأ: إذا المحكمة انتهت، كيف نبحث عمّن قتلهما من غير ما نرجع نحاكم ليزي بأنفسنا؟",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0943,
+     "failures": [],
+     "heard_text": "تتذكر الفستان اللي قالت ليزي أنه ملطخ بالطلاء؟ وصلنا منه إلى محاكمة، لكن ما ثبت أنه يربطها بالقتل. والهتاف بعد الحكم ما أبعد عن بالي أندرو وآبي. لحظة بس، أنت تقدر تقفل باب الاتهام ويبقى عندك سؤال ما يهدأ. إذا المحكمة انتهت، كيف نبحث عن من قتلهما من غير ما نرجع عن حاكم ليزي بأنفسنا؟"
+    },
+    "pronunciation": [
+     {
+      "word": "تتذكر",
+      "read": "tetdhakkar",
+      "sentence": 0,
+      "level": 0,
+      "form": "تتذكر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "t a t v a k a r a",
+      "at": [
+       0.0,
+       0.48
+      ]
+     },
+     {
+      "word": "ليزي",
+      "read": "lizi",
+      "sentence": 0,
+      "level": 0,
+      "form": "ليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "l iː z iː ʔ",
+      "at": [
+       1.72,
+       2.0
+      ]
+     },
+     {
+      "word": "ملطخ",
+      "read": "molattakh",
+      "sentence": 0,
+      "level": 0,
+      "form": "ملطخ",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "h m l a t x b",
+      "at": [
+       2.36,
+       2.72
+      ]
+     },
+     {
+      "word": "وصلنا",
+      "read": "wasalna",
+      "sentence": 1,
+      "level": 1,
+      "form": "وَصَلْنا",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "A"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "w a s a l n aː m",
+      "at": [
+       3.73,
+       4.16
+      ]
+     },
+     {
+      "word": "ثبت",
+      "read": "thabat",
+      "sentence": 1,
+      "level": 0,
+      "form": "ثبت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "θ a b a t ʔ a",
+      "at": [
+       6.84,
+       7.04
+      ]
+     },
+     {
+      "word": "بالقتل",
+      "read": "belqatl",
+      "sentence": 1,
+      "level": 1,
+      "form": "بِالقَتْل",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "a"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "aː b i l q a t l",
+      "at": [
+       8.12,
+       8.64
+      ]
+     },
+     {
+      "word": "الحكم",
+      "read": "al-hokm",
+      "sentence": 2,
+      "level": 2,
+      "form": "الْحُكْم",
+      "fix": "full",
+      "ok": true,
+      "expected": [
+       "o"
+      ],
+      "heard": [
+       "u"
+      ],
+      "distance": 0.5,
+      "hard_errors": 0,
+      "heard_ipa": "d a l ħ k u m",
+      "at": [
+       9.84,
+       10.24
+      ]
+     },
+     {
+      "word": "أبعد",
+      "read": "'ab'ad",
+      "sentence": 2,
+      "level": 0,
+      "form": "أبعد",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "ʔ a b ʕ d ʕ a",
+      "at": [
+       10.8,
+       11.12
+      ]
+     },
+     {
+      "word": "أندرو",
+      "read": "'andru",
+      "sentence": 2,
+      "level": 0,
+      "form": "أندرو",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "u"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "i aː n dʒ ɹ w",
+      "at": [
+       11.68,
+       12.0
+      ]
+     },
+     {
+      "word": "وآبي",
+      "read": "wa'aabi",
+      "sentence": 2,
+      "level": 1,
+      "form": "وَآبِي",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "A",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "A",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "ɹ w a ʔ aː b i",
+      "at": [
+       12.08,
+       12.76
+      ]
+     },
+     {
+      "word": "بس",
+      "read": "bass",
+      "sentence": 3,
+      "level": 0,
+      "form": "بس",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "b a s",
+      "at": [
+       13.52,
+       13.68
+      ]
+     },
+     {
+      "word": "تقدر",
+      "read": "teqdar",
+      "sentence": 4,
+      "level": 0,
+      "form": "تقدر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "a"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "t t i ɡ d a r",
+      "at": [
+       14.24,
+       14.48
+      ]
+     },
+     {
+      "word": "تقفل",
+      "read": "teqfel",
+      "sentence": 4,
+      "level": 0,
+      "form": "تقفل",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "e"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.5,
+      "hard_errors": 0,
+      "heard_ipa": "a r t i ɡ f i l b aː",
+      "at": [
+       14.56,
+       14.96
+      ]
+     },
+     {
+      "word": "عمن",
+      "read": "'amman",
+      "sentence": 4,
+      "level": 0,
+      "form": "عمن",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "ʕ a m n q a",
+      "at": [
+       20.28,
+       20.52
+      ]
+     },
+     {
+      "word": "قتلهما",
+      "read": "qatalahomaa",
+      "sentence": 4,
+      "level": 0,
+      "form": "قتلهما",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a",
+       "o",
+       "A"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "a",
+       "u",
+       "A"
+      ],
+      "distance": 0.1,
+      "hard_errors": 0,
+      "heard_ipa": "n q a t a l a h u m aː",
+      "at": [
+       20.56,
+       21.2
+      ]
+     },
+     {
+      "word": "ليزي",
+      "read": "lizi",
+      "sentence": 4,
+      "level": 0,
+      "form": "ليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "l iː z iː b",
+      "at": [
+       22.92,
+       23.12
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "بالقتل",
+        "read": "belqatl",
+        "form": "بِالقَتْل",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       }
+      ]
+     },
+     {
+      "after_round": 1,
+      "fixes": [
+       {
+        "word": "وصلنا",
+        "read": "wasalna",
+        "form": "وَصَلْنا",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       },
+       {
+        "word": "الحكم",
+        "read": "al-hokm",
+        "form": "الحُكْم",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 2
+       },
+       {
+        "word": "وآبي",
+        "read": "wa'aabi",
+        "form": "وَآبِي",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 2
+       }
+      ]
+     },
+     {
+      "after_round": 2,
+      "fixes": [
+       {
+        "word": "الحكم",
+        "read": "al-hokm",
+        "form": "الْحُكْم",
+        "fix": "full",
+        "level": 2,
+        "sentence": 2
+       }
+      ]
+     }
+    ],
+    "attempts": 4,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "في بيت واحد، مات شخصان. لكن من كان هناك، وكيف؟ أنت أمام روايتين عن اللحظة نفسها: الخادمة قالت إن ليزي كانت أعلى الدرج حين عاد أندرو، وليزي قالت إنها كانت في الأسفل. لحظة بس. لو طلبت منك تختار الآن، على ماذا ستعتمد؟ أنا لا أقدر أرجّح رواية لمجرد أنها تبدو مقنعة. خلّ هذا السؤال معك، وتعال نبدأ من البداية.",
+   "seconds": 28.8,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": "في بيت واحد، مات شخصان. لكن من كان هناك، وكيف؟ أنت أمام رِوايَتَيْن عن اللحظة نفسها: الخادمة قالت إن ليزي كانت أعلى الدرج حين عاد أندرو، وليزي قالت إنها كانت في الأسفل. لحظة بَسّ. لو طلبت منك تختار الآن، على ماذا ستعتمد؟ أنا لا أَقْدَر أرجّح رواية لمجرد أنها تبدو مقنعة. خلّ هذا السؤال معك، وتعال نبدأ من البداية.",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "في بيت واحد مات شخصان، لكن من كان هناك؟ وكيف؟ أنت أمام روايتين عن اللحظة نفسها الخادمة قالت إن ليزي كانت أعلى الدرج حين عاد أندرو وليزي قالت إنها كانت في الأسفل لحظة، بس، لو طلبت منك تختار الآن، على ماذا ستعتمد؟ أنا لا أقدر أرجح رواية لمجرد أنها تبدو مقنعة خل هذا السؤال معك، وتعال نبدأ من البداية"
+    },
+    "pronunciation": [
+     {
+      "word": "روايتين",
+      "read": "rewaayatayn",
+      "sentence": 2,
+      "level": 1,
+      "form": "رِوايَتَيْن",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "a",
+       "a"
+      ],
+      "distance": 0.3,
+      "hard_errors": 0,
+      "heard_ipa": "m a r i w a j a t aɪ n j ʕ",
+      "at": [
+       6.4,
+       7.12
+      ]
+     },
+     {
+      "word": "ليزي",
+      "read": "lizi",
+      "sentence": 2,
+      "level": 0,
+      "form": "ليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "e",
+       "i"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "n a l eː z iː k",
+      "at": [
+       10.32,
+       10.64
+      ]
+     },
+     {
+      "word": "الدرج",
+      "read": "addaraj",
+      "sentence": 2,
+      "level": 0,
+      "form": "الدرج",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "l a d a r a dʒ h iː",
+      "at": [
+       11.56,
+       12.0
+      ]
+     },
+     {
+      "word": "أندرو",
+      "read": "'andru",
+      "sentence": 2,
+      "level": 0,
+      "form": "أندرو",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "u"
+      ],
+      "heard": [
+       "o"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "aː n d ɹ oː",
+      "at": [
+       12.68,
+       12.96
+      ]
+     },
+     {
+      "word": "وليزي",
+      "read": "walizi",
+      "sentence": 2,
+      "level": 0,
+      "form": "وليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "i",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "e",
+       "i"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "w a l eː z iː q",
+      "at": [
+       13.48,
+       13.84
+      ]
+     },
+     {
+      "word": "بس",
+      "read": "bass",
+      "sentence": 3,
+      "level": 1,
+      "form": "بَسّ",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "b a",
+      "at": [
+       16.8,
+       17.2
+      ]
+     },
+     {
+      "word": "طلبت",
+      "read": "talabt",
+      "sentence": 4,
+      "level": 0,
+      "form": "طلبت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "t a l a p t a m i ŋ",
+      "at": [
+       17.96,
+       18.24
+      ]
+     },
+     {
+      "word": "أقدر",
+      "read": "'aqdar",
+      "sentence": 5,
+      "level": 1,
+      "form": "أَقْدَر",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "aː a q d a r u",
+      "at": [
+       21.64,
+       21.92
+      ]
+     },
+     {
+      "word": "أرجح",
+      "read": "'arajjeh",
+      "sentence": 5,
+      "level": 0,
+      "form": "أرجح",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "r u r a dʒ i h uː r i",
+      "at": [
+       22.0,
+       22.44
+      ]
+     },
+     {
+      "word": "لمجرد",
+      "read": "lemojarrad",
+      "sentence": 5,
+      "level": 0,
+      "form": "لمجرد",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "o",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "u",
+       "a",
+       "a"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "n l i m u dʒ a r r a d i a",
+      "at": [
+       23.24,
+       23.76
+      ]
+     },
+     {
+      "word": "مقنعة",
+      "read": "moqne'a",
+      "sentence": 5,
+      "level": 0,
+      "form": "مقنعة",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e",
+       "a"
+      ],
+      "heard": [
+       "u",
+       "i"
+      ],
+      "distance": 0.57,
+      "hard_errors": 0,
+      "heard_ipa": "d uː m u k n i",
+      "at": [
+       24.56,
+       25.04
+      ]
+     },
+     {
+      "word": "خل",
+      "read": "khall",
+      "sentence": 6,
+      "level": 0,
+      "form": "خل",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "x a l l a h a",
+      "at": [
+       25.56,
+       25.76
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "روايتين",
+        "read": "rewaayatayn",
+        "form": "رِوايَتَيْن",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 2
+       },
+       {
+        "word": "بس",
+        "read": "bass",
+        "form": "بَسّ",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 3
+       },
+       {
+        "word": "أقدر",
+        "read": "'aqdar",
+        "form": "أَقْدَر",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 5
+       }
+      ]
+     }
+    ],
+    "attempts": 2,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "تعرف ما الذي يوقفني هنا؟ الفاصل بين الجريمتين. آبي ماتت أولا، لكن هذا لا يخبرك إن كان القاتل بقي في البيت أو خرج وعاد. والبلطة؟ لم يثبت أنها الأداة المستخدمة. أنا أرجع لخلاف الدرج: حين تختلف الروايات، ولا تجد أثرا يربط شخصا بالقتل، على أي أساس ترجّح إحداها؟",
+   "seconds": 22.96,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "تعرف ما الذي يوقفني هنا؟ الفاصل بين الجريمتين آبي ماتت أولاً لكن هذا لا يخبرك إن كان القاتل بقي في البيت أو خرج وعاد والبلطة لم يثبت أنها الأدات المستخدمة أنا أرجع لخلاف الدرج حين تختلف الروايات ولا تجد أثراً يربط شخصاً بالقتل على أي أساس ترجح إحداها"
+    },
+    "pronunciation": [
+     {
+      "word": "تعرف",
+      "read": "ta'ref",
+      "sentence": 0,
+      "level": 0,
+      "form": "تعرف",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "A",
+       "i"
+      ],
+      "distance": 0.5,
+      "hard_errors": 0,
+      "heard_ipa": "t aː r i f",
+      "at": [
+       0.0,
+       0.4
+      ]
+     },
+     {
+      "word": "يوقفني",
+      "read": "yuqefoni",
+      "sentence": 0,
+      "level": 0,
+      "form": "يوقفني",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "u",
+       "e",
+       "o",
+       "i"
+      ],
+      "heard": [
+       "u",
+       "i",
+       "u",
+       "i"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "v iː j uː q i f u n iː h",
+      "at": [
+       1.04,
+       1.52
+      ]
+     },
+     {
+      "word": "الجريمتين",
+      "read": "al-jarimatayn",
+      "sentence": 1,
+      "level": 0,
+      "form": "الجريمتين",
+      "fix": null,
+      "ok": false,
+      "expected": [
+       "a",
+       "i",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "i",
+       "a",
+       "i"
+      ],
+      "distance": 0.25,
+      "hard_errors": 1,
+      "heard_ipa": "n a l dʒ a r iː m a t iː n",
+      "at": [
+       3.16,
+       3.84
+      ],
+      "referee": "voice_wrong"
+     },
+     {
+      "word": "آبي",
+      "read": "aabi",
+      "sentence": 2,
+      "level": 0,
+      "form": "آبي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "A",
+       "i"
+      ],
+      "heard": [
+       "A",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "aː b iː m",
+      "at": [
+       4.32,
+       4.64
+      ]
+     },
+     {
+      "word": "يخبرك",
+      "read": "yokhberok",
+      "sentence": 2,
+      "level": 0,
+      "form": "يخبرك",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e",
+       "o"
+      ],
+      "heard": [
+       "u",
+       "i"
+      ],
+      "distance": 0.57,
+      "hard_errors": 0,
+      "heard_ipa": "l aː j u x b i r k a ʔ i",
+      "at": [
+       6.72,
+       7.28
+      ]
+     },
+     {
+      "word": "بقي",
+      "read": "baqeya",
+      "sentence": 2,
+      "level": 0,
+      "form": "بقي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "uː b a q iː j a f i",
+      "at": [
+       8.32,
+       8.64
+      ]
+     },
+     {
+      "word": "والبلطة",
+      "read": "walbalta",
+      "sentence": 3,
+      "level": 0,
+      "form": "والبلطة",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "w a l b a l t a",
+      "at": [
+       10.84,
+       11.28
+      ]
+     },
+     {
+      "word": "يثبت",
+      "read": "yathbot",
+      "sentence": 4,
+      "level": 0,
+      "form": "يثبت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o"
+      ],
+      "heard": [
+       "a",
+       "u"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "j a θ b u t ʔ a",
+      "at": [
+       11.96,
+       12.24
+      ]
+     },
+     {
+      "word": "المستخدمة",
+      "read": "al-mostakhdama",
+      "sentence": 4,
+      "level": 0,
+      "form": "المستخدمة",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "u",
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "t l m u s t a q d a m",
+      "at": [
+       13.04,
+       13.68
+      ]
+     },
+     {
+      "word": "أرجع",
+      "read": "'arje'",
+      "sentence": 5,
+      "level": 0,
+      "form": "أرجع",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "n a ʔ a r dʒ ʕ l i",
+      "at": [
+       14.36,
+       14.72
+      ]
+     },
+     {
+      "word": "الدرج",
+      "read": "addaraj",
+      "sentence": 5,
+      "level": 0,
+      "form": "الدرج",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "f d d a r dʒ",
+      "at": [
+       15.24,
+       15.68
+      ]
+     },
+     {
+      "word": "الروايات",
+      "read": "arrewaayaat",
+      "sentence": 5,
+      "level": 0,
+      "form": "الروايات",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "A",
+       "A"
+      ],
+      "heard": [
+       "i",
+       "A",
+       "A"
+      ],
+      "distance": 0.3,
+      "hard_errors": 0,
+      "heard_ipa": "f u r r i w aː j aː t",
+      "at": [
+       16.84,
+       17.52
+      ]
+     },
+     {
+      "word": "تجد",
+      "read": "tajed",
+      "sentence": 5,
+      "level": 0,
+      "form": "تجد",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "aː t a dʒ iː d u ʔ a",
+      "at": [
+       18.08,
+       18.4
+      ]
+     },
+     {
+      "word": "يربط",
+      "read": "yarbot",
+      "sentence": 5,
+      "level": 0,
+      "form": "يربط",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "n j a r b j t u ʃ",
+      "at": [
+       18.96,
+       19.28
+      ]
+     },
+     {
+      "word": "بالقتل",
+      "read": "belqatl",
+      "sentence": 5,
+      "level": 0,
+      "form": "بالقتل",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "a"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "a m b i l q a t l",
+      "at": [
+       19.76,
+       20.24
+      ]
+     },
+     {
+      "word": "ترجح",
+      "read": "torajjeh",
+      "sentence": 5,
+      "level": 0,
+      "form": "ترجح",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "u",
+       "a",
+       "i"
+      ],
+      "distance": 0.33,
+      "hard_errors": 0,
+      "heard_ipa": "i n t u r a dʒ i ħ u ʔ a",
+      "at": [
+       21.6,
+       22.08
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "الجريمتين",
+        "read": "al-jarimatayn",
+        "form": "الجَرِيمتَيْن",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       }
+      ]
+     },
+     {
+      "after_round": 1,
+      "fixes": [
+       {
+        "word": "الجريمتين",
+        "read": "al-jarimatayn",
+        "form": "الْجَرِيمَتَيْن",
+        "fix": "full",
+        "level": 2,
+        "sentence": 1
+       }
+      ]
+     }
+    ],
+    "attempts": 3,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": [
+     "pronunciation_unresolved:الجريمتين"
+    ]
+   }
+  },
+  "S4": {
+   "text": "تعرف إيش يصعب عليّ هنا؟ إني أحاول أتخيل آبي بعيدًا عن علاقتها بليزي، وما ألقى عنها إلا القليل. حتى اسمها يرجعنا لكلام الآخرين عنها. هذا يضايقني. وأنت يمكن بقي في بالك الدرج، أو الفستان، أو رواية ما قدرت تطمئن لها. أنا بقيت عند امرأة نعرف الخلاف حولها أكثر مما نعرفها هي. لو تركت سؤال القاتل بلا جواب، ولو للحظة، إيش تتمنى لو قدرنا نسمعه من آبي عن حياتها في هذا البيت؟",
+   "seconds": 30.56,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": "تعرف إيش يِصْعَب عَلَيّ هنا؟ إني أحاول أَتَخَيَّل آبي بعيدًا عن علاقتها بليزي، وما ألقى عنها إلا القليل. حتى اسمها يرجعنا لكلام الآخرين عنها. هذا يضايقني. وأنت يمكن بقي في بالك الدَّرَج، أو الفستان، أو رواية ما قَدَرْت تَطْمَئِنّ لها. أنا بقيت عند امرأة نعرف الخلاف حولها أكثر مما نعرفها هي. لو تركت سؤال القاتل بلا جواب، ولو للحظة، إيش تتمنى لو قَدَرْنا نسمعه من آبي عن حياتها في هذا البيت؟",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0563,
+     "failures": [],
+     "heard_text": "تعرف إيش يصعب علي هنا؟ إني أحاول أتخيل آبي بعيداً عن علاقتها بليزي وما ألقى عنها إلا القليل حتى اسمها يرجعنا لكلام الآخرين عنها هذا يضايقني وإنت يمكن بقي في بالك الدرج أو الفستان أو رواية ما قدرت تطمئن لها أنا بقيت عند إمرأة نعرف الخلاف حولها أكثر مما نعرفها هي لو تركت سؤال القاتل بلا جواب ولولحظة ايش تتمنى لو قدرنا نسمعه من ابي عن حياتها في هذا البيت؟"
+    },
+    "pronunciation": [
+     {
+      "word": "تعرف",
+      "read": "ta'ref",
+      "sentence": 0,
+      "level": 0,
+      "form": "تعرف",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "t ʕ r f ʔ",
+      "at": [
+       0.0,
+       0.4
+      ]
+     },
+     {
+      "word": "يصعب",
+      "read": "yes'ab",
+      "sentence": 0,
+      "level": 1,
+      "form": "يِصْعَب",
+      "fix": "vowelled",
+      "ok": null,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "ʃ j s ʕ b ʕ a",
+      "at": [
+       0.64,
+       1.0
+      ]
+     },
+     {
+      "word": "علي",
+      "read": "'alayy",
+      "sentence": 0,
+      "level": 1,
+      "form": "عَلَيّ",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "b ʕ a l a j h",
+      "at": [
+       1.04,
+       1.32
+      ]
+     },
+     {
+      "word": "إني",
+      "read": "'enni",
+      "sentence": 1,
+      "level": 0,
+      "form": "إني",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "i"
+      ],
+      "heard": [
+       "i"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "ʔ i n i a",
+      "at": [
+       2.04,
+       2.24
+      ]
+     },
+     {
+      "word": "أتخيل",
+      "read": "'atakhayyal",
+      "sentence": 1,
+      "level": 1,
+      "form": "أَتَخَيَّل",
+      "fix": "vowelled",
+      "ok": null,
+      "expected": [
+       "a",
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "w l ʔ a t ħ a j a l aː",
+      "at": [
+       2.75,
+       3.36
+      ]
+     },
+     {
+      "word": "آبي",
+      "read": "'aabi",
+      "sentence": 1,
+      "level": 0,
+      "form": "آبي",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "A",
+       "i"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "l aː b iː b",
+      "at": [
+       3.36,
+       3.68
+      ]
+     },
+     {
+      "word": "بليزي",
+      "read": "belizi",
+      "sentence": 1,
+      "level": 0,
+      "form": "بليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "i",
+       "i"
+      ],
+      "heard": [
+       "e",
+       "i"
+      ],
+      "distance": 0.23,
+      "hard_errors": 0,
+      "heard_ipa": "h a b l eː z i",
+      "at": [
+       5.08,
+       5.52
+      ]
+     },
+     {
+      "word": "يرجعنا",
+      "read": "yerajje'naa",
+      "sentence": 2,
+      "level": 0,
+      "form": "يرجعنا",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a",
+       "e",
+       "A"
+      ],
+      "heard": [
+       "A",
+       "a"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "j r dʒ aː ʕ n a l i",
+      "at": [
+       8.88,
+       9.36
+      ]
+     },
+     {
+      "word": "يضايقني",
+      "read": "yodaayeqni",
+      "sentence": 3,
+      "level": 0,
+      "form": "يضايقني",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "A",
+       "e",
+       "i"
+      ],
+      "heard": [
+       "i"
+      ],
+      "distance": 0.52,
+      "hard_errors": 0,
+      "heard_ipa": "a j ð aː j ɡ n iː",
+      "at": [
+       11.44,
+       12.0
+      ]
+     },
+     {
+      "word": "الدرج",
+      "read": "addaraj",
+      "sentence": 4,
+      "level": 1,
+      "form": "الدَّرَج",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.23,
+      "hard_errors": 0,
+      "heard_ipa": "k a d d a r a dʒ",
+      "at": [
+       14.0,
+       14.56
+      ]
+     },
+     {
+      "word": "قدرت",
+      "read": "qadart",
+      "sentence": 4,
+      "level": 1,
+      "form": "قَدَرْت",
+      "fix": "vowelled",
+      "ok": null,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "aː ɡ d r t",
+      "at": [
+       16.52,
+       16.8
+      ]
+     },
+     {
+      "word": "تطمئن",
+      "read": "tatma'enn",
+      "sentence": 4,
+      "level": 1,
+      "form": "تَطْمَئِنّ",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.23,
+      "hard_errors": 0,
+      "heard_ipa": "r t a t m a ʔ n n a l",
+      "at": [
+       16.88,
+       17.36
+      ]
+     },
+     {
+      "word": "نعرف",
+      "read": "na'ref",
+      "sentence": 5,
+      "level": 0,
+      "form": "نعرف",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "n ʕ r f a l",
+      "at": [
+       19.36,
+       19.68
+      ]
+     },
+     {
+      "word": "نعرفها",
+      "read": "na'refhaa",
+      "sentence": 5,
+      "level": 0,
+      "form": "نعرفها",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "A"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "m n ʕ r a f h a h",
+      "at": [
+       21.44,
+       21.84
+      ]
+     },
+     {
+      "word": "تركت",
+      "read": "tarakt",
+      "sentence": 6,
+      "level": 0,
+      "form": "تركت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "uː t r a k t ts u",
+      "at": [
+       22.96,
+       23.28
+      ]
+     },
+     {
+      "word": "قدرنا",
+      "read": "gedernaa",
+      "sentence": 6,
+      "level": 1,
+      "form": "قَدَرْنا",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "A"
+      ],
+      "heard": [
+       "i",
+       "a"
+      ],
+      "distance": 0.57,
+      "hard_errors": 1,
+      "heard_ipa": "w ɡ d i r n a n",
+      "at": [
+       27.28,
+       27.6
+      ],
+      "referee": "key_wrong",
+      "referee_read": "gedernaa"
+     },
+     {
+      "word": "نسمعه",
+      "read": "nesma'ah",
+      "sentence": 6,
+      "level": 0,
+      "form": "نسمعه",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "n a n s m a ʕ h m",
+      "at": [
+       27.68,
+       28.08
+      ]
+     },
+     {
+      "word": "آبي",
+      "read": "'aabi",
+      "sentence": 6,
+      "level": 0,
+      "form": "آبي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "A",
+       "i"
+      ],
+      "heard": [
+       "i"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "aː b iː ʕ a",
+      "at": [
+       28.4,
+       28.72
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "يصعب",
+        "read": "yes'ab",
+        "form": "يِصْعَب",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 0
+       },
+       {
+        "word": "علي",
+        "read": "'alayy",
+        "form": "عَلَيّ",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 0
+       },
+       {
+        "word": "أتخيل",
+        "read": "'atakhayyal",
+        "form": "أَتَخَيَّل",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       },
+       {
+        "word": "الدرج",
+        "read": "addaraj",
+        "form": "الدَّرَج",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 4
+       },
+       {
+        "word": "قدرت",
+        "read": "qadart",
+        "form": "قَدَرْت",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 4
+       },
+       {
+        "word": "تطمئن",
+        "read": "tatma'enn",
+        "form": "تَطْمَئِنّ",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 4
+       },
+       {
+        "word": "قدرنا",
+        "read": "qadarnaa",
+        "form": "قَدَرْنا",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 6
+       }
+      ]
+     },
+     {
+      "after_round": 1,
+      "fixes": [
+       {
+        "word": "قدرنا",
+        "read": "qadarnaa",
+        "form": "قَدَرْنَا",
+        "fix": "full",
+        "level": 2,
+        "sentence": 6
+       }
+      ]
+     },
+     {
+      "after_round": 2,
+      "fixes": [
+       {
+        "word": "نعرفها",
+        "read": "na'refhaa",
+        "form": "نَعْرِفها",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 5
+       },
+       {
+        "word": "تركت",
+        "read": "tarakt",
+        "form": "تَرَكْت",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 6
+       }
+      ]
+     }
+    ],
+    "attempts": 4,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  }
+ }
+}

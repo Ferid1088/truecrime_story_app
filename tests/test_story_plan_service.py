@@ -58,7 +58,6 @@ def test_a_plan_is_stored_enriched_and_validated(db_session, director):
     data = json.loads(plan.plan_json)
     assert plan.status == "draft" and plan.version == 1 and plan.evidence_fingerprint
     assert [a["id"] for a in data["acts"]] == ["act1", "act2", "act3"]
-    assert data["host_slots"][0]["position"] == "opening"
     assert "reveals" in data["acts"][0]
     assert json.loads(plan.validation_json)["status"] in ("valid", "needs_review")
 

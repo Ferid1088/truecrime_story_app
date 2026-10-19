@@ -1,0 +1,182 @@
+{
+ "id": 37,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish the viewer connection before the logo and let the opening act unfold without interruption.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; curious, with a brief pause after the first question and a slightly quicker pace through the competing accounts.",
+   "avatar_dialogue": "Where was Lizzie when Andrew came home? If you take the maid's account, she was at the top of the stairs. Take Lizzie's, and she was downstairs. Which account do you trust? I'm not ready to choose. I'd want to know how each account fits with who could have been inside that house. That's where I want you to start with me: two people dead, and a question about who was there, and how. Let's start with the house.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 29.3,
+   "transition_back": "The focus on the house carries through the logo into the opening narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Allow a brief reflective pause after the first substantial narrative movement, before the film begins its next sustained progression.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "awareness_of_bias"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; slightly quicker through the imagined explanation, then slower before the final question.",
+   "avatar_dialogue": "That hatchet leaves me uneasy. You hear about a broken handle and ash, and it's easy to picture someone hiding what they'd done. But the officers couldn't even agree the break was fresh. You had a disputed identification at the drugstore, too. I have to catch myself here: one uncertain claim can make another feel stronger. What actually connects either of those things to a person responsible for the killings?",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 25.9,
+   "transition_back": "Return to the survivors' accounts with attention on what can connect evidence to a person.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff and the final act after leaving the central three-act progression uninterrupted.",
+   "personality_dimension": [
+    "holding_two_explanations",
+    "respect_for_due_process"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; thoughtful, with a brief pause after the short sentence",
+   "avatar_dialogue": "Does the acquittal give you a sense of an ending? I'm caught there. I can accept that the state failed to prove its case and still want an answer for Andrew and Abby. You still have that burned dress, with its purpose unresolved. Lizzie can leave the courtroom now. But where does that leave the question we started with: who was responsible inside that house?",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 24.1,
+   "transition_back": "Moves from Lizzie's release toward the aftermath, carrying forward the unresolved question of responsibility.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close the viewer connection after the final act has had uninterrupted space to complete the film.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "awareness_of_bias"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "warm and reflective; natural uneven pacing; a brief pause after the short second sentence",
+   "avatar_dialogue": "Abby changing that bed stays with me. Such an ordinary task. After all the arguments about Lizzie, I find myself wanting to know more about the woman upstairs, beyond what anyone said about her marriage or her death. You get so little of her in the story that became famous. And then there's that rhyme, giving you an answer the evidence never established. When you remember this case, will you hear the accusation first, or picture Abby going about her morning? I'm left with her.",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 31.5,
+   "transition_back": "Ends on a personal reflection about Abby, leaving room for silence and the closing credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 110.8,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

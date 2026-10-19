@@ -1,0 +1,102 @@
+{
+ "fa": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": false
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0806,
+  "host_flags": {
+   "S3": [],
+   "S1": [],
+   "S2": []
+  },
+  "story_flags": [
+   [],
+   [],
+   []
+  ]
+ },
+ "ar": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0722,
+  "host_flags": {
+   "S3": [],
+   "S1": [],
+   "S2": [],
+   "S4": []
+  },
+  "story_flags": [
+   [],
+   [
+    "pronunciation_unresolved:مختلفين",
+    "pronunciation_unresolved:قتيلين"
+   ],
+   []
+  ]
+ },
+ "en": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.026,
+  "host_flags": {
+   "S4": [],
+   "S1": [],
+   "S2": [],
+   "S3": []
+  }
+ },
+ "de": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0806,
+  "host_flags": {
+   "S2": [],
+   "S4": [],
+   "S1": [],
+   "S3": []
+  }
+ }
+}

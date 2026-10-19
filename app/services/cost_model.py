@@ -111,7 +111,7 @@ def _single_unit_line(pricing: dict[str, Any], stage: str, status: str,
                       eur: dict[str, float], model: str | None = None) -> CostLine:
     spec = None
     if stage.startswith("tts"):
-        spec = pricing["tts"].get("eleven_v3")
+        spec = pricing["tts"].get("eleven_v4")
     elif stage == "thumbnail":
         # Thumbnails are deterministic/local; they have no provider price.
         spec = None
@@ -241,7 +241,7 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                                tokens["spoken_input"], tokens["spoken_output"]))
         lines.append(_llm_line(pricing, f"performance:{language}", "premium",
                                tokens["performance_input"], tokens["performance_output"]))
-    tts_price = float(pricing["tts"]["eleven_v3"]["eur_per_1m_characters"])
+    tts_price = float(pricing["tts"]["eleven_v4"]["eur_per_1m_characters"])
     if pilot_seconds:
         chars = {key: float(pilot_seconds) / 60 * float(assumptions["words_per_minute"])
                  * float(assumptions["narration_characters_per_word"])
@@ -253,7 +253,7 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
             pricing, f"tts:{language}", "run", None,
             {"characters": chars["expected"]}, {"eur_per_1m_characters": tts_price},
             {key: chars[key] / 1_000_000 * tts_price for key in SCENARIOS},
-            pricing["tts"]["eleven_v3"].get("provider_model")))
+            pricing["tts"]["eleven_v4"].get("provider_model")))
     lines.append(_single_unit_line(
         pricing, "thumbnail", "skipped",
         "Thumbnail generation is local; no provider charge is included.",

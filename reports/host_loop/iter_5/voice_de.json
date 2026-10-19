@@ -1,0 +1,135 @@
+{
+ "segments_id": 42,
+ "report": {
+  "scenes": [
+   {
+    "scene": 153,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 26.8,
+    "deviation": 0.0694,
+    "cap": 75.0
+   },
+   {
+    "scene": 154,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 24.4,
+    "deviation": 0.0687,
+    "cap": 45.0
+   },
+   {
+    "scene": 155,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 23.6,
+    "deviation": 0.0489,
+    "cap": 45.0
+   },
+   {
+    "scene": 156,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 30.72,
+    "deviation": 0.0309,
+    "cap": 50.0
+   }
+  ],
+  "host_seconds": 105.52,
+  "host_share": 0.0257,
+  "timeline": {
+   "story_seconds": 4105.78,
+   "host_seconds": 105.52,
+   "intro_seconds": 0.0,
+   "total_seconds": 4211.3
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S1": {
+   "text": "Oben an der Treppe oder unten im Haus? Wo Lizzie Borden war, als Andrew nach Hause kam, darüber gibt es zwei verschiedene Aussagen: ihre und die des Dienstmädchens. Welcher würdest du vertrauen? Ich kann das noch nicht entscheiden. Dafür fehlt uns der Zusammenhang. Aber behalt diese Frage mal im Kopf, wenn wir jetzt in die Geschichte einsteigen: Wer war wann in diesem Haus, in dem zwei Menschen tot aufgefunden wurden?",
+   "seconds": 26.8,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "oben an der Treppe oder unten im Haus. Wo Lizzie Borden war, als Andrew nach Hause kam, darüber gibt es zwei verschiedene Aussagen. Ihre und die des Dienstmädchens. Welcher würdest du vertrauen? Ich kann das noch nicht entscheiden, dafür fehlt uns der Zusammenhang. Aber behalt diese Frage mal im Kopf, wenn wir jetzt in die Geschichte einsteigen. Wer war wann in diesem Haus, in dem zwei Menschen tot aufgefunden wurden?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "Bei dem Beilkopf würde ich gern kurz mit dir stehen bleiben. Der wirkt so greifbar. Und trotzdem ist er als Tatwaffe nicht nachgewiesen. Wenn du jetzt an die Berichte über Familienstreit und den umstrittenen Giftkauf denkst: Ergibt das für dich schon ein klares Bild? Ich merke, wie leicht ich diese Dinge gedanklich verbinde. Dabei bleibt bei jedem einzeln offen, was es tatsächlich mit den Morden zu tun hat.",
+   "seconds": 24.4,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0147,
+     "failures": [],
+     "heard_text": "Bei dem Ballkopf würde ich gern kurz mit dir stehen bleiben. Der wirkt so greifbar. Und trotzdem ist er als Tatwaffe nicht nachgewiesen. Wenn du jetzt an die Berichte über Familienstreit und den umstrittenen Giftkauf denkst, ergibt das für dich schon ein klares Bild? Ich merke, wie leicht ich diese Dinge gedanklich verbinde. Dabei bleibt bei jedem einzeln offen, was es tatsächlich mit den Morden zu tun hat."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "Den Jubel im Gerichtssaal kann ich verstehen. Für Lizzie ging es um ihr Leben. Aber erinnerst du dich an die verschlossenen Türen im Haus? Der Freispruch erklärt uns nicht, wie jemand dort zwei Menschen töten konnte, ohne gesehen zu werden. Diese Frage lässt mich nicht los. Und mit der gehen wir jetzt weiter: Was wissen wir über diesen Vormittag, wenn wir Lizzie nicht einfach als Täterin voraussetzen?",
+   "seconds": 23.6,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Den Jubel im Gerichtsaal kann ich verstehen. Für Lizzie ging es um ihr Leben. Aber erinnerst du dich an die verschlossenen Türen im Haus? Der Freispruch erklärt uns nicht, wie jemand dort zwei Menschen töten konnte, ohne gesehen zu werden. Diese Frage lässt mich nicht los. Und mit der gehen wir jetzt weiter. Was wissen wir über diesen Vormittag, wenn wir Lizzie nicht einfach als Täterin voraussetzen?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "Mich beschäftigt, wie wenig Platz Abby in dieser Geschichte bekommt. Über Lizzie gibt es einen Reim, ganze Filme. Bei Abby landen wir immer wieder in diesem Gästezimmer. Das ist wenig. Wenn du an sie denkst, hast du dann überhaupt ein Bild von ihr jenseits dieses Morgens? Ich habe kaum eins. Fast drei Jahrzehnte hat sie diesen Haushalt mitgetragen, und trotzdem erfahren wir so wenig über sie selbst. Wer sie und Andrew getötet hat, bleibt offen. Über ihr Leben hätte ich gern mehr gewusst.",
+   "seconds": 30.72,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Mich beschäftigt, wie wenig Platz Abby in dieser Geschichte bekommt. Über Lizzie gibt es einen Reim, ganze Filme. Bei Abby landen wir immer wieder in diesem Gästezimmer. Das ist wenig. Wenn du an sie denkst, hast du dann überhaupt ein Bild von ihr jenseits dieses Morgens? Ich habe kaum eins. Fast drei Jahrzehnte hat sie diesen Haushalt mitgetragen. Und trotzdem erfahren wir so wenig über sie selbst. Wer sie und Andrew getötet hat, bleibt offen. Über ihr Leben hätte ich gern mehr gewusst."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

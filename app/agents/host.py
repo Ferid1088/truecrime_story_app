@@ -1,39 +1,47 @@
 """The HostDirector agent: its model calls, prompts and output checks run here;
-the domain rules and storage helpers stay in app.documentary.host."""
+the domain rules and storage helpers stay in app.documentary.host (and host_planning,
+host_firewall, host_story)."""
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
 import json
+
 from sqlalchemy.orm import Session
+
+from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
-from app.db.models import Case, EditorialBlueprint, HostPlan, HostSegments, StoryVersion
-from app.providers.generation import get_generation_provider
-from app.services.tracking import stamp_run, track_run
+from app.core.prompts import prompt
+from app.db.models import (
+    Case, EditorialBlueprint, HostPlan, HostSegments, HostScene, StoryVersion,
+)
 from app.documentary.host import (
-    _dialogues,
-    _evidence_items,
     _memory_index,
     _pack,
     archive,
-    beat_texts,
     critic_input,
     critic_system_prompt,
-    critic_verdicts,
+    critic_verdict,
     dialogue_issues,
     director_input,
     director_system_prompt,
     estimate_seconds,
+    meaning_input,
+    meaning_problems,
     memories,
+    parse_writer,
     persona_prompt,
     persona_sha256,
     recent_segments,
     remember,
     segment_output,
-    validate_host_plan,
     writer_input,
     writer_system_prompt,
 )
+from app.documentary.host_firewall import reveal_issues
+from app.documentary.host_planning import story_seconds, validate_host_plan
+from app.documentary.host_story import HostStory, load_story
+from app.providers.generation import get_generation_provider
+from app.services.tracking import stamp_run, track_run
 
 
 class HostDirector:
@@ -42,64 +50,49 @@ class HostDirector:
         self.cfg = ai_config.host
 
     async def _json(self, db, case_id: int, label: str, role: str, system: str,
-                    payload: dict) -> tuple[dict, object]:
-        if persona_prompt(self.cfg) not in system:
+                    payload: dict, persona: bool = True) -> tuple[dict, object]:
+        """One model call. Every host prompt carries the persona, except the fact checker's,
+        which judges facts only."""
+        if persona and persona_prompt(self.cfg) not in system:
             raise RuntimeError(f"the host persona is missing from the {label} prompt")
         with track_run(db, case_id, label,
                        input_summary=f"{label} persona_sha256={persona_sha256(self.cfg)}") as run:
             raw, res = await run_agent(role, self.gen, json.dumps(payload, ensure_ascii=False), system=system)
-            stamp_run(run, res, role)
+            stamp_run(run, res, ai_config.agents[role].role)
         return raw, res
 
     @staticmethod
-    def _planned_slots(db: Session, master: StoryVersion) -> list[dict]:
-        """The story plan's host slots (Part 5a) this master was written to."""
-        from app.db.models import StoryPlan
-
-        plan = db.get(StoryPlan, master.story_plan_id) if master.story_plan_id else None
-        return (json.loads(plan.plan_json).get("host_slots") or []) if plan else []
+    def _story(db: Session, case: Case, version: StoryVersion,
+               bp_row: EditorialBlueprint | None) -> HostStory:
+        return load_story(db, case, version, _pack(db, case.id), bp_row)
 
     # -- 1. plan -------------------------------------------------------------
-    async def create_plan(self, db: Session, case: Case, bp_row: EditorialBlueprint,
+    async def create_plan(self, db: Session, case: Case, bp_row: EditorialBlueprint | None,
                           master: StoryVersion) -> HostPlan:
-        if bp_row.status == "invalid":
+        """The structure of the host's appearances, once for all languages. `bp_row` is the
+        story's blueprint, or None for a story written to a story plan."""
+        if bp_row is not None and bp_row.status == "invalid":
             raise RuntimeError("The blueprint is invalid; fix it before planning the host.")
-        blueprint = json.loads(bp_row.blueprint_json or "{}")
-        texts = beat_texts(master, blueprint)
-        pack = _pack(db, case.id)
-        arch, mem = archive(db, case.id), memories(db, case.id)
-        recent = recent_segments(db, case.id, None)
-        payload = director_input(case, blueprint, texts, pack, arch, mem, recent)
-        slots = self._planned_slots(db, master)
-        if slots:
-            payload["planned_host_slots"] = slots
-            payload["host_slot_rules"] = (
-                "Place the host where planned_host_slots say (an opening before the first beat, "
-                "mid appearances in the act named by after_beat; the final slot is off). To skip a "
-                "planned mid slot, add vetoes:[{\"slot\": \"H2\", \"reason\": \"why\"}]; a veto "
-                "needs a reason. The opening is the longest appearance; every mid is strictly shorter.")
-        evidence_ids = {e["id"] for e in payload["evidence"]}
-        refs = set(_memory_index(arch, mem))
-        narration_seconds = sum(len(t.split()) for t in texts.values()) / \
-            ai_config.documentary.wpm(master.language or "en") * 60
+        story = self._story(db, case, master, bp_row)
+        payload = director_input(story, story_seconds(story))
         system = director_system_prompt(self.cfg)
 
-        raw, res = await self._json(db, case.id, "Host Director", "host_director",
-                                    system, payload)
-        plan, report = validate_host_plan(raw, blueprint, evidence_ids, refs,
-                                          narration_seconds, self.cfg, slots=slots)
+        raw, res = await self._json(db, case.id, "Host Director", "host_director", system, payload)
+        plan, report = validate_host_plan(raw, story, self.cfg)
         repairs = 0
         while report["errors"] and repairs < self.cfg.max_repair_iterations:
             repairs += 1
             raw, res = await self._json(
                 db, case.id, f"Host Director repair {repairs}", "host_director", system,
                 {**payload, "previous_plan": raw, "errors_to_fix": report["errors"]})
-            plan, report = validate_host_plan(raw, blueprint, evidence_ids, refs,
-                                              narration_seconds, self.cfg, slots=slots)
+            plan, report = validate_host_plan(raw, story, self.cfg)
         report["repair_iterations"] = repairs
-        count = db.query(HostPlan).filter(HostPlan.blueprint_id == bp_row.id).count()
-        row = HostPlan(case_id=case.id, blueprint_id=bp_row.id, version=count + 1,
-                       status=report["status"],
+        query = db.query(HostPlan)
+        count = (query.filter(HostPlan.blueprint_id == bp_row.id).count() if bp_row is not None
+                 else query.filter(HostPlan.story_plan_id == master.story_plan_id).count())
+        row = HostPlan(case_id=case.id, blueprint_id=bp_row.id if bp_row is not None else None,
+                       story_plan_id=None if bp_row is not None else master.story_plan_id,
+                       version=count + 1, status=report["status"],
                        persona_file=self.cfg.persona_file, persona_sha256=persona_sha256(self.cfg),
                        plan_json=json.dumps(plan, ensure_ascii=False),
                        validation_json=json.dumps(report, ensure_ascii=False),
@@ -107,97 +100,65 @@ class HostDirector:
         db.add(row)
         db.commit()
         db.refresh(row)
-        if row.status != "invalid":
-            remember(db, case.id, row, plan.get("memory_updates") or [])
         return row
 
-    # -- real-length repair ----------------------------------------------------
-    async def shorten_scene(self, db: Session, scene, cap_seconds: float) -> None:
-        """The real voice of this appearance is over its cap: the writer
-        rewrites the dialogue shorter, same claims, native in its language,
-        and the scene (and its stored segment) takes the new text."""
-        from app.documentary.host_scenes import _sha
-
-        words = len(scene.text.split())
-        measured = scene.voice_seconds or cap_seconds
-        target = max(int(words * cap_seconds / measured * 0.92), 5)
-        payload = {"language": scene.language, "task": "shorten",
-                   "instruction": (f"This host dialogue speaks for {measured:.0f} s; the cap is "
-                                   f"{cap_seconds:.0f} s. Rewrite it with at most {target} words: "
-                                   "keep its claims, its evidence and its voice, drop the least "
-                                   "important sentences. Same language, spoken, no new facts."),
-                   "segments": [{"id": scene.host_segment_id, "dialogue": scene.text,
-                                 "target_words": target}]}
-        raw, _ = await self._json(db, scene.case_id, f"Host Writer {scene.language} shorten",
-                                  "host_writer", writer_system_prompt(scene.language, self.cfg),
-                                  payload)
-        text = _dialogues(raw).get(scene.host_segment_id, "").strip()
-        if not text or len(text.split()) >= words:
-            raise RuntimeError("the writer did not make the host dialogue shorter")
-        row = db.get(HostSegments, scene.host_segments_id)
-        segments = json.loads(row.segments_json or "[]")
-        for seg in segments:
-            if seg.get("id") == scene.host_segment_id:
-                seg["avatar_dialogue"] = text
-                seg["estimated_seconds"] = estimate_seconds(text, scene.language)
-        row.segments_json = json.dumps(segments, ensure_ascii=False)
-        scene.text, scene.text_sha256 = text, _sha(text)
-        db.commit()
-
     # -- 2.+3. dialogue per language ----------------------------------------
+    def _plan_story(self, db: Session, case: Case, version: StoryVersion,
+                    plan_row: HostPlan) -> HostStory:
+        bp_row = db.get(EditorialBlueprint, plan_row.blueprint_id) if plan_row.blueprint_id else None
+        return self._story(db, case, version, bp_row)
+
     async def write(self, db: Session, case: Case, version: StoryVersion,
                     plan_row: HostPlan) -> HostSegments:
+        """The host's dialogue in the version's language: one appearance after the other, in film
+        order, each from the story up to its own cutoff."""
         if plan_row.status == "invalid":
             raise RuntimeError("The host plan is invalid.")
         language = version.language or "en"
         plan = json.loads(plan_row.plan_json or "{}")
-        bp_row = db.get(EditorialBlueprint, plan_row.blueprint_id)
-        blueprint = json.loads(bp_row.blueprint_json or "{}")
-        beat_ids = [b["id"] for b in blueprint.get("beats") or []]
-        texts = beat_texts(version, blueprint)
-        pack_items = {e["id"]: e for e in _evidence_items(_pack(db, case.id))}
+        story = self._plan_story(db, case, version, plan_row)
         arch_mem = _memory_index(archive(db, case.id), memories(db, case.id))
         recent = recent_segments(db, case.id, language)
-        wi = writer_input(plan, texts, beat_ids, language, pack_items, arch_mem, recent,
-                          self.cfg)
-        by_id = {s["id"]: s for s in plan.get("segments") or []}
-        written: dict[str, str] = {}
+        written: dict[str, dict] = {}
         verdicts: dict[str, dict] = {}
-        res = None
-        if wi["segments"]:
-            raw, res = await self._json(db, case.id, f"Host Writer {language}", "host_writer",
-                                        writer_system_prompt(language, self.cfg), wi)
-            written = _dialogues(raw)
-            verdicts = await self._check(db, case.id, language, wi, written, recent, by_id,
-                                         set(by_id))
+        notes: list[dict] = []
         repairs = 0
-        while repairs < self.cfg.max_repair_iterations:
-            failing = [sid for sid, v in verdicts.items() if not v["pass"]]
-            if not failing:
-                break
-            repairs += 1
-            sub = {**wi, "segments": [
-                {**s, "previous_dialogue": written.get(s["id"], ""),
-                 "problems_to_fix": verdicts[s["id"]]["problems"]
-                 + verdicts[s["id"]]["deterministic"]}
-                for s in wi["segments"] if s["id"] in failing]}
-            raw, res = await self._json(db, case.id, f"Host Writer {language} repair {repairs}",
-                                        "host_writer", writer_system_prompt(language, self.cfg),
-                                        sub)
-            fixed = {k: v for k, v in _dialogues(raw).items() if k in failing and v.strip()}
-            if not fixed:
-                break
-            written.update(fixed)
-            verdicts.update(await self._check(db, case.id, language, wi, written, recent,
-                                              by_id, set(fixed)))
+        res = None
+        for seg in plan.get("segments") or []:
+            earlier = [w["dialogue"] for w in written.values() if w["dialogue"]]
+            wi = writer_input(story, seg, language, arch_mem, recent, earlier, self.cfg)
+            raw, res = await self._json(db, case.id, f"Host Writer {language} {seg['id']}",
+                                        self.cfg.writer_agents[language],
+                                        writer_system_prompt(language, self.cfg), wi)
+            current = parse_writer(raw)
+            verdict = await self._check(db, case.id, story, seg, wi, current, recent, earlier,
+                                        arch_mem)
+            tries = 0
+            while not verdict["pass"] and tries < self.cfg.max_writer_repairs:
+                tries += 1
+                repairs += 1
+                fix = {**wi, "previous_dialogue": current["dialogue"],
+                       "problems_to_fix": verdict["problems"] + verdict["deterministic"]}
+                raw, res = await self._json(
+                    db, case.id, f"Host Writer {language} {seg['id']} repair {tries}",
+                    self.cfg.writer_agents[language], writer_system_prompt(language, self.cfg), fix)
+                fixed = parse_writer(raw)
+                if not fixed["dialogue"]:
+                    break
+                current = fixed
+                verdict = await self._check(db, case.id, story, seg, wi, current, recent, earlier,
+                                            arch_mem)
+            written[seg["id"]], verdicts[seg["id"]] = current, verdict
+            if current["memory_note"] and verdict["pass"]:
+                notes.append({**current["memory_note"], "segment_id": seg["id"]})
 
-        segments = [segment_output(by_id[s["id"]], written.get(s["id"], ""), language,
-                                   blueprint, verdicts.get(s["id"]), arch_mem)
-                    for s in wi["segments"]]
+        segments = [segment_output(s, written[s["id"]], language, story, verdicts[s["id"]], arch_mem)
+                    for s in plan.get("segments") or []]
         failed = [s["segment_id"] for s in segments if not s["quality"]["pass"]]
         status = "needs_review" if failed else "valid"
         report = {"status": status, "failed_segments": failed, "repair_iterations": repairs,
                   "host_seconds": round(sum(s["estimated_seconds"] for s in segments), 1),
+                  "planned_seconds": round(sum(s["target_seconds"] for s in segments), 1),
                   "plan_status": plan_row.status}
         count = db.query(HostSegments).filter(
             HostSegments.story_version_id == version.id).count()
@@ -212,24 +173,94 @@ class HostDirector:
         db.add(row)
         db.commit()
         db.refresh(row)
+        if language == ai_config.language_pipeline.draft_language and notes:
+            remember(db, case.id, plan_row, notes)
         return row
 
-    async def _check(self, db, case_id: int, language: str, wi: dict, written: dict[str, str],
-                     recent: list[dict], by_id: dict[str, dict], ids: set[str]) -> dict[str, dict]:
-        out: dict[str, dict] = {}
-        for sid in ids:
-            others = [t for k, t in written.items() if k != sid]
-            out[sid] = {"deterministic": dialogue_issues(
-                by_id[sid], written.get(sid, ""), language, recent, others, self.cfg)}
-        sub = {**wi, "segments": [s for s in wi["segments"] if s["id"] in ids]}
-        raw, _ = await self._json(db, case_id, f"Host Critic {language}", "host_critic",
-                                  critic_system_prompt(language), critic_input(written, sub))
-        model = critic_verdicts(raw)
-        for sid in ids:
-            v = model.get(sid) or {"checks": {k: False for k in ("verified",)},
-                                   "problems": [{"check": "not_reviewed",
-                                                 "fix": "the critic returned no verdict"}],
-                                   "pass": False}
-            out[sid].update(checks=v["checks"], problems=v["problems"],
-                            **{"pass": v["pass"] and not out[sid]["deterministic"]})
-        return out
+    async def _check(self, db, case_id: int, story: HostStory, seg: dict, wi: dict, written: dict,
+                     recent: list[dict], earlier: list[str], arch_mem: dict[str, dict]) -> dict:
+        """Deterministic checks first; the critic judges only a dialogue that passed them."""
+        language = wi["language"]
+        dialogue = written["dialogue"]
+        ref = written["memory_used"]
+        memory_text = (arch_mem[ref].get("text") or arch_mem[ref].get("central_question") or ""
+                       if ref in arch_mem else "")
+        deterministic = dialogue_issues(seg, dialogue, language, recent, earlier, self.cfg)
+        deterministic += reveal_issues(story, seg["cutoff"], dialogue, memory_text, self.cfg)
+        if ref and ref not in arch_mem:
+            deterministic.append({"type": "unverified_memory", "ref": ref})
+        if deterministic:
+            return {"checks": {}, "problems": [], "deterministic": deterministic, "pass": False}
+        raw, _ = await self._json(db, case_id, f"Host Critic {language} {seg['id']}", "host_critic",
+                                  critic_system_prompt(language), critic_input(wi, dialogue))
+        verdict = critic_verdict(raw)
+        problems = list(verdict["problems"])
+        if language in self.cfg.meaning_check_languages:
+            raw, _ = await self._json(db, case_id, f"Host Meaning {language} {seg['id']}",
+                                      "host_meaning_checker", prompt("documentary/host/meaning_system"),
+                                      meaning_input(wi, dialogue), persona=False)
+            problems += meaning_problems(raw, seg["id"])
+        return {"checks": verdict["checks"], "problems": problems, "deterministic": [],
+                "pass": verdict["pass"] and len(problems) == len(verdict["problems"])}
+
+    # -- real-length repair ----------------------------------------------------
+    async def retime_scene(self, db: Session, scene: HostScene, target_seconds: float,
+                           avoid: list[str] = ()) -> None:
+        """The real voice of this appearance misses its planned seconds: the writer rewrites the
+        dialogue at the length the measured speaking rate needs, from the same cutoff input, and
+        the scene (and its stored segment) takes the new text. Bounded by the caller."""
+        from app.documentary.host_scenes import _sha
+
+        seg_row = db.get(HostSegments, scene.host_segments_id)
+        version = db.get(StoryVersion, seg_row.story_version_id)
+        plan_row = db.get(HostPlan, seg_row.host_plan_id)
+        case = db.get(Case, scene.case_id)
+        story = self._plan_story(db, case, version, plan_row)
+        plan = json.loads(plan_row.plan_json or "{}")
+        seg = next(s for s in plan["segments"] if s["id"] == scene.host_segment_id)
+        arch_mem = _memory_index(archive(db, case.id), memories(db, case.id))
+        recent = recent_segments(db, case.id, scene.language)
+        segments = json.loads(seg_row.segments_json or "[]")
+        earlier = [s["avatar_dialogue"] for s in segments
+                   if s["segment_id"] != scene.host_segment_id and s.get("avatar_dialogue")
+                   and s["cutoff"] <= seg["cutoff"]]
+        wi = writer_input(story, seg, scene.language, arch_mem, recent, earlier, self.cfg)
+        words = len(scene.text.split())
+        measured = scene.voice_seconds or estimate_seconds(scene.text, scene.language)
+        needed = max(int(round(words * target_seconds / measured)), 1)
+        problems = [{"check": "pronunciation", "quote": ", ".join(avoid),
+                     "fix": "The voice says these words wrongly even with vowel marks. Say the "
+                            "same thing with other words (a synonym or another phrasing); keep "
+                            "names as they are."}] if avoid else []
+        fix = {**wi, "previous_dialogue": scene.text, "problems_to_fix": problems + [{
+            "check": "length", "quote": "",
+            "fix": (f"This dialogue was spoken in {measured:.1f} s; the appearance must take "
+                    f"{target_seconds:.0f} s. Rewrite it with {int(needed * 0.96)} to {int(needed * 1.04) + 1} words: "
+                    f"{'cut the least important sentences' if needed < words else 'add one more thought from the acts you were given'}; "
+                    "keep its voice, its address and its claims, add no new facts.")}]}
+        text = ""
+        for attempt in range(1 + self.cfg.max_writer_repairs):
+            raw, _ = await self._json(
+                db, scene.case_id, f"Host Writer {scene.language} retime",
+                self.cfg.writer_agents[scene.language],
+                writer_system_prompt(scene.language, self.cfg), fix)
+            text = parse_writer(raw)["dialogue"]
+            if not text or text == scene.text:
+                raise RuntimeError("the writer did not change the host dialogue")
+            issues = [i for i in dialogue_issues(seg, text, scene.language, recent, earlier,
+                                                 self.cfg)
+                      if i["type"] not in ("too_short", "too_long")]
+            issues += reveal_issues(story, seg["cutoff"], text, cfg=self.cfg)
+            if not issues:
+                break
+            fix = {**fix, "previous_dialogue": text,
+                   "problems_to_fix": fix["problems_to_fix"][:len(problems) + 1] + issues}
+        else:
+            raise RuntimeError(f"the retimed host dialogue fails its checks: {issues[0]['type']}")
+        for entry in segments:
+            if entry["segment_id"] == scene.host_segment_id:
+                entry["avatar_dialogue"] = text
+                entry["estimated_seconds"] = estimate_seconds(text, scene.language)
+        seg_row.segments_json = json.dumps(segments, ensure_ascii=False)
+        scene.text, scene.text_sha256 = text, _sha(text)
+        db.commit()

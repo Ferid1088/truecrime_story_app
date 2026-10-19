@@ -382,8 +382,8 @@ shaping, OpenCV). Fonts (SIL OFL) ship in `app/documentary/assets/fonts`.
 Maps use OpenStreetMap tiles and Nominatim by default (credited on
 screen, cached in `data/map_cache`); switch `maps.tile_url` /
 `maps.geocoder_url` to a commercial provider for heavy or published
-use. All four narrators use ElevenLabs `eleven_v3` with `language_code`
-(v3 has no request stitching) and Persian uses a larger Whisper model for
+use. All four narrators use ElevenLabs `eleven_v4` with `language_code`
+(request stitching stays off for v4 until it is verified) and Persian uses a larger Whisper model for
 the speech check (`asr_check.languages.fa`).
 
 ### Case lifecycle: selection, status, monitor, follow-ups

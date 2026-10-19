@@ -656,7 +656,7 @@ def install_phase5(monkeypatch):
                 "visual": (ai_config.visual_search, "max_candidates_per_query", 1),
                 "voice": (ai_config.voice, "between_blocks_ms", 1),
                 "audio": (ai_config.audio_direction, "music_lead_seconds", 0.01),
-                "host": (ai_config.host, "pace_factor", 0.01),
+                "host": (ai_config.host, "word_tolerance", 0.01),
                 "music": (ai_config.music_library, "prompt_influence", 0.01),
             }
             obj, field, delta = targets[section]

@@ -6,7 +6,7 @@ const settings = {
   film_minutes: { min: 45, max: 120 },
   pilot_seconds: 120,
   voices: Object.fromEntries(["en", "de", "fa", "ar"].map((language) => [language, {
-    voice_id: `voice-${language}`, model_id: "eleven_v3", language_code: language, audio_tags: true,
+    voice_id: `voice-${language}`, model_id: "eleven_v4", language_code: language, audio_tags: true,
   }])),
   pronunciation_check: { enabled: false, languages: [], max_rounds: 1 },
   voice_performance: { enabled: true, level_tags: {}, level_styles: {} },

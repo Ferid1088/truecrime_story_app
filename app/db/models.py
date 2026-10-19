@@ -1557,7 +1557,7 @@ class ShortFormMetric(Base):
 class VoicePerformance(Base):
     """How the narrator performs one spoken version: the tension arc
     (levels 0–3 per beat and sentence) and per sentence the text sent to
-    the voice — with ElevenLabs v3 audio tags and timing punctuation —
+    the voice — with ElevenLabs v4 audio tags and timing punctuation —
     next to the plain speech and its display text (subtitles)."""
 
     __tablename__ = "voice_performances"
@@ -1885,8 +1885,13 @@ class HostPlan(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
-    blueprint_id: Mapped[int] = mapped_column(
-        ForeignKey("editorial_blueprints.id"), index=True
+    # A story with an editorial blueprint is planned against the blueprint; a story written to a
+    # story plan against that plan (then there is no blueprint).
+    blueprint_id: Mapped[int | None] = mapped_column(
+        ForeignKey("editorial_blueprints.id"), index=True, nullable=True
+    )
+    story_plan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("story_plans.id"), index=True, nullable=True
     )
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(20), default="invalid", index=True)
@@ -1986,6 +1991,9 @@ class HostScene(Base):
     voice_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     voice_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     voice_meta_json: Mapped[str] = mapped_column(Text, default="{}")
+    # What the checks of the voice found: Whisper, the pronunciation listening, the fixes tried and
+    # the flags a person has to look at.
+    voice_checks_json: Mapped[str] = mapped_column(Text, default="{}")
     # avatar steps
     avatar_provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
     avatar_id: Mapped[str | None] = mapped_column(String(100), nullable=True)   # look used

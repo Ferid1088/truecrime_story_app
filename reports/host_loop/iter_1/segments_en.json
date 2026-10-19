@@ -1,0 +1,216 @@
+{
+ "id": 25,
+ "status": "needs_review",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the story begins and gives the viewer a question to carry into the first act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; curious opening, brief pause after the two accounts, then a quieter admission of uncertainty.",
+   "avatar_dialogue": "Upstairs or downstairs? Where would you place Lizzie Borden when Andrew came home? The maid said she was at the top of the stairs. Lizzie said she was downstairs. I keep trying to picture that moment, and I can't make those accounts fit together. Maybe you find one easier to believe already. I'm hesitating. What would help you choose between them? That's the question I'd carry into this story. For now, hold both accounts in your mind.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 28.5,
+   "transition_back": "The question of how to assess the conflicting accounts carries through the logo into the opening narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Follows the first major investigative turn, allowing a brief pause before the story shifts from the initial reconstruction toward the subject's account.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; thoughtful, with a brief pause after the question",
+   "avatar_dialogue": "That hatchet bothers me because I can so easily picture it as the weapon. Can you? A broken handle, a dusty cellar—it almost supplies its own story. But the officers couldn't even agree that the break was fresh. And after hearing those disputed accounts of family hostility, you might already be looking for something that makes them fit. I have to catch myself there. One uncertain claim can't settle another.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 25.9,
+   "transition_back": "Return to the questioning of the survivors with attention on what can actually support an account.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "viewer_question",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Creates a compact questioning beat after the most consequential pretrial development and carries tension through the legal proceedings without standing immediately before the payoff.",
+   "personality_dimension": [
+    "questioning_assumptions",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; restrained concern, with a slight pause before the question.",
+   "avatar_dialogue": "You’ve heard how the attacks left blood across the house, yet witnesses saw no blood on Lizzie’s clothes after she raised the alarm. Then a dress went into the stove. She said paint; Alice saw it burn. Can you keep both explanations in view as you hear Lizzie questioned under oath?",
+   "target_duration": 16.8,
+   "target_seconds": 16.8,
+   "estimated_seconds": 18.9,
+   "transition_back": "Returns to the narration as Lizzie is questioned under oath.",
+   "quality": {
+    "pass": false,
+    "checks": {},
+    "problems": [],
+    "deterministic": [
+     {
+      "type": "no_short_sentences",
+      "shortest": 7,
+      "fix": "Add a very short sentence or two (a few words) between longer ones, the way people talk."
+     }
+    ]
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Marks the shift from the legal resolution to the later growth of the public story, giving the final act room to examine what endured beyond the trial.",
+   "personality_dimension": [
+    "respect_for_due_process",
+    "sensitivity_to_victims_and_families"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; brief pause after I did; quieter toward the end",
+   "avatar_dialogue": "Did you feel some relief when she walked out? I did. The state hadn't proved its case. Then my mind went back to Andrew and Abby, and that long gap between their deaths. You can accept the jury's decision and still want an answer about what happened inside that house. I find that a difficult place to leave them.",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 21.9,
+   "transition_back": "Return to the narrative with the verdict accepted and the unanswered killings still in mind.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S5",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes on the remaining uncertainty and gives the viewer a final question without summarizing the case or adding a moral.",
+   "personality_dimension": [
+    "questioning_assumptions",
+    "sensitivity_to_victims_and_families"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and reflective, with a restrained pause before the final question.",
+   "avatar_dialogue": "A rhyme can outlive the evidence. You’ve heard how this one turned suspicion into a certainty, even though the jury acquitted Lizzie and no one else was charged. But an acquittal doesn’t tell us who killed Andrew and Abby. And a story repeated for generations doesn’t make its accusation true. I keep coming back to Abby, almost lost beneath the trial and the legend. She went upstairs to make a bed, and never came down. You’re left with the same question the record can’t answer: who followed her up those stairs?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 33.7,
+   "transition_back": "Ends on the unanswered question of who entered the guest room.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "needs_review",
+  "failed_segments": [
+   "S3"
+  ],
+  "repair_iterations": 5,
+  "host_seconds": 128.9,
+  "planned_seconds": 126.0,
+  "plan_status": "valid"
+ }
+}

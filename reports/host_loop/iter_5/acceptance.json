@@ -1,0 +1,108 @@
+{
+ "fa": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0276,
+  "host_flags": {
+   "S1": [],
+   "S2": [],
+   "S3": [],
+   "S4": []
+  },
+  "story_flags": [
+   [
+    "pronunciation_unresolved:سکاند"
+   ],
+   [],
+   []
+  ]
+ },
+ "ar": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.1237,
+  "host_flags": {
+   "S3": [],
+   "S1": [],
+   "S2": [
+    "pronunciation_unresolved:الجريمتين"
+   ],
+   "S4": []
+  },
+  "story_flags": [
+   [
+    "pronunciation_unresolved:سوليفان"
+   ],
+   [
+    "pronunciation_unresolved:العلوي"
+   ],
+   []
+  ]
+ },
+ "en": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0718,
+  "host_flags": {
+   "S2": [],
+   "S4": [],
+   "S1": [],
+   "S3": []
+  }
+ },
+ "de": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0694,
+  "host_flags": {
+   "S1": [],
+   "S2": [],
+   "S3": [],
+   "S4": []
+  }
+ }
+}

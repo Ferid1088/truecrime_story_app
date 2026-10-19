@@ -69,15 +69,15 @@
     }
   },
   "tts": {
-    "eleven_v3": {
-      "provider_model": "eleven_v3",
+    "eleven_v4": {
+      "provider_model": "eleven_v4",
       "usd_per_1k_characters": 0.08,
       "eur_per_1m_characters": 71.504,
       "currency": "EUR",
       "derived_currency": "EUR",
       "source_url": "https://elevenlabs.io/pricing/api",
-      "plan_or_tier": "ElevenAPI pay-as-you-go, Text to Speech v3; $0.08 per 1,000 characters",
-      "last_verified": "2026-10-13",
+      "plan_or_tier": "ElevenAPI pay-as-you-go, Text to Speech Eleven v4; $0.08 per 1,000 characters",
+      "last_verified": "2026-10-19",
       "verification_status": "verified"
     }
   },

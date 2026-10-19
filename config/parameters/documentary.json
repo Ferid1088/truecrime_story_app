@@ -62,29 +62,194 @@
   },
   "host": {
     "enabled": true,
-    "max_mid_segments": 2,
-    "max_total_share": 0.08,
+    "time_accounting": "added",
+    "min_appearances": 2,
+    "max_appearances": 5,
+    "min_acts_between": 1,
+    "min_gap_seconds": 240,
+    "roles": {
+      "opening": {
+        "position": "opening",
+        "base_seconds": 40,
+        "min_seconds": 25,
+        "max_seconds": 75,
+        "requires_question": true
+      },
+      "transition": {
+        "position": "mid",
+        "base_seconds": 18,
+        "min_seconds": 10,
+        "max_seconds": 35
+      },
+      "reflection": {
+        "position": "mid",
+        "base_seconds": 26,
+        "min_seconds": 15,
+        "max_seconds": 45
+      },
+      "viewer_question": {
+        "position": "mid",
+        "base_seconds": 16,
+        "min_seconds": 8,
+        "max_seconds": 30,
+        "requires_question": true
+      },
+      "outro": {
+        "position": "final",
+        "base_seconds": 28,
+        "min_seconds": 15,
+        "max_seconds": 50
+      }
+    },
+    "act_weight_gain": 0.5,
+    "position_gain": 0.3,
+    "max_appearance_seconds": 90,
     "max_total_seconds": 240,
-    "min_beats_between": 3,
-    "pace_factor": 1.08,
+    "max_total_share": 0.08,
+    "final_enabled": true,
+    "words_per_minute": {
+      "en": 162,
+      "de": 151,
+      "fa": 146,
+      "ar": 140
+    },
+    "word_tolerance": 0.2,
+    "duration_tolerance": 0.1,
     "voice_style": "host_conversational",
     "max_repair_iterations": 2,
-    "max_appearance_seconds": 120,
-    "final_enabled": false,
-    "seconds": {
-      "opening": [
-        30,
-        120
-      ],
-      "mid": [
-        8,
-        60
-      ],
-      "final": [
-        10,
-        45
-      ]
-    }
+    "opening_max_first_sentence_words": 16,
+    "language_rules": {
+      "en": {
+        "address_patterns": [
+          "\\byou(?:'re|'ve|'ll|'d)?\\b",
+          "\\byour(?:s|self)?\\b"
+        ],
+        "formal_patterns": [],
+        "greeting_patterns": [
+          "^\\s*(?:hi|hello|hey|welcome|greetings|good (?:evening|morning|day))\\b"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "\\bwhat do you think\\b",
+          "\\bwhat would you do\\b",
+          "\\bi noticed\\b",
+          "\\bstay tuned\\b",
+          "\\bshocking\\b",
+          "\\bcase id\\b",
+          "\\bwelcome back\\b",
+          "\\bin this (?:video|episode)\\b",
+          "\\blet'?s dive in\\b",
+          "\\bbuckle up\\b",
+          "\\bviewers?\\b"
+        ]
+      },
+      "de": {
+        "address_patterns": [
+          "\\b(?:du|dir|dich|dein\\w*|ihr|euch|eure?\\w*)\\b"
+        ],
+        "formal_patterns": [
+          "\\bIhnen\\b",
+          "(?<=[a-zäöüß,;]\\s)Sie\\b",
+          "(?<=[a-zäöüß,;]\\s)Ihre[mnrs]?\\b"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:hallo|hi|hey|willkommen|guten (?:abend|morgen|tag)|liebe[rn]?)\\b"
+        ],
+        "question_marks": [
+          "?"
+        ],
+        "stock_phrases": [
+          "\\bwas denken sie\\b",
+          "\\bwas denkst du\\b",
+          "\\bwas würden sie tun\\b",
+          "\\bwas würdest du tun\\b",
+          "\\bmir ist aufgefallen\\b",
+          "\\bschockierend\\b",
+          "\\bliebe zuschauer\\b",
+          "\\bin diesem video\\b",
+          "\\bbleibt dran\\b"
+        ]
+      },
+      "fa": {
+        "address_patterns": [
+          "(?<!\\w)(?:تو|بهت|برات|ازت|باهات|خودت|ببین|بذار|می‌دونی|میدونی|دیدی|تصور کن|فکر کن|حدس بزن|یادت)(?!\\w)"
+        ],
+        "formal_patterns": [
+          "(?<!\\w)(?:شما|می‌دانید|می‌بینید|ببینید|تصور کنید|فکر کنید|توجه کنید|می‌فرمایید)(?!\\w)"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:سلام|درود|خوش[ ‌]?آمدید|بینندگان)"
+        ],
+        "question_marks": [
+          "؟",
+          "?"
+        ],
+        "stock_phrases": [
+          "نظر شما چیست",
+          "شما چه فکر می‌کنید",
+          "شما چه می‌کردید",
+          "متوجه شدم",
+          "تکان‌دهنده",
+          "ماجرا به همین جا ختم نشد",
+          "آرامش قبل از طوفان",
+          "سکوت مرگبار",
+          "آنچه بعد رخ داد",
+          "شگفت‌زده خواهید شد",
+          "بینندگان عزیز",
+          "در این ویدیو"
+        ]
+      },
+      "ar": {
+        "address_patterns": [
+          "(?<!\\w)(?:أنت|أنتَ|أنتِ|تخيّل|تخيل|انتبه|فكّر|فكر|خذ|تعال|انظر|تذكّر|تقدر|تعرف|تتذكر|تعتبر|تشعر|تفهم|ترى|تظن|تحب|تريد|هل تعرف|هل تتذكر)(?!\\w)",
+          "(?<!\\w)(?:أمام|مع|عند|إلى|على|عن|من|في)ك(?!\\w)"
+        ],
+        "formal_patterns": [
+          "(?<!\\w)(?:أنتم|حضراتكم|مشاهدينا|سادتي|سيداتي|تخيلوا|فكروا|انتبهوا)(?!\\w)"
+        ],
+        "greeting_patterns": [
+          "^\\s*(?:مرحبا|مرحباً|أهلا|أهلاً|السلام عليكم|مساء الخير|صباح الخير)"
+        ],
+        "question_marks": [
+          "؟",
+          "?"
+        ],
+        "stock_phrases": [
+          "ما رأيكم",
+          "ماذا تعتقدون",
+          "ماذا كنتم ستفعلون",
+          "لاحظت",
+          "صادم",
+          "مشاهدينا الكرام",
+          "في هذا الفيديو"
+        ]
+      }
+    },
+    "payoff_min_resolved_loops": 2,
+    "max_facts": 80,
+    "writer_agents": {
+      "en": "host_writer",
+      "de": "host_writer",
+      "fa": "host_writer_fa_ar",
+      "ar": "host_writer_fa_ar"
+    },
+    "spoiler_name_case_languages": [
+      "en"
+    ],
+    "max_retime_attempts": 3,
+    "meaning_check_languages": [
+      "fa",
+      "ar"
+    ],
+    "spoken": {
+      "min_sentences": 4,
+      "short_sentence_words": 6,
+      "min_short_sentences": 1,
+      "min_length_variation": 0.3
+    },
+    "max_writer_repairs": 3
   },
   "studio": {
     "registry_path": "config/studio_registry.json",

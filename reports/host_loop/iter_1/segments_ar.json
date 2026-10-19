@@ -1,0 +1,224 @@
+{
+ "id": 24,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the story begins and gives the viewer a question to carry into the first act.",
+   "personality_dimension": [
+    "curiosity",
+    "holding_two_explanations"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct, warm, and curious; conversational pace with a brief pause before asking whether the viewer can keep both possibilities open.",
+   "avatar_dialogue": "أين كانت ليزي: أعلى الدرج أم في الأسفل؟ قد تقول لي: وما الفرق؟ لكن تخيّل أنك تحاول فهم ما جرى داخل بيت فيه قتيلان، ولا تعرف حتى أين تضع شخصًا في المشهد. هل تبدأ من كلام الخادمة، أم من كلام ليزي عن مكانها؟ أنا لا أعرف أيّ الروايتين أرجّح. وأنت، هل تقدر تترك الاحتمالين مفتوحين، من غير ما تختار واحدًا الآن؟ خلّينا ندخل الحكاية من هنا.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 28.3,
+   "transition_back": "The final invitation leads into the logo and then the narrative, leaving the conflicting accounts unresolved.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Follows the first major investigative turn, allowing a brief pause before the story shifts from the initial reconstruction toward the subject's account.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; thoughtful hesitation before the question, with a slightly quicker pace afterward.",
+   "avatar_dialogue": "أنت أمام بلطة مشتبه بها، لكن ما يربطها بالقتل بقي غير مثبت. وهذا يخلّيني أتردد. من أول الحكاية، نسمع روايات تختلف، حتى على مكان ليزي. هل تأخذ الرواية وزنًا أكبر عندك لأن الأداة ما أعطتنا جوابًا؟ أنا أخاف أن أملأ هذا الفراغ بكلام يبدو مقنعًا. وحتى غياب الدم عن ملابسها، يصعب عليّ الاطمئنان إليه تمامًا بعدما سمعنا أن التفتيش لم يشمل كل شيء.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 27.0,
+   "transition_back": "Returns to the surviving accounts with a question about how much weight they can bear when physical evidence remains inconclusive.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "viewer_question",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Creates a compact questioning beat after the most consequential pretrial development and carries tension through the legal proceedings without standing immediately before the payoff.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "holding_two_explanations"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; acknowledge the suspicion naturally, then pause briefly before the question.",
+   "avatar_dialogue": "أفهم لو حكاية الفستان زادت شكّك بليزي. أنا أيضًا يصعب عليّ تجاوز توقيت التخلص منه. لكن بعد الثغرات في تفتيش البيت، عندي سؤال لك: هل تعتبر اختفاء شيء لم يُفحص دليلًا ضدها، أم تبقي احتمال أنه مجرد فستان متسخ مفتوحًا؟",
+   "target_duration": 16.8,
+   "target_seconds": 16.8,
+   "estimated_seconds": 17.1,
+   "transition_back": "Leave the question unanswered as the narrative returns to the scrutiny of Lizzie's account.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Marks the shift from the legal resolution to the later growth of the public story, giving the final act room to examine what endured beyond the trial.",
+   "personality_dimension": [
+    "intellectual_humility",
+    "respect_for_due_process"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; measured pace; a brief pause before the final question",
+   "avatar_dialogue": "بعد كل هذا، يصعب عليّ أن أتعامل مع المحاكمة كأنها اختبار لشخصية ليزي. أمامك شهادات متعارضة، وثوب لم يُحسم أمره، وأقوال استُبعدت قبل أن تصل إلى هيئة المحلفين. هذا لا يثبت براءتها، ولا يثبت ذنبها. لكنه يذكّرك بشيء مهم: ما يبدو واضحًا خارج المحكمة قد يضيق كثيرًا داخلها. والسؤال الآن: ماذا بقي فعلًا؟",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 22.7,
+   "transition_back": "Hands back to the narrative by turning from the broad suspicion surrounding the case to the narrower evidence that remained admissible in court.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S5",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes on the remaining uncertainty and gives the viewer a final question without summarizing the case or adding a moral.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "emotional_honesty"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; reflective, with a brief pause after the question and the shortest sentence",
+   "avatar_dialogue": "أكثر ما بقي معي هو كثرة الكلام عن علاقة آبي بغيرها، وقلّة ما نعرفه عنها هي. وأنت، حين تتذكر الحكاية، هل تحضر في بالك امرأة عاشت في هذا البيت، أم فقط زوجة أب في قضية ليزي؟ أنا أرجع إلى هذا الفرق. أفتقد صوتها. حتى اسمها يصلنا غالبًا وسط كلام عن غيرها. أتمنى لو نسمع منها شيئًا، بكلماتها هي. لكن هذا ما ينقصنا، مثلما ينقصنا اسم من قتلها وقتل أندرو.",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 29.6,
+   "transition_back": "No return to narration; leave a quiet beat before the end credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 124.7,
+  "planned_seconds": 126.0,
+  "plan_status": "valid"
+ }
+}

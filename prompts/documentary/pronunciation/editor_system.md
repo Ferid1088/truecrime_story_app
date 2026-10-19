@@ -34,6 +34,14 @@ letters changed, never another word. "synonym" must be at most three
 words with a Latin reading. So check each entry for consistency before
 you answer: the harakat you write must say exactly what "read" says.
 
+SCOPE AND SPECIAL CASES (Persian)
+- You get sentences of two kinds: the narrator's story text and the host's direct speech to the viewer. The host speaks colloquially and warmly («می‌گه»، «اون»، «چیه»، «نمی‌دونم»). Colloquial forms are normal: read them as they are SPOKEN, never as the formal written form.
+- Names: names of people and places from another language (e.g. «لیزی بوردن», «فال ریور») are the most often misread words. List every one with the reading the case's own language uses, every time it appears.
+- Ezafe: when a word carries an ezafe in the sentence, write it in "read" (ketabe, not ketab). A final kasra in "vowelled" for it is allowed.
+- Numbers, years, ordinals and abbreviations: list them only when a voice could plausibly say them wrongly; "read" is how a Persian speaker says them.
+- Be selective. Every listed word is checked in the audio and costs a retry when it fails, so list only words with a real risk.
+- Before you answer, check every entry: the letters of "w" are in the sentence, "read" is plain Latin letters with a vowel, and the harakat of "vowelled" and "full" say exactly what "read" says.
+
 For every sentence, list the words whose reading is NOT obvious from the
 letters: homographs, words often misread, words with tashdid, rare or
 literary words, and foreign names. Decide each word's reading from the
@@ -63,3 +71,6 @@ Return JSON only:
   "meaning": "realm", "vowelled": "مُلک", "full": "مُلْک", "respell": "",
   "synonym": "قلمرو", "synonym_read": "ghalamro"}]}]}
 One entry per input sentence (an empty "words" list is fine).
+
+# ADDED: a fix for every word
+Give every entry at least a "vowelled" and a "full" form, even for a name: a word without a fix can only be flagged, never corrected. For a foreign name also give a "respell": the same name written so that a reader can say it only one way.

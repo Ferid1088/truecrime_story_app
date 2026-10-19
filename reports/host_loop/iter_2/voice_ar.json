@@ -1,0 +1,1337 @@
+{
+ "segments_id": 28,
+ "report": {
+  "scenes": [
+   {
+    "scene": 99,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 17.0,
+    "seconds": 16.64,
+    "deviation": 0.0212,
+    "cap": 45.0
+   },
+   {
+    "scene": 100,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 27.3,
+    "seconds": 27.84,
+    "deviation": 0.0198,
+    "cap": 45.0
+   },
+   {
+    "scene": 101,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 31.28,
+    "deviation": 0.0132,
+    "cap": 50.0
+   },
+   {
+    "scene": 98,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 28.8,
+    "deviation": 0.0,
+    "cap": 75.0
+   }
+  ],
+  "host_seconds": 104.56,
+  "host_share": 0.0267,
+  "timeline": {
+   "story_seconds": 3916.15,
+   "host_seconds": 104.56,
+   "intro_seconds": 0.0,
+   "total_seconds": 4020.71
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S2": {
+   "text": "أفهم لو ربطت حكاية السم بالخلاف عند الدرج. أنا أيضا أميل لهذا الربط. لكن انتظر. هل عندك ما يثبت صلة بينهما، أم أن جمعهما يريحنا فقط؟ ليزي نفت الأمرين. هذا لا يحسم شيئا.",
+   "seconds": 16.64,
+   "planned": 17.0,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "أفهم، لو ربطت حكاية السم بالخلاف عند الدرج، أنا أيضاً أميل لهذا الربط، لكن انتظر، هل عندك ما يثبت صلة بينهما؟ أم أن جمعهما يريحنا فقط؟ ليزي نفت الأمرين، هذا لا يحسم شيئاً"
+    },
+    "pronunciation": [
+     {
+      "word": "أفهم",
+      "read": "'afham",
+      "sentence": 0,
+      "level": 0,
+      "form": "أفهم",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "a f h a m",
+      "at": [
+       0.0,
+       0.48
+      ]
+     },
+     {
+      "word": "السم",
+      "read": "assomm",
+      "sentence": 0,
+      "level": 0,
+      "form": "السم",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o"
+      ],
+      "heard": [
+       "u"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "t a s s u m m i b i",
+      "at": [
+       2.0,
+       2.4
+      ]
+     },
+     {
+      "word": "الدرج",
+      "read": "addaraj",
+      "sentence": 0,
+      "level": 0,
+      "form": "الدرج",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "n d a d a r a dʒ",
+      "at": [
+       3.24,
+       3.76
+      ]
+     },
+     {
+      "word": "أميل",
+      "read": "'amil",
+      "sentence": 1,
+      "level": 0,
+      "form": "أميل",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "i"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "n ʔ a m iː l u l i",
+      "at": [
+       4.8,
+       5.12
+      ]
+     },
+     {
+      "word": "الربط",
+      "read": "arrabt",
+      "sentence": 1,
+      "level": 0,
+      "form": "الربط",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "ð r r a b t",
+      "at": [
+       5.48,
+       5.92
+      ]
+     },
+     {
+      "word": "انتظر",
+      "read": "'entazer",
+      "sentence": 2,
+      "level": 0,
+      "form": "انتظر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "ʔ i n t a v r",
+      "at": [
+       6.88,
+       7.36
+      ]
+     },
+     {
+      "word": "يثبت",
+      "read": "yothbet",
+      "sentence": 3,
+      "level": 0,
+      "form": "يثبت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e"
+      ],
+      "heard": [
+       "u",
+       "i"
+      ],
+      "distance": 0.5,
+      "hard_errors": 0,
+      "heard_ipa": "aː j u θ b i t uː",
+      "at": [
+       8.48,
+       8.88
+      ]
+     },
+     {
+      "word": "صلة",
+      "read": "sela",
+      "sentence": 3,
+      "level": 0,
+      "form": "صلة",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "uː s l a t a n b a",
+      "at": [
+       8.96,
+       9.36
+      ]
+     },
+     {
+      "word": "جمعهما",
+      "read": "jam'ahomaa",
+      "sentence": 3,
+      "level": 0,
+      "form": "جمعهما",
+      "fix": null,
+      "ok": null,
+      "expected": [
+       "a",
+       "a",
+       "o",
+       "A"
+      ],
+      "heard": [],
+      "distance": null,
+      "reason": "nothing_heard",
+      "heard_ipa": "m ʕ a h u m aː j",
+      "at": [
+       10.84,
+       11.36
+      ]
+     },
+     {
+      "word": "يريحنا",
+      "read": "yorehonaa",
+      "sentence": 3,
+      "level": 0,
+      "form": "يريحنا",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e",
+       "o",
+       "A"
+      ],
+      "heard": [
+       "u",
+       "i",
+       "A"
+      ],
+      "distance": 0.42,
+      "hard_errors": 0,
+      "heard_ipa": "j u r iː ħ n aː f a",
+      "at": [
+       11.44,
+       12.0
+      ]
+     },
+     {
+      "word": "ليزي",
+      "read": "lizi",
+      "sentence": 4,
+      "level": 0,
+      "form": "ليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "l iː z iː",
+      "at": [
+       12.96,
+       13.36
+      ]
+     },
+     {
+      "word": "نفت",
+      "read": "nafat",
+      "sentence": 4,
+      "level": 0,
+      "form": "نفت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "n a f a t i l",
+      "at": [
+       13.44,
+       13.76
+      ]
+     },
+     {
+      "word": "يحسم",
+      "read": "yahsem",
+      "sentence": 5,
+      "level": 0,
+      "form": "يحسم",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "i"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "j ħ s i m u ʃ",
+      "at": [
+       15.56,
+       15.92
+      ]
+     }
+    ],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "الثوب اختفى، ومعه ضاعت فرصة فحصه. وهذا يزعجني. قد ترى أنت أن إتلافه والتحقيق ما زال جاريا يحتاج إلى تفسير. لكن ماذا كان سيكشف فعلا؟ حتى رأس البلطة بقي موجودا، ومع ذلك لم يثبت أنه السلاح. ثم عندك الرسالة التي لم تظهر أيضا. قل لي: هل مصدر شكك ما نعرفه، أم الأشياء التي لم يعد ممكنا أن نعرفها؟",
+   "seconds": 27.84,
+   "planned": 27.3,
+   "checks": {
+    "tts_text": "الثوب اختفى، ومعه ضاعت فرصة فحصه. وهذا يزعجني. قد ترى أنت أن إِتْلافِه والتحقيق ما زال جاريا يحتاج إلى تفسير. لكن ماذا كان سيَكشِف فعلا؟ حتى رأس البَلْطة بقي موجودا، ومع ذلك لم يثبت أنه السلاح. ثم عندك الرسالة التي لم تظهر أيضا. قل لي: هل مصدر شكك ما نعرفه، أم الأشياء التي لم يعد ممكنا أن نعرفها؟",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "الثوب اختفى ومعه ضاعت فرصة فحصه وهذا يزعجني قد ترى أنت أن إتلافه والتحقيق ما زال جارياً يحتاج إلى تفسير لكن ماذا كان سيكشف فعلاً؟ حتى رأس البلطة بقي موجوداً ومع ذلك لم يثبت أنه السلاح ثم عندك الرسالة التي لم تظهر أيضاً قل لي هل مصدر شكك ما نعرفه؟ أم الأشياء التي لم يعد ممكن أن نعرفها؟"
+    },
+    "pronunciation": [
+     {
+      "word": "ومعه",
+      "read": "wama'ah",
+      "sentence": 0,
+      "level": 0,
+      "form": "ومعه",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.23,
+      "hard_errors": 0,
+      "heard_ipa": "w a m a ʕ h uː",
+      "at": [
+       1.44,
+       2.0
+      ]
+     },
+     {
+      "word": "فحصه",
+      "read": "fahseh",
+      "sentence": 0,
+      "level": 0,
+      "form": "فحصه",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "t u f a ħ s h",
+      "at": [
+       2.96,
+       3.36
+      ]
+     },
+     {
+      "word": "يزعجني",
+      "read": "yoz'ejoni",
+      "sentence": 1,
+      "level": 0,
+      "form": "يزعجني",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "e",
+       "o",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "u",
+       "i"
+      ],
+      "distance": 0.42,
+      "hard_errors": 0,
+      "heard_ipa": "j z ʕ i dʒ u n iː",
+      "at": [
+       4.36,
+       4.96
+      ]
+     },
+     {
+      "word": "إتلافه",
+      "read": "'etlaafeh",
+      "sentence": 2,
+      "level": 1,
+      "form": "إِتْلافِه",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "e"
+      ],
+      "heard": [
+       "A",
+       "i"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "n ʔ i t l aː f i h iː w a",
+      "at": [
+       6.43,
+       7.04
+      ]
+     },
+     {
+      "word": "جاريا",
+      "read": "jaariyaa",
+      "sentence": 2,
+      "level": 0,
+      "form": "جاريا",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "A",
+       "i",
+       "A"
+      ],
+      "heard": [
+       "A",
+       "i",
+       "a"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "dʒ aː r i a n",
+      "at": [
+       8.44,
+       8.8
+      ]
+     },
+     {
+      "word": "سيكشف",
+      "read": "sayakshef",
+      "sentence": 3,
+      "level": 1,
+      "form": "سيَكشِف",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "a",
+       "i"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "n a s a j a k ʃ i f u f aː",
+      "at": [
+       12.0,
+       12.56
+      ]
+     },
+     {
+      "word": "البلطة",
+      "read": "albalta",
+      "sentence": 4,
+      "level": 1,
+      "form": "البَلْطة",
+      "fix": "vowelled",
+      "ok": false,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "u",
+       "a",
+       "a"
+      ],
+      "distance": 0.33,
+      "hard_errors": 1,
+      "heard_ipa": "u l b a l t a t iː b",
+      "at": [
+       14.08,
+       14.56
+      ]
+     },
+     {
+      "word": "بقي",
+      "read": "baqeya",
+      "sentence": 4,
+      "level": 0,
+      "form": "بقي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "iː b a q iː j a m aː",
+      "at": [
+       14.64,
+       14.96
+      ]
+     },
+     {
+      "word": "يثبت",
+      "read": "yathbot",
+      "sentence": 4,
+      "level": 0,
+      "form": "يثبت",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o"
+      ],
+      "heard": [
+       "u"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "m j θ b u t ʔ a n",
+      "at": [
+       17.12,
+       17.52
+      ]
+     },
+     {
+      "word": "ثم",
+      "read": "thomma",
+      "sentence": 5,
+      "level": 0,
+      "form": "ثم",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a"
+      ],
+      "heard": [
+       "u"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "θ u m ʕ i",
+      "at": [
+       18.8,
+       18.96
+      ]
+     },
+     {
+      "word": "تظهر",
+      "read": "tazhar",
+      "sentence": 5,
+      "level": 0,
+      "form": "تظهر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "t a v h r ʔ a",
+      "at": [
+       20.64,
+       20.96
+      ]
+     },
+     {
+      "word": "قل",
+      "read": "qol",
+      "sentence": 6,
+      "level": 0,
+      "form": "قل",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o"
+      ],
+      "heard": [
+       "u"
+      ],
+      "distance": 0.5,
+      "hard_errors": 0,
+      "heard_ipa": "q u l l i",
+      "at": [
+       21.84,
+       21.92
+      ]
+     },
+     {
+      "word": "مصدر",
+      "read": "masdar",
+      "sentence": 6,
+      "level": 0,
+      "form": "مصدر",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "l m a s d r u",
+      "at": [
+       22.72,
+       23.04
+      ]
+     },
+     {
+      "word": "شكك",
+      "read": "shakkeka",
+      "sentence": 6,
+      "level": 0,
+      "form": "شكك",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "i",
+       "A"
+      ],
+      "distance": 0.33,
+      "hard_errors": 0,
+      "heard_ipa": "u ʃ a k iː k aː m aː",
+      "at": [
+       23.2,
+       23.6
+      ]
+     },
+     {
+      "word": "يعد",
+      "read": "ya'od",
+      "sentence": 6,
+      "level": 0,
+      "form": "يعد",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "m j a ʕ d m u",
+      "at": [
+       25.92,
+       26.24
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "إتلافه",
+        "read": "'etlaafeh",
+        "form": "إِتْلافِه",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 2
+       },
+       {
+        "word": "سيكشف",
+        "read": "sayakshef",
+        "form": "سيَكشِف",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 3
+       },
+       {
+        "word": "البلطة",
+        "read": "albalta",
+        "form": "البَلْطة",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 4
+       }
+      ]
+     },
+     {
+      "after_round": 1,
+      "fixes": [
+       {
+        "word": "البلطة",
+        "read": "albalta",
+        "form": "الْبَلْطَة",
+        "fix": "full",
+        "level": 2,
+        "sentence": 4
+       }
+      ]
+     },
+     {
+      "after_round": 2,
+      "fixes": [
+       {
+        "word": "بقي",
+        "read": "baqeya",
+        "form": "بَقِيَ",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 4
+       }
+      ]
+     }
+    ],
+    "attempts": 4,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": [
+     "pronunciation_unresolved:البلطة"
+    ]
+   }
+  },
+  "S4": {
+   "text": "أنت ممكن تنسى تفاصيل المحاكمة، وتبقى الأهزوجة في بالك. هذا اللي يزعجني فيها: سهولة تذكّرها. وأنا أرتّب ما بقي معي، أجد اسم ليزي حاضرًا أكثر من حياة آبي وأندرو. هذا يضايقني. لا أملك جوابًا عن قاتلهما، ولا أرتاح لجواب تعطيني إياه حكاية سهلة الحفظ. وأنت، لو تركت الأهزوجة وما أضافته الحكايات جانبًا، هل تبقى واثقًا من تفسيرك، أم تجد أسئلة لم تحسب لها حسابًا؟",
+   "seconds": 31.28,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "أنت ممكن تنسى تفاصيل المحاكمة وتبقى الأهزوجة في بالك هذا اللي يزعجني فيها سهولة تذكرها وأنا أرتب ما بقي معي أجد اسم ليزي حاضراً أكثر من حياة آبي وأندرو هذا يضايقني لا أملك جواباً عن قاتلهما ولا أرتاح لجواب تعطيني إياه حكاية سهلة الحفظ وأنت لو تركت الأهزوجة وما أضافته الحكايات جانباً هل تبقى واثقاً من تفسيرك؟ أم تجد أسئلة لم تحسب لها حسابا؟"
+    },
+    "pronunciation": [
+     {
+      "word": "بقي",
+      "read": "baqi",
+      "sentence": 2,
+      "level": 0,
+      "form": "بقي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i",
+       "a"
+      ],
+      "distance": 0.35,
+      "hard_errors": 0,
+      "heard_ipa": "aː b a q iː a",
+      "at": [
+       8.88,
+       9.12
+      ]
+     },
+     {
+      "word": "ليزي",
+      "read": "leezi",
+      "sentence": 2,
+      "level": 0,
+      "form": "ليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "i",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "a l iː z iː",
+      "at": [
+       10.48,
+       10.8
+      ]
+     },
+     {
+      "word": "آبي",
+      "read": "aabi",
+      "sentence": 2,
+      "level": 0,
+      "form": "آبي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "A",
+       "i"
+      ],
+      "heard": [
+       "A",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "ʔ aː b iː w a",
+      "at": [
+       12.64,
+       12.88
+      ]
+     },
+     {
+      "word": "أضافته",
+      "read": "adaafathu",
+      "sentence": 5,
+      "level": 0,
+      "form": "أضافته",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "A",
+       "a",
+       "u"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.52,
+      "hard_errors": 0,
+      "heard_ipa": "aː a b aː f a t h u l ħ",
+      "at": [
+       24.28,
+       24.8
+      ]
+     },
+     {
+      "word": "تحسب",
+      "read": "tahsab",
+      "sentence": 5,
+      "level": 0,
+      "form": "تحسب",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "m t a ħ s a b l a",
+      "at": [
+       29.84,
+       30.16
+      ]
+     }
+    ],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "شخصان ميتان في بيت، لكن من كان فيه معهما؟ خلّيك معي. أنت أمام سؤال يبدو بسيطًا: أين كانت ليزي حين عاد أندرو؟ أعلى الدرج، مثل ما قالت الخادمة، أم في الطابق السفلي، مثل ما قالت هي؟ أنا لا أعرف أي رواية أرجّح. وأنت، من أين تبدأ وأنت لا تعرف بعد سبب الاختلاف؟ هذا ما يشدّني هنا: قبل أن نختار رواية، نحتاج أن نسمع الحكاية من بدايتها.",
+   "seconds": 28.8,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": "شخصان ميتان في بيت، لكن من كان فيه معهما؟ خَلِّيك معي. أنت أمام سؤال يبدو بسيطًا: أين كانت ليزي حين عاد أندرو؟ أعلى الدرج، مثل ما قالت الخادمة، أم في الطّابِق السفلي، مثل ما قالت هي؟ أنا لا أعرف أي رواية أرجّح. وأنت، من أين تبدأ وأنت لا تعرف بعد سبب الاختلاف؟ هذا ما يشدّني هنا: قبل أن نختار رواية، نحتاج أن نسمع الحكاية من بدايتها.",
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "شخصان ميتان في بيت لكن من كان فيه معهما؟ خليك معي أنت أمام سؤال يبدو بسيطاً أين كانت ليزي حين عاد أندرو؟ أعلى الدرج مثل ما قالت الخادمة؟ أم في الطابق السفلي مثل ما قالت هي؟ أنا لا أعرف أي رواية أرجح وأنت؟ من أين تبدأ وأنت لا تعرف بعد سبب الاختلاف؟ هذا ما يشدني هنا قبل أن نختار رواية نحتاج أن نسمع الحكاية من بدايتها"
+    },
+    "pronunciation": [
+     {
+      "word": "ميتان",
+      "read": "mayyetaan",
+      "sentence": 0,
+      "level": 0,
+      "form": "ميتان",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "e",
+       "A"
+      ],
+      "heard": [
+       "a",
+       "i",
+       "A"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "n iː m a j iː t aː n iː f iː",
+      "at": [
+       0.56,
+       1.12
+      ]
+     },
+     {
+      "word": "من",
+      "read": "man",
+      "sentence": 0,
+      "level": 0,
+      "form": "من",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "m a n k aː",
+      "at": [
+       2.88,
+       3.12
+      ]
+     },
+     {
+      "word": "خليك",
+      "read": "khallik",
+      "sentence": 1,
+      "level": 1,
+      "form": "خَلِّيك",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "i"
+      ],
+      "heard": [
+       "a",
+       "i"
+      ],
+      "distance": 0.0,
+      "hard_errors": 0,
+      "heard_ipa": "x a l l iː k m aː",
+      "at": [
+       4.64,
+       4.96
+      ]
+     },
+     {
+      "word": "ليزي",
+      "read": "lezi",
+      "sentence": 2,
+      "level": 0,
+      "form": "ليزي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "i"
+      ],
+      "heard": [
+       "i",
+       "i"
+      ],
+      "distance": 0.25,
+      "hard_errors": 0,
+      "heard_ipa": "t l iː z iː h",
+      "at": [
+       8.8,
+       9.2
+      ]
+     },
+     {
+      "word": "أندرو",
+      "read": "'andru",
+      "sentence": 2,
+      "level": 0,
+      "form": "أندرو",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "u"
+      ],
+      "heard": [
+       "O"
+      ],
+      "distance": 0.6,
+      "hard_errors": 0,
+      "heard_ipa": "d a aː n d ɹ ɔ",
+      "at": [
+       9.84,
+       10.24
+      ]
+     },
+     {
+      "word": "الدرج",
+      "read": "addaraj",
+      "sentence": 3,
+      "level": 0,
+      "form": "الدرج",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "a",
+       "a"
+      ],
+      "heard": [
+       "a",
+       "a"
+      ],
+      "distance": 0.23,
+      "hard_errors": 0,
+      "heard_ipa": "l a d d a r a dʒ",
+      "at": [
+       10.92,
+       11.36
+      ]
+     },
+     {
+      "word": "الطابق",
+      "read": "attaabeq",
+      "sentence": 3,
+      "level": 1,
+      "form": "الطّابِق",
+      "fix": "vowelled",
+      "ok": true,
+      "expected": [
+       "a",
+       "A",
+       "e"
+      ],
+      "heard": [
+       "a",
+       "A",
+       "i"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "f a t aː b i ɡ s",
+      "at": [
+       13.44,
+       13.76
+      ]
+     },
+     {
+      "word": "السفلي",
+      "read": "assofliyy",
+      "sentence": 3,
+      "level": 0,
+      "form": "السفلي",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o",
+       "i"
+      ],
+      "heard": [
+       "u",
+       "i"
+      ],
+      "distance": 0.4,
+      "hard_errors": 0,
+      "heard_ipa": "ɡ s s u f l iː",
+      "at": [
+       13.84,
+       14.32
+      ]
+     },
+     {
+      "word": "رواية",
+      "read": "rewaaya",
+      "sentence": 4,
+      "level": 0,
+      "form": "رواية",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "A",
+       "a"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "r i w aː j a t i n",
+      "at": [
+       17.0,
+       17.36
+      ]
+     },
+     {
+      "word": "أرجح",
+      "read": "'orajjeh",
+      "sentence": 4,
+      "level": 0,
+      "form": "أرجح",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "o",
+       "a",
+       "e"
+      ],
+      "heard": [
+       "a"
+      ],
+      "distance": 0.47,
+      "hard_errors": 0,
+      "heard_ipa": "i n o r a dʒ h",
+      "at": [
+       17.44,
+       18.0
+      ]
+     },
+     {
+      "word": "بعد",
+      "read": "ba'd",
+      "sentence": 5,
+      "level": 0,
+      "form": "بعد",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a"
+      ],
+      "heard": [
+       "A"
+      ],
+      "distance": 0.5,
+      "hard_errors": 0,
+      "heard_ipa": "f uː b aː ʕ d s a",
+      "at": [
+       21.04,
+       21.36
+      ]
+     },
+     {
+      "word": "يشدني",
+      "read": "yashoddoni",
+      "sentence": 6,
+      "level": 0,
+      "form": "يشدني",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "a",
+       "o",
+       "o",
+       "i"
+      ],
+      "heard": [
+       "u",
+       "u",
+       "i"
+      ],
+      "distance": 0.42,
+      "hard_errors": 0,
+      "heard_ipa": "aː j ʃ u d d u n iː h",
+      "at": [
+       23.24,
+       23.68
+      ]
+     },
+     {
+      "word": "رواية",
+      "read": "rewaaya",
+      "sentence": 6,
+      "level": 0,
+      "form": "رواية",
+      "fix": null,
+      "ok": true,
+      "expected": [
+       "e",
+       "A",
+       "a"
+      ],
+      "heard": [
+       "i",
+       "A",
+       "a"
+      ],
+      "distance": 0.17,
+      "hard_errors": 0,
+      "heard_ipa": "r i w aː j a",
+      "at": [
+       25.36,
+       25.68
+      ]
+     }
+    ],
+    "fixes": [
+     {
+      "after_round": 0,
+      "fixes": [
+       {
+        "word": "خليك",
+        "read": "khallik",
+        "form": "خَلِّيك",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 1
+       },
+       {
+        "word": "الطابق",
+        "read": "attaabeq",
+        "form": "الطّابِق",
+        "fix": "vowelled",
+        "level": 1,
+        "sentence": 3
+       }
+      ]
+     }
+    ],
+    "attempts": 2,
+    "asr_engine": "faster_whisper",
+    "listener": "facebook/wav2vec2-xlsr-53-espeak-cv-ft",
+    "flags": []
+   }
+  }
+ }
+}

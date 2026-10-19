@@ -1,0 +1,61 @@
+{
+ "id": 9,
+ "status": "valid",
+ "plan": {
+  "notes": "Four appearances give the long film clear breathing points: a hook before the narrative, two pauses after major structural turns, and a restrained closing reflection. The placements preserve momentum, avoid the payoff boundary, and keep the host well below the runtime limit.",
+  "segments": [
+   {
+    "id": "S1",
+    "position": "opening",
+    "role": "opening",
+    "beat_id": null,
+    "cutoff": 0,
+    "target_seconds": 28.8,
+    "reason": "Establishes the central tension before the logo and story begin, creating an immediate question without delaying the opening act."
+   },
+   {
+    "id": "S2",
+    "position": "mid",
+    "role": "transition",
+    "beat_id": "act2",
+    "cutoff": 2,
+    "target_seconds": 17.0,
+    "reason": "Provides a brief bridge after the household context and unresolved pre-event turn, then sends the viewer into the reconstruction of the morning."
+   },
+   {
+    "id": "S3",
+    "position": "mid",
+    "role": "reflection",
+    "beat_id": "act4",
+    "cutoff": 4,
+    "target_seconds": 27.3,
+    "reason": "Gives the film room to absorb the accumulated contradictions and the latest turning point before the legal consequences begin."
+   },
+   {
+    "id": "S4",
+    "position": "final",
+    "role": "outro",
+    "beat_id": "act7",
+    "cutoff": 7,
+    "target_seconds": 31.7,
+    "reason": "Closes after the final act with enough space for the remaining uncertainty to register without adding another summary or interrupting the payoff."
+   }
+  ]
+ },
+ "validation": {
+  "status": "valid",
+  "errors": [],
+  "warnings": [],
+  "segments": 4,
+  "counts": {
+   "opening": 1,
+   "mid": 2,
+   "final": 1
+  },
+  "host_seconds": 104.8,
+  "narration_seconds": 3360.8,
+  "host_share": 0.0312,
+  "time_accounting": "added",
+  "repair_iterations": 0
+ }
+}

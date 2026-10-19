@@ -17,7 +17,7 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   visual_gaps        targeted searches for sentences with weak pictures,
                      then those beats are directed again
   host:<lang>        the host's dialogue, natively per language
-  performance:<lang> narrator arc + ElevenLabs v3 audio tags
+  performance:<lang> narrator arc + ElevenLabs v4 audio tags
   voice:<lang>       narration + music mix (pilot: first N seconds)
   production:<lang>  language-specific timeline
   critique:<lang>    critics + targeted fixes

@@ -1,0 +1,131 @@
+{
+ "fa": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true,
+   "S5": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0953,
+  "host_flags": {
+   "S1": [],
+   "S2": [
+    "pronunciation_unresolved:فاصله"
+   ],
+   "S3": [],
+   "S4": [],
+   "S5": [
+    "pronunciation_unresolved:ادعاهای",
+    "pronunciation_unresolved:تبرئه",
+    "pronunciation_unresolved:روایت"
+   ]
+  },
+  "story_flags": [
+   [
+    "pronunciation_unresolved:سکاند",
+    "pronunciation_unresolved:کوچک‌تر"
+   ],
+   [
+    "pronunciation_unresolved:خودش"
+   ],
+   [
+    "pronunciation_unresolved:افتاده"
+   ]
+  ]
+ },
+ "ar": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": true,
+   "S4": true,
+   "S5": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0762,
+  "host_flags": {
+   "S1": [
+    "pronunciation_unresolved:الأسفل",
+    "pronunciation_unresolved:المشهد",
+    "pronunciation_unresolved:مفتوحين"
+   ],
+   "S2": [
+    "pronunciation_unresolved:نسمع",
+    "pronunciation_unresolved:الكلام"
+   ],
+   "S3": [],
+   "S4": [],
+   "S5": []
+  },
+  "story_flags": [
+   [
+    "pronunciation_unresolved:سوليفان"
+   ],
+   [
+    "pronunciation_unresolved:العلوي",
+    "pronunciation_unresolved:مختلفين"
+   ],
+   []
+  ]
+ },
+ "en": {
+  "segments_pass": {
+   "S1": true,
+   "S2": true,
+   "S3": false,
+   "S4": true,
+   "S5": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0917,
+  "host_flags": {
+   "S2": [],
+   "S5": [],
+   "S1": [],
+   "S4": []
+  }
+ },
+ "de": {
+  "segments_pass": {
+   "S1": true,
+   "S2": false,
+   "S3": true,
+   "S4": true,
+   "S5": true
+  },
+  "opening_hook_checks": {
+   "hook": true,
+   "no_spoiler": true,
+   "direct_address": true,
+   "informal_form": true
+  },
+  "payload_leaks": [],
+  "deviation_max": 0.0311,
+  "host_flags": {
+   "S3": [],
+   "S1": [],
+   "S4": [],
+   "S5": []
+  }
+ }
+}

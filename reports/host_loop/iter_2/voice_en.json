@@ -1,0 +1,135 @@
+{
+ "segments_id": 29,
+ "report": {
+  "scenes": [
+   {
+    "scene": 102,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 27.36,
+    "deviation": 0.05,
+    "cap": 75.0
+   },
+   {
+    "scene": 103,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 17.0,
+    "seconds": 15.76,
+    "deviation": 0.0729,
+    "cap": 45.0
+   },
+   {
+    "scene": 104,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 27.3,
+    "seconds": 25.04,
+    "deviation": 0.0828,
+    "cap": 45.0
+   },
+   {
+    "scene": 105,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 34.64,
+    "deviation": 0.0927,
+    "cap": 50.0
+   }
+  ],
+  "host_seconds": 102.8,
+  "host_share": 0.0306,
+  "timeline": {
+   "story_seconds": 3363.6,
+   "host_seconds": 102.8,
+   "intro_seconds": 0.0,
+   "total_seconds": 3466.4
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S1": {
+   "text": "Two dead people, and a question about the stairs. Where was Lizzie when Andrew came home? The maid said at the top of the stairs. Lizzie said downstairs. You might want to choose who you believe. I get that. But how would you decide between those accounts when we're still trying to understand who was inside that house? That's where I want to start with you: who was there with two people dead, and how? Let's begin with the house itself.",
+   "seconds": 27.36,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "two dead people and a question about the stairs. Where was Lizzie when Andrew came home? The maid said at the top of the stairs. Lizzie said downstairs. You might want to choose who you believe. I get that, but how would you decide between those accounts when we're still trying to understand who was inside that house? That's where I want to start with you. Who was there with two people dead. And how? Let's begin with the house itself."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "The drugstore allegation troubles me. But if you’re using it to decide who to believe about the staircase, I’d pause. Neither dispute settles the other. Are you weighing each on its own, or is one making the other feel more convincing? I want to keep them separate.",
+   "seconds": 15.76,
+   "planned": 17.0,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "The drugstore allegation troubles me, but if you're using it to decide who to believe about the staircase, I'd pause. Neither dispute settles the other. Are you weighing each on its own, or is one making the other feel more convincing? I want to keep them separate."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "You know what's frustrating here? The hatchet could be examined, even if it couldn't be proved to be the weapon. With the dress, that chance is gone. Completely. I can understand wanting an explanation for burning it, especially after hearing about the blood spatter in those rooms. But you still need to know what was on that fabric. Now Lizzie has to answer under oath, and her words can't give us back something we could have tested.",
+   "seconds": 25.04,
+   "planned": 27.3,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "You know what's frustrating here? The hatchet could be examined, even if it couldn't be proved to be the weapon. With the dress, that chance is gone, completely. I can understand wanting an explanation for burning it, especially after hearing about the blood spatter in those rooms, but you still need to know what was on that fabric. Now, Lizzie has to answer under oath, and her words can't give us back something we could have tested."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "The rhyme gives you an answer in seconds. But the record we’ve been left with does not. Lizzie was acquitted; no one else was charged. That doesn’t tell you who climbed those stairs, or what happened in that room. And the stories that grew around the case don’t fill that gap. Some were invented; others remain unproven. I keep coming back to Abby, whose life can disappear behind the question of who killed her. You can hold the verdict and the uncertainty together. Which stays with you more: the legend, or what the evidence couldn’t establish?",
+   "seconds": 34.64,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "The rhyme gives you an answer in seconds, but the record we've been left with does not. Lizzie was acquitted, no one else was charged. That doesn't tell you who climbed those stairs or what happened in that room. And the stories that grew around the case don't fill that gap. Some were invented, others remain unproven. I keep coming back to Abby, whose life can disappear behind the question of who killed her. You can hold the verdict and the uncertainty together. Which stays with you more? The legend or what the evidence couldn't establish?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

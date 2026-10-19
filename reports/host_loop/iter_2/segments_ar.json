@@ -1,0 +1,182 @@
+{
+ "id": 28,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the logo and story begin, creating an immediate question without delaying the opening act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct, warm, and curious; brief pause after the opening question, then a natural conversational pace.",
+   "avatar_dialogue": "شخصان ميتان في بيت، لكن من كان فيه معهما؟ خلّيك معي. أنت أمام سؤال يبدو بسيطًا: أين كانت ليزي حين عاد أندرو؟ أعلى الدرج، مثل ما قالت الخادمة، أم في الطابق السفلي، مثل ما قالت هي؟ أنا لا أعرف أي رواية أرجّح. وأنت، من أين تبدأ وأنت لا تعرف بعد سبب الاختلاف؟ هذا ما يشدّني هنا: قبل أن نختار رواية، نحتاج أن نسمع الحكاية من بدايتها.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 28.3,
+   "transition_back": "Hands over to the logo and opening narration by inviting the viewer to hear the story before choosing between the accounts.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act2 (92 Second Street: The Household)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act2",
+   "cutoff": 2,
+   "purpose": "Provides a brief bridge after the household context and unresolved pre-event turn, then sends the viewer into the reconstruction of the morning.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; a brief pause at the self-correction, then a curious question and a restrained finish.",
+   "avatar_dialogue": "أفهم لو ربطت حكاية السم بالخلاف على مكان ليزي عند الدرج. أنا أيضا أميل لربطهما. لكن لحظة. هل عندك ما يثبت أن بينهما صلة، أم أن جمعهما يجعل الحكاية تبدو أوضح؟ ليزي نفت الأمرين. وهذا وحده لا يحسم شيئا. خلّينا نترك الصلة سؤالا.",
+   "target_duration": 17.0,
+   "target_seconds": 17.0,
+   "estimated_seconds": 18.4,
+   "transition_back": "Returns to the narrative with the possible connection between the disputed accounts left unresolved.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Gives the film room to absorb the accumulated contradictions and the latest turning point before the legal consequences begin.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; slight frustration at the lost opportunity to examine the dress, then a quieter question.",
+   "avatar_dialogue": "الفستان اختفى، ومعه فرصة نفحصه. هذا يضايقني. يمكن أنت أيضا تحس أن التخلص منه أثناء التحقيق يحتاج تفسيرا أقوى من حكاية الطلاء. وأنا أتوقف عنده، فعلا. لكن أي تفسير تقدر تثبته بعد ما ضاع الثوب؟ مع البلطة، بقيت قطعة نفحصها، ومع ذلك ما ثبت أنها السلاح. هنا حتى فرصة الفحص راحت. أريد أسمع كيف تفسر ليزي هذا، من غير ما أملأ الفراغ عنها.",
+   "target_duration": 27.3,
+   "target_seconds": 27.3,
+   "estimated_seconds": 27.0,
+   "transition_back": "Returns to the narrative with attention on how Lizzie will explain the inconsistencies, without anticipating her answers.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes after the final act with enough space for the remaining uncertainty to register without adding another summary or interrupting the payoff.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Warm, direct and reflective; uneven conversational rhythm, with a brief pause before the final question.",
+   "avatar_dialogue": "أنت ممكن تنسى تفاصيل المحاكمة، وتبقى الأهزوجة في بالك. هذا اللي يزعجني فيها: سهولة تذكّرها، لا قوتها كدليل. وأنا أحاول أرتّب ما بقي معي، أجد اسم ليزي حاضرًا أكثر من حياة آبي وأندرو. وهذا يضايقني أيضًا. لا أملك جوابًا عن قاتلهما، ولا أرتاح لجواب تمنحني إياه حكاية سهلة الحفظ. وأنت، لو تركت الأهزوجة وكل ما أضافته الحكايات جانبًا، هل تبقى واثقًا من تفسيرك، أم تكتشف أن عندك أسئلة أكثر مما توقعت؟",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 30.4,
+   "transition_back": "No further narration; leave the viewer with the final question before the closing credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 104.1,
+  "planned_seconds": 104.8,
+  "plan_status": "valid"
+ }
+}

@@ -1,0 +1,191 @@
+{
+ "id": 27,
+ "status": "needs_review",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the logo and story begin, creating an immediate question without delaying the opening act.",
+   "personality_dimension": [
+    "curiosity",
+    "questioning_assumptions"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; conversational pace; a brief beat before the question",
+   "avatar_dialogue": "توی این خونه، دو نفر مرده‌ان؛ اما جای ایستادن یک نفر هم معلوم نیست. تو اگه فقط همین رو می‌دونستی، به کدوم روایت نزدیک‌تر می‌شدی؟ خدمتکار می‌گه لیزی وقتی اندرو برگشت، بالای پله‌ها بوده؛ خود لیزی می‌گه پایین بوده. این شاید یه اختلاف کوچیک به نظر بیاد. ولی وقتی دو نفر توی خونه مرده‌ان، همین چند قدم مهمه. سؤال سخت‌تر اینه: کی توی اون خونه بوده، و چطور؟ بریم ببینیم این دو روایت از کجا از هم جدا می‌شن.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 32.5,
+   "transition_back": "The unresolved contradiction hands directly into the opening narrative, which begins by reconstructing the house and the two accounts.",
+   "quality": {
+    "pass": false,
+    "checks": {},
+    "problems": [],
+    "deterministic": [
+     {
+      "type": "no_short_sentences",
+      "shortest": 8,
+      "fix": "Add a very short sentence or two (a few words) between longer ones, the way people talk."
+     },
+     {
+      "type": "flat_rhythm",
+      "variation": 0.18,
+      "fix": "Vary the rhythm: short, long, a sentence that breaks off; not evenly long sentences."
+     }
+    ]
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act2 (92 Second Street: The Household)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act2",
+   "cutoff": 2,
+   "purpose": "Provides a brief bridge after the household context and unresolved pre-event turn, then sends the viewer into the reconstruction of the morning.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "curiosity"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; a brief pause before the final question",
+   "avatar_dialogue": "یه چیز منو نگه می‌داره. بعد از شنیدنِ مرگ اندرو و ابی و تنش‌های اون خونه، حرف کارکنان داروخونه راحت‌تر باور می‌شه. تو هم این حس رو داری؟ من دارم. ولی لیزی می‌گه اصلاً اون‌جا نرفته. فعلاً چطور می‌شه فهمید کدوم روایت درسته؟",
+   "target_duration": 17.0,
+   "target_seconds": 17.0,
+   "estimated_seconds": 17.7,
+   "transition_back": "Leaves the disputed pharmacy account unresolved and returns to the investigation.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Gives the film room to absorb the accumulated contradictions and the latest turning point before the legal consequences begin.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational, with restrained frustration; a brief pause after the short sentence, then a quieter admission.",
+   "avatar_dialogue": "تو با سوختن اون لباس، بیشتر به لیزی شک می‌کنی؟ من از این‌که دیگه نمی‌شه بررسیش کرد، کلافه می‌شم. همین. دربارهٔ تبرچه هنوز می‌شد سراغ خود وسیله رفت، هرچند ثابت نشد سلاح قتل بوده. این‌جا خود پارچه از دست رفته. تو حالا فقط خاطرهٔ آلیس و توضیح خواهرها رو داری؛ برای من سخته که جای خالی اون بررسی رو با حدس پُر نکنم.",
+   "target_duration": 27.3,
+   "target_seconds": 27.3,
+   "estimated_seconds": 25.9,
+   "transition_back": "Leaves the lost opportunity to examine the dress unresolved as the narrative turns to Lizzie being questioned under oath.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes after the final act with enough space for the remaining uncertainty to register without adding another summary or interrupting the payoff.",
+   "personality_dimension": [
+    "intellectual_humility",
+    "questioning_assumptions"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; restrained concern; a brief pause before the open question",
+   "avatar_dialogue": "آخر این پرونده، چیزی که بیشتر از همه اذیتم می‌کنه، اینه که همه دنبال جواب قطعی‌ان: لیزی قاتل بوده یا کاملاً بی‌گناه. اما رأی دادگاه فقط گفت اتهام ثابت نشده؛ افسانه هم برعکسش رو ثابت نمی‌کنه. تو اگر بین این دو فاصله بمونی، منصفانه‌تر نگاه می‌کنی. برای من هنوز این سؤال بازه: چه کسی برای مرتب کردن اتاق مهمان بالا رفت، و بعد چه اتفاقی افتاد؟ شاید جواب قطعی هیچ‌وقت پیدا نشه. ولی نذار شعر و شایعه جای مدرک رو بگیره.",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 33.3,
+   "transition_back": "The story ends on the unresolved question of who entered Abby’s room, leaving the viewer with evidence rather than legend.",
+   "quality": {
+    "pass": false,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": false,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [
+     {
+      "check": "verified",
+      "quote": "چه کسی برای مرتب کردن اتاق مهمان بالا رفت",
+      "fix": "ما از پیش بر اساس وقایع تأییدشده می‌دانیم که خودِ اَبی برای مرتب کردن اتاق بالا رفت. معمای بی‌پاسخ این است که چه کسی پشت سر او از آن پله‌ها بالا رفت و وارد اتاق مهمان شد. این بخش را به «چه کسی پشت سر اَبی از اون پله‌ها بالا رفت» یا «چه کسی وارد اتاق مهمان شد و سراغ اَبی رفت» تغییر دهید."
+     },
+     {
+      "check": "meaning_certainty",
+      "quote": "«چه کسی برای مرتب کردن اتاق مهمان بالا رفت»: در متن منبع به صراحت و به عنوان یک واقعیت قطعی مشخص شده است که ابی بوردن برای مرتب کردن اتاق مهمان بالا رفت («حدود ساعت نه، ابی از پله‌های جلویی بالا رفت تا تختی را که جان مورس شب قبل در آن خوابیده بود، مرتب کند»)، اما کلام راوی این موضوع مشخص را به یک پر",
+      "fix": "Say only what the source says: remove or correct this."
+     }
+    ],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "needs_review",
+  "failed_segments": [
+   "S1",
+   "S4"
+  ],
+  "repair_iterations": 4,
+  "host_seconds": 109.4,
+  "planned_seconds": 104.8,
+  "plan_status": "valid"
+ }
+}

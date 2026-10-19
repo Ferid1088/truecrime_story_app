@@ -80,7 +80,7 @@ REQUIRED_ROLES = {
     # like ملک = melk / molk / malek / malak) the reading the MEANING needs
     # and the harakat that force it — used by the listening check.
     "pronunciation_editor",
-    # Voice performance: ElevenLabs v3 audio tags, emphasis and the
+    # Voice performance: ElevenLabs v4 audio tags, emphasis and the
     # narrator's tension arc (neutral -> dark -> whispered climaxes).
     "voice_performance_director",
     # Professional audio direction: breaths, music moments, silences.
@@ -93,7 +93,9 @@ REQUIRED_ROLES = {
     # of facts, memories, repetition and the persona (critic).
     "host_director",
     "host_writer",
+    "host_writer_fa_ar",
     "host_critic",
+    "host_meaning_checker",
     # Camera, outfit, posture, gestures and lighting of one host appearance,
     # decided from its real audio (Part 7c).
     "host_stage_director",
@@ -530,8 +532,6 @@ class StoryPlanConfig(BaseModel):
     # The beats' target words may differ from the film target by this share
     # before the plan is invalid (half of it is a warning).
     max_total_words_deviation: float = Field(gt=0.0, le=1.0)
-    # Mid-film host slots planned (also capped by host.max_mid_segments).
-    mid_host_slots: int = Field(ge=0, le=4)
     # No act of a plan gets less than this share of the film's words.
     min_act_budget_share: float = Field(gt=0.0, le=0.5)
 
@@ -889,9 +889,10 @@ class LanguagePipelineConfig(BaseModel):
         return self.stage_config_for(language).automatic_approval
 
     def minutes_range(self, requested: float | None = None) -> tuple[float, float]:
-        """The film length stages 2-4 write to: the requested minutes up to the
-        headroom above them."""
-        low = float(requested or self.requested_minutes_default)
+        """The film length stages 2-4 write to: the story's share of the requested minutes (all
+        of them while the host's time comes on top, see host.time_accounting) up to the headroom
+        above them."""
+        low = ai_config.host.story_minutes(float(requested or self.requested_minutes_default))
         return low, low + self.rewrite_headroom_minutes
 
     def words_per_minute_for(self, language: str) -> int:
@@ -1265,12 +1266,12 @@ class ElevenLabsConfig(BaseModel):
     request_timeout_s: float = Field(default=120.0, gt=0)
     max_retries: int = Field(default=2, ge=0, le=5)
     # Models that reject previous_text / next_text (request stitching).
-    no_context_models: list[str] = ["eleven_v3"]
+    no_context_models: list[str] = ["eleven_v4"]
     # Models that accept language_code (language enforcement).
-    language_code_models: list[str] = ["eleven_v3", "eleven_turbo_v2_5",
+    language_code_models: list[str] = ["eleven_v4", "eleven_turbo_v2_5",
                                        "eleven_flash_v2_5"]
     # Models that understand inline audio tags ([whispers], [pause] ...).
-    audio_tag_models: list[str] = ["eleven_v3"]
+    audio_tag_models: list[str] = ["eleven_v4"]
 
 
 class VoiceConfig(BaseModel):
@@ -1594,57 +1595,154 @@ class StudioConfig(BaseModel):
         "opening": "HOST_MEDIUM", "mid": "HOST_CLOSE", "final": "HOST_WIDE"})
 
 
+class HostRole(BaseModel):
+    """One kind of host appearance: where it may stand and how many seconds it may take."""
+
+    # opening | mid | final: where in the film the role stands.
+    position: str
+    base_seconds: float = Field(gt=0.0)
+    min_seconds: float = Field(gt=0.0)
+    max_seconds: float = Field(gt=0.0)
+    # The appearance must ask the viewer something.
+    requires_question: bool = False
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if self.position not in ("opening", "mid", "final"):
+            raise ValueError("host role position must be opening, mid or final")
+        if not (self.min_seconds <= self.base_seconds <= self.max_seconds):
+            raise ValueError("host role seconds need min_seconds <= base_seconds <= max_seconds")
+        return self
+
+
+class HostLanguageRules(BaseModel):
+    """What the deterministic checks hold the host's words of one language to."""
+
+    # At least one must match: the host speaks to the viewer directly, informally.
+    address_patterns: list[str]
+    # None may match: the formal form of address.
+    formal_patterns: list[str] = Field(default_factory=list)
+    # None may match the start of an opening: greeting filler.
+    greeting_patterns: list[str] = Field(default_factory=list)
+    # Sentence-ending marks that make a sentence a question.
+    question_marks: list[str] = Field(default_factory=lambda: ["?"])
+    # Stock constructions the persona avoids (case-insensitive regexes).
+    stock_phrases: list[str] = Field(default_factory=list)
+
+
+class HostSpokenRules(BaseModel):
+    min_sentences: int = Field(ge=2)
+    short_sentence_words: int = Field(ge=1)
+    min_short_sentences: int = Field(ge=0)
+    min_length_variation: float = Field(ge=0.0, le=2.0)
+
+
 class HostConfig(BaseModel):
     """The recurring on-screen host (persona_master_prompt.md): when the
     host appears, how long, and the deterministic guard-rails on what the
-    host may say (memories only from the archive, no spoilers, no stock
-    phrases, nothing repeated from recent episodes)."""
+    host may say (memories only from the archive, nothing the viewer has not
+    heard yet, no stock phrases, nothing repeated from recent episodes)."""
 
     enabled: bool = True
     # The persona and its rules (repository-relative markdown file).
     persona_file: str = "persona_master_prompt.md"
-    # Spoken length per placement, in seconds [min, max].
-    seconds: dict[str, list[float]] = Field(default_factory=lambda: {
-        "opening": [30.0, 120.0], "mid": [8.0, 60.0], "final": [10.0, 45.0]})
-    # No appearance may be longer than this (real voice seconds).
+    # How the host's time relates to the requested film length: "added" (the story keeps the
+    # whole requested length, the host comes on top) or "inside_requested" (the host's reserved
+    # seconds are taken off the story's length).
+    time_accounting: str = "added"
+    # Appearances of one film, the opening and the outro included.
+    min_appearances: int = Field(default=2, ge=0)
+    max_appearances: int = Field(default=5, ge=1, le=8)
+    # Acts of narration between two appearances, and the story seconds between them.
+    min_acts_between: int = Field(default=2, ge=0)
+    min_gap_seconds: float = Field(default=240.0, ge=0.0)
+    # The kinds of appearance and their seconds [base, min, max] before the film's own weights.
+    roles: dict[str, HostRole]
+    # Seconds of an appearance grow with the weight of the act before it (its share of the
+    # story against an even share) and with its place in the film (later = longer).
+    act_weight_gain: float = Field(default=0.5, ge=0.0, le=2.0)
+    position_gain: float = Field(default=0.3, ge=-1.0, le=1.0)
+    # No appearance is longer than this (real voice seconds) ...
     max_appearance_seconds: float = Field(default=120.0, gt=0.0)
+    # ... nor all of them together, nor more than this share of the story.
+    max_total_seconds: float = Field(default=240.0, ge=0.0)
+    max_total_share: float = Field(default=0.08, ge=0.0, le=0.5)
     # Level of the host's own audio against the narration track (Part 8a).
     audio_gain_db: float = Field(default=0.0, ge=-12.0, le=6.0)
-    # The final slot is off unless this switch is on.
-    final_enabled: bool = False
-    max_mid_segments: int = Field(default=2, ge=0, le=4)
-    # Host time as a share of the narration (the story stays dominant).
-    max_total_share: float = Field(default=0.08, ge=0.0, le=0.5)
-    # ...and never more than this in one film, however long (the avatar
-    # is used sparingly: 2–3 minutes per video).
-    max_total_seconds: float = Field(default=240.0, ge=0.0)
-    # Beats of narration between two host appearances.
-    min_beats_between: int = Field(default=3, ge=0)
-    # The host talks a little faster than the narrator (words per minute
-    # of the language x this factor).
-    pace_factor: float = Field(default=1.08, ge=0.8, le=1.5)
+    # The outro (role position "final") is off unless this switch is on.
+    final_enabled: bool = True
+    # Words the host speaks per minute, per language (the host is faster than the narrator).
+    words_per_minute: dict[str, float]
+    # A text may differ this much from its words for the planned seconds.
+    word_tolerance: float = Field(default=0.12, ge=0.0, le=0.5)
+    # The real voice may differ this much from the planned seconds before the text is
+    # rewritten (and voiced again).
+    duration_tolerance: float = Field(default=0.10, ge=0.0, le=0.5)
+    # Rewrites (and new voices) allowed to bring a measured voice onto its planned seconds.
+    max_retime_attempts: int = Field(default=3, ge=0, le=6)
     # The host's voice settings (a style of voice.styles): audibly a conversation, not the
     # narration's documentary delivery.
     voice_style: str = "host_conversational"
-    # Context sizes sent to the director/writer.
+    # An act that answers at least this many questions is a payoff: no appearance stands
+    # right before it (the answer belongs to the narration).
+    payoff_min_resolved_loops: int = Field(default=2, ge=1)
+    # Facts of the acts before an appearance that its writer and critic get, newest first.
+    max_facts: int = Field(default=80, ge=1)
+    # Context sizes sent to the writer.
     archive_cases: int = Field(default=30, ge=0)
     memory_items: int = Field(default=80, ge=0)
     recent_segments: int = Field(default=16, ge=0)
     max_repair_iterations: int = Field(default=2, ge=0, le=4)
+    # Rewrites of one appearance's words after the code's or the critics' findings (the plan and
+    # the stage direction keep max_repair_iterations).
+    max_writer_repairs: int = Field(default=3, ge=0, le=5)
     # A segment sharing more than this share of its word trigrams with a
     # recent segment repeats it.
     max_trigram_overlap: float = Field(default=0.25, ge=0.0, le=1.0)
-    # Stock constructions the persona avoids (case-insensitive regexes).
-    stock_phrases: dict[str, list[str]] = Field(default_factory=lambda: {
-        "en": [r"\bwhat do you think\b", r"\bwhat would you do\b", r"\bi noticed\b",
-               r"\bstay tuned\b", r"\bshocking\b", r"\bcase id\b"],
-        "de": [r"\bwas denken sie\b", r"\bwas denkst du\b", r"\bwas würden sie tun\b",
-               r"\bwas würdest du tun\b", r"\bmir ist aufgefallen\b", r"\bschockierend\b"],
-        "fa": ["نظر شما چیست", "شما چه فکر می‌کنید", "شما چه می‌کردید", "متوجه شدم",
-               "تکان‌دهنده", "ماجرا به همین جا ختم نشد", "آرامش قبل از طوفان",
-               "سکوت مرگبار", "آنچه بعد رخ داد", "شگفت‌زده خواهید شد"],
-        "ar": ["ما رأيكم", "ماذا تعتقدون", "ماذا كنتم ستفعلون", "لاحظت", "صادم"],
-    })
+    # The first sentence of an opening is short enough to grab.
+    opening_max_first_sentence_words: int = Field(default=16, ge=3)
+    # Languages whose capitalised words are names (the second layer of the reveal check also
+    # treats those as specific terms); the glossary and numbers apply to every language.
+    spoiler_name_case_languages: list[str] = Field(default_factory=lambda: ["en"])
+    # Languages whose host words go through the fact (meaning) check before the voice.
+    meaning_check_languages: list[str] = Field(default_factory=list)
+    # "Spoken, not written": a text of at least min_sentences sentences needs sentences of
+    # varied length (coefficient of variation) and some very short ones.
+    spoken: HostSpokenRules
+    # Per-language rules for the deterministic checks (every channel language needs one).
+    language_rules: dict[str, HostLanguageRules]
+    # The agent (config/agents.json) that writes the host's words in each language.
+    writer_agents: dict[str, str]
+
+    def wpm(self, language: str) -> float:
+        return self.words_per_minute[language]
+
+    def story_minutes(self, requested_minutes: float) -> float:
+        """The story's own length for a requested film length: all of it when the host comes on
+        top, the requested length less the host's reserved seconds when it counts inside."""
+        if self.time_accounting == "added":
+            return float(requested_minutes)
+        reserved = min(self.max_total_seconds, self.max_total_share * requested_minutes * 60)
+        return float(requested_minutes) - reserved / 60
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if self.time_accounting not in ("added", "inside_requested"):
+            raise ValueError("host.time_accounting must be added or inside_requested")
+        if self.min_appearances > self.max_appearances:
+            raise ValueError("host.min_appearances is above host.max_appearances")
+        needed = {"opening", "outro"}
+        if needed - set(self.roles):
+            raise ValueError("host.roles needs an opening and an outro")
+        if self.roles["opening"].position != "opening" or self.roles["outro"].position != "final":
+            raise ValueError("the opening role stands at the opening, the outro at the end")
+        for role, spec in self.roles.items():
+            if spec.max_seconds > self.max_appearance_seconds:
+                raise ValueError(f"host role {role} may take more than host.max_appearance_seconds")
+        if not set(self.words_per_minute) == set(self.language_rules) == set(self.writer_agents):
+            raise ValueError("host.words_per_minute, host.language_rules and host.writer_agents "
+                             "need the same languages")
+        return self
 
 
 class AudioDirectionConfig(BaseModel):
@@ -2014,7 +2112,7 @@ class PerformanceConfig(BaseModel):
 
 
 class VoicePerformanceConfig(BaseModel):
-    """Voice performance director (ElevenLabs v3 audio tags).
+    """Voice performance director (ElevenLabs v4 audio tags).
 
     Levels form the narrator's arc: 0 neutral (nothing has happened
     yet), 1 first unease, 2 dark and crime-specific, 3 breath-taking
@@ -2674,7 +2772,7 @@ class AIConfig(BaseModel):
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     spoken: SpokenConfig = Field(default_factory=SpokenConfig)
     audio_direction: AudioDirectionConfig = Field(default_factory=AudioDirectionConfig)
-    host: HostConfig = Field(default_factory=HostConfig)
+    host: HostConfig
     channels: dict[str, ChannelConfig] = {}
     avatar: AvatarConfig = Field(default_factory=AvatarConfig)
     studio: StudioConfig = Field(default_factory=StudioConfig)

@@ -57,29 +57,46 @@ def _split_spanning(shots: list[dict], t: float) -> list[dict]:
     return out
 
 
-def insert_host(script: dict, items: list[dict]) -> dict:
+def insert_host(script: dict, items: list[dict], intro_seconds: float | None = None) -> dict:
     """items: [{scene_id, position (opening|mid), beat_id, seconds, video, audio,
-    gain_db, text}] -> a new script with the host in it."""
+    gain_db, text}] -> a new script with the host in it.
+
+    The film's order is the host's opening, then the channel's logo video (`intro_seconds`),
+    then the story: the logo is placed right after the opening, so the script must not have
+    placed it anywhere else. Without an opening the script's own intro placement stands."""
     script = copy.deepcopy(script)
     if not items:
         return script
     if sum(1 for i in items if i["position"] == "opening") > 1:
         raise HostTimelineError("more than one host opening")
+    if intro_seconds and script.get("intro"):
+        raise HostTimelineError("the script already placed the channel intro; a host opening "
+                                "places it right after itself")
+    story_seconds = float(script["duration"])
     original = {id(i): _insertion_point(script, i) for i in items}
     ordered = sorted(items, key=lambda i: (original[id(i)], i["position"] != "opening"))
     offset = 0.0
+    host_seconds = 0.0
     host: list[dict] = []
     for item in ordered:
         d = float(item["seconds"])
         t_orig = original[id(item)]
         t = t_orig + offset
+        logo = float(intro_seconds) if item["position"] == "opening" and intro_seconds else 0.0
         script["shots"] = _split_spanning(script["shots"], t)
         for key in ("shots", "beats", "voice", "subtitles", "overlays", "silences"):
-            _shift(script.get(key) or [], t, d)
-        _shift(script.get("music") or [], t, d, keys=("start",))
+            _shift(script.get(key) or [], t, d + logo)
+        _shift(script.get("music") or [], t, d + logo, keys=("start",))
         if script.get("intro") and script["intro"].get("start") is not None \
                 and script["intro"]["start"] >= t - _EPS:
             script["intro"]["start"] = round(script["intro"]["start"] + d, 3)
+        if logo:
+            script["shots"].append({
+                "kind": "intro", "command": "CHANNEL_INTRO", "motion": "NONE", "speed": 1.0,
+                "start": round(t + d, 3), "end": round(t + d + logo, 3), "asset_id": None,
+                "transition_in": "NONE", "beat_id": None, "intro": {"seconds": logo},
+                "why": "the channel intro right after the host's opening"})
+            script["intro"] = {"mode": "after_host", "start": round(t + d, 3), "seconds": logo}
         script["shots"].append({
             "kind": "video", "command": "SHOW_CLIP", "motion": "NONE", "path": item["video"],
             "clip_start": 0.0, "clip_end": round(d, 3), "start": round(t, 3),
@@ -89,14 +106,20 @@ def insert_host(script: dict, items: list[dict]) -> dict:
         host.append({"scene_id": item["scene_id"], "position": item["position"],
                      "beat_id": item.get("beat_id"), "start": round(t, 3),
                      "end": round(t + d, 3), "narration_at": round(t_orig, 3),
-                     "audio": item["audio"], "gain_db": item["gain_db"], "text": item.get("text")})
-        offset += d
+                     "audio": item["audio"], "gain_db": item["gain_db"], "text": item.get("text"),
+                     "pad_after": logo})
+        offset += d + logo
+        host_seconds += d
     script["shots"].sort(key=lambda s: (s["start"], s["end"]))
     for n, s in enumerate(script["shots"]):
         s["index"] = n
     script["host"] = host
-    script["host_seconds"] = round(offset, 3)
+    script["host_seconds"] = round(host_seconds, 3)
     script["duration"] = round(script["duration"] + offset, 3)
+    script["timeline"] = {"story_seconds": round(story_seconds, 3),
+                          "host_seconds": round(host_seconds, 3),
+                          "intro_seconds": round(offset - host_seconds, 3),
+                          "total_seconds": script["duration"]}
     return script
 
 
@@ -121,7 +144,8 @@ def splice_command(narration: Path, host: list[dict], out: Path, resolve) -> lis
         if c - start > _EPS:
             parts.append(f"[0:a]atrim={start:.3f}:{c:.3f},asetpts=PTS-STARTPTS[n{n}]")
             labels.append(f"[n{n}]")
-        parts.append(f"[{n + 1}:a]volume={host[n]['gain_db']}dB,asetpts=PTS-STARTPTS[h{n}]")
+        pad = f",apad=pad_dur={host[n]['pad_after']:.3f}" if host[n].get("pad_after") else ""
+        parts.append(f"[{n + 1}:a]volume={host[n]['gain_db']}dB{pad},asetpts=PTS-STARTPTS[h{n}]")
         labels.append(f"[h{n}]")
         start = c
     parts.append(f"[0:a]atrim=start={start:.3f},asetpts=PTS-STARTPTS[nend]")

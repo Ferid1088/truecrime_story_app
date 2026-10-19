@@ -1,0 +1,135 @@
+{
+ "segments_id": 25,
+ "report": {
+  "scenes": [
+   {
+    "scene": 89,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 25.92,
+    "deviation": 0.0107,
+    "cap": 45.0
+   },
+   {
+    "scene": 91,
+    "segment": "S5",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 32.64,
+    "deviation": 0.0297,
+    "cap": 50.0
+   },
+   {
+    "scene": 88,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 26.16,
+    "deviation": 0.0917,
+    "cap": 75.0
+   },
+   {
+    "scene": 90,
+    "segment": "S4",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 22.64,
+    "deviation": 0.0062,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 107.36,
+  "host_share": 0.0319,
+  "timeline": {
+   "story_seconds": 3363.6,
+   "host_seconds": 107.36,
+   "intro_seconds": 0.0,
+   "total_seconds": 3470.96
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S2": {
+   "text": "That hatchet bothers me because I can so easily picture it as the weapon. Can you? A broken handle, a dusty cellar—it almost supplies its own story. But the officers couldn't even agree that the break was fresh. And after hearing those disputed accounts of family hostility, you might already be looking for something that makes them fit. I have to catch myself there. One uncertain claim can't settle another.",
+   "seconds": 25.92,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "that hatchet bothers me because I can so easily picture it as the weapon. Can you? A broken handle? A dusty cellar? It almost supplies its own story. But the officers couldn't even agree that the break was fresh. And after hearing those disputed accounts of family hostility, you might already be looking for something that makes them fit. I have to catch myself there. One uncertain claim can't settle another."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S5": {
+   "text": "A rhyme can outlive the evidence. You’ve heard how this one turned suspicion into a certainty, even though the jury acquitted Lizzie and no one else was charged. But an acquittal doesn’t tell us who killed Andrew and Abby. And a story repeated for generations doesn’t make its accusation true. I keep coming back to Abby, almost lost beneath the trial and the legend. She went upstairs to make a bed, and never came down. You’re left with the same question the record can’t answer: who followed her up those stairs?",
+   "seconds": 32.64,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "A rhyme can outlive the evidence. You've heard how this one turned suspicion into a certainty, even though the jury acquitted Lizzie and no one else was charged. But an acquittal doesn't tell us who killed Andrew and Abby, and a story repeated for generations doesn't make its accusation true. I keep coming back to Abby, almost lost beneath the trial and the legend. She went upstairs to make a bed, and never came down. You're left with the same question the record can't answer. Who followed her up those stairs?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "Upstairs or downstairs? Where would you place Lizzie Borden when Andrew came home? The maid said she was at the top of the stairs. Lizzie said she was downstairs. I keep trying to picture that moment, and I can't make those accounts fit together. Maybe you find one easier to believe already. I'm hesitating. What would help you choose between them? That's the question I'd carry into this story. For now, hold both accounts in your mind.",
+   "seconds": 26.16,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Upstairs or downstairs? Where would you place Lizzie Borden when Andrew came home? The maid said she was at the top of the stairs. Lizzie said she was downstairs. I keep trying to picture that moment, and I can't make those accounts fit together. Maybe you find one easier to believe already. I'm hesitating. What would help you choose between them? That's the question I'd carry into this story. For now, hold both accounts in your mind."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "Did you feel some relief when she walked out? I did. The state hadn't proved its case. Then my mind went back to Andrew and Abby, and that long gap between their deaths. You can accept the jury's decision and still want an answer about what happened inside that house. The cheering in court couldn't answer that question for you. I find that a difficult place to leave them.",
+   "seconds": 22.64,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Did you feel some relief when she walked out? I did. The state hadn't proved its case. Then, my mind went back to Andrew and Abby and that long gap between their deaths. You can accept the jury's decision and still want an answer about what happened inside that house. The cheering in court couldn't answer that question for you. I find that a difficult place to leave them."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

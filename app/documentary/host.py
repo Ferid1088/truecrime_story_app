@@ -1,35 +1,27 @@
-"""The recurring on-screen host (persona_master_prompt.md).
+"""The recurring on-screen host Fereidoun (persona_master_prompt.md).
 
-The narration tells the story; the host appears at a few chosen moments
-to add perspective, clarity and continuity — never to retell the case.
+The narration tells the story; the host appears at a few chosen moments and talks to the viewer
+like a close friend — never to retell the case.
 
 Pipeline:
-  1. host director (role host_director), once per blueprint and
-     language-independent: decides IF and WHERE the host appears
-     (opening / after a beat / final), why, which one or two personality
-     dimensions show, the verified memory used (archive of covered cases
-     or host memory — nothing else), the delivery, the claims the host
-     will make (each with its kind of information and evidence ids) and
-     what the host now remembers about this case (memory updates);
-  2. host writer (role host_writer), per language: the dialogue written
-     natively — never translated — from the plan and that language's own
-     narration around the placement;
-  3. host critic (role host_critic, an independent model): the quality
-     check of the persona prompt per segment (adds value, conversational,
-     native, fresh, shows not tells, emotion justified, verified,
-     respectful, short) plus facts, spoilers and memories; failing
-     segments are rewritten (host.max_repair_iterations).
-Deterministic guard-rails: placements and spacing, reveal firewall (the
-host never mentions what a later beat reveals), memories only by
-reference to existing rows, durations per placement, host share of the
-film, stock phrases and repetition of recent episodes.
+  1. host director (role host_director), once per film and for all languages: decides the
+     STRUCTURE only — how many appearances, after which act, in which role (opening, transition,
+     reflection, viewer question, outro). Seconds and knowledge cutoffs are computed from the
+     story (host_planning); the director writes no content, so none can leak through the plan;
+  2. host writer (role host_writer), per language and per appearance, in film order: the dialogue
+     written natively — never translated — from the plan entry and ONLY the story up to the
+     appearance's cutoff (host_firewall), the memories it may use and the host's earlier words;
+  3. host critic (role host_critic, an independent model): the persona's quality check and the
+     direct-address, register, hook and no-spoiler checks, on the same cutoff input. Failing
+     segments are rewritten (host.max_repair_iterations), otherwise left out.
+Deterministic guard-rails: placements and spacing, the length for the planned seconds, direct and
+informal address per language, the opening's hook, the reveal check on the host's words, memories
+only by reference to existing rows, stock phrases and repetition.
 """
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -38,20 +30,17 @@ from sqlalchemy.orm import Session
 
 from app.agents.story import build_evidence_pack, stored_sections
 from app.core.ai_config import HostConfig, ai_config
+from app.core.prompts import prompt
 from app.db.models import (
     Case, Contradiction, EditorialBlueprint, Fact, HostMemory, HostPlan, HostSegments,
     Source, StoryVersion,
 )
 from app.documentary.blueprint import version_sections
+from app.documentary.host_story import HostStory
 
 ROOT = Path(__file__).resolve().parents[2]
 
 LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
-POSITIONS = ("opening", "mid", "final")
-CLAIM_KINDS = (
-    "confirmed_fact", "witness_statement", "official_finding", "media_report",
-    "disputed_claim", "expert_interpretation", "speculation", "personal_reaction",
-)
 MEMORY_KINDS = ("opinion", "reaction", "correction", "open_question", "theme")
 DIMENSIONS = (
     "intellectual_humility", "empathy", "curiosity", "patience",
@@ -60,12 +49,10 @@ DIMENSIONS = (
     "awareness_of_bias", "emotional_honesty", "changing_an_opinion",
     "memory_of_previous_cases", "restrained_humor",
 )
-# Beats the host must not interrupt right after (momentum) or right
-# before (the payoff belongs to the narration).
-NO_SEGMENT_AFTER = {"hook"}
-NO_SEGMENT_BEFORE = {"reveal"}
 CHECKS = ("adds_value", "conversational", "native", "fresh", "shows_not_tells",
-          "emotion_justified", "verified", "respectful", "short_enough")
+          "emotion_justified", "verified", "respectful", "short_enough",
+          "direct_address", "informal_form", "friend_tone", "hook", "no_spoiler",
+          "builds_on_story")
 
 
 def persona_prompt(cfg: HostConfig | None = None) -> str:
@@ -75,20 +62,30 @@ def persona_prompt(cfg: HostConfig | None = None) -> str:
     return p.read_text(encoding="utf-8").strip()
 
 
-def host_wpm(language: str, cfg: HostConfig | None = None) -> float:
-    cfg = cfg or ai_config.host
-    return ai_config.documentary.wpm(language) * cfg.pace_factor
+def persona_sha256(cfg: HostConfig | None = None) -> str:
+    """sha256 of the persona text exactly as it is inserted into the prompts."""
+    return hashlib.sha256(persona_prompt(cfg).encode("utf-8")).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# length follows time
+# ---------------------------------------------------------------------------
 
 
 def estimate_seconds(text: str, language: str) -> float:
-    return round(len((text or "").split()) / host_wpm(language) * 60, 1)
+    return round(len((text or "").split()) / ai_config.host.wpm(language) * 60, 1)
 
 
-def word_range(position: str, language: str, cfg: HostConfig | None = None) -> tuple[int, int]:
+def target_words(seconds: float, language: str, cfg: HostConfig | None = None) -> int:
     cfg = cfg or ai_config.host
-    lo, hi = cfg.seconds[position]
-    wpm = host_wpm(language, cfg)
-    return int(lo * wpm / 60), int(hi * wpm / 60) + 1
+    return max(int(round(seconds * cfg.wpm(language) / 60)), 1)
+
+
+def word_range(seconds: float, language: str, cfg: HostConfig | None = None) -> tuple[int, int]:
+    """Words that fill `seconds` of host speech in `language`, within the word tolerance."""
+    cfg = cfg or ai_config.host
+    words = seconds * cfg.wpm(language) / 60
+    return int(words * (1 - cfg.word_tolerance)), int(words * (1 + cfg.word_tolerance)) + 1
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +156,6 @@ def recent_segments(db: Session, case_id: int, language: str | None = None,
             if not s.get("avatar_dialogue"):
                 continue
             out.append({"language": row.language, "position": s.get("position"),
-                        "pattern": s.get("pattern"),
                         "dimensions": s.get("personality_dimension"),
                         "dialogue": s["avatar_dialogue"]})
             if len(out) >= cfg.recent_segments:
@@ -189,7 +185,7 @@ def _pack(db: Session, case_id: int) -> dict:
         db.query(Source).filter(Source.case_id == case_id).all())
 
 
-def _evidence_items(pack: dict) -> list[dict]:
+def evidence_items(pack: dict) -> list[dict]:
     items = [{"id": f["id"], "claim": (f.get("claim") or "")[:300],
               "category": f.get("category"), "uncertain": bool(f.get("uncertain")),
               "speaker": f.get("speaker")} for f in pack.get("facts") or []]
@@ -200,298 +196,125 @@ def _evidence_items(pack: dict) -> list[dict]:
     return items
 
 
+def _memory_index(arch: list[dict], mem: list[dict]) -> dict[str, dict]:
+    return {x["ref"]: x for x in [*arch, *mem]}
+
+
 # ---------------------------------------------------------------------------
-# 1. director: when and why the host appears
+# 1. director: the structure of the appearances
 # ---------------------------------------------------------------------------
 
 
 def director_system_prompt(cfg: HostConfig | None = None) -> str:
     cfg = cfg or ai_config.host
-    sec = {k: f"{v[0]:g}–{v[1]:g} s" for k, v in cfg.seconds.items()}
-    return prompt("documentary/host/director_system_prompt").format(persona_prompt=persona_prompt(cfg), sec_opening=sec['opening'], sec_mid=sec['mid'], max_mid_segments=cfg.max_mid_segments, min_beats_between=cfg.min_beats_between, sec_final=sec['final'], max_total_seconds=int(cfg.max_total_seconds), claim_kinds=" | ".join(CLAIM_KINDS), memory_kinds=" | ".join(MEMORY_KINDS), personality_dimensions=" | ".join(DIMENSIONS))
+    roles = "\n".join(
+        f'- "{name}" (position "{spec.position}"): {spec.min_seconds:g}–{spec.max_seconds:g} s'
+        for name, spec in cfg.roles.items())
+    return prompt("documentary/host/director_system_prompt").format(
+        persona_prompt=persona_prompt(cfg), roles=roles, min_appearances=cfg.min_appearances,
+        max_appearances=cfg.max_appearances, min_acts_between=cfg.min_acts_between,
+        min_gap_seconds=int(cfg.min_gap_seconds), max_total_seconds=int(cfg.max_total_seconds),
+        max_total_share=int(cfg.max_total_share * 100))
 
 
-def director_input(case: Case, blueprint: dict, texts: dict[str, str], pack: dict,
-                   arch: list[dict], mem: list[dict], recent: list[dict]) -> dict:
+def director_input(story: HostStory, narration_seconds: float) -> dict:
+    """The film's structure for the director: acts with their purpose, weight and the
+    questions they raise and answer — no narration text, no evidence."""
     return {
-        "case": case.canonical_title,
-        "central_question": blueprint.get("central_question"),
-        "editorial_thesis": blueprint.get("editorial_thesis"),
-        "human_thread": blueprint.get("human_thread"),
-        "questions": blueprint.get("questions"),
-        "beats": [
-            {"beat_id": b["id"], "purpose": b.get("purpose"), "summary": b.get("summary"),
-             "reveals": b.get("reveals") or [], "opens": b.get("opens") or [],
-             "answers": b.get("answers") or [], "unresolved": b.get("unresolved") or [],
-             "human_focus": b.get("human_focus"), "emotional_load": b.get("emotional_load"),
-             "mystery_intensity": b.get("mystery_intensity"),
-             "narration": texts.get(b["id"], "")}
-            for b in blueprint.get("beats") or []
-        ],
-        "evidence": _evidence_items(pack),
-        "archive": arch,
-        "host_memory": mem,
-        "recent_segments": recent,
+        "case": story.case_title,
+        "film_seconds": round(narration_seconds),
+        "acts": [{"id": a.id, "number": a.index, "title": a.title, "purpose": a.purpose,
+                  "words": a.words,
+                  "seconds": round(a.words / max(story.total_words(), 1) * narration_seconds),
+                  "opens_questions": len(a.open_loops), "answers_questions": len(a.resolved_loops),
+                  "is_hook": a.hook, "is_payoff": a.payoff} for a in story.acts],
     }
 
 
-def _reveal_index(blueprint: dict) -> dict[str, int]:
-    out: dict[str, int] = {}
-    for i, b in enumerate(blueprint.get("beats") or []):
-        for eid in b.get("reveals") or []:
-            out.setdefault(str(eid), i)
-    return out
-
-
-def validate_host_plan(raw: dict, blueprint: dict, evidence_ids: set[str],
-                       memory_refs: set[str], narration_seconds: float,
-                       cfg: HostConfig | None = None,
-                       slots: list[dict] | None = None) -> tuple[dict, dict]:
-    """Deterministic checks of the director's plan. Errors are sent back
-    for repair; adjustments (clamped durations) are logged. `slots` are the
-    story plan's host slots (Part 5): the plan keeps to them, or vetoes one
-    with a reason."""
-    cfg = cfg or ai_config.host
-    raw = raw if isinstance(raw, dict) else {}
-    beats = blueprint.get("beats") or []
-    index = {b["id"]: i for i, b in enumerate(beats)}
-    revealed_at = _reveal_index(blueprint)
-    errors: list[dict] = []
-    warnings: list[dict] = []
-    adjustments: list[dict] = []
-    segments: list[dict] = []
-
-    for n, s in enumerate(raw.get("segments") or [], 1):
-        if not isinstance(s, dict):
-            continue
-        sid = str(s.get("id") or f"S{n}")
-        pos = s.get("position")
-        bid = s.get("beat_id")
-        if pos not in POSITIONS:
-            errors.append({"code": "unknown_position", "segment": sid, "value": pos})
-            continue
-        if pos == "opening":
-            at = -1
-            bid = None
-        elif pos == "final":
-            if not cfg.final_enabled:
-                errors.append({"code": "final_slot_is_off", "segment": sid})
-            at = len(beats) - 1
-            bid = beats[-1]["id"] if beats else None
-        else:
-            if bid not in index:
-                errors.append({"code": "unknown_beat", "segment": sid, "value": bid})
-                continue
-            at = index[bid]
-            if at == len(beats) - 1:
-                errors.append({"code": "mid_after_last_beat_use_final", "segment": sid})
-            if beats[at].get("purpose") in NO_SEGMENT_AFTER:
-                errors.append({"code": "interrupts_hook", "segment": sid, "beat": bid})
-            if at + 1 < len(beats) and beats[at + 1].get("purpose") in NO_SEGMENT_BEFORE:
-                errors.append({"code": "interrupts_before_reveal", "segment": sid,
-                               "beat": beats[at + 1]["id"]})
-        dims = [d for d in (s.get("dimensions") or []) if d in DIMENSIONS]
-        if not dims:
-            warnings.append({"code": "no_dimension", "segment": sid})
-        if len(dims) > 2:
-            errors.append({"code": "too_many_dimensions", "segment": sid})
-        ref = s.get("memory_reference")
-        ref = str(ref).strip() if ref else None
-        if ref and ref not in memory_refs:
-            errors.append({"code": "unverified_memory", "segment": sid, "ref": ref})
-        claims = []
-        for c in s.get("claims") or []:
-            if not isinstance(c, dict) or not str(c.get("text") or "").strip():
-                continue
-            kind = c.get("kind")
-            if kind not in CLAIM_KINDS:
-                errors.append({"code": "unknown_claim_kind", "segment": sid, "value": kind})
-            ids = [str(x) for x in c.get("evidence_ids") or []]
-            for eid in ids:
-                if eid not in evidence_ids:
-                    errors.append({"code": "unknown_evidence", "segment": sid, "id": eid})
-                elif eid in revealed_at and revealed_at[eid] > max(at, 0):
-                    errors.append({"code": "spoils_reveal", "segment": sid, "id": eid,
-                                   "revealed_in": beats[revealed_at[eid]]["id"]})
-                elif eid not in revealed_at:
-                    warnings.append({"code": "evidence_not_narrated", "segment": sid, "id": eid})
-            if kind not in ("speculation", "personal_reaction") and not ids:
-                errors.append({"code": "claim_without_evidence", "segment": sid,
-                               "claim": str(c["text"])[:120]})
-            claims.append({"text": str(c["text"])[:400], "kind": kind, "evidence_ids": ids})
-        lo, hi = cfg.seconds[pos]
-        hi = min(hi, cfg.max_appearance_seconds)
-        try:
-            t = float(s.get("target_seconds"))
-        except (TypeError, ValueError):
-            t = (lo + hi) / 2
-        clamped = min(max(t, lo), hi)
-        if abs(clamped - t) > 1e-6:
-            adjustments.append({"segment": sid, "target_seconds": [t, clamped]})
-        if not str(s.get("intent") or "").strip():
-            errors.append({"code": "no_intent", "segment": sid})
-        segments.append({
-            "id": sid, "position": pos, "beat_id": bid, "at": at,
-            "pattern": str(s.get("pattern") or "")[:80],
-            "purpose": str(s.get("purpose") or "")[:400],
-            "dimensions": dims[:2], "memory_reference": ref if ref in memory_refs else None,
-            "memory_connection": (str(s.get("memory_connection") or "")[:300] or None)
-            if ref in memory_refs else None,
-            "delivery": str(s.get("delivery") or "")[:300],
-            "intent": str(s.get("intent") or "")[:1200],
-            "claims": claims, "target_seconds": round(clamped, 1),
-            "transition_back": str(s.get("transition_back") or "")[:300],
-        })
-
-    segments.sort(key=lambda x: x["at"])
-    counts = {p: sum(1 for s in segments if s["position"] == p) for p in POSITIONS}
-    if counts["opening"] > 1 or counts["final"] > 1:
-        errors.append({"code": "more_than_one_opening_or_final", "counts": counts})
-    if counts["mid"] > cfg.max_mid_segments:
-        errors.append({"code": "too_many_mid_segments", "count": counts["mid"],
-                       "max": cfg.max_mid_segments})
-    ids = [s["id"] for s in segments]
-    if len(set(ids)) != len(ids):
-        errors.append({"code": "duplicate_segment_ids"})
-    opening = next((s for s in segments if s["position"] == "opening"), None)
-    if opening:
-        for s in segments:
-            if s["position"] != "opening" and s["target_seconds"] >= opening["target_seconds"]:
-                errors.append({"code": "opening_must_be_the_longest", "segment": s["id"],
-                               "seconds": s["target_seconds"],
-                               "opening_seconds": opening["target_seconds"]})
-    errors += _slot_errors(raw, segments, blueprint, slots)
-    for a, b in zip(segments, segments[1:]):
-        # opening sits at -1, a mid/final segment after beat i at i: the
-        # difference is the number of narrated beats between the two
-        gap = b["at"] - a["at"]
-        if gap < cfg.min_beats_between:
-            errors.append({"code": "appearances_too_close", "segments": [a["id"], b["id"]],
-                           "beats_between": gap})
-    if not segments:
-        warnings.append({"code": "no_appearances"})
-
-    host_seconds = sum(s["target_seconds"] for s in segments)
-    if host_seconds > cfg.max_total_seconds:
-        errors.append({"code": "host_time_too_long", "seconds": round(host_seconds, 1),
-                       "max": cfg.max_total_seconds})
-    share = host_seconds / max(narration_seconds, 1.0)
-    if share > cfg.max_total_share:
-        # short pilots cannot hold an opening within the share; only a
-        # real film is held to it
-        (errors if narration_seconds >= 600 else warnings).append(
-            {"code": "host_share_too_high", "share": round(share, 3),
-             "max": cfg.max_total_share})
-
-    updates = []
-    for u in raw.get("memory_updates") or []:
-        if not isinstance(u, dict) or u.get("kind") not in MEMORY_KINDS:
-            continue
-        text = str(u.get("text") or "").strip()
-        if text:
-            updates.append({"kind": u["kind"], "text": text[:500],
-                            "segment_id": u.get("segment_id") if u.get("segment_id") in ids
-                            else None})
-    if len(updates) > 6:
-        warnings.append({"code": "memory_updates_trimmed", "count": len(updates)})
-        updates = updates[:6]
-
-    for s in segments:
-        s.pop("at", None)
-    status = "invalid" if errors else ("needs_review" if warnings else "valid")
-    plan = {"notes": str(raw.get("notes") or "")[:600], "segments": segments,
-            "memory_updates": updates}
-    report = {"status": status, "errors": errors, "warnings": warnings,
-              "adjustments": adjustments, "segments": len(segments), "counts": counts,
-              "host_seconds": round(host_seconds, 1),
-              "narration_seconds": round(narration_seconds, 1),
-              "host_share": round(share, 4)}
-    return plan, report
-
-
-def _slot_errors(raw: dict, segments: list[dict], blueprint: dict,
-                 slots: list[dict] | None) -> list[dict]:
-    """The plan's host slots are the placement; a slot may be vetoed, with a
-    reason, never silently dropped or replaced by another position."""
-    if not slots:
-        return []
-    out: list[dict] = []
-    act_of = {b["id"]: b.get("act_id") for b in blueprint.get("beats") or []}
-    mid_slots = [s for s in slots if s.get("position") == "mid"]
-    vetoes = [v for v in raw.get("vetoes") or [] if isinstance(v, dict)]
-    for v in vetoes:
-        if not str(v.get("reason") or "").strip():
-            out.append({"code": "veto_without_reason", "slot": v.get("slot")})
-    vetoed = {str(v.get("slot")) for v in vetoes}
-    free = [s for s in mid_slots if s["id"] not in vetoed]
-    for seg in (s for s in segments if s["position"] == "mid"):
-        match = next((s for s in free if s.get("after_beat") == act_of.get(seg["beat_id"])), None)
-        if match is None:
-            out.append({"code": "mid_segment_not_on_a_planned_slot", "segment": seg["id"],
-                        "beat": seg["beat_id"]})
-        else:
-            free.remove(match)
-    return out
-
-
 # ---------------------------------------------------------------------------
-# 2. writer: the dialogue, natively per language
+# 2. writer: the dialogue, natively per language, one appearance at a time
 # ---------------------------------------------------------------------------
 
 
 def writer_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
     cfg = cfg or ai_config.host
     name = LANG_NAMES.get(language, language)
-    ranges = ", ".join(f"{p} {lo}–{hi} words"
-                       for p in POSITIONS for lo, hi in [word_range(p, language, cfg)])
     channel = ai_config.channels.get(language)
-    brand = (prompt("documentary/host/writer_system_prompt_2").format(name_2=channel.name, name=name)) if channel else ""
-    return prompt("documentary/host/writer_system_prompt").format(persona_prompt=persona_prompt(cfg), name=name, brand=brand, ranges=ranges)
+    brand = (prompt("documentary/host/writer_system_prompt_2")
+             .format(name_2=channel.name, name=name)) if channel else ""
+    return prompt("documentary/host/writer_system_prompt").format(
+        persona_prompt=persona_prompt(cfg), name=name, brand=brand,
+        opening_first_sentence=cfg.opening_max_first_sentence_words,
+        dimensions=", ".join(DIMENSIONS))
 
 
-def writer_input(plan: dict, texts: dict[str, str], beat_ids: list[str], language: str,
-                 pack_items: dict[str, dict], arch_mem: dict[str, dict],
-                 recent: list[dict], cfg: HostConfig | None = None) -> dict:
+def writer_input(story: HostStory, seg: dict, language: str, arch_mem: dict[str, dict],
+                 recent: list[dict], earlier: list[str], cfg: HostConfig | None = None) -> dict:
+    """Everything the writer of ONE appearance gets: its plan entry, the story up to its
+    cutoff (host_firewall), the memories, the host's earlier words in this film and recent
+    episodes. Nothing after the cutoff."""
+    from app.documentary.host_firewall import segment_context
+
     cfg = cfg or ai_config.host
+    lo, hi = word_range(seg["target_seconds"], language, cfg)
+    return {
+        "language": language,
+        "segment": {"id": seg["id"], "position": seg["position"], "role": seg["role"],
+                    "after_act": seg["beat_id"], "acts_heard": seg["cutoff"],
+                    "target_seconds": seg["target_seconds"],
+                    "target_words": target_words(seg["target_seconds"], language, cfg),
+                    "allowed_words": [lo, hi],
+                    "requires_question": cfg.roles[seg["role"]].requires_question},
+        **segment_context(story, seg, cfg),
+        "memories": list(arch_mem.values()),
+        "earlier_in_this_film": earlier,
+        "recent_segments": [r["dialogue"] for r in recent],
+        "avoid_phrases": cfg.language_rules[language].stock_phrases,
+    }
 
-    def around(seg: dict) -> dict:
-        if seg["position"] == "opening":
-            before, after = None, beat_ids[0] if beat_ids else None
-        elif seg["position"] == "final":
-            before, after = beat_ids[-1] if beat_ids else None, None
-        else:
-            i = beat_ids.index(seg["beat_id"])
-            before = seg["beat_id"]
-            after = beat_ids[i + 1] if i + 1 < len(beat_ids) else None
-        tail = " ".join((texts.get(before) or "").split()[-160:]) if before else None
-        head = " ".join((texts.get(after) or "").split()[:90]) if after else None
-        return {"narration_before": tail, "narration_after": head}
 
-    out = []
-    for s in plan.get("segments") or []:
-        lo, hi = word_range(s["position"], language, cfg)
-        target = int(s["target_seconds"] * host_wpm(language, cfg) / 60)
-        ids = {e for c in s["claims"] for e in c["evidence_ids"]}
-        out.append({
-            "id": s["id"], "position": s["position"], "after_beat": s["beat_id"],
-            "purpose": s["purpose"], "pattern": s["pattern"], "dimensions": s["dimensions"],
-            "memory": arch_mem.get(s["memory_reference"]) if s["memory_reference"] else None,
-            "memory_connection": s["memory_connection"], "delivery": s["delivery"],
-            "intent": s["intent"], "claims": s["claims"],
-            "evidence": [pack_items[e] for e in sorted(ids) if e in pack_items],
-            "target_seconds": s["target_seconds"],
-            "target_words": max(lo, min(hi, target)), "allowed_words": [lo, hi],
-            "transition_back": s["transition_back"], **around(s),
-        })
-    return {"language": language, "segments": out,
-            "recent_segments": [r["dialogue"] for r in recent],
-            "avoid_phrases": cfg.stock_phrases.get(language, [])}
+def parse_writer(raw: dict) -> dict:
+    """The writer's answer: dialogue, the memory it used, and its English notes."""
+    raw = raw if isinstance(raw, dict) else {}
+    dims = [d for d in raw.get("dimensions") or [] if d in DIMENSIONS][:2]
+    note = raw.get("memory_note") if isinstance(raw.get("memory_note"), dict) else None
+    if note and (note.get("kind") not in MEMORY_KINDS or not str(note.get("text") or "").strip()):
+        note = None
+    ref = str(raw.get("memory_used") or "").strip() or None
+    return {"dialogue": str(raw.get("dialogue") or "").strip().strip('"“”«»'),
+            "memory_used": ref, "dimensions": dims,
+            "delivery": str(raw.get("delivery") or "")[:300],
+            "transition_back": str(raw.get("transition_back") or "")[:300],
+            "memory_note": {"kind": note["kind"], "text": str(note["text"]).strip()[:500]}
+            if note else None}
 
+
+# What the writer is told to do about each deterministic finding (the finding itself stays
+# machine-readable; the fix is the sentence the writer reads).
+ISSUE_FIXES = {
+    "no_direct_address": "Speak to the viewer directly, informally, with the address form of the "
+                         "language (several sentences must contain it, e.g. a question to them).",
+    "formal_address": "Replace the formal address with the informal one, as a friend would say it.",
+    "no_question_to_the_viewer": "End a sentence with a real question to the viewer.",
+    "greeting_filler": "Start without a greeting or welcome: the first sentence grabs.",
+    "first_sentence_too_long": "Make the first sentence short, one breath.",
+    "stock_phrase": "Drop this stock phrase and say it in your own words.",
+    "no_short_sentences": "Add one or two very short sentences of at most {short} words (a "
+                          "reaction, a pause, a doubt) between the longer ones, the way people "
+                          "talk. Count the words.",
+    "flat_rhythm": "The sentences are about the same length. Make some clearly longer and some "
+                   "clearly shorter (at most {short} words): short, long, a sentence that breaks "
+                   "off.",
+    "same_sentence_opening": "Two sentences in a row start alike: start them differently.",
+    "too_short": "Add one more thought from the acts you were given.",
+    "too_long": "Cut the least important sentences.",
+}
 
 _WORD = re.compile(r"\w+", re.UNICODE)
 _META = re.compile(r"\[|\]|\(pause\)|\bsegment\s*\w*\d|https?://|www\.|^\s*(S\d+|Host)\s*:",
                    re.IGNORECASE | re.MULTILINE)
 _EPISODE_META = re.compile(r"\b(case|episode|folge|fall)\s*(id|#|nr\.?)?\s*\d+", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"(?<=[.!?؟…])\s+")
 
 
 def _trigrams(text: str) -> set[tuple[str, ...]]:
@@ -503,24 +326,66 @@ def _first_words(text: str, n: int = 3) -> tuple[str, ...]:
     return tuple(x.lower() for x in _WORD.findall(text or "")[:n])
 
 
+def spoken_issues(sentences: list[str], cfg: HostConfig) -> list[dict]:
+    """Spoken, not written: sentences of varied length with some very short ones, and no two
+    sentences in a row that start alike."""
+    rules = cfg.spoken
+    if len(sentences) < rules.min_sentences:
+        return []
+    lengths = [len(s.split()) for s in sentences]
+    issues: list[dict] = []
+    if sum(1 for n in lengths if n <= rules.short_sentence_words) < rules.min_short_sentences:
+        issues.append({"type": "no_short_sentences", "shortest": min(lengths)})
+    mean = sum(lengths) / len(lengths)
+    spread = (sum((n - mean) ** 2 for n in lengths) / len(lengths)) ** 0.5
+    if mean and spread / mean < rules.min_length_variation:
+        issues.append({"type": "flat_rhythm", "variation": round(spread / mean, 2)})
+    for before, after in zip(sentences, sentences[1:]):
+        if _first_words(before, 2) == _first_words(after, 2):
+            issues.append({"type": "same_sentence_opening", "quote": after[:60]})
+            break
+    return issues
+
+
 def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
                     others: list[str], cfg: HostConfig | None = None) -> list[dict]:
     """Deterministic checks of one segment's dialogue."""
     cfg = cfg or ai_config.host
+    rules = cfg.language_rules[language]
     issues: list[dict] = []
     text = (dialogue or "").strip()
     if not text:
         return [{"type": "empty"}]
     words = len(text.split())
-    lo, hi = word_range(seg["position"], language, cfg)
+    lo, hi = word_range(seg["target_seconds"], language, cfg)
     if words < lo:
         issues.append({"type": "too_short", "words": words, "min": lo})
     elif words > hi:
         issues.append({"type": "too_long", "words": words, "max": hi})
-    for pat in cfg.stock_phrases.get(language, []):
+    for pat in rules.stock_phrases:
         m = re.search(pat, text, re.IGNORECASE)
         if m:
             issues.append({"type": "stock_phrase", "quote": m.group(0)})
+    if not any(re.search(p, text, re.IGNORECASE) for p in rules.address_patterns):
+        issues.append({"type": "no_direct_address"})
+    for pat in rules.formal_patterns:
+        m = re.search(pat, text)
+        if m:
+            issues.append({"type": "formal_address", "quote": m.group(0)})
+    sentences = [s for s in _SENTENCE_END.split(text) if s.strip()]
+    if cfg.roles[seg["role"]].requires_question and not any(
+            s.strip().endswith(tuple(rules.question_marks)) for s in sentences):
+        issues.append({"type": "no_question_to_the_viewer"})
+    if seg["position"] == "opening":
+        for pat in rules.greeting_patterns:
+            if re.search(pat, text, re.IGNORECASE):
+                issues.append({"type": "greeting_filler"})
+                break
+        first = len(sentences[0].split()) if sentences else 0
+        if first > cfg.opening_max_first_sentence_words:
+            issues.append({"type": "first_sentence_too_long", "words": first,
+                           "max": cfg.opening_max_first_sentence_words})
+    issues += spoken_issues(sentences, cfg)
     if _META.search(text):
         issues.append({"type": "not_plain_speech"})
     if _EPISODE_META.search(text):
@@ -538,11 +403,17 @@ def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
         issues.append({"type": "repeated_opening", "quote": " ".join(start)})
     if any(_first_words(o, 2) == _first_words(text, 2) for o in others):
         issues.append({"type": "same_start_as_other_segment"})
-    return issues
+    for o in others:
+        theirs = _trigrams(o)
+        if mine and theirs and len(mine & theirs) / len(mine) > cfg.max_trigram_overlap:
+            issues.append({"type": "repeats_another_segment", "quote": o[:120]})
+            break
+    return [{**i, "fix": ISSUE_FIXES[i["type"]].format(short=cfg.spoken.short_sentence_words)}
+            if i["type"] in ISSUE_FIXES else i for i in issues]
 
 
 # ---------------------------------------------------------------------------
-# 3. critic: the persona's quality check, facts and memories
+# 3. critic: the persona's quality check, address, hook and spoilers
 # ---------------------------------------------------------------------------
 
 
@@ -556,92 +427,87 @@ def critic_system_prompt(language: str, cfg: HostConfig | None = None) -> str:
               "Check list is your checklist):\n\n" + persona_prompt(cfg))
 
 
-def persona_sha256(cfg: HostConfig | None = None) -> str:
-    """sha256 of the persona text exactly as it is inserted into the prompts."""
-    import hashlib
-
-    return hashlib.sha256(persona_prompt(cfg).encode("utf-8")).hexdigest()
+def critic_input(wi: dict, dialogue: str) -> dict:
+    """The writer's input (the cutoff context included) plus the dialogue to judge."""
+    return {**wi, "dialogue": dialogue}
 
 
-def critic_input(written: dict[str, str], wi: dict) -> dict:
-    return {
-        "language": wi["language"],
-        "recent_segments": wi["recent_segments"],
-        "segments": [
-            {"id": s["id"], "position": s["position"], "purpose": s["purpose"],
-             "claims": s["claims"], "evidence": s["evidence"], "memory": s["memory"],
-             "narration_before": s["narration_before"], "narration_after": s["narration_after"],
-             "dialogue": written.get(s["id"], "")}
-            for s in wi["segments"]
-        ],
-    }
+def meaning_input(wi: dict, dialogue: str) -> dict:
+    """What the host meaning check gets: the source (the story up to the cutoff and its facts,
+    the case title and the open questions) and what the host says."""
+    parts = [f"CASE: {wi['case']['title']}"]
+    parts += [f"[{a['act']}] {a['narration']}" for a in wi["story_so_far"]]
+    parts += [f"FACT {f['id']}: {f.get('claim') or f.get('contradiction') or ''}"
+              for f in wi["facts"]]
+    parts += [f"OPEN QUESTION: {q}" for q in wi["open_questions"]]
+    parts += [f"MEMORY {m['ref']}: {m.get('text') or m.get('central_question') or ''}"
+              for m in wi["memories"]]
+    return {"spoken_language": wi["language"],
+            "segments": [{"segment_id": wi["segment"]["id"], "source": "\n\n".join(parts),
+                          "spoken": dialogue}]}
 
 
-def critic_verdicts(raw: dict) -> dict[str, dict]:
-    out: dict[str, dict] = {}
-    for s in (raw or {}).get("segments") or []:
-        if not isinstance(s, dict) or not s.get("id"):
-            continue
-        checks = s.get("checks") if isinstance(s.get("checks"), dict) else {}
-        checks = {k: bool(checks.get(k, True)) for k in CHECKS}
-        problems = [p for p in s.get("problems") or [] if isinstance(p, dict)]
-        out[str(s["id"])] = {"checks": checks, "problems": problems[:8],
-                             "pass": all(checks.values())}
-    return out
+def meaning_problems(raw: dict, segment_id: str) -> list[dict]:
+    """The checker's items for one segment as writer problems; a segment it does not return
+    counts as unchecked and fails."""
+    for entry in (raw or {}).get("segments") or []:
+        if isinstance(entry, dict) and str(entry.get("segment_id")) == segment_id:
+            return [{"check": f"meaning_{kind}", "quote": str(item)[:300],
+                     "fix": "Say only what the source says: remove or correct this."}
+                    for kind in ("added", "changed", "certainty")
+                    for item in entry.get(kind) or [] if item]
+    return [{"check": "meaning_unchecked", "quote": "",
+             "fix": "The fact check returned nothing for this segment."}]
+
+
+def critic_verdict(raw: dict) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    checks = raw.get("checks") if isinstance(raw.get("checks"), dict) else {}
+    checks = {k: bool(checks.get(k, True)) for k in CHECKS}
+    problems = [p for p in raw.get("problems") or [] if isinstance(p, dict)]
+    return {"checks": checks, "problems": problems[:8], "pass": all(checks.values())}
 
 
 # ---------------------------------------------------------------------------
-# orchestration
+# output
 # ---------------------------------------------------------------------------
 
 
-def _memory_index(arch: list[dict], mem: list[dict]) -> dict[str, dict]:
-    return {x["ref"]: x for x in [*arch, *mem]}
-
-
-def _dialogues(raw: dict) -> dict[str, str]:
-    out = {}
-    for s in (raw or {}).get("segments") or []:
-        if isinstance(s, dict) and s.get("id"):
-            out[str(s["id"])] = str(s.get("dialogue") or "").strip().strip('"“”«»')
-    return out
-
-
-def _placement_text(seg: dict, blueprint: dict) -> str:
-    beats = {b["id"]: b for b in blueprint.get("beats") or []}
+def _placement_text(seg: dict, story: HostStory) -> str:
     if seg["position"] == "opening":
-        first = (blueprint.get("beats") or [{}])[0].get("id")
+        first = story.acts[0].title if story.acts else ""
         return f"Opening — before {first}" if first else "Opening"
-    b = beats.get(seg["beat_id"]) or {}
-    label = "Final — after" if seg["position"] == "final" else "After"
-    summary = f" ({b['summary']})" if b.get("summary") else ""
-    return f"{label} {seg['beat_id']}{summary}"
+    act = story.act(seg["beat_id"])
+    title = f" ({act.title})" if act else ""
+    return ("Outro — after" if seg["position"] == "final" else "After") + f" {seg['beat_id']}{title}"
 
 
-def segment_output(seg: dict, dialogue: str, language: str, blueprint: dict,
+def segment_output(seg: dict, written: dict, language: str, story: HostStory,
                    verdict: dict | None, arch_mem: dict[str, dict]) -> dict:
-    """One segment in the persona's output format (plus what later stages
-    need: position, beat, claims, the quality check)."""
-    ref = seg.get("memory_reference")
+    """One segment in the persona's output format (plus what later stages need: position, act,
+    cutoff, planned and estimated seconds, the quality check)."""
+    dialogue = written.get("dialogue") or ""
+    ref = written.get("memory_used")
     memory = "none"
     if ref and ref in arch_mem:
         m = arch_mem[ref]
-        memory = f"{ref} — {m.get('case')}: {seg.get('memory_connection') or m.get('text') or ''}"
+        memory = f"{ref} — {m.get('case')}: {m.get('text') or m.get('central_question') or ''}"
     verdict = verdict or {"checks": {}, "problems": [], "deterministic": [],
                           "pass": bool(dialogue)}
     return {
         "segment_id": seg["id"],
-        "placement": _placement_text(seg, blueprint),
-        "position": seg["position"], "beat_id": seg["beat_id"],
-        "purpose": seg["purpose"], "pattern": seg["pattern"],
-        "personality_dimension": seg["dimensions"],
+        "placement": _placement_text(seg, story),
+        "position": seg["position"], "role": seg["role"], "beat_id": seg["beat_id"],
+        "cutoff": seg["cutoff"],
+        "purpose": seg["reason"],
+        "personality_dimension": written.get("dimensions") or [],
         "memory_reference": memory,
-        "delivery_direction": seg["delivery"],
+        "delivery_direction": written.get("delivery") or "",
         "avatar_dialogue": dialogue,
         "target_duration": seg["target_seconds"],
+        "target_seconds": seg["target_seconds"],
         "estimated_seconds": estimate_seconds(dialogue, language),
-        "transition_back": seg["transition_back"],
-        "claims": seg["claims"],
+        "transition_back": written.get("transition_back") or "",
         "quality": {"pass": bool(verdict.get("pass")) and bool(dialogue),
                     "checks": verdict.get("checks", {}),
                     "problems": verdict.get("problems", []),
@@ -675,6 +541,13 @@ def latest_host_plan(db: Session, blueprint_id: int) -> HostPlan | None:
             .order_by(HostPlan.version.desc()).first())
 
 
+def latest_story_host_plan(db: Session, story_plan_id: int) -> HostPlan | None:
+    """The newest usable host plan of a story plan (a story without a blueprint)."""
+    return (db.query(HostPlan)
+            .filter(HostPlan.story_plan_id == story_plan_id, HostPlan.status != "invalid")
+            .order_by(HostPlan.version.desc()).first())
+
+
 def latest_host_segments(db: Session, version_id: int) -> HostSegments | None:
     return (db.query(HostSegments).filter(HostSegments.story_version_id == version_id)
             .order_by(HostSegments.version.desc()).first())
@@ -692,6 +565,7 @@ def persona_state(row) -> dict:
 
 def host_plan_dict(row: HostPlan) -> dict:
     return {**persona_state(row), "id": row.id, "case_id": row.case_id, "blueprint_id": row.blueprint_id,
+            "story_plan_id": row.story_plan_id,
             "version": row.version, "status": row.status,
             "generation_model": row.generation_model, "created_at": row.created_at,
             "plan": json.loads(row.plan_json or "{}"),
@@ -710,12 +584,13 @@ def host_segments_dict(row: HostSegments) -> dict:
 def memory_usage(db: Session) -> dict[str, list[dict]]:
     """Which host-plan segments used which memory (by its M<id> reference)."""
     used: dict[str, list[dict]] = {}
-    for plan in db.query(HostPlan).filter(HostPlan.status != "invalid").all():
-        for seg in json.loads(plan.plan_json or "{}").get("segments") or []:
-            ref = seg.get("memory_reference")
-            if ref:
+    for row in db.query(HostSegments).all():
+        for seg in json.loads(row.segments_json or "[]"):
+            ref = str(seg.get("memory_reference") or "").split(" ")[0]
+            if ref and ref != "none":
                 used.setdefault(ref, []).append(
-                    {"plan_id": plan.id, "case_id": plan.case_id, "segment_id": seg.get("id")})
+                    {"plan_id": row.host_plan_id, "case_id": row.case_id,
+                     "segment_id": seg.get("segment_id")})
     return used
 
 

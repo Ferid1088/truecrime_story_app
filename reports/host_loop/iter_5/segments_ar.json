@@ -1,0 +1,182 @@
+{
+ "id": 40,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish a direct connection and opening tension before the logo and the first narrative act.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Warm, direct, and curious; varied conversational pace, with a brief beat before the question about which account to trust.",
+   "avatar_dialogue": "أين كانت ليزي حين عاد أندرو إلى البيت؟ يمكن تشوفه سؤالًا بسيطًا. لكن الخادمة قالت إنها كانت أعلى الدرج، وليزي قالت إنها كانت في الأسفل. أي رواية تأخذ بها أنت، وعلى أي أساس؟ أنا متردد. ما عندي سبب أختار واحدة لمجرد أنها تبدو مقنعة. خلّينا نبدأ من السؤال اللي يجمعنا هنا: بيت فيه شخصان ميتان، فمن كان فيه، وكيف؟ تعال نسمع القصة من بدايتها.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 27.4,
+   "transition_back": "Invites the viewer into the story from its beginning, followed by the channel logo.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Provide a reflective pause after the first substantial narrative movement, before the next stretch increases the pressure.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "respect_for_due_process"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; thoughtful rather than cautionary, with a brief pause after the shortest sentence.",
+   "avatar_dialogue": "يمكن أنت ارتحت شوي لما سمعت إنهم ما لقوا دم على ملابس ليزي الظاهرة. أنا أفهم هالشعور. بس التفتيش ما شمل كل شيء، وهذا يخلّيني أتوقف. لا أكثر. ما أقدر أحوّل غياب الأثر إلى تبرئة، ولا نقص التفتيش إلى اتهام. وأنت، لما ترجع لخلاف الدرج، هل تقدر ترجّح رواية على الثانية من دون أثر يربط شخصًا بالجريمة؟ هنا بالضبط تصير مسؤولية الكلام أثقل.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 27.0,
+   "transition_back": "Returns to the surviving witnesses' accounts with attention to what their statements can actually establish.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff into the final act, allowing a brief change of pace after an uninterrupted three-act build.",
+   "personality_dimension": [
+    "respect_for_due_process",
+    "curiosity"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; restrained unease, with a brief pause before the final question.",
+   "avatar_dialogue": "تتذكر الفستان اللي قالت ليزي إنه ملطخ بالطلاء؟ وصلنا منه إلى محاكمة، لكن ما ثبت أنه يربطها بالقتل. والهتاف بعد الحكم ما أبعد عن بالي أندرو وآبي. لحظة بس. أنت تقدر تقفل باب الاتهام، ويبقى عندك سؤال ما يهدأ: إذا المحكمة انتهت، كيف نبحث عمّن قتلهما من غير ما نرجع نحاكم ليزي بأنفسنا؟",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 22.7,
+   "transition_back": "Carries the unresolved question of who killed Andrew and Abby beyond the courtroom, into the narrative after the acquittal.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close with a brief personal connection after the narrative has finished and its final movement has had room to land.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "emotional_honesty"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "warm and personal; varied pace, quieter before the final question",
+   "avatar_dialogue": "تعرف إيش يصعب عليّ هنا؟ إني أحاول أتخيل آبي بعيدًا عن علاقتها بليزي، وما ألقى عنها إلا القليل. حتى اسمها يرجعنا لكلام الآخرين عنها. هذا يضايقني. وأنت يمكن بقي في بالك الدرج، أو الفستان، أو رواية ما قدرت تطمئن لها. أنا بقيت عند امرأة نعرف الخلاف حولها أكثر مما نعرفها هي. لو تركت سؤال القاتل بلا جواب، ولو للحظة، إيش تتمنى لو قدرنا نسمعه من آبي عن حياتها في هذا البيت؟",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 30.4,
+   "transition_back": "Hold on the unanswered personal question, then move into the closing image without further narration.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 1,
+  "host_seconds": 107.5,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

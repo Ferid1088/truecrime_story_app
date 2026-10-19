@@ -1,0 +1,135 @@
+{
+ "segments_id": 34,
+ "report": {
+  "scenes": [
+   {
+    "scene": 122,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 25.76,
+    "deviation": 0.0168,
+    "cap": 45.0
+   },
+   {
+    "scene": 124,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 29.36,
+    "deviation": 0.0738,
+    "cap": 50.0
+   },
+   {
+    "scene": 121,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 26.48,
+    "deviation": 0.0806,
+    "cap": 75.0
+   },
+   {
+    "scene": 123,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 21.68,
+    "deviation": 0.0364,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 103.28,
+  "host_share": 0.0252,
+  "timeline": {
+   "story_seconds": 4105.78,
+   "host_seconds": 103.28,
+   "intro_seconds": 0.0,
+   "total_seconds": 4209.06
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S2": {
+   "text": "Bei dem Beilkopf muss ich bremsen. Vielleicht hast du die Berichte über Streit ums Geld noch im Kopf. Die können einen Fund schnell verdächtiger wirken lassen, als er belegt ist. Mir geht’s jedenfalls so. Aber selbst die Beamten waren sich über die Bruchstelle uneinig. Und auch der Belag darauf lässt sich unterschiedlich erklären. Wie viel Gewicht gibst du dann diesem Werkzeug? Ich möchte erst sehen, was sich tatsächlich mit einer bestimmten Person verbinden lässt.",
+   "seconds": 25.76,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Bei dem Beilkopf muss ich bremsen. Vielleicht hast du die Berichte über Streitums Geld noch im Kopf. Die können einen Fund schnell verdächtiger wirken lassen, als er belegt ist. Mir geht's jedenfalls so. Aber selbst die Beamten waren sich über die Bruchstelle uneinig. Und auch der Belag darauf lässt sich unterschiedlich erklären. Wie viel Gewicht gibst du dann diesem Werkzeug? Ich möchte erst sehen, was sich tatsächlich mit einer bestimmten Person verbinden lässt."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S4": {
+   "text": "Mich beschäftigt, wie wenig Platz für Abby bleibt, sobald Lizzies Name fällt. Geht dir das auch so? Du hörst von diesem Reim, den Theorien, dem Freispruch, und plötzlich kreist wieder alles um die mögliche Täterin. Abby verschwindet dahinter. Dabei lässt mich gerade ihr ganz gewöhnlicher Gang zum Bettenmachen nicht los. Da war ein Mensch mit einem Alltag, von dem wir so wenig kennen. Welche Frage würdest du ihr stellen, wenn du einmal etwas über ihr Leben erfahren könntest?",
+   "seconds": 29.36,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0128,
+     "failures": [],
+     "heard_text": "Mich beschäftigt, wie wenig Platz für Abby bleibt, sobald Lizzie's Name fällt. Geht ihr das auch so? Du hörst von diesem Reim, den Theorien, dem Freispruch und plötzlich kreist wieder alles um die mögliche Täterin. Abby verschwindet dahinter. Dabei lässt mich gerade ihr ganz gewöhnlicher Gang zum Bettenmachen nicht los. Da war ein Mensch mit einem Alltag, von dem wir so wenig kennen. Welche Frage würdest du ihr stellen, wenn du einmal etwas über ihr Leben erfahren könntest."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "Oben an der Treppe oder unten: Wo war Lizzie, als Andrew nach Hause kam? Die Hausangestellte sagt das eine, Lizzie das andere. Du könntest sagen: Das ist doch nur ein Stockwerk Unterschied. Klar. Aber ich frage mich, wie du rekonstruieren willst, wer im Haus war, wenn schon dieser Punkt offen ist. Zwei Menschen sind dort tot. Wer war noch da, und wie kam es dazu? Schauen wir uns die Geschichte von Anfang an an.",
+   "seconds": 26.48,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Oben an der Treppe oder unten. Wo war Lizzie als Andrew nach Hause kam? Die Hausangestellte sagt das eine, Lizzie das andere. Du könntest sagen, das ist doch nur ein Stockwerk-Unterschied. Klar! Aber ich frage mich, wie du rekonstruieren willst, wer im Haus war, wenn schon dieser Punkt offen ist. Zwei Menschen sind dort tot. Wer war noch da? Und wie kam es dazu? Schauen wir uns die Geschichte von Anfang an an."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "Den Jubel im Gerichtssaal kann ich nachvollziehen. Für Lizzie ging es um ihr Leben. Aber geh mit mir noch mal zurück zu dem verbrannten Kleid. Du hast gehört, wie unterschiedlich sich derselbe Vorgang erklären lässt. Genau da hänge ich. Welche Erklärung für diesen Vormittag trägt überhaupt noch, wenn wir offenlassen, was sich an solchen Verdachtsmomenten nie klären ließ?",
+   "seconds": 21.68,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Den Jubel im Gerichtssaal kann ich nachvollziehen. Für Lizzie ging es um ihr Leben. Aber geh mit mir noch mal zurück zu dem verbrannten Kleid. Du hast gehört, wie unterschiedlich sich derselbe Vorgang erklären lässt. Genau da hänge ich. Welche Erklärung für diesen Vormittag trägt überhaupt noch, wenn wir offen lassen, was sich an solchen Verdachtsmomenten nie klären ließ?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

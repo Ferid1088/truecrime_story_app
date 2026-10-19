@@ -1,0 +1,1278 @@
+{
+ "key_report": {
+  "sentences": 12,
+  "risky_words": 36,
+  "issues": [],
+  "errors": []
+ },
+ "risky": {
+  "0": [
+   {
+    "w": "صبح",
+    "read": "sobhe",
+    "meaning": "morning of",
+    "vowelled": "صُبحِ",
+    "full": "صُبْحِ"
+   },
+   {
+    "w": "اوت",
+    "read": "ut",
+    "meaning": "August",
+    "vowelled": "اُوت",
+    "full": "اُوتْ"
+   },
+   {
+    "w": "اندرو",
+    "read": "andru",
+    "meaning": "Andrew",
+    "vowelled": "اَندرو",
+    "full": "اَنْدْرو",
+    "respell": "اَندرو"
+   },
+   {
+    "w": "بوردن",
+    "read": "borden",
+    "meaning": "Borden",
+    "vowelled": "بُوردِن",
+    "full": "بُورْدِنْ",
+    "respell": "بوردِن"
+   },
+   {
+    "w": "سکاند",
+    "read": "sekande",
+    "meaning": "Second Street",
+    "vowelled": "سِکَاندِ",
+    "full": "سِکَانْدِ",
+    "respell": "سِکَندِ"
+   },
+   {
+    "w": "فال‌ریور",
+    "read": "faalrivere",
+    "meaning": "Fall River",
+    "vowelled": "فال‌رِیوِرِ",
+    "full": "فالْ‌رِیوِرِ",
+    "respell": "فال‌رِیوِرِ"
+   },
+   {
+    "w": "ماساچوست",
+    "read": "maasaachust",
+    "meaning": "Massachusetts",
+    "vowelled": "ماساچُوست",
+    "full": "ماسَاچُوسْتْ"
+   }
+  ],
+  "1": [
+   {
+    "w": "قفل",
+    "read": "ghofl",
+    "meaning": "lock",
+    "vowelled": "قُفل",
+    "full": "قُفْلْ"
+   },
+   {
+    "w": "در",
+    "read": "dar",
+    "meaning": "door",
+    "vowelled": "دَر",
+    "full": "دَرْ"
+   }
+  ],
+  "2": [
+   {
+    "w": "بریجت",
+    "read": "brijet",
+    "meaning": "Bridget",
+    "vowelled": "بْریجِت",
+    "full": "بْریجِتْ",
+    "respell": "بْریجِت"
+   },
+   {
+    "w": "سالیوان",
+    "read": "saalivaan",
+    "meaning": "Sullivan",
+    "vowelled": "سالِیوان",
+    "full": "سالِیوانْ",
+    "respell": "سالِیوان"
+   },
+   {
+    "w": "خدمتکار",
+    "read": "khedmatkaare",
+    "meaning": "family's maid",
+    "vowelled": "خِدمَتکارِ",
+    "full": "خِدْمَتْکارِ"
+   },
+   {
+    "w": "قفل",
+    "read": "ghofl",
+    "meaning": "lock",
+    "vowelled": "قُفل",
+    "full": "قُفْلْ"
+   },
+   {
+    "w": "در",
+    "read": "dar",
+    "meaning": "door",
+    "vowelled": "دَر",
+    "full": "دَرْ"
+   }
+  ],
+  "3": [
+   {
+    "w": "بریجت",
+    "read": "brijet",
+    "meaning": "Bridget",
+    "vowelled": "بْریجِت",
+    "full": "بْریجِتْ",
+    "respell": "بْریجِت"
+   },
+   {
+    "w": "قفل",
+    "read": "ghofl",
+    "meaning": "lock",
+    "vowelled": "قُفل",
+    "full": "قُفْلْ"
+   },
+   {
+    "w": "کلنجار",
+    "read": "kalanjaar",
+    "meaning": "struggling",
+    "vowelled": "کَلَنجار",
+    "full": "کَلَنْجارْ"
+   },
+   {
+    "w": "سرش",
+    "read": "saresh",
+    "meaning": "her head",
+    "vowelled": "سَرِش",
+    "full": "سَرِشْ"
+   },
+   {
+    "w": "لیزی",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِیزی",
+    "full": "لِیزی",
+    "respell": "لِیزی"
+   },
+   {
+    "w": "اندرو",
+    "read": "andru",
+    "meaning": "Andrew",
+    "vowelled": "اَندرو",
+    "full": "اَنْدْرو",
+    "respell": "اَندرو"
+   },
+   {
+    "w": "پاگرد",
+    "read": "paagarde",
+    "meaning": "staircase landing",
+    "vowelled": "پاگَردِ",
+    "full": "پاگَرْدِ"
+   }
+  ],
+  "4": [
+   {
+    "w": "پاگرد",
+    "read": "paagard",
+    "meaning": "landing",
+    "vowelled": "پاگَرد",
+    "full": "پاگَرْدْ"
+   },
+   {
+    "w": "درست",
+    "read": "dorost",
+    "meaning": "directly",
+    "vowelled": "دُرُست",
+    "full": "دُرُسْتْ"
+   }
+  ],
+  "5": [
+   {
+    "w": "لیزی",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِیزی",
+    "full": "لِیزی",
+    "respell": "لِیزی"
+   }
+  ],
+  "6": [
+   {
+    "w": "پاگرد",
+    "read": "paagard",
+    "meaning": "landing",
+    "vowelled": "پاگَرد",
+    "full": "پاگَرْدْ"
+   }
+  ],
+  "8": [
+   {
+    "w": "لیزی",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِیزی",
+    "full": "لِیزی",
+    "respell": "لِیزی"
+   },
+   {
+    "w": "بریجت",
+    "read": "brijet",
+    "meaning": "Bridget",
+    "vowelled": "بْریجِت",
+    "full": "بْریجِتْ",
+    "respell": "بْریجِت"
+   },
+   {
+    "w": "مرده",
+    "read": "morde",
+    "meaning": "dead",
+    "vowelled": "مُرده",
+    "full": "مُرْدِه"
+   },
+   {
+    "w": "در",
+    "read": "dare",
+    "meaning": "door",
+    "vowelled": "دَرِ",
+    "full": "دَرِ"
+   }
+  ],
+  "9": [
+   {
+    "w": "آدلاید",
+    "read": "aadelaayd",
+    "meaning": "Adelaide",
+    "vowelled": "آدِلاید",
+    "full": "آدِلایْدْ",
+    "respell": "آدِلاید"
+   },
+   {
+    "w": "چرچیل",
+    "read": "cherchil",
+    "meaning": "Churchill",
+    "vowelled": "چِرچیل",
+    "full": "چِرْچیلْ",
+    "respell": "چِرچیل"
+   },
+   {
+    "w": "لیزی",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِیزی",
+    "full": "لِیزی",
+    "respell": "لِیزی"
+   },
+   {
+    "w": "در",
+    "read": "dar",
+    "meaning": "door",
+    "vowelled": "دَر",
+    "full": "دَرْ"
+   }
+  ],
+  "10": [
+   {
+    "w": "اتفاقی",
+    "read": "ettefaaghi",
+    "meaning": "something happened",
+    "vowelled": "اِتّفاقی",
+    "full": "اِتِّفاقی"
+   }
+  ],
+  "11": [
+   {
+    "w": "لیزی",
+    "read": "lizi",
+    "meaning": "Lizzie",
+    "vowelled": "لِیزی",
+    "full": "لِیزی",
+    "respell": "لِیزی"
+   },
+   {
+    "w": "چرچیل",
+    "read": "cherchil",
+    "meaning": "Churchill",
+    "vowelled": "چِرچیل",
+    "full": "چِرْچیلْ",
+    "respell": "چِرچیل"
+   }
+  ]
+ },
+ "blocks": [
+  {
+   "text": "حدود ساعت ده‌ونیم صبح چهارم اوت ۱۸۹۲، اندرو بوردن به خانه‌اش در خیابان سکاندِ فال‌ریورِ ماساچوست برگشت. از پله‌های جلوی خانه بالا رفت و کلید را در قفل چرخاند، اما در باز نشد. بریجت سالیوان، خدمتکار خانواده، صدای تلاش او برای کنار زدن زبانهٔ قفل را شنید و برای باز کردن در آمد. بریجت می‌گفت همان‌طور که با قفل کلنجار می‌رفت، صدای خنده‌ای را از بالای سرش شنید؛ خنده‌ای که به گفتهٔ او از طرف لیزی، دختر کوچک‌تر اندرو، از پاگرد پله‌های جلویی می‌آمد.",
+   "tts_text": "حدود ساعت ده‌ونیم صبح چهارم اوت ۱۸۹۲، اندرو بُوردِن به خانه‌اش در خیابان سِکَانْدِ فال‌ریورِ ماساچُوست برگشت. از پله‌های جلوی خانه بالا رفت و کلید را در قفل چرخاند، اما در باز نشد. بریجت سالیوان، خدمتکار خانواده، صدای تلاش او برای کنار زدن زبانهٔ قفل را شنید و برای باز کردن در آمد. بریجت می‌گفت همان‌طور که با قفل کلنجار می‌رفت، صدای خنده‌ای را از بالای سَرِشْ شنید؛ خنده‌ای که به گفتهٔ او از طرف لیزی، دختر کوچک‌تر اندرو، از پاگرد پله‌های جلویی می‌آمد.",
+   "flags": [],
+   "asr": {
+    "passed": true,
+    "word_error_rate": 0.0357,
+    "heard_text": "حدود ساعت دهانیم صبح چهارم اوت 1892، اندرو بوردن به خانهش در خیابان سیکند فال ریور ماساچوست برگشت. از پله های جلوی خانه بالا رفت و کلید را در قفل چرخاند. اما در باز نشد. بریجت سالیوان، خدمتکار خانواده، صدای تلاش او برای کنار زدن زبانه قفل را شنید و برای باز کردن در آمد. بریجت می گفت همانطور که با قفل کلنجار می رفت صدای خنده ای را از بالای سرش شنید خنده ای که به گفته او از طرف لیزی دختر کوچکتر اندرو از پاگرد پله های جلوی می آمد"
+   },
+   "pronunciation": [
+    {
+     "word": "صبح",
+     "read": "sobhe",
+     "sentence": 0,
+     "level": 0,
+     "form": "صبح",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "o",
+      "e"
+     ],
+     "heard": [
+      "o"
+     ],
+     "distance": 0.35,
+     "hard_errors": 0,
+     "heard_ipa": "e s o p tʃ",
+     "at": [
+      1.52,
+      1.92
+     ]
+    },
+    {
+     "word": "اوت",
+     "read": "ut",
+     "sentence": 0,
+     "level": 0,
+     "form": "اوت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "u"
+     ],
+     "heard": [
+      "u",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "m e uː t e h",
+     "at": [
+      2.56,
+      2.8
+     ]
+    },
+    {
+     "word": "اندرو",
+     "read": "andru",
+     "sentence": 0,
+     "level": 0,
+     "form": "اندرو",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "u"
+     ],
+     "heard": [
+      "a",
+      "u"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "a n d r u b",
+     "at": [
+      5.12,
+      5.36
+     ]
+    },
+    {
+     "word": "بوردن",
+     "read": "borden",
+     "sentence": 0,
+     "level": 1,
+     "form": "بُوردِن",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "o",
+      "e"
+     ],
+     "heard": [
+      "o",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "r u b o r d e n b",
+     "at": [
+      5.44,
+      5.92
+     ]
+    },
+    {
+     "word": "سکاند",
+     "read": "sekande",
+     "sentence": 0,
+     "level": 2,
+     "form": "سِکَانْدِ",
+     "fix": "full",
+     "ok": true,
+     "expected": [
+      "e",
+      "a",
+      "e"
+     ],
+     "heard": [
+      "e",
+      "e"
+     ],
+     "distance": 0.23,
+     "hard_errors": 0,
+     "heard_ipa": "s ɛ k ə n d f",
+     "at": [
+      7.52,
+      7.89
+     ]
+    },
+    {
+     "word": "فال‌ریور",
+     "read": "faalrivere",
+     "sentence": 0,
+     "level": 0,
+     "form": "فال‌ریور",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "i",
+      "e",
+      "e"
+     ],
+     "heard": [
+      "O",
+      "i",
+      "e"
+     ],
+     "distance": 0.17,
+     "hard_errors": 0,
+     "heard_ipa": "n d f ɔ l r i v e r m",
+     "at": [
+      7.92,
+      8.56
+     ]
+    },
+    {
+     "word": "ماساچوست",
+     "read": "maasaachust",
+     "sentence": 0,
+     "level": 1,
+     "form": "ماساچُوست",
+     "fix": "vowelled",
+     "ok": true,
+     "expected": [
+      "A",
+      "A",
+      "u"
+     ],
+     "heard": [
+      "o",
+      "a",
+      "o",
+      "e"
+     ],
+     "distance": 0.37,
+     "hard_errors": 0,
+     "heard_ipa": "r m o s a tʃ o s e t b",
+     "at": [
+      8.64,
+      9.36
+     ]
+    },
+    {
+     "word": "قفل",
+     "read": "ghofl",
+     "sentence": 1,
+     "level": 0,
+     "form": "قفل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "o"
+     ],
+     "heard": [
+      "o"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "q o f l tʃ",
+     "at": [
+      14.16,
+      14.4
+     ]
+    },
+    {
+     "word": "در",
+     "read": "dar",
+     "sentence": 1,
+     "level": 0,
+     "form": "در",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a"
+     ],
+     "heard": [
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "d a r q o",
+     "at": [
+      13.92,
+      14.08
+     ]
+    },
+    {
+     "word": "بریجت",
+     "read": "brijet",
+     "sentence": 2,
+     "level": 0,
+     "form": "بریجت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "e"
+     ],
+     "heard": [
+      "i",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "b ɹ i dʒ e t s",
+     "at": [
+      17.6,
+      17.92
+     ]
+    },
+    {
+     "word": "سالیوان",
+     "read": "saalivaan",
+     "sentence": 2,
+     "level": 0,
+     "form": "سالیوان",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "i",
+      "A"
+     ],
+     "heard": [
+      "o",
+      "i",
+      "o"
+     ],
+     "distance": 0.07,
+     "hard_errors": 0,
+     "heard_ipa": "t s o l i v o n",
+     "at": [
+      18.0,
+      18.56
+     ]
+    },
+    {
+     "word": "خدمتکار",
+     "read": "khedmatkaare",
+     "sentence": 2,
+     "level": 0,
+     "form": "خدمتکار",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "a",
+      "A",
+      "e"
+     ],
+     "heard": [
+      "e",
+      "a",
+      "o"
+     ],
+     "distance": 0.2,
+     "hard_errors": 0,
+     "heard_ipa": "x e d m a t k o r x o",
+     "at": [
+      18.88,
+      19.36
+     ]
+    },
+    {
+     "word": "قفل",
+     "read": "ghofl",
+     "sentence": 2,
+     "level": 0,
+     "form": "قفل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "o"
+     ],
+     "heard": [
+      "o"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "q o f r o",
+     "at": [
+      23.2,
+      23.44
+     ]
+    },
+    {
+     "word": "در",
+     "read": "dar",
+     "sentence": 2,
+     "level": 0,
+     "form": "در",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a"
+     ],
+     "heard": [
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "d a r o",
+     "at": [
+      25.88,
+      26.0
+     ]
+    },
+    {
+     "word": "بریجت",
+     "read": "brijet",
+     "sentence": 3,
+     "level": 0,
+     "form": "بریجت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "e"
+     ],
+     "heard": [
+      "i",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "b ɹ i dʒ e t m i",
+     "at": [
+      26.96,
+      27.28
+     ]
+    },
+    {
+     "word": "قفل",
+     "read": "ghofl",
+     "sentence": 3,
+     "level": 0,
+     "form": "قفل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "o"
+     ],
+     "heard": [
+      "o"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "q o f l k a",
+     "at": [
+      28.96,
+      29.28
+     ]
+    },
+    {
+     "word": "کلنجار",
+     "read": "kalanjaar",
+     "sentence": 3,
+     "level": 0,
+     "form": "کلنجار",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "a",
+      "A"
+     ],
+     "heard": [
+      "a",
+      "a",
+      "o"
+     ],
+     "distance": 0.03,
+     "hard_errors": 0,
+     "heard_ipa": "l k a l a n dʒ o r m i",
+     "at": [
+      29.36,
+      29.84
+     ]
+    },
+    {
+     "word": "سرش",
+     "read": "sarash",
+     "sentence": 3,
+     "level": 2,
+     "form": "سَرِشْ",
+     "fix": "full",
+     "ok": true,
+     "expected": [
+      "a",
+      "e"
+     ],
+     "heard": [
+      "a",
+      "a"
+     ],
+     "distance": 0.5,
+     "hard_errors": 1,
+     "heard_ipa": "s a r a ʃ ʃ e",
+     "at": [
+      32.56,
+      32.85
+     ],
+     "referee": "key_wrong",
+     "referee_read": "sarash"
+    },
+    {
+     "word": "لیزی",
+     "read": "lizi",
+     "sentence": 3,
+     "level": 0,
+     "form": "لیزی",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l iː z iː",
+     "at": [
+      36.32,
+      36.8
+     ]
+    },
+    {
+     "word": "اندرو",
+     "read": "andru",
+     "sentence": 3,
+     "level": 0,
+     "form": "اندرو",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "u"
+     ],
+     "heard": [
+      "a",
+      "u"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "a n d r uː",
+     "at": [
+      38.24,
+      38.64
+     ]
+    },
+    {
+     "word": "پاگرد",
+     "read": "paagarde",
+     "sentence": 3,
+     "level": 0,
+     "form": "پاگرد",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "a",
+      "e"
+     ],
+     "heard": [
+      "o",
+      "a",
+      "e"
+     ],
+     "distance": 0.03,
+     "hard_errors": 0,
+     "heard_ipa": "p o ɡ a r d e p",
+     "at": [
+      39.28,
+      39.84
+     ]
+    }
+   ],
+   "fixes": [
+    {
+     "after_round": 0,
+     "fixes": [
+      {
+       "word": "سکاند",
+       "read": "sekande",
+       "form": "سِکَاندِ",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      },
+      {
+       "word": "سرش",
+       "read": "saresh",
+       "form": "سَرِش",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 3
+      }
+     ]
+    },
+    {
+     "after_round": 1,
+     "fixes": [
+      {
+       "word": "بوردن",
+       "read": "borden",
+       "form": "بُوردِن",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      },
+      {
+       "word": "سکاند",
+       "read": "sekande",
+       "form": "سِکَانْدِ",
+       "fix": "full",
+       "level": 2,
+       "sentence": 0
+      },
+      {
+       "word": "ماساچوست",
+       "read": "maasaachust",
+       "form": "ماساچُوست",
+       "fix": "vowelled",
+       "level": 1,
+       "sentence": 0
+      },
+      {
+       "word": "سرش",
+       "read": "saresh",
+       "form": "سَرِشْ",
+       "fix": "full",
+       "level": 2,
+       "sentence": 3
+      }
+     ]
+    }
+   ],
+   "attempts": 3
+  },
+  {
+   "text": "پاگرد درست بیرون اتاق مهمان بود. لیزی این موضوع را انکار کرد. گفت نه خندیده و نه روی پاگرد ایستاده بوده است. به گفتهٔ خودش، وقتی پدرش به خانه برگشت، او پایین بود.",
+   "tts_text": "پاگرد درست بیرون اتاق مهمان بود. لیزی این موضوع را انکار کرد. گفت نه خندیده و نه روی پاگرد ایستاده بوده است. به گفتهٔ خودش، وقتی پدرش به خانه برگشت، او پایین بود.",
+   "flags": [],
+   "asr": {
+    "passed": true,
+    "word_error_rate": 0.0,
+    "heard_text": "پاگرد درست بیرون اتاق مهمان بود. لیزی این موضوع را انکار کرد. گفت نه خندیده و نه روی پاگرد استاده بوده است. به گفته خودش، وقتی پدرش به خانه برگشت، او پایین بود."
+   },
+   "pronunciation": [
+    {
+     "word": "پاگرد",
+     "read": "paagard",
+     "sentence": 0,
+     "level": 0,
+     "form": "پاگرد",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "a"
+     ],
+     "heard": [
+      "O",
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "p ɔ ɡ a r d",
+     "at": [
+      0.0,
+      0.44
+     ]
+    },
+    {
+     "word": "درست",
+     "read": "dorost",
+     "sentence": 0,
+     "level": 0,
+     "form": "درست",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "o",
+      "o"
+     ],
+     "heard": [
+      "u",
+      "o"
+     ],
+     "distance": 0.25,
+     "hard_errors": 0,
+     "heard_ipa": "r d d u r o s t",
+     "at": [
+      0.56,
+      1.16
+     ]
+    },
+    {
+     "word": "لیزی",
+     "read": "lizi",
+     "sentence": 1,
+     "level": 0,
+     "form": "لیزی",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l i z i",
+     "at": [
+      3.36,
+      3.92
+     ]
+    },
+    {
+     "word": "پاگرد",
+     "read": "paagard",
+     "sentence": 2,
+     "level": 0,
+     "form": "پاگرد",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "a"
+     ],
+     "heard": [
+      "O",
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "p h ɔ ɡ a r d i",
+     "at": [
+      8.72,
+      9.2
+     ]
+    }
+   ],
+   "fixes": [],
+   "attempts": 1
+  },
+  {
+   "text": "بعدتر، لیزی بریجت را صدا زد و گفت: «پدرم مرده است.» بریجت به سوی او رفت و لیزی را نزدیک درِ پشتی دید. آدلاید چرچیل، همسایهٔ خانهٔ شمالی، لیزی را دید که جلوی در ایستاده و پریشان به نظر می‌رسید. از آن سوی حیاط پرسید چه اتفاقی افتاده است. لیزی جواب داد: «خانم چرچیل، خواهش می‌کنم بیایید این‌جا.",
+   "tts_text": "بعدتر، لیزی بریجت را صدا زد و گفت: «پدرم مرده است.» بریجت به سوی او رفت و لیزی را نزدیک درِ پشتی دید. آدلاید چرچیل، همسایهٔ خانهٔ شمالی، لیزی را دید که جلوی در ایستاده و پریشان به نظر می‌رسید. از آن سوی حیاط پرسید چه اتفاقی افتاده است. لیزی جواب داد: «خانم چرچیل، خواهش می‌کنم بیایید این‌جا.",
+   "flags": [],
+   "asr": {
+    "passed": true,
+    "word_error_rate": 0.0,
+    "heard_text": "بعدتر، لیزی بریجت را صدا زد و گفت، پدرم مرده است. بریجت به سوی او رفت و لیزی را نزدیک در پشتی دید. آدلایت چرچیل، همسایه خانه شمالی، لیزی را دید که جلوی در استاده و پریشان به نظر می رسید. از آن سوی حیات پرسید چه اتفاقی افتاده است؟ لیزی جواب داد، خانم چرچیل، خواهش می کنم بیایید اینجا."
+   },
+   "pronunciation": [
+    {
+     "word": "لیزی",
+     "read": "lizi",
+     "sentence": 0,
+     "level": 0,
+     "form": "لیزی",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l i z i",
+     "at": [
+      1.12,
+      1.44
+     ]
+    },
+    {
+     "word": "بریجت",
+     "read": "brijet",
+     "sentence": 0,
+     "level": 0,
+     "form": "بریجت",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "e"
+     ],
+     "heard": [
+      "i",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "z i b ɹ i dʒ ɛ t",
+     "at": [
+      1.52,
+      1.92
+     ]
+    },
+    {
+     "word": "مرده",
+     "read": "morde",
+     "sentence": 0,
+     "level": 0,
+     "form": "مرده",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "o",
+      "e"
+     ],
+     "heard": [
+      "u",
+      "e",
+      "a"
+     ],
+     "distance": 0.6,
+     "hard_errors": 0,
+     "heard_ipa": "m u r d e a",
+     "at": [
+      4.36,
+      4.64
+     ]
+    },
+    {
+     "word": "در",
+     "read": "dare",
+     "sentence": 0,
+     "level": 0,
+     "form": "در",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a",
+      "e"
+     ],
+     "heard": [
+      "a",
+      "e"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "e d a r e p u",
+     "at": [
+      8.48,
+      8.72
+     ]
+    },
+    {
+     "word": "آدلاید",
+     "read": "aadelaayd",
+     "sentence": 1,
+     "level": 0,
+     "form": "آدلاید",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "A",
+      "e",
+      "A"
+     ],
+     "heard": [
+      "o"
+     ],
+     "distance": 0.5,
+     "hard_errors": 0,
+     "heard_ipa": "o d l oɪ tʃ",
+     "at": [
+      10.08,
+      10.48
+     ]
+    },
+    {
+     "word": "چرچیل",
+     "read": "cherchil",
+     "sentence": 1,
+     "level": 0,
+     "form": "چرچیل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "i"
+     ],
+     "heard": [
+      "e",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "tʃ eː r tʃ i l",
+     "at": [
+      10.56,
+      11.04
+     ]
+    },
+    {
+     "word": "لیزی",
+     "read": "lizi",
+     "sentence": 1,
+     "level": 0,
+     "form": "لیزی",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l i z i r o",
+     "at": [
+      13.24,
+      13.52
+     ]
+    },
+    {
+     "word": "در",
+     "read": "dar",
+     "sentence": 1,
+     "level": 0,
+     "form": "در",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "a"
+     ],
+     "heard": [
+      "a"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "d a r i",
+     "at": [
+      14.6,
+      14.72
+     ]
+    },
+    {
+     "word": "اتفاقی",
+     "read": "ettefaaghi",
+     "sentence": 2,
+     "level": 0,
+     "form": "اتفاقی",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "e",
+      "A",
+      "i"
+     ],
+     "heard": [
+      "e",
+      "e",
+      "o",
+      "i",
+      "o"
+     ],
+     "distance": 0.2,
+     "hard_errors": 0,
+     "heard_ipa": "e t e f o ʁ i o",
+     "at": [
+      19.52,
+      20.0
+     ]
+    },
+    {
+     "word": "لیزی",
+     "read": "lizi",
+     "sentence": 3,
+     "level": 0,
+     "form": "لیزی",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "i",
+      "i"
+     ],
+     "heard": [
+      "i",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "l i z i dʒ a",
+     "at": [
+      21.24,
+      21.52
+     ]
+    },
+    {
+     "word": "چرچیل",
+     "read": "cherchil",
+     "sentence": 3,
+     "level": 0,
+     "form": "چرچیل",
+     "fix": null,
+     "ok": true,
+     "expected": [
+      "e",
+      "i"
+     ],
+     "heard": [
+      "e",
+      "i"
+     ],
+     "distance": 0.0,
+     "hard_errors": 0,
+     "heard_ipa": "e tʃ e r tʃ i l",
+     "at": [
+      22.96,
+      23.44
+     ]
+    }
+   ],
+   "fixes": [],
+   "attempts": 1
+  }
+ ]
+}

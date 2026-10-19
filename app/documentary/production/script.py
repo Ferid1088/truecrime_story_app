@@ -1349,8 +1349,14 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     from app.documentary.chapters import cards_for, latest_chapter_plan
     from app.documentary.intros import intro_seconds
 
+    from app.documentary.production import host_timeline as HT
+
+    host = HT.host_items(db, version)
+    logo_seconds = intro_seconds(language)
+    after_host = any(h["position"] == "opening" for h in host) and logo_seconds
     cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)
-    cards["intro_seconds"] = intro_seconds(language)
+    # with a host opening the logo plays right after it (host_timeline), not in the script
+    cards["intro_seconds"] = None if after_host else logo_seconds
     from app.identity.titles import approved_title
 
     approved = approved_title(db, version.case_id, language)
@@ -1364,12 +1370,9 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                      production_type=production_type or "original", opening_strategy=opening)
     script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")
                        or manifest["files"].get("narration_wav")}
-    from app.documentary.production import host_timeline as HT
-
-    host = HT.host_items(db, version)
     if host:
-        # Part 8a: the host's opening and mid appearances, shot and sound
-        script = HT.insert_host(script, host)
+        # Part 8a: the host's opening (then the logo) and mid appearances, shot and sound
+        script = HT.insert_host(script, host, logo_seconds if after_host else None)
         spliced = HT.splice_host_audio(
             storage.resolve(script["audio"]["path"]), script["host"],
             storage.production_dir(version.case_id, language) / f"audio_with_host_v{version.id}.wav",

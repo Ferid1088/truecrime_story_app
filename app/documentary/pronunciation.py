@@ -29,8 +29,6 @@ from __future__ import annotations
 
 from app.agents.runner import run_agent
 
-from app.core.prompts import prompt
-
 import json
 import re
 import threading
@@ -41,8 +39,8 @@ from app.core.concurrency import gather_limited
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
-# Arabic-script short-vowel marks (harakat), shadda, sukun, superscript alef
-HARAKAT = "\u064B\u064C\u064D\u064E\u064F\u0650\u0651\u0652\u0670"
+# Arabic-script short-vowel marks (harakat), shadda, sukun, superscript alef, hamza marks
+HARAKAT = "\u064B\u064C\u064D\u064E\u064F\u0650\u0651\u0652\u0670\u0654\u0655"
 _HARAKAT_RE = re.compile(f"[{HARAKAT}]")
 _WORD_CH = f"\\w{HARAKAT}\u200c"
 
@@ -79,9 +77,15 @@ def _sub_cost(x: str, y: str) -> float:
     return _CLOSE.get((x, y), _CLOSE.get((y, x), 1.0))
 
 
+_ARTICLE = re.compile(r"^(?:al|el)[- ]")
+
+
 def reading_vowels(read: str) -> list[str]:
     """Latin reading (molk, jannat, aakhare) -> vowel classes."""
     r = (read or "").lower().replace("ā", "aa").replace("â", "aa")
+    # the Arabic article (al-, el-) is not part of the word: it is said with the word before it
+    # and the sun letters change it, so its vowel is never judged
+    r = _ARTICLE.sub("", r)
     out, i = [], 0
     while i < len(r):
         two = r[i:i + 2]
@@ -115,15 +119,19 @@ _CONS = {
     "t": {"t", "d"}, "d": {"d", "t"}, "b": {"b", "p"}, "p": {"p", "b"}, "s": {"s", "z"},
     "z": {"z", "s"}, "f": {"f", "v"}, "m": {"m", "n"}, "n": {"n", "m", "ŋ"},
     "l": {"l", "ɫ"}, "'": set(),
+    # Arabic: th (ث), dh (ذ); ح is written h and heard as ħ, ع is ' (not matched)
+    "th": {"θ", "s", "t"}, "dh": {"ð", "z", "d"},
 }
+_CONS["h"] |= {"ħ"}
+_CONS["q"] |= {"k", "ɡ"}
 
 
 def reading_consonants(read: str) -> list[set[str]]:
-    r = (read or "").lower()
+    r = _ARTICLE.sub("", (read or "").lower())
     out, i = [], 0
     while i < len(r):
         two = r[i:i + 2]
-        if two in ("kh", "gh", "sh", "ch", "zh"):
+        if two in ("kh", "gh", "sh", "ch", "zh", "th", "dh"):
             out.append(_CONS[two])
             i += 2
             continue
@@ -320,9 +328,6 @@ def get_listener() -> PhonemeListener:
 # the pronunciation key (text side)
 # ---------------------------------------------------------------------------
 
-EDITOR_SYSTEM = prompt("documentary/pronunciation/editor_system")
-
-
 def _tokens(sentence: str) -> set[str]:
     return {strip_harakat(t) for t in re.findall(f"[{_WORD_CH}]+", sentence or "")}
 
@@ -332,14 +337,26 @@ def _bare(text: str) -> str:
 
 
 _HARAKA_VOWEL = {"\u064E": "a", "\u0650": "e", "\u064F": "o"}
+_LONG_LETTER = {"\u064E": "اآٱ", "\u0650": "یيى", "\u064F": "و"}
 
 
 def harakat_agree(form: str, read: str) -> bool:
     """The harakat of a vowelled form say the same short vowels as the
     reading (fatha a, kasra e, damma o, in order). «مادَری» = maadari can
     never be the key for "maaderi": one of the two is wrong, so neither
-    is trusted. A final kasra (ezafe) is allowed."""
-    marks = [_HARAKA_VOWEL[c] for c in form if c in _HARAKA_VOWEL]
+    is trusted. A final kasra (ezafe) is allowed. Shadda (a doubled consonant), sukun (no
+    vowel) and tanween (a case ending the narration does not read) carry no short vowel of the
+    reading and are not counted."""
+    marks = []
+    for k, c in enumerate(form):
+        if c not in _HARAKA_VOWEL:
+            continue
+        rest = form[k + 1:].lstrip(HARAKAT)
+        # a vowel mark before its own long-vowel letter (fatha + alef, kasra + yaa, damma + waaw)
+        # spells a long vowel, which the reading writes aa / i / u
+        if rest[:1] in _LONG_LETTER.get(c, ""):
+            continue
+        marks.append(_HARAKA_VOWEL[c])
     short = [v for v in reading_vowels(read) if v in ("a", "e", "o")]
     k = 0
     for i, v in enumerate(marks):
@@ -373,6 +390,8 @@ def validate_key(sentence: str, words: list[dict]) -> tuple[list[dict], list[str
         if not read or not re.fullmatch(r"[a-z'\- ]+", read) or not reading_vowels(read):
             issues.append(f"bad_reading:{word}")
             continue
+        if word.startswith("ال"):  # the Arabic article: "albalta" is judged as "al-balta"
+            read = re.sub(r"^(al|el)(?=[a-z])", r"\1-", read)
         entry = {"w": word, "read": read, "meaning": str(w.get("meaning") or "")[:60]}
         disagree = False
         for key in ("vowelled", "full"):
@@ -418,15 +437,40 @@ class PronunciationEditor:
             payload["passages"][-1]["sentences"].append({"i": it["i"], "text": it["text"]})
         with track_run(db, case_id, f"Pronunciation Key ({language})",
                        input_summary=f"{len(chunk)} sentences") as run:
-            data, res = await run_agent("documentary.pronunciation", self.gen, "TASK: list the words of every sentence that a voice could misread, "
-                "with the reading the meaning needs. Return JSON only.\n\nINPUT:\n"
-                + json.dumps(payload, ensure_ascii=False), system=EDITOR_SYSTEM)
+            task = ("TASK: list the words of every sentence that a voice could misread, "
+                    "with the reading the meaning needs. Return JSON only.\n\nINPUT:\n"
+                    + json.dumps(payload, ensure_ascii=False))
+            # the editor prompt follows the language: Persian and Arabic leave different
+            # vowels unwritten, with different traps
+            if language == "ar":
+                data, res = await run_agent("documentary.pronunciation.ar", self.gen, task)
+            else:
+                data, res = await run_agent("documentary.pronunciation", self.gen, task)
             stamp_run(run, res, "pronunciation_editor")
         out: dict[int, list] = {}
         if isinstance(data, dict):
             for s in data.get("sentences") or []:
                 if isinstance(s, dict) and isinstance(s.get("i"), int):
                     out[s["i"]] = s.get("words") or []
+        return out
+
+    async def arbitrate(self, db, case_id, language: str, items: list[dict]) -> dict[int, dict]:
+        """For words that stayed wrong after the whole ladder: is the voice wrong or was the key?
+        items: [{"i", "sentence", "word", "meaning", "key_read", "heard_phonemes"}] ->
+        {i: {"verdict": "key_wrong" | "voice_wrong", "read": ...}}."""
+        payload = {"language": language, "items": items}
+        with track_run(db, case_id, f"Pronunciation Referee ({language})",
+                       input_summary=f"{len(items)} words") as run:
+            data, res = await run_agent("documentary.pronunciation.arbiter", self.gen,
+                                        "INPUT:\n" + json.dumps(payload, ensure_ascii=False))
+            stamp_run(run, res, "pronunciation_editor")
+        out: dict[int, dict] = {}
+        for entry in (data or {}).get("items") or []:
+            read = str(entry.get("read") or "").strip().lower()
+            if (isinstance(entry, dict) and isinstance(entry.get("i"), int)
+                    and entry.get("verdict") in ("key_wrong", "voice_wrong")
+                    and re.fullmatch(r"[a-z'\- ]+", read) and reading_vowels(read)):
+                out[entry["i"]] = {"verdict": entry["verdict"], "read": read}
         return out
 
     async def annotate(self, db, case_id, language: str, items: list[dict]
@@ -460,10 +504,10 @@ class PronunciationEditor:
 # ---------------------------------------------------------------------------
 
 
-def risky_occurrences(sentences: list[dict]) -> list[dict]:
+def risky_occurrences(sentences: list[dict], synonyms: bool = True) -> list[dict]:
     """Every risky word of a block's sentences: [{"s": sentence index,
     "word", "read", "forms": [...fix forms in order], "level": 0}]."""
-    order = ai_config.pronunciation.fix_order
+    order = [k for k in ai_config.pronunciation.fix_order if synonyms or k != "synonym"]
     out = []
     for si, sn in enumerate(sentences or []):
         for w in sn.get("risky") or []:
@@ -546,7 +590,9 @@ def apply_fixes(sentences: list[dict], occurrences: list[dict], wrong: list[dict
         sn["tts"] = replace_word(current, span, form["text"])
         if form["kind"] == "synonym":
             for key in ("speech", "display"):
-                sp = find_word(sn.get(key) or "", occ["current"])
+                # what people read still has the word as written (harakat and respellings
+                # only ever went into the text sent to the voice)
+                sp = find_word(sn.get(key) or "", occ["word"])
                 if sp:
                     sn[key] = replace_word(sn[key], sp, form["text"])
             occ["current"] = form["text"]

@@ -478,7 +478,13 @@ def _intro_audio_graph(mode: str | None, start: float, seconds: float) -> str:
     """ffmpeg filter graph: the film's sound + the intro's own sound. In
     the cold open's break the film's sound (the chapter-break music) is
     ducked under the intro, with short ramps; before the first word the
-    film's sound simply starts after the intro."""
+    film's sound simply starts after the intro. After the host's opening the
+    film's sound already holds a silence of the intro's length: the intro's
+    sound is laid into it, nothing is ducked."""
+    if mode == "after_host":
+        ms = int(round(start * 1000))
+        return (f"[1:a]anull[d];[3:a]adelay={ms}|{ms}[i];"
+                "[d][i]amix=inputs=2:normalize=0:duration=first:dropout_transition=0[a]")
     if mode == "prepend":
         ms = int(round(seconds * 1000))
         return (f"[1:a]adelay={ms}|{ms}[d];[3:a]anull[i];"

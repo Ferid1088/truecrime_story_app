@@ -1,0 +1,182 @@
+{
+ "id": 33,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish the viewer connection before the logo and let the opening act unfold without interruption.",
+   "personality_dimension": [
+    "curiosity",
+    "holding_two_explanations"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; curious, with a brief pause after the opening question",
+   "avatar_dialogue": "Where was Lizzie when Andrew came home? If you put her upstairs, as the maid said, you picture one thing. Put her downstairs, as Lizzie said, and you picture another. That bothers me. Before I can make sense of this house with two people dead inside, I want to know where everyone was. Can you hold both accounts in mind for now, without choosing one? That's where I want to begin with the Lizzie Borden case.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 28.1,
+   "transition_back": "The logo plays, then the narration begins with the question of who was where still open.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Provide a brief reflective pause after the extended opening movement, at the boundary before the next sustained escalation.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; thoughtful, with a brief pause after the question",
+   "avatar_dialogue": "You hear about the family tensions, then see a broken hatchet, and it's tempting to connect them. I feel that pull, too. But there's a gap. Even the officers disagreed about whether the break was fresh. If you're already suspicious of Lizzie, how much weight are you giving that tool? I want to hear her account without quietly treating the weapon as settled. Because it still isn't.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 24.8,
+   "transition_back": "Returns to the survivors' accounts with the status of the proposed weapon still unresolved.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff and the final act after allowing the central narrative movement to run uninterrupted.",
+   "personality_dimension": [
+    "emotional_honesty",
+    "respect_for_due_process"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and conversational; quieter on the unresolved deaths; a brief pause before the question",
+   "avatar_dialogue": "The cheering is where I pause. You can understand the relief in that courtroom and still feel unsettled. I do. After everything we've heard about that house, Andrew and Abby's deaths remain unexplained. Where does that leave you as Lizzie walks free? I'm relieved that suspicion wasn't enough to convict her. But I can't share the crowd's sense of an ending.",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 22.6,
+   "transition_back": "Moves from the courtroom's public relief to the unresolved question accompanying Lizzie's release.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close the viewer connection after the final act has fully resolved its narrative movement.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "sensitivity_to_victims_and_families"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "personal and conversational; thoughtful without slowing heavily; a brief pause after the first question",
+   "avatar_dialogue": "If you knew the rhyme before you knew the case, how much of its certainty followed you here? I find that hard to shake. A few lines can give you a picture that survives everything you've heard against it. And then there's Abby, whose life is so much harder to bring into focus than the accusation surrounding her death. That's what stays with me. When you think back on this house, will you remember the person upstairs, or find yourself trying once more to name whoever reached her?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 32.6,
+   "transition_back": "The final question leaves space for the closing image and end credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 0,
+  "host_seconds": 108.1,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

@@ -1,0 +1,14 @@
+# Host + voice loop: change log
+
+| Iter | What failed | Cause | Change (file) |
+|---|---|---|---|
+| 1 | fa host S2 `فاصله`, S5 three words, ar host S1/S2 several words unresolved | ladder reached only 3 steps incl. a synonym that would change the frozen host text; entries had only a `vowelled` form | `config/parameters/audio.json` pronunciation.max_rounds 3 -> 4; `voice_render.speak_block(synonyms=False)` for the host; editor prompts: "# ADDED: a fix for every word" |
+| 1 | ar words with the article (`الأسفل`, `المشهد`, `الكلام`) flagged | the listener hears the article as `il`, the key says `al`; the article is not part of the word | `pronunciation.reading_vowels/reading_consonants` ignore a leading `al-`/`el-` |
+| 1 | fa story key dropped words with hamza above (`زبانهٔ`) | U+0654/0655 not in the mark set | `pronunciation.HARAKAT` |
+| 1 | still-wrong host words stayed flagged | no way to change a frozen host text except a rewrite | `host_scenes._voice_within_plan` rewrites with `avoid` words (writer says it in other words), bounded by `host.max_retime_attempts` |
+| 1 | en S3 / de S2 left out: no short sentences, flat rhythm | writers did not vary rhythm | writer prompt: "Sound spoken, not written" rule |
+| 0 | `host_meaning` agent flagged unused by the architecture test | agent name differed from its role with a prompt | agent renamed `host_meaning_checker` (prompt passed by the caller) |
+| 2 | fa host opening S1 left out (no short sentence, flat rhythm); fa S4 left out (meaning check: a fact framed as an open question); ar `البلطة` unresolved | writers tire after 2 repairs; key said `albalta` without hyphen so the article's vowel was judged | `host.max_repair_iterations` 2 -> 3; `pronunciation.validate_key` normalises `al`+word starting with ال to `al-` |
+| 2 | ar story `مختلفين` (key said `-ayn`, MSA plural is `-in`), `سوليفان` stayed wrong | a wrong key makes a right recording fail | new referee (`documentary.pronunciation.arbiter`, `VoiceRenderer._referee`): a word still wrong after the ladder is judged by a model on the sentence + heard phonemes; `key_wrong` -> re-judged against the corrected reading |
+| 3 | fa outro S4 left out three times (no short sentence, flat rhythm, 94 > 93 words); ar story `مختلفين`/`قتيلين` unresolved | the repair note did not give the numbers; the voice followed the key's own marks (`-ayn`) so the referee saw "ayn" and called it a voice error | `host.ISSUE_FIXES` carry `host.spoken.short_sentence_words`; the referee also gets `form_sent` (what the voice was given) and the prompt says what it means |
+| 4 | host: all 16 segments pass in en/de/fa/ar, no host flags. Story sample: fa `در`, ar `سوليفان`, `مؤمن`, `مختلفين` unresolved | Arabic key reads `ـين` as `-ayn` and forces it with fatha+yaa+sukun; foreign name read with a long ā | Arabic editor prompt: "# ADDED: plural, dual and foreign names" |

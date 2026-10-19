@@ -1,0 +1,182 @@
+{
+ "id": 30,
+ "status": "valid",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establishes the central tension before the logo and story begin, creating an immediate question without delaying the opening act.",
+   "personality_dimension": [
+    "curiosity",
+    "holding_two_explanations"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; a beat before each question; slightly faster than narration",
+   "avatar_dialogue": "Zwei Menschen sind tot, und in diesem Haus passt schon der erste Augenblick nicht zusammen. Du hörst gleich zwei Versionen derselben Szene: Die Dienstmagd sagt, Lizzie habe oben an der Treppe gestanden, als Andrew nach Hause kam; Lizzie selbst sagt, sie sei unten gewesen. Welche Erinnerung klingt für dich glaubwürdiger? Und noch etwas: Wie kann jemand in einem Haus mit zwei Toten gewesen sein, ohne dass die Antwort sofort klar ist? Schauen wir genau hin.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 29.8,
+   "transition_back": "The final invitation hands directly to the opening narration, which begins establishing the house and the competing accounts.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act2 (92 Second Street: The Household)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act2",
+   "cutoff": 2,
+   "purpose": "Provides a brief bridge after the household context and unresolved pre-event turn, then sends the viewer into the reconstruction of the morning.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; slightly quicker, with a brief pause before the final thought",
+   "avatar_dialogue": "Je mehr man über dieses Haus weiß, desto weniger reicht das Wort „oben“. Für dich ist das wichtig: Wege führten nicht einfach geradeaus, und selbst ein kurzer Weg musste über Treppen und verschlossene Türen gehen. Ich frage mich, welche Aussage diesem Grundriss wirklich standhält. Jetzt wird der Morgen enger.",
+   "target_duration": 17.0,
+   "target_seconds": 17.0,
+   "estimated_seconds": 19.5,
+   "transition_back": "The narration returns to the morning timeline, now with the house layout in mind.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act4 (Her Account, and the Dress)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act4",
+   "cutoff": 4,
+   "purpose": "Gives the film room to absorb the accumulated contradictions and the latest turning point before the legal consequences begin.",
+   "personality_dimension": [
+    "awareness_of_bias",
+    "discomfort_with_weak_evidence"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; slightly quicker than narration, with a brief pause after the opening question.",
+   "avatar_dialogue": "Das verbrannte Kleid macht mich misstrauisch. Dich auch? Ich muss mich da bremsen: Sobald du dir Blut auf diesem Stoff vorstellst, wird aus einer Möglichkeit schnell etwas scheinbar Sicheres. Untersuchen lässt es sich nicht mehr. Schon beim Beil blieb offen, ob es überhaupt die Tatwaffe war. Mich beschäftigt deshalb, was Lizzies Aussagen tatsächlich belegen können. Welche ihrer Widersprüche lassen sich klären, wenn sie unter Eid antworten muss?",
+   "target_duration": 27.3,
+   "target_seconds": 27.3,
+   "estimated_seconds": 26.6,
+   "transition_back": "Returns to the narrative through the open question of how Lizzie will address the inconsistencies under oath.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Closes after the final act with enough space for the remaining uncertainty to register without adding another summary or interrupting the payoff.",
+   "personality_dimension": [
+    "sensitivity_to_victims_and_families",
+    "awareness_of_bias"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Warm and reflective; conversational pace, with brief pauses after the short sentence and before the final question.",
+   "avatar_dialogue": "Der Freispruch zieht für mich eine Grenze: Die Anklage war nicht bewiesen. Wer Abby und Andrew getötet hat, wissen wir deshalb noch immer nicht. Das bleibt offen. Und dann diese Geschichten, die immer größer wurden … Ich finde es schwer, sie wieder aus dem Kopf zu bekommen, selbst wenn ihre Grundlage fehlt. Geht dir das auch so? Gerade Abby droht darin zu verschwinden. Wenn du an dieses Haus zurückdenkst: Ist sie für dich noch ein Mensch mit einem eigenen Leben oder schon Teil des Rätsels?",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 33.8,
+   "transition_back": "Ends on a personal question about how Abby is remembered, leaving space for the closing credits.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  }
+ ],
+ "validation": {
+  "status": "valid",
+  "failed_segments": [],
+  "repair_iterations": 3,
+  "host_seconds": 109.7,
+  "planned_seconds": 104.8,
+  "plan_status": "valid"
+ }
+}

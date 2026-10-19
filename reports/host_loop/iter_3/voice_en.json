@@ -1,0 +1,135 @@
+{
+ "segments_id": 33,
+ "report": {
+  "scenes": [
+   {
+    "scene": 120,
+    "segment": "S4",
+    "position": "final",
+    "planned": 31.7,
+    "seconds": 31.76,
+    "deviation": 0.0019,
+    "cap": 50.0
+   },
+   {
+    "scene": 117,
+    "segment": "S1",
+    "position": "opening",
+    "planned": 28.8,
+    "seconds": 28.24,
+    "deviation": 0.0194,
+    "cap": 75.0
+   },
+   {
+    "scene": 118,
+    "segment": "S2",
+    "position": "mid",
+    "planned": 26.2,
+    "seconds": 26.88,
+    "deviation": 0.026,
+    "cap": 45.0
+   },
+   {
+    "scene": 119,
+    "segment": "S3",
+    "position": "mid",
+    "planned": 22.5,
+    "seconds": 22.32,
+    "deviation": 0.008,
+    "cap": 45.0
+   }
+  ],
+  "host_seconds": 109.2,
+  "host_share": 0.0325,
+  "timeline": {
+   "story_seconds": 3363.6,
+   "host_seconds": 109.2,
+   "intro_seconds": 0.0,
+   "total_seconds": 3472.8
+  },
+  "errors": [],
+  "warnings": []
+ },
+ "scenes": {
+  "S4": {
+   "text": "If you knew the rhyme before you knew the case, how much of its certainty followed you here? I find that hard to shake. A few lines can give you a picture that survives everything you've heard against it. And then there's Abby, whose life is so much harder to bring into focus than the accusation surrounding her death. You hear about her household work, and suddenly she's someone you can picture. That's what stays with me. When you think back on this house, will you remember her, or find yourself trying once more to name whoever reached her?",
+   "seconds": 31.76,
+   "planned": 31.7,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "If you knew the rhyme before you knew the case, how much of its certainty followed you here? I find that hard to shake. A few lines can give you a picture that survives everything you've heard against it. And then there's Abby, whose life is so much harder to bring into focus than the accusations surrounding her death. You hear about her household work and suddenly she's someone you can picture. That's what stays with me. When you think back on this house, Will you remember her or find yourself trying once more to name whoever reached her?"
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S1": {
+   "text": "Where was Lizzie when Andrew came home? If you put her upstairs, as the maid said, you picture one thing. Put her downstairs, as Lizzie said, and you picture another. That bothers me. Before I can make sense of this house with two people dead inside, I want to know where everyone was. And I don't want the version that's easier to picture to win automatically. Can you hold both accounts in mind for now, without choosing one? That's where I want to begin with the Lizzie Borden case.",
+   "seconds": 28.24,
+   "planned": 28.8,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "Where was Lizzie when Andrew came home? If you put her upstairs, as the maid said, you picture one thing. Put her downstairs, as Lizzie said, and you picture another. That bothers me. Before I can make sense of this house with two people dead inside, I wanna know where everyone was, and I don't want the version that's easier to picture to win automatically. Can you hold both accounts in mind for now without choosing one? That's where I wanna begin with the Lizzie Borden case."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S2": {
+   "text": "You hear about the family tensions, then see a broken hatchet, and it's tempting to connect them. I feel that pull, too. But there's a gap. Even the officers disagreed about whether the break was fresh. If you're already suspicious of Lizzie, how much weight are you giving that tool? Even a strained relationship doesn't put that tool in someone's hands. I want to hear her account without quietly treating the weapon as settled. Because it still isn't.",
+   "seconds": 26.88,
+   "planned": 26.2,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "You hear about the family tensions, then see a broken hatchet, and it's tempting to connect them. I feel that pull too. But there's a gap. Even the officers disagreed about whether the break was fresh. If you're already suspicious of Lizzie, how much weight are you giving that tool? Even a strained relationship doesn't put that tool in someone's hands. I want to hear her account without quietly treating the weapon as settled. Because it still isn't."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  },
+  "S3": {
+   "text": "The cheering is where I pause. You can understand the relief in that courtroom and still feel unsettled. I do. After everything we've heard about that house, Andrew and Abby's deaths remain unexplained. Where does that leave you as Lizzie walks free? I'm relieved that suspicion wasn't enough to convict her. But I can't share the crowd's sense of an ending.",
+   "seconds": 22.32,
+   "planned": 22.5,
+   "checks": {
+    "tts_text": null,
+    "asr": {
+     "passed": true,
+     "word_error_rate": 0.0,
+     "failures": [],
+     "heard_text": "The cheering is where I pause. You can understand the relief in that courtroom and still feel unsettled. I do. After everything we've heard about that house, Andrew and Abby's deaths remain unexplained. Where does that leave you as Lizzie walks free? I'm relieved that suspicion wasn't enough to convict her. But I can't share the crowd's sense of an ending."
+    },
+    "pronunciation": [],
+    "fixes": [],
+    "attempts": 1,
+    "asr_engine": "faster_whisper",
+    "listener": null,
+    "flags": []
+   }
+  }
+ }
+}

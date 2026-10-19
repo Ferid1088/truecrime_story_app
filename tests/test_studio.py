@@ -274,6 +274,24 @@ def _segments(db, lang="de"):
     return row
 
 
+def _silence_mp3(seconds: float) -> bytes:
+    """A real (silent) mp3 of the given length: the voice checks cut and probe the audio."""
+    import subprocess
+
+    from app.core.media_tools import ffmpeg_bin
+
+    return subprocess.run(
+        [ffmpeg_bin(), "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t",
+         f"{max(seconds, 0.2):.2f}", "-f", "mp3", "-"], capture_output=True, check=True).stdout
+
+
+def _renderer(voice):
+    """The checks of the voice step with a fake voice and no Whisper / phoneme model."""
+    from app.documentary.voice_render import VoiceRenderer
+
+    return VoiceRenderer(provider=voice, use_asr=False, use_listener=False)
+
+
 class FakeVoice:
     def __init__(self):
         self.calls = 0
@@ -283,7 +301,7 @@ class FakeVoice:
 
         self.calls += 1
         n = len(req.text)
-        return VoiceRenderResult(audio=b"ID3" + req.text.encode("utf-8"), audio_format="mp3",
+        return VoiceRenderResult(audio=_silence_mp3(n * 0.05), audio_format="mp3",
                                  characters=list(req.text), char_starts=[i * .05 for i in range(n)],
                                  char_ends=[(i + 1) * .05 for i in range(n)], provider="fake",
                                  model_id=req.model_id, voice_id=req.voice_id, request_id="req-1")
@@ -356,7 +374,7 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
     monkeypatch.setenv("TrueCrime_Avatar_ID_Heygen", "group-1")
     scene = plan_host_scenes(db_session, _segments(db_session, "de"))[0]
     voice = FakeVoice()
-    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     assert scene.status == "voice_ready" and voice.calls == 1
     p = storage.resolve(scene.voice_path)
     side = json.loads(p.with_name(p.name + ".json").read_text(encoding="utf-8"))
@@ -365,12 +383,12 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
     # the avatar provider is down for the first request
     av = FakeAvatar(fail_request=1)
     with pytest.raises(Exception, match="network down"):
-        asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=voice,
+        asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice),
                               avatar_provider=av, sleep=_nosleep))
     assert scene.status == "avatar_uploaded" and scene.failed_step == "avatar_request"
     assert voice.calls == 1 and av.uploads == 1
     # retry: voice and upload are reused, the request carries the same key
-    asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=voice, avatar_provider=av,
+    asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice), avatar_provider=av,
                           sleep=_nosleep))
     assert scene.status == "avatar_ready" and scene.failed_step is None
     assert voice.calls == 1 and av.uploads == 1 and av.requests == 2
@@ -380,7 +398,7 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
     assert [h["outcome"] for h in hist if h["step"] == "voice"] == ["ok", "skipped", "skipped"]
     assert [h["outcome"] for h in hist if h["step"] == "avatar_request"] == ["failed", "ok"]
     # done is done: nothing is paid again
-    asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=voice, avatar_provider=av,
+    asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice), avatar_provider=av,
                           sleep=_nosleep))
     assert (voice.calls, av.uploads, av.requests) == (1, 1, 2)
 
@@ -397,15 +415,15 @@ def test_a_failed_provider_job_is_requested_anew_a_slow_one_is_not(db_session, t
     av = FakeAvatar(job_states=["processing", "failed", "completed"])
     # slow: the wait ends, the job is kept
     with pytest.raises(Exception, match="still processing"):
-        asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=voice,
+        asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice),
                               avatar_provider=av, sleep=_nosleep))
     assert scene.status == "avatar_requested" and av.requests == 1
     # the provider fails the job: the next run asks again with a new key
     with pytest.raises(Exception, match="no matting"):
-        asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=voice,
+        asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice),
                               avatar_provider=av, sleep=_nosleep))
     assert av.requests == 1 and scene.provider_generation == 1 and scene.provider_job_id is None
-    asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=voice, avatar_provider=av,
+    asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice), avatar_provider=av,
                           sleep=_nosleep))
     assert scene.status == "avatar_ready" and av.requests == 2 and av.keys[0] != av.keys[1]
     assert scene.channel == "ClueVera" and scene.studio_asset_id.startswith("STUDIO_EN_")
@@ -417,7 +435,7 @@ def test_avatar_stays_off_unless_enabled(db_session, tmp_path, monkeypatch, clie
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     scene = plan_host_scenes(db_session, _segments(db_session, "fa"))[0]
     with pytest.raises(ST.StudioError, match="disabled"):
-        asyncio.run(run_scene(db_session, scene, "avatar", voice_provider=FakeVoice()))
+        asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(FakeVoice())))
     assert scene.status == "voice_ready"     # the voice is kept
     r = client.post(f"/api/host-scenes/{scene.id}/run", json={"until": "avatar"})
     assert r.status_code == 409
@@ -510,7 +528,7 @@ def test_the_host_speaks_in_its_own_style_not_the_narrations(db_session, tmp_pat
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     scene = plan_host_scenes(db_session, _segments(db_session, "de"))[0]
     voice = RecordingVoice()
-    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     host = ai_config.voice.styles[ai_config.host.voice_style].model_dump()
     narration = ai_config.voice.styles[ai_config.voice.default_style].model_dump()
     assert voice.settings == [host] and ai_config.host.voice_style == "host_conversational"
@@ -525,11 +543,11 @@ def test_a_changed_host_style_makes_the_voice_again_and_the_same_style_does_not(
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     scene = plan_host_scenes(db_session, _segments(db_session, "en"))[0]
     voice = RecordingVoice()
-    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
-    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
+    asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     assert voice.calls == 1                                  # same text, voice and settings: kept
     monkeypatch.setattr(ai_config.host, "voice_style", "factual")
-    asyncio.run(run_scene(db_session, scene, "voice", voice_provider=voice))
+    asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     assert voice.calls == 2 and voice.settings[-1] == ai_config.voice.styles["factual"].model_dump()
 
 

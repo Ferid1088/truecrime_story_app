@@ -43,7 +43,7 @@ def test_all_languages_use_v3_with_the_new_voices():
             "fa": "I3gMKh0nwZ8NQXKqUg6F", "ar": "EFlRMcr2Nd9ah6iW85Z4"}
     for lang, voice in want.items():
         cfg = ai_config.voice.for_language(lang)
-        assert cfg.voice_id == voice and cfg.model_id == "eleven_v3"
+        assert cfg.voice_id == voice and cfg.model_id == "eleven_v4"
         assert cfg.language_code == lang
     for lv in "0123":
         assert ai_config.voice_performance.level_styles[lv] in ai_config.voice.styles
@@ -54,7 +54,7 @@ def test_elevenlabs_body_language_code_and_context():
 
     p = object.__new__(ElevenLabsVoiceProvider)
     p.cfg = ai_config.voice.elevenlabs
-    v3 = p._body(VoiceRequest(text="[pause] Salaam.", voice_id="x", model_id="eleven_v3",
+    v3 = p._body(VoiceRequest(text="[pause] Salaam.", voice_id="x", model_id="eleven_v4",
                               settings={}, previous_text="a", language_code="fa"))
     assert v3["language_code"] == "fa" and "previous_text" not in v3
     v2 = p._body(VoiceRequest(text="Hi.", voice_id="x", model_id="eleven_multilingual_v2",
@@ -84,7 +84,7 @@ def test_elevenlabs_waits_when_too_many_requests_run(monkeypatch):
 
     monkeypatch.setattr(p, "_post", post)
     monkeypatch.setattr("app.providers.voice.elevenlabs.asyncio.sleep", no_sleep)
-    res = asyncio.run(p.synthesize(VoiceRequest(text="a", voice_id="v", model_id="eleven_v3",
+    res = asyncio.run(p.synthesize(VoiceRequest(text="a", voice_id="v", model_id="eleven_v4",
                                                 settings={})))
     assert res.characters == ["a"] and len(calls) == 4  # more than max_retries
 

@@ -1,0 +1,185 @@
+{
+ "id": 31,
+ "status": "needs_review",
+ "segments": [
+  {
+   "segment_id": "S1",
+   "placement": "Opening — before Two Accounts of One Staircase",
+   "position": "opening",
+   "role": "opening",
+   "beat_id": null,
+   "cutoff": 0,
+   "purpose": "Establish the viewer connection before the logo and let the opening act unfold without interruption.",
+   "personality_dimension": [
+    "curiosity",
+    "intellectual_humility"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; curious, with a brief pause before the larger question.",
+   "avatar_dialogue": "دو تا جسد، و دو روایت از یک لحظه. لیزی وقتی اندرو به خونه برگشت، بالای پله‌ها بود یا پایین؟ حرف خدمتکار با حرف لیزی جور درنمیاد. عجیبه، نه؟ تو به کدوم روایت تکیه می‌کنی، و چرا؟ من هنوز نمی‌دونم این اختلاف از حافظه میاد یا از چیز دیگه‌ای. حتی نمی‌دونم چقدر باید بهش وزن بدیم. اما یه پرسش بزرگ‌تر هم هست: کی توی اون خونه کنار دو تا جنازه بوده، و چطور؟ بیا از اول ببینیم.",
+   "target_duration": 28.8,
+   "target_seconds": 28.8,
+   "estimated_seconds": 31.6,
+   "transition_back": "The invitation to start at the beginning leads into the logo and then the narrative.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S2",
+   "placement": "After act3 (What the Police Found)",
+   "position": "mid",
+   "role": "reflection",
+   "beat_id": "act3",
+   "cutoff": 3,
+   "purpose": "Provide a brief reflective pause after the extended opening movement, at the boundary before the next sustained escalation.",
+   "personality_dimension": [
+    "discomfort_with_weak_evidence",
+    "awareness_of_bias"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Conversational and thoughtful; brief pause after the short admission, with a gently questioning tone.",
+   "avatar_dialogue": "تو هم با شنیدن ماجرای داروخونه منتظر بودی یه مدرک روشن‌تر پیدا بشه؟ من بودم. ولی حالا سر همین تبرچه، حتی مأمورها هم دربارهٔ تازه بودن شکستگی دسته‌ش هم‌نظر نیستن. می‌بینی چقدر راحت می‌شه این اختلاف رو کنار گذاشت، فقط چون دنبال یه جوابیم؟ من دلم می‌خواد بدونم چی این قتل‌ها رو به یه نفر وصل می‌کنه، وقتی هنوز خود سلاح هم قطعی نیست.",
+   "target_duration": 26.2,
+   "target_seconds": 26.2,
+   "estimated_seconds": 26.3,
+   "transition_back": "Returns to the investigation with the unresolved question of what evidence could connect a person to the killings.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S3",
+   "placement": "After act6 (New Bedford, June 1893)",
+   "position": "mid",
+   "role": "transition",
+   "beat_id": "act6",
+   "cutoff": 6,
+   "purpose": "Bridge the completed payoff and the final act after allowing the central narrative movement to run uninterrupted.",
+   "personality_dimension": [
+    "respect_for_due_process",
+    "emotional_honesty"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "Direct and conversational; reflective rather than somber, with a brief beat before the question.",
+   "avatar_dialogue": "صدای تشویق دادگاه برای من کنار تصویر اون خونه نمی‌شینه. برای تو چطور؟ آزادی لیزی یه اتفاق واقعی و مهمه، ولی هنوز نمی‌دونیم کی اندرو و ابی رو کشته. این دوتا رو نمی‌خوام قاطی کنم. تو می‌تونی رأی رو بپذیری و هنوز با سؤال اون صبح بمونی؛ من هم با همین سؤال از دادگاه بیرون میام.",
+   "target_duration": 22.5,
+   "target_seconds": 22.5,
+   "estimated_seconds": 23.0,
+   "transition_back": "Leaves the courtroom with the unresolved question of who killed Andrew and Abby, without anticipating what follows.",
+   "quality": {
+    "pass": true,
+    "checks": {
+     "adds_value": true,
+     "conversational": true,
+     "native": true,
+     "fresh": true,
+     "shows_not_tells": true,
+     "emotion_justified": true,
+     "verified": true,
+     "respectful": true,
+     "short_enough": true,
+     "direct_address": true,
+     "informal_form": true,
+     "friend_tone": true,
+     "hook": true,
+     "no_spoiler": true,
+     "builds_on_story": true
+    },
+    "problems": [],
+    "deterministic": []
+   }
+  },
+  {
+   "segment_id": "S4",
+   "placement": "Outro — after act7 (The Story That Grew, and What Remains)",
+   "position": "final",
+   "role": "outro",
+   "beat_id": "act7",
+   "cutoff": 7,
+   "purpose": "Close the viewer connection after the final act has fully resolved its narrative movement.",
+   "personality_dimension": [
+    "intellectual_humility",
+    "sensitivity_to_victims_and_families"
+   ],
+   "memory_reference": "none",
+   "delivery_direction": "direct and warm; restrained reflection; a brief pause before the final thought",
+   "avatar_dialogue": "آخر این پرونده، چیزی که برای من می‌ماند، نه افسانه است و نه جواب قطعی. رأی دادگاه یک حد قانونی داشت؛ بیرون از آن، خلأ باقی ماند. بعد، شعرها و داستان‌ها آمدند و این خلأ را با اطمینان پر کردند. اما تو می‌بینی که اطمینان، جای مدرک را نمی‌گیرد. سخت‌ترین بخش برای من این است که ابی کم‌کم پشت نقش «یکی از دو قربانی» گم شد. اگر این پرونده را به خاطر بسپاری، همین را نگه دار: میان تبرئه شدن و دانستن حقیقت، فاصله‌ای واقعی هست. بعضی سؤال‌ها با بلندتر شدن افسانه، حل نمی‌شوند.",
+   "target_duration": 31.7,
+   "target_seconds": 31.7,
+   "estimated_seconds": 38.6,
+   "transition_back": "The story closes on the unresolved question of who went upstairs, leaving the viewer with the distinction between acquittal, evidence, and truth.",
+   "quality": {
+    "pass": false,
+    "checks": {},
+    "problems": [],
+    "deterministic": [
+     {
+      "type": "too_long",
+      "words": 94,
+      "max": 93,
+      "fix": "Cut the least important sentences."
+     },
+     {
+      "type": "no_short_sentences",
+      "shortest": 8,
+      "fix": "Add a very short sentence or two (a few words) between longer ones, the way people talk."
+     },
+     {
+      "type": "flat_rhythm",
+      "variation": 0.29,
+      "fix": "Vary the rhythm: short, long, a sentence that breaks off; not evenly long sentences."
+     }
+    ]
+   }
+  }
+ ],
+ "validation": {
+  "status": "needs_review",
+  "failed_segments": [
+   "S4"
+  ],
+  "repair_iterations": 7,
+  "host_seconds": 119.5,
+  "planned_seconds": 109.2,
+  "plan_status": "valid"
+ }
+}

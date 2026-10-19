@@ -246,10 +246,12 @@
         "name": "documentary_host",
         "authors": [
           "host_director",
-          "host_writer"
+          "host_writer",
+          "host_writer_fa_ar"
         ],
         "reviewers": [
-          "host_critic"
+          "host_critic",
+          "host_meaning_checker"
         ],
         "strict": true
       },

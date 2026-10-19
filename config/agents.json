@@ -161,6 +161,20 @@
       "description": "Readings a voice might get wrong.",
       "used_by": "app/documentary/pronunciation.py"
     },
+    "documentary.pronunciation.ar": {
+      "role": "pronunciation_editor",
+      "prompt": "documentary/pronunciation/editor_system_ar",
+      "output": "json",
+      "description": "Readings an Arabic voice might get wrong.",
+      "used_by": "app/documentary/pronunciation.py"
+    },
+    "documentary.pronunciation.arbiter": {
+      "role": "pronunciation_editor",
+      "prompt": "documentary/pronunciation/arbiter_system",
+      "output": "json",
+      "description": "Decides whether the voice or the pronunciation key is wrong for a word that stayed wrong.",
+      "used_by": "app/documentary/pronunciation.py"
+    },
     "documentary.voice_arc": {
       "role": "voice_performance_director",
       "prompt": "documentary/voice_performance/arc_system",
@@ -287,11 +301,25 @@
       "description": "Host dialogue.",
       "used_by": "app/agents/host.py"
     },
+    "host_writer_fa_ar": {
+      "role": "host_writer_fa_ar",
+      "prompt": null,
+      "output": "json",
+      "description": "Host dialogue in Persian and Arabic.",
+      "used_by": "app/agents/host.py"
+    },
     "host_critic": {
       "role": "host_critic",
       "prompt": null,
       "output": "json",
       "description": "Host critic.",
+      "used_by": "app/agents/host.py"
+    },
+    "host_meaning_checker": {
+      "role": "host_meaning_checker",
+      "prompt": null,
+      "output": "json",
+      "description": "Facts the host's spoken words add, change or sharpen.",
       "used_by": "app/agents/host.py"
     },
     "spoken_writer": {

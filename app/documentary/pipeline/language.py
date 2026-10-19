@@ -94,6 +94,7 @@ class LanguageChain:
 
         async def render_voice():
             from app.documentary.production.audio import render_documentary_audio
+            from app.documentary.pronunciation import PronunciationEditor
             from app.documentary.voice_render import VoiceRenderer
 
             paid = pipe.result.setdefault("tts_characters", {})
@@ -106,7 +107,7 @@ class LanguageChain:
                 plan, case_id=case.id, story_version_id=version.id,
                 max_seconds=pilot_seconds if pilot else None, db=db,
                 renderer=VoiceRenderer(db=db, budget_case_id=case.id,
-                                       budget_stage=f"tts:{lang}",
+                                       budget_stage=f"tts:{lang}", arbiter=PronunciationEditor(),
                                        documentary_job_id=job.id,
                                        budget_pilot_seconds=pilot_seconds if pilot else None))
             holder["m"] = m
