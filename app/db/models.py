@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from sqlalchemy import (
@@ -1855,6 +1856,26 @@ class MusicTrack(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class MusicLibraryMiss(Base):
+    """A moment the audio director found no fitting library track for: the kind, mood and situation a new track would need."""
+
+    __tablename__ = "music_library_misses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    film_key: Mapped[str] = mapped_column(String(60), index=True)
+    after_beat: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    mood: Mapped[str] = mapped_column(String(30), index=True)
+    situation: Mapped[str] = mapped_column(Text, default="")
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    mode: Mapped[str] = mapped_column(String(20))   # library | create_if_missing
+    track_id: Mapped[int | None] = mapped_column(ForeignKey("music_tracks.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    __table_args__ = (UniqueConstraint("film_key", "after_beat", "kind", name="uq_music_miss_film_beat"),)
+
+
 class MusicUsage(Base):
     """One placement of a music track (or chosen silence) in a film."""
 
@@ -2345,3 +2366,11 @@ class HostLook(Base):
     heygen_look_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+@event.listens_for(MusicTrack, "before_insert")
+@event.listens_for(MusicTrack, "before_update")
+def _music_track_needs_situation(_mapper, _connection, track: MusicTrack) -> None:
+    """A track is never saved without the situation text and tags that tell agents when to use it."""
+    if not (track.situation or "").strip() or not json.loads(track.tags_json or "[]"):
+        raise ValueError(f"music track {track.track_code}: situation text and tags are required")

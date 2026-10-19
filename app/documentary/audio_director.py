@@ -82,6 +82,12 @@ MOOD_FUNCTIONS = {
 }
 
 
+# The library kind that serves each music moment.
+LIBRARY_KIND = {"music_bridge": "bridge", "emotional_moment": "bridge",
+                "chapter_break": "bridge", "sting": "sting"}
+MAX_MISS_TAGS = 8
+
+
 def known_moods(cfg: AudioDirectionConfig | None = None) -> list[str]:
     cfg = cfg or ai_config.audio_direction
     return list(cfg.moods)
@@ -111,7 +117,8 @@ def _mood_catalogue(cfg: AudioDirectionConfig) -> str:
     return "\n".join(lines)
 
 
-def director_system_prompt(cfg: AudioDirectionConfig | None = None) -> str:
+def director_system_prompt(cfg: AudioDirectionConfig | None = None,
+                           with_library: bool = False) -> str:
     cfg = cfg or ai_config.audio_direction
     rng = {k: f"{v[0]:g}–{v[1]:g} s" for k, v in cfg.transitions.items()}
     share = round(cfg.max_music_only_share * 100)
@@ -128,7 +135,10 @@ def director_system_prompt(cfg: AudioDirectionConfig | None = None) -> str:
         "     exactly where a beat ends an act (ends_act true) — every act end —\n"
         "     and after a cold open (opening_title true); nowhere else."
         if ai_config.chapters.enabled else "")
-    return prompt("documentary/audio_director/director_system_prompt").format(bed_rule=bed_rule, rng_breath=rng['breath'], rng_music_bridge=rng['music_bridge'], rng_emotional_moment=rng['emotional_moment'], rng_sting=rng['sting'], rng_silence=rng['silence'], rng_chapter_break=rng['chapter_break'], chapter_rule=chapter_rule, mood_catalogue=_mood_catalogue(cfg), share=share, min_seconds_between_music_moments=cfg.min_seconds_between_music_moments)
+    text = prompt("documentary/audio_director/director_system_prompt").format(bed_rule=bed_rule, rng_breath=rng['breath'], rng_music_bridge=rng['music_bridge'], rng_emotional_moment=rng['emotional_moment'], rng_sting=rng['sting'], rng_silence=rng['silence'], rng_chapter_break=rng['chapter_break'], chapter_rule=chapter_rule, mood_catalogue=_mood_catalogue(cfg), share=share, min_seconds_between_music_moments=cfg.min_seconds_between_music_moments)
+    if with_library:
+        text += "\n\n" + prompt("documentary/audio_director/director_music_library")
+    return text
 
 
 def chapter_gaps(blueprint: dict) -> dict[str, str]:
@@ -148,9 +158,10 @@ def chapter_gaps(blueprint: dict) -> dict[str, str]:
     return out
 
 
-def _director_input(blueprint: dict) -> dict:
+def _director_input(blueprint: dict, library: list[dict] | None = None) -> dict:
     gaps = chapter_gaps(blueprint)
     return {
+        **({"music_library": library} if library else {}),
         "central_question": blueprint.get("central_question"),
         "arcs": blueprint.get("arcs"),
         "beats": [
@@ -197,8 +208,65 @@ def _explain(pb: dict) -> str:
     return why[:300]
 
 
+def _clean_tags(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    tags = []
+    for t in value:
+        t = str(t).strip().lower()[:40]
+        if t and t not in tags:
+            tags.append(t)
+    return tags[:MAX_MISS_TAGS]
+
+
+def _library_choice(pb: dict, library: dict[str, dict], previous: str | None,
+                    adjustments: list[dict]) -> str | None:
+    """Settle the director's library answer for one music moment: a valid
+    track_code stays; an invented one, one of the wrong kind or an
+    unplanned repeat of the previous moment's track is dropped; a
+    library_miss is normalised (an invented or wrong code becomes one).
+    Returns the track_code kept, or None."""
+    after, raw = pb["after"], pb["_raw_after"]
+    kind = LIBRARY_KIND[after["type"]]
+    code = str(raw.get("track_code") or "").strip() or None
+    miss = raw.get("library_miss") if isinstance(raw.get("library_miss"), dict) else None
+    reason = None
+    if code is not None:
+        track = library.get(code)
+        if track is None:
+            reason = "invented_track_code"
+        elif track["kind"] != kind:
+            reason = "track_kind_does_not_match_the_moment"
+        elif code == previous and raw.get("continuity") is not True:
+            reason = "same_track_as_the_previous_moment"
+        if reason:
+            adjustments.append({"beat": pb["beat_id"], "track_code": [code, None],
+                                "reason": reason})
+            if reason != "same_track_as_the_previous_moment" and miss is None:
+                miss = {"kind": kind, "mood": after["mood"],
+                        "situation": str(raw.get("why") or pb["_why"] or ""), "tags": []}
+            code = None
+    if code is not None:
+        after["track_code"] = code
+        after["track_reason"] = str(raw.get("track_reason") or "").strip()[:200]
+        if raw.get("continuity") is True:
+            after["continuity"] = True
+        return code
+    if miss is not None:
+        mood = normalize_mood(miss.get("mood") or after["mood"], after["type"])
+        after["library_miss"] = {
+            "kind": kind, "mood": mood,
+            "situation": str(miss.get("situation") or pb["_why"] or "").strip()[:300],
+            "tags": _clean_tags(miss.get("tags")),
+        }
+    return None
+
+
 def validate_audio_plan(raw: dict, blueprint: dict,
-                        cfg: AudioDirectionConfig | None = None) -> tuple[dict, dict]:
+                        cfg: AudioDirectionConfig | None = None,
+                        library: dict[str, dict] | None = None) -> tuple[dict, dict]:
+    """`library` is the tracks the director was shown, by track_code; without
+    it (music source "create") track_code and library_miss are dropped."""
     cfg = cfg or ai_config.audio_direction
     raw = raw if isinstance(raw, dict) else {}
     beats = blueprint.get("beats") or []
@@ -263,6 +331,7 @@ def validate_audio_plan(raw: dict, blueprint: dict,
             "why": beat_why,
             "_why": str(after.get("why") or "").strip()[:240] or beat_why,
             "_changes": [],
+            "_raw_after": after,
         })
 
     def adjust(pb, to_type, reason, seconds=None):
@@ -351,8 +420,15 @@ def validate_audio_plan(raw: dict, blueprint: dict,
                 adjust(pb, "breath", "music_share_cap",
                        seconds=sum(cfg.transitions["breath"]) / 2)
 
+    # --- library answers: a valid track or a library_miss -----------------
+    previous = None
+    for pb in plan_beats:
+        if library is not None and pb["after"]["type"] in MUSIC_TYPES:
+            previous = _library_choice(pb, library, previous, adjustments)
+
     # --- every music / silence choice keeps its reason ----------------
     for pb in plan_beats:
+        pb.pop("_raw_after", None)
         if pb["after"]["type"] in EXPLAINED_TYPES:
             pb["after"]["why"] = _explain(pb)
         pb.pop("_why", None)

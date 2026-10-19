@@ -1792,6 +1792,10 @@ class HostConfig(BaseModel):
 class AudioDirectionConfig(BaseModel):
     """Guard-rails for the audio director's plan (deterministic)."""
 
+    # Most library tracks sent to the director with one film (spread over
+    # the kinds and moods so a cap never starves one mood).
+    library_max_tracks: int = Field(default=40, ge=1, le=200)
+
     # Allowed length (seconds) of each transition type after a beat.
     transitions: dict[str, list[float]] = Field(default_factory=lambda: {
         "breath": [1.0, 1.8],
@@ -1871,6 +1875,16 @@ class MusicLibraryConfig(BaseModel):
     # first, a new track only when none exists for the (kind, mood).
     # The owner's choice (Settings) overrides this default.
     source_mode: Literal["create", "library", "create_if_missing"] = "create"
+    # A new track whose kind and mood match an existing one and whose
+    # situation and tags overlap at least this much is logged as a
+    # near-duplicate (it is still created: the director found no fit).
+    duplicate_similarity: float = Field(default=0.6, ge=0.0, le=1.0)
+    # "Enough tracks" per "kind/mood" for the owner's traffic light; off
+    # while both are empty. The mode never switches by itself.
+    enough_target_default: int | None = Field(default=None, ge=1)
+    enough_targets: dict[str, int] = Field(default_factory=dict)
+    # How many of the latest films the owner's library_miss summary covers.
+    overview_films: int = Field(default=10, ge=1, le=200)
     # Where in a film each kind of track is used; stored with every track
     # so agents and the owner can see in which situation to use it.
     kind_situations: dict[str, str] = Field(default_factory=lambda: {

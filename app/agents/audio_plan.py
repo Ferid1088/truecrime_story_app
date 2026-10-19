@@ -11,6 +11,7 @@ from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import AudioPlan, Case, EditorialBlueprint
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
+from app.documentary.music import director_library
 from app.documentary.audio_director import (
     _director_input,
     director_system_prompt,
@@ -27,14 +28,16 @@ class AudioDirector:
         if blueprint_row.status == "invalid":
             raise RuntimeError("The blueprint is invalid; fix it before audio direction.")
         blueprint = json.loads(blueprint_row.blueprint_json or "{}")
-        system = director_system_prompt()
-        payload = _director_input(blueprint)
+        library = director_library(db)
+        by_code = {t["code"]: t for t in library} or None
+        system = director_system_prompt(with_library=bool(library))
+        payload = _director_input(blueprint, library)
         with track_run(db, case.id, "Audio Director",
                        input_summary=f"blueprint={blueprint_row.id} "
                                      f"beats={len(payload['beats'])}") as run:
             raw, res = await run_agent("documentary.audio_plan", self.gen, json.dumps(payload, ensure_ascii=False), system=system)
             stamp_run(run, res, "audio_director")
-        plan, report = validate_audio_plan(raw, blueprint)
+        plan, report = validate_audio_plan(raw, blueprint, library=by_code)
         repairs = 0
         while report["errors"] and repairs < ai_config.audio_direction.max_repair_iterations:
             repairs += 1
@@ -44,7 +47,7 @@ class AudioDirector:
                                 "errors_to_fix": report["errors"]},
                                ensure_ascii=False), system=system)
                 stamp_run(run, res, "audio_director")
-            plan, report = validate_audio_plan(raw, blueprint)
+            plan, report = validate_audio_plan(raw, blueprint, library=by_code)
         report["repair_iterations"] = repairs
         plan = ensure_pipeline_member_ids(f"audio-plan:{blueprint_row.id}", plan)
         count = db.query(AudioPlan).filter(

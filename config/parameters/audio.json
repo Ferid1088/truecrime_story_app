@@ -186,6 +186,7 @@
     ]
   },
   "audio_direction": {
+    "library_max_tracks": 40,
     "transitions": {
       "breath": [
         1.0,
@@ -335,6 +336,10 @@
     "reuse_after_videos": 10,
     "max_variants_per_mood": 6,
     "source_mode": "create",
+    "duplicate_similarity": 0.6,
+    "enough_target_default": null,
+    "enough_targets": {},
+    "overview_films": 10,
     "kind_situations": {
       "bridge": "between two scenes, in the gap after a beat, to carry the listener into the next scene",
       "sting": "a short accent right after a turn, reveal or chapter end",

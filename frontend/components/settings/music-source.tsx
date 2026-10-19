@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Music } from "lucide-react";
 import { musicApi, ApiError, type MusicSourceMode } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 const OPTIONS: { mode: MusicSourceMode; label: string; hint: string }[] = [
@@ -12,15 +13,23 @@ const OPTIONS: { mode: MusicSourceMode; label: string; hint: string }[] = [
   {
     mode: "create_if_missing",
     label: "Library first, create if missing",
-    hint: "Use the database; generate a track only when none exists for that kind and mood.",
+    hint: "The audio director picks by situation; a track is generated only for a moment where none fits.",
   },
 ];
 
+const LIGHT: Record<string, "success" | "warning" | "danger"> = {
+  green: "success",
+  amber: "warning",
+  red: "danger",
+};
+
 export function MusicSourceCard() {
   const { data, refetch } = useApi(() => musicApi.source(), [], { keepPrevious: true });
+  const tracks = useApi(() => musicApi.tracks(), [], { keepPrevious: true });
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   if (!data) return null;
-  const total = Object.values(data.tracks_per_mood).reduce((a, b) => a + b, 0);
+  const total = data.groups.reduce((a, g) => a + g.tracks, 0);
+  const neverUsed = (tracks.data ?? []).filter((t) => t.usage_count === 0);
 
   async function choose(mode: MusicSourceMode) {
     setMessage(null);
@@ -34,13 +43,13 @@ export function MusicSourceCard() {
   }
 
   return (
-    <Card className="mt-6">
-      <CardContent className="space-y-3 py-4">
+    <Card className="mt-6" data-testid="music-source-card">
+      <CardContent className="space-y-4 py-4">
         <div className="flex items-center gap-2">
           <Music className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">Music source</h2>
           <span className="text-xs text-muted-foreground">
-            {total} tracks in the library across {Object.keys(data.tracks_per_mood).length} kind/mood groups
+            {total} tracks in the library, {neverUsed.length} never used
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
@@ -64,6 +73,82 @@ export function MusicSourceCard() {
         {message && (
           <p className={`text-xs ${message.ok ? "text-muted-foreground" : "text-destructive"}`}>{message.text}</p>
         )}
+
+        <div>
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Tracks per kind and mood
+          </h3>
+          <table className="w-full text-xs">
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th className="py-1 pr-2">Kind</th>
+                <th className="pr-2">Mood</th>
+                <th className="pr-2">Tracks</th>
+                <th className="pr-2">Never used</th>
+                <th className="pr-2">Uses</th>
+                <th>Enough?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.groups.map((g) => (
+                <tr key={`${g.kind}/${g.mood}`} className="border-t border-border">
+                  <td className="py-1 pr-2">{g.kind}</td>
+                  <td className="pr-2">{g.mood}</td>
+                  <td className="pr-2">{g.tracks}</td>
+                  <td className="pr-2">{g.never_used}</td>
+                  <td className="pr-2">{g.uses}</td>
+                  <td>
+                    {g.light ? (
+                      <Badge variant={LIGHT[g.light]}>
+                        {g.tracks}/{g.target}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">no target</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Moments with no fitting track (last {data.films_covered} films)
+          </h3>
+          {data.misses.length === 0 ? (
+            <p className="text-xs text-muted-foreground">None recorded.</p>
+          ) : (
+            <ul className="space-y-1 text-xs">
+              {data.misses.map((m) => (
+                <li key={`${m.kind}/${m.mood}`} className="rounded-md border border-border p-2">
+                  <span className="font-medium">
+                    {m.kind} / {m.mood}
+                  </span>{" "}
+                  — {m.count} moment{m.count === 1 ? "" : "s"} in {m.films.length} film
+                  {m.films.length === 1 ? "" : "s"}, {m.created} track{m.created === 1 ? "" : "s"} created
+                  <p className="text-muted-foreground">Needed: {m.situations.join(" · ")}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Tracks</h3>
+          <ul className="space-y-1 text-xs">
+            {(tracks.data ?? []).map((t) => (
+              <li key={t.id} className="flex flex-wrap items-baseline gap-2 border-t border-border py-1">
+                <span className="font-mono">{t.id}</span>
+                <Badge variant={t.usage_count ? "success" : "warning"}>
+                  {t.usage_count ? `used ${t.usage_count}×` : "never used"}
+                </Badge>
+                <span className="text-muted-foreground">{t.tags.join(", ")}</span>
+                <span className="basis-full text-muted-foreground">{t.situation}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </CardContent>
     </Card>
   );

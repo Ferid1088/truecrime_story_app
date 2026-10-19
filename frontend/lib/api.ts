@@ -892,13 +892,46 @@ export const backupApi = {
 
 export type MusicSourceMode = "create" | "library" | "create_if_missing";
 
+export type MusicGroup = {
+  kind: string;
+  mood: string;
+  tracks: number;
+  never_used: number;
+  uses: number;
+  target: number | null;
+  light: "green" | "amber" | "red" | null;
+};
+
+export type MusicMiss = {
+  kind: string;
+  mood: string;
+  count: number;
+  created: number;
+  films: string[];
+  situations: string[];
+};
+
 export type MusicSource = {
   mode: MusicSourceMode;
   modes: MusicSourceMode[];
-  tracks_per_mood: Record<string, number>;
+  groups: MusicGroup[];
+  misses: MusicMiss[];
+  films_covered: number;
+};
+
+export type MusicTrackRow = {
+  id: string;
+  kind: string;
+  mood: string;
+  situation: string;
+  tags: string[];
+  usage_count: number;
+  films_count: number;
+  generated: boolean;
 };
 
 export const musicApi = {
   source: () => request<MusicSource>("/api/documentary/music/source"),
+  tracks: () => request<MusicTrackRow[]>("/api/documentary/music"),
   setSource: (mode: MusicSourceMode) => put<{ mode: MusicSourceMode }>("/api/documentary/music/source", { mode }),
 };

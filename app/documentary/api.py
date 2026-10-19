@@ -1039,15 +1039,12 @@ class MusicSituationBody(BaseModel):
 
 @router.get("/api/documentary/music/source")
 def music_source(db: Session = Depends(get_db)):
-    """Where a film's music comes from (the owner's setting) and how many
-    tracks the library holds per kind and mood."""
-    from app.documentary.music import SOURCE_MODES, music_source_mode, track_catalogue
+    """The owner's music source plus what is needed to decide it: tracks per
+    kind and mood (traffic light against the optional "enough" target) and
+    the library_misses of the latest films."""
+    from app.documentary.music import library_overview
 
-    counts: dict[str, int] = {}
-    for t in track_catalogue(db):
-        key = f"{t['kind']}/{t['mood']}"
-        counts[key] = counts.get(key, 0) + 1
-    return {"mode": music_source_mode(db), "modes": list(SOURCE_MODES), "tracks_per_mood": counts}
+    return library_overview(db)
 
 
 @router.put("/api/documentary/music/source")

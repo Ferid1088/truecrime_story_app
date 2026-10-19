@@ -13,7 +13,7 @@ import pytest
 
 from app.core.ai_config import ai_config
 from app.core.fingerprint import input_fingerprint
-from app.db.models import AudioPlan, Case, MusicTrack, MusicUsage, StoryVersion
+from app.db.models import AudioPlan, Case, MusicLibraryMiss, MusicTrack, MusicUsage, StoryVersion
 from app.documentary.audio_director import (
     MOOD_ALIASES, director_system_prompt, normalize_mood, validate_audio_plan,
 )
@@ -46,6 +46,7 @@ def library(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(ai_config.music_library, "dir", str(tmp_path / "lib"))
 
     def wipe():
+        db_session.query(MusicLibraryMiss).delete()
         db_session.query(MusicUsage).delete()
         db_session.query(MusicTrack).delete()
         db_session.commit()
@@ -428,7 +429,8 @@ def test_usage_rows_carry_why_and_selection_reason_without_duplicates(db_session
 def test_music_history_snapshot_is_explicit_and_fingerprintable(db_session, library):
     lib, _ = library
     track = MusicTrack(track_code="history-v1", kind="bridge", mood="danger",
-                       variant=1, seconds=4, loop=False, prompt="x")
+                       variant=1, seconds=4, loop=False, prompt="x",
+                       situation="after a danger beat", tags_json='["bridge", "danger"]')
     db_session.add(track)
     db_session.commit()
     db_session.add(MusicUsage(track_id=track.id, case_id=1, film_key="film-a",
@@ -595,3 +597,249 @@ def test_n_music_source_and_situation_api(client, db_session, library, source_mo
     listed = {t["id"]: t for t in client.get("/api/documentary/music").json()}
     assert listed["bridge-tension-v1"]["situation"] == "after a verdict"
     assert client.patch("/api/documentary/music/none", json={"situation": "x"}).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# the audio director chooses library tracks by situation
+# ---------------------------------------------------------------------------
+
+
+def _with_after(item: dict, **extra) -> dict:
+    item["after"].update(extra)
+    return item
+
+
+def _library(*codes_kinds) -> dict:
+    return {code: {"code": code, "kind": kind} for code, kind in codes_kinds}
+
+
+def _director_raw(**after_extra) -> dict:
+    """B02 a bridge with the director's library answer; B04 a sting."""
+    return {"beats": [
+        _plan_item("B01", "breath", 1.2),
+        _with_after({**_plan_item("B02", "music_bridge", 10, mood="tension"), "why": "to the station"},
+                    **after_extra),
+        _plan_item("B03", "breath", 1.2),
+        _with_after({**_plan_item("B04", "sting", 3, mood="tension"), "why": "the alibi falls"},
+                    **after_extra.get("sting", {})) if "sting" in after_extra
+        else {**_plan_item("B04", "sting", 3, mood="tension"), "why": "the alibi falls"},
+        _plan_item("B05", "end"),
+    ]}
+
+
+def _track_adjustments(report) -> list[dict]:
+    return [a for a in report["adjustments"] if "track_code" in a]
+
+
+def _validated(raw, library, monkeypatch):
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)
+    cfg = ai_config.audio_direction.model_copy(update={
+        "min_seconds_between_music_moments": 0.0, "max_music_only_share": 0.9})
+    return validate_audio_plan(raw, _bp(), cfg, library=library)
+
+
+def test_o_a_valid_track_code_is_kept_with_its_reason(monkeypatch):
+    plan, rep = _validated(
+        _director_raw(track_code="bridge-tension-v1", track_reason="steady, waiting"),
+        _library(("bridge-tension-v1", "bridge")), monkeypatch)
+    after = plan["beats"][1]["after"]
+    assert after["track_code"] == "bridge-tension-v1" and after["track_reason"] == "steady, waiting"
+    assert "library_miss" not in after and not _track_adjustments(rep)
+
+
+def test_o_an_invented_track_code_is_rejected_and_becomes_a_library_miss(monkeypatch):
+    plan, rep = _validated(_director_raw(track_code="bridge-tension-v99"),
+                           _library(("bridge-tension-v1", "bridge")), monkeypatch)
+    after = plan["beats"][1]["after"]
+    assert "track_code" not in after
+    assert after["library_miss"]["kind"] == "bridge" and after["library_miss"]["mood"] == "tension"
+    assert after["library_miss"]["situation"] == "to the station"
+    assert {"beat": "B02", "track_code": ["bridge-tension-v99", None],
+            "reason": "invented_track_code"} in rep["adjustments"]
+
+
+def test_o_a_track_of_the_wrong_kind_is_rejected(monkeypatch):
+    plan, rep = _validated(_director_raw(track_code="sting-tension-v1"),
+                           _library(("sting-tension-v1", "sting")), monkeypatch)
+    assert "track_code" not in plan["beats"][1]["after"]
+    assert _track_adjustments(rep)[0]["reason"] == "track_kind_does_not_match_the_moment"
+
+
+def test_o_a_library_miss_is_normalised(monkeypatch):
+    plan, _ = _validated(
+        _director_raw(library_miss={"kind": "sting", "mood": "Danger", "situation": " a low hit ",
+                                    "tags": ["Dark", "dark", " low "]}),
+        _library(("bridge-tension-v1", "bridge")), monkeypatch)
+    miss = plan["beats"][1]["after"]["library_miss"]
+    assert miss == {"kind": "bridge", "mood": "danger", "situation": "a low hit",
+                    "tags": ["dark", "low"]}
+
+
+def test_o_the_same_track_in_neighbouring_moments_needs_continuity(monkeypatch):
+    raw = _director_raw(track_code="bridge-tension-v1")
+    raw["beats"][3] = _with_after(raw["beats"][3], track_code="bridge-tension-v1")
+    raw["beats"][3]["after"]["type"] = "music_bridge"
+    plan, rep = _validated(raw, _library(("bridge-tension-v1", "bridge")), monkeypatch)
+    assert plan["beats"][1]["after"]["track_code"] == "bridge-tension-v1"
+    assert "track_code" not in plan["beats"][3]["after"]
+    assert _track_adjustments(rep)[0]["reason"] == "same_track_as_the_previous_moment"
+    raw["beats"][3]["after"]["continuity"] = True
+    plan, rep = _validated(raw, _library(("bridge-tension-v1", "bridge")), monkeypatch)
+    assert plan["beats"][3]["after"]["track_code"] == "bridge-tension-v1" and not _track_adjustments(rep)
+
+
+def test_o_without_a_library_the_answer_is_dropped(monkeypatch):
+    plan, _ = _validated(_director_raw(track_code="bridge-tension-v1"), None, monkeypatch)
+    assert "track_code" not in plan["beats"][1]["after"]
+
+
+def test_o_the_library_block_is_part_of_the_prompt_only_with_a_library():
+    assert "MUSIC LIBRARY" not in director_system_prompt()
+    with_lib = director_system_prompt(with_library=True)
+    assert "# ADDED: music library" in with_lib and "Never invent a track_code" in with_lib
+    assert "Return JSON only" in with_lib      # the existing text is kept
+
+
+def test_o_the_director_sees_only_existing_tracks_capped_and_spread(
+        db_session, library, source_mode, monkeypatch):
+    from app.documentary.music import director_library
+
+    lib, _ = library
+    assert director_library(db_session, lib) == []           # mode create: no library
+    source_mode("library")
+    lib.sync_config_cues(db_session)
+    assert director_library(db_session, lib) == []           # nothing generated yet
+    asyncio.run(_make_all(lib, db_session))
+    listed = director_library(db_session, lib)
+    assert {t["kind"] for t in listed} <= {"bridge", "sting"}   # beds only when allowed
+    assert all(set(t) == {"code", "kind", "mood", "situation", "tags", "sec"} for t in listed)
+    monkeypatch.setattr(ai_config.audio_direction, "library_max_tracks", 3)
+    capped = director_library(db_session, lib)
+    assert len(capped) == 3 and len({(t["kind"], t["mood"]) for t in capped}) == 3
+
+
+async def _make_all(lib, db):
+    for t in db.query(MusicTrack).all():
+        await lib.ensure_track(db, t)
+
+
+def _miss_script(blueprint_id, **after) -> dict:
+    s = _bridge_only(blueprint_id)
+    s["beat_audio"]["B02"]["after"] = {**s["beat_audio"]["B02"]["after"], **after}
+    return s
+
+
+MISS = {"kind": "bridge", "mood": "danger", "situation": "a slow walk toward the crime scene",
+        "tags": ["slow", "dread"]}
+
+
+@needs_ffmpeg
+def test_o_mode_create_ignores_the_directors_library_answer(db_session, library, source_mode):
+    lib, sound = library
+    source_mode("create")
+    case = _case(db_session)
+    got = _assign(lib, db_session, _manifest(case.id),
+                  _miss_script(910801, library_miss=MISS))
+    bridge = next(p for p in got["placements"] if p["role"] == "music_bridge")
+    assert bridge["mood"] == "tension"                      # the old path: by mood
+    assert got["library_misses"] == [] and db_session.query(MusicLibraryMiss).count() == 0
+
+
+@needs_ffmpeg
+def test_o_library_only_chooses_by_situation_and_a_miss_stays_silent(
+        db_session, library, source_mode):
+    lib, sound = library
+    case = _case(db_session)
+    _assign(lib, db_session, _manifest(case.id), _bridge_only(910811))   # fills the library
+    source_mode("library")
+    calls = len(sound.calls)
+    case_b = _case(db_session)
+    chosen = _assign(lib, db_session, _manifest(case_b.id),
+                     _miss_script(910812, track_code="bridge-tension-v1",
+                                  track_reason="steady and waiting"))
+    bridge = next(p for p in chosen["placements"] if p["role"] == "music_bridge")
+    assert bridge["track_code"] == "bridge-tension-v1"
+    assert "chosen by the audio director by situation — steady and waiting" in bridge["selection_reason"]
+
+    miss = _assign(lib, db_session, _manifest(case_b.id), _miss_script(910813, library_miss=MISS))
+    assert not any(p["role"] == "music_bridge" for p in miss["placements"])
+    assert [m["mood"] for m in miss["library_misses"]] == ["danger"]
+    assert len(sound.calls) == calls and miss["tracks_generated"] == []
+    row = db_session.query(MusicLibraryMiss).one()
+    assert (row.kind, row.mood, row.mode, row.track_id) == ("bridge", "danger", "library", None)
+    assert row.situation == MISS["situation"] and "slow" in json.loads(row.tags_json)
+
+
+@needs_ffmpeg
+def test_o_create_if_missing_makes_a_track_from_the_miss_once_for_all_languages(
+        db_session, library, source_mode, caplog):
+    lib, sound = library
+    case = _case(db_session)
+    _assign(lib, db_session, _manifest(case.id), _bridge_only(910821, mood="danger"))
+    source_mode("create_if_missing")
+    calls = len(sound.calls)
+    case_b = _case(db_session)
+    with caplog.at_level("WARNING"):
+        en = _assign(lib, db_session, _manifest(case_b.id),
+                     _miss_script(910822, library_miss={**MISS, "situation": "danger ahead",
+                                                        "tags": []}))
+    track = db_session.query(MusicTrack).filter_by(track_code="bridge-danger-v2").one()
+    assert en["tracks_generated"] == ["bridge-danger-v2"] and len(sound.calls) == calls + 1
+    assert track.situation == "danger ahead" and "danger" in json.loads(track.tags_json)
+    assert "danger ahead" in sound.calls[-1][0]
+    de = _assign(lib, db_session, _manifest(case_b.id, language="de"),
+                 _miss_script(910822, library_miss={**MISS, "situation": "danger ahead", "tags": []}))
+    assert de["tracks_generated"] == [] and len(sound.calls) == calls + 1
+    assert next(p for p in de["placements"] if p["role"] == "music_bridge")["track_code"] == track.track_code
+    assert db_session.query(MusicLibraryMiss).one().track_id == track.id
+
+
+@needs_ffmpeg
+def test_o_a_near_duplicate_new_track_is_logged(db_session, library, source_mode, caplog):
+    lib, _ = library
+    case = _case(db_session)
+    _assign(lib, db_session, _manifest(case.id), _bridge_only(910831, mood="danger"))
+    existing = db_session.query(MusicTrack).filter_by(track_code="bridge-danger-v1").one()
+    source_mode("create_if_missing")
+    with caplog.at_level("WARNING"):
+        got = _assign(lib, db_session, _manifest(_case(db_session).id),
+                      _miss_script(910832, library_miss={
+                          "kind": "bridge", "mood": "danger", "situation": existing.situation,
+                          "tags": json.loads(existing.tags_json)}))
+    assert any("nearly the same as bridge-danger-v1" in n for n in got["library_notes"])
+    assert "nearly the same as bridge-danger-v1" in caplog.text
+
+
+def test_o_a_track_is_never_saved_without_situation_and_tags(db_session, library):
+    lib, _ = library
+    track = lib.new_variant(db_session, "bridge", "danger")
+    assert track.situation and json.loads(track.tags_json)
+    for blank in ({"situation": ""}, {"tags_json": "[]"}):
+        db_session.add(MusicTrack(track_code=f"x-{len(blank)}-{list(blank)[0]}", kind="bridge",
+                                  mood="danger", variant=9, seconds=4, loop=False, prompt="x",
+                                  **{"situation": "s", "tags_json": '["a"]', **blank}))
+        with pytest.raises(ValueError, match="situation text and tags are required"):
+            db_session.commit()
+        db_session.rollback()
+
+
+def test_o_the_owner_overview_sums_tracks_misses_and_a_traffic_light(
+        client, db_session, library, source_mode, monkeypatch):
+    from app.documentary.music import record_miss
+
+    lib, _ = library
+    lib.sync_config_cues(db_session)
+    case = _case(db_session)
+    for film in ("f1", "f2"):
+        record_miss(db_session, case_id=case.id, film_key=film, beat="B02", kind="bridge",
+                    mood="danger", situation=f"walk to the scene {film}", tags=["slow"],
+                    mode="library")
+    monkeypatch.setitem(ai_config.music_library.enough_targets, "bridge/tension", 3)
+    got = client.get("/api/documentary/music/source").json()
+    group = {(g["kind"], g["mood"]): g for g in got["groups"]}
+    assert group[("bridge", "tension")]["tracks"] == 1 and group[("bridge", "tension")]["light"] == "red"
+    assert group[("bridge", "tension")]["never_used"] == 1 and group[("bridge", "mystery")]["light"] is None
+    assert got["mode"] == ai_config.music_library.source_mode      # nothing switched by itself
+    assert got["misses"] == [{"kind": "bridge", "mood": "danger", "count": 2, "films": ["f1", "f2"],
+                              "created": 0, "situations": ["walk to the scene f1",
+                                                           "walk to the scene f2"]}]

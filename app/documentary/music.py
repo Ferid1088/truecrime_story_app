@@ -48,7 +48,9 @@ import asyncio
 import bisect
 import hashlib
 import json
+import logging
 import os
+import re
 import shutil
 import weakref
 from pathlib import Path
@@ -59,20 +61,19 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import MusicCue, ai_config
 from app.db.base import SessionLocal
-from app.db.models import AppSetting, MusicTrack, MusicUsage, StoryVersion
+from app.db.models import AppSetting, MusicLibraryMiss, MusicTrack, MusicUsage, StoryVersion
 from app.documentary import audio as A
 from app.documentary import storage
-from app.documentary.audio_director import MOOD_FUNCTIONS, normalize_mood
+from app.documentary.audio_director import LIBRARY_KIND, MOOD_FUNCTIONS, normalize_mood
 from app.utils import utc_now
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
 MUSIC_TYPES = {"music_bridge", "emotional_moment", "chapter_break", "sting"}
 
 # The library kind that serves each placement role.
-TRACK_KIND = {
-    "music_bridge": "bridge", "emotional_moment": "bridge", "chapter_break": "bridge",
-    "sting": "sting", "silence": "room_tone", "bed": "bed",
-}
+TRACK_KIND = {**LIBRARY_KIND, "silence": "room_tone", "bed": "bed"}
 ROOM_TONE_MOOD = "neutral"
 
 # Prompt per kind: {mood} = music_library.mood_prompts[mood], {style} =
@@ -127,6 +128,10 @@ SOURCE_SETTING_KEY = "music_source"
 class NoLibraryTrack(RuntimeError):
     """The owner chose library-only music and the library has no fitting track."""
 
+    def __init__(self, message: str, mood: str | None = None):
+        super().__init__(message)
+        self.mood = mood
+
 
 def music_source_mode(db: Session) -> str:
     """The owner's choice (Settings) where a film's music comes from; the
@@ -155,14 +160,36 @@ def set_music_source_mode(db: Session, mode: str) -> str:
     return mode
 
 
-def describe_track(kind: str, mood: str, style: str | None, loop: bool) -> tuple[str, list[str]]:
-    """The situation a track fits (for agents and the owner) and its tags:
-    where in a film its kind is used, and what the mood is for."""
+def describe_track(kind: str, mood: str, style: str | None, loop: bool,
+                   situation: str | None = None,
+                   tags: list[str] | None = None) -> tuple[str, list[str]]:
+    """The situation a track fits (for agents and the owner) and its tags.
+    Without the director's own words: where in a film its kind is used and
+    what the mood is for."""
     where = ai_config.music_library.kind_situations.get(kind, kind)
     function = MOOD_FUNCTIONS.get(mood)
-    situation = f"Use {where}." + (f" Mood {mood}: {function}." if function else "")
-    tags = [kind, mood, "loop" if loop else "one-shot"] + ([style] if style else [])
-    return situation, tags
+    text = (situation or "").strip() or (
+        f"Use {where}." + (f" Mood {mood}: {function}." if function else ""))
+    base = [kind, mood, "loop" if loop else "one-shot"] + ([style] if style else [])
+    return text, base + [t for t in (tags or []) if t not in base]
+
+
+def similar_tracks(db: Session, kind: str, mood: str, situation: str,
+                   tags: list[str]) -> list[str]:
+    """Codes of existing tracks of the same kind and mood whose situation
+    words and tags overlap the new track's at least duplicate_similarity."""
+    def words(text: str, tag_list: list[str]) -> set[str]:
+        return {w for w in re.findall(r"[a-z]{4,}", text.lower())} | set(tag_list)
+
+    mine = words(situation, tags)
+    out = []
+    for t in db.query(MusicTrack).filter(MusicTrack.kind == kind, MusicTrack.mood == mood,
+                                         MusicTrack.active.is_(True)).all():
+        theirs = words(t.situation, json.loads(t.tags_json or "[]"))
+        if mine and theirs and len(mine & theirs) / len(mine | theirs) >= \
+                ai_config.music_library.duplicate_similarity:
+            out.append(t.track_code)
+    return out
 
 
 def track_code(kind: str, mood: str, variant: int) -> str:
@@ -303,21 +330,26 @@ class MusicLibrary:
         unused = [s for s in rotated if s not in used]
         return unused[0] if unused else rotated[(variant - 1) % len(rotated)]
 
-    def new_variant(self, db: Session, kind: str, mood: str) -> MusicTrack:
+    def new_variant(self, db: Session, kind: str, mood: str, situation: str | None = None,
+                    tags: list[str] | None = None) -> MusicTrack:
         """Register the next variant of (kind, mood); its file is generated
-        on first use (ensure_track)."""
+        on first use (ensure_track). `situation` and `tags` are the
+        director's words for a library_miss; without them the mood's own
+        description names the situation."""
         variants = db.query(MusicTrack).filter(
             MusicTrack.kind == kind, MusicTrack.mood == mood).all()
         n = max((t.variant for t in variants), default=0) + 1
         style = self._style_for(kind, mood, {t.style for t in variants if t.style}, n)
         tpl = KIND_TEMPLATES[kind]
         mood_text = self.cfg.mood_prompts.get(mood) or f"{mood} documentary underscore"
+        if situation:
+            mood_text = f"{mood_text}, for this situation: {situation}"
         prompt = tpl["prompt"].format(mood=mood_text, style=style or "")
-        situation, tags = describe_track(kind, mood, style, tpl["loop"])
+        text, all_tags = describe_track(kind, mood, style, tpl["loop"], situation, tags)
         track = MusicTrack(
             track_code=track_code(kind, mood, n), kind=kind, mood=mood, variant=n,
             seconds=tpl["seconds"], loop=tpl["loop"], prompt=prompt, style=style,
-            situation=situation, tags_json=json.dumps(tags),
+            situation=text, tags_json=json.dumps(all_tags),
             provider=self.cfg.provider,
         )
         track.file_path = _rel(self.dir / f"{track.track_code}__{self._key(track)}.wav")
@@ -470,6 +502,53 @@ def select_track(db: Session, library: MusicLibrary, kind: str, mood: str,
                   + (f" (last in {last_film})" if last_film else ""))
 
 
+def director_library(db: Session, library: MusicLibrary | None = None) -> list[dict]:
+    """The tracks shown to the audio director, in the shortest useful form.
+    Empty when the owner's source is "create". Only generated tracks of the
+    kinds the film can use, in the mood catalogue, spread over (kind, mood)
+    so the cap never starves one mood."""
+    if music_source_mode(db) == "create":
+        return []
+    library = library or MusicLibrary()
+    library.sync_config_cues(db)
+    cfg = ai_config.audio_direction
+    kinds = {"bridge", "sting"} | ({"bed"} if cfg.beds_under_narration else set())
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for t in (db.query(MusicTrack).filter(MusicTrack.active.is_(True))
+              .order_by(MusicTrack.kind, MusicTrack.mood, MusicTrack.variant).all()):
+        if t.kind in kinds and t.mood in cfg.moods and library.track_path(t).exists():
+            groups.setdefault((t.kind, t.mood), []).append({
+                "code": t.track_code, "kind": t.kind, "mood": t.mood,
+                "situation": t.situation, "tags": json.loads(t.tags_json or "[]"),
+                "sec": round(t.seconds)})
+    out: list[dict] = []
+    while groups and len(out) < cfg.library_max_tracks:
+        for key in list(groups):
+            out.append(groups[key].pop(0))
+            if not groups[key]:
+                del groups[key]
+            if len(out) >= cfg.library_max_tracks:
+                break
+    return out
+
+
+def record_miss(db: Session, *, case_id: int, film_key: str, beat: str | None, kind: str,
+                mood: str, situation: str, tags: list[str], mode: str,
+                track: MusicTrack | None = None) -> MusicLibraryMiss:
+    """One row per film, beat and kind (the films' languages share it)."""
+    row = db.query(MusicLibraryMiss).filter_by(
+        film_key=film_key, after_beat=beat, kind=kind).first()
+    if row is None:
+        row = MusicLibraryMiss(case_id=case_id, film_key=film_key, after_beat=beat, kind=kind,
+                               mood=mood, situation=situation,
+                               tags_json=json.dumps(tags), mode=mode)
+        db.add(row)
+    if track is not None:
+        row.track_id = track.id
+    db.commit()
+    return row
+
+
 def _blueprint_id_for_version(db: Session, story_version_id: int) -> int | None:
     """The editorial blueprint a version is told from. Spoken language
     versions name their master's blueprint; a master has its own."""
@@ -547,6 +626,13 @@ def _reason(ba: dict) -> str:
     return str((ba.get("after") or {}).get("why") or ba.get("why") or "")
 
 
+def _library_fields(ba: dict) -> dict:
+    """The audio director's answer from the library, carried on a placement."""
+    after = ba.get("after") or {}
+    return {k: after[k] for k in ("track_code", "track_reason", "library_miss", "continuity")
+            if after.get(k)}
+
+
 def _word_index(manifest: dict) -> tuple[list[float], list[float]]:
     """Word starts (sorted) and, per position, the latest end so far."""
     words = sorted(
@@ -619,7 +705,7 @@ def _clean_moments(spans, beat_audio, manifest, direction) -> tuple[list[dict], 
             "fade_out": round(min(STING_FADE_OUT_SECONDS if sting else GAP_FADE_OUT_SECONDS,
                                   dur / (2 if sting else 3)), 3),
             "level_db": direction.sting_level_db if sting else direction.moment_level_db,
-            "why": _reason(ba),
+            "why": _reason(ba), **_library_fields(ba),
         })
     return out, skipped
 
@@ -697,7 +783,7 @@ def _overlapping_placements(spans, beat_audio, total, direction) -> list[dict]:
             "fade_in": 0.02 if sting else round(lead + 0.4, 3),
             "fade_out": 1.2 if sting else round(max(tail, 1.5), 3),
             "level_db": direction.sting_level_db if sting else direction.moment_level_db,
-            "why": _reason(ba),
+            "why": _reason(ba), **_library_fields(ba),
         })
     return out
 
@@ -774,14 +860,26 @@ class DocumentaryMixer:
                    if any(not p.get("why") for p in placements) else {})
         legacy = _legacy_cue_ids()
         chosen: dict[tuple[str, str], tuple[MusicTrack, str]] = {}
-        resolved, generated, cost, misses = [], [], 0, []
+        resolved, generated, cost, misses, notes = [], [], 0, [], []
+        mode = music_source_mode(db)
         for p in placements:
             kind = TRACK_KIND.get(p["role"])
             if kind is None:
                 continue
             mood = ROOM_TONE_MOOD if kind == "room_tone" else normalize_mood(
                 p.get("mood"), p["role"])
-            if (kind, mood) in chosen:
+            by_situation = None
+            if mode != "create" and p["role"] in LIBRARY_KIND:
+                try:
+                    by_situation = self._by_situation(
+                        db, p, kind, mood, film_key, case_id, mode, notes)
+                except NoLibraryTrack as e:
+                    misses.append({"role": p["role"], "kind": kind, "mood": e.mood or mood,
+                                   "after_beat": p.get("after_beat"), "reason": str(e)})
+                    continue
+            if by_situation is not None:
+                track, reason = by_situation
+            elif (kind, mood) in chosen:
                 track, _ = chosen[(kind, mood)]
                 reason = (f"{track.track_code}: film theme — same {kind}/{mood} track as "
                           "earlier in this film")
@@ -789,8 +887,13 @@ class DocumentaryMixer:
                 try:
                     track, reason = select_track(db, self.library, kind, mood, film_key)
                 except NoLibraryTrack as e:
+                    text, tags = describe_track(kind, mood, None, kind in ("bed", "room_tone"))
+                    if case_id is not None:
+                        record_miss(db, case_id=int(case_id), film_key=film_key,
+                                    beat=p.get("after_beat"), kind=kind, mood=mood,
+                                    situation=text, tags=tags, mode=mode)
                     misses.append({"role": p["role"], "kind": kind, "mood": mood,
-                                   "reason": str(e)})
+                                   "after_beat": p.get("after_beat"), "reason": str(e)})
                     continue
                 chosen[(kind, mood)] = (track, reason)
             path, paid = await self.library.ensure_track(db, track)
@@ -812,9 +915,49 @@ class DocumentaryMixer:
                           language=language, placements=resolved)
         return {"film_key": film_key, "language": language, "placements": resolved,
                 "characters_paid": cost, "tracks_generated": generated,
-                "library_misses": misses,
+                "library_misses": misses, "library_notes": notes,
                 "music_history_snapshot": history_snapshot,
                 "music_library_identity": library_identity}
+
+    def _by_situation(self, db: Session, p: dict, kind: str, mood: str, film_key: str,
+                      case_id, mode: str, notes: list[str]) -> tuple[MusicTrack, str] | None:
+        """The track the audio director chose by situation, or the answer to its
+        library_miss: library only → NoLibraryTrack (the moment stays silent),
+        create_if_missing → a new track made from the miss. None when the plan
+        names neither (an older plan): the usual selection applies."""
+        code, miss = p.get("track_code"), p.get("library_miss")
+        if code:
+            track = db.query(MusicTrack).filter(
+                MusicTrack.track_code == code, MusicTrack.active.is_(True)).first()
+            if (track is not None and track.kind == kind
+                    and self.library.track_path(track).exists()):
+                return track, (f"{code}: chosen by the audio director by situation — "
+                               f"{p.get('track_reason') or 'it fits the moment'}")
+            miss = miss or {"kind": kind, "mood": mood, "situation": p.get("why") or "", "tags": []}
+        if not miss:
+            return None
+        mood = normalize_mood(miss.get("mood") or mood, p["role"])
+        text, tags = describe_track(kind, mood, None, False, miss.get("situation"), miss.get("tags"))
+        beat = p.get("after_beat")
+        row = (record_miss(db, case_id=int(case_id), film_key=film_key, beat=beat, kind=kind,
+                           mood=mood, situation=text, tags=tags, mode=mode)
+               if case_id is not None else None)
+        if mode == "library":
+            raise NoLibraryTrack(f"no library track fits {kind}/{mood}: {text}", mood=mood)
+        if row is not None and row.track_id is not None:   # another language made it already
+            track = db.get(MusicTrack, row.track_id)
+            return track, f"{track.track_code}: made for this film's library_miss (same in every language)"
+        twins = similar_tracks(db, kind, mood, text, tags)
+        if twins:
+            note = (f"new {kind}/{mood} track is nearly the same as {', '.join(twins)} "
+                    f"(situation/tags overlap); created because the director found no fit")
+            log.warning("music library: %s", note)
+            notes.append(note)
+        track = self.library.new_variant(db, kind, mood, miss.get("situation"), miss.get("tags"))
+        if row is not None:
+            record_miss(db, case_id=int(case_id), film_key=film_key, beat=beat, kind=kind,
+                        mood=mood, situation=text, tags=tags, mode=mode, track=track)
+        return track, f"{track.track_code}: new track made for the director's library_miss — {text}"
 
     async def mix(self, manifest: dict, script: dict, out_dir: Path,
                   db: Session | None = None) -> dict:
@@ -922,6 +1065,48 @@ def track_catalogue(db: Session, library: MusicLibrary | None = None) -> list[di
             "created_at": t.created_at,
         })
     return out
+
+
+def library_overview(db: Session, library: MusicLibrary | None = None) -> dict:
+    """What the owner needs to decide between creating more music and using
+    the database: tracks per kind and mood (with a traffic light against the
+    optional "enough" target), how often each track ran and which never,
+    and the library_misses of the latest films, summed per kind and mood."""
+    cfg = ai_config.music_library
+    tracks = track_catalogue(db, library)
+    groups: dict[tuple[str, str], dict] = {}
+    for t in tracks:
+        g = groups.setdefault((t["kind"], t["mood"]), {
+            "kind": t["kind"], "mood": t["mood"], "tracks": 0, "never_used": 0, "uses": 0})
+        g["tracks"] += 1
+        g["uses"] += t["usage_count"]
+        g["never_used"] += 0 if t["usage_count"] else 1
+    for g in groups.values():
+        target = cfg.enough_targets.get(f"{g['kind']}/{g['mood']}", cfg.enough_target_default)
+        g["target"] = target
+        g["light"] = (None if target is None else "green" if g["tracks"] >= target
+                      else "amber" if g["tracks"] * 2 >= target else "red")
+    latest = [k for (k,) in db.query(MusicLibraryMiss.film_key)
+              .group_by(MusicLibraryMiss.film_key)
+              .order_by(func.max(MusicLibraryMiss.id).desc()).limit(cfg.overview_films).all()]
+    misses: dict[tuple[str, str], dict] = {}
+    for m in (db.query(MusicLibraryMiss).filter(MusicLibraryMiss.film_key.in_(latest))
+              .order_by(MusicLibraryMiss.id).all() if latest else []):
+        row = misses.setdefault((m.kind, m.mood), {
+            "kind": m.kind, "mood": m.mood, "count": 0, "films": [], "created": 0,
+            "situations": []})
+        row["count"] += 1
+        row["created"] += 1 if m.track_id else 0
+        if m.film_key not in row["films"]:
+            row["films"].append(m.film_key)
+        if m.situation and m.situation not in row["situations"]:
+            row["situations"].append(m.situation)
+    for row in misses.values():
+        row["situations"] = row["situations"][-3:]
+    return {"mode": music_source_mode(db), "modes": list(SOURCE_MODES),
+            "groups": sorted(groups.values(), key=lambda g: (g["kind"], g["mood"])),
+            "misses": sorted(misses.values(), key=lambda r: -r["count"]),
+            "films_covered": len(latest)}
 
 
 def track_file(db: Session, code: str, library: MusicLibrary | None = None) -> Path | None:
