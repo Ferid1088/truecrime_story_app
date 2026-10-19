@@ -366,6 +366,7 @@ def _no_illustrations_and_open_coverage_unless_a_test_asks(request, monkeypatch)
     and of the coverage gate use the real limits."""
     from app.core.ai_config import ai_config
 
+    monkeypatch.setattr(ai_config.rights, "enforce", "rights_not_a_filter" not in request.node.nodeid)
     if "coverage_fill" in request.node.nodeid or "editorial_review" in request.node.nodeid:
         return
     monkeypatch.setattr(ai_config.illustrations, "enabled", False)

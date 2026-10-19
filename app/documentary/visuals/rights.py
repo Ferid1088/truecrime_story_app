@@ -81,6 +81,8 @@ def _news_page(url: str) -> bool:
 
 
 def allowed(rights_status: str, profile: str | None = None) -> bool:
+    if not ai_config.rights.enforce:
+        return True
     profile = profile or ai_config.render.profile
     return rights_status in ai_config.rights.allowed_for_render.get(profile, [])
 
@@ -88,10 +90,11 @@ def allowed(rights_status: str, profile: str | None = None) -> bool:
 def usable(asset, profile: str | None = None) -> bool:
     """Whether a picture may go into a film: its rights status is allowed for
     the render profile AND, for editorial_review_required, a human approval
-    is recorded on the asset (a news photo is never used on a guess)."""
+    is recorded on the asset (a news photo is never used on a guess). With
+    rights.enforce off none of this applies: relevance alone decides."""
     if not allowed(asset.rights_status, profile):
         return False
-    if asset.rights_status == "editorial_review_required":
+    if ai_config.rights.enforce and asset.rights_status == "editorial_review_required":
         return asset.editorial_approved_at is not None
     return True
 

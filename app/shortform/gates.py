@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.core.ai_config import ai_config
 from dataclasses import dataclass, field
 from enum import Enum
 import re
@@ -110,6 +111,10 @@ def epistemic_checker(claims: list[ClaimUse]) -> GateResult:
 
 
 def rights_checker(assets: list[AssetUse], platform: str) -> GateResult:
+    if not ai_config.rights.enforce:      # rights are no filter (owner decision): relevance decides
+        return GateResult(name="RightsChecker", passed=True,
+                          reasons=["rights are not a filter (rights.enforce is off)"],
+                          offending_ids=[])
     reasons: list[str] = []
     offending: list[str] = []
     platform_warnings: list[str] = []

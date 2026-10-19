@@ -170,7 +170,7 @@ def license_from_url(url: str | None) -> str | None:
 
 def renderable(rights_status: str) -> bool:
     """Some render profile may show it (preview at least)."""
-    return any(rights_status in allowed
+    return not ai_config.rights.enforce or any(rights_status in allowed
                for allowed in ai_config.rights.allowed_for_render.values())
 
 

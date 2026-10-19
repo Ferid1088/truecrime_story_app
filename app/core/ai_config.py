@@ -2167,6 +2167,11 @@ class RightsConfig(BaseModel):
         "publish": ["owned", "licensed", "public_domain", "creative_commons"],
     })
     attribution_required: list[str] = ["creative_commons"]
+    # False: rights are no filter. True-crime pictures and footage are taken as public material
+    # (owner decision); only relevance to the case, the point in the story and the spoken words
+    # decides (the verifier and the auditor). Credits for attribution_required licences stay.
+    # True: the allowed_for_render lists and the editorial approval apply as before.
+    enforce: bool = True
 
 
 class MotionConfig(BaseModel):

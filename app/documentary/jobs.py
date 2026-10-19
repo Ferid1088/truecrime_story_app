@@ -552,6 +552,8 @@ class DocumentaryPipeline(StageRunner):
                 async def visual_review():
                     from app.documentary.visuals import editorial_review as ER
 
+                    if not ai_config.rights.enforce:
+                        return {"skipped": True, "reason": "rights are not a filter (rights.enforce off)"}
                     if not ER.auto_review_enabled(db):
                         return {"skipped": True, "reason": "auto_editorial_review is off"}
                     stats = await ER.review_pending(db, case)

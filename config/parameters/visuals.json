@@ -57,7 +57,8 @@
     },
     "attribution_required": [
       "creative_commons"
-    ]
+    ],
+    "enforce": false
   },
   "maps": {
     "tile_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
