@@ -244,8 +244,19 @@ def _set_stage(db: Session, job: DocumentaryJob, name: str, status: str,
     db.commit()
 
 
+READY_STATUSES = ("ready", "approved", "complete", "completed")
+
+
 def _spoken_text(db: Session, job: DocumentaryJob, language: str) -> str:
-    """Return only the finished film's own spoken text for ``language``."""
+    """Return only the finished film's own spoken text for ``language``: the spoken version
+    told from the film's final version, else the language's newest approved story."""
+    told = (db.query(StoryVersion)
+            .filter(StoryVersion.case_id == job.case_id, StoryVersion.language == language,
+                    StoryVersion.kind == "spoken", StoryVersion.master_version_id == job.master_version_id,
+                    StoryVersion.status.in_(READY_STATUSES))
+            .order_by(StoryVersion.version.desc(), StoryVersion.id.desc()).first())
+    if told is not None and (told.story_text or "").strip():
+        return told.story_text
     rows = (db.query(StoryVersion)
             .filter(StoryVersion.case_id == job.case_id,
                     StoryVersion.language == language,

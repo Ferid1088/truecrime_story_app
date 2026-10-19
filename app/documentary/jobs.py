@@ -144,6 +144,19 @@ def pilot_beats(blueprint: dict, seconds: float) -> list[str]:
     return out
 
 
+def render_cap_seconds(blueprint: dict, focus_beats: list[str] | None, pilot_seconds: float,
+                       script: dict) -> float | None:
+    """How much of a pilot film the renderer keeps. A pilot that covers every beat is the whole
+    film: nothing is cut. A shorter pilot keeps its story seconds and, as the host and the logo
+    come on top of the story (host.time_accounting "added"), their seconds as well."""
+    beat_ids = {b["id"] for b in blueprint.get("beats") or []}
+    if beat_ids and beat_ids <= set(focus_beats or []):
+        return None
+    timeline = script.get("timeline") or {}
+    return float(pilot_seconds) + float(timeline.get("host_seconds") or 0.0) + float(
+        timeline.get("intro_seconds") or 0.0)
+
+
 def latest_visual_plan(db: Session, blueprint_id: int) -> VisualPlan | None:
     return (db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_id,
                                         VisualPlan.status != "invalid")

@@ -492,3 +492,30 @@ time.sleep(600)
     assert db_session.query(pipeline.RenderedShort).filter_by(
         film_job_id=job.id, candidate_id=queue.candidate_id, language=queue.language
     ).count() == 1
+
+
+def test_the_short_is_told_from_the_films_own_spoken_version_with_status_ready(db_session, tmp_path):
+    job = _job(db_session, tmp_path)
+    older = StoryVersion(case_id=job.case_id, version=9, kind="final", language="en",
+                         narrative_angle="x", story_text="An older, unrelated English story.",
+                         status="ready", is_best=True)
+    spoken = StoryVersion(case_id=job.case_id, version=2, kind="spoken", language="en",
+                          narrative_angle="x", story_text="The film's own spoken words.",
+                          status="ready", master_version_id=job.master_version_id)
+    rejected = StoryVersion(case_id=job.case_id, version=3, kind="spoken", language="en",
+                            narrative_angle="x", story_text="A rejected redo.",
+                            status="needs_revision", master_version_id=job.master_version_id)
+    db_session.add_all([older, spoken, rejected])
+    db_session.commit()
+    assert pipeline._spoken_text(db_session, job, "en") == "The film's own spoken words."
+    assert pipeline._spoken_text(db_session, job, "de") == "Die Akte legt die letzte Zeit fest."
+
+
+def test_a_pilot_that_covers_every_beat_is_not_cut_and_a_shorter_one_keeps_host_and_logo():
+    from app.documentary.jobs import render_cap_seconds
+
+    bp = {"beats": [{"id": "B1"}, {"id": "B2"}, {"id": "B3"}]}
+    script = {"timeline": {"story_seconds": 444.0, "host_seconds": 68.0, "intro_seconds": 6.0}}
+    assert render_cap_seconds(bp, ["B1", "B2", "B3"], 420.0, script) is None
+    assert render_cap_seconds(bp, ["B1", "B2"], 420.0, script) == 494.0
+    assert render_cap_seconds(bp, ["B1"], 420.0, {}) == 420.0

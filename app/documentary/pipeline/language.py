@@ -26,7 +26,8 @@ class LanguageChain:
 
     async def run(self) -> None:
         from app.agents.stages import get_stage_agent
-        from app.documentary.jobs import _load_manifest, latest_production, tts_budget_left
+        from app.documentary.jobs import (
+            _load_manifest, latest_production, render_cap_seconds, tts_budget_left)
         from app.documentary.spoken import spoken_blueprint
 
         pipe, lang, version, sh = self.pipe, self.lang, self.version, self.shared
@@ -206,8 +207,8 @@ class LanguageChain:
                 info = {**prev, "reused": True}
             else:
                 async with slot("render"):
-                    info = await asyncio.to_thread(VideoRenderer().render, script, out,
-                                                   pilot_seconds if pilot else None)
+                    cap = render_cap_seconds(bp, focus_beats, pilot_seconds, script) if pilot else None
+                    info = await asyncio.to_thread(VideoRenderer().render, script, out, cap)
                 info["script_sha256"] = script_sha
                 ps.render_json = json.dumps(info)
                 ps.status = "rendered"
