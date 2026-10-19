@@ -80,6 +80,7 @@
         "audio_director": "writer",
         "visual_planner": "writer",
         "visual_verifier": "premium",
+        "visual_editorial_reviewer": "premium",
         "visual_director": "premium",
         "overlay_localizer": "writer",
         "automation_feel_critic": "writer",
@@ -221,6 +222,10 @@
     "visual_verifier": {
       "temperature": 0.0,
       "max_tokens": 4000
+    },
+    "visual_editorial_reviewer": {
+      "temperature": 0.0,
+      "max_tokens": 3000
     },
     "visual_director": {
       "temperature": 0.4,

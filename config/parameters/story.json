@@ -302,7 +302,8 @@
           "visual_planner"
         ],
         "reviewers": [
-          "visual_verifier"
+          "visual_verifier",
+          "visual_editorial_reviewer"
         ],
         "strict": false
       },

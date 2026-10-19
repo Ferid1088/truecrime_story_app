@@ -817,6 +817,69 @@ def approve_editorial(asset_id: int, payload: EditorialApproval, db: Session = D
     return asset_dict(a)
 
 
+class AutoReviewBody(BaseModel):
+    enabled: bool
+
+
+@router.get("/api/documentary/visuals/editorial-review")
+def editorial_review_overview(case_id: int | None = None, db: Session = Depends(get_db)):
+    """The owner's setting, the decision counts and how many pictures still wait for a review."""
+    from sqlalchemy import func
+
+    from app.db.models import EditorialReviewDecision
+    from app.documentary.visuals import editorial_review as ER
+
+    q = db.query(EditorialReviewDecision.verdict, func.count(EditorialReviewDecision.id))
+    if case_id is not None:
+        q = q.filter(EditorialReviewDecision.case_id == case_id)
+    counts = dict(q.group_by(EditorialReviewDecision.verdict).all())
+    waiting = db.query(VisualAsset).filter(
+        VisualAsset.rights_status == "editorial_review_required",
+        VisualAsset.editorial_approved_at.is_(None))
+    if case_id is not None:
+        waiting = waiting.filter(VisualAsset.case_id == case_id)
+    return {"enabled": ER.auto_review_enabled(db), "counts": counts, "waiting": waiting.count()}
+
+
+@router.put("/api/documentary/visuals/editorial-review")
+def set_editorial_review(body: AutoReviewBody, db: Session = Depends(get_db)):
+    from app.documentary.visuals import editorial_review as ER
+
+    return {"enabled": ER.set_auto_review(db, body.enabled)}
+
+
+@router.get("/api/documentary/visuals/editorial-review/decisions")
+def editorial_review_decisions(case_id: int | None = None, verdict: str | None = None,
+                               limit: int = 100, db: Session = Depends(get_db)):
+    """Every automatic decision, newest first, for the audit view."""
+    from app.db.models import EditorialReviewDecision
+
+    q = db.query(EditorialReviewDecision, VisualAsset).join(
+        VisualAsset, VisualAsset.id == EditorialReviewDecision.asset_id)
+    if case_id is not None:
+        q = q.filter(EditorialReviewDecision.case_id == case_id)
+    if verdict:
+        q = q.filter(EditorialReviewDecision.verdict == verdict)
+    rows = q.order_by(EditorialReviewDecision.id.desc()).limit(min(max(limit, 1), 500)).all()
+    return [{"id": d.id, "case_id": d.case_id, "asset_id": d.asset_id, "asset_code": d.asset_code,
+             "title": a.title, "caption": a.caption, "source": a.source_name,
+             "verdict": d.verdict, "reasons": json.loads(d.reasons_json or "[]"),
+             "model": d.model, "mode": d.mode, "created_at": d.created_at,
+             "approved_by": a.editorial_approved_by,
+             "thumb_url": f"/api/visuals/{a.id}/file?thumb=1"} for d, a in rows]
+
+
+@router.post("/api/cases/{case_id}/visuals/editorial-review")
+async def run_editorial_review(case_id: int, redo: bool = False, db: Session = Depends(get_db)):
+    """Review the case's pending pictures now (also what the film's visual_review stage does)."""
+    from app.documentary.visuals import editorial_review as ER
+
+    case = db.get(Case, case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return await ER.review_pending(db, case, redo=redo)
+
+
 @router.delete("/api/visuals/{asset_id}/approve-editorial")
 def revoke_editorial(asset_id: int, db: Session = Depends(get_db)):
     a = db.get(VisualAsset, asset_id)

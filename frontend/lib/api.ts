@@ -935,3 +935,36 @@ export const musicApi = {
   tracks: () => request<MusicTrackRow[]>("/api/documentary/music"),
   setSource: (mode: MusicSourceMode) => put<{ mode: MusicSourceMode }>("/api/documentary/music/source", { mode }),
 };
+
+export type EditorialReviewOverview = {
+  enabled: boolean;
+  counts: Record<string, number>;
+  waiting: number;
+};
+
+export type EditorialReviewDecision = {
+  id: number;
+  case_id: number;
+  asset_id: number;
+  asset_code: string;
+  title: string | null;
+  caption: string | null;
+  source: string | null;
+  verdict: "approved" | "rejected" | "kept";
+  reasons: string[];
+  model: string | null;
+  mode: string;
+  created_at: string;
+  approved_by: string | null;
+  thumb_url: string;
+};
+
+export const editorialReviewApi = {
+  overview: () => request<EditorialReviewOverview>("/api/documentary/visuals/editorial-review"),
+  setEnabled: (enabled: boolean) =>
+    put<{ enabled: boolean }>("/api/documentary/visuals/editorial-review", { enabled }),
+  decisions: (verdict?: string) =>
+    request<EditorialReviewDecision[]>(
+      `/api/documentary/visuals/editorial-review/decisions?limit=200${verdict ? `&verdict=${verdict}` : ""}`,
+    ),
+};

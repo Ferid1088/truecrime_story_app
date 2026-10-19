@@ -106,6 +106,9 @@ REQUIRED_ROLES = {
     # shot direction, on-screen text per language.
     "visual_planner",
     "visual_verifier",
+    # Independent of the planner: may this editorial-review picture be used at all (right
+    # person, place and period; identity supported; caption matches the picture)?
+    "visual_editorial_reviewer",
     "visual_director",
     # Strict gate before render: is THIS picture/clip right for THESE
     # words (exact kind, tone, honesty)? Independent of the director.
@@ -138,7 +141,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier", "visual_auditor", "video_auditor", "video_segmenter",
+VISION_ROLES = {"visual_verifier", "visual_editorial_reviewer", "visual_auditor", "video_auditor", "video_segmenter",
                 "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
@@ -2069,6 +2072,20 @@ class VisualVerificationConfig(BaseModel):
     thumbnail_px: int = Field(default=768, ge=128)
 
 
+class EditorialReviewConfig(BaseModel):
+    """The automatic editorial review of pictures with unclear rights (no person approves them)."""
+
+    # The owner setting "auto_editorial_review" starts from this value.
+    auto_default: bool = True
+    # The reviewer's own confidence must reach this for an approval; below it the picture is rejected.
+    min_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
+    # Pictures reviewed in one run (the best-ranked first).
+    max_per_run: int = Field(default=120, ge=1, le=1000)
+    # Recorded as "approved by" next to the model's name.
+    approver_label: str = "auto-review"
+    thumbnail_px: int = Field(default=768, ge=128)
+
+
 class RightsConfig(BaseModel):
     """FOUND does not mean USABLE. Which rights statuses each render
     profile may show; 'preview' renders are internal review copies."""
@@ -2875,6 +2892,7 @@ class AIConfig(BaseModel):
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
+    editorial_review: EditorialReviewConfig = Field(default_factory=EditorialReviewConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)

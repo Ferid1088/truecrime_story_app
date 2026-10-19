@@ -2230,6 +2230,23 @@ class OverrideLog(Base):
     reverted_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
+class EditorialReviewDecision(Base):
+    """One automatic editorial review of a picture with unclear rights: who decided, what, and why."""
+
+    __tablename__ = "editorial_review_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
+    asset_code: Mapped[str] = mapped_column(String(40), index=True)
+    verdict: Mapped[str] = mapped_column(String(20), index=True)   # approved | rejected | kept
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    details_json: Mapped[str] = mapped_column(Text, default="{}")
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mode: Mapped[str] = mapped_column(String(20), default="auto")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
+
+
 class AppSetting(Base):
     """Small operator settings that must survive restarts (backup schedule...). One JSON document per key."""
 

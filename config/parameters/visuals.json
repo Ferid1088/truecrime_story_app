@@ -131,5 +131,11 @@
       "internet_archive",
       "film_candidate"
     ]
+  },
+  "editorial_review": {
+    "auto_default": true,
+    "min_confidence": 0.75,
+    "max_per_run": 120,
+    "approver_label": "auto-review"
   }
 }

@@ -12,6 +12,7 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   film_length        every finished film must run 45–120 min
   visual_needs       visual requirements per beat
   visual_research    real photos/documents for those needs
+  visual_review      automatic editorial review of pictures with unclear rights
   visual_check       vision verification of the best candidates
   visual_plan        shots per sentence + motion; maps/document cards
   visual_gaps        targeted searches for sentences with weak pictures,
@@ -263,7 +264,7 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
         ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
-        "film_length", "visual_needs", "visual_research", "visual_check", "visual_plan",
+        "film_length", "visual_needs", "visual_research", "visual_review", "visual_check", "visual_plan",
         "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
@@ -547,6 +548,19 @@ class DocumentaryPipeline(StageRunner):
                     return {"queries": len(queries), **stats}
 
                 await self._stage("visual_research", visual_research)
+
+                async def visual_review():
+                    from app.documentary.visuals import editorial_review as ER
+
+                    if not ER.auto_review_enabled(db):
+                        return {"skipped": True, "reason": "auto_editorial_review is off"}
+                    stats = await ER.review_pending(db, case)
+                    if stats.get("errors"):
+                        stats["degraded"] = (f"{stats['errors']} editorial reviews failed — those "
+                                             "pictures stay unreviewed (not used)")
+                    return stats
+
+                await self._stage("visual_review", visual_review)
 
                 async def visual_check():
                     if planned:

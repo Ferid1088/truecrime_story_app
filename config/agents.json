@@ -210,6 +210,13 @@
       "description": "Does the picture show what is claimed?",
       "used_by": "app/agents/visual_verification.py"
     },
+    "visuals.editorial_review": {
+      "role": "visual_editorial_reviewer",
+      "prompt": "documentary/visuals/editorial_review/reviewer_system",
+      "output": "json",
+      "description": "May this editorial-review picture be used at all (person, place, period, identity, caption)?",
+      "used_by": "app/agents/visual_editorial_review.py"
+    },
     "visuals.audit": {
       "role": "visual_auditor",
       "prompt": "documentary/visuals/auditor/auditor_system",
