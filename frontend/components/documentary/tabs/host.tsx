@@ -3,6 +3,7 @@
 import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
 import { HostLooksPanel } from "./host-looks";
+import { HostOutfitsPanel } from "./host-outfits";
 import { HostMemoryPanel } from "./host-memory";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
@@ -62,6 +63,7 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
       <HostMemoryPanel caseId={caseId} />
       <HostPlanPanel caseId={caseId} scenes={data ?? []} />
       <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />
+      <HostOutfitsPanel caseId={caseId} language={language} />
       <HostLooksPanel language={language} channel={channel} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}
@@ -159,6 +161,18 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
 
         {scene.voice_ready && <VoiceChecks scene={scene} />}
 
+        <LookChoice scene={scene} onChanged={onChanged} />
+
+        {scene.avatar_ready && (
+          <video
+            controls
+            preload="metadata"
+            src={apiFileUrl(`/api/host-scenes/${scene.id}/video`)}
+            className="w-full rounded border border-border bg-black"
+            data-testid={`scene-video-${scene.id}`}
+          />
+        )}
+
         {scene.voice_ready && (
           <audio controls preload="none" src={apiFileUrl(`/api/host-scenes/${scene.id}/voice`)} className="h-8 w-full" />
         )}
@@ -235,6 +249,64 @@ function VoiceChecks({ scene }: { scene: HostScene }) {
           Sent to the voice (with added vowel marks; the text above stays as written): {checks.tts_text}
         </p>
       )}
+    </div>
+  );
+}
+
+
+/** Which look the director's plan was mapped to, why, and an override among the outfit's approved looks. */
+function LookChoice({ scene, onChanged }: { scene: HostScene; onChanged: () => void }) {
+  const { data: outfits } = useApi(() => api.outfits(scene.case_id, scene.language), [scene.case_id, scene.language, scene.look_id], {
+    keepPrevious: true,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const outfit = (outfits ?? []).find((o) => o.status === "selected");
+  const approved = (outfit?.looks ?? []).filter((l) => l.status === "approved");
+  const choice = scene.look_choice ?? {};
+  const locked = ["avatar_requested", "avatar_ready", "composited"].includes(scene.status);
+
+  async function pick(id: number) {
+    setError(null);
+    try {
+      await api.overrideSceneLook(scene.id, id);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <div className="space-y-1 text-xs" data-testid={`look-choice-${scene.id}`}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="font-medium">Look</span>
+        {scene.look_id ? (
+          <>
+            <Badge variant="outline">#{scene.look_id}</Badge>
+            {choice.chosen && (
+              <Badge variant="outline">
+                {choice.chosen.stance.toLowerCase()} · {choice.chosen.camera} · {choice.chosen.framing}
+              </Badge>
+            )}
+            {choice.override && <Badge variant="info">chosen by you</Badge>}
+            {choice.exact === false && <Badge variant="warning">nearest approved</Badge>}
+          </>
+        ) : (
+          <span className="text-muted-foreground">not chosen yet (the stage direction or the avatar step chooses it)</span>
+        )}
+        {approved.length > 0 && !locked && (
+          <select className="rounded-md border border-border bg-background px-2 py-0.5" aria-label="Choose a look"
+                  value={scene.look_id ?? ""} onChange={(e) => pick(Number(e.target.value))}>
+            <option value="" disabled>override…</option>
+            {approved.map((l) => (
+              <option key={l.id} value={l.id}>
+                #{l.id} {l.stance.toLowerCase()} · {l.camera} · {l.framing}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {choice.why && <p className="text-muted-foreground">{choice.why}{choice.continuity ? ` — ${choice.continuity}` : ""}</p>}
+      {error && <p className="text-rose-600 dark:text-rose-400">{error}</p>}
     </div>
   );
 }

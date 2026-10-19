@@ -3,6 +3,9 @@ import type {
   MediaLinkItem,
   HostMemoryItem,
   HostLookItem,
+  HostOutfitItem,
+  OutfitRegistryItem,
+  PoseSetResult,
   HostPlanRecord,
   HostSegmentsRecord,
   HostAppearanceItem,
@@ -648,6 +651,18 @@ export const api = {
     request<HostPlanRecord>(`/api/cases/${caseId}/documentary/host-plan`),
   hostSegments: (versionId: number) =>
     request<HostSegmentsRecord>(`/api/documentary/versions/${versionId}/host`),
+  outfits: (caseId: number, language: string) =>
+    request<HostOutfitItem[]>(`/api/cases/${caseId}/outfits?language=${language}`),
+  outfitRegistry: () => request<OutfitRegistryItem[]>("/api/outfit-registry"),
+  createOutfit: (caseId: number, payload: { language: string; name: string; outfit_ref: string }) =>
+    post<HostOutfitItem>(`/api/cases/${caseId}/outfits`, payload),
+  selectOutfit: (id: number) => post<HostOutfitItem>(`/api/outfits/${id}/select`, {}),
+  retireOutfit: (id: number) => post<HostOutfitItem>(`/api/outfits/${id}/retire`, {}),
+  requestPoseSet: (id: number) => post<PoseSetResult>(`/api/outfits/${id}/pose-set`, {}),
+  requestOutfitLook: (id: number, payload: { camera: string; framing: string; stance: string }) =>
+    post<HostLookItem>(`/api/outfits/${id}/looks`, payload),
+  overrideSceneLook: (sceneId: number, lookId: number) =>
+    post<HostScene>(`/api/host-scenes/${sceneId}/look`, { look_id: lookId }),
   hostLooks: (language: string) =>
     request<HostLookItem[]>(`/api/host-looks?language=${language}`),
   requestHostLook: (payload: { language: string; camera: string; framing: string; outfit_id: string; pose: string }) =>

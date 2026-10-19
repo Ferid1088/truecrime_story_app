@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -208,6 +209,7 @@ async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
     from app.core.ai_config import ai_config
     from app.core.env import env_value
     from app.documentary import looks as LK
+    from app.documentary.outfits import OutfitError
     from app.outfits.registry import OutfitRegistry
 
     look = _look(db, look_id)
@@ -218,14 +220,20 @@ async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
         if studio is None or not studio.exists():
             raise ST.StudioError(f"no studio master picture for {look.language} on disk "
                                  f"(data/studio): add it before generating looks")
-        outfit = OutfitRegistry().resolve(look.outfit_id).poses["front"].path
+        if look.host_outfit_id:           # a look of a video's outfit: the picture fitting its stance
+            from app.db.models import HostOutfit
+            from app.documentary import outfits as OF
+
+            outfit_png = OF.reference_png(db.get(HostOutfit, look.host_outfit_id), look.stance)
+        else:
+            outfit_png = OutfitRegistry().resolve(look.outfit_id).poses["front"].path.read_bytes()
         gen = ai_config.generation_provider()
         provider = LK.ApimasterImageProvider(
             gen.base_url, env_value(gen.secret_env) or "", ai_config.host_looks.image_model,
             ai_config.host_looks.image_timeout_s)
-        await LK.generate(db, look, provider, studio.read_bytes(), outfit.read_bytes())
+        await LK.generate(db, look, provider, studio.read_bytes(), outfit_png)
         return LK.look_dict(look)
-    except (LK.LookError, ST.StudioError, KeyError) as e:
+    except (LK.LookError, ST.StudioError, KeyError, OutfitError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
@@ -350,3 +358,179 @@ def host_scene_voice(scene_id: int, db: Session = Depends(get_db)):
     if p is None or not p.exists():
         raise HTTPException(status_code=404, detail="No voice for this scene yet")
     return FileResponse(p, media_type="audio/mpeg")
+
+@router.get("/api/host-scenes/{scene_id}/video")
+def host_scene_video(scene_id: int, db: Session = Depends(get_db)):
+    """The scene's avatar video (webm or mp4) as the player needs it."""
+    s = db.get(HostScene, scene_id)
+    p = storage.resolve(s.avatar_video_path) if s is not None and s.avatar_video_path else None
+    if p is None or not p.exists():
+        raise HTTPException(status_code=404, detail="No avatar video for this scene yet")
+    return FileResponse(p, media_type="video/mp4" if p.suffix == ".mp4" else "video/webm")
+
+
+@router.get("/api/host-looks/{look_id}/image")
+def host_look_image(look_id: int, db: Session = Depends(get_db)):
+    """The generated picture of a look (a thumbnail source for the Host tab)."""
+    look = _look(db, look_id)
+    p = storage.resolve(look.image_path) if look.image_path else None
+    if p is None or not p.exists():
+        raise HTTPException(status_code=404, detail="This look has no picture yet")
+    return FileResponse(p, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# outfits of a video (one case, one language) and their looks
+# ---------------------------------------------------------------------------
+
+
+class OutfitRequest(BaseModel):
+    language: str
+    name: str
+    outfit_ref: str | None = None
+
+
+def _outfit(db: Session, outfit_id: int):
+    from app.db.models import HostOutfit
+
+    outfit = db.get(HostOutfit, outfit_id)
+    if outfit is None:
+        raise HTTPException(status_code=404, detail="Outfit not found")
+    return outfit
+
+
+def _outfit_view(db: Session, outfit) -> dict:
+    from app.documentary import look_selection as LS
+    from app.documentary import looks as LK
+    from app.documentary import outfits as OF
+
+    looks = [LK.look_dict(x) for x in OF.outfit_looks(db, outfit)]
+    return {"id": outfit.id, "case_id": outfit.case_id, "language": outfit.language,
+            "name": outfit.name, "outfit_ref": outfit.outfit_ref, "status": outfit.status,
+            "selected_at": outfit.selected_at, "looks": looks,
+            "approved": sum(1 for x in looks if x["status"] == "approved"),
+            "to_approve": LS.missing_looks(db, outfit),
+            "studio": {stance: OF.studio_supports(outfit.language, stance)
+                       for stance in OF.STANCES}}
+
+
+@router.get("/api/cases/{case_id}/outfits")
+def list_outfits(case_id: int, language: str | None = None, db: Session = Depends(get_db)):
+    from app.db.models import HostOutfit
+
+    q = db.query(HostOutfit).filter(HostOutfit.case_id == case_id, HostOutfit.status != "retired")
+    if language:
+        q = q.filter(HostOutfit.language == language)
+    return [_outfit_view(db, o) for o in q.order_by(HostOutfit.id)]
+
+
+@router.get("/api/outfit-registry")
+def outfit_registry():
+    """The app's outfits an outfit of a video can be made from."""
+    from app.core.ai_config import ai_config
+    from app.outfits.registry import OutfitRegistry
+
+    allow = ai_config.stage_direction.outfit_allow_list
+    return [{"id": o.outfit_id, "label": o.label, "languages": [
+        lang for lang in ai_config.channels if not allow.get(lang) or o.outfit_id in allow[lang]]}
+        for o in OutfitRegistry().all()]
+
+
+def _outfit_call(fn):
+    from app.documentary import looks as LK
+    from app.documentary import outfits as OF
+
+    try:
+        return fn()
+    except (OF.OutfitError, LK.LookError, ST.StudioError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@router.post("/api/cases/{case_id}/outfits")
+def create_outfit(case_id: int, payload: OutfitRequest, db: Session = Depends(get_db)):
+    from app.core.ai_config import ai_config
+    from app.documentary import outfits as OF
+
+    allow = ai_config.stage_direction.outfit_allow_list.get(payload.language)
+    if payload.outfit_ref and allow and payload.outfit_ref not in allow:
+        raise HTTPException(status_code=409, detail=f"{payload.outfit_ref} is not allowed in "
+                                                    f"{payload.language} (stage_direction.outfit_allow_list)")
+    return _outfit_view(db, _outfit_call(lambda: OF.create_outfit(
+        db, case_id, payload.language, payload.name, payload.outfit_ref)))
+
+
+@router.post("/api/outfits/{outfit_id}/select")
+def select_outfit(outfit_id: int, db: Session = Depends(get_db)):
+    from app.documentary import outfits as OF
+
+    return _outfit_view(db, _outfit_call(lambda: OF.select_outfit(db, _outfit(db, outfit_id))))
+
+
+@router.post("/api/outfits/{outfit_id}/retire")
+def retire_outfit(outfit_id: int, db: Session = Depends(get_db)):
+    from app.documentary import outfits as OF
+
+    return _outfit_view(db, _outfit_call(lambda: OF.retire_outfit(db, _outfit(db, outfit_id))))
+
+
+class OutfitLookRequest(BaseModel):
+    camera: str
+    framing: str
+    stance: str
+    pose: str = "P01_NEUTRAL_SEATED"
+    prompt: str | None = None
+
+
+@router.post("/api/outfits/{outfit_id}/looks")
+def request_outfit_look(outfit_id: int, payload: OutfitLookRequest, db: Session = Depends(get_db)):
+    from app.documentary import looks as LK
+    from app.documentary import outfits as OF
+
+    outfit = _outfit(db, outfit_id)
+    return LK.look_dict(_outfit_call(lambda: OF.request_look(
+        db, outfit, payload.camera, payload.framing, payload.stance, payload.pose, payload.prompt)))
+
+
+@router.post("/api/outfits/{outfit_id}/pose-set")
+def request_pose_set(outfit_id: int, db: Session = Depends(get_db)):
+    """The standard set of looks of the outfit in one click (requested, not generated)."""
+    from app.documentary import looks as LK
+    from app.documentary import outfits as OF
+
+    outfit = _outfit(db, outfit_id)
+    done = _outfit_call(lambda: OF.request_pose_set(db, outfit))
+    return {"requested": [LK.look_dict(x) for x in done["requested"]],
+            "already_there": [LK.look_dict(x) for x in done["already_there"]],
+            "skipped": done["skipped"], "outfit": _outfit_view(db, outfit)}
+
+
+class LookOverride(BaseModel):
+    look_id: int
+
+
+@router.post("/api/host-scenes/{scene_id}/look")
+def override_scene_look(scene_id: int, payload: LookOverride, db: Session = Depends(get_db)):
+    """The owner picks a look for a scene: only an approved look of the scene's own outfit."""
+    from app.db.models import HostLook
+    from app.documentary import look_selection as LS
+    from app.documentary import outfits as OF
+    from app.documentary.host_scenes import _log
+
+    s = db.get(HostScene, scene_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail="Host scene not found")
+    outfit = OF.selected_outfit(db, s.case_id, s.language)
+    look = db.get(HostLook, payload.look_id)
+    if outfit is None or look is None or look.id not in {x.id for x in LS.approved_looks(db, outfit)}:
+        raise HTTPException(status_code=409, detail=(
+            "Only an approved look of this video's outfit (in this language's studio) can be chosen."))
+    if s.status in ("avatar_requested", "avatar_ready", "composited"):
+        raise HTTPException(status_code=409, detail="The video is already made with another look.")
+    s.host_outfit_id, s.look_id, s.avatar_id = outfit.id, look.id, look.heygen_look_id
+    choice = {"look_id": look.id, "override": True,
+              "chosen": {"stance": look.stance, "camera": look.camera, "framing": look.framing},
+              "why": "chosen by the owner"}
+    s.look_choice_json = json.dumps(choice)
+    _log(s, "look", "override", choice)
+    db.commit()
+    return scene_dict(s)

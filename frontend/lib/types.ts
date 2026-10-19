@@ -2690,6 +2690,8 @@ export interface HostLookItem {
   camera: string;
   framing: string;
   outfit_id: string;
+  host_outfit_id: number | null;
+  stance: "SEATED" | "STANDING";
   pose: string;
   prompt: string | null;
   image_path: string | null;
@@ -2700,6 +2702,34 @@ export interface HostLookItem {
   rejected_reason: string | null;
   heygen_look_id: string | null;
   attempts: number;
+}
+
+export interface HostOutfitItem {
+  id: number;
+  case_id: number;
+  language: string;
+  name: string;
+  outfit_ref: string | null;
+  status: "draft" | "selected" | "retired";
+  selected_at: string | null;
+  looks: HostLookItem[];
+  approved: number;
+  /** What is still to do before every look of the standard set is approved. */
+  to_approve: string[];
+  studio: { SEATED: boolean; STANDING: boolean };
+}
+
+export interface OutfitRegistryItem {
+  id: string;
+  label: string;
+  languages: string[];
+}
+
+export interface PoseSetResult {
+  requested: HostLookItem[];
+  already_there: HostLookItem[];
+  skipped: { label: string; why: string }[];
+  outfit: HostOutfitItem;
 }
 
 export interface HostAppearanceItem {
@@ -2762,6 +2792,19 @@ export interface HostScene {
   voice_ready: boolean;
   voice_seconds: number | null;
   voice_sha256: string | null;
+  host_outfit_id: number | null;
+  look_id: number | null;
+  look_choice: {
+    look_id?: number;
+    override?: boolean;
+    exact?: boolean;
+    why?: string;
+    continuity?: string | null;
+    cropped_from_framing?: string | null;
+    wanted?: { stance: string; camera: string; framing: string };
+    chosen?: { stance: string; camera: string; framing: string };
+    considered?: number[];
+  };
   voice_flags: string[];
   voice_checks: {
     tts_text?: string | null;

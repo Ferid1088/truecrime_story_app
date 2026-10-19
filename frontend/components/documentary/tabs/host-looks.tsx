@@ -7,22 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const CAMERAS = ["CAM01_FRONT", "CAM02_LEFT_45", "CAM03_RIGHT_45", "CAM04_LEFT_SIDE", "CAM05_RIGHT_SIDE", "CAM06_WIDE"];
-const FRAMINGS = ["WIDE", "MEDIUM", "MEDIUM_CLOSE", "CLOSE"];
-
 /** The host's looks (picture in the studio: camera, framing, outfit, pose): request
  *  one at a time, approve before HeyGen sees it; and his visual memory. */
 export function HostLooksPanel({ language, channel }: { language: string; channel?: string }) {
   const [tick, setTick] = useState(0);
   const { data: looks } = useApi(() => api.hostLooks(language), [language, tick], { keepPrevious: true });
   const { data: appearances } = useApi(() => api.hostAppearances(channel), [channel, tick], { keepPrevious: true });
-  const [camera, setCamera] = useState(CAMERAS[0]);
-  const [framing, setFraming] = useState(FRAMINGS[0]);
-  const [outfit, setOutfit] = useState("");
-  const [busy, setBusy] = useState<number | "new" | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function act(id: number | "new", fn: () => Promise<unknown>) {
+  async function act(id: number, fn: () => Promise<unknown>) {
     setBusy(id);
     setError(null);
     try {
@@ -42,12 +36,14 @@ export function HostLooksPanel({ language, channel }: { language: string; channe
       </CardHeader>
       <CardContent className="space-y-3 p-3 text-xs">
         <p className="text-muted-foreground">
-          A look is a picture of the host inside the studio. Only approved looks can be chosen by the stage
-          director, and nothing reaches HeyGen before you approve it. Look pictures are generated one at a time.
+          Every look of this language, and the appearances of the channel. Looks are requested for an outfit of a
+          video (above); only approved looks of the video&apos;s outfit can be chosen, and nothing reaches HeyGen before
+          you approve it. Pictures are generated one at a time.
         </p>
         <ul className="space-y-1.5">
           {(looks ?? []).map((l) => (
             <li key={l.id} className="flex flex-wrap items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5">
+              <Badge variant="outline">{l.stance.toLowerCase()}</Badge>
               <Badge variant="outline">{l.camera}</Badge>
               <Badge variant="outline">{l.framing}</Badge>
               <span>{l.outfit_id}</span>
@@ -84,23 +80,6 @@ export function HostLooksPanel({ language, channel }: { language: string; channe
           ))}
           {(looks ?? []).length === 0 && <li className="text-muted-foreground">No looks yet.</li>}
         </ul>
-        <div className="flex flex-wrap gap-1.5">
-          <select className="rounded-md border border-border bg-background px-2 py-1" value={camera} onChange={(e) => setCamera(e.target.value)} aria-label="Camera">
-            {CAMERAS.map((c) => <option key={c}>{c}</option>)}
-          </select>
-          <select className="rounded-md border border-border bg-background px-2 py-1" value={framing} onChange={(e) => setFraming(e.target.value)} aria-label="Framing">
-            {FRAMINGS.map((f) => <option key={f}>{f}</option>)}
-          </select>
-          <input className="min-w-40 rounded-md border border-border bg-background px-2 py-1" placeholder="outfit id" value={outfit} onChange={(e) => setOutfit(e.target.value)} aria-label="Outfit id" />
-          <Button
-            size="sm"
-            disabled={!outfit.trim()}
-            loading={busy === "new"}
-            onClick={() => act("new", () => api.requestHostLook({ language, camera, framing, outfit_id: outfit.trim(), pose: "P01_NEUTRAL_SEATED" }))}
-          >
-            Request look
-          </Button>
-        </div>
         <div>
           <p className="mb-1 font-medium">Recent appearances{channel ? ` (${channel})` : ""}</p>
           <ul className="space-y-1 text-muted-foreground">
