@@ -435,6 +435,21 @@ def _cues_for(db: Session, film: Video | None, candidate: ShortCandidate) -> lis
     return window_cues(script, start, start + float(ai_config.short_form.production.target_seconds)) or None
 
 
+def _labels_for(db: Session, film: Video | None, candidate: ShortCandidate) -> list[dict]:
+    """The film's "Illustration" labels inside the candidate's stretch, times from its start."""
+    script = _film_script(db, film)
+    if script is None or candidate.source_start_seconds is None:
+        return []
+    start = float(candidate.source_start_seconds)
+    end = start + float(ai_config.short_form.production.target_seconds)
+    out = []
+    for o in script.get("overlays") or []:
+        if o.get("kind") == "label" and o["end"] > start and o["start"] < end:
+            out.append({"start": round(max(o["start"], start) - start, 3),
+                        "end": round(min(o["end"], end) - start, 3), "text": o.get("text") or ""})
+    return [x for x in out if x["end"] - x["start"] > 0.3 and x["text"]]
+
+
 def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
                 script: ShortFormScript, film: Video | None, *, force: bool = False) -> RenderedShort:
     row = (db.query(RenderedShort)
@@ -449,7 +464,8 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
     render_input = {"candidate": candidate.content_hash, "script": script.content_hash,
                     "caption_text": script.caption_text,
                     "film": film.file_path if film else None,
-                    "language": script.language, "config": ai_config.short_form.production.model_dump()}
+                    "language": script.language, "config": ai_config.short_form.production.model_dump(),
+                    "labels": _labels_for(db, film, candidate)}
     content_hash = _hash(render_input)
     if not force and row.status == "done" and row.content_hash == content_hash:
         return row
@@ -471,7 +487,7 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
             rights_status="cleared", rights_source=f"film:{film.id if film else job.id}",
             rights_human_signoff=True, source_video=_film_source(film),
             source_start_seconds=float(candidate.source_start_seconds or 0),
-            cues=_cues_for(db, film, candidate),
+            cues=_cues_for(db, film, candidate), labels=_labels_for(db, film, candidate),
         )
         final_dir.parent.mkdir(parents=True, exist_ok=True)
         if final_dir.exists():

@@ -645,3 +645,28 @@ def test_the_export_uses_the_given_cues_with_their_real_times(tmp_path):
     manifest = build_export_package(tmp_path / "s", language="en", title="T", duration_seconds=8, cues=cues)
     got = manifest["subtitle_layout"]["cues"]
     assert [(c["start"], c["end"], c["text"]) for c in got] == [(0.5, 3.0, "First phrase."), (3.4, 7.0, "Second phrase.")]
+
+
+def test_the_illustration_label_is_burned_into_the_vertical_short(tmp_path, monkeypatch):
+    from app.shortform import export
+
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen["filter"] = command[command.index("-vf") + 1]
+
+    monkeypatch.setattr(export.subprocess, "run", fake_run)
+    monkeypatch.setattr(export, "require_caption_capability", lambda: {})
+    monkeypatch.setattr(export, "ffmpeg_bin", lambda: "ffmpeg")
+    source = tmp_path / "film.mp4"
+    source.write_bytes(b"x")
+    export.build_export_package(tmp_path / "out", language="en", title="t", duration_seconds=10,
+                               source_video=source, captions_burned_in=True,
+                               cues=[{"start": 0.5, "end": 3, "text": "A phrase."}],
+                               labels=[{"start": 0.0, "end": 6.0, "text": "Illustrative image"}])
+    assert seen["filter"].count("subtitles=") == 2 and "Alignment=8" in seen["filter"]
+    assert "Illustrative image" in (tmp_path / "out" / "labels.srt").read_text()
+    seen.clear()
+    export.build_export_package(tmp_path / "out2", language="en", title="t", duration_seconds=10,
+                               source_video=source, captions_burned_in=True)
+    assert seen["filter"].count("subtitles=") == 1

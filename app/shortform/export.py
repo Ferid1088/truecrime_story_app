@@ -209,6 +209,7 @@ def build_export_package(
     source_start_seconds: float = 0.0,
     captions_burned_in: bool | None = None,
     cues: list[dict] | None = None,
+    labels: list[dict] | None = None,
 ) -> dict:
     """Build a small, inspectable, watchable pilot package offline."""
     executable = ffmpeg_bin()
@@ -280,6 +281,18 @@ def build_export_package(
                            f"MarginV={round(prod.caption_bottom_margin_px * down)},"
                            f"Outline={3 * down:.2f},Shadow=0")
             video_filter += f",subtitles=filename='{escaped}':force_style='{force_style}'"
+            if labels:
+                # the "Illustration" label of the film sits in a corner the vertical crop cuts off:
+                # it is burned in again, top centre, for as long as an illustration is on screen
+                label_srt = output_dir / "labels.srt"
+                _write_srt(label_srt, [SubtitleCue(float(x["start"]), float(x["end"]), str(x["text"]))
+                                       for x in labels])
+                label_escaped = (str(label_srt).replace("\\", "\\\\").replace(":", "\\:")
+                                 .replace("'", "\\'"))
+                label_style = (f"FontName={_caption_font_family(language)},Alignment=8,"
+                               f"FontSize={prod.caption_font_px * down * 0.6:.2f},"
+                               f"MarginV={round(SAFE_TOP * 1.1 * down)},Outline={3 * down:.2f},Shadow=0")
+                video_filter += f",subtitles=filename='{label_escaped}':force_style='{label_style}'"
         command = inputs + ["-t", str(duration_seconds), "-vf", video_filter,
                             "-map", "0:v:0", "-map", "1:a:0" if separate_audio else "0:a:0",
                             "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
