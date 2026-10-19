@@ -194,6 +194,8 @@ async def _fill_slot(db: Session, case: Case, slot: tuple[float, float], beat: s
             return {"asset": a, "as": shown_as, "reasons": reasons}
         used.discard(a.asset_code)
         avoid += reasons[:2]
+    if not ai_config.illustrations.enabled:
+        return None
     keys = IL._beat_entities(requirements, beat or "")
     for attempt in range(cfg.slot_attempts):
         try:

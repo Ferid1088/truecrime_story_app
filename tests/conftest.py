@@ -357,3 +357,18 @@ def _deny_outbound_network_in_hermetic_runs(monkeypatch):
         from no_network import install
 
         install(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
+def _no_illustrations_and_open_coverage_unless_a_test_asks(request, monkeypatch):
+    """The pipeline tests run films made of fakes (black pauses, long holds): illustrations are off
+    (they call an image model) and the picture-track limits are open. The tests of the illustrations
+    and of the coverage gate use the real limits."""
+    from app.core.ai_config import ai_config
+
+    if "coverage_fill" in request.node.nodeid or "editorial_review" in request.node.nodeid:
+        return
+    monkeypatch.setattr(ai_config.illustrations, "enabled", False)
+    for field in ("max_card_stretch_seconds", "max_black_seconds", "max_still_seconds"):
+        monkeypatch.setattr(ai_config.coverage, field, 1e9)
+    monkeypatch.setattr(ai_config.coverage, "max_card_share", 1.0)
