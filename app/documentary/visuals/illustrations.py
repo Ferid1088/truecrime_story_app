@@ -270,3 +270,19 @@ async def more_for_beats(db: Session, case: Case, bp_row: EditorialBlueprint, re
     if made:
         book(db, case.id, len(made))
     return made
+
+
+async def slot_brief(db: Session, case: Case, sentences: list[str], beat_summary: str | None,
+                     avoid: list[str]) -> str:
+    """The brief for the exact words spoken over one gap; `avoid` carries the auditor's reasons."""
+    payload = {"case": case.canonical_title, "place": case.location,
+               "period": str(case.incident_date or ""), "beat_summary": beat_summary,
+               "narration": sentences, "avoid": avoid[-6:]}
+    gen = get_generation_provider()
+    with track_run(db, case.id, "Illustration Briefs", input_summary="slot") as run:
+        raw, res = await run_agent("visuals.slot_brief", gen, json.dumps(payload, ensure_ascii=False))
+        stamp_run(run, res, "visual_planner")
+    subject = str((raw or {}).get("subject") or "").strip()
+    if not subject:
+        raise IllustrationError("the planner returned no illustration brief for the gap")
+    return subject

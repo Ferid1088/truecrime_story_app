@@ -2149,6 +2149,9 @@ class CoverageConfig(BaseModel):
     # One still (a photo, a map) is never shown longer than this; a longer stretch gets other pictures.
     max_still_seconds: float = Field(default=12.0, gt=0)
     max_repair_rounds: int = Field(default=3, ge=1, le=10)
+    # Per gap: pool illustrations the auditor may look at first, then new drawings for the exact words.
+    pool_tries: int = Field(default=2, ge=0, le=6)
+    slot_attempts: int = Field(default=3, ge=1, le=8)
 
 
 class RightsConfig(BaseModel):

@@ -8,6 +8,7 @@ timeline or date is a "card"; pictures, maps, footage and the host are not."""
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import math
@@ -171,54 +172,129 @@ def _illustration_shot(a: VisualAsset, start: float, end: float, beat_id: str | 
             "kind": "image", **_asset_info(a), "role": "illustration"}
 
 
+async def _fill_slot(db: Session, case: Case, slot: tuple[float, float], beat: str | None,
+                     sentences: list[str], story: dict, firewall, auditor, free: dict, everything: list,
+                     used: set, blueprint: dict, requirements: dict, index: list[int]) -> dict | None:
+    """One picture for one gap: an unused pool illustration the auditor approves for these exact
+    words, else a new one drawn for them (and drawn again with the auditor's reasons when it
+    rejects). None when nothing was approved."""
+    cfg = ai_config.coverage
+    beat_summary = next((b.get("summary") for b in blueprint.get("beats") or [] if b["id"] == beat), None)
+    avoid: list[str] = []
+    seen: set[str] = set()
+    while len(seen) < cfg.pool_tries:
+        a = next((x for items in (free.get(beat) or [], everything) for x in items
+                  if x.asset_code not in used and x.asset_code not in seen), None)
+        if a is None:
+            break
+        seen.add(a.asset_code)
+        used.add(a.asset_code)                      # reserved while the auditor looks at it
+        verdict, shown_as, reasons = await auditor.check(db, case, a, sentences, story, firewall)
+        if verdict == "approved":
+            return {"asset": a, "as": shown_as, "reasons": reasons}
+        used.discard(a.asset_code)
+        avoid += reasons[:2]
+    keys = IL._beat_entities(requirements, beat or "")
+    for attempt in range(cfg.slot_attempts):
+        try:
+            subject = await IL.slot_brief(db, case, sentences, beat_summary, avoid)
+            png = await IL.generate_png(IL.image_prompt(subject))
+        except Exception as e:  # noqa: BLE001 — a failed draw is one attempt less, not a failed film
+            avoid.append(f"the picture could not be made ({type(e).__name__})")
+            continue
+        index[0] += 1
+        a = IL.make_asset(db, case, png, {"subject": subject}, beat or "", 1000 + index[0], keys)
+        IL.book(db, case.id, 1)
+        used.add(a.asset_code)
+        verdict, shown_as, reasons = await auditor.check(db, case, a, sentences, story, firewall)
+        if verdict == "approved":
+            return {"asset": a, "as": shown_as, "reasons": reasons, "attempts": attempt + 1}
+        used.discard(a.asset_code)
+        avoid += reasons[:2]
+    return None
+
+
 async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
-    """Fill the windows the gate names with illustrations; makes more when a beat has none left."""
+    """Fill the windows the gate names. Every new picture is audited for the exact words spoken over
+    it before it goes in; a gap nothing approved fills is held by the neighbouring picture (never
+    black) and reported with its seconds."""
+    from app.agents.visual_auditor import VisualAuditor
+    from app.documentary.visuals import spoilers as SP
+    from app.documentary.visuals.auditor import plan_sentences, shot_sentences
+    from app.documentary.visuals.usage import annotate, record_media_usage
+
     windows = _windows(script)
     if not windows:
         return {"windows": 0, "filled": 0}
     case = db.get(Case, row.case_id)
     bp_row = db.get(EditorialBlueprint, row.blueprint_id)
     plan_row = db.get(VisualPlan, row.visual_plan_id)
+    blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     requirements = json.loads(plan_row.requirements_json or "{}") if plan_row else {}
+    plan = json.loads(plan_row.plan_json or "{}") if plan_row else {}
+    texts, spans = plan_sentences(plan), script.get("sentence_entities") or []
+    firewall = SP.Firewall.from_json(script.get("firewall"))
     shots = _cut(sorted(script.get("shots") or [], key=lambda s: s["start"]), windows)
     used = {s.get("asset_id") for s in shots if s.get("asset_id")}
-    pool = IL.existing(db, row.case_id)
-    free = {b: [a for a in items if a.asset_code not in used] for b, items in pool.items()}
-    slots = [(p, _beat_at(script, p[0])) for w in windows for p in _pieces(*w)]
-    need: dict[str, int] = {}
-    for _p, beat in slots:
-        need[beat] = need.get(beat, 0) + 1
-    missing = {b: n - len(free.get(b, [])) for b, n in need.items() if n > len(free.get(b, []))}
-    if missing and bp_row is not None:
-        made = await IL.more_for_beats(db, case, bp_row, requirements, missing)
-        for a in made:
-            free.setdefault(IL.beat_of(a), []).append(a)
-    filled, count = 0, 0
+    free = {b: [a for a in items if a.asset_code not in used]
+            for b, items in IL.existing(db, row.case_id).items()}
     everything = [a for items in free.values() for a in items]
+    slots = [(p, _beat_at(script, p[0])) for w in windows for p in _pieces(*w)]
+    auditor = VisualAuditor()
+    sem = asyncio.Semaphore(ai_config.illustrations.concurrency)
+    counter = [0]
 
-    def take(beat: str | None) -> VisualAsset | None:
-        """An unused illustration of the beat, else of any beat."""
-        for items in (free.get(beat) or [], everything):
-            while items:
-                a = items.pop(0)
-                if a.asset_code not in used:
-                    return a
-        return None
+    async def one(slot, beat):
+        sentences = shot_sentences({"start": slot[0], "end": slot[1]}, spans, texts)
+        story = SP.story_point(blueprint, beat)
+        async with sem:
+            return await _fill_slot(db, case, slot, beat, sentences, story, firewall, auditor, free,
+                                    everything, used, blueprint, requirements, counter)
 
-    for (start, end), beat in slots:
-        a = take(beat)
-        if a is None:
+    results = await asyncio.gather(*(one(sl, b) for sl, b in slots))
+    filled, count, missing = 0, 0, []
+    for ((start, end), beat), got in zip(slots, results):
+        if got is None:
+            missing.append((start, end))
             continue
-        used.add(a.asset_code)
-        shots.append(_illustration_shot(a, start, end, beat, count))
+        shot = _illustration_shot(got["asset"], start, end, beat, count)
+        shot["audit"] = {"verdict": "approved", "as": got["as"], "reasons": got["reasons"][:3],
+                         "try": got.get("attempts", 0)}
+        shots.append(shot)
         filled += 1
         count += 1
     shots.sort(key=lambda s: (s["start"], s["end"]))
+    held = _hold_gaps(shots, missing)
     for n, s in enumerate(shots):
         s["index"] = n
     script["shots"] = shots
     _relabel(script)
-    return {"windows": len(windows), "filled": filled, "slots": len(slots)}
+    annotate(shots, {a.asset_code: asset_facts(a) for a in db.query(VisualAsset).filter(
+        VisualAsset.case_id == row.case_id).all()}, spans)
+    row.script_json = json.dumps(script, ensure_ascii=False)
+    record_media_usage(db, row, script)
+    db.commit()
+    return {"windows": len(windows), "slots": len(slots), "filled": filled,
+            "missing_seconds": round(sum(b - a for a, b in missing), 2), "held": held}
+
+
+def _hold_gaps(shots: list[dict], missing: list[tuple[float, float]]) -> int:
+    """A gap nothing approved fills is covered by the picture before it (else the one after), never
+    by black; the gate then reports a still that runs long."""
+    held = 0
+    for a, b in missing:
+        before = [s for s in shots if s["end"] <= a + EPS and s.get("kind") in ("image", "map", "video")]
+        after = [s for s in shots if s["start"] >= b - EPS and s.get("kind") in ("image", "map")]
+        if before and abs(before[-1]["end"] - a) <= EPS:
+            before[-1]["end"] = b
+            before[-1].setdefault("held", []).append({"at": round(a, 2), "why": "no approved picture"})
+        elif after:
+            after[0]["start"] = a
+            after[0].setdefault("held", []).append({"at": round(a, 2), "why": "no approved picture"})
+        else:
+            continue
+        held += 1
+    return held
 
 
 def _relabel(script: dict) -> None:
@@ -235,8 +311,6 @@ def _relabel(script: dict) -> None:
 async def ensure_coverage(db: Session, row: ProductionScript) -> dict:
     """Repair the film's picture track until the gate passes (visuals.coverage.max_repair_rounds)
     and have the visual auditor look at what was added; a picture it rejects is refilled."""
-    from app.documentary.visuals.auditor import audit_script
-
     cfg = ai_config.coverage
     script = json.loads(row.script_json)
     before = measure(script)
@@ -247,11 +321,9 @@ async def ensure_coverage(db: Session, row: ProductionScript) -> dict:
             break
         step = await repair(db, row, script)
         script["coverage_repairs"] = (script.get("coverage_repairs") or []) + [{"round": n, **step}]
-        row.script_json = json.dumps(script, ensure_ascii=False)
-        db.commit()
-        await audit_script(db, row)           # the new pictures are audited like any other
-        script = json.loads(row.script_json)
         rounds.append({"round": n, **step, "after": gate(measure(script))})
+        if not step.get("filled"):
+            break                                   # nothing more can be made: report, do not loop
     after = measure(script)
     problems = gate(after)
     script["coverage"] = {"before": {k: before[k] for k in ("black_seconds", "card_share",

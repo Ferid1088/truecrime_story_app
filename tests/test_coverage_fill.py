@@ -90,51 +90,114 @@ def _row(db, s):
     return case, row
 
 
-def test_the_repair_fills_the_windows_with_labelled_illustrations_and_the_gate_then_passes(
-        db_session, monkeypatch):
+class FakeAuditor:
+    """Approves a picture as symbolic unless its asset code is in `reject`."""
+
+    def __init__(self, reject=()):
+        self.reject, self.calls = set(reject), []
+
+    async def check(self, db, case, asset, sentences, story, firewall):
+        self.calls.append(asset.asset_code)
+        if asset.asset_code in self.reject or "reject" in (asset.title or ""):
+            return "rejected", None, ["the picture shows another place than the words name"]
+        return "approved", "symbolic", ["an accurate depiction of the place the words name"]
+
+
+def _fakes(monkeypatch, auditor, *, made=None):
+    import app.agents.visual_auditor as VA
+
+    monkeypatch.setattr(VA, "VisualAuditor", lambda *a, **k: auditor)
+    monkeypatch.setattr("app.documentary.production.script._asset_info",
+                        lambda a: {"asset_id": a.asset_code, "path": a.local_path, "type": a.asset_type,
+                                   "role": a.asset_role, "rights": a.rights_status, "credit": None})
+    briefs = []
+
+    async def brief(db, case, sentences, beat_summary, avoid):
+        briefs.append(list(avoid))
+        return f"an empty yard, try {len(briefs)}"
+
+    async def png(prompt):
+        return _png()
+
+    monkeypatch.setattr(IL, "slot_brief", brief)
+    monkeypatch.setattr(IL, "generate_png", png)
+    return briefs
+
+
+def test_the_repair_fills_the_windows_with_audited_labelled_illustrations_and_the_gate_passes(
+        db_session, tmp_path, monkeypatch):
+    from app.documentary import storage
+
+    monkeypatch.setattr(storage, "ROOT", tmp_path)
     s = script(shot("image", 0, 10, asset_id="REAL1", role="evidence"), shot("black", 10, 60, beat_id="B01"),
                shot("title", 60, 64.5), shot("timeline", 64.5, 120, beat_id="B02"),
                shot("map", 120, 200, asset_id="MAP", beat_id="B02"), duration=200)
     case, row = _row(db_session, s)
     _illustrations(db_session, case, "B01", 10)
     _illustrations(db_session, case, "B02", 20)
-
-    async def made(db, case_, bp_row, requirements, counts):       # B01 runs 3 short: B02's help out
-        return []
-
-    monkeypatch.setattr(IL, "more_for_beats", made)
-    monkeypatch.setattr("app.documentary.production.script._asset_info",
-                        lambda a: {"asset_id": a.asset_code, "path": a.local_path, "type": a.asset_type,
-                                   "role": a.asset_role, "rights": a.rights_status, "credit": None})
+    auditor = FakeAuditor()
+    _fakes(monkeypatch, auditor)
     step = asyncio.run(CF.repair(db_session, row, s))
-    assert step["windows"] >= 2 and step["filled"] == step["slots"]
+    assert step["filled"] == step["slots"] and step["missing_seconds"] == 0
     report = CF.measure(s)
     assert CF.gate(report) == [], report
     ill = [x for x in s["shots"] if x.get("role") == "illustration"]
-    assert len({x["asset_id"] for x in ill}) == len(ill)                 # each picture once
+    assert len({x["asset_id"] for x in ill}) == len(ill)                  # each picture once
     assert all(3 <= x["end"] - x["start"] <= 12 for x in ill)
-    assert [o for o in s["overlays"] if o["kind"] == "label"]            # "Illustration" on screen
-    # the real picture and the title card stayed
+    assert all(x["audit"]["verdict"] == "approved" and x["audit"]["as"] == "symbolic" for x in ill)
+    assert [o for o in s["overlays"] if o["kind"] == "label"]             # "Illustration" on screen
     assert s["shots"][0]["asset_id"] == "REAL1" and any(x["kind"] == "title" for x in s["shots"])
     assert [x["index"] for x in s["shots"]] == list(range(len(s["shots"])))
+    assert set(auditor.calls) >= {x["asset_id"] for x in ill}
 
 
-def test_when_a_beat_has_no_illustration_left_more_are_made(db_session, monkeypatch):
-    s = script(shot("black", 0, 40, beat_id="B01"), shot("image", 40, 60, asset_id="REAL", beat_id="B01"),
-               duration=60)
+def test_a_rejected_picture_is_drawn_again_with_the_auditors_reasons(db_session, tmp_path, monkeypatch):
+    from app.documentary import storage
+
+    monkeypatch.setattr(storage, "ROOT", tmp_path)
+    s = script(shot("black", 0, 7, beat_id="B01"), shot("image", 7, 19, asset_id="REAL", beat_id="B01"),
+               duration=19)
     case, row = _row(db_session, s)
-    asked = []
+    pool = _illustrations(db_session, case, "B01", 2)
+    for a in pool:
+        a.title = "reject: the wrong street"
+    db_session.commit()
 
-    async def more(db, case_, bp_row, requirements, counts):
-        asked.append(dict(counts))
-        return _illustrations(db, case_, "B01", counts["B01"])
+    class OnceThenYes(FakeAuditor):
+        async def check(self, db, case, asset, sentences, story, firewall):
+            self.calls.append(asset.asset_code)
+            if "reject" in (asset.title or "") or len(self.calls) == 3:
+                return "rejected", None, ["shows a street, the words name a yard"]
+            return "approved", "symbolic", ["ok"]
 
-    monkeypatch.setattr(IL, "more_for_beats", more)
-    monkeypatch.setattr("app.documentary.production.script._asset_info",
-                        lambda a: {"asset_id": a.asset_code, "path": a.local_path, "type": a.asset_type,
-                                   "role": a.asset_role, "rights": a.rights_status, "credit": None})
-    asyncio.run(CF.repair(db_session, row, s))
-    assert asked and asked[0]["B01"] >= 5 and CF.gate(CF.measure(s)) == []
+    auditor = OnceThenYes()
+    briefs = _fakes(monkeypatch, auditor)
+    step = asyncio.run(CF.repair(db_session, row, s))
+    assert step["filled"] == 1 and step["missing_seconds"] == 0
+    assert briefs[0] and "shows a street" in " ".join(briefs[0])          # the reasons went into the brief
+    assert len(briefs) == 2 and briefs[1]                                 # the second drawing was approved
+    assert CF.gate(CF.measure(s)) == []
+
+
+def test_a_gap_nothing_approves_is_held_by_its_neighbour_never_black_and_its_seconds_are_reported(
+        db_session, tmp_path, monkeypatch):
+    from app.documentary import storage
+
+    monkeypatch.setattr(storage, "ROOT", tmp_path)
+    monkeypatch.setattr(ai_config.coverage, "slot_attempts", 2)
+    s = script(shot("image", 0, 12, asset_id="REAL", beat_id="B01"), shot("black", 12, 19, beat_id="B01"),
+               shot("image", 19, 31, asset_id="REAL2", beat_id="B01"), duration=31)
+    case, row = _row(db_session, s)
+
+    class Never(FakeAuditor):
+        async def check(self, db, case, asset, sentences, story, firewall):
+            return "rejected", None, ["no"]
+
+    _fakes(monkeypatch, Never())
+    step = asyncio.run(CF.repair(db_session, row, s))
+    assert step["filled"] == 0 and step["missing_seconds"] == 7 and step["held"] == 1
+    assert CF.measure(s)["black_seconds"] == 0
+    assert any("no approved picture" in str(h) for x in s["shots"] for h in x.get("held", []))
 
 
 def test_the_render_check_reads_the_black_seconds_of_the_file(tmp_path):

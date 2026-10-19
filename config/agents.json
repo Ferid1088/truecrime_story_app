@@ -224,6 +224,13 @@
       "description": "Setting and object briefs for illustrations that fill moments no real picture covers.",
       "used_by": "app/documentary/visuals/illustrations.py"
     },
+    "visuals.slot_brief": {
+      "role": "visual_planner",
+      "prompt": "documentary/visuals/illustrations/slot_brief_system",
+      "output": "json",
+      "description": "One illustration brief for the exact words spoken over a gap in the picture track.",
+      "used_by": "app/documentary/visuals/illustrations.py"
+    },
     "visuals.audit": {
       "role": "visual_auditor",
       "prompt": "documentary/visuals/auditor/auditor_system",
