@@ -77,3 +77,8 @@ data/ui_proof/
 
 # audio takes of the host/voice loop runs (large, regenerable)
 reports/host_loop/**/*_takes/
+
+# owner's private photo, FUSE leftovers, editor folder (not project files)
+data/en_sitting.png
+.fuse_hidden*
+.vscode/
