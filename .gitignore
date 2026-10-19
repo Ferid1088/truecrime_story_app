@@ -82,3 +82,7 @@ reports/host_loop/**/*_takes/
 data/en_sitting.png
 .fuse_hidden*
 .vscode/
+
+# owner-uploaded looks and outfit pictures (private photos)
+data/looks/
+data/outfit_uploads/
