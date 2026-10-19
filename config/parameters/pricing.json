@@ -97,15 +97,17 @@
     }
   },
   "heygen": {
-    "provider_model": "HeyGen Avatar III",
-    "usd_per_minute": 1.0,
-    "eur_per_minute": 0.8938,
+    "provider_model": "HeyGen avatar video from a photo look (API default engine)",
+    "usd_per_minute": 2.26,
+    "eur_per_minute": 2.02,
+    "usd_per_look_creation": 1.32,
+    "eur_per_look_creation": 1.18,
     "currency": "USD",
     "derived_currency": "EUR",
-    "source_url": "https://help.heygen.com/en/articles/10060327-heygen-api-pricing-explained",
-    "plan_or_tier": "HeyGen API pay-as-you-go, Avatar III, 720p/1080p, charged by generated seconds",
-    "last_verified": "2026-10-13",
-    "verification_status": "verified"
+    "source_url": "wallet balance before and after each call, 2026-10-19 (GET /v3/users/me)",
+    "plan_or_tier": "HeyGen API pay-as-you-go, photo look, 1080p mp4; measured: 35.04 s video = USD 1.32, 33.04 s = USD 1.25 (USD 0.0377 per second); creating one photo look = USD 1.32",
+    "last_verified": "2026-10-19",
+    "verification_status": "measured"
   },
   "assumptions": {
     "target_minutes": {

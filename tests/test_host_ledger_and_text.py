@@ -62,7 +62,9 @@ def test_the_booking_counts_in_the_cases_spend(db_session, tmp_path, monkeypatch
     before = client.get(f"/api/cases/{scene.case_id}/costs").json()["spent_eur"]
     HC.book_video(db_session, scene)
     after = client.get(f"/api/cases/{scene.case_id}/costs").json()["spent_eur"]
-    assert after - before == pytest.approx(0.8938, abs=0.001)
+    from app.services.cost_model import load_pricing
+
+    assert after - before == pytest.approx(float(load_pricing()["heygen"]["eur_per_minute"]), abs=0.001)
 
 
 def test_the_avatar_step_books_its_video(db_session, tmp_path, monkeypatch):
