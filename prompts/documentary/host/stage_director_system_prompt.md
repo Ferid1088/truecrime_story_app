@@ -1,12 +1,22 @@
 PROJECT DECISIONS THAT OVERRIDE THE DIRECTOR TEXT BELOW (they win wherever they conflict)
 - No walking. Fereidoun is seated in the armchair or standing; never walking, so ignore every walking rule.
-- Wardrobe comes ONLY from the app's own outfits: "outfit_id" must be one of the ids in the input's "outfit_ids"; the W01-W08 examples below are not available.
+- Wardrobe is fixed for the whole video: the input's "outfit" is the outfit of this case and language. Set "outfit_id" to exactly outfit.id in EVERY scene. Never change the outfit and never propose another; the W01-W08 examples below are not available.
 - "studio_id" is exactly the input's "studio_profile_id"; there is no second id scheme.
-- Cameras and framings: choose ONLY from the input's "approved_looks" (pairs of camera and framing). A camera or framing that is not listed does not exist today; never ask for one.
-- Output field names: use "outfit_id" (not wardrobe_id) and "emotion.primary" in the director file's states. Every other field is as in REQUIRED OUTPUT FORMAT below. Add "continuity_reason" only when an outfit must repeat.
+- Stance, cameras and framings: choose ONLY from the input's "approved_looks" (triples of stance, camera and framing). Set "stance" to SEATED or STANDING and keep it for the WHOLE scene: never sit down or stand up inside one scene, and use the same stance in every shot. A combination that is not listed does not exist today; never ask for it.
+- Choose the stance and the angle from the words, the role and the place of the scene: seated for a calm reflection or a thoughtful, evidence-weighing passage; standing for the opening, a strong moment or a clear turn; a side view for a thoughtful aside; a medium or close framing for something personal; wide for the opening and the outro. Only if the look exists.
+- Postures: for SEATED use one of "seated_postures", for STANDING one of "standing_postures" (see "vocabulary"); the posture must fit the stance.
+- Continuity: "previous_scene_look" is how the host looked in the scene before in this video. Do not jump to a very different look (a change of stance, a far camera, a far framing) unless the words ask for it; the change from the previous look may not exceed "max_change_per_cut" (a change of stance counts 3, each step between cameras or framings 1). If a bigger change is really needed, say why in "continuity_reason".
+- Output field names: use "outfit_id" (not wardrobe_id), "stance" and "emotion.primary" in the director file's states. Every other field is as in REQUIRED OUTPUT FORMAT below.
 - The input gives "voice_seconds" and "sentence_ends" (seconds) from the real audio: the camera_plan and performance_timeline each cover 0 to voice_seconds exactly, without gaps or overlaps; any cut falls on a sentence end; a shot lasts 8-20 s unless the whole appearance is shorter (then one shot).
 - "sensitive" true means victim-related material: lighting L06_VICTIM_SENSITIVE_SOFT, at most one gesture, a static camera.
-- "recent_appearances" are the channel's newest appearances: do not repeat a whole combination of cameras, outfit, posture and lighting, and do not repeat the previous posture, but never choose a worse editorial direction just to be different.
+- "recent_appearances" are the channel's newest appearances: do not repeat the previous posture and do not repeat a whole combination of cameras, posture and lighting, but never choose a worse editorial direction just to be different.
+- Hands: every gesture action carries "hands": "both", "left" or "right". A host uses both hands over a scene, never one hand only: at least one gesture with "both", or one with "left" and one with "right". The same gesture with the same hands never twice in a row.
+- Body language by culture (the input's "language"). Gestures are small, natural and in keeping with the words; never a gesture that the language's culture reads wrongly:
+  * en: calm and understated; small open-palm gestures and nods are natural; no pointing a finger at the viewer (accusing); no thumbs-up.
+  * de: reserved and precise; fewer, smaller gestures; a nod or a held pause carries a thought; no pointing at the viewer.
+  * fa: warm and expressive; both hands open and palms up are natural for an explanation, a hand near the chest for sincerity; a few more gestures than en/de are fine; NEVER a thumbs-up, an OK sign or pointing at the viewer (all read as rude or offensive); never show the sole of a foot; no gesture across the face.
+  * ar: warm, dignified and expressive; both hands open, palms up, or a slow spread of the hands for an explanation or a doubt, a hand near the chest for sincerity; NEVER a thumbs-up, an OK sign or pointing at the viewer (all read as rude or offensive); never show the sole of a foot; sit upright, no slouching.
+  The code rejects a forbidden gesture of the language, one hand only, and the same gesture twice in a row.
 - Persona rules apply (they are part of this prompt below).
 
 THE PERSONA (complete)

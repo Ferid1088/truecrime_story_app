@@ -33,11 +33,11 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.core.env import env_value
 from app.db.models import HostScene, HostSegments, StoryVersion
-from app.documentary import storage
 from app.documentary import stage_direction as SD
+from app.documentary import storage
 from app.documentary import studio as ST
+from app.documentary.text_order import logical_order_issues
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -130,6 +130,9 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
         text = (seg.get("avatar_dialogue") or "").strip()
         if not sid or not text:
             continue
+        if language in ("fa", "ar") and (problems := logical_order_issues(text)):
+            raise ST.StudioError(f"the {language} text of {sid} is not stored in logical order "
+                                 f"as plain Unicode: {', '.join(problems)}")
         if (seg.get("quality") or {}).get("pass") is False:
             continue  # not approved by the host critic: no scene (left out)
         if sid in existing:
@@ -286,6 +289,56 @@ async def _step_voice(db: Session, scene: HostScene, renderer=None, editor=None)
     return None
 
 
+def _choose_default_look(db: Session, scene: HostScene, outfit) -> None:
+    """A scene without a stage direction gets the plain look of its place in the film: seated,
+    from the front, with the framing of the position (a crop of a wide picture counts)."""
+    from app.documentary import look_selection as LS
+
+    preset = ai_config.studio.framing_by_position.get(scene.position or "", "HOST_MEDIUM")
+    framing = {"HOST_WIDE": "WIDE", "HOST_MEDIUM": "MEDIUM", "HOST_CLOSE": "MEDIUM_CLOSE"}.get(
+        preset, "MEDIUM")
+    picked = LS.choose(db, outfit, LS.Wanted("SEATED", "CAM01_FRONT", framing),
+                       _previous_look(db, scene))
+    scene.host_outfit_id, scene.look_id = outfit.id, picked["look"].id
+    scene.look_choice_json = json.dumps(picked["choice"], ensure_ascii=False)
+    _log(scene, "look", "chosen", picked["choice"])
+
+
+def _previous_look(db: Session, scene: HostScene):
+    from app.db.models import HostLook
+
+    before = (db.query(HostScene)
+              .filter(HostScene.case_id == scene.case_id, HostScene.language == scene.language,
+                      HostScene.story_version_id == scene.story_version_id,
+                      HostScene.look_id.isnot(None), HostScene.id < scene.id)
+              .order_by(HostScene.id.desc()).first())
+    return db.get(HostLook, before.look_id) if before is not None else None
+
+
+def look_for_avatar(db: Session, scene: HostScene):
+    """The look this scene's video is made with, checked before anything goes to HeyGen: the
+    selected outfit of this video, one of its approved looks (in this language's studio), already
+    uploaded to HeyGen. Otherwise it stops and says what to do."""
+    from app.db.models import HostLook
+    from app.documentary import outfits as OF
+
+    outfit = OF.selected_outfit(db, scene.case_id, scene.language)
+    if outfit is None:
+        raise ST.StudioError(
+            f"no outfit is selected for case {scene.case_id} in {scene.language}: create or select "
+            "one in the Host tab and approve its looks")
+    look = db.get(HostLook, scene.look_id) if scene.look_id else None
+    if look is None or look.host_outfit_id != outfit.id or look.status != "approved":
+        _choose_default_look(db, scene, outfit)          # raises NoApprovedLook with what to approve
+        look = db.get(HostLook, scene.look_id)
+    if not look.heygen_look_id:
+        raise ST.StudioError(
+            f"look #{look.id} ({look.stance} {look.camera} {look.framing}) is approved but not "
+            "uploaded to HeyGen yet: upload it first")
+    scene.avatar_id = look.heygen_look_id
+    return look
+
+
 async def _step_avatar_upload(db: Session, scene: HostScene, prov) -> dict | None:
     if scene.provider_asset_id and scene.provider_asset_voice_sha == scene.voice_sha256:
         return {"skipped": "audio already uploaded"}
@@ -319,13 +372,15 @@ def direction_controls(scene: HostScene) -> tuple[str | None, str | None]:
 
     cfg = ai_config.stage_direction
     d = json.loads(scene.direction_json)
-    gestures = [cfg.gesture_phrases[a["action"]] for a in d.get("performance_timeline") or []
-                if a.get("action") in cfg.gesture_phrases and a["action"] != "G01_NONE"]
+    gestures = [cfg.gesture_phrases[a["action"]].format(
+        hands=cfg.hands_phrases.get(a.get("hands") or "both", cfg.hands_phrases["both"]))
+        for a in d.get("performance_timeline") or []
+        if a.get("action") in cfg.gesture_phrases and a["action"] != "G01_NONE"]
     text = prompt("documentary/host/motion_prompt").format(
         posture=cfg.posture_phrases.get(d.get("posture"), "sits naturally"),
         eye_contact=str(d.get("eye_contact") or "DIRECT").lower().replace("_", " "),
         gestures=("Over the speech he " + ", then ".join(gestures)) if gestures
-        else cfg.gesture_phrases["G01_NONE"].capitalize())
+        else cfg.gesture_phrases["G01_NONE"].format(hands="").capitalize())
     intensity = float((d.get("emotion") or {}).get("intensity") or 0.0)
     low, high = cfg.expressiveness_thresholds
     return text, "low" if intensity < low else ("medium" if intensity < high else "high")
@@ -344,6 +399,7 @@ async def _step_avatar_request(db: Session, scene: HostScene, prov, look_id: str
         resolution=ai_config.avatar.resolution,
         background_asset_id=meta.get("background_asset_id") if composited else None,
         title=f"{scene.channel} case {scene.case_id} {scene.host_segment_id}",
+        **({"fit": ai_config.avatar.fit} if composited else {}),
         **({"motion_prompt": motion_prompt, "expressiveness": expressiveness}
            if motion_prompt else {}))
     scene.avatar_id = look_id
@@ -471,6 +527,9 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         step = "avatar_upload"
         if not ai_config.avatar.enabled and avatar_provider is None:
             raise ST.StudioError("avatar generation is disabled (config avatar.enabled)")
+        if ORDER.index(scene.status) < ORDER.index("avatar_ready"):
+            look_for_avatar(db, scene)  # stop here, before anything is paid, when no look is ready
+            db.commit()
         from app.providers.avatar import get_avatar_provider
 
         cp = ST.channel_profile(scene.language)
@@ -480,12 +539,6 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         _done(scene, "avatar_upload", db, r, {"asset_id": scene.provider_asset_id})
         step = "avatar_request"
         look = scene.avatar_id
-        if not look:
-            avatar_env = cp["heygen_avatar_env"]
-            configured = env_value(avatar_env) or ""
-            if not configured:
-                raise ST.StudioError(f"{avatar_env} is not set (.env)")
-            look = await prov.resolve_look(configured)
         r = await _step_avatar_request(db, scene, prov, look)
         _done(scene, "avatar_request", db, r, {"job_id": scene.provider_job_id,
                                                "generation": scene.provider_generation})
@@ -493,6 +546,9 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         r = await _step_avatar_download(db, scene, prov, sleep)
         _done(scene, "avatar_download", db, r,
               {"sha256": (scene.avatar_video_sha256 or "")[:16]})
+        from app.documentary.heygen_cost import book_video
+
+        book_video(db, scene)       # the video's estimated cost, once, in the ledger
         return scene
     except Exception as e:  # recorded, then raised to the caller
         _fail(scene, step, e, db)
@@ -519,6 +575,8 @@ def scene_dict(s: HostScene) -> dict:
         "framing_preset": s.framing_preset, "host_position": _loads(s.host_position_json, {}),
         "host_scale": s.host_scale, "background_mode": s.background_mode,
         "planned_start": s.planned_start, "planned_duration": s.planned_duration,
+        "host_outfit_id": s.host_outfit_id, "look_id": s.look_id,
+        "look_choice": _loads(s.look_choice_json, {}),
         "voice_id": s.voice_id, "voice_ready": bool(s.voice_path),
         "voice_checks": {k: v for k, v in _loads(s.voice_checks_json, {}).items() if k != "key"},
         "voice_flags": _loads(s.voice_checks_json, {}).get("flags", []),

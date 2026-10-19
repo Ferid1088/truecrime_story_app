@@ -122,7 +122,7 @@ class HeyGenAvatarProvider(AvatarProvider):
                            output_format: str, resolution: str,
                            background_asset_id: str | None = None,
                            title: str | None = None, motion_prompt: str | None = None,
-                           expressiveness: str | None = None) -> AvatarJob:
+                           expressiveness: str | None = None, fit: str | None = None) -> AvatarJob:
         body: dict = {"type": "avatar", "avatar_id": look_id, "audio_asset_id": audio_asset_id,
                       "output_format": output_format, "resolution": resolution,
                       "aspect_ratio": "16:9"}
@@ -140,6 +140,8 @@ class HeyGenAvatarProvider(AvatarProvider):
                 raise AvatarProviderError("invalid_request",
                                           "webm (transparent) cannot take a background")
             body["background"] = {"type": "image", "asset_id": background_asset_id}
+            if fit:       # create-video "fit": how the picture fills the frame (cover | contain)
+                body["fit"] = fit
         d = await self._call("POST", "/v3/videos", json=body,
                              headers={"Idempotency-Key": idempotency_key})
         data = d.get("data") or {}

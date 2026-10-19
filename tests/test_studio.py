@@ -307,9 +307,28 @@ class FakeVoice:
                                  model_id=req.model_id, voice_id=req.voice_id, request_id="req-1")
 
 
+def _with_look(db, scene, heygen_look_id="look-1", status="approved"):
+    """The scene's video has a selected outfit with one approved look, uploaded to HeyGen."""
+    from app.db.models import HostLook, HostOutfit
+
+    outfit = HostOutfit(case_id=scene.case_id, language=scene.language, name="Navy knit",
+                        outfit_ref="navy_knit", status="selected")
+    db.add(outfit)
+    db.flush()
+    profile = ST.channel_profile(scene.language)["studio_profile_id"]
+    look = HostLook(studio_profile_id=profile, language=scene.language, camera="CAM01_FRONT",
+                    framing="MEDIUM", outfit_id="navy_knit", host_outfit_id=outfit.id,
+                    stance="SEATED", pose="P01_NEUTRAL_SEATED", status=status,
+                    heygen_look_id=heygen_look_id)
+    db.add(look)
+    db.commit()
+    return outfit, look
+
+
 class FakeAvatar:
     def __init__(self, fail_request=0, job_states=None):
         self.uploads, self.requests, self.keys, self.polls = 0, 0, [], 0
+        self.prefix = __import__("uuid").uuid4().hex[:8]       # job ids are unique, as HeyGen's are
         self.fail_request = fail_request
         self.job_states = list(job_states or ["processing", "completed"])
 
@@ -321,7 +340,8 @@ class FakeAvatar:
         return f"asset-{self.uploads}"
 
     async def create_video(self, look_id, audio_asset_id, idempotency_key, output_format,
-                           resolution, background_asset_id=None, title=None):
+                           resolution, background_asset_id=None, title=None, **extra):
+        self.extra = extra
         from app.providers.avatar.base import AvatarJob, AvatarProviderError
 
         self.requests += 1
@@ -329,7 +349,7 @@ class FakeAvatar:
         if self.fail_request:
             self.fail_request -= 1
             raise AvatarProviderError("unreachable", "network down")
-        return AvatarJob(job_id=f"job-{self.requests}", status="waiting")
+        return AvatarJob(job_id=f"job-{self.prefix}-{self.requests}", status="waiting")
 
     async def get_video(self, job_id):
         from app.providers.avatar.base import AvatarJob
@@ -373,6 +393,7 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     monkeypatch.setenv("TrueCrime_Avatar_ID_Heygen", "group-1")
     scene = plan_host_scenes(db_session, _segments(db_session, "de"))[0]
+    _with_look(db_session, scene)
     voice = FakeVoice()
     asyncio.run(run_scene(db_session, scene, "voice", renderer=_renderer(voice)))
     assert scene.status == "voice_ready" and voice.calls == 1
@@ -386,12 +407,12 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
         asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice),
                               avatar_provider=av, sleep=_nosleep))
     assert scene.status == "avatar_uploaded" and scene.failed_step == "avatar_request"
-    assert voice.calls == 1 and av.uploads == 1
+    assert voice.calls == 1 and av.uploads == 2    # the audio and the studio picture (one pass)
     # retry: voice and upload are reused, the request carries the same key
     asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice), avatar_provider=av,
                           sleep=_nosleep))
     assert scene.status == "avatar_ready" and scene.failed_step is None
-    assert voice.calls == 1 and av.uploads == 1 and av.requests == 2
+    assert voice.calls == 1 and av.uploads == 2 and av.requests == 2
     assert av.keys[0] == av.keys[1]                      # idempotent retry
     assert storage.resolve(scene.avatar_video_path).exists() and scene.avatar_id == "look-1"
     hist = json.loads(scene.history_json)
@@ -400,7 +421,9 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
     # done is done: nothing is paid again
     asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(voice), avatar_provider=av,
                           sleep=_nosleep))
-    assert (voice.calls, av.uploads, av.requests) == (1, 1, 2)
+    assert (voice.calls, av.uploads, av.requests) == (1, 2, 2)
+    # HeyGen renders the studio background in the same pass; it has no avatar scale or position
+    assert scene.background_mode == "provider_composited" and av.extra == {"fit": "contain"}
 
 
 def test_a_failed_provider_job_is_requested_anew_a_slow_one_is_not(db_session, tmp_path,
@@ -411,6 +434,7 @@ def test_a_failed_provider_job_is_requested_anew_a_slow_one_is_not(db_session, t
     monkeypatch.setattr(ai_config.avatar, "max_poll_minutes", 0)   # stop waiting at once
     monkeypatch.setenv("TrueCrime_Avatar_ID_Heygen", "group-1")
     scene = plan_host_scenes(db_session, _segments(db_session, "en"))[0]
+    _with_look(db_session, scene)
     voice = FakeVoice()
     av = FakeAvatar(job_states=["processing", "failed", "completed"])
     # slow: the wait ends, the job is kept
@@ -433,6 +457,7 @@ def test_avatar_stays_off_unless_enabled(db_session, tmp_path, monkeypatch, clie
     from app.documentary.host_scenes import plan_host_scenes, run_scene
 
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(ai_config.avatar, "enabled", False)     # whatever the config says now
     scene = plan_host_scenes(db_session, _segments(db_session, "fa"))[0]
     with pytest.raises(ST.StudioError, match="disabled"):
         asyncio.run(run_scene(db_session, scene, "avatar", renderer=_renderer(FakeVoice())))

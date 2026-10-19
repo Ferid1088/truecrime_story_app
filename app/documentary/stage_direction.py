@@ -16,11 +16,16 @@ CAMERAS = ("CAM01_FRONT", "CAM02_LEFT_45", "CAM03_RIGHT_45", "CAM04_LEFT_SIDE",
            "CAM05_RIGHT_SIDE", "CAM06_WIDE")
 FRAMINGS = ("WIDE", "MEDIUM", "MEDIUM_CLOSE", "CLOSE")
 MOVEMENTS = ("STATIC", "SUBTLE_PUSH_IN", "SUBTLE_PULL_BACK")
-POSTURES = ("P01_NEUTRAL_SEATED", "P02_SLIGHT_FORWARD", "P03_RELAXED_BACK",
-            "P04_ARMREST_RELAXED", "P05_HANDS_LOOSELY_JOINED")
+STANCES = ("SEATED", "STANDING")
+SEATED_POSTURES = ("P01_NEUTRAL_SEATED", "P02_SLIGHT_FORWARD", "P03_RELAXED_BACK",
+                   "P04_ARMREST_RELAXED", "P05_HANDS_LOOSELY_JOINED")
+STANDING_POSTURES = ("P06_STANDING_FRONT", "P07_STANDING_WEIGHT_SHIFT")
+POSTURES = SEATED_POSTURES + STANDING_POSTURES
+HANDS = ("both", "left", "right")
 GESTURES = ("G01_NONE", "G02_SMALL_OPEN_PALM", "G03_SUBTLE_TWO_HAND_EXPLANATION",
             "G04_SMALL_HEAD_TILT", "G05_THOUGHTFUL_PAUSE", "G06_SLIGHT_NOD",
-            "G07_SHORT_LOOK_AWAY_RETURN")
+            "G07_SHORT_LOOK_AWAY_RETURN", "G08_HANDS_SPREAD_APART", "G09_POINT_AT_VIEWER",
+            "G10_THUMBS_UP", "G11_OK_SIGN")
 EMOTIONS = ("NEUTRAL", "CURIOUS", "ANALYTICAL", "CONCERNED", "SKEPTICAL", "REFLECTIVE",
             "AFFECTED", "CAUTIOUS", "SURPRISED", "SHOCKED", "TERRIFIED", "OUTRAGED")
 LIGHTING = ("L01_BRAND_DEFAULT", "L02_WARM_PERSONAL", "L03_ANALYTICAL_NEUTRAL",
@@ -47,6 +52,8 @@ class Action(BaseModel):
     start_sec: float
     end_sec: float
     action: str
+    # which hands a gesture uses (the head and the gaze have none to speak of)
+    hands: str = "both"
 
 
 class Lighting(BaseModel):
@@ -62,6 +69,8 @@ class StageDirection(BaseModel):
     emotion: Emotion
     camera_plan: list[Shot] = Field(min_length=1)
     outfit_id: str
+    # sitting or standing: one stance for the whole scene (no change inside a scene)
+    stance: str = "SEATED"
     posture: str
     eye_contact: str
     performance_timeline: list[Action] = Field(min_length=1)
@@ -84,19 +93,23 @@ def _covers(items: list, total: float, name: str, errors: list[dict]) -> None:
 
 
 def validate_direction(direction: StageDirection, *, voice_seconds: float,
-                       sentence_ends: list[float], approved_looks: set[tuple[str, str]],
+                       sentence_ends: list[float], approved_looks: set[tuple[str, str, str]],
                        recent: list[dict], sensitive: bool, memory_refs: set[str],
-                       outfit_ids: set[str]) -> list[dict]:
-    """approved_looks: {(camera, framing)}; recent: newest-first appearances of
-    the same channel ({outfit_id, posture}); returns the errors."""
+                       outfit_id: str, language: str = "en") -> list[dict]:
+    """approved_looks: {(stance, camera, framing)} of the video's outfit; outfit_id: the outfit
+    of this video (the same in every scene); recent: newest-first appearances of the same channel
+    ({posture, ...}); returns the errors."""
     cfg = ai_config.stage_direction
     errors: list[dict] = []
     plan = sorted(direction.camera_plan, key=lambda s: s.start_sec)
+    if direction.stance not in STANCES:
+        errors.append({"code": "unknown_stance", "stance": direction.stance})
     for s in plan:
         if s.camera not in CAMERAS:
             errors.append({"code": "unknown_camera", "camera": s.camera})
-        elif (s.camera, s.framing) not in approved_looks:
-            errors.append({"code": "look_not_approved", "camera": s.camera, "framing": s.framing})
+        elif (direction.stance, s.camera, s.framing) not in approved_looks:
+            errors.append({"code": "look_not_approved", "stance": direction.stance,
+                           "camera": s.camera, "framing": s.framing})
         if s.framing not in FRAMINGS or s.movement not in MOVEMENTS:
             errors.append({"code": "unknown_framing_or_movement", "framing": s.framing,
                            "movement": s.movement})
@@ -118,15 +131,17 @@ def validate_direction(direction: StageDirection, *, voice_seconds: float,
     if (direction.emotion.primary.upper() in cfg.forbidden_emotions
             and not (direction.emotion.justification or "").strip()):
         errors.append({"code": "forbidden_emotion", "emotion": direction.emotion.primary})
-    if direction.outfit_id not in outfit_ids:
-        errors.append({"code": "unknown_outfit", "outfit": direction.outfit_id})
-    window = [r["outfit_id"] for r in recent[:cfg.recent_outfit_window]]
-    if direction.outfit_id in window and not (direction.continuity_reason or "").strip():
-        errors.append({"code": "outfit_repeated", "outfit": direction.outfit_id})
+    if direction.outfit_id != outfit_id:
+        errors.append({"code": "wrong_outfit", "outfit": direction.outfit_id, "expected": outfit_id})
     if recent and recent[0].get("posture") == direction.posture:
         errors.append({"code": "posture_same_as_previous", "posture": direction.posture})
     if direction.posture not in POSTURES or direction.lighting.variation not in LIGHTING:
         errors.append({"code": "unknown_posture_or_lighting"})
+    elif direction.posture in STANDING_POSTURES and direction.stance != "STANDING" or \
+            direction.posture in SEATED_POSTURES and direction.stance != "SEATED":
+        errors.append({"code": "posture_does_not_fit_the_stance", "posture": direction.posture,
+                       "stance": direction.stance})
+    errors += gesture_errors(direction, language)
     if direction.memory_reference and direction.memory_reference not in memory_refs:
         errors.append({"code": "unknown_memory_reference", "ref": direction.memory_reference})
     if sensitive:
@@ -138,6 +153,30 @@ def validate_direction(direction: StageDirection, *, voice_seconds: float,
             errors.append({"code": "sensitive_too_many_gestures", "count": len(gestures)})
         if any(s.movement != "STATIC" for s in plan):
             errors.append({"code": "sensitive_needs_static_camera"})
+    return errors
+
+
+def gesture_errors(direction: StageDirection, language: str) -> list[dict]:
+    """Body language: both hands over the scene (never one hand only), no gesture twice in a row,
+    no gesture the language's culture reads wrongly."""
+    cfg = ai_config.stage_direction
+    errors: list[dict] = []
+    actions = sorted(direction.performance_timeline, key=lambda a: a.start_sec)
+    gestures = [a for a in actions if a.action in GESTURES and a.action != "G01_NONE"]
+    for a in gestures:
+        if a.hands not in HANDS:
+            errors.append({"code": "unknown_hands", "hands": a.hands})
+        if a.action in cfg.forbidden_gestures.get(language, []):
+            errors.append({"code": "gesture_forbidden_in_language", "gesture": a.action,
+                           "language": language})
+    used = {a.hands for a in gestures}
+    if gestures and not ("both" in used or {"left", "right"} <= used):
+        errors.append({"code": "one_hand_only", "hands": sorted(used)})
+    for before, after in zip(actions, actions[1:]):
+        if before.action == after.action and before.action in GESTURES \
+                and before.action != "G01_NONE" and before.hands == after.hands:
+            errors.append({"code": "gesture_repeated_back_to_back", "gesture": after.action,
+                           "at": after.start_sec})
     return errors
 
 
@@ -156,6 +195,7 @@ EXECUTION = {
     "framing": ("EXECUTED_IN_OUR_RENDERER", False),
     "movement": ("EXECUTED_IN_OUR_RENDERER", False),
     "outfit_id": ("EXECUTED_BY_LOOK_CHOICE", True),
+    "stance": ("EXECUTED_BY_LOOK_CHOICE", True),
     "posture": ("EXECUTED_BY_PROVIDER", True),
     "gestures": ("EXECUTED_BY_PROVIDER", True),
     "eye_contact": ("EXECUTED_BY_PROVIDER", True),
@@ -176,7 +216,8 @@ def execution_view(direction: dict | None) -> list[dict]:
         "camera": ", ".join(dict.fromkeys(s["camera"] for s in shots)),
         "framing": ", ".join(dict.fromkeys(s["framing"] for s in shots)),
         "movement": ", ".join(dict.fromkeys(s["movement"] for s in shots)),
-        "outfit_id": direction.get("outfit_id"), "posture": direction.get("posture"),
+        "outfit_id": direction.get("outfit_id"), "stance": direction.get("stance"),
+        "posture": direction.get("posture"),
         "gestures": ", ".join(a["action"] for a in direction.get("performance_timeline") or []
                               if a.get("action") in GESTURES and a["action"] != "G01_NONE") or "none",
         "eye_contact": direction.get("eye_contact"),

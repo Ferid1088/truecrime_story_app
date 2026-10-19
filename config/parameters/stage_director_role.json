@@ -11,7 +11,7 @@
   "generation_providers": {
     "apimaster": {
       "routing": {
-        "host_stage_director": "premium"
+        "host_stage_director": "sol"
       }
     }
   },
