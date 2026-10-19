@@ -264,12 +264,12 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
         ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
-        "film_length", "visual_needs", "visual_research", "visual_review", "visual_check", "visual_plan",
+        "film_length", "visual_needs", "visual_research", "visual_review", "visual_check", "visual_illustrations", "visual_plan",
         "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
             f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
-            f"visual_audit:{l}", f"render:{l}"]
+            f"visual_audit:{l}", f"visual_coverage:{l}", f"render:{l}"]
     # Shorts are real post-film stages.  They remain pending while the film
     # runs and are claimed only after the documentary job is finished.
     names += ["short_selection"]
@@ -573,6 +573,16 @@ class DocumentaryPipeline(StageRunner):
                     return out
 
                 await self._stage("visual_check", visual_check)
+
+                async def visual_illustrations():
+                    from app.documentary.visuals import illustrations as IL
+
+                    if planned:
+                        return {"skipped": True,
+                                "reason": "visual plan exists (refresh_visuals to redo)"}
+                    return await IL.ensure_pool(db, case, bp_row, requirements)
+
+                await self._stage("visual_illustrations", visual_illustrations)
 
                 async def visual_plan():
                     from app.documentary.visuals.generated import materialize

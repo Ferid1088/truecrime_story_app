@@ -137,5 +137,25 @@
     "min_confidence": 0.75,
     "max_per_run": 120,
     "approver_label": "auto-review"
+  },
+  "illustrations": {
+    "enabled": true,
+    "image_model": "gpt-image-2",
+    "size": "1536x1024",
+    "quality": "medium",
+    "timeout_s": 240.0,
+    "concurrency": 3,
+    "style": "dark charcoal and ink engraving in the style of a 19th-century newspaper print, fine hatching, muted sepia and grey tones, wide 16:9 composition",
+    "forbidden": "no people's faces (figures only as small distant silhouettes or from behind), no readable text or letters, no logos, no violence, no blood, no bodies, no modern objects",
+    "seconds_per_picture": 7.0,
+    "max_per_film": 70,
+    "max_share": 0.85
+  },
+  "coverage": {
+    "max_card_stretch_seconds": 6.0,
+    "max_card_share": 0.12,
+    "max_black_seconds": 0.0,
+    "max_still_seconds": 12.0,
+    "max_repair_rounds": 3
   }
 }

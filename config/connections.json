@@ -58,6 +58,7 @@
     "request_timeout_s": 120.0,
     "poll_interval_s": 10.0,
     "max_poll_minutes": 20.0,
-    "fit": "contain"
+    "fit": "contain",
+    "engine": null
   }
 }

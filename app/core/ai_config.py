@@ -1635,6 +1635,9 @@ class AvatarConfig(BaseModel):
     # (create-video "fit": cover | contain). HeyGen has no avatar scale or position parameter:
     # the framing comes from the look's picture.
     fit: str = Field(default="contain", pattern="^(cover|contain)$")
+    # HeyGen's rendering engine (create-video "engine.type"); None = the API default (avatar_iv).
+    # avatar_iii takes no motion_prompt and no expressiveness (the API rejects them).
+    engine: str | None = Field(default=None, pattern="^(avatar_iii|avatar_iv)$")
     request_timeout_s: float = Field(default=120.0, gt=0)
     poll_interval_s: float = Field(default=10.0, gt=0)
     max_poll_minutes: float = Field(default=20.0, gt=0)
@@ -2116,6 +2119,36 @@ class EditorialReviewConfig(BaseModel):
     # Recorded as "approved by" next to the model's name.
     approver_label: str = "auto-review"
     thumbnail_px: int = Field(default=768, ge=128)
+
+
+class IllustrationsConfig(BaseModel):
+    """Generated illustrations (clearly drawn, labelled "Illustration", never a photograph) that
+    fill the moments no real picture covers, so no film shows long stretches of cards or black."""
+
+    enabled: bool = True
+    image_model: str = "gpt-image-2"
+    size: str = "1536x1024"
+    quality: str = "medium"
+    timeout_s: float = Field(default=240.0, gt=0)
+    concurrency: int = Field(default=3, ge=1, le=8)
+    style: str
+    forbidden: str
+    # One picture per this many seconds of a beat is prepared (the director takes what it needs).
+    seconds_per_picture: float = Field(default=7.0, gt=0)
+    max_per_film: int = Field(default=70, ge=0, le=300)
+    # Illustrations never carry more than this share of a film's picture time.
+    max_share: float = Field(default=0.85, gt=0, le=1.0)
+
+
+class CoverageConfig(BaseModel):
+    """What the film's picture track must satisfy (checked before and after the render)."""
+
+    max_card_stretch_seconds: float = Field(default=6.0, gt=0)
+    max_card_share: float = Field(default=0.12, ge=0, le=1.0)
+    max_black_seconds: float = Field(default=0.0, ge=0)
+    # One still (a photo, a map) is never shown longer than this; a longer stretch gets other pictures.
+    max_still_seconds: float = Field(default=12.0, gt=0)
+    max_repair_rounds: int = Field(default=3, ge=1, le=10)
 
 
 class RightsConfig(BaseModel):
@@ -2925,6 +2958,8 @@ class AIConfig(BaseModel):
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
     editorial_review: EditorialReviewConfig = Field(default_factory=EditorialReviewConfig)
+    illustrations: IllustrationsConfig
+    coverage: CoverageConfig = Field(default_factory=CoverageConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)

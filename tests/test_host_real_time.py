@@ -261,6 +261,11 @@ def test_heygen_create_video_sends_motion_prompt_and_expressiveness_only_when_gi
                                   motion_prompt="calm", expressiveness="low"))
     assert "motion_prompt" not in bodies[0] and "expressiveness" not in bodies[0]
     assert (bodies[1]["motion_prompt"], bodies[1]["expressiveness"]) == ("calm", "low")
+    # Avatar III names its engine and takes neither motion prompt nor expressiveness
+    asyncio.run(prov.create_video("look", "audio", "key", "mp4", "1080p", motion_prompt="calm",
+                                  expressiveness="low", engine="avatar_iii"))
+    assert bodies[2]["engine"] == {"type": "avatar_iii"}
+    assert "motion_prompt" not in bodies[2] and "expressiveness" not in bodies[2]
 
 
 def test_a_word_the_voice_still_says_wrong_makes_the_writer_use_other_words(monkeypatch):

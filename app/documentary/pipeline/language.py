@@ -191,6 +191,16 @@ class LanguageChain:
 
         await pipe._stage(f"visual_audit:{lang}", visual_audit)
 
+        async def visual_coverage():
+            # the film's picture track must pass visuals.coverage (no black, few short cards, no
+            # endless still): the plan is repaired with illustrations, never the rule
+            from app.documentary.visuals.coverage_fill import ensure_coverage
+
+            db.refresh(ps)
+            return {"production_script_id": ps.id, **await ensure_coverage(db, ps)}
+
+        await pipe._stage(f"visual_coverage:{lang}", visual_coverage)
+
         async def render():
             from app.documentary.render.engine import VideoRenderer
 
@@ -224,6 +234,14 @@ class LanguageChain:
                                warning.get("language", lang), warning.get("code", "STAGE_WARNING"))
             renders[lang] = {"production_script_id": ps.id, "video_id": video.id,
                              "youtube_title": video.youtube_title, **info}
-            return {**info, "video_id": video.id, "youtube_title": video.youtube_title}
+            from app.documentary.visuals.coverage_fill import render_check
+
+            check = await asyncio.to_thread(render_check, out, json.loads(ps.script_json))
+            ps.render_json = json.dumps({**json.loads(ps.render_json or "{}"), "coverage_check": check})
+            db.commit()
+            return {**info, "video_id": video.id, "youtube_title": video.youtube_title,
+                    "coverage_check": check,
+                    **({"degraded": "the rendered film breaks the picture rules: "
+                                    + "; ".join(check["problems"])} if check["problems"] else {})}
 
         await pipe._stage(f"render:{lang}", render)

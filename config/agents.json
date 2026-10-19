@@ -217,6 +217,13 @@
       "description": "May this editorial-review picture be used at all (person, place, period, identity, caption)?",
       "used_by": "app/agents/visual_editorial_review.py"
     },
+    "visuals.illustration_briefs": {
+      "role": "visual_planner",
+      "prompt": "documentary/visuals/illustrations/briefs_system",
+      "output": "json",
+      "description": "Setting and object briefs for illustrations that fill moments no real picture covers.",
+      "used_by": "app/documentary/visuals/illustrations.py"
+    },
     "visuals.audit": {
       "role": "visual_auditor",
       "prompt": "documentary/visuals/auditor/auditor_system",

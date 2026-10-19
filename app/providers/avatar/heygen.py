@@ -122,7 +122,8 @@ class HeyGenAvatarProvider(AvatarProvider):
                            output_format: str, resolution: str,
                            background_asset_id: str | None = None,
                            title: str | None = None, motion_prompt: str | None = None,
-                           expressiveness: str | None = None, fit: str | None = None) -> AvatarJob:
+                           expressiveness: str | None = None, fit: str | None = None,
+                           engine: str | None = None) -> AvatarJob:
         body: dict = {"type": "avatar", "avatar_id": look_id, "audio_asset_id": audio_asset_id,
                       "output_format": output_format, "resolution": resolution,
                       "aspect_ratio": "16:9"}
@@ -131,10 +132,13 @@ class HeyGenAvatarProvider(AvatarProvider):
         # HeyGen docs (create-video, 2026-10-16): motion_prompt directs body
         # motion and hand gestures of photo avatars; expressiveness
         # (high|medium|low) is photo avatars on Avatar IV only.
-        if motion_prompt:
-            body["motion_prompt"] = motion_prompt
-        if expressiveness:
-            body["expressiveness"] = expressiveness
+        if engine:
+            body["engine"] = {"type": engine}
+        if engine != "avatar_iii":      # Avatar III takes neither (create-video, 2026-10-19)
+            if motion_prompt:
+                body["motion_prompt"] = motion_prompt
+            if expressiveness:
+                body["expressiveness"] = expressiveness
         if background_asset_id:
             if output_format == "webm":
                 raise AvatarProviderError("invalid_request",

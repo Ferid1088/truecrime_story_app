@@ -109,6 +109,14 @@
     "last_verified": "2026-10-19",
     "verification_status": "measured"
   },
+  "images": {
+    "provider_model": "gpt-image-2 via APIMaster /images/generations, 1536x1024",
+    "usd_per_image": 0.00945,
+    "eur_per_image": 0.00845,
+    "source_url": "APIMaster /v1/dashboard/billing/usage before and after one sequential call, 2026-10-19: +0.945 units (cents) for low and for medium quality alike",
+    "last_verified": "2026-10-19",
+    "verification_status": "measured"
+  },
   "assumptions": {
     "target_minutes": {
       "low": 45,

@@ -423,7 +423,9 @@ def test_voice_is_saved_before_the_avatar_and_never_made_twice(db_session, tmp_p
                           sleep=_nosleep))
     assert (voice.calls, av.uploads, av.requests) == (1, 2, 2)
     # HeyGen renders the studio background in the same pass; it has no avatar scale or position
-    assert scene.background_mode == "provider_composited" and av.extra == {"fit": "contain"}
+    assert scene.background_mode == "provider_composited"
+    assert av.extra == {"fit": "contain", **({"engine": ai_config.avatar.engine}
+                                             if ai_config.avatar.engine else {})}
 
 
 def test_a_failed_provider_job_is_requested_anew_a_slow_one_is_not(db_session, tmp_path,
