@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -237,6 +237,17 @@ async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+@router.post("/api/host-looks/{look_id}/picture")
+async def attach_host_look_picture(look_id: int, file: UploadFile = File(...),
+                                   db: Session = Depends(get_db)):
+    """The owner's own PNG as the look's picture (not generated); it still has to be approved."""
+    from app.documentary import looks as LK
+
+    look = _look(db, look_id)
+    png = await file.read()
+    return _looks_call(lambda: LK.attach_picture(db, look, png, file.filename or "upload"))
+
+
 @router.post("/api/host-looks/{look_id}/upload")
 async def upload_host_look(look_id: int, db: Session = Depends(get_db)):
     """Upload an APPROVED look to HeyGen as a look of the configured character."""
@@ -457,6 +468,17 @@ def create_outfit(case_id: int, payload: OutfitRequest, db: Session = Depends(ge
                                                     f"{payload.language} (stage_direction.outfit_allow_list)")
     return _outfit_view(db, _outfit_call(lambda: OF.create_outfit(
         db, case_id, payload.language, payload.name, payload.outfit_ref)))
+
+
+@router.post("/api/cases/{case_id}/outfits/upload")
+async def create_outfit_from_upload(case_id: int, language: str = Form(...), name: str = Form(...),
+                                    file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """An outfit made from the owner's own PNG picture instead of a registry outfit."""
+    from app.documentary import outfits as OF
+
+    png = await file.read()
+    return _outfit_view(db, _outfit_call(lambda: OF.create_outfit_from_picture(
+        db, case_id, language, name, png)))
 
 
 @router.post("/api/outfits/{outfit_id}/select")

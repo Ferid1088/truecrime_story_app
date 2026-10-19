@@ -59,6 +59,18 @@ def create_outfit(db: Session, case_id: int, language: str, name: str,
     return outfit
 
 
+def create_outfit_from_picture(db: Session, case_id: int, language: str, name: str,
+                               png: bytes) -> HostOutfit:
+    """An outfit whose reference is the owner's own picture (kept under data/outfit_uploads)."""
+    if png[:8] != b"\x89PNG\r\n\x1a\n":
+        raise OutfitError("the reference picture must be a PNG")
+    path = storage.ROOT / "data" / "outfit_uploads" / f"case_{case_id}" / (
+        hashlib.sha256(png).hexdigest()[:16] + ".png")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(png)
+    return create_outfit(db, case_id, language, name, reference_image=path)
+
+
 def select_outfit(db: Session, outfit: HostOutfit) -> HostOutfit:
     """The outfit of this case and language: any other selected outfit of the same video goes back
     to draft."""

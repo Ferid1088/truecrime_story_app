@@ -166,3 +166,38 @@ def test_upload_to_heygen_needs_an_approved_look_with_its_picture_unchanged(db_s
     (tmp_path / look.image_path).write_bytes(b"\x89PNG\r\n\x1a\nfake1")
     asyncio.run(LK.upload_to_heygen(db_session, look, prov, "grp"))
     assert look.heygen_look_id == "hl1" and prov.calls == ["upload", "create"]
+
+
+def test_an_owner_picture_becomes_a_generated_look_that_still_needs_approval(
+        db_session, profile, tmp_path, monkeypatch):
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    look = _new(db_session, profile)
+    with pytest.raises(LK.LookError, match="PNG"):
+        LK.attach_picture(db_session, look, b"not a png", "x.png")
+    LK.attach_picture(db_session, look, b"\x89PNG\r\n\x1a\nowner", "en_sitting.png")
+    assert look.status == "generated" and look.image_model == "owner_upload:en_sitting.png"
+    assert (tmp_path / look.image_path).read_bytes().endswith(b"owner") and look.attempts == 1
+    with pytest.raises(LK.LookError, match="approved"):
+        LK.mark_uploaded(db_session, look, "hg1")
+    LK.approve(db_session, look, "owner (chat instruction)")
+    assert (look.approved_by, look.approved_at is not None) == ("owner (chat instruction)", True)
+
+
+def test_owner_picture_api_outfit_and_look_upload(client, db_session, profile, tmp_path, monkeypatch):
+    from test_host_outfits import _case
+
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    monkeypatch.setattr("app.documentary.outfits.storage.ROOT", tmp_path)
+    case = _case(db_session)
+    png = b"\x89PNG\r\n\x1a\nowner-photo"
+    bad = client.post(f"/api/cases/{case.id}/outfits/upload",
+                      data={"language": "en", "name": "x"}, files={"file": ("a.png", b"nope")})
+    assert bad.status_code == 409
+    made = client.post(f"/api/cases/{case.id}/outfits/upload", data={"language": "en", "name": "Brown sweater"},
+                       files={"file": ("a.png", png, "image/png")})
+    assert made.status_code == 200 and made.json()["name"] == "Brown sweater"
+    look = _new(db_session, profile)
+    got = client.post(f"/api/host-looks/{look.id}/picture", files={"file": ("a.png", png, "image/png")})
+    assert got.status_code == 200 and got.json()["status"] == "generated"
+    assert client.post(f"/api/host-looks/{look.id}/picture",
+                       files={"file": ("a.png", b"nope")}).status_code == 409

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 from typing import Protocol
 
 import httpx
@@ -24,6 +25,9 @@ from app.utils import utc_now
 # Framings that are plain crops of an approved front or wide picture: they
 # need no picture of their own (the room never changes).
 _CROPS = {"WIDE": ("MEDIUM", "MEDIUM_CLOSE", "CLOSE"), "MEDIUM": ("MEDIUM_CLOSE", "CLOSE")}
+
+
+log = logging.getLogger(__name__)
 
 
 class LookError(ValueError):
@@ -128,11 +132,34 @@ async def generate(db: Session, look: HostLook, provider: ImageProvider,
     return look
 
 
+def attach_picture(db: Session, look: HostLook, png: bytes, source: str) -> HostLook:
+    """The owner's own picture instead of a generated one. The look is then
+    'generated' like any other: it still needs the owner's approval before
+    it reaches HeyGen."""
+    if look.status not in ("requested", "rejected", "generated"):
+        raise LookError(f"a {look.status} look cannot get another picture")
+    if png[:8] != b"\x89PNG\r\n\x1a\n":
+        raise LookError("the picture must be a PNG")
+    path = storage.ROOT / "data" / "looks" / look.studio_profile_id / f"look_{look.id}_{look.attempts + 1}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(png)
+    look.image_path = str(path.relative_to(storage.ROOT))
+    look.image_sha256 = hashlib.sha256(png).hexdigest()
+    look.image_model = f"owner_upload:{source}"[:100]
+    look.attempts += 1
+    look.status = "generated"
+    look.approved_by = look.approved_at = look.rejected_reason = None
+    db.commit()
+    return look
+
+
 def approve(db: Session, look: HostLook, by: str) -> HostLook:
     if look.status != "generated":
         raise LookError("only a generated look can be approved")
     look.status, look.approved_by, look.approved_at = "approved", by, utc_now()
     db.commit()
+    log.info("host look %s (%s %s %s) approved by %r at %s", look.id, look.camera, look.framing,
+             look.stance, by, look.approved_at.isoformat())
     return look
 
 
