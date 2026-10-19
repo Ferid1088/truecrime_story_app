@@ -115,6 +115,8 @@ class LanguageChain:
             out = {"seconds": m.get("duration_seconds"),
                    "characters_paid": m.get("characters_paid"),
                    "music_paid": (m.get("mix") or {}).get("music_characters_paid"),
+                   "library_misses": (m.get("mix") or {}).get("library_misses", []),
+                   "library_notes": (m.get("mix") or {}).get("library_notes", []),
                    "audio_tags": plan.get("audio_tags"),
                    "flags": m.get("flags"),
                    "music_history_snapshot": (m.get("mix") or {}).get(

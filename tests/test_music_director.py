@@ -900,3 +900,22 @@ def test_o_the_director_call_carries_the_library_only_when_the_source_is_not_cre
     after = {b["beat_id"]: b["after"] for b in json.loads(row.plan_json)["beats"]}
     assert after["B03"]["track_code"] == "sting-tension-v1"
     assert after["B03"]["track_reason"] == "open question"
+
+
+@needs_ffmpeg
+def test_o_the_mix_result_lists_the_library_misses(db_session, library, source_mode, tmp_path):
+    import subprocess
+
+    lib, _ = library
+    source_mode("library")
+    case = _case(db_session)
+    manifest = _manifest(case.id)
+    sr = ai_config.loudness.sample_rate
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+                    f"sine=frequency=200:duration={manifest['duration_seconds']}:sample_rate={sr}",
+                    "-ac", "1", "-c:a", "pcm_s16le", str(tmp_path / "narration.wav")], check=True)
+    result = asyncio.run(DocumentaryMixer(lib).mix(
+        manifest, _miss_script(910841, library_miss=MISS), tmp_path))
+    assert [(m["kind"], m["mood"], m["after_beat"]) for m in result["library_misses"]
+            if m["mood"] == "danger"] == [("bridge", "danger", "B02")]
+    assert result["tracks_generated"] == [] and result["music_characters_paid"] == 0

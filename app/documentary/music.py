@@ -995,6 +995,8 @@ class DocumentaryMixer:
                            for p in resolved],
             "music_characters_paid": chosen["characters_paid"],
             "tracks_generated": chosen["tracks_generated"],
+            "library_misses": chosen["library_misses"],
+            "library_notes": chosen["library_notes"],
             "selection_reasons": [
                 {"beat_id": p.get("after_beat") or (p.get("beats") or [None])[0],
                  "role": p["role"], "track_code": p["track_code"],
