@@ -2306,7 +2306,7 @@ class HostAppearance(Base):
     gestures_json: Mapped[str] = mapped_column(Text, default="[]")
     lighting: Mapped[str] = mapped_column(String(60))
     emotion: Mapped[str] = mapped_column(String(40))
-    interaction_pattern: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    interaction_pattern: Mapped[str | None] = mapped_column(Text, nullable=True)
     persona_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     direction_sha256: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)

@@ -114,3 +114,16 @@ def test_direction_never_changes_the_audio(db_session):
     db_session.commit()
     assert (scene.voice_sha256, scene.voice_seconds, scene.voice_path, scene.text_sha256) == (
         "v" * 64, 18.5, "voice.mp3", text_sha)
+
+
+def test_the_directors_long_purpose_is_kept_whole_as_the_interaction_pattern(db_session):
+    from sqlalchemy import Text
+
+    assert isinstance(HostAppearance.__table__.c.interaction_pattern.type, Text)
+    purpose = ("Establish a personal connection before the logo, inviting the viewer to "
+               "distinguish familiarity from evidence without anticipating the story.")
+    assert len(purpose) > 80
+    scene = _scene(db_session, _ch())
+    row = VM.record(db_session, scene, _direction(purpose=purpose), [])
+    db_session.commit()
+    assert row.interaction_pattern == purpose
