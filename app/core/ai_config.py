@@ -1865,6 +1865,20 @@ class MusicLibraryConfig(BaseModel):
     # not chosen again while an alternative exists or can be generated.
     reuse_after_videos: int = Field(default=10, ge=0)
     max_variants_per_mood: int = Field(default=6, ge=1, le=30)
+    # Where a film's music comes from. create: every film gets fresh
+    # tracks while a variant can still be generated; library: only
+    # tracks already in the database; create_if_missing: the database
+    # first, a new track only when none exists for the (kind, mood).
+    # The owner's choice (Settings) overrides this default.
+    source_mode: Literal["create", "library", "create_if_missing"] = "create"
+    # Where in a film each kind of track is used; stored with every track
+    # so agents and the owner can see in which situation to use it.
+    kind_situations: dict[str, str] = Field(default_factory=lambda: {
+        "bridge": "between two scenes, in the gap after a beat, to carry the listener into the next scene",
+        "sting": "a short accent right after a turn, reveal or chapter end",
+        "bed": "quietly under the narration (only when beds under narration are allowed)",
+        "room_tone": "a deliberate silence: faint room air, no music",
+    })
     # Base description per mood; a variant adds one of variant_styles.
     mood_prompts: dict[str, str] = Field(default_factory=lambda: {
         "suspense": "slow suspenseful documentary underscore, held low notes, a quiet pulse",

@@ -1845,6 +1845,9 @@ class MusicTrack(Base):
     loop: Mapped[bool] = mapped_column(Boolean, default=False)
     prompt: Mapped[str] = mapped_column(Text, default="")
     style: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # In which situation of a film the track fits, for agents and the owner.
+    situation: Mapped[str] = mapped_column(Text, default="")
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
     provider: Mapped[str] = mapped_column(String(30), default="elevenlabs_sound")
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     characters_paid: Mapped[int | None] = mapped_column(Integer, nullable=True)

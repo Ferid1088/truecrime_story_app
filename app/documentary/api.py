@@ -1028,6 +1028,53 @@ def music_library(db: Session = Depends(get_db)):
     return track_catalogue(db)
 
 
+class MusicSourceBody(BaseModel):
+    mode: str
+
+
+class MusicSituationBody(BaseModel):
+    situation: str
+    tags: list[str] | None = None
+
+
+@router.get("/api/documentary/music/source")
+def music_source(db: Session = Depends(get_db)):
+    """Where a film's music comes from (the owner's setting) and how many
+    tracks the library holds per kind and mood."""
+    from app.documentary.music import SOURCE_MODES, music_source_mode, track_catalogue
+
+    counts: dict[str, int] = {}
+    for t in track_catalogue(db):
+        key = f"{t['kind']}/{t['mood']}"
+        counts[key] = counts.get(key, 0) + 1
+    return {"mode": music_source_mode(db), "modes": list(SOURCE_MODES), "tracks_per_mood": counts}
+
+
+@router.put("/api/documentary/music/source")
+def set_music_source(body: MusicSourceBody, db: Session = Depends(get_db)):
+    from app.documentary.music import set_music_source_mode
+
+    try:
+        return {"mode": set_music_source_mode(db, body.mode)}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.patch("/api/documentary/music/{code}")
+def set_music_situation(code: str, body: MusicSituationBody, db: Session = Depends(get_db)):
+    """The owner's wording of the situation a track fits (and its tags)."""
+    from app.db.models import MusicTrack
+
+    track = db.query(MusicTrack).filter(MusicTrack.track_code == code).first()
+    if track is None:
+        raise HTTPException(status_code=404, detail="Unknown track")
+    track.situation = body.situation.strip()
+    if body.tags is not None:
+        track.tags_json = json.dumps([t.strip() for t in body.tags if t.strip()])
+    db.commit()
+    return {"track_code": code, "situation": track.situation, "tags": json.loads(track.tags_json)}
+
+
 @router.get("/api/documentary/music/{cue_id}/file")
 def music_file(cue_id: str, db: Session = Depends(get_db)):
     """A track's audio by track_code (e.g. bridge-tension-v3); the old

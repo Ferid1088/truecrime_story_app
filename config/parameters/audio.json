@@ -334,6 +334,13 @@
     ],
     "reuse_after_videos": 10,
     "max_variants_per_mood": 6,
+    "source_mode": "create",
+    "kind_situations": {
+      "bridge": "between two scenes, in the gap after a beat, to carry the listener into the next scene",
+      "sting": "a short accent right after a turn, reveal or chapter end",
+      "bed": "quietly under the narration (only when beds under narration are allowed)",
+      "room_tone": "a deliberate silence: faint room air, no music"
+    },
     "mood_prompts": {
       "suspense": "slow suspenseful documentary underscore, held low notes, a quiet pulse",
       "investigation": "measured investigative documentary underscore, steady soft pulse, curious",

@@ -519,3 +519,79 @@ def test_select_track_reuses_the_film_theme(db_session, library):
     _assign(lib, db_session, _manifest(case.id), _bridge_only(910801, "danger"))
     track, why = select_track(db_session, lib, "bridge", "danger", "bp910801")
     assert track.track_code == "bridge-danger-v1" and "film theme" in why
+
+
+# ---------------------------------------------------------------------------
+# situation text and the owner's source mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def source_mode(db_session):
+    from app.db.models import AppSetting
+    from app.documentary.music import set_music_source_mode
+
+    def drop():
+        db_session.query(AppSetting).filter_by(key="music_source").delete()
+        db_session.commit()
+
+    drop()
+    yield lambda mode: set_music_source_mode(db_session, mode)
+    drop()
+
+
+def test_n_every_track_carries_its_situation_and_tags(db_session, library):
+    lib, _ = library
+    lib.sync_config_cues(db_session)
+    made = lib.new_variant(db_session, "bridge", "danger")
+    for t in db_session.query(MusicTrack).all():
+        assert t.situation.startswith("Use ") and json.loads(t.tags_json)[:2] == [t.kind, t.mood]
+    assert "between two scenes" in made.situation and "real threat" in made.situation
+    assert made.style in json.loads(made.tags_json)
+
+
+def test_n_library_mode_never_generates_and_reports_misses(db_session, library, source_mode):
+    lib, sound = library
+    case_a, case_b = _case(db_session), _case(db_session)
+    _assign(lib, db_session, _manifest(case_a.id), _script(910701, bridge="tension"))
+    calls = len(sound.calls)
+    source_mode("library")
+    b = _assign(lib, db_session, _manifest(case_b.id), _script(910702, bridge="tension"))
+    assert len(sound.calls) == calls and b["tracks_generated"] == []
+    assert "bridge-tension-v1" in _codes(b)           # reused although film A used it
+    assert "from the library" in next(p["selection_reason"] for p in b["placements"]
+                                      if p["role"] == "music_bridge")
+    c = _assign(lib, db_session, _manifest(case_b.id), _script(910703, bridge="danger"))
+    assert len(sound.calls) == calls
+    assert [m["mood"] for m in c["library_misses"]] == ["danger"]
+    assert not any(p["role"] == "music_bridge" for p in c["placements"])
+
+
+def test_n_create_if_missing_reuses_the_library_and_generates_only_a_missing_mood(
+        db_session, library, source_mode):
+    lib, sound = library
+    case_a, case_b = _case(db_session), _case(db_session)
+    _assign(lib, db_session, _manifest(case_a.id), _script(910711, bridge="tension"))
+    source_mode("create_if_missing")
+    calls = len(sound.calls)
+    b = _assign(lib, db_session, _manifest(case_b.id), _script(910712, bridge="tension"))
+    assert len(sound.calls) == calls and "bridge-tension-v1" in _codes(b)
+    c = _assign(lib, db_session, _manifest(case_b.id), _script(910713, bridge="danger"))
+    assert len(sound.calls) == calls + 1 and "bridge-danger-v1" in _codes(c)
+
+
+def test_n_music_source_and_situation_api(client, db_session, library, source_mode):
+    lib, _ = library
+    lib.sync_config_cues(db_session)
+    got = client.get("/api/documentary/music/source").json()
+    assert got["mode"] == ai_config.music_library.source_mode
+    assert client.put("/api/documentary/music/source", json={"mode": "library"}).json() == {"mode": "library"}
+    assert client.get("/api/documentary/music/source").json()["mode"] == "library"
+    assert client.put("/api/documentary/music/source", json={"mode": "nope"}).status_code == 422
+    r = client.patch("/api/documentary/music/bridge-tension-v1",
+                     json={"situation": "after a verdict", "tags": ["calm", " slow "]})
+    assert r.json() == {"track_code": "bridge-tension-v1", "situation": "after a verdict",
+                        "tags": ["calm", "slow"]}
+    listed = {t["id"]: t for t in client.get("/api/documentary/music").json()}
+    assert listed["bridge-tension-v1"]["situation"] == "after a verdict"
+    assert client.patch("/api/documentary/music/none", json={"situation": "x"}).status_code == 404

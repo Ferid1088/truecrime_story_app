@@ -889,3 +889,16 @@ export const backupApi = {
   saveSettings: (s: BackupSettings) => put<BackupSettings>("/api/backup/settings", s),
   runNow: (dir: string) => request<BackupRunRow>("/api/backup/run", { method: "POST", body: JSON.stringify({ dir }) }),
 };
+
+export type MusicSourceMode = "create" | "library" | "create_if_missing";
+
+export type MusicSource = {
+  mode: MusicSourceMode;
+  modes: MusicSourceMode[];
+  tracks_per_mood: Record<string, number>;
+};
+
+export const musicApi = {
+  source: () => request<MusicSource>("/api/documentary/music/source"),
+  setSource: (mode: MusicSourceMode) => put<{ mode: MusicSourceMode }>("/api/documentary/music/source", { mode }),
+};

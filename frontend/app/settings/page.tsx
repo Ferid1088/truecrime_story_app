@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelStudios } from "@/components/settings/channel-studios";
+import { MusicSourceCard } from "@/components/settings/music-source";
 import { PolicyWarningNotice } from "@/components/policy-warning";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -279,6 +280,8 @@ export default function SettingsPage() {
       )}
 
       <ChannelStudios />
+
+      <MusicSourceCard />
 
       <p className="mt-6 text-xs text-muted-foreground">
         API keys are never sent to the browser — only their configured status.
