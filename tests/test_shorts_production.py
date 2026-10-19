@@ -577,3 +577,29 @@ def test_a_short_rendered_before_packages_existed_gets_them_afterwards(tmp_path,
     listed = json.loads(short.files_json)
     assert set(listed["platforms"]) == set(packages) and listed["video"] == "data/s/short.mp4"
     assert committed and (short_dir / "platforms" / "tiktok_video" / "package.json").exists()
+
+
+def test_burned_in_captions_are_sized_for_the_caption_canvas_not_for_frame_pixels(tmp_path, monkeypatch):
+    from app.core.ai_config import ai_config
+    from app.shortform import export
+
+    prod = ai_config.short_form.production
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen["filter"] = command[command.index("-vf") + 1]
+
+    monkeypatch.setattr(export.subprocess, "run", fake_run)
+    monkeypatch.setattr(export, "require_caption_capability", lambda: {})
+    monkeypatch.setattr(export, "ffmpeg_bin", lambda: "ffmpeg")
+    source = tmp_path / "film.mp4"
+    source.write_bytes(b"x")
+    export.build_export_package(tmp_path / "out", language="en", title="t", narration=["a", "b"],
+                               duration_seconds=10, source_video=source, captions_burned_in=True)
+    style = seen["filter"].split("force_style='")[1].rstrip("'")
+    values = dict(part.split("=") for part in style.split(","))
+    down, across = 288 / export.HEIGHT, 384 / export.WIDTH
+    assert float(values["FontSize"]) == pytest.approx(prod.caption_font_px * down, abs=0.01)
+    assert float(values["FontSize"]) < 20             # a frame-pixel size (72) would fill the screen
+    assert int(values["MarginL"]) == round(prod.caption_side_margin_px * across)
+    assert int(values["MarginV"]) == round(prod.caption_bottom_margin_px * down)

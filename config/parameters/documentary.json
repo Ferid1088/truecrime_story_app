@@ -343,6 +343,9 @@
       "width": 1080,
       "height": 1920,
       "captions_burned_in": true,
+      "caption_font_px": 72,
+      "caption_side_margin_px": 90,
+      "caption_bottom_margin_px": 300,
       "default_visibility": "private",
       "languages": [
         "en",

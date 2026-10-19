@@ -17,6 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 
+ASS_CANVAS_WIDTH, ASS_CANVAS_HEIGHT = 384, 288
 WIDTH = ai_config.short_form.production.width
 HEIGHT = ai_config.short_form.production.height
 SAFE_X = 96
@@ -263,7 +264,17 @@ def build_export_package(
             # capability check above makes this a fail-closed requirement.
             escaped = (str(subtitles).replace("\\", "\\\\").replace(":", "\\:")
                        .replace("'", "\\'"))
-            force_style = f"FontName={_caption_font_family(language)},Alignment=2,FontSize=44"
+            prod = ai_config.short_form.production
+            # libass sets an SRT to a 384x288 canvas: pixel sizes of the 1080x1920 frame are
+            # converted to that canvas (a size or margin written in frame pixels would be
+            # several times too large there)
+            across, down = ASS_CANVAS_WIDTH / WIDTH, ASS_CANVAS_HEIGHT / HEIGHT
+            force_style = (f"FontName={_caption_font_family(language)},Alignment=2,"
+                           f"FontSize={prod.caption_font_px * down:.2f},"
+                           f"MarginL={round(prod.caption_side_margin_px * across)},"
+                           f"MarginR={round(prod.caption_side_margin_px * across)},"
+                           f"MarginV={round(prod.caption_bottom_margin_px * down)},"
+                           f"Outline={3 * down:.2f},Shadow=0")
             video_filter += f",subtitles=filename='{escaped}':force_style='{force_style}'"
         command = inputs + ["-t", str(duration_seconds), "-vf", video_filter,
                             "-map", "0:v:0", "-map", "1:a:0" if separate_audio else "0:a:0",

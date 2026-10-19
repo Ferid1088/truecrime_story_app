@@ -2739,6 +2739,11 @@ class ShortFormProductionConfig(BaseModel):
     width: int = Field(default=1080, ge=1)
     height: int = Field(default=1920, ge=1)
     captions_burned_in: bool = True
+    # Burned-in captions, in pixels of the 1080x1920 frame (libass is told the frame size, so
+    # the numbers mean pixels): letter height, side margins and distance from the bottom edge.
+    caption_font_px: int = Field(default=72, ge=20, le=200)
+    caption_side_margin_px: int = Field(default=90, ge=0, le=400)
+    caption_bottom_margin_px: int = Field(default=300, ge=0, le=900)
     default_visibility: Literal["private", "draft"] = "private"
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_redos: int = Field(default=2, ge=0, le=2)
