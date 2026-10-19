@@ -26,7 +26,8 @@
           "vision": true,
           "prompt_caching": "cache_control",
           "streaming": true,
-          "reasoning_effort": true
+          "reasoning_effort": true,
+          "instructions_in_user_with_images": true
         },
         "bge-m3": {
           "structured_output": false,

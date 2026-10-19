@@ -756,3 +756,34 @@ def test_evidence_pack_ids_and_uncertainty(db_session):
 
 
 
+
+
+def _sent_messages(monkeypatch, model, images):
+    import httpx as httpx_module
+
+    provider = _provider()
+    gen = ai_config.generation_for("fact_extractor")
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx_module.Response(200, json={
+            "id": "gen-1", "model": model,
+            "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}})
+
+    monkeypatch.setattr("app.providers.generation.openai_compat.httpx.AsyncClient", _mock_client(handler))
+    monkeypatch.setattr(ai_config.capabilities_of(model), "streaming", False)
+    asyncio.run(provider._chat(model, "THE RULES", "the input", gen, images=images))
+    return seen["body"]["messages"]
+
+
+def test_a_request_with_images_repeats_the_instructions_in_the_user_message(monkeypatch):
+    messages = _sent_messages(monkeypatch, "claude-sonnet-5-5", ["data:image/jpeg;base64,AAAA"])
+    assert messages[0] == {"role": "system", "content": "THE RULES"}
+    assert messages[1]["content"][0]["text"] == "THE RULES\n\nINPUT:\nthe input"
+
+
+def test_a_request_without_images_sends_the_user_message_as_it_is(monkeypatch):
+    messages = _sent_messages(monkeypatch, "claude-sonnet-5-5", None)
+    assert messages[1]["content"] == "the input"

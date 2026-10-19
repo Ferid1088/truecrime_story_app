@@ -112,3 +112,26 @@ def test_rejected_assets_do_not_use_up_the_asset_budget():
 
     rows = [VisualAsset(verification_status=v) for v in ("rejected", "rejected", "verified", "unverified")]
     assert VisualResearchAgent(client=object()).asset_budget(rows) == ai_config.visual_search.max_assets - 2
+
+
+def test_footage_that_calls_itself_fiction_or_a_stage_show_is_skipped():
+    from app.agents.footage import staged
+    from app.documentary.visuals.footage import FootageCandidate
+
+    markers = ai_config.footage.fiction_markers
+    netflix = FootageCandidate(provider="internet_archive", url=None, title="MONSTER: THE LIZZIE BORDEN STORY - Netflix (2026)")
+    promo = FootageCandidate(provider="internet_archive", url=None, title="Lizzie Borden of Fall River (Promo)")
+    newsreel = FootageCandidate(provider="internet_archive", url=None, title="Fall River 1930 street scenes")
+    assert staged(netflix, markers) and staged(promo, markers) and not staged(newsreel, markers)
+
+
+def test_footage_must_name_what_it_was_searched_for():
+    from app.agents.footage import about_query
+    from app.documentary.visuals.footage import FootageCandidate
+
+    generic = ai_config.footage.generic_query_words
+    war = FootageCandidate(provider="internet_archive", url=None, found_for="Fall River Massachusetts history",
+                           title="Pacific war film compilation", caption="bombers, harbor, infantry")
+    local = FootageCandidate(provider="internet_archive", url=None, found_for="Fall River Massachusetts history",
+                             title="Fall River mills 1920s")
+    assert not about_query(war, generic) and about_query(local, generic)

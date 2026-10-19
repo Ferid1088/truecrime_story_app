@@ -268,6 +268,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                     cache_key: str | None = None):
         content: Any = user
         if images:
+            if ai_config.capabilities_of(model).instructions_in_user_with_images:
+                user = f"{system}\n\nINPUT:\n{user}"
             # OpenAI-compatible multimodal message: text + image parts
             # (data: URLs or https URLs).
             content = [{"type": "text", "text": user}] + [

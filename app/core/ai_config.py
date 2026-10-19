@@ -253,6 +253,9 @@ class ModelCapabilities(BaseModel):
     # The gateway streams this model's answer (with usage in the last chunk), so the
     # read timeout is a real inactivity timeout rather than a ceiling on the whole call.
     streaming: bool = False
+    # The gateway sometimes drops the system message of a request with images (the model then
+    # answers "there was no instruction"): the instructions are repeated in the user message.
+    instructions_in_user_with_images: bool = False
 
     @field_validator("web_search", "web_fetch")
     @classmethod
@@ -2738,6 +2741,10 @@ class FootageConfig(BaseModel):
     enabled: bool = True
     providers: list[str] = ["wikimedia_video", "internet_archive"]
     internet_archive_api: str = "https://archive.org/advancedsearch.php"
+    # Words in a video's title, caption or credit that mean fiction or a stage show.
+    fiction_markers: list[str] = []
+    # Words of a search that say what kind of footage is wanted, not what it shows.
+    generic_query_words: list[str] = []
     max_queries: int = Field(default=8, ge=0)
     max_clips_per_case: int = Field(default=12, ge=0)
     max_candidates_per_query: int = Field(default=3, ge=1)

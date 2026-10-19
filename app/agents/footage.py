@@ -3,6 +3,7 @@ the domain rules and storage helpers stay in app.documentary.visuals.footage."""
 
 from __future__ import annotations
 
+import re
 import asyncio
 import json
 import subprocess
@@ -37,6 +38,24 @@ from app.documentary.visuals.footage import (
 from app.services.video_rights import RightsRefused, VideoRightsGate
 
 MEDIA_SUFFIXES = (".mp4", ".webm", ".ogv", ".mov", ".m4v", ".mkv")
+
+
+def staged(candidate, markers: list[str]) -> bool:
+    """True when the video's own text says it is fiction or a stage show (a series, a film
+    trailer, a play, a rehearsal): actors are never footage of the case."""
+    text = " ".join(filter(None, [candidate.title, candidate.caption, candidate.credit])).lower()
+    return any(m.lower() in text for m in markers)
+
+
+def about_query(candidate, generic_words: list[str]) -> bool:
+    """True when the video's own text (title, caption, credit) holds a distinctive word of the
+    search it was found for ("Fall River" for "Fall River Massachusetts history"): a full-text
+    hit on some other video's description is not footage of the subject."""
+    words = {w for w in re.findall(r"\w{4,}", (candidate.found_for or "").lower())} - set(generic_words)
+    if not words:
+        return True
+    text = " ".join(filter(None, [candidate.title, candidate.caption, candidate.credit])).lower()
+    return any(w in text for w in words)
 
 
 class FootageAgent:
@@ -93,6 +112,9 @@ class FootageAgent:
                 for c in await prov.search(q["query"], self.cfg.max_candidates_per_query):
                     if left <= 0:
                         break
+                    if staged(c, self.cfg.fiction_markers):
+                        stats["rejected"] += 1
+                        continue
                     c.entities, c.entity_key = list(ents), q.get("entity")
                     c.entity_type = q.get("entity_type")
                     c.query_kind = "context" if q.get("kind") == "context" else "exact"
@@ -171,6 +193,8 @@ class FootageAgent:
         if resolved is None or not resolved.url:
             return "rejected"
         c = resolved
+        if not about_query(c, self.cfg.generic_query_words):
+            return "rejected"
         # the download host is checked too (blocked domains are never requested)
         status, reason = R.classify(c.provider, c.license, c.url, c.page_url)
         if status == "do_not_use" or (REQUIRE_RENDERABLE_RIGHTS and not renderable(status)):
