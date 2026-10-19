@@ -46,7 +46,7 @@ from app.documentary import storage
 from app.services.artifacts import ArtifactRegistry
 from app.shortform.agents import MockShortsTextAdapter, ProviderShortsTextAdapter, ShortsTextAdapter
 from app.shortform.director import ShortFormDirectorAgent
-from app.shortform.export import build_export_package
+from app.shortform.export import CAPTION_ALIGNMENT, LABEL_ALIGNMENT, build_export_package
 from app.shortform.platform_packages import build_platform_packages
 from app.shortform.selection import evaluate_candidate, select_candidates
 from app.utils import detect_language, language_quality, utc_now
@@ -465,7 +465,8 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
                     "caption_text": script.caption_text,
                     "film": film.file_path if film else None,
                     "language": script.language, "config": ai_config.short_form.production.model_dump(),
-                    "labels": _labels_for(db, film, candidate)}
+                    "labels": _labels_for(db, film, candidate),
+                    "layout": {"caption_alignment": CAPTION_ALIGNMENT, "label_alignment": LABEL_ALIGNMENT}}
     content_hash = _hash(render_input)
     if not force and row.status == "done" and row.content_hash == content_hash:
         return row

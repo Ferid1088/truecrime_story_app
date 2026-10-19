@@ -18,6 +18,8 @@ from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 
 ASS_CANVAS_WIDTH, ASS_CANVAS_HEIGHT = 384, 288
+# libass style Alignment (the SSA numbering): 2 = bottom centre (captions), 6 = top centre (the label)
+CAPTION_ALIGNMENT, LABEL_ALIGNMENT = 2, 6
 WIDTH = ai_config.short_form.production.width
 HEIGHT = ai_config.short_form.production.height
 SAFE_X = 96
@@ -274,7 +276,7 @@ def build_export_package(
             # converted to that canvas (a size or margin written in frame pixels would be
             # several times too large there)
             across, down = ASS_CANVAS_WIDTH / WIDTH, ASS_CANVAS_HEIGHT / HEIGHT
-            force_style = (f"FontName={_caption_font_family(language)},Alignment=2,"
+            force_style = (f"FontName={_caption_font_family(language)},Alignment={CAPTION_ALIGNMENT},"
                            f"FontSize={prod.caption_font_px * down:.2f},"
                            f"MarginL={round(prod.caption_side_margin_px * across)},"
                            f"MarginR={round(prod.caption_side_margin_px * across)},"
@@ -289,7 +291,7 @@ def build_export_package(
                                        for x in labels])
                 label_escaped = (str(label_srt).replace("\\", "\\\\").replace(":", "\\:")
                                  .replace("'", "\\'"))
-                label_style = (f"FontName={_caption_font_family(language)},Alignment=8,"
+                label_style = (f"FontName={_caption_font_family(language)},Alignment={LABEL_ALIGNMENT},"
                                f"FontSize={prod.caption_font_px * down * 0.6:.2f},"
                                f"MarginV={round(SAFE_TOP * 1.1 * down)},Outline={3 * down:.2f},Shadow=0")
                 video_filter += f",subtitles=filename='{label_escaped}':force_style='{label_style}'"

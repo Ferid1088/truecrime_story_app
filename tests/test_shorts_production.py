@@ -664,7 +664,7 @@ def test_the_illustration_label_is_burned_into_the_vertical_short(tmp_path, monk
                                source_video=source, captions_burned_in=True,
                                cues=[{"start": 0.5, "end": 3, "text": "A phrase."}],
                                labels=[{"start": 0.0, "end": 6.0, "text": "Illustrative image"}])
-    assert seen["filter"].count("subtitles=") == 2 and "Alignment=8" in seen["filter"]
+    assert seen["filter"].count("subtitles=") == 2 and "Alignment=6" in seen["filter"] and "Alignment=2" in seen["filter"]
     assert "Illustrative image" in (tmp_path / "out" / "labels.srt").read_text()
     seen.clear()
     export.build_export_package(tmp_path / "out2", language="en", title="t", duration_seconds=10,
