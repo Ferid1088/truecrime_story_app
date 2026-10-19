@@ -297,6 +297,17 @@ def _hold_gaps(shots: list[dict], missing: list[tuple[float, float]]) -> int:
     return held
 
 
+def no_black_fades(script: dict) -> int:
+    """A picture, map or clip never fades in from black (the card shots keep their short fade): its
+    first second would be a black screen. Returns how many shots were changed."""
+    changed = 0
+    for s in script.get("shots") or []:
+        if s.get("transition_in") == "FADE_BLACK" and s.get("kind") in ("image", "map", "video", "document"):
+            s["transition_in"] = "CROSSFADE"
+            changed += 1
+    return changed
+
+
 def _relabel(script: dict) -> None:
     from app.documentary.production.script import credit_overlays, label_overlays
 
@@ -324,6 +335,7 @@ async def ensure_coverage(db: Session, row: ProductionScript) -> dict:
         rounds.append({"round": n, **step, "after": gate(measure(script))})
         if not step.get("filled"):
             break                                   # nothing more can be made: report, do not loop
+    script["faded_in_from_black_fixed"] = no_black_fades(script)
     after = measure(script)
     problems = gate(after)
     script["coverage"] = {"before": {k: before[k] for k in ("black_seconds", "card_share",
@@ -348,7 +360,7 @@ def render_check(video, script: dict) -> dict:
 
     run = subprocess.run(
         [ffmpeg_bin(), "-hide_banner", "-nostats", "-i", str(video), "-vf",
-         "blackdetect=d=0.5:pix_th=0.05", "-an", "-f", "null", "-"],
+         f"blackdetect=d={ai_config.coverage.black_screen_min_seconds}:pix_th=0.05", "-an", "-f", "null", "-"],
         capture_output=True, text=True)
     black = sum(float(m) for m in re.findall(r"black_duration:([\d.]+)", run.stderr))
     report = measure(script)
@@ -357,3 +369,18 @@ def render_check(video, script: dict) -> dict:
     return {**{k: report[k] for k in ("black_seconds", "file_black_seconds", "card_share",
                                        "longest_card_stretch", "longest_still")},
             "problems": problems}
+
+
+def window_cards(script: dict, start: float, end: float) -> tuple[float, float]:
+    """(card seconds, longest card stretch) of the film inside [start, end]: a short cut from a
+    stretch of cards would be a text frame, not a picture."""
+    total, longest, run_end, run = 0.0, 0.0, None, 0.0
+    for s in sorted(script.get("shots") or [], key=lambda x: x["start"]):
+        a, b = max(s["start"], start), min(s["end"], end)
+        if b <= a or not _is_card(s):
+            continue
+        total += b - a
+        run = run + (b - a) if run_end is not None and abs(run_end - a) <= EPS else (b - a)
+        run_end = b
+        longest = max(longest, run)
+    return round(total, 2), round(longest, 2)

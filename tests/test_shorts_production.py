@@ -603,3 +603,43 @@ def test_burned_in_captions_are_sized_for_the_caption_canvas_not_for_frame_pixel
     assert float(values["FontSize"]) < 20             # a frame-pixel size (72) would fill the screen
     assert int(values["MarginL"]) == round(prod.caption_side_margin_px * across)
     assert int(values["MarginV"]) == round(prod.caption_bottom_margin_px * down)
+
+
+def test_a_short_is_cut_from_the_stretch_of_the_film_its_beats_are_in_with_the_films_own_subtitles():
+    script = {"duration": 100.0, "beats": [{"beat_id": "B1", "start": 12.0, "end": 40.0},
+                                           {"beat_id": "B2", "start": 40.0, "end": 98.0}],
+              "subtitles": [{"start": 12.5, "end": 16.5, "text": "It was about half past ten on the morning of August 4, 1892."},
+                            {"start": 16.6, "end": 20.0, "text": "A second sentence."},
+                            {"start": 90.0, "end": 94.0, "text": "Too late for the window."}]}
+    from app.core.ai_config import ai_config
+
+    target = ai_config.short_form.production.target_seconds
+    assert pipeline.film_window(script, ["B1"]) == (12.0, 12.0 + target)
+    assert pipeline.film_window(script, ["B2"]) == (100.0 - target, 100.0)       # kept inside the film
+    assert pipeline.film_window(script, ["nope"]) is None and pipeline.film_window(None, ["B1"]) is None
+    cues = pipeline.window_cues(script, 12.0, 12.0 + target)
+    assert all(len(c["text"]) <= 42 and 0 <= c["start"] < c["end"] <= target for c in cues)
+    assert " ".join(c["text"] for c in cues).startswith("It was about half past ten")
+    assert cues[0]["start"] == pytest.approx(0.5) and cues[-1]["text"] == "A second sentence."
+    assert not any("Too late" in c["text"] for c in cues)
+
+
+def test_cards_inside_a_shorts_stretch_are_measured():
+    from app.documentary.visuals.coverage_fill import window_cards
+
+    script = {"shots": [{"kind": "image", "start": 0, "end": 10}, {"kind": "black", "start": 10, "end": 30},
+                        {"kind": "title", "start": 30, "end": 34}, {"kind": "image", "start": 34, "end": 60}]}
+    assert window_cards(script, 5.0, 40.0) == (24.0, 24.0)
+    assert window_cards(script, 34.0, 60.0) == (0.0, 0.0)
+
+
+def test_the_export_uses_the_given_cues_with_their_real_times(tmp_path):
+    from app.core.media_tools import ffmpeg_bin
+    from app.shortform.export import build_export_package
+
+    if not ffmpeg_bin():
+        pytest.skip("ffmpeg is required")
+    cues = [{"start": 0.5, "end": 3.0, "text": "First phrase."}, {"start": 3.4, "end": 7.0, "text": "Second phrase."}]
+    manifest = build_export_package(tmp_path / "s", language="en", title="T", duration_seconds=8, cues=cues)
+    got = manifest["subtitle_layout"]["cues"]
+    assert [(c["start"], c["end"], c["text"]) for c in got] == [(0.5, 3.0, "First phrase."), (3.4, 7.0, "Second phrase.")]

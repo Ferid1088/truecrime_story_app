@@ -32,6 +32,7 @@ from app.db.models import (
     DocumentaryJob,
     EditLog,
     EditorialBlueprint,
+    ProductionScript,
     RenderedShort,
     ShortCandidate,
     ShortFormConcept,
@@ -171,8 +172,70 @@ def _candidate_payload(db: Session, candidate: dict, assets: list[dict]) -> dict
     return evaluate_candidate(payload)
 
 
+def _film_script(db: Session, film: Video | None) -> dict | None:
+    row = db.get(ProductionScript, film.production_script_id) if film and film.production_script_id else None
+    return json.loads(row.script_json or "{}") if row is not None else None
+
+
+def film_window(script: dict | None, beat_ids: list[str]) -> tuple[float, float] | None:
+    """The stretch of the finished film (its own seconds, host and logo included) a short from these
+    beats is cut from: from the first beat's start, target_seconds long, inside the film."""
+    if not script:
+        return None
+    beats = {b["beat_id"]: b for b in script.get("beats") or []}
+    spans = [beats[b] for b in beat_ids if b in beats]
+    if not spans:
+        return None
+    target = float(ai_config.short_form.production.target_seconds)
+    duration = float(script.get("duration") or 0.0)
+    start = min(b["start"] for b in spans)
+    end = start + target
+    if duration and end > duration:
+        end = duration
+        start = max(0.0, end - target)
+    return round(start, 2), round(end, 2)
+
+
+def window_cues(script: dict, start: float, end: float, max_chars: int = 42) -> list[dict]:
+    """The film's own subtitle cues inside the window, times from the window's start, long lines split
+    at word boundaries (the share of a cue's time follows the characters)."""
+    out: list[dict] = []
+    for cue in script.get("subtitles") or []:
+        if cue["end"] <= start or cue["start"] >= end:
+            continue
+        lines, cur = [], []
+        for word in str(cue["text"]).split():
+            if cur and len(" ".join(cur + [word])) > max_chars:
+                lines.append(" ".join(cur))
+                cur = []
+            cur.append(word)
+        if cur:
+            lines.append(" ".join(cur))
+        total = sum(len(x) for x in lines) or 1
+        t = cue["start"]
+        for line in lines:
+            span = (cue["end"] - cue["start"]) * len(line) / total
+            a, b = max(t, start) - start, min(t + span, end) - start
+            t += span
+            if b - a > 0.2:
+                out.append({"start": round(a, 3), "end": round(b, 3), "text": line})
+    return out
+
+
 def _upsert_candidate(db: Session, job: DocumentaryJob, film: Video | None,
                       candidate: dict) -> ShortCandidate:
+    script = _film_script(db, film)
+    window = film_window(script, candidate.get("source_beat_ids") or [])
+    if window and candidate.get("source_start_seconds") is None:
+        from app.documentary.visuals.coverage_fill import window_cards
+
+        cards, longest = window_cards(script, *window)
+        candidate = {**candidate, "source_start_seconds": window[0], "source_end_seconds": window[1]}
+        limit = ai_config.coverage.max_card_stretch_seconds
+        if longest > limit:
+            candidate = {**candidate, "status": "rejected", "rejection_reasons": [
+                *candidate.get("rejection_reasons", []),
+                f"its stretch of the film shows cards for {longest} s in a row (max {limit})"]}
     stable_key = str(candidate["id"])
     row = (db.query(ShortCandidate)
            .filter(ShortCandidate.film_job_id == job.id, ShortCandidate.stable_key == stable_key)
@@ -289,6 +352,11 @@ def _write_script(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         "claims": json.loads(candidate.claims_json or "[]"),
         "target_duration": target,
     }
+    film = (db.query(Video).filter_by(job_id=job.id, language=language, state="rendered")
+            .order_by(Video.id.desc()).first())
+    cues = _cues_for(db, film, candidate)
+    if cues:       # the words really spoken in the stretch of the film this short is cut from
+        writer_payload["window_narration"] = " ".join(c["text"] for c in cues)
     draft, writer_result = adapter.write(db, job.case_id, writer_payload)
     if on_provider_result is not None:
         on_provider_result(writer_result)
@@ -358,6 +426,15 @@ def _film_source(film: Video | None) -> Path | None:
     return storage.resolve(film.file_path) if film and film.file_path else None
 
 
+def _cues_for(db: Session, film: Video | None, candidate: ShortCandidate) -> list[dict] | None:
+    """The film's real subtitle cues of the candidate's stretch (None: no stretch is known)."""
+    script = _film_script(db, film)
+    if script is None or candidate.source_start_seconds is None:
+        return None
+    start = float(candidate.source_start_seconds)
+    return window_cues(script, start, start + float(ai_config.short_form.production.target_seconds)) or None
+
+
 def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
                 script: ShortFormScript, film: Video | None, *, force: bool = False) -> RenderedShort:
     row = (db.query(RenderedShort)
@@ -394,6 +471,7 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
             rights_status="cleared", rights_source=f"film:{film.id if film else job.id}",
             rights_human_signoff=True, source_video=_film_source(film),
             source_start_seconds=float(candidate.source_start_seconds or 0),
+            cues=_cues_for(db, film, candidate),
         )
         final_dir.parent.mkdir(parents=True, exist_ok=True)
         if final_dir.exists():

@@ -208,6 +208,7 @@ def build_export_package(
     audio_source: str | Path | None = None,
     source_start_seconds: float = 0.0,
     captions_burned_in: bool | None = None,
+    cues: list[dict] | None = None,
 ) -> dict:
     """Build a small, inspectable, watchable pilot package offline."""
     executable = ffmpeg_bin()
@@ -226,7 +227,9 @@ def build_export_package(
         raise ValueError("narration must contain non-empty text")
     words = [str(text).strip()[:42] for text in words]
     step = duration_seconds / len(words)
-    cues = [
+    # the film's own subtitle cues of the window (real times) when given, else the words spread evenly
+    subtitle_cues = [SubtitleCue(float(c["start"]), float(c["end"]), str(c["text"]).strip())
+                     for c in cues or [] if str(c.get("text") or "").strip()] or [
         SubtitleCue(
             max(0.1, index * step + 0.1),
             min(duration_seconds - 0.1, (index + 1) * step - 0.1),
@@ -234,11 +237,12 @@ def build_export_package(
         )
         for index, text in enumerate(words)
     ]
+    cues = subtitle_cues
     layout = subtitle_layout(language, cues)
     cover = output_dir / "cover.png"
     subtitles = output_dir / "subtitles.srt"
     video = output_dir / "short.mp4"
-    _write_cover(cover, title, language, "\n".join(cue.text for cue in cues))
+    _write_cover(cover, title, language, "\n".join(cue.text for cue in cues[:3]))
     _write_srt(subtitles, cues)
     source = Path(source_video) if source_video else None
     audio = Path(audio_source) if audio_source else None

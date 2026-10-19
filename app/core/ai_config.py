@@ -2149,6 +2149,9 @@ class CoverageConfig(BaseModel):
     # One still (a photo, a map) is never shown longer than this; a longer stretch gets other pictures.
     max_still_seconds: float = Field(default=12.0, gt=0)
     max_repair_rounds: int = Field(default=3, ge=1, le=10)
+    # A black screen in the finished file is black for at least this long (shorter dips are the fades
+    # of a card or of the film's start and end).
+    black_screen_min_seconds: float = Field(default=1.0, gt=0)
     # Per gap: pool illustrations the auditor may look at first, then new drawings for the exact words.
     pool_tries: int = Field(default=2, ge=0, le=6)
     slot_attempts: int = Field(default=3, ge=1, le=8)
@@ -2828,7 +2831,7 @@ class ShortFormProductionConfig(BaseModel):
     # the numbers mean pixels): letter height, side margins and distance from the bottom edge.
     caption_font_px: int = Field(default=72, ge=20, le=200)
     caption_side_margin_px: int = Field(default=90, ge=0, le=400)
-    caption_bottom_margin_px: int = Field(default=300, ge=0, le=900)
+    caption_bottom_margin_px: int = Field(default=340, ge=0, le=900)
     default_visibility: Literal["private", "draft"] = "private"
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_redos: int = Field(default=2, ge=0, le=2)

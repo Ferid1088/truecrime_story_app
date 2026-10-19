@@ -311,3 +311,11 @@ def test_the_per_film_cap_trims_the_longest_beats_first(monkeypatch):
     bp = {"beats": [{"id": "B01", "words": 20}, {"id": "B02", "words": 140}]}
     counts = IL.counts_per_beat(bp)
     assert sum(counts.values()) == 5 and counts["B01"] >= 1
+
+
+def test_a_picture_never_fades_in_from_black_but_a_card_keeps_its_short_fade():
+    s = script(shot("image", 0, 8, asset_id="A", transition_in="FADE_BLACK"),
+               shot("title", 8, 12.5, transition_in="FADE_BLACK"),
+               shot("map", 12.5, 20, asset_id="M", transition_in="FADE_BLACK"), duration=20)
+    assert CF.no_black_fades(s) == 2
+    assert [x["transition_in"] for x in s["shots"]] == ["CROSSFADE", "FADE_BLACK", "CROSSFADE"]

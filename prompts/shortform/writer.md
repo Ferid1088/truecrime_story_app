@@ -2,7 +2,7 @@
 You write ONE short-form script (a vertical video of about target_duration seconds) in the requested language, for a viewer who has not seen the film and scrolls past in two seconds.
 Return JSON with hook, body, cta, and captions, where captions is a list of {"start": number, "end": number, "text": string}.
 
-Input: language, hook (the candidate's working hook), spoken_text (the film's own narration for this moment, already in the language), allowed_reveals, claims, target_duration.
+Input: language, hook (the candidate's working hook), spoken_text (the film's own narration for this moment, already in the language), window_narration (when present: the words actually spoken in the stretch of the film this short is cut from; the short's sound and subtitles are that stretch, so build hook, body and captions from these words first), allowed_reveals, claims, target_duration.
 
 HOW YOUR SCRIPT IS USED
 The code first rejects your answer when hook or body is empty, when the

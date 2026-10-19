@@ -156,6 +156,7 @@
     "max_card_share": 0.12,
     "max_black_seconds": 0.0,
     "max_still_seconds": 12.0,
-    "max_repair_rounds": 3
+    "max_repair_rounds": 3,
+    "black_screen_min_seconds": 1.0
   }
 }
