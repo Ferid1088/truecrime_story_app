@@ -1994,6 +1994,11 @@ class HostScene(Base):
     # What the checks of the voice found: Whisper, the pronunciation listening, the fixes tried and
     # the flags a person has to look at.
     voice_checks_json: Mapped[str] = mapped_column(Text, default="{}")
+    # The outfit of this video and the look the director's plan was mapped to (with why, and the
+    # looks that were considered); the outfit is the same in every scene of the video.
+    host_outfit_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    look_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    look_choice_json: Mapped[str] = mapped_column(Text, default="{}")
     # avatar steps
     avatar_provider: Mapped[str | None] = mapped_column(String(30), nullable=True)
     avatar_id: Mapped[str | None] = mapped_column(String(100), nullable=True)   # look used
@@ -2283,6 +2288,28 @@ class HostAppearance(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
 
 
+class HostOutfit(Base):
+    """The host's outfit for ONE video: one case and one language. Exactly one outfit is selected
+    per case and language and it stays the same for every host scene of that video; its looks
+    (camera, framing, pose) are what the stage director chooses from."""
+
+    __tablename__ = "host_outfits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    # the outfit of the app's registry (data/outfits/<slug>/) the pictures come from, or None
+    # when an own reference picture is given
+    outfit_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    reference_image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reference_image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # draft | selected | retired (one selected per case and language)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    selected_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
 class HostLook(Base):
     """One look of the host in a channel's studio (Part 7b): a picture of
     him inside the locked studio master (camera, framing, outfit, pose) made
@@ -2297,6 +2324,11 @@ class HostLook(Base):
     camera: Mapped[str] = mapped_column(String(20))
     framing: Mapped[str] = mapped_column(String(20))
     outfit_id: Mapped[str] = mapped_column(String(100))
+    # The outfit of a video this look belongs to (None for a look made before outfits belonged
+    # to a case) and whether the host sits or stands in it.
+    host_outfit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("host_outfits.id"), nullable=True, index=True)
+    stance: Mapped[str] = mapped_column(String(10), default="SEATED", server_default="SEATED")
     pose: Mapped[str] = mapped_column(String(60))
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

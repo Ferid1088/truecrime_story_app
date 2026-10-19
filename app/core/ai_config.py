@@ -553,7 +553,6 @@ class StageDirectionConfig(BaseModel):
     close_allowed_emotions: list[str]
     close_allowed_purposes: list[str]
     forbidden_emotions: list[str]
-    recent_outfit_window: int = Field(ge=0)
     sensitive_max_gestures: int = Field(ge=0)
     # How many of the newest appearances of the channel the director reads.
     visual_memory_appearances: int = Field(ge=1, le=40)
@@ -566,8 +565,40 @@ class StageDirectionConfig(BaseModel):
     # How a direction becomes HeyGen's natural-language motion prompt.
     gesture_phrases: dict[str, str]
     posture_phrases: dict[str, str]
+    # {hands} in a gesture phrase: how the hands of an action are named.
+    hands_phrases: dict[str, str]
+    # Gestures a language's culture reads wrongly (pointing at the viewer, a thumbs-up, the OK sign
+    # in the Middle East ...): the director may not choose them there.
+    forbidden_gestures: dict[str, list[str]]
     # intensity below the first value -> low, below the second -> medium, else high
     expressiveness_thresholds: list[float]
+
+
+class PoseSetEntry(BaseModel):
+    """One look of the standard set an outfit is given in one click."""
+
+    label: str
+    camera: str
+    framing: str
+    stance: str
+    pose: str
+
+    @model_validator(mode="after")
+    def _valid(self):
+        if self.stance not in ("SEATED", "STANDING"):
+            raise ValueError("a pose set entry sits or stands")
+        return self
+
+
+class LookContinuity(BaseModel):
+    """How far two neighbouring scenes of one video may differ in how the host looks: a change of
+    stance weighs `stance_weight`, a step between cameras or framings one each."""
+
+    max_change_per_cut: int = Field(ge=0)
+    stance_weight: int = Field(ge=0)
+    # position of each camera on the line from the left side view (-2) to the right (2)
+    camera_position: dict[str, int]
+    framing_order: list[str]
 
 
 class HostLooksConfig(BaseModel):
@@ -576,6 +607,15 @@ class HostLooksConfig(BaseModel):
     the first real generation verifies the edit endpoint's response."""
     image_model: str
     image_timeout_s: float = Field(gt=0)
+    # The standard set of looks an outfit is given in one click.
+    pose_set: list[PoseSetEntry]
+    # The safe zone of the studio picture a stance needs (a seat for SEATED, free floor for
+    # STANDING): a look is only requested where the studio has it.
+    studio_zone: dict[str, str]
+    # The pictures of the outfit (data/outfits/<slug>/<role>.png) a look is generated from, in
+    # order of preference, per stance.
+    outfit_reference_roles: dict[str, list[str]]
+    continuity: LookContinuity
 
 
 class LanguagePipelineGlossaryConfig(BaseModel):
@@ -1568,6 +1608,10 @@ class AvatarConfig(BaseModel):
     # provider composites the studio image itself (mp4)
     output_format: str = "webm"
     resolution: str = "1080p"
+    # How HeyGen fits the avatar's picture to the frame when it composites the studio itself
+    # (create-video "fit": cover | contain). HeyGen has no avatar scale or position parameter:
+    # the framing comes from the look's picture.
+    fit: str = Field(default="contain", pattern="^(cover|contain)$")
     request_timeout_s: float = Field(default=120.0, gt=0)
     poll_interval_s: float = Field(default=10.0, gt=0)
     max_poll_minutes: float = Field(default=20.0, gt=0)

@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.prompts import prompt
-from app.db.models import HostLook
+from app.db.models import HostLook, HostOutfit
 from app.documentary import stage_direction as SD
 from app.documentary import storage
 from app.documentary import studio as ST
@@ -66,7 +66,8 @@ class ApimasterImageProvider:
 
 def default_prompt(look: HostLook) -> str:
     return prompt("documentary/host/look_image").format(
-        camera=look.camera, framing=look.framing, pose=look.pose)
+        camera=look.camera, framing=look.framing, pose=look.pose,
+        stance="standing" if look.stance == "STANDING" else "seated in the armchair")
 
 
 def request_look(db: Session, language: str, camera: str, framing: str, outfit_id: str,
@@ -82,6 +83,27 @@ def request_look(db: Session, language: str, camera: str, framing: str, outfit_i
         raise LookError(f"this look already exists (#{open_look.id}, {open_look.status})")
     look = HostLook(studio_profile_id=profile, language=language, camera=camera, framing=framing,
                     outfit_id=outfit_id, pose=pose, prompt=prompt)
+    db.add(look)
+    db.commit()
+    db.refresh(look)
+    return look
+
+
+def request_outfit_look(db: Session, outfit: HostOutfit, camera: str, framing: str, stance: str,
+                        pose: str, prompt: str | None = None) -> HostLook:
+    """A look that belongs to an outfit of a video (one per camera, framing and stance)."""
+    if camera not in SD.CAMERAS or framing not in SD.FRAMINGS:
+        raise LookError("unknown camera or framing")
+    profile = ST.channel_profile(outfit.language)["studio_profile_id"]
+    open_look = db.query(HostLook).filter(
+        HostLook.host_outfit_id == outfit.id, HostLook.camera == camera,
+        HostLook.framing == framing, HostLook.stance == stance,
+        HostLook.status != "rejected").first()
+    if open_look is not None:
+        raise LookError(f"this look already exists (#{open_look.id}, {open_look.status})")
+    look = HostLook(studio_profile_id=profile, language=outfit.language, camera=camera,
+                    framing=framing, outfit_id=outfit.outfit_ref or f"outfit-{outfit.id}",
+                    host_outfit_id=outfit.id, stance=stance, pose=pose, prompt=prompt)
     db.add(look)
     db.commit()
     db.refresh(look)
@@ -160,7 +182,7 @@ def approved_looks(db: Session, studio_profile_id: str) -> set[tuple[str, str]]:
 def look_dict(look: HostLook) -> dict:
     return {"id": look.id, "studio_profile_id": look.studio_profile_id, "language": look.language,
             "camera": look.camera, "framing": look.framing, "outfit_id": look.outfit_id,
-            "pose": look.pose, "prompt": look.prompt, "image_path": look.image_path,
+            "host_outfit_id": look.host_outfit_id, "stance": look.stance, "pose": look.pose, "prompt": look.prompt, "image_path": look.image_path,
             "image_sha256": look.image_sha256, "image_model": look.image_model,
             "status": look.status, "approved_by": look.approved_by,
             "approved_at": look.approved_at, "rejected_reason": look.rejected_reason,

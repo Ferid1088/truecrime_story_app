@@ -1,6 +1,77 @@
 {
   "host_looks": {
     "image_model": "gpt-image-2",
-    "image_timeout_s": 240
+    "image_timeout_s": 240,
+    "pose_set": [
+      {
+        "label": "front, wide, seated",
+        "camera": "CAM01_FRONT",
+        "framing": "WIDE",
+        "stance": "SEATED",
+        "pose": "P01_NEUTRAL_SEATED"
+      },
+      {
+        "label": "front, medium, seated",
+        "camera": "CAM01_FRONT",
+        "framing": "MEDIUM",
+        "stance": "SEATED",
+        "pose": "P01_NEUTRAL_SEATED"
+      },
+      {
+        "label": "left 45, medium, seated",
+        "camera": "CAM02_LEFT_45",
+        "framing": "MEDIUM",
+        "stance": "SEATED",
+        "pose": "P01_NEUTRAL_SEATED"
+      },
+      {
+        "label": "standing, front, wide",
+        "camera": "CAM01_FRONT",
+        "framing": "WIDE",
+        "stance": "STANDING",
+        "pose": "P06_STANDING_FRONT"
+      },
+      {
+        "label": "side view, medium, seated",
+        "camera": "CAM04_LEFT_SIDE",
+        "framing": "MEDIUM",
+        "stance": "SEATED",
+        "pose": "P01_NEUTRAL_SEATED"
+      }
+    ],
+    "studio_zone": {
+      "SEATED": "host",
+      "STANDING": "host_standing"
+    },
+    "outfit_reference_roles": {
+      "SEATED": [
+        "sitting_hands",
+        "sitting_crossed",
+        "front"
+      ],
+      "STANDING": [
+        "standing_3q",
+        "standing_pockets",
+        "full_body"
+      ]
+    },
+    "continuity": {
+      "max_change_per_cut": 4,
+      "stance_weight": 3,
+      "camera_position": {
+        "CAM01_FRONT": 0,
+        "CAM06_WIDE": 0,
+        "CAM02_LEFT_45": -1,
+        "CAM03_RIGHT_45": 1,
+        "CAM04_LEFT_SIDE": -2,
+        "CAM05_RIGHT_SIDE": 2
+      },
+      "framing_order": [
+        "WIDE",
+        "MEDIUM",
+        "MEDIUM_CLOSE",
+        "CLOSE"
+      ]
+    }
   }
 }
