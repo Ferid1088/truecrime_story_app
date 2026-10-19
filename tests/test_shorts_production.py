@@ -607,7 +607,8 @@ def test_burned_in_captions_are_sized_for_the_caption_canvas_not_for_frame_pixel
 
 def test_a_short_is_cut_from_the_stretch_of_the_film_its_beats_are_in_with_the_films_own_subtitles():
     script = {"duration": 100.0, "beats": [{"beat_id": "B1", "start": 12.0, "end": 40.0},
-                                           {"beat_id": "B2", "start": 40.0, "end": 98.0}],
+                                           {"beat_id": "B2", "start": 40.0, "end": 90.0},
+                                           {"beat_id": "B3", "start": 90.0, "end": 100.0}],
               "subtitles": [{"start": 12.5, "end": 16.5, "text": "It was about half past ten on the morning of August 4, 1892."},
                             {"start": 16.6, "end": 20.0, "text": "A second sentence."},
                             {"start": 90.0, "end": 94.0, "text": "Too late for the window."}]}
@@ -615,7 +616,8 @@ def test_a_short_is_cut_from_the_stretch_of_the_film_its_beats_are_in_with_the_f
 
     target = ai_config.short_form.production.target_seconds
     assert pipeline.film_window(script, ["B1"]) == (12.0, 12.0 + target)
-    assert pipeline.film_window(script, ["B2"]) == (100.0 - target, 100.0)       # kept inside the film
+    assert pipeline.film_window(script, ["B2"]) == (40.0, 40.0 + target)
+    assert pipeline.film_window(script, ["B3"]) == (100.0 - target, 100.0)       # kept inside the film
     assert pipeline.film_window(script, ["nope"]) is None and pipeline.film_window(None, ["B1"]) is None
     cues = pipeline.window_cues(script, 12.0, 12.0 + target)
     assert all(len(c["text"]) <= 42 and 0 <= c["start"] < c["end"] <= target for c in cues)
