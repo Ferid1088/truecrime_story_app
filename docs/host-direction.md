@@ -67,3 +67,30 @@ recorded).
 
 - `data/studio/` is empty: the locked studio master pictures are not on this machine, so no
   look can be generated yet (`POST /api/host-looks/{id}/generate` answers 409 saying so).
+
+
+## Outfit, looks and one-pass rendering (2026-10-19)
+
+- **Outfit per video.** One outfit is selected per case and language (`host_outfits`, status
+  `selected`) and is the same in every host scene of that video. A look belongs to an outfit and has a
+  stance (SEATED / STANDING), camera, framing and pose. The stage director plans stance, camera and
+  framing; `look_selection.choose` maps the plan to the best APPROVED look of the selected outfit in
+  the language's own studio: exact, a crop of an approved front or wide picture, or the nearest approved
+  look (the reason is stored in `host_scenes.look_choice_json` and the scene's history). Neighbouring
+  scenes may not differ by more than `host_looks.continuity.max_change_per_cut` without a
+  `continuity_reason`. With no selected outfit, no approved look, or a look not yet uploaded to
+  HeyGen, the avatar step stops before anything is uploaded and says what to do.
+- **What HeyGen supports** (create-video, read 2026-10-19, developers.heygen.com/reference/create-video):
+  `background` = `{type: color, value: hex}` or `{type: image, url | asset_id}`; `remove_background`;
+  `output_format` `mp4` | `webm` (webm = alpha channel, then no `background` is accepted);
+  `fit` `cover` | `contain`; `aspect_ratio`; `resolution` `720p` | `1080p` | `4k`; `engine.type`
+  `avatar_iii` | `avatar_iv` | `avatar_v`; `motion_prompt` and `expressiveness` for photo avatars.
+  It has NO avatar scale and NO avatar offset or position: the framing of the host is the framing of
+  the look's picture. So one pass with the studio (`background_mode: provider_composited`) uploads the
+  studio picture as `background`, asks for `mp4` and sets `fit` (`avatar.fit`, default `contain`);
+  a closer framing than the approved picture is a crop made by our renderer (PLANNED_ONLY, not built).
+  The four earlier videos were transparent webm (ALPHA_MODE=1) made with the older
+  `transparent_avatar_over_studio` mode.
+- **Body language.** Gestures carry `hands` (both | left | right); the code rejects one hand only, the
+  same gesture with the same hands twice in a row, and the gestures a language's culture reads wrongly
+  (`stage_direction.forbidden_gestures`).

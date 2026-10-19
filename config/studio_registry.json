@@ -305,7 +305,7 @@
         }
       },
       "alternate_angles": [],
-      "background_mode": "transparent_avatar_over_studio",
+      "background_mode": "provider_composited",
       "review": {
         "by": "visual review of the masters (Claude, 2026-10-09)",
         "confirmed": false
@@ -387,7 +387,7 @@
         }
       },
       "alternate_angles": [],
-      "background_mode": "transparent_avatar_over_studio",
+      "background_mode": "provider_composited",
       "review": {
         "by": "visual review of the masters (Claude, 2026-10-09)",
         "confirmed": false
@@ -469,7 +469,7 @@
         }
       },
       "alternate_angles": [],
-      "background_mode": "transparent_avatar_over_studio",
+      "background_mode": "provider_composited",
       "review": {
         "by": "visual review of the masters (Claude, 2026-10-09)",
         "confirmed": false
@@ -551,7 +551,7 @@
         }
       },
       "alternate_angles": [],
-      "background_mode": "transparent_avatar_over_studio",
+      "background_mode": "provider_composited",
       "review": {
         "by": "visual review of the masters (Claude, 2026-10-09)",
         "confirmed": false

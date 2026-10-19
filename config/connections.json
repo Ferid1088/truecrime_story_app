@@ -51,12 +51,13 @@
     "provider": "heygen",
     "secret_env": "TRUECRIME_HEYGEN_API_KEY",
     "avatar_id_env": "TRUECRIME_AVATAR_ID_HEYGEN",
-    "enabled": false,
+    "enabled": true,
     "base_url": "https://api.heygen.com",
     "output_format": "webm",
     "resolution": "1080p",
     "request_timeout_s": 120.0,
     "poll_interval_s": 10.0,
-    "max_poll_minutes": 20.0
+    "max_poll_minutes": 20.0,
+    "fit": "contain"
   }
 }
