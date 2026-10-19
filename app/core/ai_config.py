@@ -2171,6 +2171,30 @@ class SupplyConfig(BaseModel):
     max_searches: int = Field(default=3, ge=1, le=3)
 
 
+class FillWaysConfig(BaseModel):
+    """The ways, besides illustrations, a gap in the picture track is filled with: they use only
+    what the film and the case already hold (its own pictures, words and facts)."""
+
+    # Tried in this order for every gap; the illustration is always the last way.
+    order: list[Literal["reframe", "split", "board", "text"]] = ["reframe", "split", "board", "text"]
+    # A real picture shown again as a close-up: seconds since it was last on screen, and how
+    # often one picture may come back.
+    reuse_gap_seconds: float = Field(default=45.0, ge=0)
+    max_reuse_per_picture: int = Field(default=2, ge=0)
+    max_per_film: dict[str, int] = {"reframe": 8, "split": 3, "board": 3, "text": 6}
+    # The board "what we know so far": facts shown, facts the viewer must already know, the
+    # story moments (beat purposes) it may come at, and the seconds between two boards.
+    board_facts: int = Field(default=5, ge=2, le=8)
+    board_min_known: int = Field(default=4, ge=1)
+    board_purposes: list[str] = []
+    board_gap_seconds: float = Field(default=120.0, ge=0)
+    # A spoken sentence becomes a text scene when it holds a quotation mark or a number and has
+    # a length within these limits.
+    text_min_chars: int = Field(default=20, ge=1)
+    text_max_chars: int = Field(default=160, ge=20)
+    quote_marks: str = "\"«»“”„"
+
+
 class CoverageConfig(BaseModel):
     """What the film's picture track must satisfy (checked before and after the render)."""
 
@@ -3007,6 +3031,7 @@ class AIConfig(BaseModel):
     illustrations: IllustrationsConfig
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
     supply: SupplyConfig = Field(default_factory=SupplyConfig)
+    fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)

@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import Case, EditorialBlueprint, ProductionScript, VisualAsset, VisualPlan
 from app.documentary.visuals import illustrations as IL
-from app.documentary.visuals.usage import UsageTracker, asset_facts
+from app.documentary.visuals.fill_ways import FillWays, crop_box
+from app.documentary.visuals.usage import UsageTracker, asset_facts, named_between
 
 CARD_KINDS = ("black", "title", "chapter", "timeline", "date")
 KEEP_CARD_KINDS = ("title", "chapter", "timeline")      # a short card is allowed, a black stretch never
@@ -172,12 +173,34 @@ def _illustration_shot(a: VisualAsset, start: float, end: float, beat_id: str | 
             "kind": "image", **_asset_info(a), "role": "illustration"}
 
 
+def _way_shot(got: dict, start: float, end: float, beat_id: str | None, n: int) -> dict:
+    """The shot of a gap filled by one of the fill ways (visuals.fill_ways)."""
+    a, way = got["asset"], got["way"]
+    shot = _illustration_shot(a, start, end, beat_id, n)
+    shot["role"] = a.asset_role
+    shot["fill_reason"] = f"fill way {way}: " + "; ".join(got["reasons"][:1])
+    shot["why"] = f"coverage repair: {way}"
+    if way == "reframe":
+        shot.update({"command": "CROP_EXISTING", "motion": "CROP_FOCUS", "reframe": True,
+                     "focus": crop_box(a.width, a.height, got["reframe"]),
+                     "repeat_reason": "a closer view of a real picture shown earlier (no unused picture fits these words)",
+                     "repeat_justified": True})
+    else:
+        shot.update({"command": "NEW_IMAGE", "motion": "SLOW_PUSH", "speed": 0.5})
+    return shot
+
+
 async def _fill_slot(db: Session, case: Case, slot: tuple[float, float], beat: str | None,
                      sentences: list[str], story: dict, firewall, auditor, free: dict, everything: list,
-                     used: set, blueprint: dict, requirements: dict, index: list[int]) -> dict | None:
-    """One picture for one gap: an unused pool illustration the auditor approves for these exact
-    words, else a new one drawn for them (and drawn again with the auditor's reasons when it
-    rejects). None when nothing was approved."""
+                     used: set, blueprint: dict, requirements: dict, index: list[int],
+                     ways: FillWays, names: set[str]) -> dict | None:
+    """One picture for one gap: first the fill ways (a close-up of a real picture shown earlier, two
+    accounts, the board, a spoken sentence set large), then an unused pool illustration the auditor
+    approves for these exact words, else a new one drawn for them (and drawn again with the auditor's
+    reasons when it rejects). None when nothing was approved."""
+    got = await ways.try_slot(slot, beat, sentences, story, firewall, names)
+    if got:
+        return got
     cfg = ai_config.coverage
     beat_summary = next((b.get("summary") for b in blueprint.get("beats") or [] if b["id"] == beat), None)
     avoid: list[str] = []
@@ -243,6 +266,7 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
     everything = [a for items in free.values() for a in items]
     slots = [(p, _beat_at(script, p[0])) for w in windows for p in _pieces(*w)]
     auditor = VisualAuditor()
+    ways = FillWays(db, case, script, blueprint, shots, auditor)
     sem = asyncio.Semaphore(ai_config.illustrations.concurrency)
     counter = [0]
 
@@ -251,7 +275,8 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
         story = SP.story_point(blueprint, beat)
         async with sem:
             return await _fill_slot(db, case, slot, beat, sentences, story, firewall, auditor, free,
-                                    everything, used, blueprint, requirements, counter)
+                                    everything, used, blueprint, requirements, counter, ways,
+                                    named_between(spans, slot[0], slot[1]))
 
     results = await asyncio.gather(*(one(sl, b) for sl, b in slots))
     filled, count, missing = 0, 0, []
@@ -259,7 +284,8 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
         if got is None:
             missing.append((start, end))
             continue
-        shot = _illustration_shot(got["asset"], start, end, beat, count)
+        shot = (_way_shot(got, start, end, beat, count) if got.get("way")
+                else _illustration_shot(got["asset"], start, end, beat, count))
         shot["audit"] = {"verdict": "approved", "as": got["as"], "reasons": got["reasons"][:3],
                          "try": got.get("attempts", 0)}
         shots.append(shot)
@@ -277,6 +303,7 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
     record_media_usage(db, row, script)
     db.commit()
     return {"windows": len(windows), "slots": len(slots), "filled": filled,
+            "ways": {k: v for k, v in ways.done.items() if v},
             "missing_seconds": round(sum(b - a for a, b in missing), 2), "held": held}
 
 

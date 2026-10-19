@@ -307,5 +307,34 @@
   "supply": {
     "seconds_per_real_picture": 40.0,
     "max_searches": 3
+  },
+  "fill_ways": {
+    "order": [
+      "reframe",
+      "split",
+      "board",
+      "text"
+    ],
+    "reuse_gap_seconds": 45.0,
+    "max_reuse_per_picture": 2,
+    "max_per_film": {
+      "reframe": 8,
+      "split": 3,
+      "board": 3,
+      "text": 6
+    },
+    "board_facts": 5,
+    "board_min_known": 4,
+    "board_purposes": [
+      "transition",
+      "timeline",
+      "investigation",
+      "evidence",
+      "recovery"
+    ],
+    "board_gap_seconds": 120.0,
+    "text_min_chars": 20,
+    "text_max_chars": 160,
+    "quote_marks": "\"«»“”„"
   }
 }
