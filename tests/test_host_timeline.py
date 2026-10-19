@@ -22,6 +22,8 @@ def _script():
         "overlays": [{"kind": "label", "text": "x", "start": 42.0, "end": 44.0}],
         "music": [{"cue_id": "m", "start": 30.0, "duration": 10.0}],
         "intro": {"mode": "gap", "start": 22.0},
+        "sentence_entities": [{"beat_id": "B1", "n": 1, "start": 0.0, "end": 20.0, "entities": ["a"]},
+                              {"beat_id": "B3", "n": 1, "start": 40.0, "end": 60.0, "entities": ["b"]}],
     }
 
 
@@ -39,6 +41,12 @@ def test_opening_goes_before_beat_one_and_everything_after_it_moves():
     assert out["subtitles"][0]["start"] == 11.0 and out["music"][0]["start"] == 40.0
     assert out["intro"]["start"] == 32.0 and out["silences"][0]["start"] == 29.0
     assert out["voice"][0]["start"] == 10.0
+
+
+def test_the_sentence_spans_move_with_the_film_so_pictures_meet_their_own_words():
+    out = HT.insert_host(_script(), [_item(1, "opening", None, 10.0), _item(2, "mid", "B1", 8.0)])
+    assert [(x["start"], x["end"]) for x in out["sentence_entities"]] == [(10.0, 30.0), (58.0, 78.0)]
+    assert out["sentence_entities"][0]["start"] == out["beats"][0]["start"]
 
 
 def test_a_mid_appearance_follows_its_beat_and_a_spanning_shot_is_split():
