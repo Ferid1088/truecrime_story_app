@@ -125,6 +125,13 @@ def core_query(query: str, words: int = 3) -> str | None:
     return " ".join(toks[:words])
 
 
+def same_subject(name: str, title: str) -> bool:
+    """An article title and an entity name name the same thing when one's words hold the other's
+    ('Lizzie Borden' and 'Lizzie Borden'; 'Borden House' and 'Lizzie Borden House')."""
+    a, b = (set(re.findall(r"\w+", x.lower())) for x in (name, title))
+    return bool(a and b) and (a <= b or b <= a)
+
+
 def category_matches(name: str, category: str) -> bool:
     """A Commons category belongs to an entity only when every word of the
     entity's name is in the category title ('Lizzie Borden' ->
@@ -152,7 +159,7 @@ class WikimediaProvider:
                 c.found_for = query
         return out
 
-    async def _get(self, params: dict) -> dict:
+    async def _get(self, params: dict, api: str | None = None) -> dict:
         import asyncio
         import time
 
@@ -160,7 +167,7 @@ class WikimediaProvider:
         if wait > 0:
             await asyncio.sleep(wait)
         WikimediaProvider._last = time.monotonic()
-        r = await self.client.get(self.cfg.wikimedia_api, params={"format": "json", **params})
+        r = await self.client.get(api or self.cfg.wikimedia_api, params={"format": "json", **params})
         r.raise_for_status()
         return r.json()
 
@@ -193,18 +200,38 @@ class WikimediaProvider:
                 "gcmlimit": limit - len(out)}, name))
         return out[:limit]
 
+    async def article_files(self, name: str, limit: int, language: str) -> list[Candidate]:
+        """The pictures of the Wikipedia article (in this language) about `name`: the images its
+        editors chose for the subject. Only an article whose title names the same thing counts."""
+        api = self.cfg.wikipedia_api.format(language=language)
+        try:
+            found = await self._get({"action": "query", "list": "search", "srsearch": name,
+                                     "srlimit": 1}, api)
+            hits = (found.get("query") or {}).get("search") or []
+            if not hits or not same_subject(name, hits[0]["title"]):
+                return []
+            title = hits[0]["title"]
+        except (httpx.HTTPError, ValueError, KeyError) as e:
+            log.warning("wikipedia search failed for %r: %s", name, e)
+            return []
+        out = await self._pages({"generator": "images", "titles": title, "gimlimit": limit},
+                                name, api)
+        for c in out:
+            c.source_name = f"Wikipedia ({language}): {title}"
+        return out
+
     async def _search(self, query: str, limit: int) -> list[Candidate]:
         return await self._pages({
             "generator": "search", "gsrsearch": f"{query} filetype:bitmap",
             "gsrnamespace": 6, "gsrlimit": limit}, query)
 
-    async def _pages(self, generator: dict, query: str) -> list[Candidate]:
+    async def _pages(self, generator: dict, query: str, api: str | None = None) -> list[Candidate]:
         params = {
             "action": "query", **generator, "prop": "imageinfo",
             "iiprop": "url|extmetadata|size|mime", "iiurlwidth": 2000,
         }
         try:
-            pages = ((await self._get(params)).get("query") or {}).get("pages") or {}
+            pages = ((await self._get(params, api)).get("query") or {}).get("pages") or {}
         except (httpx.HTTPError, ValueError) as e:
             log.warning("wikimedia search failed for %r: %s", query, e)
             return []
@@ -224,7 +251,7 @@ class WikimediaProvider:
             out.append(Candidate(
                 url=info.get("thumburl") or info.get("url"),
                 page_url=info.get("descriptionurl"), provider=self.name,
-                title=(page.get("title") or "").removeprefix("File:"),
+                title=(page.get("title") or "").split(":", 1)[-1],
                 caption=_clean(mv("ImageDescription")),
                 license=_clean(mv("LicenseShortName"), 120),
                 credit=f"{artist or 'Unknown author'} / Wikimedia Commons",

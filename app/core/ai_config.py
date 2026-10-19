@@ -2039,6 +2039,9 @@ class VisualSearchConfig(BaseModel):
     wikimedia_categories: bool = False
     category_max_files: int = Field(default=60, ge=1)
     max_category_entities: int = Field(default=12, ge=0)
+    # The Wikipedia articles (these language editions) whose pictures are taken for an entity.
+    wikipedia_languages: list[str] = []
+    wikipedia_api: str = "https://{language}.wikipedia.org/w/api.php"
     max_source_pages: int = Field(default=25, ge=0)
     max_assets: int = Field(default=120, ge=1)
     min_width: int = Field(default=600, ge=64)
@@ -2119,6 +2122,12 @@ class VisualVerificationConfig(BaseModel):
     verified_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     reject_below_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
     thumbnail_px: int = Field(default=768, ge=128)
+    # A picture of the right real place or thing in the wrong period (a modern photo of the
+    # house) is kept, for these kinds of subject; the auditor still judges it per sentence.
+    modern_view_subjects: list[str] = []
+    # A picture that is not what it was found for but shows another known thing of the case
+    # (for these kinds of subject) is kept for that thing instead of being rejected.
+    other_entity_subjects: list[str] = []
 
 
 class EditorialReviewConfig(BaseModel):

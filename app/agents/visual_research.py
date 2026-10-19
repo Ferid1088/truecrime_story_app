@@ -49,10 +49,10 @@ class VisualResearchAgent:
         """Assets still allowed: rejected pictures are kept but take no slot."""
         return self.cfg.max_assets - sum(a.verification_status != "rejected" for a in existing)
 
-    async def _category_candidates(self, wiki: WikimediaProvider,
+    async def _curated_candidates(self, wiki: WikimediaProvider,
                                    queries: list[dict]) -> list[Candidate]:
-        """The Commons category files of the entities named by the exact
-        queries (one lookup per entity name, the first query of each)."""
+        """The Commons category files and the Wikipedia article pictures of the entities named by
+        the exact queries (one lookup per entity name, the first query of each)."""
         out, seen = [], set()
         for q in queries:
             key = q.get("entity")
@@ -61,7 +61,10 @@ class VisualResearchAgent:
             if len(seen) >= self.cfg.max_category_entities:
                 break
             seen.add(key)
-            for c in await wiki.category_files(q["query"], self.cfg.category_max_files):
+            found = await wiki.category_files(q["query"], self.cfg.category_max_files)
+            for language in self.cfg.wikipedia_languages:
+                found += await wiki.article_files(q["query"], self.cfg.category_max_files, language)
+            for c in found:
                 c.entities = list(q.get("entities") or [key])
                 c.entity_key = key
                 c.entity_type = q.get("entity_type")
@@ -115,7 +118,7 @@ class VisualResearchAgent:
             if "brave_images" in self.cfg.providers and backend:
                 searchers.append(BraveImageProvider(backend))
             if "wikimedia" in self.cfg.providers and self.cfg.wikimedia_categories:
-                candidates.extend(await self._category_candidates(
+                candidates.extend(await self._curated_candidates(
                     WikimediaProvider(client), queries))
             for q in queries[: self.cfg.max_queries]:
                 kind = query_kind(q)

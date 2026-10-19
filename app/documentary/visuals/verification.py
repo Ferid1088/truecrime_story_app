@@ -48,6 +48,11 @@ def decide(v: dict) -> tuple[str, float, str | None]:
         if conf >= cfg.verified_min_confidence:
             return "verified", conf, "composite_match"
         return "needs_review", conf, "composite_uncertain"
+    if (v.get("matches_claim") == "yes" and v.get("period_ok") == "no"
+            and str(v.get("subject_type") or "") in cfg.modern_view_subjects):
+        if conf >= cfg.verified_min_confidence:
+            return "verified", conf, "modern_view"
+        return "needs_review", conf, "modern_view_uncertain"
     if v.get("matches_claim") == "no" or v.get("period_ok") == "no":
         return "rejected", conf, "does_not_match"
     if conf < cfg.reject_below_confidence:
@@ -73,6 +78,18 @@ def normalize_composite_match(verdict: dict, known_entity_keys: set[str]) -> dic
             and out.get("period_ok") != "no"):
         out["matches_claim"] = "composite"
         out["composite_entities"] = sorted(set(entities))
+    return out
+
+
+def normalize_other_entity_match(verdict: dict, known_entity_keys: set[str]) -> dict:
+    """A picture that is not what it was found for, but clearly shows another known thing of
+    the case (the house's front when its interior was searched), is a match for that thing."""
+    out = dict(verdict)
+    entities = [e for e in out.get("entities") or [] if e in known_entity_keys]
+    if (out.get("matches_claim") == "no" and entities and out.get("period_ok") != "no"
+            and str(out.get("subject_type") or "") in ai_config.visual_verification.other_entity_subjects):
+        out["matches_claim"] = "yes"
+        out["other_entity_match"] = sorted(set(entities))
     return out
 
 

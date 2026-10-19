@@ -68,7 +68,7 @@ def test_category_lookup_skips_other_entities_category(monkeypatch):
     assert _category_files(handler) == []
 
 
-def test_agent_category_candidates_one_lookup_per_entity(monkeypatch):
+def test_agent_curated_candidates_one_lookup_per_entity(monkeypatch):
     seen = []
 
     class Fake:
@@ -76,11 +76,14 @@ def test_agent_category_candidates_one_lookup_per_entity(monkeypatch):
             seen.append(name)
             return []
 
+        async def article_files(self, name, limit, language):
+            return []
+
     agent = VisualResearchAgent(client=object())
     qs = [{"query": "A", "entity": "a", "kind": "exact"},
           {"query": "A more", "entity": "a", "kind": "exact"},
           {"query": "B ctx", "entity": "b", "kind": "context"}]
-    asyncio.run(agent._category_candidates(Fake(), qs))
+    asyncio.run(agent._curated_candidates(Fake(), qs))
     assert seen == ["A"]
 
 
@@ -135,3 +138,31 @@ def test_footage_must_name_what_it_was_searched_for():
     local = FootageCandidate(provider="internet_archive", url=None, found_for="Fall River Massachusetts history",
                              title="Fall River mills 1920s")
     assert not about_query(war, generic) and about_query(local, generic)
+
+
+def test_same_subject_needs_one_name_inside_the_other():
+    from app.documentary.visuals.research import same_subject
+
+    assert same_subject("Lizzie Borden", "Lizzie Borden") and same_subject("Borden House", "Lizzie Borden House")
+    assert not same_subject("Lizzie Borden", "Borden, Ontario")
+
+
+def test_article_files_take_the_pictures_of_the_matching_article_only():
+    def handler(request: httpx.Request) -> httpx.Response:
+        q = dict(request.url.params)
+        if q.get("list") == "search":
+            return httpx.Response(200, json={"query": {"search": [{"title": "Lizzie Borden"}]}})
+        assert q["generator"] == "images" and q["titles"] == "Lizzie Borden"
+        return httpx.Response(200, json={"query": {"pages": {"1": {
+            "title": "File:Lizzie Borden 1890.jpg", "index": 1, "imageinfo": [{
+                "mime": "image/jpeg", "width": 900, "url": "https://x/a.jpg", "descriptionurl": "https://c/a",
+                "extmetadata": {}}]}, "2": {"title": "File:Seal.svg", "index": 2, "imageinfo": [{
+                    "mime": "image/svg+xml", "width": 900, "url": "https://x/s.svg"}]}}}})
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await WikimediaProvider(client).article_files("Lizzie Borden", 10, "en")
+
+    out = asyncio.run(go())
+    assert [c.title for c in out] == ["Lizzie Borden 1890.jpg"]
+    assert out[0].source_name == "Wikipedia (en): Lizzie Borden"

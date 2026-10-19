@@ -103,13 +103,34 @@
     "wikimedia_categories": true,
     "category_max_files": 60,
     "max_category_entities": 12,
-    "max_expansion_entities": 8
+    "max_expansion_entities": 8,
+    "wikipedia_languages": [
+      "en",
+      "de",
+      "fr",
+      "es"
+    ]
   },
   "visual_verification": {
     "per_requirement": 12,
     "verified_min_confidence": 0.7,
     "reject_below_confidence": 0.35,
-    "thumbnail_px": 768
+    "thumbnail_px": 768,
+    "modern_view_subjects": [
+      "place",
+      "building",
+      "landscape"
+    ],
+    "other_entity_subjects": [
+      "place",
+      "building",
+      "landscape",
+      "object",
+      "document",
+      "map",
+      "vehicle",
+      "event"
+    ]
   },
   "rights": {
     "allowed_for_render": {
