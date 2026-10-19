@@ -290,6 +290,7 @@ def test_a_short_film_needs_only_the_short_film_gap_between_appearances():
     assert "appearances_too_close_in_time" in codes(rep["errors"])
     assert ai_config.host.min_gap_for(300) == ai_config.host.short_film_min_gap_seconds
     assert ai_config.host.min_gap_for(3600) == ai_config.host.min_gap_seconds
+    assert _cfg(min_gap_seconds=0).min_gap_for(300) == 0         # never stricter than the general rule
     from app.documentary.host import director_system_prompt
 
     assert "at least 90 seconds" in director_system_prompt(narration_seconds=420)

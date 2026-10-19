@@ -1777,8 +1777,8 @@ class HostConfig(BaseModel):
 
     def min_gap_for(self, narration_seconds: float) -> float:
         """Story seconds required between two appearances of a film of this narration length."""
-        return (self.short_film_min_gap_seconds if self.is_short_film(narration_seconds)
-                else self.min_gap_seconds)
+        return (min(self.short_film_min_gap_seconds, self.min_gap_seconds)
+                if self.is_short_film(narration_seconds) else self.min_gap_seconds)
 
     def story_minutes(self, requested_minutes: float) -> float:
         """The story's own length for a requested film length: all of it when the host comes on
