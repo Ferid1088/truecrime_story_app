@@ -1705,6 +1705,8 @@ class HostConfig(BaseModel):
     # appearances only have to reach short_film_min_gap_seconds.
     short_film_seconds: float = Field(default=600.0, ge=0.0)
     short_film_min_gap_seconds: float = Field(default=90.0, ge=0.0)
+    # A short film still gets an opening, one bridge and an outro.
+    short_film_min_appearances: int = Field(default=3, ge=0)
     # The kinds of appearance and their seconds [base, min, max] before the film's own weights.
     roles: dict[str, HostRole]
     # Seconds of an appearance grow with the weight of the act before it (its share of the
@@ -1768,6 +1770,10 @@ class HostConfig(BaseModel):
 
     def is_short_film(self, narration_seconds: float) -> bool:
         return narration_seconds < self.short_film_seconds
+
+    def min_appearances_for(self, narration_seconds: float) -> int:
+        return (max(self.min_appearances, self.short_film_min_appearances)
+                if self.is_short_film(narration_seconds) else self.min_appearances)
 
     def min_gap_for(self, narration_seconds: float) -> float:
         """Story seconds required between two appearances of a film of this narration length."""

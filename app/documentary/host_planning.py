@@ -106,9 +106,10 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
         errors.append({"code": "needs_exactly_one_opening", "count": counts["opening"]})
     if counts["final"] > 1 or (cfg.final_enabled and counts["final"] != 1):
         errors.append({"code": "needs_exactly_one_outro", "count": counts["final"]})
-    if not cfg.min_appearances <= len(segments) <= cfg.max_appearances:
+    least = cfg.min_appearances_for(story_seconds(story))
+    if not least <= len(segments) <= cfg.max_appearances:
         errors.append({"code": "appearance_count_out_of_range", "count": len(segments),
-                       "min": cfg.min_appearances, "max": cfg.max_appearances})
+                       "min": least, "max": cfg.max_appearances})
     ids = [s["id"] for s in segments]
     if len(set(ids)) != len(ids):
         errors.append({"code": "duplicate_segment_ids"})

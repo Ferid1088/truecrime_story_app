@@ -38,8 +38,7 @@ HOW MANY, WHERE
   (that is the outro).
 - At least {min_acts_between} act between two appearances and at least {min_gap_seconds} seconds
   of story between them. Vary the roles; do not stack the same role twice in a row.
-- All appearances together stay under {max_total_seconds} seconds and under {max_total_share} %
-  of the film. Fewer is better than forced.
+- All appearances together stay under {max_total_seconds} seconds and under {max_total_share}. Fewer is better than forced.
 
 Return JSON only:
 {{"notes": "one or two sentences on why this structure fits this film",

@@ -69,6 +69,7 @@
     "min_gap_seconds": 240,
   "short_film_seconds": 600,
   "short_film_min_gap_seconds": 90,
+  "short_film_min_appearances": 3,
     "roles": {
       "opening": {
         "position": "opening",

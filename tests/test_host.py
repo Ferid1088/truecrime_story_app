@@ -293,6 +293,14 @@ def test_a_short_film_needs_only_the_short_film_gap_between_appearances():
     from app.documentary.host import director_system_prompt
 
     assert "at least 90 seconds" in director_system_prompt(narration_seconds=420)
+    short_prompt = director_system_prompt(narration_seconds=420)
+    import re
+
+    assert re.search(r"between\s+3 and", short_prompt) and "only a warning" in short_prompt
+    assert re.search(r"between\s+2 and", director_system_prompt(narration_seconds=3600))
+    two = {**plan_raw(), "segments": [plan_raw()["segments"][0], plan_raw()["segments"][3]]}
+    _, rep = validate_host_plan(two, short)
+    assert "appearance_count_out_of_range" in codes(rep["errors"])
 
 
 def test_host_time_caps_and_share():
@@ -1003,7 +1011,8 @@ def test_a_blueprint_story_is_planned_and_written_through_its_beats(
 
     case, master = _story(db_session)
     bp = _with_blueprint(db_session, case, master)
-    wide = _cfg(min_gap_seconds=0, min_acts_between=0, max_total_share=0.5)
+    wide = _cfg(min_gap_seconds=0, min_acts_between=0, max_total_share=0.5,
+                short_film_min_appearances=2)
     monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
     monkeypatch.setattr(HostDirector, "__init__", lambda self: (
         setattr(self, "gen", gen), setattr(self, "cfg", wide)) and None)
@@ -1025,7 +1034,7 @@ def test_host_api(client, db_session, isolated_host_history, monkeypatch):
     monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
     # (the blueprint's four short beats cannot hold the real spacing rules)
     monkeypatch.setattr(ai_config, "host", _cfg(min_gap_seconds=0, min_acts_between=0,
-                                                max_total_share=0.5))
+                                                max_total_share=0.5, short_film_min_appearances=2))
     case, master = _story(db_session)
     assert client.post(f"/api/cases/{case.id}/documentary/host-plan").status_code == 409
     bp = _with_blueprint(db_session, case, master)

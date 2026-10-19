@@ -208,15 +208,20 @@ def _memory_index(arch: list[dict], mem: list[dict]) -> dict[str, dict]:
 def director_system_prompt(cfg: HostConfig | None = None,
                            narration_seconds: float | None = None) -> str:
     cfg = cfg or ai_config.host
-    gap = cfg.min_gap_seconds if narration_seconds is None else cfg.min_gap_for(narration_seconds)
+    short = narration_seconds is not None and cfg.is_short_film(narration_seconds)
+    gap = cfg.min_gap_for(narration_seconds) if narration_seconds is not None else cfg.min_gap_seconds
+    least = cfg.min_appearances_for(narration_seconds) if narration_seconds is not None else cfg.min_appearances
+    share = f"{int(cfg.max_total_share * 100)} % of the film" + (
+        " (this is a short film: going over the share is only a warning; the appearances "
+        "required above are still planned)" if short else "")
     roles = "\n".join(
         f'- "{name}" (position "{spec.position}"): {spec.min_seconds:g}–{spec.max_seconds:g} s'
         for name, spec in cfg.roles.items())
     return prompt("documentary/host/director_system_prompt").format(
-        persona_prompt=persona_prompt(cfg), roles=roles, min_appearances=cfg.min_appearances,
+        persona_prompt=persona_prompt(cfg), roles=roles, min_appearances=least,
         max_appearances=cfg.max_appearances, min_acts_between=cfg.min_acts_between,
         min_gap_seconds=int(gap), max_total_seconds=int(cfg.max_total_seconds),
-        max_total_share=int(cfg.max_total_share * 100))
+        max_total_share=share)
 
 
 def director_input(story: HostStory, narration_seconds: float) -> dict:
