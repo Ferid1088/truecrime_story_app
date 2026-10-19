@@ -275,6 +275,26 @@ def test_spacing_in_acts_and_in_story_seconds():
     assert seconds_between(story(), 0, 2) == pytest.approx(first_two / 150 * 60)
 
 
+def test_a_short_film_needs_only_the_short_film_gap_between_appearances():
+    short_texts = {a["id"]: _act_text(a["id"], a["target_words"] // 20) for a in PLAN["acts"]}
+    short = story_from_plan(CASE, PLAN, short_texts, "en", PACK)
+    raw = plan_raw()
+    raw["segments"][2]["after_act"] = "act3"
+    far = _cfg(min_acts_between=0, min_gap_seconds=1500, short_film_min_gap_seconds=1)
+    _, rep = validate_host_plan(raw, short, far)
+    assert "appearances_too_close_in_time" not in codes(rep["errors"])      # a short film: 1 s
+    _, rep = validate_host_plan(raw, story(), far)                           # a real film: 1500 s
+    assert "appearances_too_close_in_time" in codes(rep["errors"])
+    strict = _cfg(min_acts_between=0, short_film_min_gap_seconds=1500)
+    _, rep = validate_host_plan(raw, short, strict)
+    assert "appearances_too_close_in_time" in codes(rep["errors"])
+    assert ai_config.host.min_gap_for(300) == ai_config.host.short_film_min_gap_seconds
+    assert ai_config.host.min_gap_for(3600) == ai_config.host.min_gap_seconds
+    from app.documentary.host import director_system_prompt
+
+    assert "at least 90 seconds" in director_system_prompt(narration_seconds=420)
+
+
 def test_host_time_caps_and_share():
     capped = _cfg(max_total_seconds=60)
     _, rep = validate_host_plan(plan_raw(), story(), capped)

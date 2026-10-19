@@ -67,6 +67,8 @@
     "max_appearances": 5,
     "min_acts_between": 1,
     "min_gap_seconds": 240,
+  "short_film_seconds": 600,
+  "short_film_min_gap_seconds": 90,
     "roles": {
       "opening": {
         "position": "opening",

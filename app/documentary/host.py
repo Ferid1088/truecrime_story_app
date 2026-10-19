@@ -205,15 +205,17 @@ def _memory_index(arch: list[dict], mem: list[dict]) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 
-def director_system_prompt(cfg: HostConfig | None = None) -> str:
+def director_system_prompt(cfg: HostConfig | None = None,
+                           narration_seconds: float | None = None) -> str:
     cfg = cfg or ai_config.host
+    gap = cfg.min_gap_seconds if narration_seconds is None else cfg.min_gap_for(narration_seconds)
     roles = "\n".join(
         f'- "{name}" (position "{spec.position}"): {spec.min_seconds:g}–{spec.max_seconds:g} s'
         for name, spec in cfg.roles.items())
     return prompt("documentary/host/director_system_prompt").format(
         persona_prompt=persona_prompt(cfg), roles=roles, min_appearances=cfg.min_appearances,
         max_appearances=cfg.max_appearances, min_acts_between=cfg.min_acts_between,
-        min_gap_seconds=int(cfg.min_gap_seconds), max_total_seconds=int(cfg.max_total_seconds),
+        min_gap_seconds=int(gap), max_total_seconds=int(cfg.max_total_seconds),
         max_total_share=int(cfg.max_total_share * 100))
 
 

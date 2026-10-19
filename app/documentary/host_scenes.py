@@ -627,7 +627,7 @@ def real_time_report(scenes: list[HostScene], narration_seconds: float,
         errors.append({"code": "host_time_over_cap", "seconds": total, "cap": cfg.max_total_seconds})
     share = round(total / max(narration_seconds, 1.0), 4)
     if share > cfg.max_total_share:
-        (errors if narration_seconds >= 600 else warnings).append(
+        (warnings if cfg.is_short_film(narration_seconds) else errors).append(
             {"code": "host_share_too_high", "share": share, "max": cfg.max_total_share})
     return {"scenes": rows, "host_seconds": total, "host_share": share,
             "timeline": film_timeline(narration_seconds, total, intro_seconds),

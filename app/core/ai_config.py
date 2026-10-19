@@ -1700,6 +1700,11 @@ class HostConfig(BaseModel):
     # Acts of narration between two appearances, and the story seconds between them.
     min_acts_between: int = Field(default=2, ge=0)
     min_gap_seconds: float = Field(default=240.0, ge=0.0)
+    # A film whose narration is shorter than this is a short film: the share limit is a
+    # warning for it (an opening alone can exceed it) and the story seconds between two
+    # appearances only have to reach short_film_min_gap_seconds.
+    short_film_seconds: float = Field(default=600.0, ge=0.0)
+    short_film_min_gap_seconds: float = Field(default=90.0, ge=0.0)
     # The kinds of appearance and their seconds [base, min, max] before the film's own weights.
     roles: dict[str, HostRole]
     # Seconds of an appearance grow with the weight of the act before it (its share of the
@@ -1760,6 +1765,14 @@ class HostConfig(BaseModel):
 
     def wpm(self, language: str) -> float:
         return self.words_per_minute[language]
+
+    def is_short_film(self, narration_seconds: float) -> bool:
+        return narration_seconds < self.short_film_seconds
+
+    def min_gap_for(self, narration_seconds: float) -> float:
+        """Story seconds required between two appearances of a film of this narration length."""
+        return (self.short_film_min_gap_seconds if self.is_short_film(narration_seconds)
+                else self.min_gap_seconds)
 
     def story_minutes(self, requested_minutes: float) -> float:
         """The story's own length for a requested film length: all of it when the host comes on

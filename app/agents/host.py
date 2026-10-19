@@ -74,8 +74,9 @@ class HostDirector:
         if bp_row is not None and bp_row.status == "invalid":
             raise RuntimeError("The blueprint is invalid; fix it before planning the host.")
         story = self._story(db, case, master, bp_row)
-        payload = director_input(story, story_seconds(story))
-        system = director_system_prompt(self.cfg)
+        narration = story_seconds(story)
+        payload = director_input(story, narration)
+        system = director_system_prompt(self.cfg, narration)
 
         raw, res = await self._json(db, case.id, "Host Director", "host_director", system, payload)
         plan, report = validate_host_plan(raw, story, self.cfg)

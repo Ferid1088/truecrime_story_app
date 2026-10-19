@@ -116,7 +116,8 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
         if b["cutoff"] - a["cutoff"] < cfg.min_acts_between:
             errors.append({"code": "appearances_too_close", "segments": [a["id"], b["id"]],
                            "acts_between": b["cutoff"] - a["cutoff"]})
-        elif seconds_between(story, a["cutoff"], b["cutoff"]) < cfg.min_gap_seconds:
+        elif seconds_between(story, a["cutoff"], b["cutoff"]) < cfg.min_gap_for(
+                story_seconds(story)):
             errors.append({"code": "appearances_too_close_in_time", "segments": [a["id"], b["id"]],
                            "seconds_between": round(seconds_between(story, a["cutoff"],
                                                                     b["cutoff"]))})
@@ -129,7 +130,7 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
     share = host_seconds / max(narration, 1.0)
     if share > cfg.max_total_share:
         # a short film cannot hold an opening within the share; only a real film is held to it
-        (errors if narration >= 600 else warnings).append(
+        (warnings if cfg.is_short_film(narration) else errors).append(
             {"code": "host_share_too_high", "share": round(share, 3), "max": cfg.max_total_share})
 
     status = "invalid" if errors else ("needs_review" if warnings else "valid")
