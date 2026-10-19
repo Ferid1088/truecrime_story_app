@@ -843,3 +843,60 @@ def test_o_the_owner_overview_sums_tracks_misses_and_a_traffic_light(
     assert got["misses"] == [{"kind": "bridge", "mood": "danger", "count": 2, "films": ["f1", "f2"],
                               "created": 0, "situations": ["walk to the scene f1",
                                                            "walk to the scene f2"]}]
+
+
+class _SystemGen:
+    """Plan generator that keeps the system prompts it was called with."""
+
+    def __init__(self, outputs):
+        self.outputs = list(outputs)
+        self.calls = []
+
+    def is_configured(self):
+        return True
+
+    async def generate_structured(self, role, system, user):
+        import copy
+
+        from app.providers.generation import GenerationResult
+
+        self.calls.append((system, json.loads(user)))
+        return copy.deepcopy(self.outputs.pop(0)), GenerationResult(
+            text="{}", model="m/audio", provider="fake")
+
+
+def _run_director(db, monkeypatch, plan):
+    from app.agents.audio_plan import AudioDirector
+    from app.documentary.blueprint import latest_blueprint
+    from test_spoken_audio import _with_blueprint
+
+    case, v = _with_blueprint(db, monkeypatch)
+    gen = _SystemGen([plan])
+    monkeypatch.setattr("app.agents.audio_plan.get_generation_provider", lambda: gen)
+    row = asyncio.run(AudioDirector().create(db, case, latest_blueprint(db, v.id)))
+    return gen, row
+
+
+def test_o_the_director_call_carries_the_library_only_when_the_source_is_not_create(
+        db_session, library, source_mode, monkeypatch):
+    from test_spoken_audio import _good_plan
+
+    lib, _ = library
+    monkeypatch.setattr(ai_config.chapters, "enabled", False)   # cards would turn the sting into a break
+    gen, _ = _run_director(db_session, monkeypatch, _good_plan())
+    assert "music_library" not in gen.calls[0][1] and "MUSIC LIBRARY" not in gen.calls[0][0]
+
+    source_mode("library")                                   # no track exists as audio yet
+    gen, _ = _run_director(db_session, monkeypatch, _good_plan())
+    assert gen.calls[0][1]["music_library"] == []
+    assert "Never invent a track_code" in gen.calls[0][0]
+
+    asyncio.run(_make_all(lib, db_session))                  # now the tracks exist as audio
+    plan = _good_plan()
+    plan["beats"][2]["after"].update(track_code="sting-tension-v1", track_reason="open question")
+    gen, row = _run_director(db_session, monkeypatch, plan)
+    listed = {t["code"] for t in gen.calls[0][1]["music_library"]}
+    assert "sting-tension-v1" in listed
+    after = {b["beat_id"]: b["after"] for b in json.loads(row.plan_json)["beats"]}
+    assert after["B03"]["track_code"] == "sting-tension-v1"
+    assert after["B03"]["track_reason"] == "open question"

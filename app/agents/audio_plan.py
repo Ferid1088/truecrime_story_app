@@ -11,7 +11,7 @@ from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import AudioPlan, Case, EditorialBlueprint
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
-from app.documentary.music import director_library
+from app.documentary.music import director_library, music_source_mode
 from app.documentary.audio_director import (
     _director_input,
     director_system_prompt,
@@ -28,9 +28,10 @@ class AudioDirector:
         if blueprint_row.status == "invalid":
             raise RuntimeError("The blueprint is invalid; fix it before audio direction.")
         blueprint = json.loads(blueprint_row.blueprint_json or "{}")
-        library = director_library(db)
-        by_code = {t["code"]: t for t in library} or None
-        system = director_system_prompt(with_library=bool(library))
+        use_library = music_source_mode(db) != "create"
+        library = director_library(db) if use_library else None
+        by_code = {t["code"]: t for t in library} if use_library else None
+        system = director_system_prompt(with_library=use_library)
         payload = _director_input(blueprint, library)
         with track_run(db, case.id, "Audio Director",
                        input_summary=f"blueprint={blueprint_row.id} "

@@ -161,7 +161,7 @@ def chapter_gaps(blueprint: dict) -> dict[str, str]:
 def _director_input(blueprint: dict, library: list[dict] | None = None) -> dict:
     gaps = chapter_gaps(blueprint)
     return {
-        **({"music_library": library} if library else {}),
+        **({} if library is None else {"music_library": library}),
         "central_question": blueprint.get("central_question"),
         "arcs": blueprint.get("arcs"),
         "beats": [
