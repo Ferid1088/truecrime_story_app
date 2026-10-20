@@ -55,11 +55,11 @@ def required_words(current: dict[str, int], targets: dict[str, int], span: Lengt
         capacity = sum(room.values())
         added = dict.fromkeys(room, 0)
         if capacity:
-            for act in sorted(room, key=room.get, reverse=True):
+            for act in sorted(room, key=lambda a: room[a], reverse=True):
                 share = min(room[act], math.ceil(remaining * room[act] / capacity), remaining)
                 added[act] += share
                 remaining -= share
-            for act in sorted(room, key=room.get, reverse=True):
+            for act in sorted(room, key=lambda a: room[a], reverse=True):
                 more = min(room[act] - added[act], remaining)
                 if more > 0:
                     added[act] += more

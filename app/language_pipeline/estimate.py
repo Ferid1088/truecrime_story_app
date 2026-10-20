@@ -45,8 +45,8 @@ def estimate(material: SharedMaterial, languages: list[str], requested_minutes: 
     cfg = ai_config.language_pipeline
     est = cfg.estimate
     cache = cache or {}
-    cache_share = cache.get("overall") if cache.get("overall") is not None else est.cache_share_without_data
-    worst_share = cache.get("worst_run") if cache.get("worst_run") is not None else est.cache_share_without_data
+    cache_share: float = cache["overall"] if cache.get("overall") is not None else est.cache_share_without_data
+    worst_share: float = cache["worst_run"] if cache.get("worst_run") is not None else est.cache_share_without_data
     per_token = lambda text: len(text) / est.chars_per_token  # noqa: E731
     plan_missing = est.plan_tokens if not material.plan else 0
     draft_in = per_token(material.draft_block()) + plan_missing

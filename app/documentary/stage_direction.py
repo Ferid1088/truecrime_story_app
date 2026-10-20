@@ -180,7 +180,7 @@ def calm_errors(direction: StageDirection, *, voice_seconds: float,
     if len(hands) > allowed_count:
         errors.append({"code": "too_many_hand_gestures", "count": len(hands), "max": allowed_count})
     starts = [0.0] + list(sentence_ends)
-    for before, after in zip(hands, hands[1:]):
+    for before, after in zip(hands, hands[1:], strict=False):
         if after.start_sec - before.start_sec < calm.min_gap_seconds:
             errors.append({"code": "hand_gestures_too_close", "at": after.start_sec,
                            "min_gap_seconds": calm.min_gap_seconds})
@@ -211,7 +211,7 @@ def gesture_errors(direction: StageDirection, language: str) -> list[dict]:
     used = {a.hands for a in gestures}
     if gestures and not ("both" in used or {"left", "right"} <= used):
         errors.append({"code": "one_hand_only", "hands": sorted(used)})
-    for before, after in zip(actions, actions[1:]):
+    for before, after in zip(actions, actions[1:], strict=False):
         if before.action == after.action and before.action in GESTURES \
                 and before.action != "G01_NONE" and before.hands == after.hands:
             errors.append({"code": "gesture_repeated_back_to_back", "gesture": after.action,
@@ -223,7 +223,7 @@ def sentence_ends(alignment: dict) -> list[float]:
     """End time of every sentence in a stored character alignment
     ({"characters": [...], "ends": [...]})."""
     chars, ends = alignment.get("characters") or [], alignment.get("ends") or []
-    return [round(float(e), 3) for c, e in zip(chars, ends) if c in ".!?؟…"]
+    return [round(float(e), 3) for c, e in zip(chars, ends, strict=False) if c in ".!?؟…"]
 
 
 # What actually executes each direction field (docs/host-direction.md). A

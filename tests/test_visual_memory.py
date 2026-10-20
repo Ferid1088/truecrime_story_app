@@ -4,12 +4,11 @@ import json
 import uuid
 
 import pytest
+from test_stage_direction import good
 
-from app.db.models import Case, HostAppearance, HostScene, HostSegments
+from app.db.models import HostAppearance, HostScene, HostSegments
 from app.documentary import stage_direction as SD
 from app.documentary import visual_memory as VM
-from app.utils import slugify
-from test_stage_direction import good
 
 
 def _ch(name="ClueVera"):
@@ -18,6 +17,7 @@ def _ch(name="ClueVera"):
 
 def _scene(db, channel, language="en"):
     from test_blueprint_performance import _story
+
     from app.db.models import EditorialBlueprint, HostPlan
 
     case, master = _story(db)

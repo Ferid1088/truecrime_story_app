@@ -5,17 +5,19 @@ import asyncio
 import copy
 import json
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 
 from app.core.ai_config import ai_config
 from app.documentary.blueprint import (
-    NarrativeDirector, usable_blueprint, validate_blueprint,
+    NarrativeDirector,
+    usable_blueprint,
+    validate_blueprint,
 )
 from app.documentary.performance import build_performance, direct_pauses
 from app.documentary.voice_blocks import plan_voice_blocks
 from app.providers.generation.base import GenerationResult
-from datetime import datetime, timezone
 
 
 def _para(tag, words=60):
@@ -177,7 +179,7 @@ def _story(db, sections=SECTIONS, fingerprint=None, title=None):
         narrative_angle="{}", narrative_structure=json.dumps(struct),
         story_text="\n\n".join(s["text"] for s in sections), text_hash="h1",
         engagement_score=80.0, status="ready",
-        approved_by="test", approved_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        approved_by="test", approved_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     db.add(v)
     db.commit()

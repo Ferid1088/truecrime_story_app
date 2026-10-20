@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main(*, include_short_languages: bool = False) -> None:
     with SessionLocal() as db:
-        bind = db.get_bind()
+        bind = db.get_bind().engine
         assert_safe_test_database(bind.url.render_as_string(hide_password=False))
         if bind.dialect.name != "postgresql" or bind.url.database != "truecrime_e2e":
             raise RuntimeError("approval E2E seed is restricted to PostgreSQL database truecrime_e2e")

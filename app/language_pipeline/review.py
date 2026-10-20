@@ -4,6 +4,9 @@ stages.py and the order of the steps in orchestrator.py."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 from app.core.ai_config import ai_config
 
 OPEN_ISSUES = "open_issues"
@@ -11,7 +14,7 @@ OPEN_ISSUES = "open_issues"
 REVISION_ROUNDS = 1
 
 
-def items_of(severities: list[str], items: list[dict]) -> list[dict]:
+def items_of(severities: Sequence[str], items: list[dict]) -> list[dict]:
     return [i for i in items if i.get("severity") in severities]
 
 
@@ -21,7 +24,7 @@ def revision_items(review_items: list[dict], check_items: list[dict]) -> list[di
     wanted = ai_config.language_pipeline.review.revision_severities
     rank = {"high": 0, "medium": 1, "low": 2}
     return sorted(items_of(wanted, review_items) + items_of(wanted, check_items),
-                  key=lambda i: rank.get(i.get("severity"), 3))
+                  key=lambda i: rank.get(i.get("severity") or "", 3))
 
 
 def blocking_items(review_items: list[dict], check_items: list[dict]) -> list[dict]:
@@ -51,7 +54,7 @@ def open_issues(review_items: list[dict], check_items: list[dict]) -> list[dict]
             + [{**i, "source": "check"} for i in items_of(ai_config.language_pipeline.review.blocking_severities, check_items)])
 
 
-def counts(items: list[dict]) -> dict:
+def counts(items: Sequence[Any]) -> dict:
     out: dict[str, int] = {}
     for item in items:
         out[item.get("severity", "?")] = out.get(item.get("severity", "?"), 0) + 1

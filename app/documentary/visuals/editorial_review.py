@@ -71,7 +71,7 @@ def decide(v: dict) -> tuple[bool, list[str]]:
         if v.get(flag) is not False:
             problems.append(text)
     try:
-        confidence = float(v.get("confidence"))
+        confidence = float(v.get("confidence") or 0.0)
     except (TypeError, ValueError):
         confidence = 0.0
     if confidence < ai_config.editorial_review.min_confidence:
@@ -109,10 +109,10 @@ def approve(db: Session, asset: VisualAsset, model: str | None) -> None:
 
 async def review_pending(db: Session, case, redo: bool = False) -> dict:
     """Review every pending picture of the case with the independent reviewer. Returns the counts."""
-    from app.agents.visual_editorial_review import EditorialReviewAgent
     from app.agents.story import build_evidence_pack
-    from app.db.models import Contradiction, Fact, Source
+    from app.agents.visual_editorial_review import EditorialReviewAgent
     from app.core.concurrency import gather_limited
+    from app.db.models import Contradiction, Fact, Source
 
     todo = pending(db, case.id, redo)[:ai_config.editorial_review.max_per_run]
     if not todo:
@@ -127,7 +127,7 @@ async def review_pending(db: Session, case, redo: bool = False) -> dict:
         None, [agent.review(db, case, a, entities, pack["facts"]) for a in todo],
         return_exceptions=True)
     counts = {"reviewed": 0, "approved": 0, "rejected": 0, "kept": 0, "errors": 0}
-    for asset, result in zip(todo, results):
+    for _asset, result in zip(todo, results, strict=True):
         if isinstance(result, Exception):
             counts["errors"] += 1
             continue

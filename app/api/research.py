@@ -1,36 +1,13 @@
-from app.core.prompts import prompt
+import contextlib
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.tasks import spawn
-from app.db.base import get_db
-from app.db.models import (
-    Case,
-    Source,
-    SourceChunk,
-    Fact,
-    Contradiction,
-    ResearchJob,
-    ResearchQuery,
-    VideoSource,
-    TranscriptSegment,
-    TranscriptClaim,
-    ClaimCluster,
-    NarrativeInsight,
-    VisualLead,
-)
-from app.core.ai_config import ai_config
-from app.utils import utc_now
 from app.agents.story import (
     research_gap_plan,
 )
-from app.providers.base import ProviderError
-from app.services import research_jobs
-from app.services.readiness import build_readiness
-
-
+from app.api import deps
 from app.api.deps import get_case_or_404
 from app.api.serializers import (
     claim_dict,
@@ -38,7 +15,28 @@ from app.api.serializers import (
     video_dict,
     visual_lead_dict,
 )
-from app.api import deps
+from app.core.ai_config import ai_config
+from app.core.prompts import prompt
+from app.core.tasks import spawn
+from app.db.base import get_db
+from app.db.models import (
+    Case,
+    ClaimCluster,
+    Contradiction,
+    Fact,
+    NarrativeInsight,
+    ResearchJob,
+    ResearchQuery,
+    Source,
+    SourceChunk,
+    TranscriptClaim,
+    TranscriptSegment,
+    VideoSource,
+    VisualLead,
+)
+from app.services import research_jobs
+from app.services.readiness import build_readiness
+from app.utils import utc_now
 
 router = APIRouter()
 
@@ -58,6 +56,7 @@ async def run_research(case_id: int, db: Session = Depends(get_db)):
         try:
             j = bg.get(ResearchJob, job_id)
             c = bg.get(Case, case_id)
+            assert c is not None
             await research_jobs.start_research_job(bg, c, job=j)
         except Exception as e:
             j = bg.get(ResearchJob, job_id)
@@ -89,10 +88,8 @@ def get_research(case_id: int, db: Session = Depends(get_db)):
     )
     safety = {"blocked": {}, "dropped": {}, "accepted": 0}
     if latest_job and latest_job.result_json:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             safety = json.loads(latest_job.result_json).get("safety") or safety
-        except (TypeError, ValueError):
-            pass
 
     return {
         "sources": [
@@ -202,7 +199,7 @@ def research_languages(case_id: int, db: Session = Depends(get_db)):
         )
         st = lang_stats.get(lang) or {}
         out[lang] = {
-            "name": (ai_config.multilingual.language_catalog.get(lang).name
+            "name": (ai_config.multilingual.language_catalog[lang].name
                      if lang in ai_config.multilingual.language_catalog else lang),
             "research_only": lang in ai_config.multilingual.research_only_languages,
             "enabled": lang in ai_config.multilingual.research_languages,
@@ -440,7 +437,7 @@ def list_videos(case_id: int, db: Session = Depends(get_db)):
     )
     counts = contradiction_counts_by_source(
         db.query(Contradiction).filter(Contradiction.case_id == case.id))
-    return [video_dict(v, counts.get(v.source_id, 0)) for v in videos]
+    return [video_dict(v, counts.get(v.source_id or 0, 0)) for v in videos]
 
 
 @router.get("/api/cases/{case_id}/visual-leads")
@@ -486,7 +483,7 @@ def video_detail(case_id: int, video_id: int, db: Session = Depends(get_db)):
         .order_by(VisualLead.timestamp_start)
         .all()
     )
-    out = video_dict(v, counts.get(v.source_id, 0))
+    out = video_dict(v, counts.get(v.source_id or 0, 0))
     out.update(
         {
             "visual_leads": [visual_lead_dict(x) for x in leads],

@@ -1,11 +1,11 @@
-import pytest
-from fastapi import HTTPException
-
 """Behaviour added by the optimization pass (no network)."""
 
 import asyncio
 import time
 import types
+
+import pytest
+from fastapi import HTTPException
 
 from app.core.tasks import running, spawn
 from app.db.models import Case, ResearchJob, Video

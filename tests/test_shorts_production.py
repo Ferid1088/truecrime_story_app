@@ -532,7 +532,6 @@ def test_a_pilot_that_covers_every_beat_is_not_cut_and_a_shorter_one_keeps_host_
 
 def test_every_enabled_platform_gets_its_own_package_and_nothing_is_posted(tmp_path):
     import shutil
-    import subprocess
 
     from app.core.ai_config import ai_config
     from app.core.media_tools import ffmpeg_bin

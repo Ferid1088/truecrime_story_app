@@ -156,6 +156,7 @@ class AuditFix:
                 if attempt + 1 == INSPECTOR_ATTEMPTS:
                     raise StageFailed(AUDIT_FIX_STAGE, f"the audit fix answer is not valid after "
                                       f"{INSPECTOR_ATTEMPTS} attempts: {e}") from e
+        assert answer is not None   # the loop above returns or raises
         known = {f["id"] for f in findings}
         decisions = [d for d in answer.decisions if d.finding_id in known]
         new_sections, applied, skipped = self.apply(sections, decisions)

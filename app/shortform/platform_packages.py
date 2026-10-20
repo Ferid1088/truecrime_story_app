@@ -72,7 +72,9 @@ def package_rendered_short(db, short) -> dict[str, dict]:
     the short's files_json lists them."""
     from app.documentary import storage
 
-    short_dir = storage.resolve(short.manifest_path).parent
+    manifest = storage.resolve(short.manifest_path)
+    assert manifest is not None, "the short has a stored manifest"
+    short_dir = manifest.parent
     packages = build_platform_packages(short_dir, caption=short.caption_text or "", cta=short.cta or "",
                                        language=short.language)
     files = json.loads(short.files_json or "{}")

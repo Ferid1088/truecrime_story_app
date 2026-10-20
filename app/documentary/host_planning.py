@@ -64,7 +64,7 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
             continue
         sid = str(s.get("id") or f"S{n}")
         role = s.get("role")
-        spec = cfg.roles.get(role)
+        spec = cfg.roles.get(role) if isinstance(role, str) else None
         if spec is None:
             errors.append({"code": "unknown_role", "segment": sid, "value": role,
                            "roles": sorted(cfg.roles)})
@@ -97,7 +97,7 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
                                "next_act": acts[cutoff].id})
         segments.append({
             "id": sid, "position": position, "role": role, "beat_id": act_id, "cutoff": cutoff,
-            "target_seconds": appearance_seconds(story, role, cutoff, cfg),
+            "target_seconds": appearance_seconds(story, str(role), cutoff, cfg),
             "reason": str(s.get("reason") or "")[:300]})
 
     segments.sort(key=lambda x: x["cutoff"])
@@ -113,7 +113,7 @@ def validate_host_plan(raw: dict, story: HostStory, cfg: HostConfig | None = Non
     ids = [s["id"] for s in segments]
     if len(set(ids)) != len(ids):
         errors.append({"code": "duplicate_segment_ids"})
-    for a, b in zip(segments, segments[1:]):
+    for a, b in zip(segments, segments[1:], strict=False):
         if b["cutoff"] - a["cutoff"] < cfg.min_acts_between:
             errors.append({"code": "appearances_too_close", "segments": [a["id"], b["id"]],
                            "acts_between": b["cutoff"] - a["cutoff"]})

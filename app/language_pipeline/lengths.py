@@ -30,7 +30,7 @@ class LengthRange:
             else self.lower_tolerance
         return int(self.words_min * (1 - tolerance))
 
-    def after_correction(self) -> "LengthRange":
+    def after_correction(self) -> LengthRange:
         """The same range for the gate that judges the corrected text: its lower bound accepts the
         configured shortfall (length_correction.accepted_shortfall); the upper bound is unchanged."""
         return replace(self, lower_tolerance=ai_config.language_pipeline.length_correction.accepted_shortfall)

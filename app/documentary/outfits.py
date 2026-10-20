@@ -133,8 +133,8 @@ def request_pose_set(db: Session, outfit: HostOutfit) -> dict:
     """The standard set of looks (host_looks.pose_set) in one click: every entry the outfit does
     not have yet becomes a requested look. Nothing is generated here (one image at a time)."""
     made, kept, skipped = [], [], []
-    existing = {(l.camera, l.framing, l.stance): l for l in outfit_looks(db, outfit)
-                if l.status != "rejected"}
+    existing = {(lk.camera, lk.framing, lk.stance): lk for lk in outfit_looks(db, outfit)
+                if lk.status != "rejected"}
     for entry in ai_config.host_looks.pose_set:
         key = (entry.camera, entry.framing, entry.stance)
         if key in existing:

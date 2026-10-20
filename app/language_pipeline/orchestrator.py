@@ -11,6 +11,7 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -32,11 +33,11 @@ from app.language_pipeline.length_correction import (
     LengthCorrection,
 )
 from app.language_pipeline.lengths import (
+    LengthRange,
     act_length_report,
     check_requested_minutes,
     draft_range,
     final_range,
-    LengthRange,
 )
 from app.language_pipeline.materials import SharedMaterial, load_material
 from app.language_pipeline.review import (
@@ -173,6 +174,7 @@ class LanguagePipeline:
                     self._emit(event="scene_done", stage=DRAFT, act=act_id, scene=index + 1,
                                words=len(text.split()), target=target, version_id=row.id)
         problems = check_draft(draft_sections(scenes), requested_minutes)
+        assert row is not None, "the first scene stored the draft"
         row = store.update_draft(row, scenes, last, started,
                                  "needs_revision" if problems else "ready", problems)
         if problems:
@@ -272,6 +274,7 @@ class LanguagePipeline:
         carry. The draft's own audit is left as it is."""
         with SessionLocal() as db:
             case = db.get(Case, case_id)
+            assert case is not None
             final = (db.query(StoryVersion).filter(
                 StoryVersion.case_id == case_id, StoryVersion.kind == FINAL,
                 StoryVersion.language == language).order_by(StoryVersion.id.desc()).first())
@@ -297,8 +300,8 @@ class LanguagePipeline:
             return None
         english = ai_config.language_pipeline.draft_language
         span = draft_range(requested_minutes)
-        made_with = {"prompt_sha256": prompt_sha256(ai_config.agents[
-            ai_config.language_pipeline.agents_for(english).inspect].prompt),
+        made_with = {"prompt_sha256": prompt_sha256(ai_config.prompt_of(
+            ai_config.language_pipeline.agents_for(english).inspect)),
             "allowed_word_range": {"min": span.words_min, "max": span.words_max}}
         stored = json.loads(draft.critic_notes or "{}").get("draft_review") or {}
         if stored.get("status") == "ok" and all(stored.get(k) == v for k, v in made_with.items()):
@@ -343,7 +346,9 @@ class LanguagePipeline:
         outcome = LanguageOutcome(language)
         with SessionLocal() as db:
             case = db.get(Case, case_id)
+            assert case is not None
             base = db.get(StoryVersion, base_id)
+            assert base is not None
             try:
                 await self._chain(db, case, language, material, base, requested_minutes, outcome,
                                   on_rewrite_done)
@@ -398,7 +403,7 @@ class LanguagePipeline:
                                                final, language, span, requested)
             outcome.final_id = final.id
         if final.status != "ready":
-            notes = json.loads(final.critic_notes)
+            notes = json.loads(final.critic_notes or "{}")
             correction = notes.get("length_correction") or {}
             raise StageFailed(FINAL, f"{language}: the blocking gates failed "
                               f"({', '.join(notes['quality_gates']['failures'])})"
@@ -473,8 +478,9 @@ class LanguagePipeline:
                                                   output.sections),
                  "fact_report": self._fact_report(material, language, base, output.text),
                  **({"removed_lead_in": output.data["removed_lead_in"]} if output.data.get("removed_lead_in") else {})}
-        extra = {"owner_instruction": critique is not None and stage is None}
+        extra: dict[str, Any] = {"owner_instruction": critique is not None and stage is None}
         if stage:
+            assert previous is not None
             extra.update({"stage": stage, "revises_version_id": previous.id})
         row = store.save(
             case_id=case.id, kind=FINAL, language=language, output=output, material=material,
@@ -510,7 +516,7 @@ class LanguagePipeline:
         targets = self.stages.act_targets(material, language, span)
         overhead = len(final.story_text.split()) - sum(len(s["text"].split()) for s in final_sections)
         shortfalls = LengthCorrection.shortfalls(final_sections, master_sections, targets, span, overhead)
-        report = {"shortfalls": [a.as_dict() for a in shortfalls]}
+        report: dict[str, Any] = {"shortfalls": [a.as_dict() for a in shortfalls]}
         rewrite_sections = self.stages._sections(rewrite.story_text, material)[0]
         decisions = LengthCorrection.decisions(
             json.loads(inspection.critic_notes or "{}").get("items") or [], rewrite_sections, final_sections)
@@ -670,8 +676,8 @@ class LanguagePipeline:
                     "items": [i.model_dump() for i in report.items]}
             output = StageOutput(stage=FIDELITY_STAGE, language=language, text=report.summary or "no difference",
                                  sections=[], markers_ok=True, result=res,
-                                 prompt_name=ai_config.agents["language.fidelity"].prompt,
-                                 prompt_sha256=prompt_sha256(ai_config.agents["language.fidelity"].prompt))
+                                 prompt_name=ai_config.prompt_of("language.fidelity"),
+                                 prompt_sha256=prompt_sha256(ai_config.prompt_of("language.fidelity")))
             row = store.save(
                 case_id=case.id, kind=FIDELITY, language=language, output=output, material=material,
                 started=started, requested_minutes=0, base=base, text=output.text, critic_notes=data,
@@ -738,8 +744,8 @@ class LanguagePipeline:
             return final, self._unresolved(notes)
         text = marked(new_sections)
         output = StageOutput(stage=AUDIT_FIX_STAGE, language=language, text=text, sections=new_sections,
-                             markers_ok=True, result=fix_result, prompt_name=ai_config.agents["english.audit_fix"].prompt,
-                             prompt_sha256=prompt_sha256(ai_config.agents["english.audit_fix"].prompt))
+                             markers_ok=True, result=fix_result, prompt_name=ai_config.prompt_of("english.audit_fix"),
+                             prompt_sha256=prompt_sha256(ai_config.prompt_of("english.audit_fix")))
         gates = await self.gates.run(db, case, material, language, output, self._gate_span(db, span, final),
                                      gates=ai_config.language_pipeline.blocking_gates_for(language))
         failures = [f["gate"] for f in gates.failures]
@@ -837,6 +843,7 @@ class LanguagePipeline:
         requested = float(requested_minutes or ai_config.language_pipeline.requested_minutes_default)
         with SessionLocal() as db:
             case = db.get(Case, case_id)
+            assert case is not None
             store = StageStore(db)
             current = (db.query(StoryVersion).filter(
                 StoryVersion.case_id == case_id, StoryVersion.kind == FINAL, StoryVersion.language == language,
@@ -852,8 +859,8 @@ class LanguagePipeline:
             material = await self._material(db, case)
             span = final_range(language, requested)
             review_row, fidelity_row = store.check_for(REVIEW, current), store.check_for(FIDELITY, current)
-            review_items = json.loads(review_row.critic_notes)["items"] if review_row else []
-            check_items = json.loads(fidelity_row.critic_notes)["items"] if fidelity_row else []
+            review_items = json.loads(review_row.critic_notes or "{}")["items"] if review_row else []
+            check_items = json.loads(fidelity_row.critic_notes or "{}")["items"] if fidelity_row else []
             if not revision_items(review_items, check_items):
                 raise StageFailed("revise", f"the {language} version has no review item worth a revision")
             final = await self._revise(db, case, store, material, base, rewrite, inspection, current, language,
@@ -874,6 +881,7 @@ class LanguagePipeline:
         requested = float(requested_minutes or ai_config.language_pipeline.requested_minutes_default)
         with SessionLocal() as db:
             case = db.get(Case, case_id)
+            assert case is not None
             store = StageStore(db)
             current = (db.query(StoryVersion).filter(
                 StoryVersion.case_id == case_id, StoryVersion.kind == FINAL,
@@ -912,6 +920,7 @@ class LanguagePipeline:
         check_requested_minutes(requested)
         with SessionLocal() as db:
             case = db.get(Case, case_id)
+            assert case is not None
             material = await self._material(db, case, follow_up)
             draft, reused = await self.ensure_draft(db, case, material, tone, requested)
             await self.ensure_audit(db, case, material, draft)

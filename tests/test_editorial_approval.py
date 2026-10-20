@@ -47,7 +47,7 @@ def test_other_rights_statuses_need_no_approval(db_session, rights):
 
 @pytest.mark.parametrize("rights", ["permission_required", "unknown", "do_not_use"])
 def test_blocked_rights_statuses_stay_blocked(db_session, rights):
-    a = _asset(db_session, rights, f"VIS_{rights}")
+    a = _asset(db_session, rights, f"VIS_{rights[:15]}")   # asset_code is varchar(20)
     assert not R.usable(a, "preview")
 
 

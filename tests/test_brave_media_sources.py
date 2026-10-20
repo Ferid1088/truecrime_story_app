@@ -2,12 +2,12 @@
 and Brave video results kept as links only."""
 
 import asyncio
+import json
 
 import httpx
-import pytest
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, MediaLink, VisualAsset, VisualLead, VideoSource
+from app.db.models import Case, MediaLink, VideoSource, VisualAsset, VisualLead
 from app.documentary.visuals import research as RS
 from app.documentary.visuals import rights as R
 from app.research_engine.search import SearchResult
@@ -122,7 +122,8 @@ def test_a_lead_without_a_named_owner_is_not_searched(db_session):
 
 
 def test_the_brave_media_providers_are_enabled_in_config_and_are_not_context_providers():
-    cfg = __import__("json").load(open("config/parameters/visuals.json"))["visual_search"]
+    with open("config/parameters/visuals.json") as f:
+        cfg = json.load(f)["visual_search"]
     assert {"brave_images", "lead_sources", "brave_video_links"} <= set(cfg["providers"])
     assert "brave_images" not in RS.RIGHTS_KNOWN_PROVIDERS   # context queries skip it
 

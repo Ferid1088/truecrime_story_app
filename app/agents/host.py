@@ -5,6 +5,7 @@ host_firewall, host_story)."""
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,12 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
 from app.db.models import (
-    Case, EditorialBlueprint, HostPlan, HostSegments, HostScene, StoryVersion,
+    Case,
+    EditorialBlueprint,
+    HostPlan,
+    HostScene,
+    HostSegments,
+    StoryVersion,
 )
 from app.documentary.host import (
     _memory_index,
@@ -206,16 +212,18 @@ class HostDirector:
 
     # -- real-length repair ----------------------------------------------------
     async def retime_scene(self, db: Session, scene: HostScene, target_seconds: float,
-                           avoid: list[str] = ()) -> None:
+                           avoid: Sequence[str] = ()) -> None:
         """The real voice of this appearance misses its planned seconds: the writer rewrites the
         dialogue at the length the measured speaking rate needs, from the same cutoff input, and
         the scene (and its stored segment) takes the new text. Bounded by the caller."""
         from app.documentary.host_scenes import _sha
 
         seg_row = db.get(HostSegments, scene.host_segments_id)
+        assert seg_row is not None
         version = db.get(StoryVersion, seg_row.story_version_id)
         plan_row = db.get(HostPlan, seg_row.host_plan_id)
         case = db.get(Case, scene.case_id)
+        assert version and plan_row and case, "the appearance belongs to a stored plan"
         story = self._plan_story(db, case, version, plan_row)
         plan = json.loads(plan_row.plan_json or "{}")
         seg = next(s for s in plan["segments"] if s["id"] == scene.host_segment_id)
@@ -240,7 +248,7 @@ class HostDirector:
                     f"{'cut the least important sentences' if needed < words else 'add one more thought from the acts you were given'}; "
                     "keep its voice, its address and its claims, add no new facts.")}]}
         text = ""
-        for attempt in range(1 + self.cfg.max_writer_repairs):
+        for _attempt in range(1 + self.cfg.max_writer_repairs):
             raw, _ = await self._json(
                 db, scene.case_id, f"Host Writer {scene.language} retime",
                 self.cfg.writer_agents[scene.language],

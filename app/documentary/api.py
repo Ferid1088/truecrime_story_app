@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -19,10 +19,10 @@ from app.core.files import serve as serve_file
 from app.core.tasks import spawn
 from app.db.base import get_db
 from app.db.models import (
-    MediaLink,
     Artifact,
     Case,
     DocumentaryJob,
+    MediaLink,
     ProductionScript,
     StoryVersion,
     VisualAsset,
@@ -34,8 +34,8 @@ from app.documentary.audio_director import audio_plan_dict, latest_audio_plan
 from app.documentary.blueprint import blueprint_dict, latest_blueprint
 from app.documentary.visuals import rights as R
 from app.services.artifacts import ArtifactRegistry
-from app.services.stage_control import StageControlError, StageControlService
 from app.services.dry_run import documentary_dry_run
+from app.services.stage_control import StageControlError, StageControlService
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -426,7 +426,7 @@ def documentary_overview(case_id: int, version_id: int | None = None,
         master = _pick_final(db, case_id, version_id, language)
     except HTTPException:
         pass
-    out = {
+    out: dict[str, Any] = {
         "finals": [{"id": m.id, "version": m.version, "language": m.language,
                     "status": m.status, "words": len((m.story_text or "").split()),
                     "approved_by": m.approved_by, "approved_at": m.approved_at} for m in finals],
@@ -832,7 +832,7 @@ def editorial_review_overview(case_id: int | None = None, db: Session = Depends(
     q = db.query(EditorialReviewDecision.verdict, func.count(EditorialReviewDecision.id))
     if case_id is not None:
         q = q.filter(EditorialReviewDecision.case_id == case_id)
-    counts = dict(q.group_by(EditorialReviewDecision.verdict).all())
+    counts: dict[str, int] = {verdict: n for verdict, n in q.group_by(EditorialReviewDecision.verdict).all()}
     waiting = db.query(VisualAsset).filter(
         VisualAsset.rights_status == "editorial_review_required",
         VisualAsset.editorial_approved_at.is_(None))

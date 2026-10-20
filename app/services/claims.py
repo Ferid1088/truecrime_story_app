@@ -10,14 +10,14 @@ the same clusters are likely derivative — they must not inflate an
 evidence item's independent-source-family count.
 """
 
-from app.agents.runner import run_agent
-from app.core.prompts import prompt
 import json
 
 from rapidfuzz import fuzz
 from sqlalchemy.orm import Session
 
+from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import (
     Case,
     ClaimCluster,
@@ -551,7 +551,7 @@ def promote_clusters(db: Session, case: Case) -> dict:
             p for m in members for p in json.loads(m.people_json or "[]") if p
         })
         locations = sorted({
-            l for m in members for l in json.loads(m.locations_json or "[]") if l
+            loc for m in members for loc in json.loads(m.locations_json or "[]") if loc
         })
         fact = Fact(
             case_id=case.id,

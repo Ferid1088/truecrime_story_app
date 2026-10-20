@@ -233,7 +233,7 @@ def estimate_narrative_capacity(
     facts: list[Fact],
     contradictions: list[Contradiction],
     sources: list[Source],
-    requested_minutes: int,
+    requested_minutes: float,
 ) -> dict:
     """Estimate how many narration minutes the evidence can honestly support.
 

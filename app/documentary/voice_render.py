@@ -273,7 +273,6 @@ class VoiceRenderer:
                 self._budget_usage_missing = True
             if self.db is not None and self.budget_case_id is not None and res.character_cost is not None:
                 from app.services.budget import BudgetService
-
                 from app.services.cost_model import load_pricing
 
                 price = float(load_pricing()["tts"]["eleven_v4"]["eur_per_1m_characters"])

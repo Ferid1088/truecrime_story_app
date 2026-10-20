@@ -240,13 +240,12 @@ def build_export_package(
         )
         for index, text in enumerate(words)
     ]
-    cues = subtitle_cues
-    layout = subtitle_layout(language, cues)
+    layout = subtitle_layout(language, subtitle_cues)
     cover = output_dir / "cover.png"
     subtitles = output_dir / "subtitles.srt"
     video = output_dir / "short.mp4"
-    _write_cover(cover, title, language, "\n".join(cue.text for cue in cues[:3]))
-    _write_srt(subtitles, cues)
+    _write_cover(cover, title, language, "\n".join(cue.text for cue in subtitle_cues[:3]))
+    _write_srt(subtitles, subtitle_cues)
     source = Path(source_video) if source_video else None
     audio = Path(audio_source) if audio_source else None
     burned = bool(ai_config.short_form.production.captions_burned_in

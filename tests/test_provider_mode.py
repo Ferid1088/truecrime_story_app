@@ -52,6 +52,7 @@ def test_recorded_provider_mode_rejects_a_mismatched_e2e_db_name(monkeypatch):
         "postgresql+psycopg://truecrime@127.0.0.1:5432/truecrime_live",
     )
     monkeypatch.setenv("E2E_DB_NAME", "truecrime_approve_pilot_e2e")
+    monkeypatch.delenv("TC_TEST_DATABASE_URL", raising=False)   # the Postgres CI job sets it: that is a disposable target
     with pytest.raises(UnsafeProviderModeError, match="non-disposable database"):
         assert_safe_provider_mode()
 

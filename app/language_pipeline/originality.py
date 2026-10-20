@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -65,7 +66,7 @@ class OriginalityGuard:
         story = words(text)
         story_grams = ngrams(story, cfg.ngram_size)
         corpora = self.corpora(db, case_id)
-        worst = {"video_source_id": None, "wording": None, "ngram_share": 0.0, "longest_run": 0}
+        worst: dict[str, Any] = {"video_source_id": None, "wording": None, "ngram_share": 0.0, "longest_run": 0}
         per_source = {}
         for (video_id, wording), corpus_text in corpora.items():
             corpus = words(corpus_text)

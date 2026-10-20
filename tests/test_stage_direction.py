@@ -1,6 +1,5 @@
 """Part 7c: one test per deterministic guard-rail of the stage direction."""
 
-import copy
 
 import pytest
 

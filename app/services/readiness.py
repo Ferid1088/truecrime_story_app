@@ -189,7 +189,7 @@ def _master_readiness(
 def build_readiness(
     db: Session,
     case_id: int,
-    target_minutes: int = 45,
+    target_minutes: float = 45,
     provider_status: dict | None = None,
 ) -> dict:
     """Full layered readiness report for a case."""

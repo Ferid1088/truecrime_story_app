@@ -9,16 +9,16 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
 import httpx
+import pytest
 from PIL import Image
 from test_blueprint_performance import PACK, SECTIONS, _good, _no_contradiction, _story
 
 from app.core.ai_config import ai_config
-from app.db.models import DocumentaryJob, ProductionScript, VisualAsset, VisualPlan
-from datetime import datetime, timezone
+from app.db.models import DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan
 from app.documentary.blueprint import validate_blueprint
 from app.documentary.production.critics import apply_fixes, deterministic_checks
 from app.documentary.production.script import compose
@@ -35,7 +35,6 @@ from app.documentary.visuals.images import dhash, hamming
 from app.documentary.visuals.planner import research_queries, validate_requirements
 from app.documentary.visuals.research import page_images
 from app.providers.generation.base import GenerationResult
-from app.db.models import DocumentaryJob, ProductionScript, StoryVersion, VisualAsset, VisualPlan
 
 needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
 
@@ -207,7 +206,7 @@ def test_requirements_keep_only_grounded_material():
 
 
 # a fixed approval time: golden snapshots must not depend on the clock
-APPROVED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
+APPROVED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 def _asset(code, **kw):
     base = dict(
@@ -1267,9 +1266,10 @@ def documentary_env(tmp_path, monkeypatch):
 @needs_ffmpeg
 def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isolated_host_history,
                                               monkeypatch):
+    from test_host import HostGen
+
     from app.core.ai_config import ai_config
     from app.documentary import jobs as J
-    from test_host import HostGen
 
     # the blueprint's four short beats cannot hold the real spacing rules of a film
     monkeypatch.setattr(ai_config, "host", ai_config.host.model_copy(update={

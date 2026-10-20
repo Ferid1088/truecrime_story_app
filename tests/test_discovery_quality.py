@@ -1,8 +1,8 @@
 import asyncio
 
+from app.lifecycle.identity import IdentityIndex
 from app.lifecycle.selection import legal_risk_flags, prepare_candidates
 from app.research_engine.orchestrator import _discovery_queries
-from app.lifecycle.identity import IdentityIndex
 from tests.test_case_lifecycle import FakeGen, FakeRegistry
 
 

@@ -11,12 +11,12 @@ reported_quote / creator_narration / uncertain), and creator narration is
 never promoted into approved evidence quotes downstream.
 """
 
-from app.agents.runner import run_agent
-from app.core.prompts import prompt
 import json
 
 from sqlalchemy.orm import Session
 
+from app.agents.runner import run_agent
+from app.core.prompts import prompt
 from app.db.models import (
     Case,
     NarrativeInsight,
@@ -191,7 +191,7 @@ class TranscriptIntelligenceAgent:
                             [p for p in (c.get("people") or []) if p], ensure_ascii=False,
                         ),
                         locations_json=json.dumps(
-                            [l for l in (c.get("locations") or []) if l], ensure_ascii=False,
+                            [loc for loc in (c.get("locations") or []) if loc], ensure_ascii=False,
                         ),
                         timestamp_start=(
                             min((s.start_seconds for s in segs), default=None)

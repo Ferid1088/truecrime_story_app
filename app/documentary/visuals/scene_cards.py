@@ -23,7 +23,7 @@ def _ground() -> Image.Image:
     return Image.composite(Image.new("RGB", (W, H), (34, 33, 36)), img, vignette)
 
 
-def _block_height(lines: list[str], size: int, spacing: float) -> int:
+def _block_height(lines: list[str], size: float, spacing: float) -> int:
     return int(len(lines) * size * spacing)
 
 
@@ -78,7 +78,7 @@ def split(heading: str, left: tuple[str, str], right: tuple[str, str], language:
     texts = [wrap(" ".join(says.split()), f, language, col)[:9] for _, says in sides]
     block = 110 + max(_block_height(lines, f.size, 1.35) for lines in texts)
     top = max(200, (H - block) // 2)
-    for i, ((who, _), lines) in enumerate(zip(sides, texts)):
+    for i, ((who, _), lines) in enumerate(zip(sides, texts, strict=True)):
         x = 120 + i * (col + 120)
         d.rectangle((x, top, x + 60, top + 5), fill=RED)
         _draw_lines(d, [who], fw, language, x, top + 25, col, "start", RED, 1.2)

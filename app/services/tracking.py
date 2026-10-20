@@ -328,7 +328,7 @@ def _record_provider_call(db: Session, run: AgentRun) -> None:
             "cost, not the real (unknown) one.",
             error, run.input_tokens, run.output_tokens,
         )
-        cost_eur = conservative_unpriced_cost_eur(run.input_tokens, run.output_tokens)
+        cost_eur = conservative_unpriced_cost_eur(run.input_tokens or 0, run.output_tokens or 0)
     elif estimated:
         # Do not multiply a stage estimate by every usage-less retry.
         already_estimated = db.query(ProviderCall.id).filter(

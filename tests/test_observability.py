@@ -136,10 +136,10 @@ def test_every_brave_call_is_recorded_with_configured_estimated_cost():
 
 
 def test_research_brave_call_is_attributed_to_case_and_research_stage():
-    with documentary_run_context(case_id=2, pipeline_stage="research"):
-        with httpx.Client(transport=mock(lambda r: httpx.Response(
-                200, json={"web": {"results": []}}))) as c:
-            c.get("https://api.search.brave.com/res/v1/web/search?q=gilgo&count=10")
+    with (documentary_run_context(case_id=2, pipeline_stage="research"),
+          httpx.Client(transport=mock(lambda r: httpx.Response(
+              200, json={"web": {"results": []}}))) as c):
+        c.get("https://api.search.brave.com/res/v1/web/search?q=gilgo&count=10")
     (row,) = rows()
     assert row.case_id == 2
     assert row.stage == "research"

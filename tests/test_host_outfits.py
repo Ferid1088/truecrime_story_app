@@ -2,13 +2,12 @@
 approved look of the video's own outfit."""
 import asyncio
 import json
-import uuid
 
 import pytest
 from test_studio import FakeAvatar, FakeVoice, _nosleep, _renderer, _segments
 
 from app.core.ai_config import ai_config
-from app.db.models import HostLook, HostOutfit
+from app.db.models import HostLook
 from app.documentary import look_selection as LS
 from app.documentary import outfits as OF
 from app.documentary import studio as ST
@@ -102,12 +101,12 @@ def test_the_pose_set_requests_the_standard_looks_in_one_click_and_only_once(db_
     done = OF.request_pose_set(db_session, outfit)
     labels = [e.label for e in ai_config.host_looks.pose_set]
     assert len(done["requested"]) == 5 == len(labels) and not done["skipped"]
-    assert {(l.camera, l.framing, l.stance) for l in done["requested"]} == {
+    assert {(lk.camera, lk.framing, lk.stance) for lk in done["requested"]} == {
         (e.camera, e.framing, e.stance) for e in ai_config.host_looks.pose_set}
-    assert {"SEATED", "STANDING"} == {l.stance for l in done["requested"]}
-    assert all(l.status == "requested" and l.host_outfit_id == outfit.id and l.language == "fa"
-               and l.studio_profile_id == ST.channel_profile("fa")["studio_profile_id"]
-               for l in done["requested"])
+    assert {"SEATED", "STANDING"} == {lk.stance for lk in done["requested"]}
+    assert all(lk.status == "requested" and lk.host_outfit_id == outfit.id and lk.language == "fa"
+               and lk.studio_profile_id == ST.channel_profile("fa")["studio_profile_id"]
+               for lk in done["requested"])
     again = OF.request_pose_set(db_session, outfit)
     assert again["requested"] == [] and len(again["already_there"]) == 5
     # a rejected look can be requested again
@@ -225,7 +224,7 @@ def test_a_look_of_another_outfit_or_language_is_never_a_candidate(db_session):
     _look(db_session, other, "CAM04_LEFT_SIDE", "MEDIUM", "SEATED")
     _look(db_session, german, "CAM04_LEFT_SIDE", "MEDIUM", "SEATED")
     mine_front = _look(db_session, mine, "CAM01_FRONT", "MEDIUM", "SEATED")
-    assert [l.id for l in LS.approved_looks(db_session, mine)] == [mine_front.id]
+    assert [lk.id for lk in LS.approved_looks(db_session, mine)] == [mine_front.id]
     got = LS.choose(db_session, mine, LS.Wanted("SEATED", "CAM04_LEFT_SIDE", "MEDIUM"))
     assert got["look"].id == mine_front.id
     # the language's studio profile counts too: a look filed under another studio is ignored

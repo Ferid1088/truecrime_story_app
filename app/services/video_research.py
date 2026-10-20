@@ -13,6 +13,7 @@ video that only confirms known facts is still processed.
 """
 
 import re
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -21,8 +22,8 @@ from app.core.config import settings
 from app.db.models import Case, ResearchJob, Source, VideoSource
 from app.providers.transcript import get_transcript_provider
 from app.services.tracking import record_run
-from app.utils import utc_now
 from app.services.video_rights import VideoUseClassifier
+from app.utils import utc_now
 
 _YT_ID = re.compile(
     r"(?:youtube\.com/(?:watch\?.*v=|shorts/|embed/)|youtu\.be/)"
@@ -297,7 +298,7 @@ async def run_video_research(
         fresh.append(c)
     unique, skipped = await relevant_candidates(db, case, fresh)
 
-    stats = {
+    stats: dict[str, Any] = {
         "videos_discovered": len(candidates),
         "videos_new": len(unique),
         "videos_skipped": skipped,

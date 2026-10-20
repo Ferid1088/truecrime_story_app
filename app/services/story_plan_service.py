@@ -145,6 +145,7 @@ class StoryPlanService:
         resolved_loops) and, with `changes`, the plan-level fields in PLAN_LEVEL_KEYS. The result is a new
         version of the plan (origin "edit"); the old one stays as history."""
         case = self.db.get(Case, plan.case_id)
+        assert case is not None
         if self.preview(plan, "edit", beats=beats, changes=changes)["token"] != token:
             raise StoryPlanError("the plan changed since the preview; preview again")
         unknown = sorted(set(changes or {}) - set(self.PLAN_LEVEL_KEYS))
@@ -166,6 +167,7 @@ class StoryPlanService:
 
     async def redo(self, plan: StoryPlan, instruction: str, token: str) -> StoryPlan:
         case = self.db.get(Case, plan.case_id)
+        assert case is not None
         if self.preview(plan, "redo", instruction=instruction)["token"] != token:
             raise StoryPlanError("the plan changed since the preview; preview again")
         return await self.create(case, plan.target_minutes, plan.language,

@@ -53,6 +53,7 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         raise RuntimeError("case not found")
 
     if job.kind == "naming_generate":
+        assert case is not None, "this job belongs to a case"
         from app.naming import agent as naming_agent
         from app.naming import api as naming_api
 
@@ -63,6 +64,7 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         return {**result, "state": naming_api.naming_state(db, case)}
 
     if job.kind == "language_pipeline":
+        assert case is not None, "this job belongs to a case"
         from app.api import deps
         from app.language_pipeline.orchestrator import LanguagePipeline
         from app.naming.agent import default_embedder
@@ -74,6 +76,7 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
             events.append({**event, "at": utc_now().isoformat()})
             with SessionLocal() as other:
                 row = other.get(BackgroundJob, job.id)
+                assert row is not None
                 row.result_json = json.dumps({"events": events[-200:]}, ensure_ascii=False, default=str)
                 row.updated_at = utc_now()
                 other.commit()
@@ -86,6 +89,7 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         return {**result, "events": events[-200:]}
 
     if job.kind == "language_improve":
+        assert case is not None, "this job belongs to a case"
         from app.api import deps
         from app.language_pipeline.orchestrator import LanguagePipeline
         from app.naming.agent import default_embedder
@@ -96,6 +100,7 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         return {"final_version_id": row.id, "status": row.status}
 
     if job.kind == "language_revise":
+        assert case is not None, "this job belongs to a case"
         from app.api import deps
         from app.language_pipeline.orchestrator import LanguagePipeline
         from app.naming.agent import default_embedder
@@ -106,6 +111,7 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         return {"final_version_id": row.id, "status": row.status}
 
     if job.kind == "language_final_audit":
+        assert case is not None, "this job belongs to a case"
         from app.api import deps
         from app.language_pipeline.orchestrator import LanguagePipeline
         from app.naming.agent import default_embedder

@@ -20,7 +20,7 @@ from app.db.models import (
 
 def main() -> None:
     with SessionLocal() as db:
-        bind = db.get_bind()
+        bind = db.get_bind().engine
         if bind.dialect.name != "postgresql" or bind.url.database != "truecrime_e2e":
             raise RuntimeError("stage-control E2E seed is restricted to PostgreSQL database truecrime_e2e")
         tables = [name for name in inspect(bind).get_table_names() if name != "alembic_version"]

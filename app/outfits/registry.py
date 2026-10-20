@@ -58,8 +58,8 @@ class Outfit:
 class OutfitRegistry:
     """Read and validate the generated outfit directory layout."""
 
-    def __init__(self, root: Path | str = _ROOT):
-        self.root = Path(root)
+    def __init__(self, root: Path | str | None = None):
+        self.root = Path(_ROOT if root is None else root)
 
     @staticmethod
     def _label(outfit_id: str) -> str:

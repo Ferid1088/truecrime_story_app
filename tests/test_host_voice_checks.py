@@ -4,12 +4,10 @@ import asyncio
 import json
 from types import SimpleNamespace
 
-import pytest
+from test_studio import FakeVoice, _renderer, _segments, _silence_mp3
 
 from app.core.ai_config import ai_config
 from app.documentary import pronunciation as PR
-from test_studio import _renderer, _segments, _silence_mp3, FakeVoice
-
 
 # ---------------------------------------------------------------------------
 # configuration and the editor per language

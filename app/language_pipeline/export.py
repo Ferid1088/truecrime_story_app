@@ -60,6 +60,7 @@ def export_case(db: Session, case_id: int, directory: Path) -> list[dict]:
     """Write the approved final of every language that has one (and the report beside it). A language
     without an approved, current final is listed with its status and not written."""
     case = db.get(Case, case_id)
+    assert case is not None
     state = case_state(db, case_id)
     directory.mkdir(parents=True, exist_ok=True)
     entries = []

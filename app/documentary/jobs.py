@@ -49,6 +49,7 @@ version (job.master_version_id); no language waits for another.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -177,6 +178,7 @@ def job_dict(job: DocumentaryJob) -> dict:
         if isinstance(started_at, str):
             try:
                 started = ensure_utc(datetime.fromisoformat(started_at))
+                assert started is not None
                 call_progress = {
                     **call_progress,
                     "elapsed_seconds": round(
@@ -747,10 +749,8 @@ async def research_case(db: Session, case: Case, check_cancel,
     if job is None:
         objective = None
         if doc_job is not None:
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 objective = json.loads(doc_job.result_json or "{}").get("stage_control_prompt")
-            except (TypeError, ValueError):
-                pass
         job = await research_jobs.start_research_job(db, case, objective=objective)
     waited = 0.0
     while job.status in ("queued", "running"):

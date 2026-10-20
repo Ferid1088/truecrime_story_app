@@ -6,9 +6,9 @@ test_language_pipeline_config."""
 import asyncio
 
 import pytest
+from test_language_pipeline_flow import FakeGen, _pipeline, setup  # noqa: F401  (the flow tests' fixture)
 
 from app.core.ai_config import ai_config
-from test_language_pipeline_flow import FakeGen, _pipeline, setup  # noqa: F401  (the flow tests' fixture)
 
 WRITER_ROLES = {"en": {"language_rewrite_writer", "language_final_writer"},
                 "de": {"language_rewrite_writer", "language_final_writer"},

@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 from alembic import command

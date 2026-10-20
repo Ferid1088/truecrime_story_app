@@ -124,7 +124,7 @@ class EvidenceAudit:
             chunk = done.get(acts) or await self._audit_chunk(db, case, material, group)
             chunks.append(chunk)
             self._store(db, draft, self.report(material, chunks, len(groups_of(sections))))
-        return json.loads(draft.critic_notes)["evidence_audit"]
+        return json.loads(draft.critic_notes or "{}")["evidence_audit"]
 
     async def _audit_chunk(self, db: Session, case: Case, material: SharedMaterial,
                            group: list[dict]) -> dict:
@@ -151,7 +151,7 @@ class EvidenceAudit:
                 return self._chunk(acts, "failed", began, db, case.id, error=f"{e.kind}: {e}"[:500])
             return self._chunk(acts, "ok", began, db, case.id, answer=answer, model=res.model,
                                effort=res.reasoning_effort)
-        return self._chunk(acts, "failed", began, db, case.id, error=error[:500])
+        return self._chunk(acts, "failed", began, db, case.id, error=(error or "")[:500])
 
     @staticmethod
     def carry_over(db: Session, new_version: StoryVersion, previous_report: dict, changed_acts: set[str],
@@ -187,7 +187,7 @@ class EvidenceAudit:
                  for n, i in enumerate(items, 1)]
         ok = [c for c in chunks if c["status"] == "ok"]
         status = "ok" if len(ok) == expected else ("failed" if not ok else "partial")
-        usage = Counter()
+        usage: Counter = Counter()
         for c in chunks:
             usage.update(c["usage"])
         return {

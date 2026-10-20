@@ -80,7 +80,7 @@ def usable_plans(db: Session, outfit: HostOutfit) -> set[tuple[str, str, str]]:
 
 def missing_looks(db: Session, outfit: HostOutfit) -> list[str]:
     """What the owner has to approve: the standard set's looks that are not approved yet."""
-    have = {(l.camera, l.framing, l.stance): l for l in db.query(HostLook).filter(
+    have = {(lk.camera, lk.framing, lk.stance): lk for lk in db.query(HostLook).filter(
         HostLook.host_outfit_id == outfit.id, HostLook.status != "rejected")}
     out = []
     for entry in ai_config.host_looks.pose_set:
@@ -101,8 +101,8 @@ def choose(db: Session, outfit: HostOutfit, wanted: Wanted, previous: HostLook |
     if not looks:
         raise NoApprovedLook(outfit, missing_looks(db, outfit))
     cont = ai_config.host_looks.continuity
-    ranked = sorted(looks, key=lambda l: (distance(wanted, of_look(l)), l.id))
-    exact = next((l for l in ranked if of_look(l) == wanted), None)
+    ranked = sorted(looks, key=lambda lk: (distance(wanted, of_look(lk)), lk.id))
+    exact = next((lk for lk in ranked if of_look(lk) == wanted), None)
     cropped = None
     if exact is None:                                   # a crop of a front or wide picture
         for look in ranked:
@@ -120,7 +120,7 @@ def choose(db: Session, outfit: HostOutfit, wanted: Wanted, previous: HostLook |
     if previous is not None and previous.id != pick.id:
         jump = distance(of_look(previous), of_look(pick))
         if jump > cont.max_change_per_cut and not (change_reason or "").strip():
-            near = [l for l in ranked if distance(of_look(previous), of_look(l))
+            near = [lk for lk in ranked if distance(of_look(previous), of_look(lk))
                     <= cont.max_change_per_cut]
             if near:
                 note = (f"the planned change from look #{previous.id} to #{pick.id} is {jump} "
@@ -136,4 +136,4 @@ def choose(db: Session, outfit: HostOutfit, wanted: Wanted, previous: HostLook |
         if cropped is not None and pick is cropped else None,
         "why": why, "continuity": note,
         "previous_look_id": previous.id if previous else None,
-        "considered": [l.id for l in looks]}}
+        "considered": [lk.id for lk in looks]}}

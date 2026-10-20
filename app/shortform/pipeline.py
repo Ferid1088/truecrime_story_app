@@ -203,7 +203,8 @@ def window_cues(script: dict, start: float, end: float, max_chars: int = 42) -> 
     for cue in script.get("subtitles") or []:
         if cue["end"] <= start or cue["start"] >= end:
             continue
-        lines, cur = [], []
+        lines: list[str] = []
+        cur: list[str] = []
         for word in str(cue["text"]).split():
             if cur and len(" ".join(cur + [word])) > max_chars:
                 lines.append(" ".join(cur))
@@ -229,6 +230,7 @@ def _upsert_candidate(db: Session, job: DocumentaryJob, film: Video | None,
     if window and candidate.get("source_start_seconds") is None:
         from app.documentary.visuals.coverage_fill import window_cards
 
+        assert script is not None   # a window comes from the script
         cards, longest = window_cards(script, *window)
         candidate = {**candidate, "source_start_seconds": window[0], "source_end_seconds": window[1]}
         limit = ai_config.coverage.max_card_stretch_seconds
@@ -496,7 +498,7 @@ def _render_one(db: Session, job: DocumentaryJob, candidate: ShortCandidate,
         os.replace(temp_dir, final_dir)
         platforms = build_platform_packages(final_dir, caption=script.caption_text, cta=script.cta,
                                             language=script.language)
-        rel_files = {key: storage.rel(final_dir / name) for key, name in {
+        rel_files: dict[str, Any] = {key: storage.rel(final_dir / name) for key, name in {
             "video": manifest["video"], "cover": manifest["cover"],
             "captions": manifest["subtitles"], "manifest": "manifest.json"}.items()}
         row.script_id = script.id

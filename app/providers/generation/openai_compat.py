@@ -41,7 +41,7 @@ def cache_write_tokens(usage: dict[str, Any]) -> int | None:
     return sum(reported) if reported else None
 
 
-def _sum_optional(a: float | None, b: float | None) -> float | None:
+def _sum_optional[N: (int, float)](a: N | None, b: N | None) -> N | None:
     """Sum two provider-reported usage values, None meaning "not reported"
     rather than zero; None only when neither side reported anything."""
     if a is None and b is None:
@@ -333,7 +333,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         usage = data.get("usage") or {}
         cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
         reasoning = (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
-        billed = {
+        billed: dict[str, Any] = {
             "provider": self.name,
             "model": model,
             "input_tokens": usage.get("prompt_tokens"),
@@ -401,9 +401,14 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         # tracked alongside the usage because a later, unbilled failure
         # (e.g. a timeout with no response at all) would otherwise overwrite
         # them with None on the error that ultimately gets raised.
-        discarded_provider = discarded_model = None
-        discarded_input = discarded_output = discarded_total = discarded_cost = None
-        discarded_cached = discarded_reasoning = None
+        discarded_provider: str | None = None
+        discarded_model: str | None = None
+        discarded_input: int | None = None
+        discarded_output: int | None = None
+        discarded_total: int | None = None
+        discarded_cost: float | None = None
+        discarded_cached: int | None = None
+        discarded_reasoning: int | None = None
         for model in candidates:
             # Provider hiccups (empty body, truncation, transport errors)
             # deserve one retry on the same model before giving up or
@@ -413,7 +418,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                     # Process-wide limit on parallel model calls (agents
                     # run in parallel inside and across documentaries).
                     async with slot("vision" if images else "llm"):
-                        extra = {k: v for k, v in (("images", images), ("prefix", prefix),
+                        extra: dict[str, Any] = {k: v for k, v in (("images", images), ("prefix", prefix),
                                                    ("cache_key", cache_key)) if v}
                         text, used, meta = await self._chat(model, system, user, gen, **extra)
                     fallback_used = model != attempted

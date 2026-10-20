@@ -118,6 +118,9 @@ frontend.
 
 Backend tests: `pytest tests/`
 
+CI check on your machine: `scripts/ci_local.sh` runs the four jobs of `.github/workflows/ci.yml` (backend, backend-postgres, frontend, audit)
+in a clean copy of the tree (no `.env`, no `data/`, Python 3.13, a throw-away Postgres 16): green there is green on GitHub.
+
 ## Generation provider (APIMaster)
 
 APIMaster is the generation/reasoning provider. Only the secret lives in
@@ -801,19 +804,18 @@ into the narrator's performance:
 
 - **Arc** per beat (one call over the whole film): level 0 *neutral*
   (nothing has happened yet), 1 *unease*, 2 *dark* (the crime is present,
-  lower and more deliberate), 3 *breath-taking* (slow, measured, close to
-  a whisper). Rules: everything before the first incident and the
+  lower and more deliberate), 3 *breath-taking* (slow, measured and plain,
+  never whispered). Rules: everything before the first incident and the
   opening beat stay neutral, tension rises in steps, recovery beats calm
   down, at most one beat in five reaches a climax.
 - **Sentences** (chunks in parallel): a level per sentence and the text
   for the voice — v3 audio tags from the palette of that level
   (`voice_performance.level_tags`, e.g. `[pause]`, `[thoughtful]`,
-  `[softly]`, `[slowly]`, `[sighs]`, `[tense]`, `[whispers]`,
-  `[whispering, slowly]`) placed right before the 4–5 words they colour,
+  `[slowly]`, `[serious]`, `[low]`, `[measured]`) placed right before the 4–5 words they colour,
   ellipses and dashes for timing, and (English only) one emphasised word
   in capitals.
-- **Validator**: forbidden tags removed (laughter, crying, shouting,
-  sound effects, accents, excited/playful — this is a real crime), at most
+- **Validator**: forbidden tags removed (whispering and hushed voices, sighs, gasps, fear, laughter, crying, shouting,
+  sound effects, accents, excited/playful — this is a real crime; the voice stage removes them again before the text is spoken), at most
   `max_tags_per_sentence`, density per level (`max_tagged_share`: a
   narrator who performs every line sounds fake), climaxes at most
   `max_climax_share` of all sentences, no trailing tags, sentence type

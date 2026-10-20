@@ -2,6 +2,10 @@
 
 import logging
 import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.provider_mode import assert_safe_provider_mode
 
@@ -12,13 +16,9 @@ if os.environ.get("TC_TEST_NO_NETWORK") == "1":
 
     _install_test_network_guard()
 
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.core.policy import PolicyError, policy_exception_handler
-from app.db.schema import init_schema
+# these read the environment: they come after the provider-mode guard above
+from app.core.policy import PolicyError, policy_exception_handler  # noqa: E402
+from app.db.schema import init_schema  # noqa: E402
 
 init_schema()
 

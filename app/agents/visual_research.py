@@ -53,7 +53,8 @@ class VisualResearchAgent:
                                    queries: list[dict]) -> list[Candidate]:
         """The Commons category files and the Wikipedia article pictures of the entities named by
         the exact queries (one lookup per entity name, the first query of each)."""
-        out, seen = [], set()
+        out: list = []
+        seen: set = set()
         for q in queries:
             key = q.get("entity")
             if query_kind(q) != "exact" or not key or key in seen:
@@ -112,7 +113,7 @@ class VisualResearchAgent:
                     .order_by(VisualLead.id).limit(self.cfg.max_lead_sources).all())
                 for lead in leads:
                     candidates.extend(await lp.images_for(lead, case))
-            searchers = []
+            searchers: list = []
             if "wikimedia" in self.cfg.providers:
                 searchers.append(WikimediaProvider(client))
             if "brave_images" in self.cfg.providers and backend:

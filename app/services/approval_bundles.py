@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.db.models import ApprovalBundle, ApprovalBundleItem, PolicyEvent, RenderedShort, Video
 from app.documentary import storage
-from app.services.upload_adapter import SandboxUploadAdapter, UploadAdapterError, YouTubeUploadAdapter
+from app.services.upload_adapter import (
+    SandboxUploadAdapter,
+    UploadAdapterError,
+    YouTubeUploadAdapter,
+)
 from app.utils import utc_now
 
 
@@ -21,7 +24,7 @@ def _digest(value: object) -> str:
 def film_hash(row: Video) -> str:
     if row.file_path:
         path = storage.resolve(row.file_path)
-        if path.exists():
+        if path is not None and path.exists():
             return hashlib.sha256(path.read_bytes()).hexdigest()
     return _digest({"type": "film", "id": row.id, "language": row.language,
                     "title": row.title, "file_path": row.file_path,

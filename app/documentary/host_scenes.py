@@ -29,6 +29,7 @@ import os
 import re
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -331,6 +332,7 @@ def look_for_avatar(db: Session, scene: HostScene):
     if look is None or look.host_outfit_id != outfit.id or look.status != "approved":
         _choose_default_look(db, scene, outfit)          # raises NoApprovedLook with what to approve
         look = db.get(HostLook, scene.look_id)
+        assert look is not None
     if not look.heygen_look_id:
         raise ST.StudioError(
             f"look #{look.id} ({look.stance} {look.camera} {look.framing}) is approved but not "
@@ -497,6 +499,7 @@ def _record_real_seconds(db: Session, scene: HostScene) -> None:
     """The real voice seconds go into the stored segment next to the planned ones: the timeline
     is planned from text, then corrected from the measured audio."""
     row = db.get(HostSegments, scene.host_segments_id)
+    assert row is not None
     segments = _loads(row.segments_json, [])
     for seg in segments:
         if seg.get("segment_id") == scene.host_segment_id:
@@ -544,6 +547,7 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         _done(scene, "avatar_upload", db, r, {"asset_id": scene.provider_asset_id})
         step = "avatar_request"
         look = scene.avatar_id
+        assert look is not None, "the upload step stored the look"
         r = await _step_avatar_request(db, scene, prov, look)
         _done(scene, "avatar_request", db, r, {"job_id": scene.provider_job_id,
                                                "generation": scene.provider_generation})
@@ -632,7 +636,7 @@ def real_time_report(scenes: list[HostScene], narration_seconds: float,
     error for a film of 600 s or more. The film's total is the story audio plus the host audio
     plus the channel's logo video."""
     cfg = ai_config.host
-    rows = [{"scene": s.id, "segment": s.host_segment_id, "position": s.position,
+    rows: list[dict[str, Any]] = [{"scene": s.id, "segment": s.host_segment_id, "position": s.position,
              "planned": s.planned_duration, "seconds": s.voice_seconds,
              "deviation": round(deviation(s.voice_seconds, s.planned_duration), 4),
              "cap": scene_cap(s.position)} for s in scenes]

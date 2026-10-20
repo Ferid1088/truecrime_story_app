@@ -515,7 +515,7 @@ class MultilingualConfig(BaseModel):
 
     @property
     def research_only_languages(self) -> list[str]:
-        return [l for l in self.research_languages if l not in self.production_languages]
+        return [lang for lang in self.research_languages if lang not in self.production_languages]
 
     def video_stems(self, language: str) -> list[str]:
         return (self.language_catalog.get(language) or self.language_catalog["en"]).video_search_stems
@@ -3242,6 +3242,13 @@ class AIConfig(BaseModel):
             raise KeyError(
                 f"Unknown {self.provider_for_role(role)} role: {role!r}"
             ) from None
+
+    def prompt_of(self, agent: str) -> str:
+        """The prompt file of an agent that has one (agents that only call a model have none)."""
+        name = self.agents[agent].prompt
+        if not name:
+            raise KeyError(f"agent {agent} has no prompt")
+        return name
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

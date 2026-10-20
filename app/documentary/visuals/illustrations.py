@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import uuid
+from typing import Any
 
 import httpx
 from sqlalchemy.orm import Session
@@ -221,7 +222,7 @@ async def ensure_pool(db: Session, case: Case, bp_row: EditorialBlueprint, requi
         made += 1
     if made:
         book(db, case.id, made)
-    out = {"existing": sum(len(v) for v in have.values()), "made": made}
+    out: dict[str, Any] = {"existing": sum(len(v) for v in have.values()), "made": made}
     if errors:
         out["degraded"] = f"{errors} illustration(s) could not be made and are retried next run"
     return out

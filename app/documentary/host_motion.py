@@ -17,12 +17,12 @@ from app.core.media_tools import ffmpeg_bin
 def _frames(video: Path, every: float, width: int) -> tuple[np.ndarray, int, int]:
     """Grey frames every `every` seconds, shape (n, h, w)."""
     probe = subprocess.run(
-        [ffmpeg_bin(), "-v", "error", "-i", str(video), "-frames:v", "1", "-vf", f"scale={width}:-2",
+        [ffmpeg_bin() or "ffmpeg", "-v", "error", "-i", str(video), "-frames:v", "1", "-vf", f"scale={width}:-2",
          "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True, check=True)
     size = len(probe.stdout)
     height = size // width
     raw = subprocess.run(
-        [ffmpeg_bin(), "-v", "error", "-i", str(video), "-vf",
+        [ffmpeg_bin() or "ffmpeg", "-v", "error", "-i", str(video), "-vf",
          f"fps=1/{every},scale={width}:{height}", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
         capture_output=True, check=True).stdout
     count = len(raw) // (width * height)

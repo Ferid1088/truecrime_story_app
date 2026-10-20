@@ -43,7 +43,7 @@ def _dates_agree(a: str | None, b: str | None) -> bool:
 
 
 def _rank(fact: dict) -> tuple:
-    return (_STRENGTH.get(fact.get("evidence_strength"), 0), fact.get("confidence") or 0,
+    return (_STRENGTH.get(fact.get("evidence_strength") or "", 0), fact.get("confidence") or 0,
             len(fact.get("supporting_text") or ""))
 
 
@@ -84,7 +84,8 @@ class FactMerger:
     def _combine(group: list[dict]) -> dict:
         if len(group) == 1:
             return group[0]
-        one = dict(max(group, key=_rank))
+        best = max(group, key=_rank)
+        one = dict(best)
         for field in _LIST_FIELDS:
             values = [f.get(field) or [] for f in group]
             one[field] = sorted(_union(values)) if field in ("source_ids", "chunk_ids") \

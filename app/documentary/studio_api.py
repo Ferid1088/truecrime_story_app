@@ -117,6 +117,7 @@ def host_time(case_id: int, language: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No host segments for this language")
     scenes = db.query(HostScene).filter(HostScene.host_segments_id == latest.id).all()
     version = db.get(StoryVersion, latest.story_version_id)
+    assert version is not None
     narration = len((version.story_text or "").split()) / ai_config.documentary.wpm(language) * 60
     from app.documentary.intros import intro_seconds
 
@@ -224,7 +225,9 @@ async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
             from app.db.models import HostOutfit
             from app.documentary import outfits as OF
 
-            outfit_png = OF.reference_png(db.get(HostOutfit, look.host_outfit_id), look.stance)
+            host_outfit = db.get(HostOutfit, look.host_outfit_id)
+            assert host_outfit is not None
+            outfit_png = OF.reference_png(host_outfit, look.stance)
         else:
             outfit_png = OutfitRegistry().resolve(look.outfit_id).poses["front"].path.read_bytes()
         gen = ai_config.generation_provider()
@@ -251,7 +254,6 @@ async def attach_host_look_picture(look_id: int, file: UploadFile = File(...),
 @router.post("/api/host-looks/{look_id}/upload")
 async def upload_host_look(look_id: int, db: Session = Depends(get_db)):
     """Upload an APPROVED look to HeyGen as a look of the configured character."""
-    from app.core.ai_config import ai_config
     from app.core.env import env_value
     from app.documentary import looks as LK
     from app.providers.avatar import get_avatar_provider
@@ -297,7 +299,7 @@ def regenerate_host_look(look_id: int, payload: LookDecision, db: Session = Depe
 
     if not (payload.prompt or "").strip():
         raise HTTPException(status_code=422, detail="a prompt is required")
-    return _looks_call(lambda: LK.regenerate_with_prompt(db, _look(db, look_id), payload.prompt))
+    return _looks_call(lambda: LK.regenerate_with_prompt(db, _look(db, look_id), payload.prompt or ""))
 
 
 @router.get("/api/host-scenes/{scene_id}")

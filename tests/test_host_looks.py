@@ -4,7 +4,6 @@ import asyncio
 
 import pytest
 
-from app.db.models import HostLook
 from app.documentary import looks as LK
 
 
@@ -95,7 +94,7 @@ def test_the_approval_gate_cannot_be_skipped_for_a_requested_or_rejected_look(db
 
 
 def test_looks_api_request_approve_and_generation_refuses_without_a_studio_master(client, db_session, profile, monkeypatch):
-    monkeypatch.setattr(LK.ST, "load_registry", lambda: type("R", (), {"assets_of": lambda self, l: []})())
+    monkeypatch.setattr(LK.ST, "load_registry", lambda: type("R", (), {"assets_of": lambda self, look: []})())
     made = client.post("/api/host-looks", json={
         "language": "en", "camera": "CAM01_FRONT", "framing": "WIDE", "outfit_id": "navy_knit",
         "pose": "P01_NEUTRAL_SEATED"}).json()
@@ -117,8 +116,9 @@ def _heygen(handler, monkeypatch):
 
 
 def test_heygen_create_look_adds_a_photo_look_to_the_group_and_reads_its_status(monkeypatch):
-    import httpx
     import json
+
+    import httpx
 
     seen = []
 

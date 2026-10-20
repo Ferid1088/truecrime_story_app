@@ -26,7 +26,6 @@ from app.db.models import (
 from app.services.artifact_shadow import STAGE_ARTIFACT_TYPES, _stage_detail
 from app.services.cost_model import estimate_stage_eur
 from app.services.policy_events import record_decision
-from app.services.skip_policy import SOUNDNESS
 from app.services.soundness import predicted_change_keys
 from app.utils import utc_now
 

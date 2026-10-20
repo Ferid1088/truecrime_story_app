@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from app.core.ai_config import ai_config
 from app.documentary.visuals.usage import (
-    CONTEXT, EVIDENCE, GENERIC, MAP, PERSON, PICTURE_KINDS,
+    CONTEXT,
+    EVIDENCE,
+    GENERIC,
+    MAP,
+    PERSON,
+    PICTURE_KINDS,
 )
 
 CASE_SPECIFIC = (EVIDENCE, PERSON, MAP, CONTEXT)

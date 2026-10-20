@@ -76,7 +76,7 @@ class EvidenceSelector:
         return max((self.reliability.get(i, 0.5) for i in ids), default=0.5)
 
     def _rank_key(self, f: Fact) -> tuple:
-        return (not self.video_backed(f), -EVIDENCE_RANK.get(f.evidence_strength, 0),
+        return (not self.video_backed(f), -EVIDENCE_RANK.get(f.evidence_strength or "", 0),
                 -self._best_reliability(f), -len(fact_source_ids(f)), -(f.confidence or 0), f.id)
 
     def select(self, facts: list[Fact]) -> tuple[list[Fact], list[dict]]:

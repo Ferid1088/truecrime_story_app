@@ -272,7 +272,7 @@ class LanguageStages:
         res = await self.call(db, case, run, ai_config.agents[agent].role, "Language Rewrite Writer",
                               REWRITE_STAGE, language, f"{language} {span.minutes_min:g}-{span.minutes_max:g}min")
         return self._output(REWRITE_STAGE, language, res.text.strip(), material, res,
-                            ai_config.agents[agent].prompt)
+                            ai_config.prompt_of(agent))
 
     async def _rewrite_en(self, db, case, material, source_text, language, span, review=None):
         task, system = self._native_rewrite_request("language.rewrite.en", material, source_text, language,
@@ -336,7 +336,7 @@ class LanguageStages:
                 if attempt + 1 == INSPECTOR_ATTEMPTS:
                     raise StageFailed(stage, f"the {language} inspector's answer is not valid "
                                       f"after {INSPECTOR_ATTEMPTS} attempts: {e}") from e
-        return self._output(stage, language, text, material, res, ai_config.agents[agent].prompt,
+        return self._output(stage, language, text, material, res, ai_config.prompt_of(agent),
                             data=self.film_critique(inspection))
 
     async def _inspect_en(self, db, case, material, text, language, span, stage):
@@ -444,7 +444,7 @@ class LanguageStages:
         res = await self.call(db, case, run, ai_config.agents[agent].role, "Language Final Writer",
                               FINAL_STAGE, language, f"{language} final")
         return self._output(FINAL_STAGE, language, res.text.strip(), material, res,
-                            ai_config.agents[agent].prompt)
+                            ai_config.prompt_of(agent))
 
     async def _final_en(self, db, case, material, language, span, last_version, critique,
                         source_text):
@@ -521,8 +521,8 @@ class LanguageStages:
         return StageOutput(
             stage=LENGTH_CORRECTION_STAGE, language=language, text=text, sections=sections,
             markers_ok=[s["id"] for s in sections] == requested, result=res,
-            prompt_name=ai_config.agents[agent].prompt,
-            prompt_sha256=prompt_sha256(ai_config.agents[agent].prompt),
+            prompt_name=ai_config.prompt_of(agent),
+            prompt_sha256=prompt_sha256(ai_config.prompt_of(agent)),
             data={"requested": requested, **({"removed_lead_in": lead_in} if lead_in else {})})
 
 

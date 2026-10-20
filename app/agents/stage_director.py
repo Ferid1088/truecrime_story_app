@@ -68,7 +68,8 @@ class StageDirector:
         if not looks:
             raise LS.NoApprovedLook(outfit, LS.missing_looks(db, outfit))
         row = db.get(HostSegments, scene.host_segments_id)
-        seg = next((s for s in json.loads(row.segments_json or "[]")
+        assert row is not None
+        seg: dict = next((s for s in json.loads(row.segments_json or "[]")
                     if s.get("id") == scene.host_segment_id or s.get("segment_id") == scene.host_segment_id),
                    {})
         claims = " ".join(c.get("text", "") for c in seg.get("claims") or [])
@@ -149,7 +150,7 @@ class StageDirector:
                 errors = [{"code": "schema", "detail": str(e)[:300]}]
                 continue
             errors = SD.validate_direction(
-                direction, voice_seconds=scene.voice_seconds, sentence_ends=ctx["ends"],
+                direction, voice_seconds=float(scene.voice_seconds or 0.0), sentence_ends=ctx["ends"],
                 approved_looks=ctx["looks"], recent=ctx["recent"], sensitive=ctx["sensitive"],
                 memory_refs=ctx["refs"], outfit_id=outfit_key(ctx["outfit"]),
                 language=scene.language)

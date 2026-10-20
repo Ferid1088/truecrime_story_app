@@ -14,15 +14,15 @@ import logging
 import queue
 import re
 import threading
-from pathlib import Path
 import time
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import httpx
 
-from app.core.config import settings
 from app.core.ai_config import ai_config
+from app.core.config import settings
 from app.utils import utc_now
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")

@@ -17,12 +17,12 @@ or an official one. A single weak article never solves a case.
 
 from __future__ import annotations
 
-
 import json
 import logging
 import math
 import re
 from datetime import date, datetime, timezone
+from typing import Any
 from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
@@ -291,7 +291,7 @@ def legal_risk_flags(raw: dict, verdict: dict | None = None, status: str | None 
 
 def case_legal_risk_flags(case) -> list[str]:
     """Apply the same editorial caution to manually created cases."""
-    raw = {
+    raw: dict[str, Any] = {
         "title": getattr(case, "canonical_title", ""),
         "rationale": getattr(case, "summary", "") or "",
         "resolution_status": getattr(case, "resolution_status", None),

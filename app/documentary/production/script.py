@@ -32,14 +32,24 @@ from app.agents.story import stored_sections
 from app.core.ai_config import ai_config
 from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import (
-    Case, EditorialBlueprint, MusicUsage, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
+    Case,
+    EditorialBlueprint,
+    MusicUsage,
+    ProductionScript,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
 )
 from app.documentary import storage
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.generated import LABELS, localize_texts
 from app.documentary.visuals.usage import (
-    UsageTracker, annotate, asset_facts, named_between, record_media_usage,
+    UsageTracker,
+    annotate,
+    asset_facts,
+    named_between,
+    record_media_usage,
 )
 
 IMAGE_COMMANDS = {"NEW_IMAGE", "ATMOSPHERIC_BROLL", "CROP_EXISTING", "ZOOM_EXISTING"}
@@ -603,7 +613,7 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
             out.append(sh)
             continue
         length = float(sh["clip_end"]) - float(sh.get("clip_start") or 0.0)
-        third_party = (assets.get(sh.get("asset_id")) is not None
+        third_party = (assets.get(sh.get("asset_id") or "") is not None
                        and assets[sh["asset_id"]].provider in footage.third_party_providers)
         if third_party:
             # other people's footage: capped per clip and in total
@@ -1348,7 +1358,6 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     from app.documentary.chapters import cards_for, latest_chapter_plan
     from app.documentary.intros import intro_seconds
-
     from app.documentary.production import host_timeline as HT
 
     host = HT.host_items(db, version)
@@ -1373,8 +1382,10 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     if host:
         # Part 8a: the host's opening (then the logo) and mid appearances, shot and sound
         script = HT.insert_host(script, host, logo_seconds if after_host else None)
+        narration_audio = storage.resolve(script["audio"]["path"])
+        assert narration_audio is not None
         spliced = HT.splice_host_audio(
-            storage.resolve(script["audio"]["path"]), script["host"],
+            narration_audio, script["host"],
             storage.production_dir(version.case_id, language) / f"audio_with_host_v{version.id}.wav",
             storage.resolve)
         script["audio"] = {"path": storage.rel(spliced), "with_host": True}

@@ -7,23 +7,38 @@ import random
 from types import SimpleNamespace
 
 import pytest
+from test_blueprint_performance import _good, _no_contradiction
 
 from app.core.ai_config import HostConfig, ai_config
 from app.documentary.host import (
-    dialogue_issues, estimate_seconds, persona_prompt, target_words, word_range,
+    dialogue_issues,
+    estimate_seconds,
+    persona_prompt,
+    target_words,
+    word_range,
 )
 from app.documentary.host_firewall import (
-    clean_question, later_only_terms, open_questions, reveal_issues, riddles, segment_context,
+    clean_question,
+    later_only_terms,
+    open_questions,
+    reveal_issues,
+    riddles,
+    segment_context,
     visible_facts,
 )
 from app.documentary.host_planning import (
-    appearance_seconds, seconds_between, story_seconds, validate_host_plan,
+    appearance_seconds,
+    seconds_between,
+    story_seconds,
+    validate_host_plan,
 )
 from app.documentary.host_story import (
-    HostEntity, split_acts, story_from_blueprint, story_from_plan,
+    HostEntity,
+    split_acts,
+    story_from_blueprint,
+    story_from_plan,
 )
 from app.providers.generation.base import GenerationResult
-from test_blueprint_performance import _good, _no_contradiction
 
 BP = _no_contradiction(_good())  # B01 hook, B03 reveal, F001..F004
 
@@ -580,7 +595,8 @@ def _plan_story(db, language="en", title=None):
     """A case with a story plan, a final in `language` written to it (act markers), the plan's
     facts as Fact rows."""
     from test_blueprint_performance import _story
-    from app.db.models import Fact, StoryPlan, StoryVersion
+
+    from app.db.models import Fact, StoryPlan
 
     case, master = _story(db, title=title)
     for fact in db.query(Fact).filter(Fact.case_id == case.id).order_by(Fact.id):
@@ -649,7 +665,7 @@ def test_host_director_plans_the_structure_once_and_writes_every_language(
         assert key in out[0]
     assert out[0]["placement"].startswith("Opening") and out[1]["placement"].startswith("After act2")
     assert out[3]["placement"].startswith("Outro")
-    for seg, planned in zip(out, segs):
+    for seg, planned in zip(out, segs, strict=False):
         lo, hi = word_range(planned["target_seconds"], "en")
         assert lo <= len(seg["avatar_dialogue"].split()) <= hi
         assert seg["target_seconds"] == planned["target_seconds"]
@@ -927,7 +943,6 @@ def test_spoken_not_written_helpers():
               "Locked. Really?", "I keep coming back to that.",
               "And then, hmm, the neighbour says she saw nothing, which is odd."]
     assert spoken_issues(lively, cfg) == []
-    same = lively[:2] + ["Locked again, which I did not expect to hear from anyone at all."]
     assert "same_sentence_opening" in {i["type"] for i in spoken_issues(
         ["Locked up tight, they said.", "Locked up again, says someone else.", "Hmm.",
          "Who knows what happened that long night in that house."], cfg)}
@@ -1008,6 +1023,7 @@ def _with_blueprint(db, case, master, status="valid"):
 def test_a_blueprint_story_is_planned_and_written_through_its_beats(
         db_session, isolated_host_history, monkeypatch):
     from test_blueprint_performance import _story
+
     from app.agents.host import HostDirector
 
     case, master = _story(db_session)
@@ -1015,8 +1031,10 @@ def test_a_blueprint_story_is_planned_and_written_through_its_beats(
     wide = _cfg(min_gap_seconds=0, min_acts_between=0, max_total_share=0.5,
                 short_film_min_appearances=2)
     monkeypatch.setattr("app.agents.host.get_generation_provider", lambda: gen)
-    monkeypatch.setattr(HostDirector, "__init__", lambda self: (
-        setattr(self, "gen", gen), setattr(self, "cfg", wide)) and None)
+    def director_init(self):
+        self.gen, self.cfg = gen, wide
+
+    monkeypatch.setattr(HostDirector, "__init__", director_init)
     monkeypatch.setattr(ai_config, "host", wide)
     raw = {"segments": [
         {"id": "S1", "position": "opening", "role": "opening", "after_act": None, "reason": "r"},
@@ -1029,6 +1047,7 @@ def test_a_blueprint_story_is_planned_and_written_through_its_beats(
 
 def test_host_api(client, db_session, isolated_host_history, monkeypatch):
     from test_blueprint_performance import _story
+
     from app.db.models import StoryVersion
 
     gen = HostGen()
@@ -1097,6 +1116,7 @@ def test_job_stages_include_the_host(monkeypatch):
 
 def test_every_language_has_its_channel_and_studio():
     from pathlib import Path
+
     from app.documentary.host import writer_system_prompt
 
     names = {l: c.name for l, c in ai_config.channels.items()}
@@ -1142,7 +1162,10 @@ def test_the_exact_persona_file_reaches_director_writer_and_critic_in_every_lang
     from pathlib import Path
 
     from app.documentary.host import (
-        critic_system_prompt, director_system_prompt, persona_sha256, writer_system_prompt,
+        critic_system_prompt,
+        director_system_prompt,
+        persona_sha256,
+        writer_system_prompt,
     )
 
     persona = Path(ai_config.host.persona_file).read_text(encoding="utf-8").strip()
@@ -1158,7 +1181,9 @@ def test_the_exact_persona_file_reaches_director_writer_and_critic_in_every_lang
 @pytest.mark.parametrize("language", ["fa", "en", "de", "ar"])
 def test_the_prompts_carry_the_friend_rules_the_opening_rules_and_the_cutoff(language):
     from app.documentary.host import (
-        critic_system_prompt, director_system_prompt, writer_system_prompt,
+        critic_system_prompt,
+        director_system_prompt,
+        writer_system_prompt,
     )
 
     writer = writer_system_prompt(language)
@@ -1231,6 +1256,7 @@ def test_persona_hash_is_stored_changes_with_the_file_and_old_rows_say_unknown(
 def test_memory_api_lists_usage_edits_deactivates_and_deletes_only_editor_memories(
         client, db_session):
     from test_blueprint_performance import _story
+
     from app.db.models import HostMemory, HostPlan, HostSegments
 
     case, master = _story(db_session)

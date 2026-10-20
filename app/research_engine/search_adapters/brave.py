@@ -9,7 +9,7 @@ import asyncio
 import email.utils
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -53,8 +53,8 @@ class BraveSearchBackend:
             try:
                 when = email.utils.parsedate_to_datetime(value)
                 if when.tzinfo is None:
-                    when = when.replace(tzinfo=timezone.utc)
-                return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
+                    when = when.replace(tzinfo=UTC)
+                return max((when - datetime.now(UTC)).total_seconds(), 0.0)
             except (TypeError, ValueError, OverflowError):
                 return None
 
@@ -64,7 +64,7 @@ class BraveSearchBackend:
             raise SearchError(self.name, "not_configured",
                               "Brave Search API is not configured")
         query = shorten_query(query)
-        params = {
+        params: dict[str, str | int] = {
             "q": query,
             "count": min(max(limit, 1), self.result_count, 20),
             "safesearch": "strict",

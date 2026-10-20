@@ -4,7 +4,6 @@ import asyncio
 import json
 import uuid
 
-import pytest
 from PIL import Image
 
 from app.core.ai_config import ai_config

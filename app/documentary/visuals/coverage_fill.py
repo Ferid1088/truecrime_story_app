@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
-import math
 
 from sqlalchemy.orm import Session
 
@@ -19,7 +18,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, EditorialBlueprint, ProductionScript, VisualAsset, VisualPlan
 from app.documentary.visuals import illustrations as IL
 from app.documentary.visuals.fill_ways import FillWays, crop_box
-from app.documentary.visuals.usage import UsageTracker, asset_facts, named_between
+from app.documentary.visuals.usage import asset_facts, named_between
 
 CARD_KINDS = ("black", "title", "chapter", "timeline", "date")
 KEEP_CARD_KINDS = ("title", "chapter", "timeline")      # a short card is allowed, a black stretch never
@@ -89,10 +88,11 @@ def _windows(script: dict) -> list[tuple[float, float]]:
     budget = cfg.max_card_share * duration
     wins: list[tuple[float, float]] = []
     run_start = None
+    run_end = 0.0
     kept_run = 0.0
     for s in shots:
         if _is_card(s):
-            if run_start is None or abs(run_end - s["start"]) > EPS:        # noqa: F821
+            if run_start is None or abs(run_end - s["start"]) > EPS:
                 run_start, kept_run = s["start"], 0.0
             run_end = s["end"]
             length = s["end"] - s["start"]
@@ -252,6 +252,7 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
     if not windows:
         return {"windows": 0, "filled": 0}
     case = db.get(Case, row.case_id)
+    assert case is not None
     bp_row = db.get(EditorialBlueprint, row.blueprint_id)
     plan_row = db.get(VisualPlan, row.visual_plan_id)
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
@@ -280,7 +281,7 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
 
     results = await asyncio.gather(*(one(sl, b) for sl, b in slots))
     filled, count, missing = 0, 0, []
-    for ((start, end), beat), got in zip(slots, results):
+    for ((start, end), beat), got in zip(slots, results, strict=True):
         if got is None:
             missing.append((start, end))
             continue
@@ -388,7 +389,7 @@ def render_check(video, script: dict) -> dict:
     from app.core.media_tools import ffmpeg_bin
 
     run = subprocess.run(
-        [ffmpeg_bin(), "-hide_banner", "-nostats", "-i", str(video), "-vf",
+        [ffmpeg_bin() or "ffmpeg", "-hide_banner", "-nostats", "-i", str(video), "-vf",
          f"blackdetect=d={ai_config.coverage.black_screen_min_seconds}:pix_th=0.05", "-an", "-f", "null", "-"],
         capture_output=True, text=True)
     black = sum(float(m) for m in re.findall(r"black_duration:([\d.]+)", run.stderr))

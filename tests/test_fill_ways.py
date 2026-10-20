@@ -5,7 +5,7 @@ import json
 import uuid
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, VisualAsset
+from app.db.models import VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import fill_ways as FW
 from tests.test_coverage_fill import FakeAuditor, _illustrations, _row, script, shot

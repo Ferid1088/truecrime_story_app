@@ -29,9 +29,6 @@ lines up beat by beat in every language.
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
 import json
 import re
 
@@ -43,8 +40,10 @@ from app.agents.story import (
     stored_sections,
 )
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import (
-    EditorialBlueprint, StoryVersion,
+    EditorialBlueprint,
+    StoryVersion,
 )
 
 LANG_NAMES = {"en": "English", "de": "German", "fa": "Persian (Farsi)", "ar": "Arabic"}
@@ -259,7 +258,7 @@ def spoken_blueprint(db: Session, version: StoryVersion) -> dict | None:
     if row is None or row.status == "invalid":
         return None
     blueprint = json.loads(row.blueprint_json or "{}")
-    sections = stored_sections(version)
+    sections = stored_sections(version) or []
     beats = blueprint.get("beats") or []
     section_ids = {s["id"] for s in sections}
     # Pilot spoken versions intentionally contain only the opening beats. The

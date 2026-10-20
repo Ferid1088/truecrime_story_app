@@ -3,20 +3,22 @@ the domain rules and storage helpers stay in app.documentary.audio_director."""
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
 import json
+
 from sqlalchemy.orm import Session
+
+from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.member_ids import ensure_pipeline_member_ids
 from app.db.models import AudioPlan, Case, EditorialBlueprint
-from app.providers.generation import get_generation_provider
-from app.services.tracking import stamp_run, track_run
-from app.documentary.music import director_library, music_source_mode
 from app.documentary.audio_director import (
     _director_input,
     director_system_prompt,
     validate_audio_plan,
 )
+from app.documentary.music import director_library, music_source_mode
+from app.providers.generation import get_generation_provider
+from app.services.tracking import stamp_run, track_run
 
 
 class AudioDirector:
@@ -30,7 +32,7 @@ class AudioDirector:
         blueprint = json.loads(blueprint_row.blueprint_json or "{}")
         use_library = music_source_mode(db) != "create"
         library = director_library(db) if use_library else None
-        by_code = {t["code"]: t for t in library} if use_library else None
+        by_code = {t["code"]: t for t in library} if library is not None else None
         system = director_system_prompt(with_library=use_library)
         payload = _director_input(blueprint, library)
         with track_run(db, case.id, "Audio Director",

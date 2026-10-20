@@ -60,15 +60,15 @@ def test_a_call_that_billed_real_tokens_before_failing_downstream_still_books_it
     processing the model's own (slightly malformed) JSON then raises
     inside the same track_run block."""
     case = _case(db_session)
-    with pytest.raises(KeyError):
-        with documentary_run_context(case_id=case.id, pipeline_stage="evidence_normalizer"):
-            with track_run(db_session, case.id, "evidence_normalizer") as row:
-                result = GenerationResult(
-                    text="{}", model="claude-sonnet-5-5", provider="apimaster",
-                    input_tokens=1000, output_tokens=200, total_tokens=1200,
-                )
-                stamp_run(row, result, "evidence_normalizer")
-                raise KeyError("malformed model output")
+    with (pytest.raises(KeyError),
+          documentary_run_context(case_id=case.id, pipeline_stage="evidence_normalizer"),
+          track_run(db_session, case.id, "evidence_normalizer") as row):
+        result = GenerationResult(
+            text="{}", model="claude-sonnet-5-5", provider="apimaster",
+            input_tokens=1000, output_tokens=200, total_tokens=1200,
+        )
+        stamp_run(row, result, "evidence_normalizer")
+        raise KeyError("malformed model output")
 
     agent_run = db_session.get(AgentRun, row.id)
     assert agent_run.status == "failed"
@@ -96,10 +96,10 @@ def test_a_generation_error_with_billed_usage_books_its_cost_even_with_no_stamp_
         provider="apimaster", model="claude-haiku-4-5",
         input_tokens=300, output_tokens=150, total_tokens=450, cost_usd=0.002,
     )
-    with pytest.raises(GenerationError):
-        with documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"):
-            with track_run(db_session, case.id, "fact_extractor") as row:
-                raise error
+    with (pytest.raises(GenerationError),
+          documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"),
+          track_run(db_session, case.id, "fact_extractor")):
+        raise error
 
     call = (db_session.query(ProviderCall)
             .filter(ProviderCall.case_id == case.id, ProviderCall.stage == "fact_extractor")
@@ -115,10 +115,10 @@ def test_a_failure_with_no_provider_response_at_all_books_nothing(db_session):
     """A pure network/timeout failure (no response ever received) must
     not fabricate a ledger row — there is nothing to book."""
     case = _case(db_session)
-    with pytest.raises(GenerationError):
-        with documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"):
-            with track_run(db_session, case.id, "fact_extractor") as row:
-                raise GenerationError("timeout", "request timed out")
+    with (pytest.raises(GenerationError),
+          documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"),
+          track_run(db_session, case.id, "fact_extractor") as row):
+        raise GenerationError("timeout", "request timed out")
 
     agent_run = db_session.get(AgentRun, row.id)
     assert agent_run.status == "failed"
@@ -141,13 +141,13 @@ def test_a_model_with_no_price_entry_fails_loudly_and_still_counts_toward_the_ca
 
     case = _case(db_session)
     for _ in range(2):
-        with documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"):
-            with track_run(db_session, case.id, "fact_extractor") as row:
-                result = GenerationResult(
-                    text="{}", model="not-a-priced-model", provider="apimaster",
-                    input_tokens=400, output_tokens=100, total_tokens=500,
-                )
-                stamp_run(row, result, "fact_extractor")
+        with (documentary_run_context(case_id=case.id, pipeline_stage="fact_extractor"),
+              track_run(db_session, case.id, "fact_extractor") as row):
+            result = GenerationResult(
+                text="{}", model="not-a-priced-model", provider="apimaster",
+                input_tokens=400, output_tokens=100, total_tokens=500,
+            )
+            stamp_run(row, result, "fact_extractor")
 
     calls = (db_session.query(ProviderCall)
              .filter(ProviderCall.case_id == case.id, ProviderCall.stage == "fact_extractor")
@@ -174,12 +174,12 @@ def test_missing_usage_retries_still_dedupe_to_zero_after_the_first_stage_estima
     further usage-less retry for that stage is zeroed (never multiplied)."""
     case = _case(db_session)
     for _ in range(3):
-        with documentary_run_context(case_id=case.id, pipeline_stage="grounding_validator"):
-            with track_run(db_session, case.id, "grounding_validator") as row:
-                result = GenerationResult(
-                    text="", model="claude-haiku-4-5", provider="apimaster",
-                )
-                stamp_run(row, result, "grounding_validator")
+        with (documentary_run_context(case_id=case.id, pipeline_stage="grounding_validator"),
+              track_run(db_session, case.id, "grounding_validator") as row):
+            result = GenerationResult(
+                text="", model="claude-haiku-4-5", provider="apimaster",
+            )
+            stamp_run(row, result, "grounding_validator")
 
     calls = (db_session.query(ProviderCall)
              .filter(ProviderCall.case_id == case.id, ProviderCall.stage == "grounding_validator")

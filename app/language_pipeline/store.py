@@ -283,7 +283,7 @@ class StageStore:
         """The newest shared draft of this plan and this evidence with that status: "ready"
         (usable) or "needs_revision" (written, rejected: the next attempt starts from it). A draft
         written with another draft prompt is another draft: it is history, not a source."""
-        prompt_sha = prompt_sha256(ai_config.agents["language.draft"].prompt)
+        prompt_sha = prompt_sha256(ai_config.prompt_of("language.draft"))
         for row in self._latest(material.case_id, DRAFT):
             p = pipeline_of(row)
             if row.status == status and self.plan_still_fits(p.get("plan_id"), material.plan_id) and \

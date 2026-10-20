@@ -1,8 +1,8 @@
 from uuid import uuid4
 
 from app.db.models import Case
-from app.services.dry_run import documentary_dry_run
 from app.services.cost_model import estimate_lines, load_pricing
+from app.services.dry_run import documentary_dry_run
 
 
 def test_dry_run_builds_english_prompts_and_sends_nothing(db_session):

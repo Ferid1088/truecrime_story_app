@@ -91,7 +91,9 @@ elif _PG_URL:
         with _eng.connect() as _c:
             _c.execute(_sa.text("DROP SCHEMA public CASCADE"))
             _c.execute(_sa.text("CREATE SCHEMA public"))
-            _c.execute(_sa.text("ALTER SCHEMA public OWNER TO truecrime"))
+            # the schema belongs to the role the tests connect as (locally "truecrime", in CI "postgres")
+            _owner = _c.dialect.identifier_preparer.quote(_make_url(_PG_URL).username)
+            _c.execute(_sa.text(f"ALTER SCHEMA public OWNER TO {_owner}"))
         _eng.dispose()
         os.environ["TRUECRIME_TEST_ADMIN_URL"] = _PG_RESOLVED_ADMIN
     else:
@@ -112,6 +114,34 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db.base import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _provider_ledger_settled():
+    """The provider-call ledger is written by a background thread: the rows a test queued are written
+    before the next test starts (otherwise they land in its row counts)."""
+    yield
+    from app.core import observability
+
+    observability.flush()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def outfit_root(tmp_path_factory):
+    """The outfit pictures are private photos of the owner (data/outfits is not in the repository):
+    the tests use a generated set with the same layout, one folder per outfit and all poses."""
+    from PIL import Image
+
+    from app.outfits import registry
+
+    root = tmp_path_factory.mktemp("outfits")
+    for slug in registry._LEGACY:
+        (root / slug).mkdir()
+        for n, role in enumerate(registry._ROLES):   # every pose is a different picture
+            Image.new("RGB", (64, 64), (40 + 20 * n, 50, 60)).save(root / slug / f"{role}.png")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(registry, "_ROOT", root)
+        yield root
 
 
 def _delete_case_tree(db, case_id: int) -> None:
@@ -250,9 +280,10 @@ def isolated_host_history(db_session):
     anti-repetition deliberately reads other cases' persisted segments.
     Clear that boundary explicitly; the test creates its own archive rows.
     """
-    from app.db.models import HostMemory, HostScene, HostSegments
+    from app.db.models import HostAppearance, HostMemory, HostScene, HostSegments
 
-    # scenes first: a row id is reused once its segments row is gone
+    # what refers to a scene first (its appearance record), then scenes: a row id is reused once its segments row is gone
+    db_session.query(HostAppearance).delete(synchronize_session=False)
     db_session.query(HostScene).delete(synchronize_session=False)
     db_session.query(HostSegments).delete(synchronize_session=False)
     db_session.query(HostMemory).delete(synchronize_session=False)

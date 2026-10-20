@@ -37,6 +37,7 @@ from app.documentary.spoken import (
     writer_system_prompt,
 )
 from app.providers.generation import get_generation_provider
+from app.providers.generation.base import GenerationResult
 from app.services.tracking import stamp_run, track_run
 from app.utils import language_quality
 
@@ -68,7 +69,7 @@ class SpokenNarrator:
         return data if isinstance(data, dict) else {}, res
 
     async def _write(self, db, case_id, language, source: list[dict],
-                     uncertain: list[str]) -> tuple[list[dict], object, list[str]]:
+                     uncertain: list[str]) -> tuple[list[dict], GenerationResult, list[str]]:
         """Whole story in one call; on lost markers chunks, then beats."""
         system = writer_system_prompt(language)
         log: list[str] = []

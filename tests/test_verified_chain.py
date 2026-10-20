@@ -184,7 +184,7 @@ def test_a_new_english_final_makes_the_dependent_language_versions_out_of_date(s
     state = case_state(db_session, setup.id)
     fa = next(b for b in state["languages"] if b["language"] == "fa")
     assert fa["stale"] is False and fa["approved"] is True and fa["derived_from"]["kind"] == "final"
-    english = next(f for f in rows(db_session, setup, kind=FINAL) if f.language == "en")
+    assert any(f.language == "en" for f in rows(db_session, setup, kind=FINAL))
     newer = StoryVersion(case_id=setup.id, version=999, kind=FINAL, language="en", narrative_angle="{}",
                          story_text="[[ACT:act1]]\n\nA new English text.", status="ready", approved_by="automatic",
                          approved_at=utc_now(),

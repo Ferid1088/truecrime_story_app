@@ -9,7 +9,7 @@ import uuid
 import pytest
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, Fact, StoryPlan
+from app.db.models import Case, Fact
 from app.services.story_plan_service import StoryPlanError, StoryPlanService
 from app.utils import slugify
 

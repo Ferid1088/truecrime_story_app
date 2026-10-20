@@ -1,29 +1,29 @@
 import asyncio
 import hashlib
+import json
 import logging
 from contextlib import contextmanager
 
 from pydantic import BaseModel, ValidationError
+from rapidfuzz import fuzz
+from sqlalchemy.orm import Session
 
+from app.agents.fact_merge import FactMerger, default_embedder
 from app.agents.research_schemas import (
     ContradictionAnalyzerOutput,
     FactExtractorOutput,
     TimelineBuilderOutput,
 )
 from app.agents.runner import run_agent
+from app.core.ai_config import ai_config
 from app.core.prompts import prompt
 from app.core.quote_check import quote_is_supported
-import json
-from sqlalchemy.orm import Session
-from app.core.ai_config import ai_config
 from app.db.base import SessionLocal
-from app.db.models import Case, Source, Fact, Contradiction, ExtractionCache
-from app.agents.fact_merge import FactMerger, default_embedder
-from app.research_engine.embeddings import cosine_matrix
+from app.db.models import Case, Contradiction, ExtractionCache, Fact, Source
 from app.providers.generation import get_generation_provider
-from app.providers.generation.base import GenerationError
-from app.services.tracking import track_research_call, track_run, stamp_run
-from rapidfuzz import fuzz
+from app.providers.generation.base import GenerationError, GenerationResult
+from app.research_engine.embeddings import cosine_matrix
+from app.services.tracking import stamp_run, track_research_call, track_run
 
 log = logging.getLogger(__name__)
 
@@ -196,7 +196,8 @@ def _resolve_fact_span(fact: dict, chunk_text_by_id: dict[int, str]) -> dict:
         fact["supporting_text"] = None
         fact["_quote_verified"] = None
         return fact
-    chunk_text = chunk_text_by_id.get(span.get("chunk_id"))
+    chunk_id = span.get("chunk_id")
+    chunk_text = chunk_text_by_id.get(chunk_id) if chunk_id is not None else None
     if chunk_text is None:
         fact["supporting_text"] = None
         fact["_quote_verified"] = None
@@ -262,7 +263,7 @@ def _track_embedding_cost(embedder, case_id: int, stage: str, detail: str):
         run.estimated_cost_usd = embedder.total_cost_usd - cost_before
 
 
-def _sum_optional(a: float | None, b: float | None) -> float | None:
+def _sum_optional[N: (int, float)](a: N | None, b: N | None) -> N | None:
     """Sum two provider-reported usage values, None meaning "not reported"
     rather than zero; None only when neither side reported anything
     (mirrors app.providers.generation.openai_compat's own helper of the
@@ -275,7 +276,7 @@ def _sum_optional(a: float | None, b: float | None) -> float | None:
 
 async def _validate_or_repair(
     name: str, gen, user: str, system: str, schema: type[BaseModel], data: dict, res,
-) -> tuple[dict, object]:
+) -> tuple[dict, GenerationResult]:
     """Part 2(b): every extraction/analysis stage's JSON is validated
     against its own pydantic schema, not just checked for being parseable
     JSON (generate_structured already guarantees that part, with its own
@@ -363,7 +364,9 @@ class ResearchAgent:
         case: Case,
         contradiction_hints: list | None = None,
     ) -> dict:
-        sources = db.query(Source).filter(Source.case_id == case.id).all()
+        # in a fixed order: Postgres returns rows in the order they happen to lie on disk, and that order
+        # decides the batches, and the order of the stored facts
+        sources = db.query(Source).filter(Source.case_id == case.id).order_by(Source.id).all()
         extraction_sources = await self._select_sources_for_extraction(db, case, sources)
 
         previous_status = case.status
@@ -372,7 +375,7 @@ class ResearchAgent:
         try:
             facts_data = await self._merge_duplicates(
                 case, await self._extract_facts(db, case, extraction_sources))
-            fact_rows = self._store_facts(db, case, facts_data, sources)
+            self._store_facts(db, case, facts_data, sources)
 
             all_facts = db.query(Fact).filter(Fact.case_id == case.id).all()
             stage_facts = self._facts_for_stage(db, case, all_facts, sources)
@@ -447,7 +450,7 @@ class ResearchAgent:
                 kept[loser] = False
                 if loser == i:
                     break
-        deduped = [s for s, k in zip(with_content, kept) if k]
+        deduped = [s for s, k in zip(with_content, kept, strict=False) if k]
 
         # Rank the rest by reliability then content richness; keep only
         # the configured top N per case.
@@ -567,6 +570,7 @@ class ResearchAgent:
         prompt_version = hashlib.sha256(system.encode("utf-8")).hexdigest()
         model = ai_config.model_for("fact_extractor")
         if cacheable:
+            assert content_hash is not None
             cached = _extraction_cache_get(content_hash, prompt_version, model)
             if cached is not None:
                 return _facts_from_cache(cached, bundle)
@@ -591,6 +595,7 @@ class ResearchAgent:
                 found = [_drop_unknown_fact_ids(f, valid_source_ids, valid_chunk_ids) for f in found]
                 run.output_summary = f"facts={len(found)}"
             if cacheable:
+                assert content_hash is not None
                 _extraction_cache_put(content_hash, prompt_version, model, _facts_for_cache(found, bundle))
             return found
         except (GenerationError, ValueError):

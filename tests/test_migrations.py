@@ -257,7 +257,7 @@ def test_old_database_is_adopted_and_keeps_every_row(tmp_path):
     assert _version(db) == _head()
     after = {t: _rows_by_name(db, t) for t in before}
     for table, rows in before.items():
-        for old, new in zip(rows, after[table]):
+        for old, new in zip(rows, after[table], strict=False):
             assert {key: new[key] for key in old} == old, "migration must not change any value"
     con = sqlite3.connect(db)
     assert con.execute("PRAGMA foreign_key_check").fetchall() == []

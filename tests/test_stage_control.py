@@ -5,8 +5,8 @@ import json
 import pytest
 
 from app.db.models import Artifact, ArtifactDep, Case, DocumentaryJob, EditLog, StoryVersion
-from app.services.stage_control import StageControlError, StageControlService
 from app.services.cost_model import estimate_stage_eur
+from app.services.stage_control import StageControlError, StageControlService
 
 
 def _fixture(db):

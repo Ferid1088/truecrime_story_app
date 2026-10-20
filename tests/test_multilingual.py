@@ -262,7 +262,8 @@ def test_evidence_is_normalized_to_english_whatever_the_production_language(db_s
     db_session.commit()
     monkeypatch.setattr(research_jobs, "get_generation_provider", lambda: _Gen())
     assert asyncio.run(research_jobs._normalize_sources(db_session, case.id)) == 1
-    db_session.refresh(sources["en"]); db_session.refresh(sources["fa"])
+    db_session.refresh(sources["en"])
+    db_session.refresh(sources["fa"])
     assert sources["en"].summary_en is None
     assert sources["fa"].summary_en
 

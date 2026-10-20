@@ -9,7 +9,12 @@ from PIL import Image
 
 from app.core.ai_config import ai_config
 from app.db.models import (
-    Case, EditorialBlueprint, ProductionScript, StoryVersion, VisualAsset, VisualPlan,
+    Case,
+    EditorialBlueprint,
+    ProductionScript,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
 )
 from app.documentary.visuals import coverage_fill as CF
 from app.documentary.visuals import illustrations as IL
@@ -46,7 +51,7 @@ def test_the_windows_keep_a_short_title_card_and_cut_the_rest():
     # black 0-10 joins the title's first card? no: black is never kept, the title keeps 4.5 s,
     # the chapter only the 1.5 s the 6 s stretch has left, the timeline none of its 53 s in this stretch
     assert windows[0] == (0, 10)
-    assert (15.999, 72) or True
+    assert windows[1] == (16.0, 72)
     covered = sum(b - a for a, b in windows)
     shots = CF._cut(sorted(s["shots"], key=lambda x: x["start"]), windows)
     kept_cards = sum(x["end"] - x["start"] for x in shots if x["kind"] in CF.CARD_KINDS)
@@ -254,8 +259,8 @@ class BriefGen:
 
 def test_the_pool_has_one_labelled_illustration_per_slot_for_each_beat_and_is_booked(
         db_session, tmp_path, monkeypatch):
-    from app.documentary import storage
     from app.db.models import ProviderCall
+    from app.documentary import storage
 
     monkeypatch.setattr(storage, "ROOT", tmp_path)
     case = Case(canonical_title="Pool", slug=uuid.uuid4().hex, language="en", location="Fall River")

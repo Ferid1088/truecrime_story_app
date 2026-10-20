@@ -173,7 +173,8 @@ class FillWays:
                                         json.dumps(payload, ensure_ascii=False), system=SIDES_SYSTEM)
             stamp_run(run, res, "visual_planner")
         left, right = (data or {}).get("left"), (data or {}).get("right")
-        if not all(isinstance(x, dict) and x.get("who") and x.get("says") for x in (left, right)):
+        if not (isinstance(left, dict) and isinstance(right, dict)
+                and all(x.get("who") and x.get("says") for x in (left, right))):
             return None
         return {"left": {k: str(left[k]).strip() for k in ("who", "says")},
                 "right": {k: str(right[k]).strip() for k in ("who", "says")}}

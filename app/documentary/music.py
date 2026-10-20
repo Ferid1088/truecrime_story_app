@@ -860,7 +860,8 @@ class DocumentaryMixer:
                    if any(not p.get("why") for p in placements) else {})
         legacy = _legacy_cue_ids()
         chosen: dict[tuple[str, str], tuple[MusicTrack, str]] = {}
-        resolved, generated, cost, misses, notes = [], [], 0, [], []
+        resolved, generated, cost, misses = [], [], 0, []
+        notes: list[str] = []
         mode = music_source_mode(db)
         for p in placements:
             kind = TRACK_KIND.get(p["role"])
@@ -946,7 +947,8 @@ class DocumentaryMixer:
             raise NoLibraryTrack(f"no library track fits {kind}/{mood}: {text}", mood=mood)
         if row is not None and row.track_id is not None:   # another language made it already
             track = db.get(MusicTrack, row.track_id)
-            return track, f"{track.track_code}: made for this film's library_miss (same in every language)"
+            if track is not None:
+                return track, f"{track.track_code}: made for this film's library_miss (same in every language)"
         twins = similar_tracks(db, kind, mood, text, tags)
         if twins:
             note = (f"new {kind}/{mood} track is nearly the same as {', '.join(twins)} "

@@ -9,6 +9,7 @@ searches are used up; illustrations stay the labelled fallback."""
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -34,7 +35,7 @@ async def top_up(db: Session, case: Case, requirements: dict, beat_ids: list[str
     supply report: target, verified count before/after, searches run."""
     need = target(film_seconds)
     before = verified_real(db, case)
-    report = {"target": need, "verified_before": before, "searches": 1, "rounds": []}
+    report: dict[str, Any] = {"target": need, "verified_before": before, "searches": 1, "rounds": []}
     have = before
     for round_index in range(1, ai_config.supply.max_searches):
         if have >= need:

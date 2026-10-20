@@ -1,6 +1,7 @@
 import json
-import pytest
 from types import SimpleNamespace
+
+import pytest
 
 from app.core.ai_config import ai_config
 from app.documentary import host_scenes as HS
@@ -121,6 +122,7 @@ def test_the_rewrite_is_bounded_and_a_voice_over_the_hard_cap_fails(monkeypatch)
 
 def test_the_real_seconds_are_written_into_the_stored_segment(db_session):
     from test_blueprint_performance import _story
+
     from app.db.models import HostPlan, HostScene, HostSegments
 
     case, master = _story(db_session)
@@ -146,6 +148,7 @@ def test_the_real_seconds_are_written_into_the_stored_segment(db_session):
 
 def test_scenes_are_planned_with_the_target_seconds_of_their_segment(db_session):
     from test_blueprint_performance import _story
+
     from app.db.models import HostPlan, HostSegments
 
     case, master = _story(db_session)
@@ -165,6 +168,7 @@ def test_scenes_are_planned_with_the_target_seconds_of_their_segment(db_session)
 
 def test_host_time_endpoint_reports_real_seconds(client, db_session):
     from test_blueprint_performance import _story
+
     from app.db.models import EditorialBlueprint, HostPlan, HostScene, HostSegments
 
     case, master = _story(db_session)
@@ -224,8 +228,9 @@ def test_the_stage_director_runs_after_the_voice_and_a_failure_is_recorded_on_th
 def test_the_stored_direction_becomes_a_motion_prompt_and_an_expressiveness_level():
     import json
 
-    from app.documentary.host_scenes import direction_controls
     from test_stage_direction import good
+
+    from app.documentary.host_scenes import direction_controls
 
     scene = SimpleNamespace(direction_json=None)
     assert direction_controls(scene) == (None, None)
@@ -293,12 +298,13 @@ def test_a_word_the_voice_still_says_wrong_makes_the_writer_use_other_words(monk
 
 
 def test_a_scene_is_redone_with_a_new_direction_and_a_new_video_and_keeps_its_history(db_session):
+    from test_stage_direction import good
     from test_visual_memory import _ch, _scene
+
     from app.db.models import HostAppearance
     from app.documentary import host_scenes as HS
     from app.documentary import stage_direction as SD
     from app.documentary import visual_memory as VM
-    from test_stage_direction import good
 
     scene = _scene(db_session, _ch())
     VM.record(db_session, scene, SD.StageDirection(**good()), [])

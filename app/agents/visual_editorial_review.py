@@ -9,7 +9,6 @@ import json
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
-from app.core.ai_config import ai_config
 from app.core.prompts import prompt
 from app.db.models import Case, EditorialReviewDecision, VisualAsset
 from app.documentary.visuals import editorial_review as ER

@@ -20,8 +20,8 @@ def test_legacy_manifest_outfit_ids_resolve_to_current_slugs():
     assert registry.resolve("OUTFIT_17").outfit_id == "lightblue_shirt_white_tee"
 
 
-def test_registry_rejects_unknown_file(tmp_path: Path):
-    source = next(Path("data/outfits").iterdir())
+def test_registry_rejects_unknown_file(tmp_path: Path, outfit_root: Path):
+    source = next(outfit_root.iterdir())
     target = tmp_path / source.name
     target.mkdir()
     for path in source.iterdir():

@@ -414,7 +414,7 @@ def test_schema_invalid_fact_extractor_output_is_repaired_once(db_session):
     # repair path at all).
     marker = uuid.uuid4().hex[:8]
     src = _mk_source(db_session, case, content_status="full_text",
-                     is_authorized_text=True, raw_text=f"Some real text about the case {marker}.")
+                 is_authorized_text=True, raw_text=f"Some real text about the case {marker}.")
     fake = _SchemaRepairFake(
         invalid_first={"facts": [{"confidence": "high", "source_ids": [src.id]}]},
         valid_after=[{"claim": "Recovered claim", "category": "context", "confidence": 0.7,
@@ -435,8 +435,8 @@ def test_schema_invalid_fact_extractor_output_is_a_recorded_failure_not_a_silent
 
     case = _mk_case(db_session)
     marker = uuid.uuid4().hex[:8]
-    src = _mk_source(db_session, case, content_status="full_text",
-                     is_authorized_text=True, raw_text=f"Some real text about the case {marker}.")
+    _mk_source(db_session, case, content_status="full_text",
+                 is_authorized_text=True, raw_text=f"Some real text about the case {marker}.")
     always_invalid = {"facts": [{"confidence": "still not a number"}]}
     fake = _SchemaRepairFake(invalid_first=always_invalid, valid_after=[{"confidence": "also bad"}])
 
@@ -1053,7 +1053,6 @@ def test_timeline_and_contradiction_prompts_do_not_resend_source_texts(db_sessio
     """Only fact extraction reads the chunk texts; the later stages work on the
     extracted claims, so resending every chunk of every source grows with the
     case until it no longer fits."""
-    from app.providers.generation.base import GenerationResult
 
     case = _mk_case(db_session)
     src = _mk_source(db_session, case, language="en", raw_text="long source text",

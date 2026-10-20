@@ -211,15 +211,7 @@ if [[ "$SAFE_MODE" == 1 ]]; then
 fi
 if [[ "$ACTION" == status ]]; then status; exit 0; fi
 
-command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
-[[ -x "$ROOT/.venv/bin/python" ]] || { echo "Create .venv and install requirements first." >&2; exit 1; }
-[[ -x "$ROOT/frontend/node_modules/.bin/next" ]] || { echo "Run npm ci in frontend first." >&2; exit 1; }
-
-if [[ "$DB_KIND" == postgres ]]; then
-  command -v brew >/dev/null 2>&1 || { echo "Homebrew is required for the configured PostgreSQL database; no SQLite fallback is used." >&2; exit 1; }
-  command -v pg_isready >/dev/null 2>&1 || { echo "pg_isready is required; install postgresql@16; no SQLite fallback is used." >&2; exit 1; }
-fi
-
+# a missing search key stops --require-search before anything else is looked at
 if [[ -z "${BRAVE_SEARCH_API_KEY:-}" ]]; then
   if [[ "$REQUIRE_SEARCH" == 1 ]]; then
     echo "Brave Search is unconfigured and --require-search was requested." >&2
@@ -228,6 +220,15 @@ if [[ -z "${BRAVE_SEARCH_API_KEY:-}" ]]; then
   echo "WARNING: Brave Search is unconfigured; API, worker and frontend will start without it."
 else
   echo "Brave Search configured; effective provider mode: live."
+fi
+
+command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
+[[ -x "$ROOT/.venv/bin/python" ]] || { echo "Create .venv and install requirements first." >&2; exit 1; }
+[[ -x "$ROOT/frontend/node_modules/.bin/next" ]] || { echo "Run npm ci in frontend first." >&2; exit 1; }
+
+if [[ "$DB_KIND" == postgres ]]; then
+  command -v brew >/dev/null 2>&1 || { echo "Homebrew is required for the configured PostgreSQL database; no SQLite fallback is used." >&2; exit 1; }
+  command -v pg_isready >/dev/null 2>&1 || { echo "pg_isready is required; install postgresql@16; no SQLite fallback is used." >&2; exit 1; }
 fi
 
 _stop_stale_frontend_servers

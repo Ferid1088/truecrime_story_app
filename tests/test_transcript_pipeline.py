@@ -15,7 +15,6 @@ import pytest
 
 from app.providers.generation.base import GenerationResult
 
-
 # ---------------------------------------------------------------------------
 # fixtures
 # ---------------------------------------------------------------------------
@@ -1361,7 +1360,7 @@ def test_extraction_stores_visual_leads_with_timestamp_and_owner(db_session, mon
 
     counts = asyncio.run(TranscriptIntelligenceAgent().extract(db_session, case, v))
     assert counts["visual_leads"] == 2
-    leads = {l.description_en: l for l in db_session.query(VisualLead).filter_by(case_id=case.id)}
+    leads = {lead.description_en: lead for lead in db_session.query(VisualLead).filter_by(case_id=case.id)}
     court = leads["Courtroom arraignment footage"]
     assert (court.lead_type, court.original_owner, court.timestamp_start) == (
         "court_footage", "County Court TV", 30.0)
