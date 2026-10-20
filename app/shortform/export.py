@@ -7,8 +7,9 @@ contract stays the same, which keeps review and gate behavior testable offline.
 from __future__ import annotations
 
 import json
-import shutil
+import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,22 +26,14 @@ HEIGHT = ai_config.short_form.production.height
 SAFE_X = 96
 SAFE_TOP = 180
 SAFE_BOTTOM = 330
-FONT_FALLBACKS = {
-    "en": ("/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"),
-    "de": ("/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"),
-    "fa": ("/System/Library/Fonts/GeezaPro.ttc", "/System/Library/Fonts/SFArabic.ttf",
-           "/System/Library/Fonts/Supplemental/Nadeem.ttc",
-           "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
-    "ar": ("/System/Library/Fonts/GeezaPro.ttc", "/System/Library/Fonts/SFArabic.ttf",
-           "/System/Library/Fonts/Supplemental/Nadeem.ttc",
-           "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
-}
-FONT_FAMILIES = {"fa": "Geeza Pro", "ar": "Geeza Pro", "en": "Arial", "de": "Arial"}
-FFMPEG_FULL_HINT = (
-    "FFmpeg lacks libass/subtitles; install Homebrew ffmpeg-full, then configure "
-    "FFMPEG_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg and "
-    "FFPROBE_BIN=/opt/homebrew/opt/ffmpeg-full/bin/ffprobe (without changing PATH)"
+ROOT = Path(__file__).resolve().parents[2]
+FFMPEG_CAPTION_HINT = (
+    "FFmpeg lacks libass/subtitles or its RTL shaping: install an ffmpeg built with libass, fribidi and harfbuzz "
+    "(Homebrew: ffmpeg-full; Debian/Ubuntu: the ffmpeg package) and, if it is not the one on PATH, set FFMPEG_BIN and "
+    "FFPROBE_BIN or short_form.production.ffmpeg_candidates / ffprobe_candidates"
 )
+# libass logs, when it starts (ffmpeg -v verbose): "Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.6.0 (COMPLEX)"
+_SHAPER = re.compile(r"Shaper: FriBidi (\S+).*HarfBuzz-ng (\S+)")
 
 
 class FFmpegCapabilityError(RuntimeError):
@@ -55,7 +48,7 @@ def ffmpeg_caption_capability() -> dict:
         return {"available": False, "executable": None, "ffprobe": probe,
                 "subtitles_filter": False, "ass_filter": False,
                 "libass": False, "reason": "ffmpeg is not installed",
-                "fix": FFMPEG_FULL_HINT}
+                "fix": FFMPEG_CAPTION_HINT}
     try:
         filters = subprocess.run([executable, "-filters"], capture_output=True, text=True, check=True).stdout
         version = subprocess.run(
@@ -65,31 +58,40 @@ def ffmpeg_caption_capability() -> dict:
         return {"available": False, "executable": executable, "ffprobe": probe,
                 "subtitles_filter": False, "ass_filter": False,
                 "libass": False, "reason": f"ffmpeg capability probe failed: {exc}",
-                "fix": FFMPEG_FULL_HINT}
-    subtitles_filter = any(" subtitles " in f" {line} " for line in filters.splitlines())
+                "fix": FFMPEG_CAPTION_HINT}
+    has_subtitles = any(" subtitles " in f" {line} " for line in filters.splitlines())
     ass_filter = any(" ass " in f" {line} " for line in filters.splitlines())
     libass = "--enable-libass" in version
-    harfbuzz = "--enable-libharfbuzz" in version
-    dependency_text = ""
-    libass_path = Path(executable).parents[3] / "opt/libass/lib/libass.dylib"
-    if libass_path.is_file() and shutil.which("otool"):
-        dependency_text = subprocess.run(
-            ["otool", "-L", str(libass_path)], capture_output=True, text=True, check=False,
-        ).stdout
-    fribidi = "fribidi" in dependency_text
-    available = subtitles_filter and ass_filter and libass and harfbuzz and fribidi and bool(probe)
+    shaper = _libass_shaper(executable) if has_subtitles and libass else None
+    harfbuzz = bool(shaper and shaper["harfbuzz"])
+    fribidi = bool(shaper and shaper["fribidi"])
+    available = has_subtitles and ass_filter and libass and harfbuzz and fribidi and bool(probe)
     return {
         "available": available,
         "executable": executable,
         "ffprobe": probe,
-        "subtitles_filter": subtitles_filter,
+        "subtitles_filter": has_subtitles,
         "ass_filter": ass_filter,
         "libass": libass,
         "harfbuzz": harfbuzz,
         "fribidi": fribidi,
         "reason": None if available else "FFmpeg caption capability or RTL shaping dependency is unavailable",
-        "fix": None if available else FFMPEG_FULL_HINT,
+        "fix": None if available else FFMPEG_CAPTION_HINT,
     }
+
+
+def _libass_shaper(executable: str) -> dict | None:
+    """The text shaper libass runs with in this ffmpeg, read from what libass logs when it starts:
+    the same on every platform (no looking at library files). None: libass did not start."""
+    with tempfile.TemporaryDirectory() as folder:
+        srt = Path(folder) / "probe.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nشبکه\n", encoding="utf-8")
+        run = subprocess.run(
+            [executable, "-hide_banner", "-v", "verbose", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.2",
+             "-vf", f"subtitles=filename='{_filter_path(srt)}'", "-frames:v", "1", "-f", "null", "-"],
+            capture_output=True, text=True, check=False)
+    found = _SHAPER.search(run.stderr)
+    return {"fribidi": found.group(1), "harfbuzz": found.group(2)} if found else None
 
 
 def require_caption_capability() -> dict:
@@ -115,7 +117,7 @@ def subtitle_layout(language: str, cues: list[SubtitleCue]) -> dict:
     return {
         "language": language,
         "direction": "rtl" if rtl else "ltr",
-        "font": str(_font_path(language)),
+        "font": caption_font(language)["file"],
         "safe_area": {"left": SAFE_X, "right": WIDTH - SAFE_X,
                       "top": SAFE_TOP, "bottom": HEIGHT - SAFE_BOTTOM},
         "cues": [cue.__dict__ for cue in cues],
@@ -123,29 +125,42 @@ def subtitle_layout(language: str, cues: list[SubtitleCue]) -> dict:
 
 
 def _font(language: str, size: int):
-    path = _font_path(language)
+    path = Path(caption_font(language)["file"])
     try:
-        return ImageFont.truetype(str(path), size, index=0 if path.suffix.lower() == ".ttc" else 0)
+        return ImageFont.truetype(str(path), size, index=0)
     except OSError:
         return ImageFont.load_default()
 
 
-def _font_path(language: str) -> Path:
-    """Resolve a checked font with glyph coverage for the caption language."""
-    candidates = FONT_FALLBACKS.get(language, FONT_FALLBACKS["en"])
-    for candidate in candidates:
-        path = Path(candidate)
+def caption_font(language: str) -> dict:
+    """The font of a language's captions: the first of short_form.production.caption_fonts that exists,
+    {"file": absolute path, "family": the name libass asks for, "bundled": it lies inside the repository}."""
+    entries = ai_config.short_form.production.caption_fonts.get(language)
+    for entry in entries or []:
+        path = Path(entry.file).expanduser()
+        path = path if path.is_absolute() else ROOT / path
         if path.is_file():
-            return path
+            return {"file": str(path), "family": entry.family, "bundled": ROOT in path.parents}
     raise FFmpegCapabilityError(
-        f"No checked caption font with {language} coverage is available; "
-        "install/configure a font and retry"
+        f"No caption font with {language} coverage exists: none of short_form.production.caption_fonts[{language!r}] "
+        "is a file on this machine; install one of them or add a font to the list"
     )
 
 
 def _caption_font_family(language: str) -> str:
-    _font_path(language)  # fail closed before FFmpeg is invoked
-    return FONT_FAMILIES.get(language, "Arial")
+    return caption_font(language)["family"]  # fails closed before FFmpeg is invoked
+
+
+def _filter_path(path: Path) -> str:
+    return str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+
+
+def subtitles_filter(srt: Path, language: str, force_style: str) -> str:
+    """The libass filter that burns `srt` in. A font that ships with the repository is found by its own
+    folder (fontsdir): libass otherwise looks only in the system fonts."""
+    font = caption_font(language)
+    fonts_dir = f":fontsdir='{_filter_path(Path(font['file']).parent)}'" if font["bundled"] else ""
+    return f"subtitles=filename='{_filter_path(srt)}'{fonts_dir}:force_style='{force_style}'"
 
 
 def _write_cover(path: Path, title: str, language: str,
@@ -268,8 +283,6 @@ def build_export_package(
         if burned:
             # libass handles Arabic/Persian shaping and bidi ordering. The
             # capability check above makes this a fail-closed requirement.
-            escaped = (str(subtitles).replace("\\", "\\\\").replace(":", "\\:")
-                       .replace("'", "\\'"))
             prod = ai_config.short_form.production
             # libass sets an SRT to a 384x288 canvas: pixel sizes of the 1080x1920 frame are
             # converted to that canvas (a size or margin written in frame pixels would be
@@ -281,19 +294,17 @@ def build_export_package(
                            f"MarginR={round(prod.caption_side_margin_px * across)},"
                            f"MarginV={round(prod.caption_bottom_margin_px * down)},"
                            f"Outline={3 * down:.2f},Shadow=0")
-            video_filter += f",subtitles=filename='{escaped}':force_style='{force_style}'"
+            video_filter += "," + subtitles_filter(subtitles, language, force_style)
             if labels:
                 # the "Illustration" label of the film sits in a corner the vertical crop cuts off:
                 # it is burned in again, top centre, for as long as an illustration is on screen
                 label_srt = output_dir / "labels.srt"
                 _write_srt(label_srt, [SubtitleCue(float(x["start"]), float(x["end"]), str(x["text"]))
                                        for x in labels])
-                label_escaped = (str(label_srt).replace("\\", "\\\\").replace(":", "\\:")
-                                 .replace("'", "\\'"))
                 label_style = (f"FontName={_caption_font_family(language)},Alignment={LABEL_ALIGNMENT},"
                                f"FontSize={prod.caption_font_px * down * 0.6:.2f},"
                                f"MarginV={round(SAFE_TOP * 1.1 * down)},Outline={3 * down:.2f},Shadow=0")
-                video_filter += f",subtitles=filename='{label_escaped}':force_style='{label_style}'"
+                video_filter += "," + subtitles_filter(label_srt, language, label_style)
         command = inputs + ["-t", str(duration_seconds), "-vf", video_filter,
                             "-map", "0:v:0", "-map", "1:a:0" if separate_audio else "0:a:0",
                             "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",

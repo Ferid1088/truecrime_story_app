@@ -2880,6 +2880,11 @@ class ShortFormDynamicCountConfig(BaseModel):
         return self
 
 
+class CaptionFont(BaseModel):
+    file: str
+    family: str
+
+
 class ShortFormProductionConfig(BaseModel):
     """Per-finished-film production defaults; publishing is configured separately."""
 
@@ -2901,11 +2906,20 @@ class ShortFormProductionConfig(BaseModel):
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_redos: int = Field(default=2, ge=0, le=2)
     max_cost_usd_per_case: float = Field(default=2.0, gt=0.0)
-    ffmpeg_bin: str = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
-    ffprobe_bin: str = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
+    # The ffmpeg/ffprobe builds to use, the first that exists (a Mac's keg-only ffmpeg-full has libass);
+    # none of them there: the tool on PATH. FFMPEG_BIN / FFPROBE_BIN in the environment win over both.
+    ffmpeg_candidates: list[str] = []
+    ffprobe_candidates: list[str] = []
+    # Font of the burned-in captions per language: the first file that exists (absolute, or relative to the
+    # repository), with the family name libass asks for. The last entry of every language is a font that ships
+    # with the repository, so a machine without the system fonts (CI, Linux) still has Persian/Arabic glyphs.
+    caption_fonts: dict[str, list[CaptionFont]] = {}
 
     @model_validator(mode="after")
     def _validate(self):
+        missing = [lang for lang in self.languages if not self.caption_fonts.get(lang)]
+        if missing:
+            raise ValueError(f"short_form.production.caption_fonts has no font for {missing}")
         if self.min_count > self.target_count or self.target_count > self.max_count:
             raise ValueError("short_form.production requires min_count <= target_count <= max_count")
         if self.min_seconds > self.target_seconds or self.target_seconds > self.max_seconds:

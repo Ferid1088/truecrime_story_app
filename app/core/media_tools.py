@@ -1,4 +1,5 @@
-"""Configured media-tool paths shared by production exporters."""
+"""The media tools (ffmpeg, ffprobe) the production exporters run: the environment's choice, else the first
+configured build that exists, else the tool on PATH."""
 
 from __future__ import annotations
 
@@ -8,23 +9,23 @@ from pathlib import Path
 
 from app.core.ai_config import ai_config
 
-DEFAULT_FFMPEG_BIN = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
-DEFAULT_FFPROBE_BIN = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
+_ENV = {"ffmpeg": "FFMPEG_BIN", "ffprobe": "FFPROBE_BIN"}
 
 
-def _configured(tool: str) -> str | None:
-    env_name = "FFMPEG_BIN" if tool == "ffmpeg" else "FFPROBE_BIN"
-    config_name = "ffmpeg_bin" if tool == "ffmpeg" else "ffprobe_bin"
-    fallback = DEFAULT_FFMPEG_BIN if tool == "ffmpeg" else DEFAULT_FFPROBE_BIN
-    configured = os.environ.get(env_name) or getattr(ai_config.short_form.production, config_name, fallback)
-    if configured:
-        return str(Path(configured).expanduser())
+def _resolved(tool: str) -> str | None:
+    chosen = os.environ.get(_ENV[tool])
+    if chosen:      # an explicit choice of the environment is never second-guessed
+        return str(Path(chosen).expanduser())
+    for candidate in getattr(ai_config.short_form.production, f"{tool}_candidates"):
+        path = Path(candidate).expanduser()
+        if path.is_file():
+            return str(path)
     return shutil.which(tool)
 
 
 def ffmpeg_bin() -> str | None:
-    return _configured("ffmpeg")
+    return _resolved("ffmpeg")
 
 
 def ffprobe_bin() -> str | None:
-    return _configured("ffprobe")
+    return _resolved("ffprobe")

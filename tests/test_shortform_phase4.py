@@ -1,6 +1,8 @@
 import subprocess
+from pathlib import Path
 
-from app.shortform.export import HEIGHT, WIDTH, build_export_package, subtitle_layout, SubtitleCue
+from app.core.ai_config import ai_config
+from app.shortform.export import HEIGHT, WIDTH, SubtitleCue, build_export_package, subtitle_layout
 
 
 def test_export_package_is_watchable_and_disclosed(tmp_path):
@@ -21,7 +23,8 @@ def test_export_package_is_watchable_and_disclosed(tmp_path):
 def test_rtl_subtitle_layout_records_direction_font_and_safe_area():
     layout = subtitle_layout("ar", [SubtitleCue(0, 1, "وصلت الإشارة الأخيرة")])
     assert layout["direction"] == "rtl"
-    assert layout["font"].endswith("GeezaPro.ttc")
+    configured = [Path(f.file).name for f in ai_config.short_form.production.caption_fonts["ar"]]
+    assert Path(layout["font"]).name in configured          # the first font of the list that this machine has
     assert layout["safe_area"]["bottom"] == 1590
 
 

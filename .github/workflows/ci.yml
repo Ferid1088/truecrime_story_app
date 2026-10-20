@@ -28,8 +28,8 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
-      - name: System packages (ffmpeg for the audio and video tests)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: System packages (ffmpeg with libass for the audio, video and caption tests; fonts with Persian and Arabic glyphs)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fontconfig fonts-noto-core fonts-vazirmatn
       - name: Python dependencies
         run: |
           pip install -r requirements-dev.txt
@@ -78,8 +78,8 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
-      - name: System packages (ffmpeg for the audio and video tests)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: System packages (ffmpeg with libass for the audio, video and caption tests; fonts with Persian and Arabic glyphs)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fontconfig fonts-noto-core fonts-vazirmatn
       - name: Python dependencies
         run: |
           pip install -r requirements-dev.txt
