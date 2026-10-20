@@ -31,6 +31,7 @@ from app.core.concurrency import slot
 from app.documentary import audio as A
 from app.documentary import storage
 from app.documentary.asr import ASRUnavailable, compare_transcript, get_asr
+from app.documentary.voice_performance import scrub_forbidden
 from app.providers.voice import VoiceProvider, VoiceRequest, get_voice_provider
 
 log = logging.getLogger(__name__)
@@ -378,7 +379,8 @@ class VoiceRenderer:
         from app.documentary.pronunciation import apply_fixes, risky_occurrences
 
         takes: list[dict] = []
-        sentences = [dict(x) for x in b.get("sentences") or []]
+        sentences = [{**x, "tts": scrub_forbidden(x["tts"])} if x.get("tts") else dict(x)
+                     for x in b.get("sentences") or []]
         # `synonyms=False`: the words are frozen (the host's text); only what the voice is
         # given may change
         occurrences = (risky_occurrences(sentences, synonyms)
@@ -386,7 +388,7 @@ class VoiceRenderer:
                        and sentences else [])
         if occurrences and self.listener() is None:
             occurrences = []
-        text = b.get("tts_text") or b["text"]
+        text = scrub_forbidden(b.get("tts_text") or b["text"])
         asr_retakes = self.asr_cfg.auto_retakes
         rounds = self.pron_cfg.max_rounds if occurrences else 0
         fixes: list[dict] = []

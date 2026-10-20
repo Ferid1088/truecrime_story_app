@@ -30,7 +30,7 @@ Levels:
     specific to what happened, never theatrical.
   3 breath-taking — the few moments where everything stops (the
     discovery, the reveal, the point of no return): slow, measured,
-    almost a whisper. Rare.
+    never whispered. Rare.
 
 For every beat give "level" (its normal level) and "peak" (the highest
 level its strongest sentence may reach). Rules:

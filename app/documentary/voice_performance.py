@@ -1,8 +1,8 @@
 """Voice performance director — how a real storyteller would SAY it.
 
 ElevenLabs v4 performs audio tags (words in square brackets that are not
-spoken but change how the next words are said: [whispers], [slowly],
-[pause] ...) and reads punctuation as timing. This stage turns the
+spoken but change how the next words are said: [slowly], [pause] ...;
+whispering and other theatrics are forbidden) and reads punctuation as timing. This stage turns the
 spoken text into the narrator's performance:
 
 1. Arc (one call, role voice_performance_director): for every beat a
@@ -11,7 +11,7 @@ spoken text into the narrator's performance:
      0 neutral   — nothing has happened yet; calm, even, informative
      1 unease    — the first thing that does not fit
      2 dark      — the crime is present; lower, graver, deliberate
-     3 climax    — breath-taking moments; slow, measured, near-whisper
+     3 climax    — the turning points; slow and measured, never whispered
    Deterministic rules then hold the arc to the brief: everything before
    the incident is level 0, the opening beat stays neutral, climaxes are
    rare and the tension never jumps without a step.
@@ -79,6 +79,21 @@ def speech_structure(version: StoryVersion) -> list[dict]:
 
 def strip_tags(text: str) -> str:
     return " ".join(TAG.sub(" ", text or "").split())
+
+
+def scrub_forbidden(text: str, cfg: VoicePerformanceConfig | None = None) -> str:
+    """`text` without the audio tags the narrator must never perform (whispering,
+    theatrics): the last stop before the voice, so a stored performance written under
+    older rules cannot reach the voice either."""
+    cfg = cfg or ai_config.voice_performance
+    forbidden = {t.lower() for t in cfg.forbidden_tags}
+
+    def keep(m: re.Match) -> str:
+        parts = _tag_parts(m.group(1))
+        bad = any(p in forbidden or any(f in p for f in forbidden) for p in parts)
+        return " " if bad else m.group(0)
+
+    return re.sub(r"\s+([.?!…؟,;:])", r"\1", " ".join(TAG.sub(keep, text or "").split()))
 
 
 def _words(text: str) -> list[str]:
@@ -298,8 +313,8 @@ def thin_tags(records: list[dict], cfg: VoicePerformanceConfig | None = None) ->
 
 def _palette(cfg: VoicePerformanceConfig) -> str:
     return "\n".join(
-        f"  level {lv} ({LEVEL_NAMES[lv]}): " + ", ".join(
-            f"[{t}]" for t in cfg.level_tags.get(str(lv), []))
+        f"  level {lv} ({LEVEL_NAMES[lv]}): " + (", ".join(
+            f"[{t}]" for t in cfg.level_tags.get(str(lv), [])) or "(no tag of its own)")
         for lv in range(4))
 
 

@@ -846,7 +846,7 @@ class PipelineGen:
             data = json.loads(user.split("INPUT:\n", 1)[1])
             return {
                 "sentences": [
-                    {"i": x["i"], "level": b["arc_level"], "tts": f"[softly] {x['text']}"}
+                    {"i": x["i"], "level": b["arc_level"], "tts": f"[slowly] {x['text']}"}
                     for b in data["beats"]
                     for x in b["sentences"]
                 ],
@@ -1348,7 +1348,7 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert {stages[f"host:{language}"]["detail"]["status"] for language in ("en",)} == {
         "valid"
     }
-    tagged = [r for r in documentary_env.tts.requests if "[softly]" in r.text]
+    tagged = [r for r in documentary_env.tts.requests if "[slowly]" in r.text]
     assert tagged and all(r.model_id == "eleven_v4" for r in documentary_env.tts.requests)
     # a re-run resumes without new model calls
     roles_before = len(documentary_env.roles)

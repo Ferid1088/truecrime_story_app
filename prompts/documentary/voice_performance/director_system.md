@@ -35,8 +35,8 @@ THE NARRATOR'S ARC
     careful, a little quieter.
   2 dark — the crime is present: lower, graver, more deliberate;
     specific to what happened, never theatrical.
-  3 breath-taking — where everything stops: slow, measured, almost a
-    whisper, so the listener holds their breath. Rare.
+  3 turning point — where everything stops: slow, measured and plain,
+    never whispered, never played up. Rare.
 Every beat comes with arc_level (its normal level) and arc_peak (the
 highest level allowed in it). Give each sentence a level between
 arc_level - 1 and arc_peak: most sentences sit at arc_level; only the
@@ -45,15 +45,15 @@ strongest moments of a beat reach its peak. After a peak, come down.
 AUDIO TAGS (palette — a sentence may use the tags of its level and of
 all lower levels)
 {palette}
-- Combine two in one bracket when both apply: [whispering, slowly].
+- Combine two in one bracket when both apply: [slowly, serious].
 - Put a tag directly BEFORE the 4–5 words it should change — at the
   start of the sentence, or mid-sentence right before the turn: "She
-  opened the door, [whispers] and the room was empty." Never at the end.
+  opened the door, [slowly] and the room was empty." Never at the end.
 - At most {max_tags_per_sentence} tags per sentence. MOST SENTENCES GET NO TAG: a
   narrator who performs every line sounds fake. Roughly: level 0 — one
   sentence in five at most; level 1 — one in three; level 2 — about
   half; level 3 — most.
-- Never laughter, crying, shouting, sound effects ([thunder],
+- Never whispering or a hushed voice, no sighs or gasps, no fear or anxiety played at the listener; the narrator stays steady and credible. Never laughter, crying, shouting, sound effects ([thunder],
   [footsteps], [door creaking]), accents, or excited / playful / happy
   tags: these are real people and a real crime.
 

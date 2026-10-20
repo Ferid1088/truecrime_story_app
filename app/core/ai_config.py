@@ -81,7 +81,7 @@ REQUIRED_ROLES = {
     # and the harakat that force it — used by the listening check.
     "pronunciation_editor",
     # Voice performance: ElevenLabs v4 audio tags, emphasis and the
-    # narrator's tension arc (neutral -> dark -> whispered climaxes).
+    # narrator's tension arc (neutral -> dark -> slow and plain climaxes, never whispered).
     "voice_performance_director",
     # Professional audio direction: breaths, music moments, silences.
     "audio_director",
@@ -2355,7 +2355,7 @@ class VoicePerformanceConfig(BaseModel):
 
     Levels form the narrator's arc: 0 neutral (nothing has happened
     yet), 1 first unease, 2 dark and crime-specific, 3 breath-taking
-    moments (slow, measured, close to a whisper). Every tag must be on
+    moments (slow, measured, plain: never whispered). Every tag must be on
     the palette of its level (levels are cumulative); everything else is
     removed by the validator."""
 
@@ -2366,15 +2366,16 @@ class VoicePerformanceConfig(BaseModel):
         "0": "v3_neutral", "1": "v3_unease", "2": "v3_tension", "3": "v3_climax"}
     level_tags: dict[str, list[str]] = Field(default_factory=lambda: {
         "0": ["pause", "thoughtful", "calm"],
-        "1": ["softly", "quietly", "slowly", "slow", "sighs", "drawn out",
-              "hesitant", "serious", "concerned", "distant"],
-        "2": ["low", "tense", "uneasy", "anxious", "somber", "ominous",
-              "measured", "deliberate"],
-        "3": ["whispers", "whispering", "hushed", "barely audible",
-              "breathless", "gasps", "fearful"],
+        "1": ["slowly", "slow", "serious", "concerned"],
+        "2": ["low", "somber", "measured", "deliberate"],
+        "3": [],
     })
-    # Never used by a documentary narrator (taste, credibility).
+    # Never used by a documentary narrator (taste, credibility): no whispering, no
+    # theatrics, no emotion played at the listener.
     forbidden_tags: list[str] = [
+        "whisper", "whispers", "whispering", "hushed", "barely audible", "breathless",
+        "gasps", "fearful", "softly", "quietly", "sighs", "anxious", "ominous", "tense",
+        "uneasy", "distant", "hesitant", "drawn out",
         "laughs", "laughing", "giggles", "chuckles", "crying", "sobbing",
         "shouts", "shouting", "loudly", "yelling", "excited", "playful",
         "amazed", "proud", "optimistic", "mad", "aggressive", "bitter",

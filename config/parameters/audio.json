@@ -105,21 +105,21 @@
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.91
+        "speed": 0.92
       },
       "v3_tension": {
-        "stability": 0.45,
+        "stability": 0.5,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.88
+        "speed": 0.9
       },
       "v3_climax": {
-        "stability": 0.4,
+        "stability": 0.5,
         "similarity_boost": 0.75,
         "style": 0.0,
         "use_speaker_boost": true,
-        "speed": 0.84
+        "speed": 0.9
       }
     },
     "seed": 1,
@@ -386,38 +386,38 @@
         "calm"
       ],
       "1": [
-        "softly",
-        "quietly",
         "slowly",
         "slow",
-        "sighs",
-        "drawn out",
-        "hesitant",
         "serious",
-        "concerned",
-        "distant"
+        "concerned"
       ],
       "2": [
         "low",
-        "tense",
-        "uneasy",
-        "anxious",
         "somber",
-        "ominous",
         "measured",
         "deliberate"
       ],
-      "3": [
-        "whispers",
-        "whispering",
-        "hushed",
-        "barely audible",
-        "breathless",
-        "gasps",
-        "fearful"
-      ]
+      "3": []
     },
     "forbidden_tags": [
+      "whisper",
+      "whispers",
+      "whispering",
+      "hushed",
+      "barely audible",
+      "breathless",
+      "gasps",
+      "fearful",
+      "softly",
+      "quietly",
+      "sighs",
+      "anxious",
+      "ominous",
+      "tense",
+      "uneasy",
+      "distant",
+      "hesitant",
+      "drawn out",
       "laughs",
       "laughing",
       "giggles",

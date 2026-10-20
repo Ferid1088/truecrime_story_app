@@ -158,32 +158,44 @@ def test_persian_normalization_ignores_spelling_not_speech():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("tag", ["whispers", "whispering", "hushed", "barely audible", "softly",
+                                 "quietly", "gasps", "fearful", "ominous"])
+def test_the_narrator_never_whispers_or_overacts_at_any_level(tag):
+    for level in range(4):
+        assert VP.validate_line("She was gone.", f"[{tag}] She was gone.", level, "en")[0] == "She was gone."
+
+
+def test_scrub_forbidden_removes_whispers_from_a_stored_performance():
+    text = "[slowly] And then [whispering, slowly] she was gone [hushed] , gone. [pause] Nothing."
+    assert VP.scrub_forbidden(text) == "[slowly] And then she was gone, gone. [pause] Nothing."
+
+
 def test_line_validator_keeps_words_and_palette():
     v = VP.validate_line
-    tts, issues = v("And then she was gone.", "[slowly] And then... [whispers] she was GONE.",
+    tts, issues = v("And then she was gone.", "[slowly] And then... [deliberate] she was GONE.",
                     3, "en")
-    assert tts == "[slowly] And then... [whispers] she was GONE." and not issues
+    assert tts == "[slowly] And then... [deliberate] she was GONE." and not issues
     # forbidden tags and tags at the end are removed
     tts, issues = v("She was gone.", "[laughs] She was gone [pause].", 3, "en")
     assert tts == "She was gone." and {i.split(":")[0] for i in issues} == {
         "tag_removed", "trailing_tag"}
-    # a level-0 sentence cannot whisper
-    tts, _ = v("It was May.", "[whispers] It was May.", 0, "en")
+    # a level-0 sentence cannot slow down
+    tts, _ = v("It was May.", "[slowly] It was May.", 0, "en")
     assert tts == "It was May."
     # changed words -> the plain sentence (+ its first valid tag)
-    tts, issues = v("And then she was gone.", "[whispers] And then she vanished.", 3, "en")
-    assert tts == "[whispers] And then she was gone." and "words_changed" in issues
+    tts, issues = v("And then she was gone.", "[slowly] And then she vanished.", 3, "en")
+    assert tts == "[slowly] And then she was gone." and "words_changed" in issues
     # a question stays a question
-    assert v("Did she run?", "[quietly] Did she run.", 2, "en")[0] == "[quietly] Did she run?"
+    assert v("Did she run?", "[serious] Did she run.", 2, "en")[0] == "[serious] Did she run?"
     # emphasis capitals: English only, not at level 0, one per sentence
     assert "words_changed" in v("Va baad Inga raft.", "Va baad Inga RAFT.", 2, "fa")[1]
     assert "words_changed" in v("It was May.", "It was MAY.", 0, "en")[1]
     assert "too_much_emphasis" in v("She was gone.", "SHE was GONE.", 2, "en")[1]
     # at most N tags; combined tags allowed when every part is on the palette
     tts, issues = v("Then the door opened slowly.",
-                    "[pause] Then [whispering, slowly] the door [hushed] opened slowly.", 3, "en")
+                    "[pause] Then [measured, slowly] the door [deliberate] opened slowly.", 3, "en")
     assert tts.count("[") == 2 and any(i.startswith("too_many_tags") for i in issues)
-    assert v("Then it rang.", "[whispering, giggles] Then it rang.", 3, "en")[0] == "Then it rang."
+    assert v("Then it rang.", "[measured, giggles] Then it rang.", 3, "en")[0] == "Then it rang."
     # too many ellipses
     assert "too_many_ellipses" in v("So it ended.", "So... it... ended...", 1, "en")[1]
 
@@ -252,7 +264,7 @@ class PerformanceGen:
                 text = s["text"]
                 if s["i"] in self.change:
                     text = text.replace("old", "new")
-                tag = "[whispers]" if b["arc_peak"] == 3 else "[quietly]"
+                tag = "[slowly]" if b["arc_peak"] == 3 else "[serious]"
                 out.append({"i": s["i"], "level": b["arc_peak"], "tts": f"{tag} {text}"})
         return {"sentences": out}, _res(role)
 
@@ -278,9 +290,9 @@ def test_director_builds_the_arc_and_validates_every_sentence(db_session, monkey
     b1, b2 = data["beats"][0], data["beats"][1]
     assert b1["arc_level"] == 0  # before the incident: neutral
     recs1 = [r for p in b1["paragraphs"] for r in p]
-    assert all(r["level"] == 0 and "[whispers]" not in r["tts"] for r in recs1)
+    assert all(r["level"] == 0 and "[slowly]" not in r["tts"] for r in recs1)
     recs2 = [r for p in b2["paragraphs"] for r in p]
-    assert all(r["directed"] for r in recs2) and any("[quietly]" in r["tts"] for r in recs2)
+    assert all(r["directed"] for r in recs2) and any("[serious]" in r["tts"] for r in recs2)
     # only one beat in five may reach a climax: the reveal (B03) keeps it
     assert b2["arc_peak"] == 2 and data["beats"][2]["arc_peak"] == 3
     assert all(not r["directed"] for p in data["beats"][2]["paragraphs"] for r in p)
@@ -416,12 +428,12 @@ def test_voice_render_sends_tags_checks_display_and_runs_in_parallel(tmp_path, m
         speech = f"Block {k} starts here. It ends here."
         blocks.append({
             "block_id": f"FA_B0{k}_01", "section_id": f"B0{k}", "text": speech,
-            "tts_text": f"[slowly] Block {k} starts here. [whispers] It ends here.",
+            "tts_text": f"[slowly] Block {k} starts here. [measured] It ends here.",
             "display_text": f"Block {k} starts here. It ends here.",
             "sentences": [{"speech": f"Block {k} starts here.", "display": f"Block {k} starts here.",
                            "tts": f"[slowly] Block {k} starts here.", "level": 1},
                           {"speech": "It ends here.", "display": "It ends here.",
-                           "tts": "[whispers] It ends here.", "level": 3}],
+                           "tts": "[measured] It ends here.", "level": 3}],
             "word_count": 7, "est_seconds": 3.0, "style": "v3_tension", "level": 2,
             "beats": [{"beat_id": f"B0{k}", "start_char": 0, "end_char": 60}],
         })
