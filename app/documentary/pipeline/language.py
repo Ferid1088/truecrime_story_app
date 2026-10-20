@@ -154,6 +154,13 @@ class LanguageChain:
             raise LanguageFailed("visual plan failed")
         plan_row = visual_state.get("row") or db.get(VisualPlan, vp_row.id)
 
+        async def zoom_maps():
+            from app.documentary.zoom_map.stage import render_zoom_maps
+
+            return await render_zoom_maps(db, case, plan_row, lang)
+
+        await pipe._stage(f"zoom_maps:{lang}", zoom_maps)
+
         async def production():
             from app.documentary.production.script import build_production_script
 

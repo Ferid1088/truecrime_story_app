@@ -1,0 +1,95 @@
+TASK (LOOP): HOST-LED SHORTS AND REELS FROM THE FILM. Self-contained. This AMENDS the existing short-form engine (its candidate generation,
+diversity selection, safety gates and platform variants stay); audit first and extend, do not rebuild.
+
+STANDING RULES
+No commit and no push (the repo is PUBLIC; never commit keys). Real app and database; prove live on case 8. EUR 300 cap on ACTUAL spend per
+case. No manual SQL. Test first, no dead code, model names and numbers only in config/. English UI. No OpenRouter, Docker, Finglish (Persian is
+always in Persian script) or Haiku. Brave Search only. Existing safety stays: reveal firewall, claim-modality (a short is never stronger than the
+film), rights, policy, AI-disclosure, hard duration max 60 s, automation-feel and diversity checks, one-click owner approval per concept.
+HeyGen: the app already uses API v3 only (app/providers/avatar/heygen.py). v1/v2 are retired on 1 Nov 2026. Add no v1/v2 call anywhere.
+
+OWNER DECISIONS (20 Oct)
+1. Shorts and reels are cut from the film. Fereidoun (the avatar) has the main role and is shown at the START of EVERY reel (this supersedes
+   "host not in every clip" for reels; film appearances stay at their own limits).
+2. The reel's first frame is its cover: Fereidoun's picture with the label (the words for "True Crime" in the channel's language) next to it.
+3. Each reel has its own music with a volume that follows the content: lower while Fereidoun or the narrator speaks, louder in visual-only moments.
+4. Every reel ends with Fereidoun saying a FIXED sentence in the channel's language, then the channel name and logo are shown.
+5. The parts that are the same for every reel are created ONCE, stored properly and reused.
+6. Cover labels and outro sentences below are approved by the owner. Music source: Eleven Music, subject to S7. YouTube related-video: checklist
+   item if no API exists.
+
+S0  AUDIT (read-only). What exists: the short-form engine and its phases, the host/avatar pipeline (HeyGen v3, outfits, studio masters, voices),
+    any music generation or library, channel intros and logos (data/logos), cover/thumbnail code, subtitle styles, the publish flow per
+    platform, any asset caching. Table EXISTS / PARTIAL / MISSING with file and function. Also search the whole repo (code, config, scripts, docs,
+    frontend) for any HeyGen call to a /v1/ or /v2/ path or to callback_url and report file and line, or "none". Write
+    docs/shorts_host_led_checklist.md with one row per requirement below.
+S1  REEL FORMAT (9:16, 1080x1920, at most 60 s, config-driven): [frame 0 = cover composition] -> [Fereidoun speaks the hook line, about 4-8 s]
+    -> [case material cut from the film, with the film narrator's voice, subtitles, music] -> [Fereidoun speaks the fixed outro, about 5-7 s]
+    -> [end card, about 2 s]. Total avatar time per reel at most config shorts.avatar_max_seconds (default 14). Vary pose, outfit and camera
+    view between reels from the existing registry, never the same combination in consecutive reels (automation-feel check).
+S2  HOOK LINE. Written natively per language by a writer agent from the film's text in that language (never translated), at most 20 words,
+    spoiler-safe and claim-safe under the existing gates, no banned hook phrases (existing list), not a greeting or self-introduction. It is the
+    first thing heard after frame 0. Spoken by the avatar with the language's central voice config.
+S3  COVER (= frame 0). Per language: Fereidoun's portrait (from the existing registry) with the label next to it. Label wording in config per
+    language, APPROVED:
+      en "TRUE CRIME"   de "TRUE CRIME"   fa «داستان جنایی واقعی»   ar «جرائم حقيقية»
+    The Persian label is longer: set it on two lines, fit by measured text width, never shrink below the legibility minimum. RTL correct for fa
+    and ar. Within the platform UI safe areas. Legible at thumbnail size (test with a downscaled render and a contrast check). Export the same
+    image as a cover file where a platform's upload accepts one. The cover template per language is created once (S9).
+S4  OUTRO SENTENCES (config, per language, spoken identically every time, APPROVED; Persian in Persian script only):
+      fa: می‌خوای داستان‌های واقعیِ جنایی رو بر اساس واقعیت بشنوی؟ به کانال ما سر بزن و فالو کن.
+      en: Want to hear true crime stories based on real facts? Visit our channel and follow.
+      de: Willst du wahre Kriminalfälle hören, die auf Tatsachen beruhen? Schau auf unserem Kanal vorbei und folge uns.
+      ar: هل تريد أن تسمع قصص جرائم حقيقية مبنية على الوقائع؟ زر قناتنا وتابعنا.
+    The agent does not change these texts; it reports if one reads badly in TTS (including the Arabic: unvocalised words, names).
+S5  END CARD. Channel name and logo (existing logos; names: ClueVera, Fallspur, رد خاموش, أثر خفي) for about 2 s, no URL printed. One animated end
+    card per language, created once (S9).
+S6  LINK TO THE FILM, PER PLATFORM (verified facts as of 20 Oct 2026; re-verify against the official pages before building):
+    - YouTube Shorts: one clickable "Related video" below the channel handle, to a public or unlisted video of the SAME channel, set in YouTube
+      Studio (Content -> the Short -> Details -> Related video); needs advanced feature access; links in Shorts descriptions and comments are not
+      clickable. Check whether the YouTube Data API can set it. If not, the publish step creates a per-Short checklist item (Short id, film title,
+      film id) in the UI so the owner sets it in Studio in one step. The related video is the source film of the reel.
+    - Instagram Reels: no tappable URL in a Reel. Use the caption "Full documentary on YouTube - <channel>" (in the channel's language) plus the
+      profile link; the story-share link sticker is a manual option; do not promise a link in the video.
+    - TikTok and Facebook Reels: read the current official documentation first and record what is possible; do not assume.
+    A URL printed in the video is never the only funnel. Every reel gets a publish manifest per platform: film id, channel, destination, caption,
+    what is automatic and what needs a manual step.
+S7  MUSIC. Provider and model in config (default: Eleven Music through the existing ElevenLabs key). READ the provider's current music terms
+    and record in docs whether they cover monetized YouTube, Instagram, TikTok and Facebook use (the provider's blog says "broad commercial use",
+    film and TV need an Enterprise plan, and says nothing on monetization or Content ID); if unsuitable or unclear, STOP this row and report
+    with the exact wording found. Generate a LIBRARY once, per channel identity and mood, stored with metadata (channel, mood, length, bpm,
+    provider, prompt, licence note, hash). Channel identities follow the intros decided earlier: fa classical nylon guitar on its bass strings
+    only, deep, no modern electric guitar, no deep male voice layer; ar "sand and trace"; en "flashlight"; de "trail and stamp". Long-form music
+    rules apply: no fake crime sounds, no cheap stingers, no constant impacts or whooshes. Per reel the music is SELECTED (mood, length, not used
+    in recent clips of the channel) and edited deterministically (trim, loop point, fades); the reel is never left without music identity.
+S8  DYNAMIC MIX, from the audio plan (known speech intervals), not from detection: music ducks by config dB under avatar and narrator speech with
+    configured attack/release, rises in visual-only moments and original-audio pauses, stays under original speech clips (the narrator never talks
+    over important original speech), final loudness at config LUFS (default -14) with a true-peak limit, measured with ffmpeg ebur128; a check
+    that music stays at least config dB below speech while speech plays. Show the envelope plot for one reel.
+S9  SHARED ASSET STORE. Content-addressed, versioned store for everything reusable: the outro avatar clips (per language and per outfit/pose
+    variant, at least 3 variants per language, rotated, never the same twice in a row), end cards, cover templates and label renderings, the
+    music library, subtitle styles, fonts. Key = hash(type, language, parameters, template version). Created once, reused, rebuilt only when the
+    key changes. Usage tracking, a UI list, and a ledger line "reuse hits" per reel. Test: the second reel creates zero new shared assets and
+    makes no HeyGen or ElevenLabs call for them.
+S10 SAFETY AND DISCLOSURE. Existing gates unchanged and applied to the new parts: the hook line passes the reveal firewall and claim-modality
+    checks; DisclosureChecker covers the synthetic avatar voice and video and the generated music; the duration check includes avatar, outro and
+    end card.
+S11 COST. Print the estimate before any paid call. HeyGen render engine (Avatar III/IV/V) comes from config and is part of the estimate; use HeyGen
+    v3 batch creation where several clips are made at once; keep the v3 consent requirement for the avatar in mind and report if a render is
+    blocked by it. The unique paid part per reel is the hook (avatar seconds + voice); the outro, end card, cover and music are shared. Prove cost
+    and quality with ONE English reel first, then show the actual ledger per reel (HeyGen seconds, voice characters, music calls) and the
+    shared-asset reuse.
+S12 TESTS. Frame 0 composition per language (en, de, fa, ar fixtures, RTL, two-line Persian label), label wording from config, hook structure
+    and length, outro sentence identical across reels, avatar time cap, variation rule (no identical consecutive pose/outfit), end card, music
+    selection and no-repeat, ducking envelope and loudness bounds, publish manifest per platform, the related-video checklist item, shared-asset
+    reuse (second reel creates nothing new), disclosure flags, duration at most 60 s, the existing gates still run.
+S13 LIVE PROOF ON CASE 8, ENGLISH ONLY. In the real app produce three reels from the film. Show for each: frame 0 / cover, the hook line, the
+    outro, the end card, the envelope plot with loudness numbers, the publish manifest, the cost and the shared-asset reuse hits. Do not run
+    other languages until the owner has watched the English ones. Say plainly what you did not watch.
+S14 AUDIT. Walk this text sentence by sentence into the checklist with evidence, then a line-by-line self-review of the diff. State what is
+    unproven (whether the music sounds good, how the avatar looks in the first 3 s, platform link behavior beyond what the docs say, the Arabic
+    wording, the Persian label).
+
+LOOP PROTOCOL: take the first non-DONE row, test first, then code, targeted tests then the full suite, prove it live, record the evidence. Stop
+early ONLY for a real owner blocker (a decision only the owner can take, unclear music licence terms) and continue with every row that is not
+blocked. Never mark a row DONE without evidence. Final report: the checklist, the three reels, actual spend, what is unproven. Do not commit or push.

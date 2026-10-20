@@ -50,7 +50,7 @@ def load_assets() -> list[HostAsset]:
         out.extend(HostAsset(
             id=f"HOST_{outfit.outfit_id}_{pose.role}", outfit_id=outfit.outfit_id,
             pose=pose.role, facing="front", path=pose.path, approved=True,
-            avatar_look_ids=outfit.heygen_look_ids,
+            avatar_look_ids=(),
         ) for pose in outfit.poses.values())
     return out
 

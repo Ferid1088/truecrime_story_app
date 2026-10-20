@@ -571,7 +571,7 @@ class HostGen:
             dialogue = (self.writer(data) if self.writer
                         else say(seg["target_words"], sum(map(ord, seg["id"])), language))
             return {"dialogue": dialogue, "dimensions": ["curiosity"], "memory_used": None,
-                    "delivery": "direct", "transition_back": "back to the story",
+                    "delivery": "direct",
                     "memory_note": {"kind": "open_question", "text": "Who locked the door?"}
                     if seg["id"] == "S1" else None}, res
         if role == "host_critic":
@@ -661,7 +661,7 @@ def test_host_director_plans_the_structure_once_and_writes_every_language(
     assert json.loads(en.validation_json)["repair_iterations"] == 1       # S2's critic repair
     for key in ("segment_id", "placement", "role", "purpose", "personality_dimension",
                 "memory_reference", "delivery_direction", "avatar_dialogue", "target_duration",
-                "target_seconds", "transition_back", "cutoff"):
+                "target_seconds", "cutoff"):
         assert key in out[0]
     assert out[0]["placement"].startswith("Opening") and out[1]["placement"].startswith("After act2")
     assert out[3]["placement"].startswith("Outro")

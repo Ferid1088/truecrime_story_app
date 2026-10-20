@@ -270,7 +270,7 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
-            f"performance:{l}", f"voice:{l}", f"production:{l}", f"critique:{l}",
+            f"performance:{l}", f"voice:{l}", f"zoom_maps:{l}", f"production:{l}", f"critique:{l}",
             f"visual_audit:{l}", f"visual_coverage:{l}", f"render:{l}"]
     # Shorts are real post-film stages.  They remain pending while the film
     # runs and are claimed only after the documentary job is finished.
@@ -488,6 +488,27 @@ class DocumentaryPipeline(StageRunner):
             return out
 
         await self._optional("chapters", chapters)
+
+        async def board_plan():
+            # the detective board's cards, in every language, written once
+            # per blueprint (card selection is deterministic; only the
+            # titles need the model)
+            from app.documentary.detective_board import latest_board_plan, plan_covers
+
+            if not ai_config.detective_board.enabled:
+                return {"skipped": True, "reason": "detective board disabled"}
+            row = latest_board_plan(db, bp_row.id)
+            reused = plan_covers(row, ok_langs) and row.status != "no_texts"
+            if not reused:
+                row = await get_stage_agent("board").create(db, case, bp_row, master, ok_langs, spoken)
+            plan = json.loads(row.plan_json or "{}")
+            out = {"board_plan_id": row.id, "status": row.status, "reused": reused,
+                   "cards": len(plan.get("cards") or [])}
+            if row.status == "no_texts":
+                out["degraded"] = "no card titles (writer failed) — the board does not render"
+            return out
+
+        await self._optional("board_plan", board_plan)
 
         async def naming():
             # title candidates per language (stored data only, no search); a
@@ -859,6 +880,14 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
             for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:n]:
                 if a.verification_status == "unverified" and a not in todo:
                     todo.append(a)
+    # a close photo (exact case/person/place) is never left unchecked because other pictures
+    # ranked higher for its need
+    last_tier = ai_config.visual_verification.check_all_up_to_tier
+    for a in assets:
+        if (a.verification_status == "unverified" and a.asset_type == "photo"
+                and a.local_path and a.rights_status != "do_not_use"
+                and (a.relevance_tier or 5) <= last_tier and a not in todo):
+            todo.append(a)
     # a relevant piece of a video brings its sibling pieces: the whole
     # video gets described (each piece by the video auditor), so every
     # part of it can serve the sentence it belongs to

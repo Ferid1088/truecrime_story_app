@@ -129,16 +129,19 @@ def _provider_ledger_settled():
 @pytest.fixture(scope="session", autouse=True)
 def outfit_root(tmp_path_factory):
     """The outfit pictures are private photos of the owner (data/outfits is not in the repository):
-    the tests use a generated set with the same layout, one folder per outfit and all poses."""
+    the tests use a generated set with the same layout, per language and outfit, all poses."""
     from PIL import Image
 
     from app.outfits import registry
 
     root = tmp_path_factory.mktemp("outfits")
-    for slug in registry._LEGACY:
-        (root / slug).mkdir()
-        for n, role in enumerate(registry._ROLES):   # every pose is a different picture
-            Image.new("RGB", (64, 64), (40 + 20 * n, 50, 60)).save(root / slug / f"{role}.png")
+    poses = ("stand", "standHand", "standPockets", "sitHands", "sitCrossFeet")
+    for language in ("en", "de", "fa", "ar"):
+        for outfit in ("navySuit", "brownSweater", "blazerJeans"):
+            (root / language / outfit).mkdir(parents=True)
+            for n, pose in enumerate(poses):   # every pose is a different picture
+                Image.new("RGB", (64, 36), (40 + 20 * n, 50, 60)).save(
+                    root / language / outfit / f"{language}_{outfit}_{pose}.png")
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(registry, "_ROOT", root)
         yield root
@@ -400,6 +403,8 @@ def _no_illustrations_and_open_coverage_unless_a_test_asks(request, monkeypatch)
     monkeypatch.setattr(ai_config.rights, "enforce", "rights_not_a_filter" not in request.node.nodeid)
     if "research_supply" not in request.node.nodeid:
         monkeypatch.setattr(ai_config.visual_search, "max_expansions_per_entity", 0)
+    if "zoom_map" not in request.node.nodeid:   # the zoom maps (browser, open data) have their own tests
+        monkeypatch.setattr(ai_config.zoom_map, "enabled", False)
     if "coverage_fill" in request.node.nodeid or "editorial_review" in request.node.nodeid:
         return
     monkeypatch.setattr(ai_config.illustrations, "enabled", False)

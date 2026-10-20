@@ -19,7 +19,7 @@ def _case(db):
     return _story(db)[0]
 
 
-def _outfit(db, case, language="en", ref="navy_suit", name="Navy suit", select=True):
+def _outfit(db, case, language="en", ref="en/navySuit", name="Navy suit", select=True):
     outfit = OF.create_outfit(db, case.id, language, name, outfit_ref=ref)
     return OF.select_outfit(db, outfit) if select else outfit
 
@@ -40,9 +40,9 @@ def _look(db, outfit, camera="CAM01_FRONT", framing="MEDIUM", stance="SEATED", s
 
 def test_an_outfit_belongs_to_one_case_and_language_and_one_is_selected(db_session):
     case = _case(db_session)
-    a = _outfit(db_session, case, ref="navy_suit")
-    b = _outfit(db_session, case, ref="grey_blazer_jeans", name="Grey", select=False)
-    de = _outfit(db_session, case, "de", ref="navy_suit")
+    a = _outfit(db_session, case, ref="en/navySuit")
+    b = _outfit(db_session, case, ref="en/blazerJeans", name="Grey", select=False)
+    de = _outfit(db_session, case, "de", ref="de/navySuit")
     assert OF.selected_outfit(db_session, case.id, "en").id == a.id
     OF.select_outfit(db_session, b)
     db_session.refresh(a)
@@ -58,9 +58,9 @@ def test_an_outfit_belongs_to_one_case_and_language_and_one_is_selected(db_sessi
 def test_an_outfit_needs_a_known_language_a_name_and_a_picture_source(db_session):
     case = _case(db_session)
     with pytest.raises(OF.OutfitError, match="channel"):
-        OF.create_outfit(db_session, case.id, "xx", "n", outfit_ref="navy_suit")
+        OF.create_outfit(db_session, case.id, "xx", "n", outfit_ref="en/navySuit")
     with pytest.raises(OF.OutfitError, match="name"):
-        OF.create_outfit(db_session, case.id, "en", " ", outfit_ref="navy_suit")
+        OF.create_outfit(db_session, case.id, "en", " ", outfit_ref="en/navySuit")
     with pytest.raises(OF.OutfitError, match="registry or a reference"):
         OF.create_outfit(db_session, case.id, "en", "n")
     with pytest.raises(OF.OutfitError, match="unknown outfit"):
@@ -219,7 +219,7 @@ def test_no_approved_look_stops_and_names_exactly_what_to_approve(db_session):
 def test_a_look_of_another_outfit_or_language_is_never_a_candidate(db_session):
     case = _case(db_session)
     mine = _outfit(db_session, case)
-    other = _outfit(db_session, case, ref="grey_blazer_jeans", name="Grey", select=False)
+    other = _outfit(db_session, case, ref="en/blazerJeans", name="Grey", select=False)
     german = _outfit(db_session, case, "de")
     _look(db_session, other, "CAM04_LEFT_SIDE", "MEDIUM", "SEATED")
     _look(db_session, german, "CAM04_LEFT_SIDE", "MEDIUM", "SEATED")
@@ -260,7 +260,7 @@ def test_the_avatar_step_stops_before_any_upload_without_an_outfit_or_an_approve
     with pytest.raises(ST.StudioError, match="no outfit is selected"):
         _run(db_session, scene, av)
     assert scene.failed_step == "avatar_upload" and av.uploads == 0
-    outfit = OF.create_outfit(db_session, scene.case_id, "en", "Navy", outfit_ref="navy_suit")
+    outfit = OF.create_outfit(db_session, scene.case_id, "en", "Navy", outfit_ref="en/navySuit")
     OF.select_outfit(db_session, outfit)
     with pytest.raises(LS.NoApprovedLook, match="request front, wide, seated"):
         _run(db_session, scene, av)
@@ -271,7 +271,7 @@ def test_an_approved_look_that_is_not_uploaded_to_heygen_stops_the_step(db_sessi
                                                                         monkeypatch):
     scene = _scene(db_session, tmp_path, monkeypatch)
     outfit = OF.select_outfit(db_session, OF.create_outfit(
-        db_session, scene.case_id, "en", "Navy", outfit_ref="navy_suit"))
+        db_session, scene.case_id, "en", "Navy", outfit_ref="en/navySuit"))
     look = _look(db_session, outfit, "CAM01_FRONT", "MEDIUM", "SEATED", heygen=None)
     av = FakeAvatar()
     with pytest.raises(ST.StudioError, match=f"look #{look.id} .* not uploaded to HeyGen"):
@@ -295,7 +295,7 @@ def test_every_scene_of_a_video_gets_its_look_from_the_same_outfit(db_session, t
     row = _segments(db_session, "en")
     first, second = plan_host_scenes(db_session, row)
     outfit = OF.select_outfit(db_session, OF.create_outfit(
-        db_session, first.case_id, "en", "Navy", outfit_ref="navy_suit"))
+        db_session, first.case_id, "en", "Navy", outfit_ref="en/navySuit"))
     _look(db_session, outfit, "CAM01_FRONT", "WIDE", "SEATED")
     av = FakeAvatar()
     _run(db_session, first, av)
@@ -308,7 +308,7 @@ def test_every_scene_of_a_video_gets_its_look_from_the_same_outfit(db_session, t
 def test_a_scene_that_is_already_made_does_not_need_its_look_again(db_session, tmp_path, monkeypatch):
     scene = _scene(db_session, tmp_path, monkeypatch)
     outfit = OF.select_outfit(db_session, OF.create_outfit(
-        db_session, scene.case_id, "en", "Navy", outfit_ref="navy_suit"))
+        db_session, scene.case_id, "en", "Navy", outfit_ref="en/navySuit"))
     look = _look(db_session, outfit, "CAM01_FRONT", "MEDIUM", "SEATED")
     av = FakeAvatar()
     _run(db_session, scene, av)
@@ -326,7 +326,7 @@ def test_a_scene_that_is_already_made_does_not_need_its_look_again(db_session, t
 def test_outfit_api_create_select_pose_set_and_list(client, db_session):
     case = _case(db_session)
     r = client.post(f"/api/cases/{case.id}/outfits", json={
-        "language": "fa", "name": "Navy suit", "outfit_ref": "navy_suit"})
+        "language": "fa", "name": "Navy suit", "outfit_ref": "fa/navySuit"})
     assert r.status_code == 200, r.text
     outfit = r.json()
     assert outfit["status"] == "draft" and outfit["studio"] == {"SEATED": True, "STANDING": True}
@@ -350,18 +350,18 @@ def test_outfit_api_create_select_pose_set_and_list(client, db_session):
 
 def test_outfit_registry_api_lists_the_outfits_a_video_can_use(client):
     body = client.get("/api/outfit-registry").json()
-    assert len(body) == 17 and {"id", "label", "languages"} <= set(body[0])
-    assert all("en" in o["languages"] for o in body)
+    assert len(body) == 12 and {"id", "label", "languages"} <= set(body[0])
+    assert all(o["languages"] == [o["id"].split("/")[0]] for o in body)
 
 
 def test_the_owner_can_override_a_scene_only_among_the_outfits_approved_looks(
         client, db_session, tmp_path, monkeypatch):
     scene = _scene(db_session, tmp_path, monkeypatch)
     outfit = OF.select_outfit(db_session, OF.create_outfit(
-        db_session, scene.case_id, "en", "Navy", outfit_ref="navy_suit"))
+        db_session, scene.case_id, "en", "Navy", outfit_ref="en/navySuit"))
     ok = _look(db_session, outfit, "CAM02_LEFT_45", "MEDIUM", "SEATED", heygen="hg-45")
     pending = _look(db_session, outfit, "CAM01_FRONT", "WIDE", "SEATED", status="generated")
-    other = OF.create_outfit(db_session, scene.case_id, "en", "Grey", outfit_ref="grey_blazer_jeans")
+    other = OF.create_outfit(db_session, scene.case_id, "en", "Grey", outfit_ref="en/blazerJeans")
     foreign = _look(db_session, other, "CAM01_FRONT", "MEDIUM", "SEATED")
     for bad in (pending.id, foreign.id, 99999):
         assert client.post(f"/api/host-scenes/{scene.id}/look", json={"look_id": bad}).status_code == 409

@@ -1,0 +1,277 @@
+{
+  "zoom_map": {
+    "enabled": true,
+    "data": {
+      "pmtiles_source": "https://build.protomaps.com/{build}.pmtiles",
+      "build": "20261019",
+      "bbox_margin_km": 30.0,
+      "min_zoom": 0,
+      "max_zoom": 15,
+      "work_dir": "data/maps",
+      "runtime_dir": "data/maps/_runtime",
+      "pmtiles_bin": "data/maps/_tools/pmtiles",
+      "basemap_assets_url": "https://protomaps.github.io/basemaps-assets/",
+      "vector_attribution": "\u00a9 OpenStreetMap contributors",
+      "js_packages": {
+        "maplibre-gl": "5.6.0",
+        "pmtiles": "4.3.0",
+        "@protomaps/basemaps": "5.7.0",
+        "@mapbox/mapbox-gl-rtl-text": "0.3.0"
+      },
+      "pmtiles_release": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles-1.31.2_{platform}.zip",
+      "pmtiles_platforms": {
+        "darwin_arm64": "Darwin_arm64",
+        "darwin_x86_64": "Darwin_x86_64",
+        "linux_x86_64": "Linux_x86_64",
+        "linux_aarch64": "Linux_arm64"
+      },
+      "max_parallel_fetches": 8
+    },
+    "hosts": {
+      "allowed": [
+        "build.protomaps.com",
+        "protomaps.github.io",
+        "gibs.earthdata.nasa.gov",
+        "basemap.nationalmap.gov",
+        "www.wms.nrw.de",
+        "geoservices.bayern.de",
+        "github.com",
+        "objects.githubusercontent.com",
+        "registry.npmjs.org"
+      ],
+      "forbidden": [
+        "google",
+        "gstatic",
+        "ggpht",
+        "bing",
+        "virtualearth",
+        "arcgisonline",
+        "esri",
+        "mapbox",
+        "tile.openstreetmap.org",
+        "tiles.openstreetmap.org",
+        "streetview",
+        "earth.app"
+      ]
+    },
+    "imagery": [
+      {
+        "id": "gibs_blue_marble",
+        "provider": "NASA EOSDIS GIBS",
+        "kind": "xyz",
+        "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+        "coverage": "global",
+        "zoom_min": 0,
+        "zoom_max": 8,
+        "resolution_m": 500,
+        "licence": "NASA open data (no copyright restriction)",
+        "licence_url": "https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-policy",
+        "attribution": "Imagery: NASA Blue Marble / EOSDIS GIBS",
+        "allowed": true,
+        "over_water": true
+      },
+      {
+        "id": "gibs_landsat_weld",
+        "provider": "NASA EOSDIS GIBS (Landsat WELD)",
+        "kind": "xyz",
+        "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/Landsat_WELD_CorrectedReflectance_TrueColor_Global_Annual/default/{date}/GoogleMapsCompatible_Level12/{z}/{y}/{x}.png",
+        "params": {
+          "date": "2000-12-01"
+        },
+        "coverage": "global",
+        "zoom_min": 5,
+        "zoom_max": 12,
+        "resolution_m": 30,
+        "licence": "NASA open data (no copyright restriction)",
+        "licence_url": "https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-policy",
+        "attribution": "Imagery: NASA Landsat WELD (2000 composite) / EOSDIS GIBS",
+        "allowed": true,
+        "nodata_below": 24,
+        "over_water": false
+      },
+      {
+        "id": "usgs_imagery",
+        "provider": "U.S. Geological Survey, The National Map",
+        "kind": "xyz",
+        "url": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}",
+        "coverage": [
+          [
+            -125.0,
+            24.0,
+            -66.0,
+            49.5
+          ]
+        ],
+        "zoom_min": 9,
+        "zoom_max": 16,
+        "resolution_m": 1,
+        "licence": "Public domain (U.S. Government work, USGS data policy)",
+        "licence_url": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
+        "attribution": "Imagery: U.S. Geological Survey",
+        "allowed": true,
+        "over_water": false
+      },
+      {
+        "id": "nrw_dop",
+        "provider": "Geobasis NRW",
+        "kind": "wms",
+        "url": "https://www.wms.nrw.de/geobasis/wms_nw_dop?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=nw_dop_rgb&STYLES=&CRS=EPSG:3857&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg&BBOX={bbox-epsg-3857}",
+        "coverage": [
+          [
+            5.8,
+            50.3,
+            9.5,
+            52.6
+          ]
+        ],
+        "zoom_min": 10,
+        "zoom_max": 19,
+        "resolution_m": 0.1,
+        "licence": "Datenlizenz Deutschland - Zero - Version 2.0",
+        "licence_url": "https://www.govdata.de/dl-de/zero-2-0",
+        "attribution": "Imagery: Geobasis NRW",
+        "allowed": true,
+        "over_water": false
+      },
+      {
+        "id": "bayern_dop40",
+        "provider": "Bayerische Vermessungsverwaltung",
+        "kind": "wms",
+        "url": "https://geoservices.bayern.de/od/wms/dop/v1/dop40?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=by_dop40c&STYLES=&CRS=EPSG:3857&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg&BBOX={bbox-epsg-3857}",
+        "coverage": [
+          [
+            8.9,
+            47.2,
+            13.9,
+            50.6
+          ]
+        ],
+        "zoom_min": 10,
+        "zoom_max": 19,
+        "resolution_m": 0.4,
+        "licence": "CC BY 4.0",
+        "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Imagery: Bayerische Vermessungsverwaltung (CC BY 4.0)",
+        "allowed": true,
+        "over_water": false
+      }
+    ],
+    "forbidden_providers": [
+      "google",
+      "bing",
+      "microsoft",
+      "esri",
+      "mapbox",
+      "maxar",
+      "planet"
+    ],
+    "imagery_fade_levels": 1.5,
+    "imagery_dim": 0.62,
+    "style": {
+      "flavor": "dark",
+      "background": "#0b0f14",
+      "route_color": "#e8c35a",
+      "marker_color": "#e8c35a",
+      "building_color": "#2a3140",
+      "building_opacity": 0.92
+    },
+    "labels": {
+      "chains": {
+        "en": [
+          "name:en",
+          "name"
+        ],
+        "de": [
+          "name:de",
+          "name:en",
+          "name"
+        ],
+        "fa": [
+          "name:fa",
+          "name:en",
+          "name"
+        ],
+        "ar": [
+          "name:ar",
+          "name:en",
+          "name"
+        ]
+      },
+      "rtl_languages": [
+        "fa",
+        "ar"
+      ]
+    },
+    "camera": {
+      "ease_power": 3.2,
+      "globe_zoom": 1.9,
+      "street_zoom": 16.0,
+      "end_zoom_by_granularity": {
+        "country": 6.0,
+        "state": 8.0,
+        "county": 10.0,
+        "city": 16.0,
+        "town": 16.0,
+        "village": 16.0,
+        "suburb": 16.0
+      },
+      "start_zooms": [
+        1.9,
+        3.0,
+        5.0
+      ],
+      "bearings": [
+        0.0,
+        25.0,
+        -25.0
+      ]
+    },
+    "variants": {
+      "zoom_in": {
+        "seconds": 16.0,
+        "pitch_end": 0.0
+      },
+      "route": {
+        "seconds": 18.0,
+        "pitch_end": 20.0,
+        "line_share": 0.7
+      },
+      "pitched_3d": {
+        "seconds": 18.0,
+        "pitch_end": 62.0,
+        "extrude": true
+      }
+    },
+    "marker": {
+      "pulse_seconds": 1.6,
+      "radius_px": 16.0
+    },
+    "limits": {
+      "max_per_film": 4,
+      "max_per_act": 2,
+      "max_returns_per_place": 1,
+      "min_gap_seconds": 90.0,
+      "hold_seconds": 2.0,
+      "min_seconds": 6.0,
+      "max_seconds": 10.0,
+      "place_label_after_seconds": 7.0,
+      "max_stretch_seconds": 3.0
+    },
+    "render": {
+      "chromium_args": [
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--ignore-gpu-blocklist"
+      ],
+      "frame_timeout_s": 60.0,
+      "budget_seconds_per_video_second": 45.0,
+      "crf": 18,
+      "attribution_font_px": 20
+    },
+    "variant_rules": {
+      "first": "zoom_in",
+      "move": "route",
+      "return": "pitched_3d"
+    }
+  }
+}

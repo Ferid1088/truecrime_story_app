@@ -15,7 +15,8 @@ by the page that hosted the picture; only the image itself is evidence.
 
 HOW YOUR VERDICT IS USED
 Your answer decides whether the picture can ever be used: watermark,
-graphic_or_sensitive, tone_ok false, matches_claim "no", period_ok "no",
+graphic_or_sensitive (except an archival photograph of the case's own
+events, which goes to the owner), tone_ok false, matches_claim "no", period_ok "no",
 or low confidence reject it for good; "stand_in" of a person is rejected;
 "yes" or "stand_in" with enough confidence makes it verified, anything
 else needs review by the owner. Then "role" and "entities" decide where
@@ -64,7 +65,9 @@ Decide:
   title bar, burned-in headline or caption text, a decorative frame or
   any other branding is part of the picture (we need clean pictures).
 - graphic_or_sensitive: true for gore, bodies, injuries, minors in
-  distress — such images must not be used.
+  distress. Set it truthfully; a period photograph of the case's own
+  events is still given its role "evidence" and its "reveals" — the
+  owner decides on it.
 - confidence: 0–1 that your matches_claim/role judgement is right.
 
 Return JSON only:

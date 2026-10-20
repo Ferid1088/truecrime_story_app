@@ -2437,6 +2437,28 @@ class SharedReelAsset(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
+class ClosingClip(Base):
+    """One stored variant of the host's closing clip (call to action + identity line): which
+    look (outfit, position) and voice spoke which sentences, how long it is and what it cost.
+    The video file and its use counter live in the shared asset store row with the same key."""
+
+    __tablename__ = "closing_clips"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    look_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    heygen_look_id: Mapped[str] = mapped_column(String(80))
+    outfit_label: Mapped[str] = mapped_column(String(200))
+    position: Mapped[str] = mapped_column(String(80))
+    voice_id: Mapped[str] = mapped_column(String(80))
+    sentences_json: Mapped[str] = mapped_column(Text)
+    duration_seconds: Mapped[float] = mapped_column(Float)
+    cost_eur: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class HostLedMusicTrack(Base):
     """One real, generated music track in the host-led-reel library: full provenance (prompt,
     provider/model, generation id, plan name, licence terms as read and when) plus the owner's

@@ -53,6 +53,7 @@ from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.planner import fold, sentence_entities
 from app.documentary.visuals.usage import asset_facts, asset_tier, category, limit_of
+from app.documentary.zoom_map.limits import MapLimits, head as place_head
 
 COMMANDS = ("NEW_IMAGE", "SHOW_CLIP", "KEEP_CURRENT_IMAGE", "CROP_EXISTING", "ZOOM_EXISTING",
             "SHOW_DOCUMENT", "SHOW_MAP", "SHOW_DATE", "SHOW_TIMELINE", "SHOW_QUOTE",
@@ -414,6 +415,9 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
     shown_picture = False
     last_asset = None
     mapped: set[str] = set()
+    # zoom-in maps: only places the story has already told, within the film's limits
+    zoom = MapLimits() if ai_config.zoom_map and ai_config.zoom_map.enabled else None
+    told: set[str] = set()
     # maps the opening could not show (too early / before any picture):
     # they return at the first beat where geography may be shown
     deferred: dict[str, str] = {}
@@ -439,6 +443,11 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
         req = reqs.get(bid, {})
         bmarks = (marks or {}).get(bid) or []
         sent_ents = [sentence_entities(m["text"], ent_list) for m in bmarks]
+        for ents_of_sentence in sent_ents:
+            for entity_key in ents_of_sentence:
+                if (ents.get(entity_key) or {}).get("type") in ("place", "building"):
+                    told |= {place_key(place_head(n)) for n in
+                             [ents[entity_key].get("name")] + list(ents[entity_key].get("aliases") or []) if n}
         if keep and bid in keep:
             for s in keep[bid].get("shots") or []:
                 note_shot(s, req)
@@ -595,9 +604,15 @@ def validate_visual_plan(raw: dict, blueprint: dict, requirements: dict,
                 reason = "map_too_early"
             elif not map_first_ok and not seen_picture:
                 reason = "map_as_first_picture"
+            elif zoom is not None:
+                reason = zoom.reason_against(place_key(place_head(s["map_place"])), beat.get("act_id") or "",
+                                             start, told)
             elif key in mapped:
                 reason = "place_already_mapped"
             if reason is None:
+                if zoom is not None:
+                    s["map_return"] = zoom.register(place_key(place_head(s["map_place"])),
+                                                    beat.get("act_id") or "", start)
                 mapped.add(key)
                 seen_picture = True
                 continue

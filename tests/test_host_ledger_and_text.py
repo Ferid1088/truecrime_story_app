@@ -75,7 +75,7 @@ def test_the_avatar_step_books_its_video(db_session, tmp_path, monkeypatch):
     from app.documentary import outfits as OF
 
     outfit = OF.select_outfit(db_session, OF.create_outfit(
-        db_session, scene.case_id, "en", "Navy", outfit_ref="navy_suit"))
+        db_session, scene.case_id, "en", "Navy", outfit_ref="en/navySuit"))
     _look(db_session, outfit, "CAM01_FRONT", "MEDIUM", "SEATED")
     _run(db_session, scene, FakeAvatar())
     rows = db_session.query(ProviderCall).filter_by(stage="heygen:avatar",

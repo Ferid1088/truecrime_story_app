@@ -37,6 +37,7 @@ from app.db.models import (
 )
 from app.documentary.blueprint import version_sections
 from app.documentary.host_story import HostStory
+from app.documentary.identity_line import with_identity
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -291,7 +292,6 @@ def parse_writer(raw: dict) -> dict:
     return {"dialogue": str(raw.get("dialogue") or "").strip().strip('"“”«»'),
             "memory_used": ref, "dimensions": dims,
             "delivery": str(raw.get("delivery") or "")[:300],
-            "transition_back": str(raw.get("transition_back") or "")[:300],
             "memory_note": {"kind": note["kind"], "text": str(note["text"]).strip()[:500]}
             if note else None}
 
@@ -304,6 +304,9 @@ ISSUE_FIXES = {
     "formal_address": "Replace the formal address with the informal one, as a friend would say it.",
     "no_question_to_the_viewer": "End a sentence with a real question to the viewer.",
     "greeting_filler": "Start without a greeting or welcome: the first sentence grabs.",
+    "handover_line": "Do not end with a line that hands over to the story (\"now let's go to the "
+                     "story\", \"let's begin\"): end on your last thought or question; the app adds "
+                     "the closing identity line itself.",
     "first_sentence_too_long": "Make the first sentence short, one breath.",
     "stock_phrase": "Drop this stock phrase and say it in your own words.",
     "no_short_sentences": "Add one or two very short sentences of at most {short} words (a "
@@ -380,6 +383,9 @@ def dialogue_issues(seg: dict, dialogue: str, language: str, recent: list[dict],
         if m:
             issues.append({"type": "formal_address", "quote": m.group(0)})
     sentences = [s for s in _SENTENCE_END.split(text) if s.strip()]
+    if seg["position"] == "opening" and sentences and any(
+            re.search(p, sentences[-1], re.IGNORECASE) for p in rules.handover_patterns):
+        issues.append({"type": "handover_line", "quote": sentences[-1]})
     if cfg.roles[seg["role"]].requires_question and not any(
             s.strip().endswith(tuple(rules.question_marks)) for s in sentences):
         issues.append({"type": "no_question_to_the_viewer"})
@@ -494,6 +500,8 @@ def segment_output(seg: dict, written: dict, language: str, story: HostStory,
     """One segment in the persona's output format (plus what later stages need: position, act,
     cutoff, planned and estimated seconds, the quality check)."""
     dialogue = written.get("dialogue") or ""
+    if seg["position"] == "opening" and dialogue:
+        dialogue = with_identity(dialogue, language)
     ref = written.get("memory_used")
     memory = "none"
     if ref and ref in arch_mem:
@@ -514,7 +522,6 @@ def segment_output(seg: dict, written: dict, language: str, story: HostStory,
         "target_duration": seg["target_seconds"],
         "target_seconds": seg["target_seconds"],
         "estimated_seconds": estimate_seconds(dialogue, language),
-        "transition_back": written.get("transition_back") or "",
         "quality": {"pass": bool(verdict.get("pass")) and bool(dialogue),
                     "checks": verdict.get("checks", {}),
                     "problems": verdict.get("problems", []),

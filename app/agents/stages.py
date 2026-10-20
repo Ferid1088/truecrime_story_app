@@ -21,6 +21,7 @@ STAGE_AGENTS: dict[str, tuple[str, str]] = {
     "audio_plan": ("app.agents.audio_plan", "AudioDirector"),
     "spoken": ("app.agents.spoken", "SpokenNarrator"),
     "chapters": ("app.agents.chapters", "ChapterWriter"),
+    "board": ("app.agents.detective_board", "BoardWriter"),
     "host": ("app.agents.host", "HostDirector"),
     "voice_performance": ("app.agents.voice_performance", "VoicePerformanceDirector"),
     "visual_planner": ("app.agents.visual_planner", "VisualPlanner"),

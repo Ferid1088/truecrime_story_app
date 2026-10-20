@@ -150,13 +150,9 @@ def request_pose_set(db: Session, outfit: HostOutfit) -> dict:
 
 def reference_png(outfit: HostOutfit, stance: str) -> bytes:
     """The outfit's picture a look is generated from: the registry picture that fits the stance
-    (sitting or standing), else the front picture, or the outfit's own reference picture."""
+    (sitting or standing), else any picture of it, or the outfit's own reference picture."""
     if outfit.outfit_ref:
-        registry = OutfitRegistry().resolve(outfit.outfit_ref)
-        for role in ai_config.host_looks.outfit_reference_roles[stance]:
-            if role in registry.poses:
-                return registry.poses[role].path.read_bytes()
-        return registry.poses["front"].path.read_bytes()
+        return OutfitRegistry().resolve(outfit.outfit_ref).reference_pose(stance).path.read_bytes()
     path = storage.resolve(outfit.reference_image_path)
     if path is None or not path.exists():
         raise OutfitError("the outfit's reference picture is missing")

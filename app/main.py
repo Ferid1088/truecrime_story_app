@@ -100,6 +100,7 @@ from app.lifecycle.api import router as lifecycle_router  # noqa: E402
 from app.longform.api import router as longform_router  # noqa: E402
 from app.naming.api import router as naming_router  # noqa: E402
 from app.shortform.api import router as shortform_router  # noqa: E402
+from app.shortform.closing_api import router as closing_router  # noqa: E402
 from app.thumbnails.api import router as thumbnail_router  # noqa: E402
 
 # The stage routers first (same precedence as before the split), then the case-level API.
@@ -113,6 +114,7 @@ for _router in (
     thumbnail_router,
     studio_router,
     shortform_router,
+    closing_router,
     system.router,
     costs.router,
     discovery.router,

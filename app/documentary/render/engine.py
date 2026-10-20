@@ -33,6 +33,7 @@ from app.core.policy import warning_for
 from app.documentary import storage
 from app.documentary.render.cards import (
     CARD_KINDS,
+    DetectiveBoardCard,
     TimelineCard,
     chapter_image,
     push,
@@ -307,6 +308,8 @@ class FrameMaker:
         W, H = self.W, self.H
         length = max(shot["end"] - shot["start"], 0.1)
         p = (t - shot["start"]) / length
+        if kind == "map" and shot.get("zoom_video"):
+            return self._video_frame(shot, t)
         if kind == "map":
             paths = shot.get("map_paths") or [shot["path"]]
             seg = min(int(max(p, 0) * len(paths)), len(paths) - 1)
@@ -337,6 +340,8 @@ class FrameMaker:
             info = shot.get("card") or {}
             if shot["kind"] == "timeline":
                 card = TimelineCard(shot, lang, self.W, self.H)
+            elif shot["kind"] == "detective_board":
+                card = DetectiveBoardCard(shot, lang, self.W, self.H)
             elif shot["kind"] == "title":
                 card = title_image(info.get("title") or "", lang, self.W, self.H)
             else:
@@ -345,7 +350,7 @@ class FrameMaker:
             self._cards[key] = card
         length = max(shot["end"] - shot["start"], 0.1)
         since = max(t - shot["start"], 0.0)
-        if isinstance(card, TimelineCard):
+        if isinstance(card, (TimelineCard, DetectiveBoardCard)):
             return card.frame(since, since / length)
         return push(card, since / length)
 

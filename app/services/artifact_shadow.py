@@ -56,7 +56,7 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
     "visual_check": ("visual_pieces",),
     "visual_illustrations": ("visual_pieces",),
     "visual_plan": ("visual_asset", "visual_shots", "visual_pieces", "visual_plan"),
-    "visual_gaps": ("visual_plan",), "host": ("host_segments",),
+    "visual_gaps": ("visual_plan",), "zoom_maps": ("visual_asset",), "host": ("host_segments",),
     "performance": ("voice_takes",),
     "voice": ("voice_takes", "audio_timing", "music_cues"), "production": (
         "captions", "production_script"), "critique": ("production_script",),

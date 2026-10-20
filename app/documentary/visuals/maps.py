@@ -232,14 +232,20 @@ def _place_info(x: dict) -> dict:
             "osm_type": x.get("type"), "place_rank": x.get("place_rank")}
 
 
-async def geocode(place: str, client: httpx.AsyncClient | None = None,
-                  near: tuple[float, float] | None = None) -> dict | None:
-    """{"lat", "lon", "display_name", "granularity", "bbox" ([s, n, w,
-    e]), "addresstype", "osm_class", "osm_type", "place_rank"} or None.
-    Several places share a name (there is more than one "Wilhelmshof"):
-    with `near` (a place of the same case) the closest match wins.
-    Results cached per query."""
-    key = hashlib.sha1(place.lower().encode()).hexdigest()[:16]
+def _fold(t: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", t or "").lower()
+    return "".join(ch for ch in t if not unicodedata.combining(ch)).replace("ß", "ss")
+
+
+async def _lookup(place: str, client: httpx.AsyncClient | None,
+                  near: tuple[float, float] | None = None) -> list[dict] | None:
+    """The geocoder's places named like `place` (cached per query; with `near` the geocoder is
+    asked to prefer that area, under its own cache entry). None: the geocoder could not be asked."""
+    maps = ai_config.maps
+    bias = ("" if near is None else f"|{round(near[0], 1)},{round(near[1], 1)}")
+    key = hashlib.sha1((place.lower() + bias).encode()).hexdigest()[:16]
     f = cache_dir() / f"geo6_{key}.json"
     if f.exists():
         res = json.loads(f.read_text())
@@ -250,9 +256,14 @@ async def geocode(place: str, client: httpx.AsyncClient | None = None,
             guard_real_provider("map/geocoder", "construct an HTTP client")
         client = client or httpx.AsyncClient(
             timeout=25, headers={"User-Agent": ai_config.visual_search.user_agent})
+        params: dict = {"q": place, "format": "json", "limit": 5}
+        if near is not None:
+            params["limit"] = maps.near_limit
+            d = maps.near_viewbox_degrees
+            params["viewbox"] = f"{near[1] - d},{near[0] + d},{near[1] + d},{near[0] - d}"
+            params["bounded"] = 1
         try:
-            r = await _polite_get(client, ai_config.maps.geocoder_url,
-                                  params={"q": place, "format": "json", "limit": 5})
+            r = await _polite_get(client, maps.geocoder_url, params=params)
             res = r.json()
         except (httpx.HTTPError, ValueError):
             return None
@@ -264,19 +275,30 @@ async def geocode(place: str, client: httpx.AsyncClient | None = None,
     # The result must really be that place: every word of the name (before
     # the first comma) appears in the result ("Bundesstraße 188" is not
     # "An der Bundesstraße").
-    import unicodedata
+    words = [w for w in re.findall(r"\w+", _fold(place.split(",")[0])) if len(w) > 1 or w.isdigit()]
+    return [x for x in res if all(w in _fold(x.get("display_name") or "") for w in words)]
 
-    def fold(t: str) -> str:
-        t = unicodedata.normalize("NFKD", t or "").lower()
-        return "".join(ch for ch in t if not unicodedata.combining(ch)).replace("ß", "ss")
 
-    words = [w for w in re.findall(r"\w+", fold(place.split(",")[0])) if len(w) > 1 or w.isdigit()]
-    res = [x for x in res if all(w in fold(x.get("display_name") or "") for w in words)]
-    if not res:
+async def geocode(place: str, client: httpx.AsyncClient | None = None,
+                  near: tuple[float, float] | None = None) -> dict | None:
+    """{"lat", "lon", "display_name", "granularity", "bbox" ([s, n, w,
+    e]), "addresstype", "osm_class", "osm_type", "place_rank"} or None.
+    Several places share a name (there is more than one "Wilhelmshof"):
+    with `near` (a place of the same case) the closest match wins; when even
+    that one is far away (the case's own "Rocky Point" is not among the geocoder's first
+    answers) the geocoder is asked again to prefer the area of `near`.
+    Results cached per query."""
+    res = await _lookup(place, client)
+    if res is None:
         return None
-    if near is not None:
-        return min(res, key=lambda x: _km(near, (x["lat"], x["lon"])))
-    return res[0]
+    if near is None:
+        return res[0] if res else None
+    best = min(res, key=lambda x: _km(near, (x["lat"], x["lon"])), default=None)
+    if best is None or _km(near, (best["lat"], best["lon"])) > ai_config.maps.near_retry_km:
+        biased = await _lookup(place, client, near)
+        if biased:
+            best = min(biased + ([best] if best else []), key=lambda x: _km(near, (x["lat"], x["lon"])))
+    return best
 
 
 def _tile_xy(lat: float, lon: float, z: int) -> tuple[float, float]:

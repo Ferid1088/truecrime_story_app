@@ -86,3 +86,7 @@ data/en_sitting.png
 # owner-uploaded looks and outfit pictures (private photos)
 data/looks/
 data/outfit_uploads/
+
+# map runtime (extracts, imagery cache, JS packages, pmtiles binary)
+data/maps/
+data/shared_assets/

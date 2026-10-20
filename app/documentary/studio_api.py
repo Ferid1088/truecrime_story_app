@@ -229,7 +229,7 @@ async def generate_host_look(look_id: int, db: Session = Depends(get_db)):
             assert host_outfit is not None
             outfit_png = OF.reference_png(host_outfit, look.stance)
         else:
-            outfit_png = OutfitRegistry().resolve(look.outfit_id).poses["front"].path.read_bytes()
+            outfit_png = OutfitRegistry().resolve(look.outfit_id).reference_pose(look.stance).path.read_bytes()
         gen = ai_config.generation_provider()
         provider = LK.ApimasterImageProvider(
             gen.base_url, env_value(gen.secret_env) or "", ai_config.host_looks.image_model,
@@ -462,13 +462,10 @@ def list_outfits(case_id: int, language: str | None = None, db: Session = Depend
 @router.get("/api/outfit-registry")
 def outfit_registry():
     """The app's outfits an outfit of a video can be made from."""
-    from app.core.ai_config import ai_config
     from app.outfits.registry import OutfitRegistry
 
-    allow = ai_config.stage_direction.outfit_allow_list
-    return [{"id": o.outfit_id, "label": o.label, "languages": [
-        lang for lang in ai_config.channels if not allow.get(lang) or o.outfit_id in allow[lang]]}
-        for o in OutfitRegistry().all()]
+    return [{"id": o.outfit_id, "label": o.label, "languages": [o.language]}
+            for o in OutfitRegistry().all()]
 
 
 def _outfit_call(fn):

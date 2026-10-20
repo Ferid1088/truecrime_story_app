@@ -51,6 +51,7 @@ from app.documentary.visuals.usage import (
     named_between,
     record_media_usage,
 )
+from app.documentary.zoom_map.shot import fallback_chain, zoom_shot
 
 IMAGE_COMMANDS = {"NEW_IMAGE", "ATMOSPHERIC_BROLL", "CROP_EXISTING", "ZOOM_EXISTING"}
 # A cut moves at most this far to land where a sentence begins.
@@ -228,7 +229,7 @@ def sentence_subtitles(sentences: list[dict], words: list[dict]) -> list[dict]:
             pos += n
             acc += len(line)
     # never overlap
-    for x, y in zip(out, out[1:]):
+    for x, y in zip(out, out[1:], strict=False):
         if x["end"] > y["start"]:
             x["end"] = round(max(x["start"] + 0.2, y["start"] - 0.02), 3)
     return out
@@ -486,6 +487,7 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
         # moment, never a backdrop: it gets a map's budget
         stand_in = first.get("kind") == "image" and int(first.get("tier") or 3) >= 4
         if is_map or stand_in:
+            max_map = max(motion.max_map_seconds, zoom_seconds(first))   # a zoom is never cut
             lead_end = first["start"] + max_map
             min_lead = min(max_map, 7.0)
         else:
@@ -538,7 +540,7 @@ def _vary_long_holds(shots: list[dict], plan: dict, assets: dict[str, VisualAsse
                         else {**dict(alts.get(c) or {}), "kind": "image", "command": "NEW_IMAGE"})
                 if is_map:  # a picture after the map: none of the map's fields
                     base = {k2: v for k2, v in base.items()
-                            if k2 not in ("map_paths", "place", "marker", "held")}
+                            if k2 not in ("map_paths", "place", "marker", "held", "zoom_video", "attribution")}
                 if info.get("kind") == "video":
                     base.pop("motion", None)
                 seg = {**base, **info,
@@ -583,7 +585,9 @@ def credit_overlays(shots: list[dict], duration: float) -> list[dict]:
     map) carries its credit exactly while it is on screen."""
     out: list[dict] = []
     for sh in shots:
-        if sh.get("kind") == "map":
+        if sh.get("kind") == "map" and sh.get("attribution"):
+            text = " · ".join(sh["attribution"])
+        elif sh.get("kind") == "map":
             text = ai_config.maps.attribution
         elif sh.get("credit") and R.needs_attribution(sh.get("rights")):
             text = sh["credit"]
@@ -700,7 +704,7 @@ def status_overlays(case_status: str | None, production_type: str | None,
 # cards: chapters, the film title, the running timeline
 # ---------------------------------------------------------------------------
 
-CARD_KINDS = ("chapter", "title", "timeline")
+CARD_KINDS = ("chapter", "title", "timeline", "detective_board")
 
 
 def _ordinal(date: str) -> float:
@@ -880,7 +884,13 @@ def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict
                          chapters[0]["number"] if chapters else None))
     placed: list[tuple[float, float]] = []
     for gap_from, gap_to, items, beat, number in sorted(todo, key=lambda x: x[0]):
+        gap_from_0 = gap_from
         end = gap_to - cfg.lead_out_seconds
+        # a card never covers a zoom map that is still playing: it waits until the zoom has
+        # ended (and never moves into speech: the end of the gap stays where it is)
+        zoom_end = max((sh["end"] for sh in shots if zoom_seconds(sh)
+                        and sh["start"] < gap_to and sh["end"] > gap_from), default=gap_from)
+        gap_from = max(gap_from, zoom_end)
         room = end - gap_from - 0.5
 
         def need(its):
@@ -890,7 +900,8 @@ def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict
             items = [it for it in items if it is not min(items, key=lambda x: x["drop"])]
         if not items:
             skipped.append({"chapter": number, "at": round(gap_from, 2),
-                            "why": f"gap of {gap_to - gap_from:.1f}s is too short for a card"})
+                            "why": f"gap of {gap_to - gap_from:.1f}s is too short for a card"
+                                   + (" (a zoom map is still playing)" if zoom_end > gap_from_0 else "")})
             continue
         fixed = sum(it.get("fixed") or 0 for it in items)
         flex = [it for it in items if not it.get("fixed")]
@@ -919,6 +930,98 @@ def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict
     if intro_s and intro is None:
         intro = {"mode": "prepend", "seconds": intro_s}
     return skipped, intro
+
+
+def insert_detective_board_cards(shots: list[dict], board: dict | None, spans: list[dict],
+                                 overlays: list[dict], language: str) -> list[dict]:
+    """The detective board: each new note flies onto the cork board the
+    moment its beat has been spoken and the board stays up long enough to
+    read it — over the narration that follows (the narrator's pace is
+    never changed). A card with no room before the next one is due joins
+    the next appearance; the board never takes more than max_share of the
+    film; the film's last appearance shows every note placed so far.
+    Returns the appearance records actually placed (live-proof evidence
+    and the "board" field of the script)."""
+    from app.core.ai_config import ai_config
+    from app.documentary.detective_board import appearances, board_layout
+
+    cfg = ai_config.detective_board
+    cards = (board or {}).get("cards") or []
+    if not cards or not spans:
+        return []
+    by = {sp["beat_id"]: sp for sp in spans}
+    cards = [c for c in cards if c["beat_id"] in by]
+    cards.sort(key=lambda c: by[c["beat_id"]]["end"])
+    film_end = max(sp["end"] for sp in spans)
+    due = [by[c["beat_id"]]["end"] for c in cards]
+    room = {c["beat_id"]: (due[k + 1] if k + 1 < len(cards) else film_end) - due[k]
+            for k, c in enumerate(cards)}
+    budget = cfg.max_share * film_end
+    by_id = {c["id"]: c for c in cards}
+    placed: list[dict] = []
+    shown: list[str] = []
+    used = 0.0
+    for app in appearances(cards, room):
+        start = by[app["beat_id"]]["end"]
+        hold = min(app["hold_seconds"], room[app["beat_id"]])
+        if hold < cfg.min_card_seconds or used + hold > budget:
+            continue  # no usable room yet — the card still joins the next appearance
+        if any(zoom_seconds(sh) and sh["start"] < start + hold and sh["end"] > start
+               for sh in shots):
+            continue  # a zoom map is never covered: the card joins the next appearance
+        used += hold
+        cumulative = [by_id[i] for i in app["cumulative_card_ids"]]
+        new_ids = [i for i in app["cumulative_card_ids"] if i not in shown]
+        shown = list(app["cumulative_card_ids"])
+        layout = board_layout(cumulative, language, ai_config.render.width,
+                              ai_config.render.height, total=len(cards))
+        card_shot = {"kind": "detective_board", "command": "DETECTIVE_BOARD",
+                    "card": {"cards": cumulative, "layout": layout, "new_card_ids": new_ids},
+                    "beat_id": app["beat_id"], "start": round(start, 3),
+                    "end": round(start + hold, 3), "motion": "NONE", "speed": 1.0,
+                    "transition_in": "FADE_BLACK",
+                    "why": "a new note is pinned to the detective board"}
+        _carve(shots, card_shot)
+        placed.append({"beat_id": app["beat_id"], "start": card_shot["start"],
+                      "end": card_shot["end"], "new_card_ids": new_ids,
+                      "cumulative_card_ids": shown})
+    return placed
+
+
+def zoom_seconds(shot: dict) -> float:
+    """The length of a zoom map's video (0 for every other shot): it always plays to its last
+    frame."""
+    if not shot.get("zoom_video") or shot.get("clip_end") is None:
+        return 0.0
+    return float(shot["clip_end"]) - float(shot.get("clip_start") or 0.0)
+
+
+def _stretch_seconds() -> float:
+    return float(ai_config.zoom().limits["max_stretch_seconds"])
+
+
+def _zoom_fits(fields: dict, slot: float) -> bool:
+    """The zoom may take at most ``max_stretch_seconds`` more than the narration's slot for its
+    place, so the pictures after it never run far behind their sentences."""
+    return zoom_seconds(fields) - slot <= _stretch_seconds() + 1e-6
+
+
+def _zoom_slot(shot: dict, start: float, end: float, film_end: float) -> tuple[float, bool]:
+    """(end of the zoom shot, whether the video had to be trimmed): the full clip when it fits
+    the slot plus the stretch, else (no old map to show instead) the clip cut at the stretch."""
+    need = zoom_seconds(shot)
+    reach = min(start + need, end + _stretch_seconds(), film_end)
+    return max(end, reach), start + need > reach + 1e-6
+
+
+def _hold_zoom_maps(shots: list[dict]) -> None:
+    """A zoom map that was given more time than its beat slot (see SHOW_MAP) takes that time
+    from the pictures after it: they start when the zoom has ended."""
+    for zoom in [s for s in shots if s.get("zoom_video")]:
+        if any(o is not zoom and o["start"] < zoom["end"] - 1e-6 and o["end"] > zoom["start"] + 1e-6
+               for o in shots):
+            shots.remove(zoom)
+            _carve(shots, zoom)
 
 
 def _carve(shots: list[dict], card: dict) -> None:
@@ -969,7 +1072,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             case_status: str | None = None, production_type: str | None = "original",
             opening_strategy: str | None = None, arrest_beat: str | None = None,
             reveal_blocks: dict[str, list[str]] | None = None,
-            cards: dict | None = None) -> dict:
+            cards: dict | None = None, board: dict | None = None) -> dict:
     """Pure function: manifest (audio timeline) + visual plan + localized
     texts -> production timeline. `incident_beat`: where the story's first
     incident happens (voice performance arc) — no investigation pictures
@@ -1101,8 +1204,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                     ok, why_not = tracker.allows(code, start, end)
                     who = tracker.named(code, named)
                     alts = pool(beat, recent | {code},
-                                (lambda x: open_(x) and bool(set(asset_facts(x)["entities"])
-                                                             & set(who)))
+                                (lambda x, who=who: open_(x) and bool(set(asset_facts(x)["entities"])
+                                                                      & set(who)))
                                 if who else open_)
                     alt = tracker.pick(alts, start, end, named, reserved=planned - {code},
                                        allow_repeat=False)
@@ -1170,18 +1273,39 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                 if shot.get("asset_id"):
                     tracker.add(shot["asset_id"], shot["start"], shot["end"])
             elif cmd == "SHOW_MAP":
-                maps = [assets[c] for c in s.get("map_assets") or [] if c in assets]
-                if not maps:
+                zoom = zoom_shot(s, assets, language)
+                old_map = fallback_chain(assets, s["map_zoom"]["place"]) if s.get("map_zoom") else []
+                if zoom is not None and not _zoom_fits(zoom["fields"], end - start) and old_map:
+                    zoom = None     # too long for what the narration gives it: the old map shows
+                maps = [] if zoom else (old_map if s.get("map_zoom")
+                                        else [assets[c] for c in s.get("map_assets") or [] if c in assets])
+                place = (s.get("map_info") or {}).get("place") or s.get("map_place")
+                if zoom is not None:
+                    shot.update({**zoom["fields"], "tier": facts[zoom["fields"]["asset_id"]]["tier"],
+                                 "place": place})
+                    # the zoom plays to its last frame, whatever the beat's slot: it takes the
+                    # time it needs (the film's end is the only limit) and the pictures after
+                    # it start later (_hold_zoom_maps)
+                    end, trimmed = _zoom_slot(shot, start, end, duration)
+                    shot["end"] = round(end, 3)
+                    if trimmed:
+                        shot["clip_end"] = round(shot["clip_start"] + (end - start), 3)
+                        shot["zoom_trimmed"] = True
+                    for line in zoom["fields"]["attribution"]:
+                        credits.add(line)
+                    add_overlay("place", texts.get(text_key),
+                                start + ai_config.zoom().limits["place_label_after_seconds"], end - 0.3)
+                    tracker.add(zoom["fields"]["asset_id"], start, end)
+                    current = shot
+                elif not maps:
                     shot.update({"command": "BLACK_SCREEN", "kind": "black", "motion": "NONE"})
                 else:
                     shot.update({"kind": "map", "map_paths": [m.local_path for m in maps],
                                  "marker": json.loads(maps[-1].spec_json or "{}").get("marker"),
                                  "asset_id": maps[-1].asset_code, "path": maps[-1].local_path,
                                  "type": "map", "tier": facts[maps[-1].asset_code]["tier"],
-                                 "place": (s.get("map_info") or {}).get("place")
-                                 or s.get("map_place")})
+                                 "place": place, "map_fallback": bool(s.get("map_zoom"))})
                     credits.add(ai_config.maps.attribution)
-                    add_overlay("credit", ai_config.maps.attribution, start, end)
                     add_overlay("place", texts.get(text_key), start + 1.0, min(start + 6.0, end - 0.5))
                     tracker.add(maps[-1].asset_code, start, end)
                     current = shot
@@ -1229,11 +1353,13 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                         planfw.custody, reveal_blocks)
     # the whole film at once: a fill never takes a picture shown later
     tracker = UsageTracker.from_shots(shots, facts)
+    _hold_zoom_maps(shots)
     shots = _clip_overruns(shots, plan, assets, order, guard, tracker, named_sents, starts)
     shots = _cap_black(shots, plan, assets, order, guard, att.max_black_seconds,
                        starts, tracker, named_sents)
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
     cards_left_out, intro = insert_chapter_cards(final, cards, spans, overlays)
+    board_appearances = insert_detective_board_cards(final, board, spans, overlays, language)
     for n, sh in enumerate(final):
         sh["index"] = n
         if n == 0:
@@ -1249,7 +1375,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     silences = [
         {"start": round(b["end"], 3), "duration": round(n["start"] - b["end"], 3),
          "kind": b.get("pause_after_kind")}
-        for b, n in zip(blocks, blocks[1:]) if n["start"] - b["end"] > 0.3
+        for b, n in zip(blocks, blocks[1:], strict=False) if n["start"] - b["end"] > 0.3
     ]
     return {
         "language": language,
@@ -1281,6 +1407,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         "firewall": guard.as_json(),
         # chapter / title cards that found no room (the gap was too short)
         "cards_left_out": cards_left_out,
+        "board": board_appearances,
         # the channel intro: in the cold open's break, or before the first word
         "intro": intro,
     }
@@ -1357,6 +1484,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                or (plan.get("opening") or {}).get("strategy"))
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
     from app.documentary.chapters import cards_for, latest_chapter_plan
+    from app.documentary.detective_board import board_cards_for, latest_board_plan
     from app.documentary.intros import intro_seconds
     from app.documentary.production import host_timeline as HT
 
@@ -1371,8 +1499,9 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     approved = approved_title(db, version.case_id, language)
     if approved and (cards.get("film_title") is not None or cards.get("cold_open")):
         cards["film_title"] = approved      # one title: the editor-approved one
+    board = board_cards_for(latest_board_plan(db, plan_row.blueprint_id), language)
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
-                     cards=cards,
+                     cards=cards, board=board,
                      arrest_beat=SP.arrest_beat(blueprint),
                      reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),

@@ -38,6 +38,7 @@ from app.db.models import HostScene, HostSegments, StoryVersion
 from app.documentary import stage_direction as SD
 from app.documentary import storage
 from app.documentary import studio as ST
+from app.documentary.identity_line import ends_with_identity, identity_line
 from app.documentary.text_order import logical_order_issues
 from app.utils import utc_now
 
@@ -112,6 +113,18 @@ def _fail(scene: HostScene, step: str, err: Exception, db: Session) -> None:
 # ---------------------------------------------------------------------------
 
 
+def planned_seconds(seg: dict, language: str) -> float | None:
+    """The seconds a scene is planned for: the writer's target, plus the fixed identity line the
+    app appended to an opening (the writer was not asked to fill those seconds)."""
+    from app.documentary.host import estimate_seconds
+
+    target = seg.get("target_seconds")
+    if target is not None and seg.get("position") == "opening" and ends_with_identity(
+            seg.get("avatar_dialogue") or "", language):
+        return round(target + estimate_seconds(identity_line(language), language), 1)
+    return target
+
+
 def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
     """One scene per written segment the host critic approved, with the
     channel's own studio and the framing for its position. Idempotent: a
@@ -155,7 +168,7 @@ def plan_host_scenes(db: Session, seg_row: HostSegments) -> list[HostScene]:
                                            "bottom": preset.host_bottom}),
             host_scale=preset.host_height_ratio,
             background_mode=r["profile"].background_mode,
-            planned_duration=seg.get("target_seconds"),
+            planned_duration=planned_seconds(seg, language),
             voice_id=cp["elevenlabs_voice_id"], avatar_provider=ai_config.avatar.provider,
             persona_file=seg_row.persona_file, persona_sha256=seg_row.persona_sha256,
             status="planned")

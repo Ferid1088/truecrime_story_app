@@ -1,0 +1,114 @@
+{
+  "shorts_host_led": {
+    "avatar_max_seconds": 22,
+    "hook_seconds_min": 4,
+    "hook_seconds_max": 8,
+    "hook_max_words": 20,
+    "outro_seconds_min": 5,
+    "outro_seconds_max": 14,
+    "end_card_seconds": 4,
+    "hook_camera_zoom_end": 1.08,
+    "hard_duration_max_seconds": 60,
+    "template_version": 1,
+    "asset_store_dir": "data/shared_assets",
+    "reading_hold_min_seconds": 3,
+    "reading_hold_max_seconds": 4,
+    "cover_label": {
+      "en": "TRUE CRIME",
+      "de": "TRUE CRIME",
+      "fa": "داستان جنایی واقعی",
+      "ar": "جرائم حقيقية"
+    },
+    "outro_sentence": {
+      "fa": "می‌خوای داستان‌های واقعیِ جنایی رو بر اساس واقعیت بشنوی؟ به کانال ما سر بزن و فالو کن.",
+      "en": "Want to hear true crime stories based on real facts? Visit our channel and follow.",
+      "de": "Willst du wahre Kriminalfälle hören, die auf Tatsachen beruhen? Schau auf unserem Kanal vorbei und folge uns.",
+      "ar": "هل تريد أن تسمع قصص جرائم حقيقية مبنية على الوقائع؟ زر قناتنا وتابعنا."
+    },
+    "channel_name": {
+      "en": "ClueVera",
+      "de": "Fallspur",
+      "fa": "رد خاموش",
+      "ar": "أثر خفي"
+    },
+    "channel_logo": {
+      "en": "data/logos/Logo_English.png",
+      "de": "data/logos/Logo_German.png",
+      "fa": "data/logos/Logo_Persian.png",
+      "ar": "data/logos/Logo_Arabic.png"
+    },
+    "music_provider": {
+      "name": "elevenlabs_music",
+      "api_base": "https://api.elevenlabs.io",
+      "endpoint": "/v1/music",
+      "model_id": "music_v2",
+      "tier_required": "pending_owner_confirmation",
+      "licence_cleared": true,
+      "allow_generation": true
+    },
+    "music_library": {
+      "channel_mood_family": {
+        "en": "flashlight: a single torch beam cutting through dark, empty rooms; patient, sparse, restrained",
+        "de": "trail and stamp: footsteps on a cold trail, a stamped file closing; measured, procedural",
+        "fa": "classical nylon guitar on its bass strings only, deep, no electric guitar, no vocal layer",
+        "ar": "sand and trace: wind over sand erasing a footprint; spare, dry, patient"
+      },
+      "moods": [
+        "searching",
+        "waiting",
+        "revealing",
+        "uneasy_calm"
+      ],
+      "track_length_seconds": 20,
+      "min_tracks_per_language": 3,
+      "max_tracks_per_language": 4,
+      "banned_prompt_phrases": [
+        "in the style of",
+        "sounds like",
+        "inspired by the song",
+        "inspired by the band",
+        "theme from",
+        "soundtrack of",
+        "cover of",
+        "sample of",
+        "as heard in"
+      ],
+      "plan_name": null,
+      "no_repeat_window_reels": 5,
+      "pinned_mood": "searching"
+    },
+    "music_attribution_text": {
+      "en": "Music created in collaboration with ElevenLabs",
+      "de": "Musik in Zusammenarbeit mit ElevenLabs erstellt",
+      "fa": "موسیقی با همکاری ElevenLabs ساخته شده است",
+      "ar": "تم إنشاء الموسيقى بالتعاون مع ElevenLabs"
+    },
+    "music_duck_db_under_speech": -14.0,
+    "music_level_db_visual_only": -8.0,
+    "music_duck_attack_seconds": 0.35,
+    "music_duck_release_seconds": 0.6,
+    "target_lufs": -14.0,
+    "banned_hook_phrases": [
+      "hi everyone",
+      "hey guys",
+      "welcome back",
+      "my name is",
+      "today i will"
+    ],
+    "pose_outfit_variants_min_per_language": 3,
+    "identity_line": {
+      "fa": "من فریدونم و اینجا داستان‌های جنایی واقعی رو واست تعریف می‌کنم.",
+      "en": "I'm Fereidoun, and here I tell you real true crime stories.",
+      "de": "Ich bin Fereidoun, und hier erzähle ich dir wahre Kriminalfälle.",
+      "ar": "أنا فريدون، وهنا أروي لك قصص الجرائم الحقيقية."
+    },
+    "closing_order": "cta_then_identity",
+    "closing_library": {
+      "target_variants": 6,
+      "recent_history": 3,
+      "seed": null,
+      "default_use_stored": true,
+      "default_create_new": true
+    }
+  }
+}

@@ -40,22 +40,23 @@ def env(tmp_path, monkeypatch, db_session):
     return tmp_path
 
 
-def make_hosts(tmp, outfits=("OUTFIT_TC_03", "OUTFIT_TC_01")):
+def make_hosts(tmp, outfits=("de/tc03", "de/tc01")):
     d = tmp / "outfits"
     d.mkdir(parents=True, exist_ok=True)
     for o in outfits:
-        outfit = d / o
+        name = o.split("/")[1]
+        outfit = d / "de" / name
         outfit.mkdir(parents=True, exist_ok=True)
-        for role in ("front", "full_body"):
+        for role in ("standHand", "sitHands"):
             im = Image.new("RGBA", (700, 1300), (0, 0, 0, 0))
             dr = ImageDraw.Draw(im)
             dr.ellipse((250, 40, 450, 260), fill=(205, 170, 140, 255))
             dr.rectangle((150, 260, 550, 1250), fill=(40, 52, 80, 255) if o.endswith("03")
                          else (90, 40, 40, 255))
-            im.save(outfit / f"{role}.png")
+            im.save(outfit / f"de_{name}_{role}.png")
 
 
-def make_case(db, name, status="UNSOLVED", title="Der verschwundene Kreis", lang="de", outfit="OUTFIT_TC_03"):
+def make_case(db, name, status="UNSOLVED", title="Der verschwundene Kreis", lang="de", outfit="de/tc03"):
     case = Case(canonical_title=name, slug=name.lower().replace(" ", "-") + "-th",
                 people_json=json.dumps(["Rita Haas"]))
     db.add(case)
@@ -98,7 +99,7 @@ def test_host_is_required(env, db_session):
     make_asset(db_session, case)
     with pytest.raises(H.HostMissing):                    # no manifest at all
         B.build_brief(db_session, case, "de")
-    make_hosts(env, outfits=("OUTFIT_TC_01",))
+    make_hosts(env, outfits=("de/tc01",))
     with pytest.raises(H.HostMissing):                    # not the video's outfit
         B.build_brief(db_session, case, "de")
     bad = {"host": {}, "case_visuals": [{"role": "primary"}], "language": "de",
@@ -111,10 +112,10 @@ def test_host_outfit_matches_the_episode_and_faces_the_picture(env, db_session):
     case = make_case(db_session, "Thumb outfit")
     make_asset(db_session, case)
     brief = B.build_brief(db_session, case, "de", side="left")
-    assert brief["host"]["outfit_id"] == "OUTFIT_TC_03" and brief["host"]["person"] == "Fereidoun"
-    assert brief["host"]["reference_asset"].endswith(("_front", "_full_body"))
+    assert brief["host"]["outfit_id"] == "de/tc03" and brief["host"]["person"] == "Fereidoun"
+    assert brief["host"]["reference_asset"].endswith(("_standHand", "_sitHands"))
     assert B.build_brief(db_session, case, "de", side="right")["host"]["reference_asset"].endswith(
-        ("_front", "_full_body"))
+        ("_standHand", "_sitHands"))
     with pytest.raises(H.HostMissing):
         B.build_brief(db_session, case, "de", pose="calm_nonexistent")
 
@@ -265,7 +266,7 @@ def test_composed_thumbnail_per_channel(env, db_session, lang, title, label, cha
     assert layout["host"][3] / 720 >= 0.8 and layout["host"][2] / 1280 >= 0.15  # host prominent
     assert layout["badge"][2] * layout["badge"][3] / (1280 * 720) <= 0.06       # badge small
     ident = T.get_identity(db_session, case.id, lang)
-    assert ident.host_outfit_id == "OUTFIT_TC_03" and ident.thumbnail_status_label == label
+    assert ident.host_outfit_id == "de/tc03" and ident.thumbnail_status_label == label
     assert "273" not in brief["episode_title"]
 
 
@@ -324,11 +325,11 @@ def test_api_flow(env, client, db_session, monkeypatch):
     asset = make_asset(db_session, case)
     make_asset(db_session, case, rights="do_not_use")
     opts = client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": "de"}).json()
-    assert opts["outfit_id"] == "OUTFIT_TC_03" and len(opts["host_poses"]) == 2
+    assert opts["outfit_id"] == "de/tc03" and len(opts["host_poses"]) == 2
     changed = client.patch(f"/api/cases/{case.id}/thumbnails/outfit",
-                           json={"language": "de", "outfit_id": "OUTFIT_TC_01"})
+                           json={"language": "de", "outfit_id": "de/tc01"})
     assert changed.status_code == 200, changed.text
-    assert client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": "de"}).json()["outfit_id"] == "OUTFIT_TC_01"
+    assert client.get(f"/api/cases/{case.id}/thumbnails/options", params={"language": "de"}).json()["outfit_id"] == "de/tc01"
     assert [u["asset_id"] for u in opts["usable"]] == [asset.id] and len(opts["rejected"]) == 1
     r = client.post(f"/api/cases/{case.id}/thumbnails", json={"language": "de", "side": "right"})
     assert r.status_code == 200, r.text

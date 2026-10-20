@@ -43,18 +43,6 @@
       "SEATED": "host",
       "STANDING": "host_standing"
     },
-    "outfit_reference_roles": {
-      "SEATED": [
-        "sitting_hands",
-        "sitting_crossed",
-        "front"
-      ],
-      "STANDING": [
-        "standing_3q",
-        "standing_pockets",
-        "full_body"
-      ]
-    },
     "continuity": {
       "max_change_per_cut": 4,
       "stance_weight": 3,

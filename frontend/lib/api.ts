@@ -952,6 +952,59 @@ export type MusicTrackRow = {
   generated: boolean;
 };
 
+export type ClosingEstimate = {
+  characters: number;
+  voice_eur: number;
+  seconds: number;
+  avatar_eur: number;
+  total_eur: number;
+};
+
+export type ClosingClipRow = {
+  id: number;
+  outfit: string;
+  position: string;
+  seconds: number;
+  cost_eur: number;
+  times_used: number;
+  last_used_at: string | null;
+  created_at: string;
+};
+
+export type ClosingLanguage = {
+  target: number;
+  variants: number;
+  approved_looks: number;
+  missing: number;
+  sentences: string[];
+  estimate_per_variant: ClosingEstimate;
+  clips: ClosingClipRow[];
+};
+
+export type ClosingOverview = {
+  settings: { use_stored: boolean; create_new: boolean };
+  closing_order: "cta_then_identity" | "identity_then_cta";
+  languages: Record<string, ClosingLanguage>;
+};
+
+export type ClosingCreateResult = {
+  estimate: { variants: number; per_variant: ClosingEstimate; total_eur: number };
+  created: { id: number; outfit: string; position: string; seconds: number; cost_eur: number }[];
+  actual_eur?: number;
+};
+
+export const closingApi = {
+  overview: () => request<ClosingOverview>("/api/closing-clips"),
+  setSettings: (payload: { use_stored?: boolean; create_new?: boolean }) =>
+    put<ClosingOverview["settings"]>("/api/closing-clips/settings", payload),
+  createMissing: (language: string, caseId: number, confirm: boolean) =>
+    post<ClosingCreateResult>("/api/closing-clips/create-missing", {
+      language,
+      case_id: caseId,
+      confirm,
+    }),
+};
+
 export const musicApi = {
   source: () => request<MusicSource>("/api/documentary/music/source"),
   tracks: () => request<MusicTrackRow[]>("/api/documentary/music"),

@@ -140,6 +140,13 @@
       "description": "Approve or reject card texts.",
       "used_by": "app/agents/chapters.py"
     },
+    "documentary.detective_board.write": {
+      "role": "chapter_writer",
+      "prompt": "documentary/detective_board/writer_system",
+      "output": "json",
+      "description": "Short native-language detective-board card titles.",
+      "used_by": "app/agents/detective_board.py"
+    },
     "shorts.write": {
       "role": "chapter_writer",
       "prompt": "shortform/writer",

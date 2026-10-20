@@ -41,6 +41,8 @@ def decide(v: dict) -> tuple[str, float, str | None]:
     if v.get("watermark"):
         return "rejected", conf, "watermark"
     if v.get("graphic_or_sensitive"):
+        if is_archival_case_photo(v):
+            return "needs_review", conf, "graphic_archival"
         return "rejected", conf, "graphic_or_sensitive"
     if v.get("tone_ok") is False:
         return "rejected", conf, "tone"
@@ -68,6 +70,27 @@ def decide(v: dict) -> tuple[str, float, str | None]:
     if v.get("matches_claim") == "yes" and conf >= cfg.verified_min_confidence:
         return "verified", conf, None
     return "needs_review", conf, "uncertain"
+
+
+def is_archival_case_photo(v: dict) -> bool:
+    """A period photograph of the case's own events (it supports known facts of the case): graphic
+    for a viewer, but the core material of a true-crime film, so the owner decides on it."""
+    return (v.get("period_ok") == "yes" and v.get("role") == "evidence"
+            and bool(v.get("reveals")) and v.get("tone_ok") is not False)
+
+
+def normalize_fact_match(verdict: dict, known_fact_ids: set[str]) -> dict:
+    """A picture that is not what it was found for (a portrait was searched) but is period
+    material of a kind in ``other_entity_subjects`` that supports known facts of the case (the
+    scene of the event) is kept as a match for those facts instead of being rejected."""
+    out = dict(verdict)
+    facts = [f for f in out.get("reveals") or [] if f in known_fact_ids]
+    if (out.get("matches_claim") == "no" and facts and out.get("period_ok") == "yes"
+            and out.get("role") == "evidence"
+            and str(out.get("subject_type") or "") in ai_config.visual_verification.other_entity_subjects):
+        out["matches_claim"] = "yes"
+        out["fact_match"] = sorted(set(facts))
+    return out
 
 
 def normalize_composite_match(verdict: dict, known_entity_keys: set[str]) -> dict:

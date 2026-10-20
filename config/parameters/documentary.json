@@ -131,6 +131,9 @@
         "greeting_patterns": [
           "^\\s*(?:hi|hello|hey|welcome|greetings|good (?:evening|morning|day))\\b"
         ],
+        "handover_patterns": [
+          "\\b(?:let'?s (?:go|get|start|begin|dive|jump)|now (?:let'?s|to) (?:the|our) (?:story|case)|here'?s the story|the story (?:begins|starts)|so,? (?:let'?s )?(?:begin|start))\\b"
+        ],
         "question_marks": [
           "?"
         ],
@@ -160,6 +163,9 @@
         "greeting_patterns": [
           "^\\s*(?:hallo|hi|hey|willkommen|guten (?:abend|morgen|tag)|liebe[rn]?)\\b"
         ],
+        "handover_patterns": [
+          "\\b(?:fangen wir an|los geht'?s|(?:die|der) (?:geschichte|fall) (?:beginnt|startet)|(?:dann )?(?:mal )?los|gehen wir (?:in|zu|an) |starten wir)\\b"
+        ],
         "question_marks": [
           "?"
         ],
@@ -184,6 +190,9 @@
         ],
         "greeting_patterns": [
           "^\\s*(?:سلام|درود|خوش[ ‌]?آمدید|بینندگان)"
+        ],
+        "handover_patterns": [
+          "(?:بریم سراغ|برو?یم سراغ|شروع کنیم|داستان شروع می‌?شه|بریم به داستان|بریم تو داستان)"
         ],
         "question_marks": [
           "؟",
@@ -214,6 +223,9 @@
         ],
         "greeting_patterns": [
           "^\\s*(?:مرحبا|مرحباً|أهلا|أهلاً|السلام عليكم|مساء الخير|صباح الخير)"
+        ],
+        "handover_patterns": [
+          "(?:لنبدأ|هيا بنا|هيا إلى|لننتقل إلى|تبدأ القصة|هيا نبدأ)"
         ],
         "question_marks": [
           "؟",

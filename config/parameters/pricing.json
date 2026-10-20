@@ -149,5 +149,12 @@
       "expected": 1.0,
       "high": 1.25
     }
+  },
+  "elevenlabs_sound": {
+    "provider_model": "ElevenLabs sound-generation / Eleven Music API (used by app/documentary/music.py)",
+    "eur_per_minute": null,
+    "verified": false,
+    "verification_note": "Secondary sources (not ElevenLabs official docs) disagree: USD 0.12-0.30 per minute depending on source and whether sound-generation or Eleven Music v1/v2 is meant. Needs a real wallet-balance-before/after measurement, same method as heygen.eur_per_minute, before booking any cost.",
+    "source_url": null
   }
 }

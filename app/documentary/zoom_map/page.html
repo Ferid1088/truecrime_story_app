@@ -1,0 +1,129 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="http://maps.local/lib/maplibre-gl.css">
+<style>html,body,#map{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head>
+<body><div id="map"></div>
+<script src="http://maps.local/lib/maplibre-gl.js"></script>
+<script src="http://maps.local/lib/pmtiles.js"></script>
+<script src="http://maps.local/lib/basemaps.js"></script>
+<script>
+const PROTOCOL = new pmtiles.Protocol();
+maplibregl.addProtocol('pmtiles', PROTOCOL.tile);
+// Persian and Arabic labels need the shaping of connected letters and right-to-left runs
+maplibregl.setRTLTextPlugin('http://maps.local/lib/rtl-text.js', false);
+
+function labelled(layer, textField) {
+  // one name per label, from the language chain: never two scripts in one label
+  if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']
+      && JSON.stringify(layer.layout['text-field']).includes('"name"')) {
+    layer.layout['text-field'] = textField;
+    layer.layout['text-font'] = ['Noto Sans Regular'];
+  }
+  return layer;
+}
+
+function fade(min, max, fadeLevels) {
+  // opacity over the map zoom: in over one level before `min`, out over `fadeLevels` after `max`
+  const stops = [];
+  if (min > 0.5) stops.push([min - 1, 0]);
+  stops.push([min, 1], [max, 1], [max + fadeLevels, 0]);
+  return ['interpolate', ['linear'], ['zoom'], ...stops.flat()];
+}
+
+window.start = (cfg) => new Promise((resolve, reject) => {
+  const flavor = basemaps.namedFlavor(cfg.flavor);
+  flavor.background = cfg.background;
+  const base = basemaps.layers('protomaps', flavor, {lang: cfg.lang})
+    .map(l => labelled(l, cfg.textField));
+  const layers = base.slice();
+  const imageryLayer = e => ({
+    id: 'img_' + e.id, type: 'raster', source: 'img_' + e.id,
+    paint: {'raster-opacity': fade(e.mapMin, e.mapMax, cfg.fadeLevels),
+            'raster-brightness-max': cfg.dim, 'raster-saturation': -0.15,
+            'raster-fade-duration': 0}});
+  // photographs lie under the vector water (so the sea stays clean), the globe's oceans over it
+  for (const [anchor, over] of [['water', false], ['roads_tunnels_other_casing', true]]) {
+    const at = layers.findIndex(l => l.id === anchor);
+    layers.splice(at, 0, ...cfg.imagery.filter(e => e.overWater === over).map(imageryLayer));
+  }
+  // the flat buildings give way to the photographs, and come back where the imagery ends
+  const b = layers.find(l => l.id === 'buildings');
+  if (b) b.paint['fill-opacity'] = ['interpolate', ['linear'], ['zoom'],
+      cfg.imageryEnd, 0, cfg.imageryEnd + cfg.fadeLevels, cfg.buildingOpacity];
+  if (cfg.extrude) layers.push({
+    id: 'buildings3d', type: 'fill-extrusion', source: 'protomaps', 'source-layer': 'buildings',
+    minzoom: 13.5, filter: ['in', 'kind', 'building', 'building_part'],
+    paint: {'fill-extrusion-color': cfg.buildingColor,
+            'fill-extrusion-height': ['coalesce', ['get', 'height'], 7],
+            'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
+            'fill-extrusion-opacity': 0.94, 'fill-extrusion-vertical-gradient': true}});
+  layers.push(
+    {id: 'route', type: 'line', source: 'route', layout: {'line-cap': 'round', 'line-join': 'round'},
+     paint: {'line-color': cfg.routeColor, 'line-width': 4, 'line-opacity': 0.95}},
+    {id: 'pulse', type: 'circle', source: 'marker',
+     paint: {'circle-radius': 0, 'circle-color': cfg.markerColor, 'circle-opacity': 0,
+             'circle-pitch-alignment': 'map'}, filter: ['==', ['get', 'role'], 'target']},
+    {id: 'dots', type: 'circle', source: 'marker',
+     paint: {'circle-radius': 6, 'circle-color': cfg.markerColor, 'circle-stroke-width': 2,
+             'circle-stroke-color': '#0b0f14', 'circle-pitch-alignment': 'map'}});
+  const sources = {
+    protomaps: {type: 'vector', url: 'pmtiles://http://maps.local/region.pmtiles', attribution: ''},
+    route: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
+    marker: {type: 'geojson', data: {type: 'FeatureCollection', features: []}}};
+  for (const e of cfg.imagery) {
+    sources['img_' + e.id] = {type: 'raster', tileSize: 256, minzoom: e.zoomMin, maxzoom: e.zoomMax,
+      tiles: ['http://maps.local/imagery/' + e.id + '/{z}/{x}/{y}'], ...(e.bounds ? {bounds: e.bounds} : {})};
+  }
+  window.map = new maplibregl.Map({
+    container: 'map', fadeDuration: 0, interactive: false, attributionControl: false,
+    canvasContextAttributes: {preserveDrawingBuffer: true}, maxPitch: 85,
+    style: {version: 8, projection: {type: 'globe'}, glyphs: 'http://maps.local/glyphs/{fontstack}/{range}.pbf',
+            sprite: 'http://maps.local/sprites/' + cfg.flavor, sources, layers}});
+  window.mapError = null;
+  // a missing imagery tile is normal (no coverage); anything else (style, sprite, glyphs) is a failure
+  map.on('error', e => { if (!e.sourceId) window.mapError = (e.error && e.error.message) || String(e); });
+  map.on('load', () => resolve(true));
+});
+
+function slerp(a, b, t) {
+  const r = Math.PI / 180, toV = p => [Math.cos(p[1]*r)*Math.cos(p[0]*r), Math.cos(p[1]*r)*Math.sin(p[0]*r), Math.sin(p[1]*r)];
+  const va = toV(a), vb = toV(b);
+  const d = Math.acos(Math.min(1, Math.max(-1, va[0]*vb[0] + va[1]*vb[1] + va[2]*vb[2])));
+  if (d < 1e-6) return a;
+  const s = Math.sin(d), w1 = Math.sin((1 - t) * d) / s, w2 = Math.sin(t * d) / s;
+  const v = [w1*va[0] + w2*vb[0], w1*va[1] + w2*vb[1], w1*va[2] + w2*vb[2]];
+  return [Math.atan2(v[1], v[0]) / r, Math.asin(v[2]) / r];
+}
+
+window.frame = (f) => new Promise((resolve) => {
+  const m = window.map;
+  if (f.route) {
+    const n = 48, pts = [];
+    const last = Math.max(1, Math.round(n * f.line));
+    for (let i = 0; i <= last; i++) pts.push(slerp(f.route[0], f.route[1], (i / last) * f.line));
+    m.getSource('route').setData({type: 'Feature', geometry: {type: 'LineString', coordinates: pts}});
+  }
+  const feats = f.markers.map(p => ({type: 'Feature', properties: {role: p.role}, geometry: {type: 'Point', coordinates: p.at}}));
+  m.getSource('marker').setData({type: 'FeatureCollection', features: feats});
+  if (f.pulse === null) { m.setPaintProperty('pulse', 'circle-opacity', 0); m.setPaintProperty('pulse', 'circle-radius', 0); }
+  else {
+    m.setPaintProperty('pulse', 'circle-radius', 8 + f.pulseRadius * f.pulse);
+    m.setPaintProperty('pulse', 'circle-opacity', 0.55 * (1 - f.pulse));
+  }
+  m.jumpTo({center: [f.lon, f.lat], zoom: f.zoom, pitch: f.pitch, bearing: f.bearing});
+  // `idle` can arrive before the symbol placement of the new view has settled (under load the
+  // screenshot then shows a half-placed frame): after it, wait for a few more rendered frames
+  // with everything loaded, so the same input always gives the same picture
+  const settle = () => {
+    let frames = 0;
+    const onRender = () => {
+      if (!m.loaded()) { m.triggerRepaint(); return; }
+      if (++frames >= 3) { m.off('render', onRender); resolve(true); } else m.triggerRepaint();
+    };
+    m.on('render', onRender);
+    m.triggerRepaint();
+  };
+  m.once('idle', settle);
+  m.triggerRepaint();
+});
+</script></body></html>

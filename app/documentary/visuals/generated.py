@@ -83,6 +83,20 @@ async def _previous_point(previous) -> tuple[float, float] | None:
     return MAPS.as_point(previous)
 
 
+async def zoom_info(db: Session, case: Case, place: str, previous=None, returns: int = 0) -> dict | None:
+    """Where a zoom-in map beat goes: the place's coordinates and granularity (cached geocoding),
+    and the place shown before it (the route variant starts there). None: the place cannot be found."""
+    prev = await _previous_point(previous)
+    geo = await MAPS.geocode(place, near=prev or await _case_anchor(db, case, place))
+    if not geo:
+        return None
+    after = None
+    if isinstance(previous, dict) and previous.get("place") and previous["place"] != place:
+        after = {"place": previous["place"], "lat": previous["lat"], "lon": previous["lon"]}
+    return {"place": place, "lat": geo["lat"], "lon": geo["lon"],
+            "granularity": geo.get("granularity") or "city", "return": returns, "after": after}
+
+
 async def map_chain(db: Session, case: Case, place: str, previous=None) -> dict | None:
     """The map sequence of one place: one library asset per zoom of its
     zoom chain (wide -> close), chosen by the place's granularity and,
@@ -226,12 +240,23 @@ async def materialize(db: Session, case: Case, plan_row: VisualPlan) -> dict:
             cmd = s["command"]
             if cmd == "SHOW_MAP":
                 place = s.get("map_place") or req.get("map_place")
-                info = await map_chain(db, case, place, previous) if place else None
+                zoom = (ai_config.zoom_map is not None and ai_config.zoom_map.enabled)
+                if zoom:   # the zoom shot is rendered per language (labels), the old chain only if that fails
+                    info = await zoom_info(db, case, place, previous, int(s.get("map_return") or 0)) \
+                        if place else None
+                else:
+                    info = await map_chain(db, case, place, previous) if place else None
                 if not info:
                     stats["dropped"] += 1
                     s.update({"command": "KEEP_CURRENT_IMAGE", "motion": "CONTINUE",
                               "why": "map unavailable (geocoding failed)"})
                     s.pop("overlay", None)
+                elif zoom:
+                    s["map_zoom"] = info
+                    s["map_info"] = {"place": place, "granularity": info["granularity"],
+                                     "after_place": (previous or {}).get("place")}
+                    previous = {"place": place, "lat": info["lat"], "lon": info["lon"]}
+                    stats["maps"] += 1
                 else:
                     s["map_assets"] = [a.asset_code for a in info["assets"]]
                     s["map_info"] = {

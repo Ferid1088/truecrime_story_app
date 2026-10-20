@@ -1853,6 +1853,36 @@ def test_documentary_api(client, db_session, monkeypatch, tmp_path):
     assert {m["cue_id"] for m in music} >= {"bed_mystery", "sting_reveal"}
 
 
+def test_a_name_whose_nearest_answer_is_far_is_asked_again_for_the_area_of_the_case(tmp_path, monkeypatch):
+    from app.documentary.visuals import maps as MAPS
+
+    monkeypatch.setattr(MAPS, "cache_dir", lambda: tmp_path)
+    calls = []
+    answers = {
+        False: [{"lat": "40.95", "lon": "-72.93", "display_name": "Rocky Point, Suffolk County, New York"}],
+        True: [{"lat": "41.69", "lon": "-71.36", "display_name": "Rocky Point, Warwick, Rhode Island"}],
+    }
+
+    async def fake_get(client, url, params=None):
+        calls.append(params)
+
+        class R:
+            @staticmethod
+            def json():
+                return answers["viewbox" in params]
+
+        return R()
+
+    monkeypatch.setattr(MAPS, "_polite_get", fake_get)
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
+            return await MAPS.geocode("Rocky Point", client=client, near=(41.70, -71.15))
+    got = asyncio.run(run())
+    assert got["display_name"].endswith("Rhode Island")
+    assert len(calls) == 2 and "viewbox" not in calls[0] and "viewbox" in calls[1]
+
+
 def test_ambiguous_place_names_resolve_near_the_case(tmp_path, monkeypatch):
     from app.documentary.visuals import maps as MAPS
 

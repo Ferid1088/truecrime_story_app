@@ -386,3 +386,35 @@ def test_each_timeline_label_appears_once():
     # moving to T2 in the beat that also tells later dates: those are not shown yet
     tl = timeline_card({**cards, "beat_order": ["B1"]}, "B1", "T2", None, "en")
     assert [lb["text"] for lb in tl["labels"]] == ["1997", "1998"]
+
+
+def _zoom(start, end, beat="B02"):
+    return _shot(start, end, beat, kind="map", zoom_video=True, clip_start=0.0,
+                 clip_end=end - start, asset_id="VIS_000900", path="z.mp4", motion="NONE")
+
+
+def _cards_around(zoom):
+    spans = _manifest()["timeline"]["beats"]
+    shots = [_shot(0, 21.0, "B01"), _shot(21.0, 40.0, "B02"), _zoom(*zoom),
+             _shot(zoom[1], 100.0, "B03")] if zoom[0] > 40 else [_zoom(*zoom)]
+    shots = [s for s in shots if s["end"] > s["start"]]
+    left, _ = insert_chapter_cards(shots, CARDS, spans, [])
+    return shots, left
+
+
+def test_a_chapter_card_waits_until_a_playing_zoom_has_ended():
+    lead = ai_config.chapters.lead_out_seconds
+    shots, left = _cards_around((50.0, 54.0))             # the card would start at 53.1
+    zoom = next(s for s in shots if s.get("zoom_video"))
+    chapter2 = [s for s in shots if s["kind"] == "chapter"][-1]
+    assert (zoom["start"], zoom["end"]) == (50.0, 54.0)          # the zoom plays to its end
+    assert chapter2["start"] >= 54.0 and chapter2["end"] == round(58.0 - lead, 3)
+
+
+def test_a_card_never_moves_into_speech_to_wait_for_a_zoom():
+    shots, left = _cards_around((50.0, 65.0))             # the zoom plays past B03's first word
+    zoom = next(s for s in shots if s.get("zoom_video"))
+    assert zoom["end"] == 65.0
+    lead = ai_config.chapters.lead_out_seconds
+    assert not any(s["kind"] == "chapter" and s["end"] == round(58.0 - lead, 3) for s in shots)
+    assert any("zoom" in item["why"] for item in left)

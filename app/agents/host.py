@@ -46,6 +46,7 @@ from app.documentary.host import (
 from app.documentary.host_firewall import reveal_issues
 from app.documentary.host_planning import story_seconds, validate_host_plan
 from app.documentary.host_story import HostStory, load_story
+from app.documentary.identity_line import ends_with_identity, identity_line, strip_identity, with_identity
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
@@ -234,14 +235,21 @@ class HostDirector:
                    if s["segment_id"] != scene.host_segment_id and s.get("avatar_dialogue")
                    and s["cutoff"] <= seg["cutoff"]]
         wi = writer_input(story, seg, scene.language, arch_mem, recent, earlier, self.cfg)
-        words = len(scene.text.split())
-        measured = scene.voice_seconds or estimate_seconds(scene.text, scene.language)
+        # the fixed identity line closing an opening is never rewritten: only the words before it
+        # are, to the seconds left for them
+        fixed = seg["position"] == "opening" and ends_with_identity(scene.text, scene.language)
+        body = strip_identity(scene.text, scene.language) if fixed else scene.text
+        identity_seconds = estimate_seconds(identity_line(scene.language), scene.language) if fixed else 0.0
+        words = len(body.split())
+        measured = max((scene.voice_seconds or estimate_seconds(scene.text, scene.language))
+                       - identity_seconds, 1.0)
+        target_seconds = target_seconds - identity_seconds
         needed = max(int(round(words * target_seconds / measured)), 1)
         problems = [{"check": "pronunciation", "quote": ", ".join(avoid),
                      "fix": "The voice says these words wrongly even with vowel marks. Say the "
                             "same thing with other words (a synonym or another phrasing); keep "
                             "names as they are."}] if avoid else []
-        fix = {**wi, "previous_dialogue": scene.text, "problems_to_fix": problems + [{
+        fix = {**wi, "previous_dialogue": body, "problems_to_fix": problems + [{
             "check": "length", "quote": "",
             "fix": (f"This dialogue was spoken in {measured:.1f} s; the appearance must take "
                     f"{target_seconds:.0f} s. Rewrite it with {int(needed * 0.96)} to {int(needed * 1.04) + 1} words: "
@@ -254,7 +262,7 @@ class HostDirector:
                 self.cfg.writer_agents[scene.language],
                 writer_system_prompt(scene.language, self.cfg), fix)
             text = parse_writer(raw)["dialogue"]
-            if not text or text == scene.text:
+            if not text or text == body:
                 raise RuntimeError("the writer did not change the host dialogue")
             issues = [i for i in dialogue_issues(seg, text, scene.language, recent, earlier,
                                                  self.cfg)
@@ -266,6 +274,8 @@ class HostDirector:
                    "problems_to_fix": fix["problems_to_fix"][:len(problems) + 1] + issues}
         else:
             raise RuntimeError(f"the retimed host dialogue fails its checks: {issues[0]['type']}")
+        if fixed:
+            text = with_identity(text, scene.language)
         for entry in segments:
             if entry["segment_id"] == scene.host_segment_id:
                 entry["avatar_dialogue"] = text

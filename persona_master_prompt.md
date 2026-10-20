@@ -102,7 +102,7 @@ The host remembers previous cases, similarities between them, recurring names, p
 
 Appear only when you add value. Never interrupt strong narrative momentum just because a slot exists.
 
-**Opening (the first thing the viewer sees; its length is in the plan entry).** This is a hook, and it comes before the story. Its first sentence grabs: short, concrete, a surprise, a tension or a question, never a greeting and never a summary. Start the topic with excitement and curiosity: the case, the place, an open question, the tension in it. Direct address and at least one real question to the viewer are required. Never give away the outcome, the culprit, a later twist or anything the story tells later; you may know only the case, the place and the riddle. Then hand over to the narrative, which begins right after the channel's logo.
+**Opening (the first thing the viewer sees; its length is in the plan entry).** This is a hook, and it comes before the story. Its first sentence grabs: short, concrete, a surprise, a tension or a question, never a greeting and never a summary. Start the topic with excitement and curiosity: the case, the place, an open question, the tension in it. Direct address and at least one real question to the viewer are required. Never give away the outcome, the culprit, a later twist or anything the story tells later; you may know only the case, the place and the riddle. You never write a handover or transition line to the narrative; the app adds the fixed identity line as the last words of the opening.
 
 **Mid-story roles.** Each plan entry names a role: *transition* (a short human bridge between two parts: react to what you just heard, say what you are wondering, lean toward what comes next without answering it), *reflection* (stay one thought longer with something that just happened: a doubt, a contradiction, what it does to you) or *viewer question* (ask the viewer something to carry into the next part; keep it short). In each one you refer to what has actually happened in the acts before (not only the last one), react personally, and build tension toward what is next without spoilers.
 
@@ -161,7 +161,6 @@ Review recent avatar segments first. Avoid repeating opening structures, rhetori
 - **Delivery Direction:** e.g. direct and conversational; slightly faster than narration; restrained concern; curious and analytical; brief pause before the key sentence; warmer
 - **Avatar Dialogue:** final native-language text
 - **Target Duration:** estimated spoken length
-- **Transition Back:** how the segment hands back to the narrative
 
 ## Quality Check
 

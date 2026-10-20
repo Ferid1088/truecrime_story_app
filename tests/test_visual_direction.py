@@ -1178,3 +1178,113 @@ def test_a_critic_fix_takes_the_illustration_label_with_the_picture():
     apply_fixes(script, [{"shot": 1, "severity": "high", "fix": "keep_previous"}], {})
     assert [s["asset_id"] for s in script["shots"]] == ["VIS_000001"]
     assert not [o for o in script["overlays"] if o["kind"] == "label"]
+
+
+def _zoom_film(share, clip_seconds=16.0, static_map=True):
+    """A film whose B02 starts with a zoom map for `share` of the beat, then two pictures."""
+    from app.documentary.zoom_map.shot import spec_key
+
+    m = {"duration_seconds": 60.0, "files": {"narration_wav": "n.wav"},
+         "timeline": {"beats": [{"beat_id": "B01", "start": 0.0, "end": 14.5},
+                                {"beat_id": "B02", "start": 15.0, "end": 59.5}],
+                      "blocks": [], "words": [],
+                      "sentences": [{"start": t, "end": t + 7.0, "display": f"s{t:g}",
+                                     "speech": f"s{t:g}"} for t in range(0, 60, 8)]}}
+    info = {"place": "Fall River", "lat": 41.70, "lon": -71.15, "return": 0, "granularity": "city"}
+    spec = {"key": spec_key("en", "Fall River", 0, "zoom_in", 41.70, -71.15), "kind": "zoom",
+            "variant": "zoom_in", "seconds": clip_seconds, "marker": {"lat": 41.7, "lon": -71.15},
+            "attribution": ["© OpenStreetMap contributors"]}
+    assets = {"VIS_000011": _asset("VIS_000011", entity_type="person", entity_key="caleb",
+                                   entities_json='["caleb"]', relevance_tier=2),
+              "VIS_000012": _asset("VIS_000012", relevance_tier=1, entity_type="building",
+                                   entities_json='["the_house"]'),
+              "VIS_000013": _asset("VIS_000013", relevance_tier=1, entity_type="building",
+                                   entities_json='["the_barn"]'),
+              "VIS_000030": _asset("VIS_000030", asset_type="map", asset_role="context",
+                                   provider="generated", rights_status="owned",
+                                   local_path="z.mp4", spec_json=json.dumps(spec),
+                                   relevance_tier=3, entities_json="[]")}
+    if static_map:
+        assets["VIS_000031"] = _asset(
+            "VIS_000031", asset_type="map", asset_role="context", provider="generated",
+            rights_status="owned", local_path="m.jpg", relevance_tier=3, entities_json="[]",
+            spec_json=json.dumps({"key": "map|fall river|10", "zoom": 10,
+                                  "marker": {"lat": 41.7, "lon": -71.15}}))
+    plan = {"candidates": {"B01": ["VIS_000011"], "B02": ["VIS_000012", "VIS_000013"]},
+            "beats": [
+                {"beat_id": "B01", "shots": [{"command": "NEW_IMAGE", "asset_id": "VIS_000011",
+                                              "share": 1.0, "motion": "SLOW_PUSH"}]},
+                {"beat_id": "B02", "shots": [
+                    {"command": "SHOW_MAP", "share": share, "map_zoom": info,
+                     "map_place": "Fall River", "motion": "MAP_ZOOM"},
+                    {"command": "NEW_IMAGE", "asset_id": "VIS_000012",
+                     "share": (1 - share) / 2, "motion": "SLOW_PULL"},
+                    {"command": "NEW_IMAGE", "asset_id": "VIS_000013",
+                     "share": (1 - share) / 2, "motion": "SLOW_PULL"}]}]}
+    plan["beats"][1]["shots"][0]["overlay"] = {"kind": "place", "text_en": "Fall River"}
+    return compose(m, plan, assets, {"place|Fall River": "Fall River"}, "en")
+
+
+def _with_stretch(monkeypatch, seconds):
+    monkeypatch.setitem(ai_config.zoom_map.limits, "max_stretch_seconds", seconds)
+
+
+def _max_drift(result, monkeypatch, **film):
+    """How much later than in the same film with no stretch allowed (the narration anchors) any
+    picture starts."""
+    _with_stretch(monkeypatch, 0.0)
+    anchors = {x["asset_id"]: x["start"] for x in _zoom_film(**film)["shots"]
+               if x.get("asset_id") and not x.get("zoom_video")}
+    return max(x["start"] - anchors[x["asset_id"]] for x in result["shots"]
+               if x.get("asset_id") in anchors)
+
+
+def test_a_16s_zoom_in_a_5s_slot_does_not_delay_later_pictures_beyond_the_cap(monkeypatch):
+    cap = ai_config.zoom_map.limits["max_stretch_seconds"]
+    assert cap == 3.0
+    result = _zoom_film(share=5.0 / 44.5)
+    assert _max_drift(result, monkeypatch, share=5.0 / 44.5) <= cap + 0.01
+    # the zoom does not fit its slot: the old map shows instead, never a cut zoom
+    assert not any(x.get("zoom_video") for x in result["shots"])
+    assert any(x.get("asset_id") == "VIS_000031" for x in result["shots"])
+
+
+def test_a_zoom_that_needs_a_little_more_time_stretches_by_at_most_the_cap(monkeypatch):
+    share = 13.5 / 44.5                                   # a 13.5 s slot for a 16 s zoom
+    result = _zoom_film(share=share)
+    cap = ai_config.zoom_map.limits["max_stretch_seconds"]
+    zoom = next(x for x in result["shots"] if x.get("zoom_video"))
+    assert zoom["end"] - zoom["start"] == pytest.approx(16.0, abs=0.01)    # played to the end
+    assert _max_drift(result, monkeypatch, share=share) <= cap + 0.01
+    assert all(a["end"] <= b["start"] + 0.01 for a, b in zip(result["shots"], result["shots"][1:], strict=False))
+
+
+def test_a_zoom_that_fits_its_slot_changes_nothing(monkeypatch):
+    result = _zoom_film(share=20.0 / 44.5)
+    zoom = next(x for x in result["shots"] if x.get("zoom_video"))
+    assert zoom["end"] - zoom["start"] >= 16.0 and "zoom_trimmed" not in zoom
+    assert _max_drift(result, monkeypatch, share=20.0 / 44.5) == pytest.approx(0.0, abs=0.01)
+
+
+@pytest.mark.parametrize("seconds", [3.0, 5.0, 8.0, 11.0, 13.0, 14.5, 16.0, 20.0, 30.0])
+def test_no_picture_of_the_film_sits_further_from_its_sentence_than_the_tolerance(seconds, monkeypatch):
+    share = seconds / 44.5
+    result = _zoom_film(share=share)
+    cap = ai_config.zoom_map.limits["max_stretch_seconds"]
+    assert _max_drift(result, monkeypatch, share=share) <= cap + 0.01
+
+
+def test_without_an_old_map_a_zoom_too_long_for_its_slot_is_trimmed_to_the_cap(monkeypatch):
+    result = _zoom_film(share=5.0 / 44.5, static_map=False)
+    cap = ai_config.zoom_map.limits["max_stretch_seconds"]
+    zoom = next(x for x in result["shots"] if x.get("zoom_video"))
+    assert zoom["end"] - zoom["start"] <= 5.5 + cap       # the slot (snapped to a sentence) + the cap
+    assert zoom["zoom_trimmed"] is True and zoom["clip_end"] == pytest.approx(zoom["end"] - zoom["start"], abs=0.01)
+    assert _max_drift(result, monkeypatch, share=5.0 / 44.5, static_map=False) <= cap + 0.01
+
+
+def test_the_place_label_of_a_zoom_map_ends_with_the_clip():
+    result = _zoom_film(share=13.5 / 44.5)
+    zoom = next(x for x in result["shots"] if x.get("zoom_video"))
+    labels = [o for o in result["overlays"] if o["kind"] == "place"]
+    assert labels and all(o["end"] <= zoom["end"] + 0.01 for o in labels)

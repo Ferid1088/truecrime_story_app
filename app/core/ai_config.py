@@ -12,6 +12,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -640,7 +641,6 @@ class HostLooksConfig(BaseModel):
     studio_zone: dict[str, str]
     # The pictures of the outfit (data/outfits/<slug>/<role>.png) a look is generated from, in
     # order of preference, per stance.
-    outfit_reference_roles: dict[str, list[str]]
     continuity: LookContinuity
 
 
@@ -1703,6 +1703,9 @@ class HostLanguageRules(BaseModel):
     formal_patterns: list[str] = Field(default_factory=list)
     # None may match the start of an opening: greeting filler.
     greeting_patterns: list[str] = Field(default_factory=list)
+    # None may match the LAST sentence of an opening: a handover line ("now let's go to the
+    # story"); the opening ends with the fixed identity line instead.
+    handover_patterns: list[str] = Field(default_factory=list)
     # Sentence-ending marks that make a sentence a question.
     question_marks: list[str] = Field(default_factory=lambda: ["?"])
     # Stock constructions the persona avoids (case-insensitive regexes).
@@ -2109,6 +2112,59 @@ class ChaptersConfig(BaseModel):
     intro_duck_db: float = Field(default=-18.0, le=0.0)
 
 
+class DetectiveBoardConfig(BaseModel):
+    """The detective board: a growing road of short-title cards, one per
+    key narrated fact, pasted onto the board as the film reaches it and
+    never forgotten afterwards. Rendered by our own code from facts the
+    script already contains — no paid provider call besides one writer
+    call for the native-language titles."""
+
+    enabled: bool = True
+    title_max_words: int = Field(default=5, ge=2, le=10)
+    min_cards: int = Field(default=4, ge=1, le=20)
+    max_cards: int = Field(default=14, ge=1, le=40)
+    # beats between two selected card-beats (a turning point is not
+    # followed by another one right away)
+    min_beats_between_cards: int = Field(default=2, ge=0, le=20)
+    # the reading hold after a new card is pasted: base seconds plus this
+    # many seconds per word of the title, bounded to [min,max]
+    hold_base_seconds: float = Field(default=4.0, ge=0.0, le=10.0)
+    hold_per_word_seconds: float = Field(default=0.6, ge=0.0, le=3.0)
+    hold_min_seconds: float = Field(default=5.0, ge=0.5, le=15.0)
+    hold_max_seconds: float = Field(default=8.0, ge=0.5, le=20.0)
+    # the board never carries more than this share of the film's picture
+    # time (same spirit as fill_ways/coverage caps)
+    max_share: float = Field(default=0.15, ge=0.0, le=1.0)
+    min_card_seconds: float = Field(default=4.0, ge=0.5, le=10.0)
+    # cards per row on the cork board; the note's size as a fraction of W/H
+    cards_per_row: int = Field(default=4, ge=2, le=12)
+    card_width_fraction: float = Field(default=0.215, ge=0.05, le=0.4)
+    card_height_fraction: float = Field(default=0.2, ge=0.05, le=0.4)
+    # a note's drift off its grid cell (fraction of the cell) and tilt (degrees)
+    jitter_fraction: float = Field(default=0.12, ge=0.0, le=0.3)
+    max_tilt_degrees: float = Field(default=5.0, ge=0.0, le=15.0)
+    # a note flies in, then its strings are pulled tight to the notes it
+    # is really related to; several new notes follow each other
+    paste_seconds: float = Field(default=1.0, ge=0.1, le=3.0)
+    thread_seconds: float = Field(default=1.0, ge=0.1, le=3.0)
+    stagger_seconds: float = Field(default=1.2, ge=0.0, le=3.0)
+    thread_sag_fraction: float = Field(default=0.06, ge=0.0, le=0.3)
+    thread_color: str = "#a3201c"
+    pin_colors: list[str] = Field(default_factory=lambda: [
+        "#2b5fd0", "#c9302c", "#d03fa0", "#2f9e5b"])
+    kind_colors: dict[str, str] = Field(default_factory=lambda: {
+        "person": "#c98a3a", "place": "#3a7fc9", "time": "#7a7a7a",
+        "object": "#8a6ad6", "event": "#c92c28", "contradiction": "#d6414a",
+        "open_question": "#b8aa4a",
+    })
+    # paper colour of a note by kind (index card, sticky note, clipping)
+    paper_colors: dict[str, str] = Field(default_factory=lambda: {
+        "person": "#efe6d2", "place": "#efe6d2", "time": "#f4efe4",
+        "object": "#efe6d2", "event": "#f4efe4", "contradiction": "#f2c9c4",
+        "open_question": "#f6e58a",
+    })
+
+
 class VisualAuditConfig(BaseModel):
     """The visual auditor (gate before render): every photo and clip on
     screen must be verified AND approved for the words spoken over it.
@@ -2134,6 +2190,9 @@ class VisualVerificationConfig(BaseModel):
     # A picture that is not what it was found for but shows another known thing of the case
     # (for these kinds of subject) is kept for that thing instead of being rejected.
     other_entity_subjects: list[str] = []
+    # Every unchecked photo found at this relevance tier or closer (1 exact case ... 5 generic) is
+    # vision-checked, not only the best-ranked ones of each need.
+    check_all_up_to_tier: int = Field(default=3, ge=1, le=5)
 
 
 class EditorialReviewConfig(BaseModel):
@@ -2175,6 +2234,105 @@ class SupplyConfig(BaseModel):
 
     seconds_per_real_picture: float = Field(default=40.0, gt=0)
     max_searches: int = Field(default=3, ge=1, le=3)
+
+
+class MusicProviderConfig(BaseModel):
+    """The generated-music provider as a swappable abstraction: callers read this, never a
+    hardcoded provider name, so the provider can change without touching code. ``licence_cleared``
+    is the single gate a caller must check before generating or using any track; it starts
+    false and is only set true by an explicit owner decision recorded in
+    docs/shorts_host_led_checklist.md."""
+
+    name: str = "elevenlabs_music"
+    api_base: str = "https://api.elevenlabs.io"
+    endpoint: str = "/v1/music"
+    model_id: str = "music_v2"
+    tier_required: str = "unconfirmed"
+    licence_cleared: bool = False
+    # Owner switch: when false, no new track may ever be generated — selection and library
+    # building may only reuse already-stored host_led_music_tracks rows, and must fail or skip
+    # cleanly (never silently fall back to a paid call) when none fits.
+    allow_generation: bool = True
+
+
+class HostLedMusicLibraryConfig(BaseModel):
+    """The real, once-generated host-led-reel music library per channel: one short mood family
+    description per language (never an artist/band/song/film name), a handful of named moods,
+    and the banned-phrase guard a prompt must pass before any paid call is made. Distinct from
+    the long-form documentary's ``AIConfig.music_library`` (a different feature, different
+    schema) despite the similar name."""
+
+    channel_mood_family: dict[str, str] = {}
+    moods: list[str] = []
+    track_length_seconds: float = Field(default=20.0, gt=0)
+    min_tracks_per_language: int = Field(default=3, ge=1)
+    max_tracks_per_language: int = Field(default=4, ge=1)
+    banned_prompt_phrases: list[str] = []
+    plan_name: str | None = None
+    no_repeat_window_reels: int = Field(default=5, ge=1)
+    pinned_mood: str | None = None
+
+
+class ClosingLibraryConfig(BaseModel):
+    """The stored closing clips (the fixed call-to-action and identity line spoken by the host):
+    how many variants a language should have, how many recent uses are avoided, and the default
+    of the two owner switches (the Settings page stores the live value)."""
+
+    target_variants: int = Field(default=6, ge=1)
+    # The same variant never twice within this many recent uses of a language (at least the
+    # last one, whatever the library holds).
+    recent_history: int = Field(default=3, ge=1)
+    # A seed makes the random choice repeatable (tests); None picks freely.
+    seed: int | None = None
+    default_use_stored: bool = True
+    default_create_new: bool = True
+
+
+class HostLedShortsConfig(BaseModel):
+    """Host-led Shorts/Reels cut from the finished film: Fereidoun opens every reel, a fixed
+    outro and end card close it, cover labels and outro sentences are owner-approved and never
+    rewritten by an agent."""
+
+    avatar_max_seconds: float = Field(default=14.0, gt=0)
+    hook_seconds_min: float = Field(default=4.0, gt=0)
+    hook_seconds_max: float = Field(default=8.0, gt=0)
+    hook_max_words: int = Field(default=20, ge=1)
+    outro_seconds_min: float = Field(default=5.0, gt=0)
+    outro_seconds_max: float = Field(default=7.0, gt=0)
+    # Owner feedback 2026-10-20: "the logo must be shown 2 seconds longer" — raised from the
+    # spec's original ~2s default.
+    end_card_seconds: float = Field(default=4.0, gt=0)
+    # Owner feedback 2026-10-20: the hook's opening avatar shot needs a subtle camera move
+    # ("not too fast but not too slowly"). A slow push-in from 1.0x to this end scale over the
+    # hook's own duration — ~1.3%/second for a ~6s hook, imperceptible frame to frame but
+    # visibly progressed by the end, the standard low end of a Ken Burns push-in.
+    hook_camera_zoom_end: float = Field(default=1.08, ge=1.0, le=1.3)
+    hard_duration_max_seconds: float = Field(default=60.0, gt=0)
+    template_version: int = Field(default=1, ge=1)
+    asset_store_dir: str = "data/shared_assets"
+    reading_hold_min_seconds: float = Field(default=3.0, ge=0)
+    reading_hold_max_seconds: float = Field(default=4.0, ge=0)
+    cover_label: dict[str, str] = {}
+    outro_sentence: dict[str, str] = {}
+    channel_name: dict[str, str] = {}
+    channel_logo: dict[str, str] = {}
+    music_provider: MusicProviderConfig = Field(default_factory=MusicProviderConfig)
+    music_library: HostLedMusicLibraryConfig = Field(default_factory=HostLedMusicLibraryConfig)
+    music_attribution_text: dict[str, str] = {}
+    music_duck_db_under_speech: float = Field(default=-14.0, le=0)
+    music_level_db_visual_only: float = Field(default=-8.0, le=0)
+    music_duck_attack_seconds: float = Field(default=0.35, ge=0)
+    music_duck_release_seconds: float = Field(default=0.6, ge=0)
+    target_lufs: float = Field(default=-14.0, le=0)
+    banned_hook_phrases: list[str] = []
+    pose_outfit_variants_min_per_language: int = Field(default=3, ge=1)
+    # The fixed identity line, spoken by the host in the viewer's informal address. The same
+    # words close every short and end the host's opening of every long film; owner-approved,
+    # never rewritten by an agent.
+    identity_line: dict[str, str] = {}
+    # Shorts closing: the outro sentence then the identity line, or the reverse.
+    closing_order: Literal["cta_then_identity", "identity_then_cta"] = "cta_then_identity"
+    closing_library: ClosingLibraryConfig = Field(default_factory=ClosingLibraryConfig)
 
 
 class FillWaysConfig(BaseModel):
@@ -2264,6 +2422,107 @@ class MapsConfig(BaseModel):
     tile_size: int = 256
     # Zoom steps of an orientation sequence (wide -> close).
     darken: float = Field(default=0.55, ge=0.0, le=1.0)
+    # A place with the same name as one of the case, but this far from it, is asked for again with the
+    # geocoder preferring the area (viewbox: this many degrees around the case's place).
+    near_retry_km: float = Field(default=30.0, gt=0)
+    near_viewbox_degrees: float = Field(default=1.5, gt=0)
+    near_limit: int = Field(default=20, ge=5, le=40)
+
+
+class ZoomImagery(BaseModel):
+    """One open imagery source of the zoom-in map. Every entry names its licence and the
+    attribution shown on screen; an entry that is not allowed, or comes from a forbidden
+    provider or host, never loads."""
+
+    id: str
+    provider: str
+    kind: Literal["xyz", "wms"]
+    url: str
+    params: dict[str, str] = {}
+    coverage: Literal["global"] | list[list[float]]
+    zoom_min: int = Field(ge=0, le=22)
+    zoom_max: int = Field(ge=0, le=22)
+    resolution_m: float = Field(gt=0)
+    # composites are black (or nearly: open water) outside their swath: pixels this dark or darker become
+    # transparent and the layer below shows (0 = off)
+    nodata_below: int = Field(default=0, ge=0, le=255)
+    # drawn over the water of the vector map (the globe's oceans); other imagery lies under the water, so that
+    # the swath edges and dark fills of composites never show in the sea
+    over_water: bool = False
+    licence: str
+    licence_url: str
+    attribution: str
+    allowed: bool
+
+    @model_validator(mode="after")
+    def _validate(self):
+        for field in ("licence", "licence_url", "attribution", "provider", "url"):
+            if not getattr(self, field).strip():
+                raise ValueError(f"imagery {self.id}: {field} is empty")
+        if not self.allowed:
+            raise ValueError(f"imagery {self.id}: allowed must be true (an entry that is not allowed is removed)")
+        if self.zoom_max < self.zoom_min:
+            raise ValueError(f"imagery {self.id}: zoom_max below zoom_min")
+        if self.coverage != "global" and any(len(b) != 4 for b in self.coverage):
+            raise ValueError(f"imagery {self.id}: coverage boxes are [west, south, east, north]")
+        return self
+
+
+class ZoomVariant(BaseModel):
+    seconds: float = Field(gt=0)
+    pitch_end: float = Field(default=0.0, ge=0.0, le=85.0)
+    line_share: float = Field(default=0.7, gt=0.0, le=1.0)
+    extrude: bool = False
+
+
+class ZoomLabels(BaseModel):
+    """Which names a map label shows per film language (first one the place has), and the right-to-left languages."""
+
+    chains: dict[str, list[str]]
+    rtl_languages: list[str]
+
+
+class ZoomMapConfig(BaseModel):
+    """The cinematic zoom-in map (globe -> region -> street) built from open data, offline:
+    a Protomaps/OpenStreetMap extract, open imagery and a MapLibre scene rendered frame by
+    frame. Nothing here calls a paid or forbidden service."""
+
+    enabled: bool = True
+    data: dict
+    hosts: dict[str, list[str]]
+    imagery: list[ZoomImagery]
+    forbidden_providers: list[str]
+    imagery_fade_levels: float = Field(gt=0)
+    imagery_dim: float = Field(ge=0.0, le=1.0)
+    style: dict[str, str | float]
+    labels: ZoomLabels
+    camera: dict
+    variants: dict[str, ZoomVariant]
+    # which variant a map beat gets: first mention, a move from the place shown before, a place coming back
+    variant_rules: dict[str, str]
+    marker: dict[str, float]
+    limits: dict[str, float | int]
+    render: dict
+
+    @model_validator(mode="after")
+    def _validate(self):
+        forbidden = [f.lower() for f in self.hosts.get("forbidden", [])]
+        providers = [f.lower() for f in self.forbidden_providers]
+        ids = [e.id for e in self.imagery]
+        if len(ids) != len(set(ids)):
+            raise ValueError("zoom_map.imagery: duplicate id")
+        for e in self.imagery:
+            host = urlparse(e.url).netloc.lower()   # a layer name such as GoogleMapsCompatible is no provider
+            bad = [x for x in providers if x in e.provider.lower() or x in host]
+            bad += [x for x in forbidden if x in host]
+            if bad:
+                raise ValueError(f"imagery {e.id}: forbidden provider or host {bad}")
+        missing = {"zoom_in", "route", "pitched_3d"} - set(self.variants)
+        if missing:
+            raise ValueError(f"zoom_map.variants missing {sorted(missing)}")
+        if set(self.variant_rules) != {"first", "move", "return"} or set(self.variant_rules.values()) - set(self.variants):
+            raise ValueError("zoom_map.variant_rules names first, move and return, each a configured variant")
+        return self
 
 
 class AttentionConfig(BaseModel):
@@ -3053,12 +3312,15 @@ class AIConfig(BaseModel):
     illustrations: IllustrationsConfig
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
     supply: SupplyConfig = Field(default_factory=SupplyConfig)
+    zoom_map: ZoomMapConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
+    shorts_host_led: HostLedShortsConfig = Field(default_factory=HostLedShortsConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
+    detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)
@@ -3270,6 +3532,12 @@ class AIConfig(BaseModel):
         if not name:
             raise KeyError(f"agent {agent} has no prompt")
         return name
+
+    def zoom(self) -> ZoomMapConfig:
+        """The zoom-in map's settings (config/parameters/zoom_map.json)."""
+        if self.zoom_map is None:
+            raise RuntimeError("config/parameters/zoom_map.json is missing")
+        return self.zoom_map
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

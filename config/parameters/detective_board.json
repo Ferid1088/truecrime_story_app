@@ -1,0 +1,49 @@
+{
+  "detective_board": {
+    "enabled": true,
+    "title_max_words": 5,
+    "min_cards": 4,
+    "max_cards": 14,
+    "min_beats_between_cards": 2,
+    "hold_base_seconds": 4.0,
+    "hold_per_word_seconds": 0.6,
+    "hold_min_seconds": 5.0,
+    "hold_max_seconds": 8.0,
+    "max_share": 0.15,
+    "min_card_seconds": 4.0,
+    "cards_per_row": 4,
+    "card_width_fraction": 0.215,
+    "card_height_fraction": 0.2,
+    "paste_seconds": 1.0,
+    "kind_colors": {
+      "person": "#c98a3a",
+      "place": "#3a7fc9",
+      "time": "#7a7a7a",
+      "object": "#8a6ad6",
+      "event": "#c92c28",
+      "contradiction": "#d6414a",
+      "open_question": "#b8aa4a"
+    },
+    "jitter_fraction": 0.12,
+    "max_tilt_degrees": 5.0,
+    "thread_seconds": 1.0,
+    "stagger_seconds": 1.2,
+    "thread_sag_fraction": 0.06,
+    "thread_color": "#a3201c",
+    "pin_colors": [
+      "#2b5fd0",
+      "#c9302c",
+      "#d03fa0",
+      "#2f9e5b"
+    ],
+    "paper_colors": {
+      "person": "#efe6d2",
+      "place": "#efe6d2",
+      "time": "#f4efe4",
+      "object": "#efe6d2",
+      "event": "#f4efe4",
+      "contradiction": "#f2c9c4",
+      "open_question": "#f6e58a"
+    }
+  }
+}

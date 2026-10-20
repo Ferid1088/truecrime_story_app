@@ -18,6 +18,7 @@ from app.documentary.visuals.verification import (
     decide,
     image_for_check,
     normalize_composite_match,
+    normalize_fact_match,
     normalize_other_entity_match,
 )
 
@@ -58,8 +59,9 @@ class VisualVerificationAgent:
         known_ents = {e["key"] for e in entities}
         v = normalize_composite_match(v, known_ents)
         v = normalize_other_entity_match(v, known_ents)
-        status, conf, reason = decide(v)
         known_facts = {f["id"] for f in facts}
+        v = normalize_fact_match(v, known_facts)
+        status, conf, reason = decide(v)
         tier, tier_reason = T.verified_why(asset, v, provisional)
         asset.verification_status = status
         asset.verification_confidence = round(conf, 3)
