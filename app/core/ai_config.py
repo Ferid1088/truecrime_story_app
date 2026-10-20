@@ -996,6 +996,12 @@ class BudgetConfig(BaseModel):
     })
 
 
+class DiscoveryPolicies(BaseModel):
+    """Discover-page (D4) soft-delete policy."""
+
+    soft_delete_restore_days: int = Field(default=30, ge=0)
+
+
 class ResearchDepthConfig(BaseModel):
     """Depth-weighted narrative capacity — deliberately conservative:
     full-text depth and evidence diversity drive the estimate, not raw
@@ -3002,6 +3008,7 @@ class AIConfig(BaseModel):
     video_rights: VideoRightsConfig
     cost_control: CostControlConfig
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
+    discovery: DiscoveryPolicies = Field(default_factory=DiscoveryPolicies)
     research_depth: ResearchDepthConfig
     source_chunking: SourceChunkingConfig
     evidence_strength: EvidenceStrengthConfig

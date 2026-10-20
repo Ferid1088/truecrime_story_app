@@ -543,7 +543,9 @@ export interface AgentRun {
  * user said no · duplicate: the same real-world case exists already ·
  * filtered: UNSOLVED while the run did not include unsolved cases.
  */
-export type SuggestionState = "suggested" | "accepted" | "ignored" | "duplicate" | "filtered";
+export type SuggestionState =
+  | "suggested" | "accepted" | "ignored" | "duplicate" | "filtered"
+  | "archived" | "deleted";
 
 /** `candidate_dict` of app/lifecycle/selection.py — one stored suggestion. */
 export interface SuggestionRecord {
@@ -575,7 +577,12 @@ export interface SuggestionRecord {
   duplicate_of_case_id: number | null;
   duplicate_of_candidate_id: number | null;
   duplicate_reason: string | null;
+  discovery_job_id: number | null;
   created_at: string | null;
+  /** D3: the furthest state across every language, computed live. */
+  case_status: DiscoveredCaseStatus;
+  /** D3: per-language Video state (en/de/fa/ar), or "not_created". */
+  language_badges: Record<string, string>;
 }
 
 /** What the `case_status_verifier` read from targeted searches. */
@@ -615,10 +622,14 @@ export interface DiscoveryCandidate extends Partial<Omit<SuggestionRecord, "cand
 export interface SelectionStats {
   duplicates?: number;
   filtered_unsolved?: number;
+  filtered_solved?: number;
+  filtered_geography?: number;
   verified?: number;
   status_searches?: number;
   checked_against?: { cases?: number; suggestions?: number };
 }
+
+export type ResolutionFilter = "solved_only" | "unsolved_only" | "both";
 
 export interface DiscoveryRequest {
   count: number;
@@ -629,8 +640,32 @@ export interface DiscoveryRequest {
   search_web: boolean;
   search_youtube: boolean;
   avoid_existing: boolean;
-  /** The standard pipeline suggests SOLVED cases; true also suggests UNSOLVED ones. */
-  include_unsolved: boolean;
+  /** "solved_only" (default): the standard pipeline. "unsolved_only": only
+   * UNSOLVED is suggested. "both": no filtering by resolution status. */
+  resolution_filter: ResolutionFilter;
+  /** None = any country. A config/parameters/countries.json code (D1). */
+  country_code: string | null;
+  /** None = any year, for either bound. The year of the incident, never
+   * the latest development. */
+  incident_year_from: number | null;
+  incident_year_to: number | null;
+}
+
+export interface DiscoveryCountry {
+  code: string;
+  name: string;
+  aliases?: string[];
+}
+
+/** A before-you-start estimate built only from this app's own completed
+ * discovery runs — never a hardcoded guess. estimated_eur is null until
+ * at least one discovery run has completed. */
+export interface DiscoveryCostEstimate {
+  count: number;
+  based_on_runs: number;
+  estimated_eur: number | null;
+  currency: "EUR";
+  note: string;
 }
 
 /** 409 detail when the duplicate checker matched an existing case. */
@@ -1094,6 +1129,8 @@ export interface ResearchJob {
   search_cost_usd: number | null;
   fetch_cost_usd: number | null;
   total_cost_usd: number | null;
+  /** Server-side conversion (config/parameters/policies.json's budget.usd_to_eur) — never recompute this rate in the UI. */
+  total_cost_eur: number | null;
   sources_discovered: number | null;
   sources_accepted: number | null;
   sources_rejected: number | null;
@@ -1114,9 +1151,34 @@ export interface ResearchJob {
     stop_reason?: string;
     [key: string]: unknown;
   } | null;
+  /** D2: deterministic, never a model call — built from the stored criteria. */
+  generated_name?: string;
+  /** D2: the user's override of generated_name, or null. */
+  display_name?: string | null;
+  /** D2: display_name if set, else generated_name. */
+  name?: string;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+}
+
+/** D3: the furthest state across every language for one discovered case. */
+export type DiscoveredCaseStatus =
+  "free" | "created_not_published" | "created_published" | "archived";
+
+export interface SearchCounts {
+  total: number;
+  free: number;
+  created_not_published: number;
+  created_published: number;
+  archived: number;
+}
+
+/** D2: one row of GET /api/discovery/searches — a discovery run as a Search. */
+export interface Search extends ResearchJob {
+  name: string;
+  generated_name: string;
+  counts: SearchCounts;
 }
 
 export interface LanguageRunStats {

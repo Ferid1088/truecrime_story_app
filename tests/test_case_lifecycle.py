@@ -237,9 +237,9 @@ def test_recent_solved_unused_case_is_suggested_first(db_session):
                                           "latest_development": "convicted 2014"},
     })
     prepared = asyncio.run(prepare_candidates(
-        raws, found, IdentityIndex.from_db(db_session), count=3, include_unsolved=False,
+        raws, found, IdentityIndex.from_db(db_session), count=3, resolution_filter="solved_only",
         registry=reg, gen=gen))
-    out = ingest_candidates(db_session, prepared, count=3, include_unsolved=False)
+    out = ingest_candidates(db_session, prepared, count=3, resolution_filter="solved_only")
     titles = [c["title"] for c in out["candidates"]]
     assert titles[0] == "Murder of Jana Kluge"
     assert out["candidates"][0]["resolution_status"] == "SOLVED"
@@ -255,7 +255,7 @@ def test_recent_solved_unused_case_is_suggested_first(db_session):
     again = asyncio.run(prepare_candidates(
         [_raw("Jana K. — the Gera trial", ["Jana Kluge"], "Gera", _iso(200), _iso(10),
               "SOLVED")], [], IdentityIndex.from_db(db_session), count=3,
-        include_unsolved=False))
+        resolution_filter="solved_only"))
     assert again["candidates"][0]["selection"]["state"] == "duplicate"
 
 

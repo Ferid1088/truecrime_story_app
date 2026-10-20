@@ -331,9 +331,12 @@ def compare(a: Identity, b: Identity) -> Verdict:
 # ---------------------------------------------------------------------------
 
 # Suggestion states that count as "used": shown to the user (or older
-# rows from before states existed). Filtered/duplicate rows were never
-# offered and must not block a later suggestion.
-USED_SUGGESTION_STATES = ("suggested", "accepted", "ignored")
+# rows from before states existed), plus "archived" (D4: permanent,
+# fingerprint-matched exclusion from every later Search — the whole point
+# of archiving). Filtered/duplicate/deleted rows were never offered (or
+# the user only soft-deleted this one suggestion, not the case) and must
+# not block a later suggestion.
+USED_SUGGESTION_STATES = ("suggested", "accepted", "ignored", "archived")
 
 
 class IdentityIndex:

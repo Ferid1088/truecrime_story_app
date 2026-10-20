@@ -52,11 +52,16 @@ class ResearchProvider:
         require_multiple_sources: bool,
         existing_titles: list[str],
         known_identities: list[dict] | None = None,
-        include_unsolved: bool = False,
+        resolution_filter: str = "solved_only",
+        country_code: str | None = None,
+        incident_year_from: int | None = None,
+        incident_year_to: int | None = None,
     ) -> str:
         """Submit a case-discovery task; returns the external job id.
         known_identities: the duplicate-check index (everything the
-        system already holds); include_unsolved: also suggest UNSOLVED."""
+        system already holds); resolution_filter: "solved_only" (default),
+        "unsolved_only" or "both".
+        country_code/incident_year_*: None means no filter on that axis."""
         raise NotImplementedError
 
     async def start_case_research(

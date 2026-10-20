@@ -265,7 +265,7 @@ class DiscoveryCandidate(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     # --- the suggestion record (CaseSuggestion) -----------------------
     case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    # suggested | accepted | ignored | duplicate | filtered
+    # suggested | accepted | ignored | duplicate | filtered | archived | deleted
     state: Mapped[str] = mapped_column(String(20), default="suggested", index=True)
     resolution_status: Mapped[str] = mapped_column(String(30), default="UNKNOWN")
     resolution_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -285,6 +285,11 @@ class DiscoveryCandidate(Base):
     duplicate_of_candidate_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duplicate_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     discovery_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # D4: archive is permanent (fingerprint-matched, never suggested again);
+    # delete is a soft delete, restorable until deleted_at + the configured
+    # window (config/parameters/policies.json's discovery.soft_delete_restore_days).
+    archived_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class AgentRun(Base):
@@ -705,6 +710,9 @@ class ResearchJob(Base):
     sources_accepted: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sources_rejected: Mapped[int | None] = mapped_column(Integer, nullable=True)
     languages_completed: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The user's override of the deterministic generated name (D2); null
+    # means "use the generated name computed from input_json".
+    display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
@@ -1085,6 +1093,31 @@ class ChapterPlan(Base):
     languages_json: Mapped[str] = mapped_column(Text, default="[]")
     plan_json: Mapped[str] = mapped_column(Text, default="{}")
     audit_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class BoardPlan(Base):
+    """The detective board's cards for one blueprint, for all its
+    languages: an append-only, ordered list of short-title cards, one per
+    key narrated fact, each tied to the beat that speaks it. Titles are
+    written natively per language by the board writer; the selection
+    itself (which facts become cards, their kind and links) is the same
+    for every language. A later version only appends cards (never removes
+    or reorders an earlier one) so a film re-composed after new content
+    still pastes every earlier card in the same order first."""
+
+    __tablename__ = "board_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    blueprint_id: Mapped[int] = mapped_column(
+        ForeignKey("editorial_blueprints.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # approved | partial (some titles left out) | no_texts (writer failed)
+    status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
+    languages_json: Mapped[str] = mapped_column(Text, default="[]")
+    plan_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
@@ -2383,6 +2416,71 @@ class HostLook(Base):
     heygen_look_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class SharedReelAsset(Base):
+    """A reusable piece of a host-led reel (outro avatar clip, end card, cover template, music
+    track), created once per (asset_type, language, parameters, template_version) and reused by
+    every later reel: a content-addressed cache with a use ledger, not a per-reel asset."""
+
+    __tablename__ = "shared_reel_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    asset_type: Mapped[str] = mapped_column(String(40), index=True)
+    language: Mapped[str] = mapped_column(String(10), index=True)
+    template_version: Mapped[int] = mapped_column(Integer, default=1)
+    parameters_json: Mapped[str] = mapped_column(Text, default="{}")
+    file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    use_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class HostLedMusicTrack(Base):
+    """One real, generated music track in the host-led-reel library: full provenance (prompt,
+    provider/model, generation id, plan name, licence terms as read and when) plus the owner's
+    manual Content ID checklist outcome. A track marked 'claimed' is excluded from selection."""
+
+    __tablename__ = "host_led_music_tracks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel: Mapped[str] = mapped_column(String(10), index=True)
+    mood: Mapped[str] = mapped_column(String(40), index=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(40))
+    model_id: Mapped[str] = mapped_column(String(40))
+    provider_generation_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    plan_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    duration_seconds: Mapped[float] = mapped_column(Float)
+    bpm_estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bpm_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    file_path: Mapped[str] = mapped_column(Text)
+    file_sha256: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    licence_note: Mapped[str] = mapped_column(Text)
+    terms_url: Mapped[str] = mapped_column(Text)
+    terms_recorded_date: Mapped[str] = mapped_column(String(20))
+    asset_store_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    content_id_status: Mapped[str] = mapped_column(String(20), default="pending")
+    content_id_checked: Mapped[bool] = mapped_column(Boolean, default=False)
+    content_id_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    content_id_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    excluded: Mapped[bool] = mapped_column(Boolean, default=False)
+    excluded_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class HostLedMusicUsage(Base):
+    """One reel's use of one host-led music track, so selection can avoid repeating a track
+    within the configured recent-clips window for a channel."""
+
+    __tablename__ = "host_led_music_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("host_led_music_tracks.id"), index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    reel_key: Mapped[str] = mapped_column(String(80))
+    used_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
 @event.listens_for(MusicTrack, "before_insert")

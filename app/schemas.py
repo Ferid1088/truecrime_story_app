@@ -1,10 +1,10 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TopicDiscoveryRequest(BaseModel):
-    count: int = Field(default=5, ge=1, le=20)
+    count: int = Field(default=1, ge=1, le=10)
     languages: list[str] = ["en", "de", "ar", "fa"]
     theme: str = "true crime"
     prefer_undercovered: bool = True
@@ -12,8 +12,35 @@ class TopicDiscoveryRequest(BaseModel):
     search_web: bool = True
     search_youtube: bool = True
     avoid_existing: bool = True
-    # The standard pipeline suggests SOLVED cases; set to also get UNSOLVED.
-    include_unsolved: bool = False
+    # "solved_only" (default): the standard pipeline, UNSOLVED filtered out.
+    # "unsolved_only": only UNSOLVED is suggested, SOLVED filtered out.
+    # "both": no filtering by resolution status.
+    resolution_filter: Literal["solved_only", "unsolved_only", "both"] = "solved_only"
+    # None = any country. A config/parameters/countries.json code (D1).
+    country_code: str | None = None
+    # None = any year, for either bound (D1). The year of the incident,
+    # never the latest development.
+    incident_year_from: int | None = Field(default=None, ge=1700)
+    incident_year_to: int | None = Field(default=None, ge=1700)
+
+    @field_validator("country_code")
+    @classmethod
+    def _known_country(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        from app.lifecycle.geography import country_name
+
+        code = v.upper()
+        if country_name(code) is None:
+            raise ValueError(f"unknown country_code {v!r}")
+        return code
+
+    @model_validator(mode="after")
+    def _year_range_ordered(self) -> "TopicDiscoveryRequest":
+        if (self.incident_year_from is not None and self.incident_year_to is not None
+                and self.incident_year_from > self.incident_year_to):
+            raise ValueError("incident_year_from must not be after incident_year_to")
+        return self
 
 
 ResolutionStatus = Literal["SOLVED", "UNSOLVED", "UNKNOWN", "STATUS_UNDER_REVIEW"]
@@ -51,6 +78,15 @@ class InvestigateCandidateRequest(BaseModel):
     language: str = "fa"
     # Investigate even though the duplicate checker matched an existing case.
     force: bool = False
+
+
+class RenameSearchRequest(BaseModel):
+    # None (or "") clears the override, reverting to the generated name.
+    display_name: str | None = None
+
+
+class BulkCandidateActionRequest(BaseModel):
+    candidate_ids: list[int]
 
 
 class AddSourceRequest(BaseModel):

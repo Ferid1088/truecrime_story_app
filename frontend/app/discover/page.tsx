@@ -6,24 +6,39 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Compass, Globe, History, MapPin, Sparkles, Users } from "lucide-react";
 import { ApiError, api, duplicateConflict, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import type { DiscoveryCandidate, DuplicateConflict, ResearchJob, SelectionStats } from "@/lib/types";
+import type {
+  DiscoveryCandidate, DiscoveryCountry, DuplicateConflict,
+  ResearchJob, ResolutionFilter, SelectionStats,
+} from "@/lib/types";
 import { LANGUAGES, formatDateTime, humanize, langLabel } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/state";
 import { ResolutionBadge } from "@/components/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DuplicateNotice } from "@/components/lifecycle/duplicate-notice";
 import { Collapsible, FieldLabel, SourceLinks } from "@/components/lifecycle/shared";
-import { cn } from "@/lib/utils";
 import { SearchHealthWarning } from "@/components/search-health-warning";
+import { SearchesList } from "@/components/discover/searches-list";
 
 const LANG_OPTIONS = ["en", "de", "fa", "ar", "other"];
-const COUNTS = [5, 10, 20];
+const COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+const RESOLUTION_FILTER_OPTIONS: { value: ResolutionFilter; label: string }[] = [
+  { value: "solved_only", label: "Solved only" },
+  { value: "unsolved_only", label: "Unsolved only" },
+  { value: "both", label: "Solved + unsolved" },
+];
+/** The incident year dropdowns' earliest option. */
+const EARLIEST_INCIDENT_YEAR = 1900;
+const YEAR_OPTIONS = Array.from(
+  { length: new Date().getFullYear() - EARLIEST_INCIDENT_YEAR + 1 },
+  (_, i) => new Date().getFullYear() - i,
+);
 /** Open suggestions of earlier runs shown at most. */
 const HISTORY_LIMIT = 20;
 const DISCOVERY_JOB_KEY = "truecrime.discovery.job_id";
@@ -31,7 +46,7 @@ const HISTORICAL_THEME = "historical cases (before 2000)";
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const [count, setCount] = useState(5);
+  const [count, setCount] = useState(1);
   const [langs, setLangs] = useState<string[]>(["en"]);
   const [theme, setTheme] = useState("true crime");
   const [customTheme, setCustomTheme] = useState("");
@@ -40,7 +55,12 @@ export default function DiscoverPage() {
   const [searchYt, setSearchYt] = useState(true);
   const [searchWeb, setSearchWeb] = useState(true);
   const [avoidExisting, setAvoidExisting] = useState(true);
-  const [includeUnsolved, setIncludeUnsolved] = useState(false);
+  const [resolutionFilter, setResolutionFilter] = useState<ResolutionFilter>("solved_only");
+  const [countryCode, setCountryCode] = useState<string>("");
+  const [yearFrom, setYearFrom] = useState<string>("");
+  const [yearTo, setYearTo] = useState<string>("");
+  const countries = useApi(() => api.discoveryCountries(), []);
+  const countryOptions = [...(countries.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
 
   const [candidates, setCandidates] = useState<DiscoveryCandidate[]>([]);
   const [rejected, setRejected] = useState<DiscoveryCandidate[]>([]);
@@ -165,6 +185,10 @@ export default function DiscoverPage() {
   const toggleLang = (l: string) =>
     setLangs((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
 
+  const costEstimateState = useApi(() => api.discoveryCostEstimate(count), [count]);
+  const costEstimate = costEstimateState.data;
+  const costEstimateError = costEstimateState.error;
+
   async function discover() {
     setRunning(true);
     setError(null);
@@ -189,7 +213,10 @@ export default function DiscoverPage() {
         search_web: searchWeb,
         search_youtube: searchYt,
         avoid_existing: avoidExisting,
-        include_unsolved: includeUnsolved,
+        resolution_filter: resolutionFilter,
+        country_code: countryCode || null,
+        incident_year_from: yearFrom ? Number(yearFrom) : null,
+        incident_year_to: yearTo ? Number(yearTo) : null,
       });
       if (res.job_id != null) {
         requestedJobId = res.job_id;
@@ -280,22 +307,27 @@ export default function DiscoverPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">Number of cases</p>
-              <div className="flex rounded-md border border-border p-0.5">
-                {COUNTS.map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setCount(n)}
-                    className={cn(
-                      "flex-1 cursor-pointer rounded px-3 py-1 text-sm transition-colors",
-                      count === n
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
+              <select
+                aria-label="Number of cases"
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+              >
+                {COUNT_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
                     {n}
-                  </button>
+                  </option>
                 ))}
-              </div>
+              </select>
+              <p className="mt-1.5 text-xs text-muted-foreground" data-testid="discovery-cost-estimate">
+                {costEstimateError
+                  ? "Cost estimate unavailable."
+                  : costEstimate?.estimated_eur != null
+                    ? `Estimated cost: €${costEstimate.estimated_eur.toFixed(2)} (from ${costEstimate.based_on_runs} earlier run${costEstimate.based_on_runs === 1 ? "" : "s"})`
+                    : costEstimate
+                      ? "No completed discovery runs yet to estimate cost from."
+                      : "Estimating cost…"}
+              </p>
             </div>
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">Languages</p>
@@ -340,6 +372,69 @@ export default function DiscoverPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Country</p>
+              <Select
+                aria-label="Country"
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+              >
+                <option value="">Any country</option>
+                {countryOptions.map((c: DiscoveryCountry) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Incident year — from</p>
+              <Select
+                aria-label="Incident year from"
+                value={yearFrom}
+                onChange={(e) => setYearFrom(e.target.value)}
+              >
+                <option value="">Any year</option>
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Incident year — to</p>
+              <Select
+                aria-label="Incident year to"
+                value={yearTo}
+                onChange={(e) => setYearTo(e.target.value)}
+              >
+                <option value="">Any year</option>
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Resolution status</p>
+              <Select
+                aria-label="Resolution status"
+                value={resolutionFilter}
+                onChange={(e) => setResolutionFilter(e.target.value as ResolutionFilter)}
+                title="By default only solved (or not yet verified) cases are suggested; unsolved ones are listed under “Not suggested”."
+              >
+                {RESOLUTION_FILTER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-4">
             <Checkbox
               checked={preferUndercovered}
@@ -365,12 +460,6 @@ export default function DiscoverPage() {
               checked={avoidExisting}
               onChange={() => setAvoidExisting((v) => !v)}
               label="Avoid cases already in database"
-            />
-            <Checkbox
-              checked={includeUnsolved}
-              onChange={() => setIncludeUnsolved((v) => !v)}
-              label="Include unsolved cases"
-              title="By default only solved (or not yet verified) cases are suggested; unsolved ones are listed under “Not suggested”."
             />
           </div>
 
@@ -404,11 +493,20 @@ export default function DiscoverPage() {
                   } earlier suggestion${checked.suggestions === 1 ? "" : "s"}`}
                 {stats.verified ? ` · ${stats.verified} status${stats.verified === 1 ? "" : "es"} verified` : ""}
                 {stats.filtered_unsolved ? ` · ${stats.filtered_unsolved} unsolved filtered` : ""}
+                {stats.filtered_solved ? ` · ${stats.filtered_solved} solved filtered` : ""}
+                {stats.filtered_geography
+                  ? ` · ${stats.filtered_geography} outside the requested country/year filtered`
+                  : ""}
               </span>
             )}
           </div>
         </CardContent>
       </Card>
+
+      <div className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold">Searches</h2>
+        <SearchesList />
+      </div>
 
       {error && (
         <div className="mb-4 rounded-md border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">

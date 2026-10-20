@@ -318,9 +318,55 @@ def _clean(raw: dict) -> dict:
     return raw
 
 
+def _geography_filter_reason(raw: dict, country_code: str | None,
+                             incident_year_from: int | None,
+                             incident_year_to: int | None) -> str | None:
+    """None when the candidate passes; otherwise the reason it was filtered.
+    Country is a text match against the extracted location, not geocoding —
+    see app/lifecycle/geography.py."""
+    if country_code:
+        from app.lifecycle.geography import country_name, location_matches_country
+
+        matched = location_matches_country(raw.get("location"), country_code)
+        if matched is None:
+            return ("location unverified — no location was extracted, so it cannot be "
+                    f"confirmed inside {country_name(country_code) or country_code}")
+        if matched is False:
+            return (f"outside the requested country ({country_name(country_code) or country_code}): "
+                    f"location is {raw.get('location')!r}")
+    if incident_year_from is not None or incident_year_to is not None:
+        incident = parse_date(raw.get("incident_date") or raw.get("approximate_date"))
+        if incident is None:
+            return "incident year unverified — no incident date was extracted"
+        year = incident.year
+        if incident_year_from is not None and year < incident_year_from:
+            return (f"incident year {year} is outside the requested range "
+                    f"{incident_year_from}–{incident_year_to or 'now'}")
+        if incident_year_to is not None and year > incident_year_to:
+            return (f"incident year {year} is outside the requested range "
+                    f"{incident_year_from or '…'}–{incident_year_to}")
+    return None
+
+
+def _passes_resolution_prefilter(claimed_status: str, resolution_filter: str) -> bool:
+    """Which claimed status is worth spending a verification search on,
+    before the real (verified) status is known. Mirrors the post-verification
+    filter below so a run never burns a verification call on a candidate it
+    will reject anyway."""
+    if resolution_filter == "unsolved_only":
+        return claimed_status == UNSOLVED
+    if resolution_filter == "both":
+        return True
+    return claimed_status != UNSOLVED  # solved_only (default)
+
+
 async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
-                             known: IdentityIndex, *, count: int, include_unsolved: bool,
-                             registry=None, gen=None, progress=None) -> dict:
+                             known: IdentityIndex, *, count: int,
+                             resolution_filter: str = "solved_only",
+                             registry=None, gen=None, progress=None,
+                             country_code: str | None = None,
+                             incident_year_from: int | None = None,
+                             incident_year_to: int | None = None) -> dict:
     """Duplicate check, status verification of the best, ranking. Returns
     {"candidates": [...], "stats": {...}}; every candidate carries
     `selection` = {state, duplicate, status, rank, recency, reason}."""
@@ -328,6 +374,7 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
     batch = IdentityIndex(list(known.items))
     fresh: list[dict] = []
     out: list[dict] = []
+    filtered_geography = 0
     for i, raw in enumerate(raw_candidates):
         if not isinstance(raw, dict) or not (raw.get("title") or "").strip():
             continue
@@ -340,6 +387,13 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
                                 "reason": verdict.reason}
             out.append(raw)
             continue
+        geo_reason = _geography_filter_reason(raw, country_code, incident_year_from, incident_year_to)
+        if geo_reason is not None:
+            filtered_geography += 1
+            raw["selection"] = {"state": "filtered", "duplicate": verdict.to_dict(),
+                                "reason": geo_reason}
+            out.append(raw)
+            continue
         batch.add(Identity.from_dict({**ident.to_dict(), "kind": "batch", "id": i}))
         raw["selection"] = {"state": "eligible", "duplicate": verdict.to_dict()}
         fresh.append(raw)
@@ -349,7 +403,8 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
         return status_score(_claimed(raw), _recency(raw)[0])
 
     to_verify = [r for r in sorted(fresh, key=pre, reverse=True)
-                 if include_unsolved or _claimed(r) != UNSOLVED][:cfg.verify_top_n]
+                 if _passes_resolution_prefilter(_claimed(r), resolution_filter)
+                 ][:cfg.verify_top_n]
     searches = 0
     if registry is not None and gen is not None and to_verify:
         import asyncio
@@ -398,10 +453,14 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
                                  "status_reason": why, "status_source": source,
                                  "evidence": evidence, "rank": score, "recency": rec,
                                  "recency_basis": rec_how})
-        if status == UNSOLVED and not include_unsolved:
+        if status == UNSOLVED and resolution_filter == "solved_only":
             raw["selection"]["state"] = "filtered"
-            raw["selection"]["reason"] = ("UNSOLVED — the standard pipeline suggests solved "
-                                          "cases (include_unsolved to see it)")
+            raw["selection"]["reason"] = ("UNSOLVED — this search requests solved cases only "
+                                          "(resolution_filter: unsolved_only or both to see it)")
+        elif status != UNSOLVED and resolution_filter == "unsolved_only":
+            raw["selection"]["state"] = "filtered"
+            raw["selection"]["reason"] = (f"{status} — this search requests unsolved cases only "
+                                          "(resolution_filter: solved_only or both to see it)")
 
     eligible = sorted(
         [r for r in fresh if r["selection"]["state"] == "eligible"],
@@ -425,7 +484,11 @@ async def prepare_candidates(raw_candidates: list[dict], found: list[dict],
             sel["reason"] = f"ranked {pos + 1}, below the top {count}"
     out.extend(fresh)
     stats = {"duplicates": sum(1 for r in out if r["selection"]["state"] == "duplicate"),
-             "filtered_unsolved": sum(1 for r in out if r["selection"]["state"] == "filtered"),
+             "filtered_unsolved": sum(1 for r in out if r["selection"]["state"] == "filtered"
+                                     and r["selection"]["reason"].startswith("UNSOLVED")),
+             "filtered_solved": sum(1 for r in out if r["selection"]["state"] == "filtered"
+                                    and "requests unsolved cases only" in r["selection"]["reason"]),
+             "filtered_geography": filtered_geography,
              "verified": len(to_verify) if gen is not None else 0,
              "status_searches": searches,
              "checked_against": {"cases": known.count("case"),
@@ -442,7 +505,8 @@ def _json(v) -> str:
     return json.dumps(v or [], ensure_ascii=False)
 
 
-def ingest_candidates(db: Session, result: dict, *, count: int, include_unsolved: bool,
+def ingest_candidates(db: Session, result: dict, *, count: int,
+                      resolution_filter: str = "solved_only",
                       job_id: int | None = None) -> dict:
     """Store suggestions (and duplicate/filtered ones for the audit).
     Candidates the discovery job did not prepare (older providers, the
@@ -452,7 +516,7 @@ def ingest_candidates(db: Session, result: dict, *, count: int, include_unsolved
 
     raw_list = [r for r in result.get("candidates") or [] if isinstance(r, dict)]
     if raw_list and not all("selection" in r for r in raw_list):
-        prepared = _prepare_sync(raw_list, IdentityIndex.from_db(db), count, include_unsolved)
+        prepared = _prepare_sync(raw_list, IdentityIndex.from_db(db), count, resolution_filter)
         raw_list = prepared["candidates"]
         stats = prepared["stats"]
     else:
@@ -524,16 +588,41 @@ def ingest_candidates(db: Session, result: dict, *, count: int, include_unsolved
             "selection_stats": stats}
 
 
-def _prepare_sync(raw_list, index, count, include_unsolved) -> dict:
+def _prepare_sync(raw_list, index, count, resolution_filter, *, country_code=None,
+                  incident_year_from=None, incident_year_to=None) -> dict:
     """prepare_candidates without network (no registry/gen): runs the
     coroutine to completion — it never awaits anything without them."""
     coro = prepare_candidates(raw_list, [], index, count=count,
-                              include_unsolved=include_unsolved)
+                              resolution_filter=resolution_filter, country_code=country_code,
+                              incident_year_from=incident_year_from,
+                              incident_year_to=incident_year_to)
     try:
         coro.send(None)
     except StopIteration as stop:
         return stop.value
     raise RuntimeError("prepare_candidates awaited without a registry")
+
+
+def reevaluate_candidate(db: Session, cand) -> dict:
+    """Send a stored suggestion back through the discovery run's own
+    duplicate and filter path (prepare_candidates, no network), with the
+    filters of the Search that found it. Returns its `selection`:
+    state is "suggested", "filtered" or "duplicate"."""
+    from app.db.models import ResearchJob
+
+    job = db.get(ResearchJob, cand.discovery_job_id) if cand.discovery_job_id else None
+    try:
+        search = json.loads(job.input_json or "{}") if job else {}
+    except (TypeError, ValueError):
+        search = {}
+    raw = {**candidate_dict(cand), "key_people": json.loads(cand.people_json or "[]")}
+    index = IdentityIndex.from_db(db, exclude_candidate_ids={cand.id})
+    prepared = _prepare_sync(
+        [raw], index, 1, search.get("resolution_filter") or "solved_only",
+        country_code=search.get("country_code"),
+        incident_year_from=search.get("incident_year_from"),
+        incident_year_to=search.get("incident_year_to"))
+    return prepared["candidates"][0]["selection"]
 
 
 def candidate_dict(c) -> dict:
@@ -555,5 +644,6 @@ def candidate_dict(c) -> dict:
         "duplicate_of_case_id": c.duplicate_of_case_id,
         "duplicate_of_candidate_id": c.duplicate_of_candidate_id,
         "duplicate_reason": c.duplicate_reason,
+        "discovery_job_id": c.discovery_job_id,
         "created_at": c.created_at.isoformat() if c.created_at else None,
     }

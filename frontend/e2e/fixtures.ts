@@ -425,6 +425,16 @@ export const fixtures = {
     ],
   },
   discoveryHistory: [] as unknown[],
+  discoveryCountries: [
+    { code: "DE", name: "Germany", aliases: [] },
+    { code: "FR", name: "France", aliases: [] },
+    { code: "US", name: "United States", aliases: [] },
+  ],
+  discoveryCostEstimate: {
+    count: 1, based_on_runs: 3, estimated_eur: 0.02, currency: "EUR",
+    note: "Average of the last 3 completed discovery runs' real cost per requested case.",
+  },
+  discoverySearches: [] as unknown[],
   timeline: [
     {
       id: 21,
@@ -656,6 +666,17 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     }
     if (path === "/api/research-jobs") return json(route, fixtures.researchJobs);
     if (path === "/api/discovery/history") return json(route, fixtures.discoveryHistory);
+    if (path === "/api/discovery/countries") return json(route, fixtures.discoveryCountries);
+    if (path === "/api/discovery/cost-estimate") return json(route, fixtures.discoveryCostEstimate);
+    if (path === "/api/discovery/searches") return json(route, fixtures.discoverySearches);
+    if (/^\/api\/research-jobs\/\d+\/name$/.test(path) && method === "PATCH") {
+      const body = route.request().postDataJSON();
+      return json(route, { id: 41, display_name: body.display_name, name: body.display_name || "generated name" });
+    }
+    if (/^\/api\/discovery\/\d+\/(archive|delete|restore)$/.test(path) && method === "POST") {
+      const state = path.endsWith("archive") ? "archived" : path.endsWith("delete") ? "deleted" : "suggested";
+      return json(route, { id: Number(path.split("/")[3]), state });
+    }
     if (path === "/api/topics/discover" && method === "POST")
       return json(route, { job_id: 77, status: "queued" });
     if (path === "/api/settings/status") return json(route, fixtures.settings);

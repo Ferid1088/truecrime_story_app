@@ -633,10 +633,13 @@ class ResearchOrchestrator:
     async def discover_cases(
         self, count: int, languages: list[str], theme: str | None,
         existing_titles: list[str], progress: Progress | None = None,
-        known_identities: list[dict] | None = None, include_unsolved: bool = False,
+        known_identities: list[dict] | None = None, resolution_filter: str = "solved_only",
+        country_code: str | None = None,
+        incident_year_from: int | None = None, incident_year_to: int | None = None,
     ) -> dict:
         """Case discovery -> duplicate checker -> status verifier ->
         ranking (RECENT + SOLVED + NEVER USED; app/lifecycle/selection)."""
+        from app.lifecycle.geography import country_name
         from app.lifecycle.identity import IdentityIndex
         from app.lifecycle.selection import prepare_candidates
 
@@ -650,11 +653,13 @@ class ResearchOrchestrator:
                 "set TRUECRIME_APIMASTER_API_KEY and retry.",
             )
         time_range = ai_config.case_selection.discovery_time_range or None
+        country_display = country_name(country_code)
         found: list[dict] = []
         queries_out: list[dict] = []
         search_diagnostics: list[dict] = []
         for lang in (languages or ["en"]):
-            for q in _discovery_queries(theme, lang):
+            for q in _discovery_queries(theme, lang, country_name=country_display,
+                                        year_from=incident_year_from, year_to=incident_year_to):
                 progress.stage(f"searching:{lang}")
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "case_identity",
@@ -676,6 +681,7 @@ class ResearchOrchestrator:
                         for item in raw[:3]
                     ],
                 }
+                search_cost = 0.0
                 for backend in getattr(self.registry, "backends", []):
                     detail = getattr(backend, "last_search_diagnostics", None)
                     if isinstance(detail, dict) and detail.get("query") == q:
@@ -683,7 +689,10 @@ class ResearchOrchestrator:
                             "http_status": detail.get("http_status"),
                             "provider": detail.get("provider") or "brave",
                         })
+                        search_cost = float(detail.get("estimated_cost_usd") or 0.0)
                         break
+                tel["search_cost_usd"] += search_cost
+                tel["cost_usd"] += search_cost
                 search_diagnostics.append(diagnostic)
                 for r in raw:
                     found.append({
@@ -696,8 +705,10 @@ class ResearchOrchestrator:
         progress.stage("duplicate_check")
         prepared = await prepare_candidates(
             candidates, found, IdentityIndex.from_list(known_identities),
-            count=count, include_unsolved=include_unsolved,
-            registry=self.registry, gen=self.gen, progress=progress)
+            count=count, resolution_filter=resolution_filter,
+            registry=self.registry, gen=self.gen, progress=progress,
+            country_code=country_code, incident_year_from=incident_year_from,
+            incident_year_to=incident_year_to)
         tel["searches"] += prepared["stats"].get("status_searches", 0)
         return {
             "queries": queries_out,
@@ -884,8 +895,14 @@ def _ingest_canonical(r) -> str:
     return canon.split("?")[0]
 
 
-def _discovery_queries(theme: str | None, language: str = "en") -> list[str]:
-    """Recent, resolved cases first (config case_selection.seed_queries)."""
+def _discovery_queries(theme: str | None, language: str = "en", *,
+                       country_name: str | None = None,
+                       year_from: int | None = None, year_to: int | None = None) -> list[str]:
+    """Recent, resolved cases first (config case_selection.seed_queries).
+    country_name/year_from/year_to (D5: the requested country and year go
+    into query planning) are appended as plain text to every query,
+    regardless of query language — search engines handle an appended
+    country/year fine even in a non-English query."""
     from datetime import datetime, timezone
 
     year = datetime.now(timezone.utc).year
@@ -910,11 +927,26 @@ def _discovery_queries(theme: str | None, language: str = "en") -> list[str]:
             "fa": ["پرونده قتل تاریخی قبل از سال ۲۰۰۰", "پرونده حل‌شده قبل از ۲۰۰۰"],
             "ar": ["قضية قتل تاريخية قبل عام 2000", "قضية باردة حُلت قبل عام 2000"],
         }
-        return (historical.get(language) or historical["en"])[:6]
-    seeds = (ai_config.case_selection.seed_queries.get(language)
-             or ai_config.case_selection.seed_queries.get("en") or [])
-    base = [q.replace("{year}", str(year)).replace("{last_year}", str(year - 1))
-            for q in seeds]
-    if theme and theme.strip().lower() not in ("true crime", ""):
-        base.insert(0, f"{theme} case verdict {year}")
-    return base[:6]
+        queries = (historical.get(language) or historical["en"])[:6]
+    else:
+        seeds = (ai_config.case_selection.seed_queries.get(language)
+                 or ai_config.case_selection.seed_queries.get("en") or [])
+        base = [q.replace("{year}", str(year)).replace("{last_year}", str(year - 1))
+                for q in seeds]
+        if theme and theme.strip().lower() not in ("true crime", ""):
+            base.insert(0, f"{theme} case verdict {year}")
+        queries = base[:6]
+
+    suffix_parts: list[str] = []
+    if country_name:
+        suffix_parts.append(country_name)
+    if year_from is not None and year_to is not None:
+        suffix_parts.append(f"{year_from}-{year_to}")
+    elif year_from is not None:
+        suffix_parts.append(f"since {year_from}")
+    elif year_to is not None:
+        suffix_parts.append(f"before {year_to}")
+    if not suffix_parts:
+        return queries
+    suffix = " ".join(suffix_parts)
+    return [f"{q} {suffix}" for q in queries]

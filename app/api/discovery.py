@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -12,10 +13,37 @@ from app.db.models import (
     ResearchQuery,
 )
 from app.lifecycle.api import resolution_dict
-from app.schemas import InvestigateCandidateRequest, TopicDiscoveryRequest
+from app.schemas import (
+    BulkCandidateActionRequest,
+    InvestigateCandidateRequest,
+    RenameSearchRequest,
+    TopicDiscoveryRequest,
+)
 from app.services import research_jobs
 
 router = APIRouter()
+
+# Filled in below, after the single-action functions are defined.
+_SINGLE_CANDIDATE_ACTIONS: dict[str, Callable[[int, Session], dict]] = {}
+
+
+@router.post("/api/discovery/bulk/{action}")
+def bulk_candidate_action(action: str, payload: BulkCandidateActionRequest,
+                          db: Session = Depends(get_db)):
+    """D4 bulk archive/delete/restore: each id is applied independently —
+    one candidate's failure (not found, or delete blocked by an existing
+    case) never stops the rest."""
+    fn = _SINGLE_CANDIDATE_ACTIONS.get(action)
+    if fn is None:
+        raise HTTPException(status_code=404, detail=f"Unknown bulk action {action!r}")
+    succeeded, failed = [], []
+    for candidate_id in payload.candidate_ids:
+        try:
+            fn(candidate_id, db)
+            succeeded.append(candidate_id)
+        except HTTPException as e:
+            failed.append({"candidate_id": candidate_id, "detail": e.detail})
+    return {"succeeded": succeeded, "failed": failed}
 
 
 @router.post("/api/topics/discover")
@@ -43,6 +71,19 @@ async def get_research_job(job_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Research job not found")
     job = await research_jobs.poll_job(db, job)
     return research_jobs.job_dict(job)
+
+
+@router.patch("/api/research-jobs/{job_id}/name")
+def rename_research_job(job_id: int, payload: RenameSearchRequest, db: Session = Depends(get_db)):
+    """A Search's user-renamed display name (D2). An empty/null value
+    clears the override, reverting to the deterministic generated name."""
+    job = db.get(ResearchJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Research job not found")
+    job.display_name = payload.display_name or None
+    db.commit()
+    db.refresh(job)
+    return research_jobs.job_dict(job, include_result=False)
 
 
 @router.get("/api/research-jobs")
@@ -104,17 +145,61 @@ def research_job_queries(job_id: int, db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/api/discovery/countries")
+def discovery_countries():
+    from app.lifecycle.geography import country_options
+
+    return country_options()
+
+
+@router.get("/api/discovery/cost-estimate")
+def discovery_cost_estimate(count: int = 1, db: Session = Depends(get_db)):
+    if not 1 <= count <= 10:
+        raise HTTPException(status_code=422, detail="count must be between 1 and 10")
+    return research_jobs.discovery_cost_estimate(db, count)
+
+
 @router.get("/api/discovery/history")
-def discovery_history(state: str | None = None, db: Session = Depends(get_db)):
+def discovery_history(state: str | None = None, discovery_job_id: int | None = None,
+                      db: Session = Depends(get_db)):
     """Every suggestion with its status, ranking reason — and the
-    duplicates/filtered ones with the reason they were not suggested."""
+    duplicates/filtered ones with the reason they were not suggested.
+    Each row also carries its live D3 rollup (`case_status`,
+    `language_badges`), computed fresh, never a stored copy."""
+    from app.lifecycle.search_status import candidate_status, language_badges
     from app.lifecycle.selection import candidate_dict
 
     q = db.query(DiscoveryCandidate)
     if state:
         q = q.filter(DiscoveryCandidate.state == state)
+    if discovery_job_id is not None:
+        q = q.filter(DiscoveryCandidate.discovery_job_id == discovery_job_id)
     rows = q.order_by(DiscoveryCandidate.created_at.desc()).limit(200).all()
-    return [candidate_dict(r) for r in rows]
+    return [
+        {**candidate_dict(r), "case_status": candidate_status(db, r),
+         "language_badges": language_badges(db, r.case_id)}
+        for r in rows
+    ]
+
+
+@router.get("/api/discovery/searches")
+def discovery_searches(db: Session = Depends(get_db)):
+    """D2: every discovery run as a Search — one row per `ResearchJob`
+    (job_type="discovery"), newest first, with its name (generated or
+    user-renamed), its stored criteria, its real cost and D3's live counts."""
+    from app.lifecycle.search_status import search_counts
+
+    rows = (
+        db.query(ResearchJob)
+        .filter(ResearchJob.job_type == "discovery")
+        .order_by(ResearchJob.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {**research_jobs.job_dict(job, include_result=False), "counts": search_counts(db, job.id)}
+        for job in rows
+    ]
 
 
 @router.post("/api/discovery/{candidate_id}/investigate")
@@ -175,3 +260,75 @@ def ignore_candidate(candidate_id: int, db: Session = Depends(get_db)):
     cand.state = "ignored"   # stays in the history: never suggested again
     db.commit()
     return {"id": cand.id, "rejected": True}
+
+
+def _get_candidate_or_404(candidate_id: int, db: Session) -> DiscoveryCandidate:
+    cand = db.get(DiscoveryCandidate, candidate_id)
+    if not cand:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return cand
+
+
+def _archive_candidate_action(candidate_id: int, db: Session) -> dict:
+    from app.lifecycle.archive import archive_candidate
+
+    cand = _get_candidate_or_404(candidate_id, db)
+    archive_candidate(db, cand)
+    db.commit()
+    return {"id": cand.id, "state": cand.state}
+
+
+def _delete_candidate_action(candidate_id: int, db: Session) -> dict:
+    from app.lifecycle.archive import DeleteNotAllowed, soft_delete_candidate
+
+    cand = _get_candidate_or_404(candidate_id, db)
+    try:
+        soft_delete_candidate(db, cand)
+    except DeleteNotAllowed as e:
+        raise HTTPException(
+            status_code=409,
+            detail="A case already exists for this suggestion; archive it instead "
+                   "from the discover list (the film is untouched).") from e
+    db.commit()
+    return {"id": cand.id, "state": cand.state}
+
+
+def _restore_candidate_action(candidate_id: int, db: Session) -> dict:
+    from app.lifecycle.archive import RestoreWindowExpired, restore_candidate
+
+    cand = _get_candidate_or_404(candidate_id, db)
+    try:
+        restore_candidate(db, cand)
+    except RestoreWindowExpired as e:
+        raise HTTPException(
+            status_code=409,
+            detail="The restore window for this deleted suggestion has passed.") from e
+    db.commit()
+    return {"id": cand.id, "state": cand.state}
+
+
+@router.post("/api/discovery/{candidate_id}/archive")
+def archive_candidate_route(candidate_id: int, db: Session = Depends(get_db)):
+    """D4: permanent — matched by fingerprint/identity, never suggested
+    again by any later Search, even under a different title."""
+    return _archive_candidate_action(candidate_id, db)
+
+
+@router.post("/api/discovery/{candidate_id}/delete")
+def delete_candidate_route(candidate_id: int, db: Session = Depends(get_db)):
+    """D4: soft delete of just this suggestion — restorable for the
+    configured window; a later Search may suggest the same case again."""
+    return _delete_candidate_action(candidate_id, db)
+
+
+@router.post("/api/discovery/{candidate_id}/restore")
+def restore_candidate_route(candidate_id: int, db: Session = Depends(get_db)):
+    """D4: undo an archive or a (still-restorable) soft delete."""
+    return _restore_candidate_action(candidate_id, db)
+
+
+_SINGLE_CANDIDATE_ACTIONS.update({
+    "archive": _archive_candidate_action,
+    "delete": _delete_candidate_action,
+    "restore": _restore_candidate_action,
+})

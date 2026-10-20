@@ -10,6 +10,9 @@
       "shorts": 2.0
     }
   },
+  "discovery": {
+    "soft_delete_restore_days": 30
+  },
   "production_policies": {
     "user_media": {
       "require_rights_confirmation": true,

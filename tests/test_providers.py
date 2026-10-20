@@ -199,6 +199,8 @@ def test_discovery_returns_job_and_completes(client, db_session):
         assert len(candidates) == 1
         assert candidates[0]["title"] == "The Lighthouse Keeper Vanishing"
         assert candidates[0]["candidate_id"]
+        # D2 (Searches as folders) groups suggestions by their originating job.
+        assert candidates[0]["discovery_job_id"] == job_id
 
     # the duplicate is stored too — with the reason it was rejected (audit)
     stored = (db_session.query(DiscoveryCandidate)
@@ -208,6 +210,10 @@ def test_discovery_returns_job_and_completes(client, db_session):
     assert states == {"The Lighthouse Keeper Vanishing": "suggested", "Duplicate Case": "duplicate"}
     dup = next(c for c in stored if c.state == "duplicate")
     assert "Lighthouse Keeper Vanishing" in dup.duplicate_reason
+
+    history = client.get("/api/discovery/history").json()
+    by_title = {h["title"]: h for h in history if h["discovery_job_id"] == job_id}
+    assert by_title.keys() == {"The Lighthouse Keeper Vanishing", "Duplicate Case"}
 
 
 def test_discovery_fails_cleanly_when_unconfigured(client):
@@ -228,6 +234,134 @@ def test_discovery_fails_cleanly_when_unconfigured(client):
                                                   "language": "en", "force": True}).json()["id"]
         r2 = client.post(f"/api/cases/{case_id}/research")
         assert r2.status_code == 503
+
+
+def test_discovery_job_has_a_deterministic_generated_name_and_can_be_renamed(client, db_session):
+    job = research_jobs.create_job(
+        db_session, job_type="discovery",
+        input_data={"count": 1, "languages": ["en"], "theme": "true crime",
+                    "resolution_filter": "solved_only", "country_code": "DE",
+                    "incident_year_from": 2000, "incident_year_to": 2020})
+    db_session.commit()
+
+    r = client.get(f"/api/research-jobs/{job.id}")
+    body = r.json()
+    assert body["generated_name"] == f"True crime · Germany · 2000–2020 · Solved · en · #{job.id}"
+    assert body["display_name"] is None
+    assert body["name"] == body["generated_name"]
+
+    r = client.patch(f"/api/research-jobs/{job.id}/name", json={"display_name": "My German cold cases"})
+    assert r.status_code == 200
+    assert r.json()["display_name"] == "My German cold cases"
+    assert r.json()["name"] == "My German cold cases"
+
+    r = client.get(f"/api/research-jobs/{job.id}")
+    assert r.json()["name"] == "My German cold cases"
+
+    # clearing the override reverts to the generated name
+    r = client.patch(f"/api/research-jobs/{job.id}/name", json={"display_name": None})
+    assert r.json()["display_name"] is None
+    assert r.json()["name"] == body["generated_name"]
+
+
+def test_rename_unknown_research_job_is_404(client):
+    r = client.patch("/api/research-jobs/999999/name", json={"display_name": "x"})
+    assert r.status_code == 404
+
+
+def test_discovery_count_defaults_to_one_and_is_capped_at_ten(client):
+    """D1: the discover form's count control is a 1..10 dropdown defaulting
+    to 1 (replacing the old 5/10/20 buttons) — enforced server-side too."""
+    from app.schemas import TopicDiscoveryRequest
+
+    assert TopicDiscoveryRequest(languages=["en"]).count == 1
+
+    provider = FakeProvider(poll_job=ProviderJob(
+        external_id="s1", status="completed", result={"candidates": []}))
+    with patch("app.api.deps.get_research_provider", return_value=provider), _provider_patch(provider):
+        r = client.post("/api/topics/discover", json={"languages": ["en"]})
+        assert r.status_code == 200
+
+        r = client.post("/api/topics/discover", json={"count": 10, "languages": ["en"]})
+        assert r.status_code == 200
+
+        r = client.post("/api/topics/discover", json={"count": 11, "languages": ["en"]})
+        assert r.status_code == 422
+
+        r = client.post("/api/topics/discover", json={"count": 0, "languages": ["en"]})
+        assert r.status_code == 422
+
+
+def test_discovery_cost_estimate_with_no_history_says_so(client, db_session):
+    # Isolate from other tests' discovery jobs in this shared test database.
+    db_session.query(ResearchJob).filter(ResearchJob.job_type == "discovery").delete()
+    db_session.commit()
+    r = client.get("/api/discovery/cost-estimate", params={"count": 1})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 1
+    assert body["based_on_runs"] == 0
+    assert body["estimated_eur"] is None
+    assert "no completed discovery run" in body["note"].lower()
+
+
+def test_discovery_cost_estimate_scales_from_real_historical_spend(client, db_session):
+    """The estimate is live data (average EUR-per-case from completed
+    discovery jobs), never a hardcoded guess — it must change when the
+    historical spend it is built from changes."""
+    from app.core.ai_config import ai_config
+
+    # Isolate from other tests' (and earlier runs') discovery jobs in this
+    # shared test database — this test's assertion must be deterministic.
+    db_session.query(ResearchJob).filter(ResearchJob.job_type == "discovery").delete()
+    db_session.commit()
+
+    for count, total_cost_usd in ((1, 0.03), (2, 0.05)):
+        job = research_jobs.create_job(
+            db_session, job_type="discovery", input_data={"count": count, "languages": ["en"]})
+        job.status = "completed"
+        job.total_cost_usd = total_cost_usd
+        db_session.commit()
+
+    r = client.get("/api/discovery/cost-estimate", params={"count": 3})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["based_on_runs"] == 2
+    # per-case USD average: (0.03/1 + 0.05/2) / 2 = 0.0275 -> *3 cases *usd_to_eur
+    expected_eur = round(0.0275 * 3 * ai_config.budget.usd_to_eur, 4)
+    assert body["estimated_eur"] == pytest.approx(expected_eur, rel=1e-6)
+    assert body["currency"] == "EUR"
+
+
+def test_topic_discovery_request_defaults_to_solved_only():
+    from app.schemas import TopicDiscoveryRequest
+
+    assert TopicDiscoveryRequest(languages=["en"]).resolution_filter == "solved_only"
+
+
+def test_topic_discovery_request_accepts_unsolved_only_and_both():
+    from app.schemas import TopicDiscoveryRequest
+
+    assert TopicDiscoveryRequest(
+        languages=["en"], resolution_filter="unsolved_only").resolution_filter == "unsolved_only"
+    assert TopicDiscoveryRequest(
+        languages=["en"], resolution_filter="both").resolution_filter == "both"
+
+
+def test_topic_discovery_request_rejects_unknown_resolution_filter():
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    from app.schemas import TopicDiscoveryRequest
+
+    with _pytest.raises(ValidationError):
+        TopicDiscoveryRequest(languages=["en"], resolution_filter="only_the_weird_ones")
+
+
+def test_discover_endpoint_rejects_unknown_resolution_filter(client):
+    r = client.post("/api/topics/discover",
+                    json={"languages": ["en"], "resolution_filter": "only_the_weird_ones"})
+    assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------

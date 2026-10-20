@@ -81,6 +81,13 @@ test.describe("Dashboard", () => {
 });
 
 test.describe("Discover", () => {
+  test.afterEach(() => {
+    // Tests below mutate these shared fixtures; reset so later tests (in
+    // this file or a worker-reused later one) see the plain defaults.
+    fixtures.discoverySearches = [];
+    fixtures.discoveryHistory = [];
+  });
+
   test("renders controls and empty state", async ({ page }) => {
     await mockApi(page);
     await page.goto("/discover");
@@ -156,6 +163,118 @@ test.describe("Discover", () => {
     await page.goto("/discover");
     await expect(page.getByText("The Vanishing of the Flannan Isles Keepers")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("discovery-job-status")).toContainText("completed");
+  });
+
+  test("count dropdown defaults to 1, offers 1..10, and shows a cost estimate", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/discover");
+    const count = page.getByLabel("Number of cases");
+    await expect(count).toHaveValue("1");
+    const values = await count.locator("option").allInnerTexts();
+    expect(values).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    await expect(page.getByTestId("discovery-cost-estimate")).toContainText("€0.02");
+  });
+
+  test("country and year filters default to any, and are sent on submit", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/discover");
+    await expect(page.getByLabel("Country")).toHaveValue("");
+    await expect(page.getByLabel("Incident year from")).toHaveValue("");
+    await expect(page.getByLabel("Incident year to")).toHaveValue("");
+    await expect(page.getByLabel("Resolution status")).toHaveValue("solved_only");
+
+    await page.getByLabel("Country").selectOption("DE");
+    await page.getByLabel("Incident year from").selectOption("2000");
+
+    const [request] = await Promise.all([
+      page.waitForRequest("**/api/topics/discover"),
+      page.getByRole("button", { name: /discover new cases/i }).click(),
+    ]);
+    const payload = request.postDataJSON();
+    expect(payload.country_code).toBe("DE");
+    expect(payload.incident_year_from).toBe(2000);
+    expect(payload.incident_year_to).toBeNull();
+  });
+
+  test("Searches list renders a row with its name, chips and counts, and expands to show cases", async ({ page }) => {
+    await mockApi(page, {});
+    fixtures.discoverySearches = [
+      {
+        id: 41, case_id: null, provider: "truecrime", job_type: "discovery", status: "completed",
+        name: "True crime · Germany · 2000–2020 · Solved · en · #41",
+        generated_name: "True crime · Germany · 2000–2020 · Solved · en · #41",
+        display_name: null, total_cost_usd: 0.025, total_cost_eur: 0.023,
+        created_at: "2026-10-20T21:00:00Z",
+        counts: { total: 1, free: 1, created_not_published: 0, created_published: 0, archived: 0 },
+      },
+    ];
+    fixtures.discoveryHistory = [{
+      id: 35, candidate_id: 35, title: "Murder of Amanda Gonzales", query: "x", rationale: "x",
+      state: "suggested", selected: false, rejected: false, case_id: null,
+      resolution_status: "SOLVED", resolution_confidence: 0.98, resolution_evidence: "x",
+      incident_date: "2001", latest_development_date: null, location: "Hanau, Germany",
+      aliases: [], people: [], source_urls: [], recency_score: 0.1, rank_score: 0.1,
+      legal_risk: false, legal_risk_reasons: [], suggestion_reason: "rank 1", duplicate_of_case_id: null,
+      duplicate_of_candidate_id: null, duplicate_reason: null, discovery_job_id: 41, created_at: null,
+      case_status: "free", language_badges: { en: "not_created", de: "not_created", fa: "not_created", ar: "not_created" },
+    }];
+    await page.goto("/discover");
+    await expect(page.getByText("True crime · Germany · 2000–2020 · Solved · en · #41")).toBeVisible();
+    await expect(page.getByText("1 total")).toBeVisible();
+    await page.getByRole("button", { name: "Expand" }).click();
+    await expect(page.getByText("Murder of Amanda Gonzales")).toBeVisible();
+    await expect(page.getByRole("button", { name: /archive/i })).toBeVisible();
+  });
+
+  test("renaming a Search calls the rename endpoint", async ({ page }) => {
+    await mockApi(page);
+    fixtures.discoverySearches = [{
+      id: 41, case_id: null, provider: "truecrime", job_type: "discovery", status: "completed",
+      name: "True crime · Worldwide · Any year · Solved · en · #41",
+      generated_name: "True crime · Worldwide · Any year · Solved · en · #41",
+      display_name: null, total_cost_usd: 0.025, total_cost_eur: 0.023,
+      created_at: "2026-10-20T21:00:00Z",
+      counts: { total: 0, free: 0, created_not_published: 0, created_published: 0, archived: 0 },
+    }];
+    await page.goto("/discover");
+    await page.getByRole("button", { name: "Rename this Search" }).click();
+    const [request] = await Promise.all([
+      page.waitForRequest("**/api/research-jobs/41/name"),
+      (async () => {
+        await page.locator('input[type="text"], input:not([type])').last().fill("My renamed search");
+        await page.keyboard.press("Enter");
+      })(),
+    ]);
+    expect(request.postDataJSON().display_name).toBe("My renamed search");
+  });
+
+  test("a soft-deleted case shows a Deleted badge with Restore, not Archive", async ({ page }) => {
+    await mockApi(page);
+    fixtures.discoverySearches = [{
+      id: 41, case_id: null, provider: "truecrime", job_type: "discovery", status: "completed",
+      name: "True crime · Worldwide · Any year · Solved · en · #41",
+      generated_name: "True crime · Worldwide · Any year · Solved · en · #41",
+      display_name: null, total_cost_usd: 0.025, total_cost_eur: 0.023,
+      created_at: "2026-10-20T21:00:00Z",
+      counts: { total: 1, free: 0, created_not_published: 0, created_published: 0, archived: 0 },
+    }];
+    fixtures.discoveryHistory = [{
+      id: 44, candidate_id: 44, title: "Soft Deleted Case", query: "x", rationale: "x",
+      state: "deleted", selected: false, rejected: false, case_id: null,
+      resolution_status: "SOLVED", resolution_confidence: 0.9, resolution_evidence: "x",
+      incident_date: "2010", latest_development_date: null, location: null,
+      aliases: [], people: [], source_urls: [], recency_score: 0.1, rank_score: 0.1,
+      legal_risk: false, legal_risk_reasons: [], suggestion_reason: "x", duplicate_of_case_id: null,
+      duplicate_of_candidate_id: null, duplicate_reason: null, discovery_job_id: 41, created_at: null,
+      case_status: "free", language_badges: { en: "not_created", de: "not_created", fa: "not_created", ar: "not_created" },
+    }];
+    await page.goto("/discover");
+    await page.getByRole("button", { name: "Expand" }).click();
+    await expect(page.getByText("Soft Deleted Case")).toBeVisible();
+    await expect(page.getByText("Deleted", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /restore/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^archive$/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^delete$/i })).toHaveCount(0);
   });
 });
 

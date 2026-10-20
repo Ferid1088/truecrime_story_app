@@ -82,7 +82,7 @@ def _payload_value(payload, name: str, default=None):
 
 def _discovery_input(payload) -> dict:
     return {
-        "count": _payload_value(payload, "count", 5),
+        "count": _payload_value(payload, "count", 1),
         "languages": _payload_value(payload, "languages", ["en"]),
         "theme": _payload_value(payload, "theme", "true crime"),
         "prefer_undercovered": bool(_payload_value(payload, "prefer_undercovered", True)),
@@ -90,7 +90,59 @@ def _discovery_input(payload) -> dict:
         "search_web": bool(_payload_value(payload, "search_web", True)),
         "search_youtube": bool(_payload_value(payload, "search_youtube", True)),
         "avoid_existing": bool(_payload_value(payload, "avoid_existing", True)),
-        "include_unsolved": bool(_payload_value(payload, "include_unsolved", False)),
+        "resolution_filter": _payload_value(payload, "resolution_filter", "solved_only"),
+        "country_code": _payload_value(payload, "country_code", None),
+        "incident_year_from": _payload_value(payload, "incident_year_from", None),
+        "incident_year_to": _payload_value(payload, "incident_year_to", None),
+    }
+
+
+DISCOVERY_COST_ESTIMATE_SAMPLE_SIZE = 20
+
+
+def discovery_cost_estimate(db: Session, count: int) -> dict:
+    """A before-you-start estimate for a discovery run of `count` cases,
+    built only from this app's own completed discovery runs (average
+    real EUR spend per requested case) — never a hardcoded guess.
+
+    Today that real spend is a floor: search cost is fully counted, but
+    discovery's model-call cost is not yet (see docs/discover_checklist.md),
+    so the estimate understates true spend by whatever the LLM calls cost."""
+    rows = (
+        db.query(ResearchJob)
+        .filter(ResearchJob.job_type == "discovery", ResearchJob.status == "completed",
+                ResearchJob.total_cost_usd.isnot(None))
+        .order_by(ResearchJob.id.desc())
+        .limit(DISCOVERY_COST_ESTIMATE_SAMPLE_SIZE)
+        .all()
+    )
+    per_case_costs: list[float] = []
+    for job in rows:
+        try:
+            input_data = json.loads(job.input_json or "{}")
+        except (TypeError, ValueError):
+            input_data = {}
+        run_count = max(int(input_data.get("count") or 1), 1)
+        per_case_costs.append(float(job.total_cost_usd or 0.0) / run_count)
+
+    if not per_case_costs:
+        return {
+            "count": count, "based_on_runs": 0, "estimated_eur": None, "currency": "EUR",
+            "note": "No completed discovery runs yet to estimate from — the first run's "
+                    "actual cost (GET /api/research-jobs/{job_id}) will seed future estimates.",
+        }
+
+    avg_per_case_usd = sum(per_case_costs) / len(per_case_costs)
+    estimated_eur = round(avg_per_case_usd * count * ai_config.budget.usd_to_eur, 4)
+    return {
+        "count": count,
+        "based_on_runs": len(per_case_costs),
+        "estimated_eur": estimated_eur,
+        "currency": "EUR",
+        "note": f"Average of the last {len(per_case_costs)} completed discovery run"
+                f"{'s' if len(per_case_costs) != 1 else ''}' real cost per requested case. "
+                "Search cost only — discovery's model-call cost is not yet counted "
+                "(see docs/discover_checklist.md), so actual spend may be higher.",
     }
 
 
@@ -189,14 +241,17 @@ async def start_discovery_job(db: Session, payload, job: ResearchJob | None = No
 
         with documentary_run_context(case_id=job.case_id, pipeline_stage="discovery"):
             external_id = await provider.start_discovery(
-                count=_payload_value(payload, "count", 5),
+                count=_payload_value(payload, "count", 1),
                 languages=_payload_value(payload, "languages", ["en"]),
                 theme=_payload_value(payload, "theme", "true crime"),
                 prefer_undercovered=_payload_value(payload, "prefer_undercovered", True),
                 require_multiple_sources=_payload_value(payload, "require_multiple_sources", False),
                 existing_titles=known_case_titles(db),
                 known_identities=IdentityIndex.from_db(db).to_list(),
-                include_unsolved=bool(_payload_value(payload, "include_unsolved", False)),
+                resolution_filter=_payload_value(payload, "resolution_filter", "solved_only"),
+                country_code=_payload_value(payload, "country_code", None),
+                incident_year_from=_payload_value(payload, "incident_year_from", None),
+                incident_year_to=_payload_value(payload, "incident_year_to", None),
             )
     except Exception as e:
         job.status = "failed"
@@ -356,8 +411,8 @@ def _ingest_discovery(db: Session, job: ResearchJob, result: dict):
 
     params = json.loads(job.input_json or "{}")
     out = ingest_candidates(
-        db, result, count=int(params.get("count") or 5),
-        include_unsolved=bool(params.get("include_unsolved")), job_id=job.id)
+        db, result, count=int(params.get("count") or 1),
+        resolution_filter=params.get("resolution_filter") or "solved_only", job_id=job.id)
     out["search_diagnostics"] = result.get("search_diagnostics") or []
     if out["candidates"]:
         job.result_summary = (f"candidates={len(out['candidates'])} "
@@ -926,6 +981,15 @@ def job_dict(job: ResearchJob, include_result: bool = True) -> dict:
             result = json.loads(job.result_json)
         except (ValueError, TypeError):
             result = None
+    generated_name = None
+    if job.job_type == "discovery":
+        from app.lifecycle.search_naming import generate_search_name
+
+        try:
+            input_data = json.loads(job.input_json or "{}")
+        except (ValueError, TypeError):
+            input_data = {}
+        generated_name = generate_search_name(input_data, job.id)
     duration_ms = None
     if job.started_at and job.completed_at:
         duration_ms = int(
@@ -963,6 +1027,13 @@ def job_dict(job: ResearchJob, include_result: bool = True) -> dict:
         "result_summary": job.result_summary,
         "error": job.error,
         "result": result,
+        "generated_name": generated_name,
+        "display_name": job.display_name,
+        "name": job.display_name or generated_name,
+        "total_cost_eur": (
+            round(job.total_cost_usd * ai_config.budget.usd_to_eur, 4)
+            if job.total_cost_usd is not None else None
+        ),
         "created_at": job.created_at,
         "started_at": job.started_at,
         "completed_at": job.completed_at,

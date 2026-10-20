@@ -53,6 +53,9 @@ import type {
   ResearchProviderStatus,
   SearchEngineStatus,
   DiscoveryRequest,
+  DiscoveryCostEstimate,
+  DiscoveryCountry,
+  Search,
   DynamicEQSettings,
   EQPreviewResponse,
   DocumentaryBatch,
@@ -280,14 +283,33 @@ export const api = {
 
   discover: (payload: DiscoveryRequest) =>
     post<JobStartResponse>("/api/topics/discover", payload),
+  discoveryCostEstimate: (count: number) =>
+    request<DiscoveryCostEstimate>(`/api/discovery/cost-estimate${query({ count })}`),
+  discoveryCountries: () => request<DiscoveryCountry[]>("/api/discovery/countries"),
   /** 409 (see `duplicateConflict`) when the case already exists — `force` creates it anyway. */
   investigate: (candidateId: number, language = "fa", force = false) =>
     post<CreatedCase>(`/api/discovery/${candidateId}/investigate`, { language, force }),
   ignoreCandidate: (candidateId: number) =>
     post<{ id: number; rejected: boolean }>(`/api/discovery/${candidateId}/ignore`),
   /** Every stored suggestion — also the duplicates/filtered ones, with their reasons. */
-  discoveryHistory: (state?: SuggestionState) =>
-    request<SuggestionRecord[]>(`/api/discovery/history${query({ state })}`),
+  discoveryHistory: (state?: SuggestionState, discoveryJobId?: number) =>
+    request<SuggestionRecord[]>(
+      `/api/discovery/history${query({ state, discovery_job_id: discoveryJobId })}`,
+    ),
+  /** D2: every discovery run as a Search, newest first, with its live D3 counts. */
+  searches: () => request<Search[]>("/api/discovery/searches"),
+  renameSearch: (jobId: number, displayName: string | null) =>
+    patch<ResearchJob>(`/api/research-jobs/${jobId}/name`, { display_name: displayName }),
+  archiveCandidate: (candidateId: number) =>
+    post<{ id: number; state: SuggestionState }>(`/api/discovery/${candidateId}/archive`),
+  deleteCandidate: (candidateId: number) =>
+    post<{ id: number; state: SuggestionState }>(`/api/discovery/${candidateId}/delete`),
+  restoreCandidate: (candidateId: number) =>
+    post<{ id: number; state: SuggestionState }>(`/api/discovery/${candidateId}/restore`),
+  bulkCandidateAction: (action: "archive" | "delete" | "restore", candidateIds: number[]) =>
+    post<{ succeeded: number[]; failed: { candidate_id: number; detail: string }[] }>(
+      `/api/discovery/bulk/${action}`, { candidate_ids: candidateIds },
+    ),
 
   listCases: (params?: { status?: string; q?: string; resolution?: ResolutionStatus | "ALL" | "" }) =>
     request<CaseListItem[]>(

@@ -251,7 +251,10 @@ class TrueCrimeSearchProvider(ResearchProvider):
         require_multiple_sources: bool,
         existing_titles: list[str],
         known_identities: list[dict] | None = None,
-        include_unsolved: bool = False,
+        resolution_filter: str = "solved_only",
+        country_code: str | None = None,
+        incident_year_from: int | None = None,
+        incident_year_to: int | None = None,
     ) -> str:
         orch = self._orchestrator()
 
@@ -261,7 +264,9 @@ class TrueCrimeSearchProvider(ResearchProvider):
                 count=count, languages=languages or ["en"],
                 theme=theme or None,
                 existing_titles=existing_titles, progress=prog,
-                known_identities=known_identities, include_unsolved=include_unsolved)
+                known_identities=known_identities, resolution_filter=resolution_filter,
+                country_code=country_code, incident_year_from=incident_year_from,
+                incident_year_to=incident_year_to)
             p.live_telemetry(result.get("_telemetry") or {})
             return result
 
