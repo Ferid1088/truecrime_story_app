@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Compass, Globe, History, MapPin, Sparkles, Users } from "lucide-react";
+import { CalendarDays, Compass, Globe, History, MapPin, Rocket, Sparkles, Users } from "lucide-react";
 import { ApiError, api, duplicateConflict, pollResearchJob } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type {
@@ -25,6 +25,7 @@ import { DuplicateNotice } from "@/components/lifecycle/duplicate-notice";
 import { Collapsible, FieldLabel, SourceLinks } from "@/components/lifecycle/shared";
 import { SearchHealthWarning } from "@/components/search-health-warning";
 import { SearchesList } from "@/components/discover/searches-list";
+import { StartDialog } from "@/components/autopilot/start-dialog";
 
 const LANG_OPTIONS = ["en", "de", "fa", "ar", "other"];
 const COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -677,6 +678,7 @@ function CandidateCard({
 }) {
   const languages = c.languages_available ?? [];
   const angles = c.angles ?? [];
+  const [starting, setStarting] = useState(false);
   return (
     <Card>
       <CardHeader className="items-start gap-2">
@@ -777,10 +779,21 @@ function CandidateCard({
             <Compass className="size-3.5" />
             Investigate
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setStarting(true)}
+            disabled={c.already_covered || busy !== null || conflict != null}
+            data-testid="start-autopilot"
+          >
+            <Rocket className="size-3.5" />
+            Start
+          </Button>
           <Button size="sm" variant="outline" onClick={onIgnore} disabled={busy !== null}>
             Ignore
           </Button>
         </div>
+        <StartDialog candidateId={c.candidate_id} title={c.title} open={starting} onClose={() => setStarting(false)} />
       </CardContent>
     </Card>
   );

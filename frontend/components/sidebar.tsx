@@ -17,6 +17,7 @@ import {
   Menu,
   Moon,
   PenLine,
+  Rocket,
   Settings,
   Smartphone,
   Sun,
@@ -29,6 +30,7 @@ import { authApi } from "@/lib/api";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/discover", label: "Discover", icon: Compass },
+  { href: "/autopilot", label: "Autopilot", icon: Rocket },
   { href: "/cases", label: "Cases", icon: FolderOpen },
   { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/story-studio", label: "Story Studio", icon: PenLine },

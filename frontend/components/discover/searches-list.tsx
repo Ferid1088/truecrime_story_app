@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, ChevronDown, ChevronRight, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Pencil, RotateCcw, Rocket, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { DiscoveredCaseStatus, Search, SuggestionRecord } from "@/lib/types";
@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StartDialog } from "@/components/autopilot/start-dialog";
 
 const STATUS_LABEL: Record<DiscoveredCaseStatus, string> = {
   free: "Free",
@@ -171,6 +172,20 @@ function SearchRow({
   );
 }
 
+/** Start: the autopilot for one free suggestion, after the languages and the estimate are confirmed. */
+function StartButton({ candidate }: { candidate: SuggestionRecord }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)} data-testid={`start-autopilot-${candidate.candidate_id}`}>
+        <Rocket className="size-3.5" /> Start
+      </Button>
+      <StartDialog candidateId={candidate.candidate_id} title={candidate.title} open={open}
+                   onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
 function SearchExpandedView({
   jobId,
   onChanged,
@@ -227,6 +242,7 @@ function SearchExpandedView({
             ))}
           </div>
           <div className="flex shrink-0 gap-1">
+            {c.case_status === "free" && c.state === "suggested" && <StartButton candidate={c} />}
             {c.state === "archived" || c.state === "deleted" ? (
               <Button size="sm" variant="outline" onClick={() => restore(c)}>
                 <RotateCcw className="size-3.5" /> Restore

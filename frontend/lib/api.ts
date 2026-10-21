@@ -1043,3 +1043,83 @@ export const editorialReviewApi = {
       `/api/documentary/visuals/editorial-review/decisions?limit=200${verdict ? `&verdict=${verdict}` : ""}`,
     ),
 };
+
+export interface AutopilotEstimate {
+  languages: string[];
+  cap_eur: number;
+  estimated_eur: number;
+  range_eur: { low: number; high: number };
+  pricing_last_verified: string;
+  price_warnings: { stage: string; reason: string }[];
+}
+
+export interface AutopilotNeed {
+  key: string;
+  kind: string;
+  message: string;
+  language: string | null;
+  blocking: boolean;
+}
+
+export interface AutopilotStep {
+  name: string;
+  status: "pending" | "running" | "waiting" | "done";
+  detail: string | null;
+  at: string | null;
+}
+
+export interface AutopilotRunView {
+  id: number;
+  status: "running" | "waiting_owner" | "completed" | "cancelled";
+  stage: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  case: { id: number; title: string };
+  estimate: Partial<AutopilotEstimate>;
+  budget: { cap_eur: number; spent_eur: number };
+  steps: AutopilotStep[];
+  needs_you: AutopilotNeed[];
+  languages: Record<
+    string,
+    {
+      film_job: { id: number; status: string; progress: number; stage: string | null; error: string | null } | null;
+      titles: { id: number; title: string; selected: boolean }[];
+    }
+  >;
+  publish_requests: number;
+}
+
+export interface PublishRequestRow {
+  id: number;
+  language: string;
+  platform: string;
+  kind: "film" | "short";
+  short_id: number | null;
+  status: string;
+  scheduled_for: string;
+  request: Record<string, unknown>;
+}
+
+export interface ChannelSettingRow {
+  language: string;
+  platform: string;
+  handle: string;
+  connected: boolean;
+}
+
+export const autopilotApi = {
+  estimate: (candidateId: number, languages: string[]) =>
+    request<AutopilotEstimate>(`/api/autopilot/estimate${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
+  start: (candidateId: number, languages: string[]) =>
+    post<AutopilotRunView>("/api/autopilot/runs", { candidate_id: candidateId, languages }),
+  runs: () => request<{ runs: AutopilotRunView[] }>("/api/autopilot/runs"),
+  run: (runId: number) => request<AutopilotRunView>(`/api/autopilot/runs/${runId}`),
+  cancel: (runId: number) => post<AutopilotRunView>(`/api/autopilot/runs/${runId}/cancel`),
+  publishRequests: (runId: number) =>
+    request<{ sent: number; requests: PublishRequestRow[] }>(`/api/autopilot/runs/${runId}/publish-requests`),
+  channels: () => request<{ channels: ChannelSettingRow[] }>("/api/channel-settings"),
+  setHandle: (language: string, platform: string, handle: string) =>
+    put<ChannelSettingRow>(`/api/channel-settings/${language}/${platform}`, { handle }),
+};

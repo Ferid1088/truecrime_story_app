@@ -94,6 +94,7 @@ from app.api import backup as backup_api  # noqa: E402
 
 if os.environ.get("TC_TEST_NO_NETWORK") == "1":
     from app.api import e2e  # noqa: E402
+from app.autopilot.api import router as autopilot_router  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
@@ -115,6 +116,7 @@ for _router in (
     studio_router,
     shortform_router,
     closing_router,
+    autopilot_router,
     system.router,
     costs.router,
     discovery.router,

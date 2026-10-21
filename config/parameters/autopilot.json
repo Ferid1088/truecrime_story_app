@@ -1,0 +1,25 @@
+{
+  "autopilot": {
+    "languages": [
+      "en",
+      "de",
+      "fa",
+      "ar"
+    ],
+    "platforms": [
+      "youtube_short",
+      "instagram_reel",
+      "facebook_reel",
+      "tiktok_video"
+    ],
+    "automatic_approver": "autopilot (automatic)",
+    "tick_seconds": 20,
+    "render_profile": "publish",
+    "schedule": {
+      "first_slot_hour_utc": 15,
+      "slot_spacing_hours": 6,
+      "film_before_shorts_hours": 24
+    },
+    "max_attempts_per_phase": 3
+  }
+}

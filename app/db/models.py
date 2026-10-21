@@ -2511,3 +2511,60 @@ def _music_track_needs_situation(_mapper, _connection, track: MusicTrack) -> Non
     """A track is never saved without the situation text and tags that tell agents when to use it."""
     if not (track.situation or "").strip() or not json.loads(track.tags_json or "[]"):
         raise ValueError(f"music track {track.track_code}: situation text and tags are required")
+
+
+class AutopilotRun(Base):
+    """One press of the Start button: the case it works on, the languages it covers, a step log,
+    the "needs you" list (what only the owner may decide) and the film jobs it started."""
+
+    __tablename__ = "autopilot_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    candidate_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    languages_json: Mapped[str] = mapped_column(Text)
+    # running | waiting_owner | completed | failed
+    status: Mapped[str] = mapped_column(String(20), default="running", index=True)
+    stage: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    needs_you_json: Mapped[str] = mapped_column(Text, default="[]")
+    estimate_json: Mapped[str] = mapped_column(Text, default="{}")
+    film_job_ids_json: Mapped[str] = mapped_column(Text, default="{}")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class ChannelSetting(Base):
+    """The placeholder for one channel (language x platform): a handle the owner types and a
+    `connected` flag that stays false until a real integration exists. Never a credential."""
+
+    __tablename__ = "channel_settings"
+    __table_args__ = (UniqueConstraint("language", "platform", name="uq_channel_setting"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    language: Mapped[str] = mapped_column(String(10))
+    platform: Mapped[str] = mapped_column(String(30))
+    handle: Mapped[str] = mapped_column(String(200), default="")
+    connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class PublishRequest(Base):
+    """A dry-run upload request: exactly what would be sent to a platform and when it is
+    scheduled. Nothing is sent; `status` stays 'dry_run'."""
+
+    __tablename__ = "publish_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("autopilot_runs.id"), index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"))
+    language: Mapped[str] = mapped_column(String(10))
+    platform: Mapped[str] = mapped_column(String(30))
+    kind: Mapped[str] = mapped_column(String(10))
+    short_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    request_json: Mapped[str] = mapped_column(Text)
+    scheduled_for: Mapped[datetime] = mapped_column(UTCDateTime)
+    status: Mapped[str] = mapped_column(String(20), default="dry_run")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)

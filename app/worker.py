@@ -99,7 +99,7 @@ class Worker:
     def __init__(self, session_factory=None, run_job=None, worker_id: str | None = None,
                  poll_seconds: float | None = None, lease_seconds: float | None = None,
                  max_auto_resumes: int | None = None, max_parallel: int | None = None,
-                 alive_file: str | None = None):
+                 alive_file: str | None = None, run_autopilot=None):
         from app.db.base import SessionLocal
 
         self.session_factory = session_factory or SessionLocal
@@ -108,6 +108,12 @@ class Worker:
 
             run_job = _run
         self.run_job = run_job
+        if run_autopilot is None:
+            from app.autopilot.runner import AutopilotRunner
+
+            run_autopilot = AutopilotRunner(self.session_factory).run
+        self.run_autopilot = run_autopilot
+        self.autopilot_tasks: dict[int, asyncio.Task] = {}
         self.worker_id = worker_id or new_worker_id()
         self.poll = settings.worker_poll_seconds if poll_seconds is None else poll_seconds
         self.lease = settings.job_lease_seconds if lease_seconds is None else lease_seconds
@@ -147,6 +153,7 @@ class Worker:
             beat_short_jobs(db, self.worker_id, lease_seconds=self.lease)
             self.tasks = {i: t for i, t in self.tasks.items() if not t.done()}
             self.short_tasks = {i: t for i, t in self.short_tasks.items() if not t.done()}
+            self._drive_autopilot_runs(db)
             while len(self.tasks) < self.max_parallel and not self.stop.is_set():
                 job_id = claim_next_job(db, self.worker_id)
                 if job_id is None:
@@ -161,6 +168,17 @@ class Worker:
                 self.short_tasks[short_id] = asyncio.create_task(self._run_short(short_id))
         finally:
             db.close()
+
+    def _drive_autopilot_runs(self, db: Session) -> None:
+        """Every autopilot run that has not finished is driven by this worker, once. A run is
+        resumable from the database, so a restarted worker simply picks it up again."""
+        from app.autopilot.service import resume_active_runs
+
+        self.autopilot_tasks = {i: t for i, t in self.autopilot_tasks.items() if not t.done()}
+        for run_id in resume_active_runs(db):
+            if run_id not in self.autopilot_tasks and not self.stop.is_set():
+                log.info("worker %s drives autopilot run %s", self.worker_id, run_id)
+                self.autopilot_tasks[run_id] = asyncio.create_task(self.run_autopilot(run_id))
 
     async def _run(self, job_id: int) -> None:
         try:
@@ -229,7 +247,10 @@ class Worker:
                 t.cancel()
             for t in self.short_tasks.values():
                 t.cancel()
-            await asyncio.gather(*self.tasks.values(), *self.short_tasks.values(), return_exceptions=True)
+            for t in self.autopilot_tasks.values():
+                t.cancel()
+            await asyncio.gather(*self.tasks.values(), *self.short_tasks.values(),
+                                 *self.autopilot_tasks.values(), return_exceptions=True)
             self.stop.set()
             await heart
             db = self._db()

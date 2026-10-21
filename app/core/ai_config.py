@@ -2114,6 +2114,29 @@ class ChaptersConfig(BaseModel):
     intro_duck_db: float = Field(default=-18.0, le=0.0)
 
 
+class AutopilotScheduleConfig(BaseModel):
+    """Where the dry-run publish queue puts the first slot and how far apart the next ones are."""
+
+    first_slot_hour_utc: int = Field(ge=0, le=23)
+    slot_spacing_hours: int = Field(ge=1)
+    film_before_shorts_hours: int = Field(ge=0)
+
+
+class AutopilotConfig(BaseModel):
+    """The Start button: which languages and platforms a run covers and who is recorded as the
+    approver of automatic text approvals."""
+
+    languages: list[str] = Field(min_length=1)
+    platforms: list[str] = Field(min_length=1)
+    automatic_approver: str = Field(min_length=1)
+    tick_seconds: float = Field(gt=0)
+    # A paid phase call (research, texts, titles) is tried at most this often per run; after
+    # that the owner decides, the autopilot does not keep paying for the same failure.
+    max_attempts_per_phase: int = Field(ge=1)
+    render_profile: Literal["preview", "publish"]
+    schedule: AutopilotScheduleConfig
+
+
 class DetectiveBoardConfig(BaseModel):
     """The detective board: a growing road of short-title cards, one per
     key narrated fact, pasted onto the board as the film reaches it and
@@ -3323,6 +3346,7 @@ class AIConfig(BaseModel):
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
+    autopilot: AutopilotConfig | None = None
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     maps: MapsConfig = Field(default_factory=MapsConfig)
@@ -3540,6 +3564,12 @@ class AIConfig(BaseModel):
         if self.zoom_map is None:
             raise RuntimeError("config/parameters/zoom_map.json is missing")
         return self.zoom_map
+
+    def autopilot_settings(self) -> AutopilotConfig:
+        """The Start button's settings (config/parameters/autopilot.json)."""
+        if self.autopilot is None:
+            raise RuntimeError("config/parameters/autopilot.json is missing")
+        return self.autopilot
 
     def model_for(self, role: str) -> str:
         """The concrete model ID assigned to a logical role, resolved

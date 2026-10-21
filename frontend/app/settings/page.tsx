@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelStudios } from "@/components/settings/channel-studios";
 import { MusicSourceCard } from "@/components/settings/music-source";
+import { ChannelsCard } from "@/components/settings/channels";
 import { ClosingClipsCard } from "@/components/settings/closing-clips";
 import { EditorialReviewCard } from "@/components/settings/editorial-review";
 import { PolicyWarningNotice } from "@/components/policy-warning";
@@ -285,6 +286,7 @@ export default function SettingsPage() {
 
       <MusicSourceCard />
       <ClosingClipsCard />
+      <ChannelsCard />
 
       <EditorialReviewCard />
 
