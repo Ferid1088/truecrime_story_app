@@ -94,3 +94,30 @@ recorded).
 - **Body language.** Gestures carry `hands` (both | left | right); the code rejects one hand only, the
   same gesture with the same hands twice in a row, and the gestures a language's culture reads wrongly
   (`stage_direction.forbidden_gestures`).
+
+## The Outfits panel and the picture rotation (2026-10-22, O2)
+
+- **Outfits panel.** Every case page's Run tab has an "Outfits" button next to Start. The panel
+  (`GET /api/cases/{id}/outfit-panel`) shows one row per language (en/de/fa/ar), that language's
+  studio outfits with small images of their approved looks, and a radio to choose the outfit for
+  that language. The choice is the existing `selected` outfit (`outfits.select_outfit`), stored per
+  case and language.
+- **"Same outfit for all languages" (checkbox A)** copies the choice to every language that has a
+  non-retired outfit with the same name (`apply_same_outfit`); languages without it are skipped and
+  listed. When no other language has the name the checkbox is disabled with the reason.
+- **"Same picture for all languages" (checkbox B, only with A)** pins the same pose/camera/framing
+  in every same-named outfit that has it approved (`apply_same_picture`); skipped languages are
+  listed.
+- **"One fixed picture" (checkbox C, per language)** sets `host_outfits.fixed_look_id` (migration
+  0063): that one approved look is used for EVERY appearance of the language — no rotation.
+- **Rotation.** Without a fixed picture, `look_selection.choose_appearance` cycles the approved
+  looks that FIT the scene (the stage director's stance/camera/framing first, crops included) in
+  their stored order — appearance n gets picture n — and never uses the same picture twice in a row
+  when at least two fit. `continuity.max_change_per_cut` is unchanged. A pinned look that loses its
+  approval falls back to rotation and records `fixed_missing` in `look_choice_json`.
+- **Final gate.** No outfit chosen for a language: drafts and Start still work; the autopilot's
+  publish step keeps the film out of the queue and adds a blocking "needs you" entry
+  (`choose_outfit`) naming the language. A change after a full render is allowed but flagged
+  ("a full render exists — a change here needs a new render").
+- Nothing in the panel creates pictures or costs money; a missing look only reports "approve or
+  request this look in Host Studio".
