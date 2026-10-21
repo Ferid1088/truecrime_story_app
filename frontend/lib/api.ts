@@ -45,6 +45,7 @@ import type {
   SuggestionState,
   CaseDossier,
   CaseListItem,
+  ShortFormCaseItem,
   ClaimClusterItem,
   Contradiction,
   CorpusSearchResponse,
@@ -286,6 +287,11 @@ export const api = {
   discoveryCostEstimate: (count: number) =>
     request<DiscoveryCostEstimate>(`/api/discovery/cost-estimate${query({ count })}`),
   discoveryCountries: () => request<DiscoveryCountry[]>("/api/discovery/countries"),
+  archiveCase: (id: number) => post<{ archived: boolean }>(`/api/cases/${id}/archive`),
+  unarchiveCase: (id: number) => post<{ archived: boolean }>(`/api/cases/${id}/unarchive`),
+  shortFormCases: () => request<ShortFormCaseItem[]>("/api/short-form/cases"),
+  setShortPublished: (renderId: number, published: boolean) =>
+    post<{ case_archived: boolean }>(`/api/short-form/renders/${renderId}/published`, { published }),
   /** 409 (see `duplicateConflict`) when the case already exists — `force` creates it anyway. */
   investigate: (candidateId: number, language = "fa", force = false) =>
     post<CreatedCase>(`/api/discovery/${candidateId}/investigate`, { language, force }),

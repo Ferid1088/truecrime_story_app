@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
-import { ChevronRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { formatDateTime, langLabel } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/state";
-import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
+import { CaseOverview } from "@/components/case/overview";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BatchPanel } from "@/components/documentary/batch";
 import { usePolling } from "@/components/documentary/hooks";
@@ -103,37 +101,27 @@ export default function DocumentaryPage() {
               }
             />
           ) : (
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {shown.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/documentary/${c.id}`}
-                    className="group flex h-full items-start justify-between gap-3 rounded-lg border border-border bg-card p-4 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium" title={c.title}>
-                        {c.title}
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <ResolutionBadge status={c.resolution_status} />
-                        <CaseStatusBadge status={c.status} />
-                        <span className="text-xs text-muted-foreground">{langLabel(c.language)}</span>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {c.story_versions > 0
-                          ? `${c.story_versions} story version${c.story_versions === 1 ? "" : "s"}`
-                          : "No story yet"}{" "}
-                        · {formatDateTime(c.last_activity)}
-                      </p>
-                    </div>
-                    <ChevronRight
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                      aria-hidden
-                    />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <CaseOverview
+              idPrefix="documentary"
+              dateLabel="Created"
+              href={(id) => `/documentary/${id}`}
+              items={shown.map((c) => ({
+                id: c.id,
+                title: c.title,
+                date: c.created_at,
+                archived: c.archived,
+                archiveReason: c.archive_reason,
+                note: c.story_versions > 0 ? `${c.story_versions} story version${c.story_versions === 1 ? "" : "s"}` : "No story yet",
+              }))}
+              onArchive={async (id) => {
+                await api.archiveCase(id);
+                cases.refetch();
+              }}
+              onRestore={async (id) => {
+                await api.unarchiveCase(id);
+                cases.refetch();
+              }}
+            />
           )}
         </>
       )}

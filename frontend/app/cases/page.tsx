@@ -6,20 +6,19 @@ import { Plus, Search } from "lucide-react";
 import { api, duplicateConflict } from "@/lib/api";
 import type { DuplicateConflict, ResolutionStatus } from "@/lib/types";
 import { useApi } from "@/lib/hooks";
-import { formatDate, formatDateTime, langLabel } from "@/lib/format";
+import { langLabel } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { CaseOverview } from "@/components/case/overview";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/state";
-import { CaseStatusBadge, ResolutionBadge, resolutionLabel } from "@/components/status-badge";
+import { resolutionLabel } from "@/components/status-badge";
 import { DuplicateNotice } from "@/components/lifecycle/duplicate-notice";
 import { splitList } from "@/components/lifecycle/shared";
 import { TableSkeleton } from "@/components/ui/skeleton";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const FILTERS: { value: string; label: string }[] = [
@@ -166,49 +165,27 @@ function CasesView() {
       )}
 
       {data && data.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <THead>
-                <TR className="hover:bg-transparent">
-                  <TH>Case</TH>
-                  <TH>Status</TH>
-                  <TH>Lang</TH>
-                  <TH className="text-right">Sources</TH>
-                  <TH className="text-right">Facts</TH>
-                  <TH className="text-right">Contradictions</TH>
-                  <TH className="text-right">Versions</TH>
-                  <TH>Created</TH>
-                  <TH>Last activity</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {data.map((c) => (
-                  <TR key={c.id} className="cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
-                    <TD className="max-w-80">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium" title={c.title}>
-                          {c.title}
-                        </span>
-                        <ResolutionBadge status={c.resolution_status} className="shrink-0" />
-                      </span>
-                    </TD>
-                    <TD>
-                      <CaseStatusBadge status={c.status} />
-                    </TD>
-                    <TD className="text-muted-foreground">{langLabel(c.language)}</TD>
-                    <TD className="text-right tabular-nums">{c.sources}</TD>
-                    <TD className="text-right tabular-nums">{c.facts}</TD>
-                    <TD className="text-right tabular-nums">{c.contradictions}</TD>
-                    <TD className="text-right tabular-nums">{c.story_versions || "—"}</TD>
-                    <TD className="text-muted-foreground">{formatDate(c.created_at)}</TD>
-                    <TD className="text-muted-foreground">{formatDateTime(c.last_activity)}</TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <CaseOverview
+          idPrefix="cases"
+          dateLabel="Created"
+          href={(id) => `/cases/${id}`}
+          items={data.map((c) => ({
+            id: c.id,
+            title: c.title,
+            date: c.created_at,
+            archived: c.archived,
+            archiveReason: c.archive_reason,
+            note: `${c.status} · ${langLabel(c.language)}`,
+          }))}
+          onArchive={async (id) => {
+            await api.archiveCase(id);
+            refetch();
+          }}
+          onRestore={async (id) => {
+            await api.unarchiveCase(id);
+            refetch();
+          }}
+        />
       )}
 
       <CreateCaseDialog

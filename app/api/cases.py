@@ -23,6 +23,7 @@ from app.schemas import (
 )
 
 
+from app.lifecycle import case_archive
 from app.lifecycle.api import resolution_dict
 from app.api.deps import duplicate_or_409, get_case_or_404, unique_slug
 from app.api.serializers import case_stats, contradiction_dict, fact_dict, source_dict
@@ -105,10 +106,25 @@ def list_cases(status: str | None = None, q: str | None = None,
                 "language": r.language,
                 "created_at": r.created_at,
                 "last_activity": max(timestamps),
+                **case_archive.archive_dict(db, r),
                 **case_stats(db, r.id),
             }
         )
     return out
+
+
+@router.post("/api/cases/{case_id}/archive")
+def archive_case(case_id: int, db: Session = Depends(get_db)):
+    case = get_case_or_404(db, case_id)
+    case_archive.archive(db, case)
+    return case_archive.archive_dict(db, case)
+
+
+@router.post("/api/cases/{case_id}/unarchive")
+def unarchive_case(case_id: int, db: Session = Depends(get_db)):
+    case = get_case_or_404(db, case_id)
+    case_archive.unarchive(db, case)
+    return case_archive.archive_dict(db, case)
 
 
 @router.get("/api/cases/{case_id}")

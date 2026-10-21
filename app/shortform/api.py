@@ -23,12 +23,17 @@ from app.db.models import (
     Video,
 )
 from app.documentary import storage
+from app.lifecycle import case_archive
 from app.shortform import pipeline
 from app.shortform.director import ShortFormDirectorAgent, candidate_table
 from app.shortform.metrics import concept_type_comparison
 from app.utils import utc_now
 
 router = APIRouter(tags=["short-form"])
+
+
+class PublishedBody(BaseModel):
+    published: bool
 
 
 class ShortFormSettingsPatch(BaseModel):
@@ -101,6 +106,7 @@ def _render_payload(db: Session, row: RenderedShort) -> dict:
         "content_hash": row.content_hash, "gate_results": json.loads(row.gate_results_json or "{}"),
         "error": row.error, "film_job_id": row.film_job_id,
         "render_source": "real" if row.video_path else "pending",
+        "published": row.published_at is not None,
     }
 
 
@@ -140,6 +146,41 @@ def short_form_workspace(case_id: int | None = None, db: Session = Depends(get_d
             "languages": [film.language for film in films],
             "candidates": [_candidate_payload(row) for row in candidates],
             "renders": [_render_payload(db, row) for row in renders]}
+
+
+@router.get("/api/short-form/cases")
+def short_form_cases(db: Session = Depends(get_db)):
+    """One row per case with a finished film: its name, when it was produced and how many of
+    its shorts are published. A case is archived here once all of them are."""
+    jobs = db.query(DocumentaryJob).filter(
+        DocumentaryJob.status.in_(("completed", "completed_warnings"))
+    ).order_by(DocumentaryJob.id.desc()).all()
+    latest: dict[int, DocumentaryJob] = {}
+    for job in jobs:
+        latest.setdefault(job.case_id, job)
+    rows = []
+    for case_id, job in latest.items():
+        case = db.get(Case, case_id)
+        if case is None:
+            continue
+        progress = case_archive.shorts_progress(db, case_id)
+        rows.append({"id": case_id, "title": case.canonical_title,
+                     "produced_at": job.completed_at or job.created_at,
+                     "shorts": progress.total, "published": progress.published,
+                     "archived": progress.complete})
+    return sorted(rows, key=lambda row: row["produced_at"], reverse=True)
+
+
+@router.post("/api/short-form/renders/{render_id}/published")
+def set_render_published(render_id: int, body: PublishedBody, db: Session = Depends(get_db)):
+    short = db.get(RenderedShort, render_id)
+    if short is None:
+        raise HTTPException(status_code=404, detail="Rendered short not found")
+    case_archive.set_published(db, short, body.published)
+    progress = case_archive.shorts_progress(db, short.case_id)
+    return {"id": short.id, "published": short.published_at is not None,
+            "case_shorts": progress.total, "case_published": progress.published,
+            "case_archived": progress.complete}
 
 
 @router.get("/api/short-form/{case_id}/workspace")

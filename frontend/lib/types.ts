@@ -112,6 +112,15 @@ export interface GenerationUsage {
   estimated_cost_usd: number | null;
 }
 
+export interface ShortFormCaseItem {
+  id: number;
+  title: string;
+  produced_at: string;
+  shorts: number;
+  published: number;
+  archived: boolean;
+}
+
 export interface CaseListItem extends ResolutionFields {
   id: number;
   title: string;
@@ -119,6 +128,8 @@ export interface CaseListItem extends ResolutionFields {
   language: string;
   created_at: string;
   last_activity: string;
+  archived: boolean;
+  archive_reason: "manual" | "all_published" | null;
   sources: number;
   facts: number;
   contradictions: number;

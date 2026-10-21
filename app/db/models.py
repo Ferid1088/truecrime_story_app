@@ -58,6 +58,9 @@ class Case(Base):
     # would silently not apply to any case created before that change.
     total_cost_cap_eur: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     budget_stop_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set when the owner archives the case; a case whose shorts are all published is archived
+    # without it (app.lifecycle.case_archive).
+    archived_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     sources = relationship("Source", back_populates="case", cascade="all, delete-orphan")
     facts = relationship("Fact", back_populates="case", cascade="all, delete-orphan")
@@ -1464,6 +1467,8 @@ class RenderedShort(Base):
     gate_results_json: Mapped[str] = mapped_column(Text, default="{}")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Set by the owner when this short is out on its platform.
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
