@@ -81,6 +81,52 @@ def test_empty_rights_is_unknown():
     assert R.classify_open_data_rights("  ")[0] == "unknown"
 
 
+# ---- free-text rights: the bare word "by" is not a licence (R1) ---------------
+
+def test_free_text_held_by_the_creator_is_not_creative_commons():
+    # the real DPLA fixture's wording — "by" is prose, not a licence code
+    status, _ = R.classify_open_data_rights(
+        "Educational use only; no other permissions given. Copyright to this resource is "
+        "held by the content creator, author, artist or other entity.")
+    assert status == "permission_required"
+
+
+def test_free_text_by_alone_is_unclear_not_cc():
+    assert R.classify_open_data_rights("Photograph by Jane Smith")[0] == "unknown"
+    assert R.classify_open_data_rights("held by the donor")[0] == "unknown"
+    assert R.classify_open_data_rights("Courtesy of the museum")[0] == "unknown"
+
+
+def test_free_text_real_licence_names_still_classify():
+    assert R.classify_open_data_rights("CC BY 4.0")[0] == "creative_commons"
+    assert R.classify_open_data_rights("CC-BY-SA")[0] == "creative_commons"
+    assert R.classify_open_data_rights("Creative Commons Attribution")[0] == "creative_commons"
+    assert R.classify_open_data_rights(
+        "https://creativecommons.org/licenses/by/4.0/")[0] == "creative_commons"
+    assert R.classify_open_data_rights("CC0")[0] == "public_domain"
+    assert R.classify_open_data_rights("Public Domain")[0] == "public_domain"
+    assert R.classify_open_data_rights(
+        "This item is in the Public Domain and can be downloaded for use from this site."
+    )[0] == "public_domain"
+
+
+def test_free_text_restrictive_and_copyright_stay_restricted():
+    assert R.classify_open_data_rights("CC BY-NC-ND 4.0")[0] == "permission_required"
+    assert R.classify_open_data_rights("All rights reserved.")[0] == "permission_required"
+
+
+def test_recorded_dpla_fixture_rights_labels(monkeypatch):
+    """The real recorded response: 2 public domain, 1 permission_required (Educational use
+    only — NOT creative_commons, R1), 2 unknown."""
+    docs = _dpla_live_docs()["docs"]
+    statuses = [R.classify_open_data_rights(
+        ((d.get("sourceResource") or {}).get("rights") or [None])[0])[0] for d in docs]
+    assert statuses.count("public_domain") == 2
+    assert statuses.count("permission_required") == 1
+    assert statuses.count("unknown") == 2
+    assert "creative_commons" not in statuses
+
+
 # ---- Europeana provider: parsing a recorded real response --------------------------------------
 
 def _europeana_fixture() -> dict:

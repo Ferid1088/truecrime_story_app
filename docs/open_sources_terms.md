@@ -78,3 +78,15 @@ Whether the use is acceptable under Section 12, and (if yes) to register an appl
 * Both: licence "Public Domain", rights status `public_domain`; the pictures are verified like any other picture
   (they can be rejected or become context pictures) and the credit is shown while they are on screen
   (`rights.credit_providers`, `R.credit_due`).
+
+## Free-text rights fix (2026-10-22, R1)
+
+The old free-text rule counted the bare word "by" as Creative Commons, so a real DPLA string like
+"Copyright to this resource is held by the content creator" or "Educational use only" was
+mislabelled `creative_commons`. Now a free-text rights string is `creative_commons` /
+`public_domain` only when it contains a real licence name, URL or code (`CC BY…`, `CC0`,
+`creativecommons.org`, `public domain`, `PDM`, `no known copyright`); the bare word "by" never
+counts; unknown free text stays `unknown`. Verified against the recorded real DPLA response
+(`tests/fixtures/dpla_live_sample.json`): "Educational use only … held by the content creator" is
+`permission_required`, and a dry run over all 2668 stored assets showed **0 labels would change**
+(no stored row was mislabelled — the wrong classification only ever hit candidates).

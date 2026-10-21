@@ -48,15 +48,18 @@ def classify(provider: str, license_name: str | None = None,
     if provider in ("europeana", "dpla"):
         # these report rights as a rightsstatements.org/creativecommons.org URI (or, for some
         # DPLA records, free text) whose vocabulary the generic free-text matching below does
-        # not know (a "by-nc-nd" URI would otherwise wrongly match the generic "\bby\b" rule)
+        # not know (a "by-nc-nd" URI needs the licence-code rules, not prose matching)
         return classify_open_data_rights(license_name)
     lic = (license_name or "").strip().lower()
     if lic:
         if re.search(r"\b(nc|nd)\b|non-?commercial|no ?deriv", lic):
             return "permission_required", f"license restricts use ({license_name})"
-        if re.search(r"public domain|\bpd\b|cc0|pdm", lic):
+        if re.search(r"public[ -]?domain|\bpd\b|cc0|\bpdm\b|publicdomain|no known copyright", lic):
             return "public_domain", f"license: {license_name}"
-        if re.search(r"\bcc\b|creative commons|cc-by|by-sa|\bby\b", lic):
+        # a real licence name, URL or code only: the bare word "by" (as in "held by the
+        # creator" — a real DPLA wording) is prose, not a licence (R1)
+        if re.search(r"\bcc[ -]?(by|0)\b|creative[ -]?commons|creativecommons\.org|"
+                     r"\bby[ -]?sa\b", lic):
             return "creative_commons", f"license: {license_name}"
         if "all rights reserved" in lic or "copyright" in lic:
             return "permission_required", f"license: {license_name}"
