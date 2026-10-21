@@ -10,6 +10,24 @@
     "default_profile": "DEEP_CASE_RESEARCH",
     "min_accept_score": 0.2
   },
+  "youtube_data_api": {
+    "daily_quota_units": 10000,
+    "daily_search_calls": 100,
+    "reset_timezone": "America/Los_Angeles",
+    "cost_units": {
+      "search.list": 1,
+      "playlistItems.list": 1,
+      "videos.list": 1,
+      "channels.list": 1
+    },
+    "discovery_share_percent": 20,
+    "uploads_reserved_percent": 10,
+    "cache_expiry_hours": 24,
+    "max_videos_per_channel_page": 50,
+    "max_video_ids_per_call": 50,
+    "clip_margin_seconds": 2.0,
+    "max_candidates_per_sentence": 3
+  },
   "youtube_research": {
     "languages": [
       "en",

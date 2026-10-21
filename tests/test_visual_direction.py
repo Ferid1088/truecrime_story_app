@@ -87,7 +87,8 @@ def test_planner_entities_carry_type_aliases_exact_and_context_queries():
     assert [x["kind"] for x in q] == ["exact"] * 3 + ["context"] * 3
     assert q[0] == {"query": "Anna Keller Stendal", "entity": "anna_keller",
                     "entities": ["anna_keller"], "entity_name": "Anna Keller", "entity_type": "person",
-                    "kind": "exact", "footage": False}
+                    "kind": "exact", "footage": False, "must_name": ["Anna Keller", "Anna"],
+                    "aliases": ["Anna"], "date_window": [], "not_this": [], "negative_terms": []}
     assert q[1]["entity"] == "forest" and q[1]["footage"] is True
     assert q[3]["query"] == "pine forest Altmark" and q[3]["entity_type"] == "place"
     assert [x["query"] for x in research_queries(reqs, max_queries=4)][-1] == "pine forest Altmark"
@@ -682,10 +683,13 @@ class SearchGen:
         self.names, self.ask_for = names, ask_for
         self.calls: list[tuple[str, dict]] = []
 
+    async def provider_status(self):
+        return {"status": "ok"}
+
     async def generate_structured(self, role, system, user, images=None):
         data = json.loads(user)
         self.calls.append((role, data))
-        if role == "visual_verifier":
+        if role in ("visual_verifier", "visual_verifier_cheap"):
             key = (data["claimed_entities"] or [None])[0]
             return {"depicts": data["title"], "subject_type":
                     "person" if key == "anna_keller" else "building",

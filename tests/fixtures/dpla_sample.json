@@ -1,0 +1,30 @@
+{
+  "_source": "NOT a live API probe (api.dp.la returned 403 without a key, confirmed 2026-10-21 and again today: no TRUECRIME_DPLA_API_KEY is configured). Built from DPLA's own public, real documentation: https://github.com/dpla/platform (develop branch, README.md, \"Sample Record\" and \"a list of records\" sections), read 2026-10-21. The wrapper keys (count/start/limit/docs/facets) and the item's field names (sourceResource.rights as free text, isShownAt.@id, object.@id, dataProvider, provider.name) are exactly as documented there; the values are adapted from DPLA's own published sample (a Clemson University football program item). Live proof is deferred until the owner's key arrives (P12, row 6).",
+  "count": "1",
+  "start": 0,
+  "limit": 10,
+  "docs": [
+    {
+      "id": "cfb--1001",
+      "@id": "http://api.dp.la/v2/items/cfb--1001",
+      "dataProvider": "Published by Office of Athletic Publicity, Clemson University. Held by Clemson University Libraries, Special Collections.",
+      "object": {
+        "@id": "http://repository.clemson.edu/cgi-bin/thumbnail.exe?CISOROOT=/cfb&CISOPTR=1001",
+        "format": "image/jpeg"
+      },
+      "isShownAt": {
+        "@id": "http://repository.clemson.edu/u?/cfb,1001"
+      },
+      "provider": {
+        "@id": "http://dp.la/api/contributor/scdl",
+        "name": "South Carolina Digital Library"
+      },
+      "sourceResource": {
+        "title": ["Football program. Clemson - Presbyterian, September 20, 1952, Memorial Stadium."],
+        "rights": "Contact Special Collections for copyright information",
+        "date": {"displayDate": "1952-09-20"}
+      }
+    }
+  ],
+  "facets": {}
+}

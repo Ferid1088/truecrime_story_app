@@ -1,0 +1,389 @@
+{
+  "_comment": "Recorded from a REAL live call 2026-10-21: GET https://api.dp.la/v2/items?q=%22moscow%2C%20idaho%22&page_size=5 with the project's own key (key never stored). Trimmed to the first 5 docs; count left as reported.",
+  "count": 4418,
+  "start": 1,
+  "limit": 5,
+  "docs": [
+    {
+      "@context": "http://dp.la/api/items/context",
+      "@id": "http://dp.la/api/items/27a95fd1743ea24717bec3838dfe90cb",
+      "@type": "ore:Aggregation",
+      "aggregatedCHO": "#sourceResource",
+      "dataProvider": {
+        "@id": "http://dp.la/api/contributor/university-of-idaho",
+        "name": "University of Idaho"
+      },
+      "id": "27a95fd1743ea24717bec3838dfe90cb",
+      "ingestDate": "2025-10-29T00:05:09.607Z",
+      "ingestType": "item",
+      "isShownAt": "https://www.lib.uidaho.edu/digital/cities/items/cities80.html",
+      "object": "https://objects.lib.uidaho.edu/cities/thumbs/cities80_th.jpg",
+      "originalRecord": {
+        "stringValue": "<record>\n  <header \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <identifier>oai:northwestdigitalheritage.org:uidaho:cities80</identifier>\n    <datestamp>2025-10-27T15:22:21Z</datestamp>\n</header>\n  <metadata \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <mods:mods xmlns:mods=\"http://www.loc.gov/mods/v3\">\n      <mods:titleInfo>\n        <mods:title>Main Street. Moscow, Idaho. Moscow, Idaho.</mods:title>\n      </mods:titleInfo>\n      <mods:typeOfResource>Image</mods:typeOfResource>\n      <mods:originInfo>\n        <mods:dateCreated>1915</mods:dateCreated>\n      </mods:originInfo>\n      <mods:language>\n        <mods:languageTerm>eng</mods:languageTerm>\n      </mods:language>\n      <mods:abstract>Visible: F &amp; S Drugs.</mods:abstract>\n      <mods:subject>\n        <mods:topic>drugstores</mods:topic>\n        <mods:topic>parades</mods:topic>\n        <mods:geographic>Moscow</mods:geographic>\n      </mods:subject>\n      <mods:genre>image</mods:genre>\n      <mods:note type=\"ownership\">University of Idaho</mods:note>\n      <mods:relatedItem type=\"host\">\n        <mods:titleInfo>\n          <mods:title>Idaho Cities and Towns Collection</mods:title>\n        </mods:titleInfo>\n      </mods:relatedItem>\n      <mods:recordInfo>\n        <mods:recordIdentifier>cities80</mods:recordIdentifier>\n      </mods:recordInfo>\n      <mods:accessCondition type=\"use and reproduction\">\n        https://creativecommons.org/publicdomain/mark/1.0/\n      </mods:accessCondition>\n      <mods:location>\n        <mods:url usage=\"primary\" access=\"object in context\">\n          https://www.lib.uidaho.edu/digital/cities/items/cities80.html\n        </mods:url>\n      </mods:location>\n      <mods:location>\n        <mods:url access=\"preview\">\n          https://objects.lib.uidaho.edu/cities/thumbs/cities80_th.jpg\n        </mods:url>\n      </mods:location>\n    </mods:mods>\n</metadata>\n  <about>\n    <request verb=\"ListRecords\"/>\n    <resumptionToken>afb86b52-86bf-4293-9411-c59525e21c38</resumptionToken>\n    <responseDate>2025-10-27T15:22:21.605Z</responseDate>\n  </about>\n</record>"
+      },
+      "provider": {
+        "@id": "http://dp.la/api/contributor/northwest-digital-heritage",
+        "exactMatch": [
+          "http://www.wikidata.org/entity/Q112194444"
+        ],
+        "name": "Northwest Digital Heritage"
+      },
+      "rights": "http://creativecommons.org/publicdomain/mark/1.0/",
+      "rightsCategory": "Unlimited Re-Use",
+      "sourceResource": {
+        "@id": "http://dp.la/api/items/27a95fd1743ea24717bec3838dfe90cb#SourceResource",
+        "collection": [
+          {
+            "title": "Idaho Cities and Towns Collection"
+          }
+        ],
+        "date": [
+          {
+            "begin": "1915",
+            "displayDate": "1915",
+            "end": "1915"
+          }
+        ],
+        "description": [
+          "Visible: F & S Drugs."
+        ],
+        "identifier": [
+          "cities80"
+        ],
+        "language": [
+          {
+            "iso639_3": "English",
+            "name": "English"
+          }
+        ],
+        "spatial": [
+          {
+            "name": "Moscow"
+          }
+        ],
+        "subject": [
+          {
+            "name": "Drugstores"
+          },
+          {
+            "name": "Parades"
+          }
+        ],
+        "title": [
+          "Main Street. Moscow, Idaho. Moscow, Idaho."
+        ],
+        "type": [
+          "image"
+        ]
+      },
+      "tags": [
+        "nwdh"
+      ]
+    },
+    {
+      "@context": "http://dp.la/api/items/context",
+      "@id": "http://dp.la/api/items/dcef25449c9147131627ec445f5ab40e",
+      "@type": "ore:Aggregation",
+      "aggregatedCHO": "#sourceResource",
+      "dataProvider": {
+        "@id": "http://dp.la/api/contributor/university-of-idaho",
+        "name": "University of Idaho"
+      },
+      "id": "dcef25449c9147131627ec445f5ab40e",
+      "ingestDate": "2025-10-29T00:05:09.607Z",
+      "ingestType": "item",
+      "isShownAt": "https://www.lib.uidaho.edu/digital/shattuck/items/shattuck209.html",
+      "object": "https://objects.lib.uidaho.edu/shattuck/thumbs/shattuck209_th.jpg",
+      "originalRecord": {
+        "stringValue": "<record>\n  <header \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <identifier>oai:northwestdigitalheritage.org:uidaho:shattuck209</identifier>\n    <datestamp>2025-10-27T15:02:23Z</datestamp>\n</header>\n  <metadata \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <mods:mods xmlns:mods=\"http://www.loc.gov/mods/v3\">\n      <mods:titleInfo>\n        <mods:title>Moscow (Idaho)</mods:title>\n      </mods:titleInfo>\n      <mods:name>\n        <mods:namePart>Shattuck, C. H.</mods:namePart>\n        <mods:role>\n          <mods:roleTerm>creator</mods:roleTerm>\n        </mods:role>\n      </mods:name>\n      <mods:typeOfResource>Image</mods:typeOfResource>\n      <mods:originInfo>\n        <mods:dateCreated>1910</mods:dateCreated>\n      </mods:originInfo>\n      <mods:language>\n        <mods:languageTerm>eng</mods:languageTerm>\n      </mods:language>\n      <mods:abstract>\n        Flooding in Moscow, Idaho during the spring. People standing in background. The glass slide reads: 'Moscow Idaho, Spring 1910.'\n      </mods:abstract>\n      <mods:subject>\n        <mods:geographic>Moscow (Idaho)</mods:geographic>\n        <mods:geographic>Idaho</mods:geographic>\n        <mods:geographic>Latah County</mods:geographic>\n        <mods:geographic>Moscow</mods:geographic>\n      </mods:subject>\n      <mods:genre>image</mods:genre>\n      <mods:note type=\"ownership\">University of Idaho</mods:note>\n      <mods:relatedItem type=\"host\">\n        <mods:titleInfo>\n          <mods:title>C.H. Shattuck Lantern Slides, 1904-1910</mods:title>\n        </mods:titleInfo>\n      </mods:relatedItem>\n      <mods:recordInfo>\n        <mods:recordIdentifier>shattuck209</mods:recordIdentifier>\n      </mods:recordInfo>\n      <mods:accessCondition type=\"use and reproduction\">\n        http://rightsstatements.org/vocab/NoC-US/1.0/\n      </mods:accessCondition>\n      <mods:location>\n        <mods:url usage=\"primary\" access=\"object in context\">\n          https://www.lib.uidaho.edu/digital/shattuck/items/shattuck209.html\n        </mods:url>\n      </mods:location>\n      <mods:location>\n        <mods:url access=\"preview\">\n          https://objects.lib.uidaho.edu/shattuck/thumbs/shattuck209_th.jpg\n        </mods:url>\n      </mods:location>\n    </mods:mods>\n</metadata>\n  <about>\n    <request verb=\"ListRecords\"/>\n    <resumptionToken>637d5e42-4d96-4e2c-b45c-75c7c569cc62</resumptionToken>\n    <responseDate>2025-10-27T15:02:23.315Z</responseDate>\n  </about>\n</record>"
+      },
+      "provider": {
+        "@id": "http://dp.la/api/contributor/northwest-digital-heritage",
+        "exactMatch": [
+          "http://www.wikidata.org/entity/Q112194444"
+        ],
+        "name": "Northwest Digital Heritage"
+      },
+      "rights": "http://rightsstatements.org/vocab/NoC-US/1.0/",
+      "rightsCategory": "Unlimited Re-Use",
+      "sourceResource": {
+        "@id": "http://dp.la/api/items/dcef25449c9147131627ec445f5ab40e#SourceResource",
+        "collection": [
+          {
+            "title": "C.H. Shattuck Lantern Slides, 1904-1910"
+          }
+        ],
+        "creator": [
+          "Shattuck, C. H"
+        ],
+        "date": [
+          {
+            "begin": "1910",
+            "displayDate": "1910",
+            "end": "1910"
+          }
+        ],
+        "description": [
+          "Flooding in Moscow, Idaho during the spring. People standing in background. The glass slide reads: 'Moscow Idaho, Spring 1910.'"
+        ],
+        "identifier": [
+          "shattuck209"
+        ],
+        "language": [
+          {
+            "iso639_3": "English",
+            "name": "English"
+          }
+        ],
+        "spatial": [
+          {
+            "name": "Moscow (Idaho)"
+          },
+          {
+            "name": "Idaho"
+          },
+          {
+            "name": "Latah County"
+          },
+          {
+            "name": "Moscow"
+          }
+        ],
+        "title": [
+          "Moscow (Idaho)"
+        ],
+        "type": [
+          "image"
+        ]
+      },
+      "tags": [
+        "nwdh"
+      ]
+    },
+    {
+      "@context": "http://dp.la/api/items/context",
+      "@id": "http://dp.la/api/items/34851dbdc570abfd554a2cb994116388",
+      "@type": "ore:Aggregation",
+      "aggregatedCHO": "#sourceResource",
+      "dataProvider": {
+        "@id": "http://dp.la/api/contributor/central-washington-university",
+        "name": "Central Washington University"
+      },
+      "id": "34851dbdc570abfd554a2cb994116388",
+      "ingestDate": "2025-10-29T00:05:09.607Z",
+      "ingestType": "item",
+      "isShownAt": "https://digitalcommons.cwu.edu/edward_nolan/663",
+      "object": "https://digitalcommons.cwu.edu/edward_nolan/1662/preview.jpg",
+      "originalRecord": {
+        "stringValue": "<record>\n  <header \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <identifier>\n      oai:northwestdigitalheritage.org:cwu:oai:digitalcommons.cwu.edu:edward_nolan-1662\n    </identifier>\n    <datestamp>2025-10-27T21:40:20Z</datestamp>\n</header>\n  <metadata \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <mods:mods xmlns:mods=\"http://www.loc.gov/mods/v3\">\n      <mods:titleInfo>\n        <mods:title>Moscow, Idaho</mods:title>\n      </mods:titleInfo>\n      <mods:typeOfResource>Image</mods:typeOfResource>\n      <mods:language>\n        <mods:languageTerm>English</mods:languageTerm>\n      </mods:language>\n      <mods:abstract>Snowing at Moscow, Idaho.</mods:abstract>\n      <mods:subject>\n        <mods:topic>Idaho -- History -- Pictorial works.</mods:topic>\n        <mods:geographic>United States -- Idaho</mods:geographic>\n      </mods:subject>\n      <mods:note type=\"ownership\">Central Washington University</mods:note>\n      <mods:relatedItem type=\"host\">\n        <mods:titleInfo>\n          <mods:title>Regional Collections</mods:title>\n          <mods:title>Community Projects</mods:title>\n          <mods:title>Edward Nolan Photographs</mods:title>\n        </mods:titleInfo>\n      </mods:relatedItem>\n      <mods:recordInfo>\n        <mods:recordIdentifier>MS005-07-02</mods:recordIdentifier>\n      </mods:recordInfo>\n      <mods:accessCondition type=\"use and reproduction\">\n        http://rightsstatements.org/vocab/NoC-US/1.0/\n      </mods:accessCondition>\n      <mods:note type=\"freetext\">\n        This item is in the Public Domain and can be downloaded for use from this site. Please cite the Central Washington University Archives and Special Collections, Dr. James E. Brooks Library.\n      </mods:note>\n      <mods:location>\n        <mods:url usage=\"primary\" access=\"object in context\">\n          https://digitalcommons.cwu.edu/edward_nolan/663\n        </mods:url>\n      </mods:location>\n      <mods:location>\n        <mods:url access=\"preview\">\n          https://digitalcommons.cwu.edu/edward_nolan/1662/preview.jpg\n        </mods:url>\n      </mods:location>\n    </mods:mods>\n</metadata>\n  <about>\n    <request verb=\"ListRecords\"/>\n    <resumptionToken>2dfca1f1-d5ee-4006-bfa3-4c69c611a5b4</resumptionToken>\n    <responseDate>2025-10-27T21:40:20.825Z</responseDate>\n  </about>\n</record>"
+      },
+      "provider": {
+        "@id": "http://dp.la/api/contributor/northwest-digital-heritage",
+        "exactMatch": [
+          "http://www.wikidata.org/entity/Q112194444"
+        ],
+        "name": "Northwest Digital Heritage"
+      },
+      "rights": "http://rightsstatements.org/vocab/NoC-US/1.0/",
+      "rightsCategory": "Unlimited Re-Use",
+      "sourceResource": {
+        "@id": "http://dp.la/api/items/34851dbdc570abfd554a2cb994116388#SourceResource",
+        "collection": [
+          {
+            "title": "Regional Collections"
+          },
+          {
+            "title": "Community Projects"
+          },
+          {
+            "title": "Edward Nolan Photographs"
+          }
+        ],
+        "description": [
+          "Snowing at Moscow, Idaho."
+        ],
+        "identifier": [
+          "MS005-07-02"
+        ],
+        "language": [
+          {
+            "iso639_3": "English",
+            "name": "English"
+          }
+        ],
+        "rights": [
+          "This item is in the Public Domain and can be downloaded for use from this site. Please cite the Central Washington University Archives and Special Collections, Dr. James E. Brooks Library."
+        ],
+        "spatial": [
+          {
+            "name": "United States -- Idaho"
+          }
+        ],
+        "subject": [
+          {
+            "name": "Idaho -- History -- Pictorial works"
+          }
+        ],
+        "title": [
+          "Moscow, Idaho"
+        ],
+        "type": [
+          "image"
+        ]
+      },
+      "tags": [
+        "nwdh"
+      ]
+    },
+    {
+      "@context": "http://dp.la/api/items/context",
+      "@id": "http://dp.la/api/items/2603402b046e58fdd7518483e6c06d31",
+      "@type": "ore:Aggregation",
+      "aggregatedCHO": "#sourceResource",
+      "dataProvider": {
+        "@id": "http://dp.la/api/contributor/central-washington-university",
+        "name": "Central Washington University"
+      },
+      "id": "2603402b046e58fdd7518483e6c06d31",
+      "ingestDate": "2025-10-29T00:05:09.607Z",
+      "ingestType": "item",
+      "isShownAt": "https://digitalcommons.cwu.edu/edward_nolan/664",
+      "object": "https://digitalcommons.cwu.edu/edward_nolan/1663/preview.jpg",
+      "originalRecord": {
+        "stringValue": "<record>\n  <header \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <identifier>\n      oai:northwestdigitalheritage.org:cwu:oai:digitalcommons.cwu.edu:edward_nolan-1663\n    </identifier>\n    <datestamp>2025-10-27T21:38:33Z</datestamp>\n</header>\n  <metadata \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <mods:mods xmlns:mods=\"http://www.loc.gov/mods/v3\">\n      <mods:titleInfo>\n        <mods:title>Moscow, Idaho</mods:title>\n      </mods:titleInfo>\n      <mods:typeOfResource>Image</mods:typeOfResource>\n      <mods:language>\n        <mods:languageTerm>English</mods:languageTerm>\n      </mods:language>\n      <mods:abstract>Dr. Carather's Hospital at Moscow, Idaho.</mods:abstract>\n      <mods:subject>\n        <mods:topic>Idaho -- History -- Pictorial works.</mods:topic>\n        <mods:geographic>United States -- Idaho</mods:geographic>\n      </mods:subject>\n      <mods:note type=\"ownership\">Central Washington University</mods:note>\n      <mods:relatedItem type=\"host\">\n        <mods:titleInfo>\n          <mods:title>Regional Collections</mods:title>\n          <mods:title>Community Projects</mods:title>\n          <mods:title>Edward Nolan Photographs</mods:title>\n        </mods:titleInfo>\n      </mods:relatedItem>\n      <mods:recordInfo>\n        <mods:recordIdentifier>MS005-07-02</mods:recordIdentifier>\n      </mods:recordInfo>\n      <mods:accessCondition type=\"use and reproduction\">\n        http://rightsstatements.org/vocab/NoC-US/1.0/\n      </mods:accessCondition>\n      <mods:note type=\"freetext\">\n        This item is in the Public Domain and can be downloaded for use from this site. Please cite the Central Washington University Archives and Special Collections, Dr. James E. Brooks Library.\n      </mods:note>\n      <mods:location>\n        <mods:url usage=\"primary\" access=\"object in context\">\n          https://digitalcommons.cwu.edu/edward_nolan/664\n        </mods:url>\n      </mods:location>\n      <mods:location>\n        <mods:url access=\"preview\">\n          https://digitalcommons.cwu.edu/edward_nolan/1663/preview.jpg\n        </mods:url>\n      </mods:location>\n    </mods:mods>\n</metadata>\n  <about>\n    <request verb=\"ListRecords\"/>\n    <resumptionToken>b7e351a2-7233-41b8-b45e-cf7853902fb0</resumptionToken>\n    <responseDate>2025-10-27T21:38:33.793Z</responseDate>\n  </about>\n</record>"
+      },
+      "provider": {
+        "@id": "http://dp.la/api/contributor/northwest-digital-heritage",
+        "exactMatch": [
+          "http://www.wikidata.org/entity/Q112194444"
+        ],
+        "name": "Northwest Digital Heritage"
+      },
+      "rights": "http://rightsstatements.org/vocab/NoC-US/1.0/",
+      "rightsCategory": "Unlimited Re-Use",
+      "sourceResource": {
+        "@id": "http://dp.la/api/items/2603402b046e58fdd7518483e6c06d31#SourceResource",
+        "collection": [
+          {
+            "title": "Regional Collections"
+          },
+          {
+            "title": "Community Projects"
+          },
+          {
+            "title": "Edward Nolan Photographs"
+          }
+        ],
+        "description": [
+          "Dr. Carather's Hospital at Moscow, Idaho."
+        ],
+        "identifier": [
+          "MS005-07-02"
+        ],
+        "language": [
+          {
+            "iso639_3": "English",
+            "name": "English"
+          }
+        ],
+        "rights": [
+          "This item is in the Public Domain and can be downloaded for use from this site. Please cite the Central Washington University Archives and Special Collections, Dr. James E. Brooks Library."
+        ],
+        "spatial": [
+          {
+            "name": "United States -- Idaho"
+          }
+        ],
+        "subject": [
+          {
+            "name": "Idaho -- History -- Pictorial works"
+          }
+        ],
+        "title": [
+          "Moscow, Idaho"
+        ],
+        "type": [
+          "image"
+        ]
+      },
+      "tags": [
+        "nwdh"
+      ]
+    },
+    {
+      "@context": "http://dp.la/api/items/context",
+      "@id": "http://dp.la/api/items/bc001b7005a2f4720ea4307c47c6bd7e",
+      "@type": "ore:Aggregation",
+      "aggregatedCHO": "#sourceResource",
+      "dataProvider": {
+        "@id": "http://dp.la/api/contributor/central-washington-university",
+        "name": "Central Washington University"
+      },
+      "id": "bc001b7005a2f4720ea4307c47c6bd7e",
+      "ingestDate": "2025-10-29T00:05:09.607Z",
+      "ingestType": "item",
+      "isShownAt": "https://digitalcommons.cwu.edu/edward_nolan/667",
+      "object": "https://digitalcommons.cwu.edu/edward_nolan/1666/preview.jpg",
+      "originalRecord": {
+        "stringValue": "<record>\n  <header \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <identifier>\n      oai:northwestdigitalheritage.org:cwu:oai:digitalcommons.cwu.edu:edward_nolan-1666\n    </identifier>\n    <datestamp>2025-10-27T21:40:03Z</datestamp>\n</header>\n  <metadata \n  xmlns=\"http://www.openarchives.org/OAI/2.0/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <mods:mods xmlns:mods=\"http://www.loc.gov/mods/v3\">\n      <mods:titleInfo>\n        <mods:title>Moscow, Idaho</mods:title>\n      </mods:titleInfo>\n      <mods:typeOfResource>Image</mods:typeOfResource>\n      <mods:language>\n        <mods:languageTerm>English</mods:languageTerm>\n      </mods:language>\n      <mods:abstract>Teachers instutite at Moscow, Idaho.</mods:abstract>\n      <mods:subject>\n        <mods:topic>Idaho -- History -- Pictorial works.</mods:topic>\n        <mods:geographic>United States -- Idaho</mods:geographic>\n      </mods:subject>\n      <mods:note type=\"ownership\">Central Washington University</mods:note>\n      <mods:relatedItem type=\"host\">\n        <mods:titleInfo>\n          <mods:title>Regional Collections</mods:title>\n          <mods:title>Community Projects</mods:title>\n          <mods:title>Edward Nolan Photographs</mods:title>\n        </mods:titleInfo>\n      </mods:relatedItem>\n      <mods:recordInfo>\n        <mods:recordIdentifier>MS005-07-02</mods:recordIdentifier>\n      </mods:recordInfo>\n      <mods:accessCondition type=\"use and reproduction\">\n        http://rightsstatements.org/vocab/InC-EDU/1.0/\n      </mods:accessCondition>\n      <mods:note type=\"freetext\">\n        Educational use only; no other permissions given. Copyright to this resource is held by the content creator, author, artist or other entity, and is provided here for educational purposes only. It may not be reproduced or distributed in any format without written permission of the copyright owner. For more information, please contact the Dr. James E. Brooks Library at archive@cwu.edu.\n      </mods:note>\n      <mods:location>\n        <mods:url usage=\"primary\" access=\"object in context\">\n          https://digitalcommons.cwu.edu/edward_nolan/667\n        </mods:url>\n      </mods:location>\n      <mods:location>\n        <mods:url access=\"preview\">\n          https://digitalcommons.cwu.edu/edward_nolan/1666/preview.jpg\n        </mods:url>\n      </mods:location>\n    </mods:mods>\n</metadata>\n  <about>\n    <request verb=\"ListRecords\"/>\n    <resumptionToken>ca008092-b547-4769-9750-a14be4d91c8d</resumptionToken>\n    <responseDate>2025-10-27T21:40:03.961Z</responseDate>\n  </about>\n</record>"
+      },
+      "provider": {
+        "@id": "http://dp.la/api/contributor/northwest-digital-heritage",
+        "exactMatch": [
+          "http://www.wikidata.org/entity/Q112194444"
+        ],
+        "name": "Northwest Digital Heritage"
+      },
+      "rights": "http://rightsstatements.org/vocab/InC-EDU/1.0/",
+      "rightsCategory": "Re-use, No Modification",
+      "sourceResource": {
+        "@id": "http://dp.la/api/items/bc001b7005a2f4720ea4307c47c6bd7e#SourceResource",
+        "collection": [
+          {
+            "title": "Regional Collections"
+          },
+          {
+            "title": "Community Projects"
+          },
+          {
+            "title": "Edward Nolan Photographs"
+          }
+        ],
+        "description": [
+          "Teachers instutite at Moscow, Idaho."
+        ],
+        "identifier": [
+          "MS005-07-02"
+        ],
+        "language": [
+          {
+            "iso639_3": "English",
+            "name": "English"
+          }
+        ],
+        "rights": [
+          "Educational use only; no other permissions given. Copyright to this resource is held by the content creator, author, artist or other entity, and is provided here for educational purposes only. It may not be reproduced or distributed in any format without written permission of the copyright owner. For more information, please contact the Dr. James E. Brooks Library at archive@cwu.edu."
+        ],
+        "spatial": [
+          {
+            "name": "United States -- Idaho"
+          }
+        ],
+        "subject": [
+          {
+            "name": "Idaho -- History -- Pictorial works"
+          }
+        ],
+        "title": [
+          "Moscow, Idaho"
+        ],
+        "type": [
+          "image"
+        ]
+      },
+      "tags": [
+        "nwdh"
+      ]
+    }
+  ]
+}

@@ -51,6 +51,7 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
         "chapter_plan", "timeline_cards", "chapter_cards"),
     "naming": ("naming",), "film_length": ("film_length",),
     "visual_needs": ("visual_needs",),
+    "visual_dossier": ("visual_needs",),
     "visual_research": ("visual_pieces",),
     "visual_review": ("visual_pieces",),
     "visual_check": ("visual_pieces",),

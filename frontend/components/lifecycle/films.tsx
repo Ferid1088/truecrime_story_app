@@ -80,6 +80,11 @@ function FilmItem({
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <FilmStateBadge state={f.state} />
             <ProductionTypeBadge type={f.production_type} />
+            {f.avatar_used === false && (
+              <Badge variant="warning" title="No approved avatar look yet: approve one in Host Studio before this film can publish.">
+                Draft, no avatar
+              </Badge>
+            )}
             <Badge variant="outline">{langLabel(f.language)}</Badge>
             <Badge variant="outline">{f.mode}</Badge>
             {f.episode_number != null && <span>Episode {f.episode_number}</span>}

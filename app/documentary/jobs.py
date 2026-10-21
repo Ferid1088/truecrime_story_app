@@ -11,6 +11,8 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   host_plan          when/why the on-screen host appears (persona)
   film_length        every finished film must run 45–120 min
   visual_needs       visual requirements per beat
+  visual_dossier     one dossier per important entity (P1): aliases, era, a visual
+                     description, name-collision warnings, identifiers (Wikidata/Commons)
   visual_research    real photos/documents for those needs
   visual_review      automatic editorial review of pictures with unclear rights
   visual_check       vision verification of the best candidates
@@ -63,6 +65,7 @@ from app.agents.stages import get_stage_agent
 from app.agents.story import stored_sections
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, slot
+from app.documentary.visuals.verification import gateway_available
 from app.core.policy import PolicyDecision
 from app.db.models import (
     Artifact,
@@ -264,8 +267,8 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
         ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
-        "film_length", "visual_needs", "visual_research", "visual_review", "visual_check", "visual_plan",
-        "visual_gaps"]
+        "film_length", "visual_needs", "visual_dossier", "visual_research", "visual_review",
+        "visual_check", "visual_plan", "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
             f"performance:{l}", f"voice:{l}", f"zoom_maps:{l}", f"production:{l}", f"critique:{l}",
@@ -551,6 +554,16 @@ class DocumentaryPipeline(StageRunner):
             raise RuntimeError("No visual requirements could be planned.")
         requirements = json.loads(vp_row.requirements_json or "{}")
         planned = vp_row.status == "planned" and not job.refresh_visuals
+
+        async def visual_dossier():
+            from app.agents.visual_dossier import VisualDossierAgent
+            from app.documentary.visuals.dossier import merge_into_entities
+
+            stats = await VisualDossierAgent().ensure(db, case, requirements)
+            requirements["entities"] = merge_into_entities(db, case, requirements.get("entities") or [])
+            return stats
+
+        await self._stage("visual_dossier", visual_dossier)
 
         # ---- phase C: visual chain || each language's chain ----------------
         visual_ready = asyncio.Event()
@@ -930,11 +943,16 @@ async def verify_assets(db: Session, case: Case, assets: list[VisualAsset],
 
     if not assets:
         return {"checked": 0}
+    agent = VisualVerificationAgent()
+    ok, status = await gateway_available(agent.gen)
+    if not ok:
+        # never burn every candidate as an "error" against a gateway that cannot answer (P8)
+        return {"checked": 0, "vision_unavailable": status,
+                "degraded": f"vision checks unavailable: {status} — {len(assets)} picture(s) stay unverified"}
     pack = build_evidence_pack(
         db.query(Fact).filter(Fact.case_id == case.id).all(),
         db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
         db.query(Source).filter(Source.case_id == case.id).all())
-    agent = VisualVerificationAgent()
     # all candidates at once; the vision limit (concurrency.vision) paces them
     results = await gather_limited(
         None, [agent.verify(db, case, a, entities, pack["facts"]) for a in assets],

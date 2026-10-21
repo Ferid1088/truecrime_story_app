@@ -73,8 +73,9 @@ class FootageAgent:
         assert self.client is not None, "searching and downloading need an HTTP client"
         return self.client
 
-    def providers(self) -> list:
-        return [PROVIDERS[p](self._http()) for p in self.cfg.providers if p in PROVIDERS]
+    def providers(self, stopped: frozenset[str] = frozenset()) -> list:
+        return [PROVIDERS[p](self._http()) for p in self.cfg.providers
+               if p in PROVIDERS and p not in stopped]
 
     async def run(self, db: Session, case: Case, queries: list[dict],
                   found_during: str = "research", progress=None,
@@ -105,7 +106,12 @@ class FootageAgent:
         seen = {a.source_url for a in existing if a.source_url}
         seen |= {a.page_url for a in videos if a.page_url}
         hashes = [a.phash for a in videos if a.phash]
-        providers = self.providers()
+        from app.documentary.visuals.research import adaptive_stop
+
+        stopped = adaptive_stop(existing, ai_config.visual_search.adaptive_stop_min_sample,
+                                ai_config.visual_search.adaptive_stop_min_share)
+        stats["adaptive_stop"] = stopped
+        providers = self.providers(frozenset(s["provider"] for s in stopped))
         for qi, q in enumerate(queries):
             if left <= 0:
                 break

@@ -106,7 +106,10 @@ REQUIRED_ROLES = {
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
     "visual_planner",
+    "visual_entity_dossier",
     "visual_verifier",
+    "visual_verifier_cheap",
+    "visual_query_refiner",
     # A second, independent model looks at the same picture and the same inputs when the first
     # left a place, object, document or map in needs_review.
     "visual_second_verifier",
@@ -1119,6 +1122,24 @@ class EvidenceSelectionConfig(BaseModel):
     same_contradiction_ratio: int = Field(ge=50, le=100)
 
 
+class YouTubeDataAPIConfig(BaseModel):
+    """P15d: quota settings for the YouTube Data API v3, read from its official docs
+    (sources recorded in the field below) and verified against the project's live quota
+    screen is the owner's own task — this records what the public docs say."""
+
+    daily_quota_units: int = Field(default=10000, ge=1)
+    daily_search_calls: int = Field(default=100, ge=1)
+    reset_timezone: str = "America/Los_Angeles"
+    cost_units: dict[str, int] = {}
+    discovery_share_percent: float = Field(default=20.0, ge=0.0, le=100.0)
+    uploads_reserved_percent: float = Field(default=10.0, ge=0.0, le=100.0)
+    cache_expiry_hours: float = Field(default=24.0, gt=0.0)
+    max_videos_per_channel_page: int = Field(default=50, ge=1, le=50)
+    max_video_ids_per_call: int = Field(default=50, ge=1, le=50)
+    clip_margin_seconds: float = Field(default=2.0, ge=0.0)
+    max_candidates_per_sentence: int = Field(default=3, ge=1)
+
+
 class YouTubeResearchConfig(BaseModel):
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_results_per_language: int = Field(ge=1, le=50)
@@ -1747,8 +1768,10 @@ class HostConfig(BaseModel):
     heard yet, no stock phrases, nothing repeated from recent episodes)."""
 
     enabled: bool = True
-    # The avatar is part of the system: no film is built or rendered without at least one of its
-    # host scenes (owner decision 2026-10-21).
+    # The avatar is required only for the FINAL version (owner decision 2026-10-22, supersedes
+    # 2026-10-21's "no film is built or rendered without it"): building a script and rendering a
+    # draft never need it; publishing one does (app.lifecycle.videos.publish_blockers,
+    # app.autopilot.runner._publish_inputs). Turning this off removes the publish-time gate too.
     required_for_film: bool = True
     # The persona and its rules (repository-relative markdown file).
     persona_file: str = "persona_master_prompt.md"
@@ -2058,9 +2081,62 @@ class NasaConfig(BaseModel):
     credit: str
 
 
+class EuropeanaConfig(BaseModel):
+    """Europeana Search API (P12): a free key is required (none of this project's own); terms
+    read 2026-10-21 (docs/open_sources_terms.md)."""
+
+    search_url: str = "https://api.europeana.eu/record/v2/search.json"
+    page_url: str = "https://www.europeana.eu/item{europeana_id}"
+    api_key_env: str = "TRUECRIME_EUROPEANA_API_KEY"
+    credit_suffix: str = "via Europeana"
+
+
+class DplaConfig(BaseModel):
+    """DPLA API (P12): a free key is required (none of this project's own); terms read
+    2026-10-21 (docs/open_sources_terms.md). The response shape here is read from DPLA's own
+    public documentation (github.com/dpla/platform), not a live-probed call — the live API
+    itself is key-gated and none was available to probe it with."""
+
+    search_url: str = "https://api.dp.la/v2/items"
+    api_key_env: str = "TRUECRIME_DPLA_API_KEY"
+    credit_suffix: str = "via DPLA"
+
+
+class ArchivesConfig(BaseModel):
+    """Structured dossier search shared by the archive providers (open_data_archives.py):
+    alias fan-out, per-entity/per-case call caps, the open-rights-first threshold and the
+    era-window padding applied to each API's date filter."""
+
+    # one query per dossier alias, at most this many per entity per incoming search request
+    max_aliases_per_entity: int = Field(default=4, ge=1)
+    # HTTP calls a provider may make for one entity / for the whole run (both passes count)
+    max_calls_per_entity: int = Field(default=10, ge=1)
+    max_calls_per_case: int = Field(default=40, ge=1)
+    # below this many open-rights candidates for an entity, an all-rights pass is allowed
+    open_min_candidates: int = Field(default=3, ge=0)
+    # the case/event year window is widened by this many years on each side
+    era_padding_before_years: int = Field(default=50, ge=0)
+    era_padding_after_years: int = Field(default=50, ge=0)
+
+
 class OpenDataConfig(BaseModel):
     usgs_naip: UsgsNaipConfig
     nasa: NasaConfig
+    europeana: EuropeanaConfig = Field(default_factory=EuropeanaConfig)
+    dpla: DplaConfig = Field(default_factory=DplaConfig)
+    archives: ArchivesConfig = Field(default_factory=ArchivesConfig)
+
+
+class EntityDossierConfig(BaseModel):
+    """P1: list-size limits for one entity dossier (entity_dossiers table)."""
+
+    max_aliases: int = Field(default=12, ge=1)
+    max_not_this: int = Field(default=8, ge=0)
+    max_likely_sources: int = Field(default=6, ge=0)
+    max_expected_captions: int = Field(default=6, ge=0)
+    max_negative_terms: int = Field(default=8, ge=0)
+    max_fact_ids: int = Field(default=40, ge=0)
+    max_description_chars: int = Field(default=600, ge=50)
 
 
 class VisualSearchConfig(BaseModel):
@@ -2071,6 +2147,13 @@ class VisualSearchConfig(BaseModel):
         return self.open_data
 
     providers: list[str] = ["source_pages", "wikimedia"]
+    # P3: which providers run for a modern case (incident year >= era_boundary_year) vs a
+    # historical one. Empty for an era means "use `providers` unchanged" (old behaviour kept).
+    era_boundary_year: int = Field(default=1980, ge=1800)
+    providers_by_era: dict[str, list[str]] = {}
+    # P4: query phrasing by era (the planner picks the slice named by the entity's dossier era).
+    # Empty for an era means "use `expansion_templates` unchanged".
+    expansion_templates_by_era: dict[str, dict[str, list[str]]] = {}
     # Part 4b: pages of the original owners named by a video's visual leads,
     # the Brave image search for the case's own people/places/documents, and
     # Brave video search results kept as LINKS for the owner (never downloaded).
@@ -2105,6 +2188,20 @@ class VisualSearchConfig(BaseModel):
     max_source_pages: int = Field(default=25, ge=0)
     open_data: OpenDataConfig | None = None
     max_assets: int = Field(default=120, ge=1)
+    # P5: at most this many DOWNLOADS per entity in one research run (candidates are already
+    # ranked before the download loop, so this keeps one entity from using the whole budget).
+    max_downloads_per_entity: int = Field(default=40, ge=1)
+    # P6: a provider whose useful share (verified + needs_review of what was actually checked)
+    # stays below this after at least this many checked pictures is skipped in later runs; its
+    # query slots go to the other active providers instead.
+    adaptive_stop_min_sample: int = Field(default=20, ge=1)
+    adaptive_stop_min_share: float = Field(default=0.1, ge=0.0, le=1.0)
+    # P11: model-guided query refinement for low-yield entities, budgeted per case.
+    refinement_min_sample: int = Field(default=10, ge=1)
+    refinement_min_share: float = Field(default=0.15, ge=0.0, le=1.0)
+    refinement_max_calls_per_case: int = Field(default=5, ge=0)
+    refinement_max_eur_per_case: float = Field(default=2.0, ge=0.0)
+    refinement_sample_results: int = Field(default=15, ge=1)
     min_width: int = Field(default=600, ge=64)
     max_download_mb: float = Field(default=15.0, gt=0)
     request_timeout_s: float = Field(default=25.0, gt=0)
@@ -2276,6 +2373,14 @@ class VisualVerificationConfig(BaseModel):
     # Every unchecked photo found at this relevance tier or closer (1 exact case ... 5 generic) is
     # vision-checked, not only the best-ranked ones of each need.
     check_all_up_to_tier: int = Field(default=3, ge=1, le=5)
+    # P7: tiered checking. The cheap tier (role visual_verifier_cheap) looks first; its verdict
+    # is trusted only when decisive (verified or rejected, never needs_review/unverified), never
+    # for a person (identity always goes to the strong tier) and only at this extra-safety
+    # confidence margin (stricter than verified_min_confidence/reject_below_confidence, since a
+    # cheaper model is less reliable) — otherwise the strong verifier (visual_verifier) decides,
+    # as before.
+    cheap_tier_enabled: bool = True
+    cheap_tier_decisive_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
 
 
 class EditorialReviewConfig(BaseModel):
@@ -2378,6 +2483,16 @@ class VisualReportConfig(BaseModel):
     # The labels a rejection is reported under; any other reason is "other".
     rejection_reasons: list[str] = Field(min_length=1)
     contact_sheet: ContactSheetConfig
+
+
+class ReviewQueueConfig(BaseModel):
+    """P10: the owner's batch review queue. A needs_review picture this close to the reject
+    floor, with no case-source provenance, is auto-rejected with a stored reason instead of
+    shown; the rest are grouped by near-duplicate (the same phash closeness the download-time
+    dedupe uses) so one decision can resolve a whole group."""
+
+    auto_reject_margin: float = Field(default=0.05, ge=0.0, le=0.5)
+    duplicate_hamming_threshold: int = Field(default=6, ge=0, le=64)
 
 
 class SupplyConfig(BaseModel):
@@ -3446,6 +3561,7 @@ class AIConfig(BaseModel):
     research: ResearchConfig
     search_engine: SearchEngineConfig
     youtube_research: YouTubeResearchConfig
+    youtube_data_api: YouTubeDataAPIConfig = Field(default_factory=YouTubeDataAPIConfig)
     evidence_selection: EvidenceSelectionConfig
     transcript_ingestion: TranscriptIngestionConfig
     transcript_chunking: TranscriptChunkingConfig
@@ -3478,9 +3594,11 @@ class AIConfig(BaseModel):
     music_library: MusicLibraryConfig = Field(default_factory=MusicLibraryConfig)
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
+    entity_dossier: EntityDossierConfig = Field(default_factory=EntityDossierConfig)
     editorial_review: EditorialReviewConfig = Field(default_factory=EditorialReviewConfig)
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
     supply: SupplyConfig = Field(default_factory=SupplyConfig)
+    review_queue: ReviewQueueConfig = Field(default_factory=ReviewQueueConfig)
     visual_report: VisualReportConfig | None = None
     storage_budget: StorageBudgetConfig = Field(default_factory=StorageBudgetConfig)
     limits: LimitsConfig | None = None

@@ -869,6 +869,31 @@ def set_youtube_clips(body: YouTubeClipsBody, db: Session = Depends(get_db)):
     return {"enabled": YC.set_enabled(db, body.enabled)}
 
 
+class YouTubeQuotaSettingsBody(BaseModel):
+    daily_quota_units: int | None = Field(default=None, gt=0)
+    discovery_share_percent: float | None = Field(default=None, ge=0.0, le=100.0)
+    uploads_reserved_percent: float | None = Field(default=None, ge=0.0, le=100.0)
+
+
+@router.get("/api/documentary/visuals/youtube-quota")
+def youtube_quota_overview(db: Session = Depends(get_db)):
+    """P15d: the discovery stage's own share of today's YouTube Data API quota (Pacific day),
+    what it has used, and when it resets — never the share reserved for uploads."""
+    from app.documentary.visuals import youtube_quota as YQ
+
+    return {**YQ.discovery_status(db), "overrides": YQ.settings_overrides(db)}
+
+
+@router.put("/api/documentary/visuals/youtube-quota")
+def set_youtube_quota(body: YouTubeQuotaSettingsBody, db: Session = Depends(get_db)):
+    from app.documentary.visuals import youtube_quota as YQ
+
+    YQ.set_settings(db, daily_quota_units=body.daily_quota_units,
+                    discovery_share_percent=body.discovery_share_percent,
+                    uploads_reserved_percent=body.uploads_reserved_percent)
+    return {**YQ.discovery_status(db), "overrides": YQ.settings_overrides(db)}
+
+
 @router.get("/api/documentary/visuals/editorial-review/decisions")
 def editorial_review_decisions(case_id: int | None = None, verdict: str | None = None,
                                limit: int = 100, db: Session = Depends(get_db)):
@@ -1111,6 +1136,106 @@ def production_sources(ps_id: int, db: Session = Depends(get_db)):
     ps = _ps(db, ps_id)
     return Response(sources_export.csv_text(db, ps), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="film_{ps.id}_sources.csv"'})
+
+
+@router.get("/api/cases/{case_id}/visuals/review-queue")
+def visual_review_queue(case_id: int, db: Session = Depends(get_db)):
+    """P10: the owner's batch review queue — needs_review pictures grouped by near-duplicate,
+    after the second pass (S3.b) and an obvious-junk auto-reject have each had their turn."""
+    from app.documentary.visuals.review_queue import review_queue
+
+    _case(db, case_id)
+    return review_queue(db, case_id)
+
+
+@router.get("/api/cases/{case_id}/visuals/review-queue/ui")
+def visual_review_queue_ui(case_id: int, db: Session = Depends(get_db)):
+    """P10: the batch review page's own listing — one entry per group, the beat(s) it would
+    fill, the entity it should show, the verifier's reason, sorted by how many beats it would
+    fill (most first)."""
+    from app.documentary.visuals.review_queue import review_queue_for_ui
+
+    _case(db, case_id)
+    return review_queue_for_ui(db, case_id)
+
+
+class WrongPersonBody(BaseModel):
+    asset_id: int
+    entity_key: str
+
+
+@router.post("/api/cases/{case_id}/visuals/review-queue/wrong-person")
+def visual_review_queue_wrong_person(case_id: int, body: WrongPersonBody, db: Session = Depends(get_db)):
+    """P10: "Wrong person" — rejects the picture and writes a negative example into the
+    entity's own dossier (P1's not_this list)."""
+    from app.documentary.visuals.review_queue import mark_wrong_person
+
+    _case(db, case_id)
+    try:
+        return mark_wrong_person(db, body.asset_id, body.entity_key)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/api/cases/{case_id}/visuals/review-queue/auto-reject")
+def visual_review_queue_auto_reject(case_id: int, db: Session = Depends(get_db)):
+    """P10: rejects every obvious-junk needs_review picture now, with a stored reason, and
+    returns the queue size before and after."""
+    from app.documentary.visuals.review_queue import auto_reject_obvious_junk, review_queue
+
+    _case(db, case_id)
+    before = review_queue(db, case_id)
+    rejected = auto_reject_obvious_junk(db, case_id)
+    after = review_queue(db, case_id)
+    return {"rejected": rejected, "before": before, "after": after}
+
+
+@router.get("/api/cases/{case_id}/visuals/dossiers")
+def visual_dossiers(case_id: int, db: Session = Depends(get_db)):
+    """Read-only: every entity dossier of the case (P1) — canonical name, aliases, era, visual
+    description, "NOT this" list, identifiers, likely sources, expected captions, negative
+    terms and the fact ids it supports."""
+    from app.db.models import EntityDossier
+
+    _case(db, case_id)
+    rows = (db.query(EntityDossier).filter(EntityDossier.case_id == case_id)
+           .order_by(EntityDossier.entity_key).all())
+    return [{
+        "entity_key": d.entity_key, "canonical_name": d.canonical_name, "entity_type": d.entity_type,
+        "era": d.era, "aliases": json.loads(d.aliases_json or "[]"),
+        "visual_description": d.visual_description, "not_this": json.loads(d.not_this_json or "[]"),
+        "wikidata_id": d.wikidata_id, "commons_category": d.commons_category,
+        "likely_sources": json.loads(d.likely_sources_json or "[]"),
+        "expected_captions": json.loads(d.expected_captions_json or "[]"),
+        "negative_terms": json.loads(d.negative_terms_json or "[]"),
+        "supports_fact_ids": json.loads(d.supports_fact_ids_json or "[]"),
+        "generation_model": d.generation_model, "created_at": d.created_at, "updated_at": d.updated_at,
+    } for d in rows]
+
+
+@router.get("/api/cases/{case_id}/visuals/tiers")
+def visual_tiers(case_id: int, db: Session = Depends(get_db)):
+    """P7 tiered checking: how many checked pictures the cheap tier decided vs the strong
+    verifier, and whether any person picture was ever decided by the cheap tier (should be 0:
+    identity decisions always go to the strong tier). Cost per tier is in /costs, grouped by
+    stage ("Visual Verifier Cheap" vs "Visual Verifier")."""
+    from app.documentary.visuals.verification import tier_report
+
+    _case(db, case_id)
+    assets = db.query(VisualAsset).filter(VisualAsset.case_id == case_id).all()
+    return tier_report(assets)
+
+
+@router.get("/api/cases/{case_id}/visuals/intake")
+def visual_intake(case_id: int, db: Session = Depends(get_db)):
+    """Pictures stored, checked, unchecked and the unchecked-backlog slots still open: the
+    intake limit (visual_search.max_assets) applies to the UNCHECKED BACKLOG, not the whole
+    library (P14)."""
+    from app.documentary.visuals.research import intake_status
+
+    _case(db, case_id)
+    assets = db.query(VisualAsset).filter(VisualAsset.case_id == case_id).all()
+    return intake_status(assets, ai_config.visual_search.max_assets)
 
 
 @router.get("/api/cases/{case_id}/visuals/storage")

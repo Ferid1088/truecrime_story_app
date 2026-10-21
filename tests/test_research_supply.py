@@ -110,11 +110,14 @@ def test_only_the_most_needed_entities_are_expanded(monkeypatch):
     assert "Anna Aaa archive" in qs and "Bert Bbb archive" not in qs
 
 
-def test_rejected_assets_do_not_use_up_the_asset_budget():
+def test_only_unchecked_pictures_use_up_the_asset_budget():
+    # P14: a verified, needs_review or rejected picture has already been judged and no longer
+    # holds up new downloads — only the UNCHECKED backlog counts against the intake limit.
     from app.db.models import VisualAsset
 
-    rows = [VisualAsset(verification_status=v) for v in ("rejected", "rejected", "verified", "unverified")]
-    assert VisualResearchAgent(client=object()).asset_budget(rows) == ai_config.visual_search.max_assets - 2
+    rows = [VisualAsset(verification_status=v)
+            for v in ("rejected", "rejected", "verified", "needs_review", "unverified")]
+    assert VisualResearchAgent(client=object()).asset_budget(rows) == ai_config.visual_search.max_assets - 1
 
 
 def test_footage_that_calls_itself_fiction_or_a_stage_show_is_skipped():

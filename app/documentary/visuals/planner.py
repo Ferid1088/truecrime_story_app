@@ -227,11 +227,26 @@ def validate_requirements(raw: dict, blueprint: dict, pack: dict,
 def query_item(entity: dict, query: str, kind: str = "exact") -> dict:
     """One search for VisualResearchAgent.run: what to search, for which
     entity (key and type: the asset's library fields and provisional
-    tier), exact or context, and whether footage is searched too."""
+    tier), exact or context, and whether footage is searched too.
+
+    must_name (P5): the candidate's own text (title, caption, page url, filename) must name the
+    entity (by any alias) or the case; VisualResearchAgent.run also accepts a case-title match
+    as an alternative, so a genuine source picture about the case is never dropped just because
+    it does not repeat the entity's own name."""
     etype = entity.get("type") or "object"
+    is_context = kind == "context"
     return {"query": query, "entity": entity["key"], "entities": [entity["key"]],
-            "entity_name": entity.get("name"), "entity_type": etype, "kind": "context" if kind == "context" else "exact",
-            "footage": bool(entity.get("footage", etype in FOOTAGE_TYPES))}
+            "entity_name": entity.get("name"), "entity_type": etype, "kind": "context" if is_context else "exact",
+            "footage": bool(entity.get("footage", etype in FOOTAGE_TYPES)),
+            # a context query deliberately looks for a stand-in, never the exact thing's own
+            # name, so the pre-filter does not apply to it
+            "must_name": [] if is_context else [entity.get("name") or ""] + list(entity.get("aliases") or []),
+            # the merged dossier fields the structured providers (open_data_archives) build
+            # their per-alias, era-filtered, exclusion-marked queries from
+            "aliases": list(entity.get("aliases") or []),
+            "date_window": list(entity.get("date_window") or []),
+            "not_this": list(entity.get("not_this") or []),
+            "negative_terms": list(entity.get("negative_terms") or [])}
 
 
 def beat_first_queries(requirements: dict, beat_ids: list[str] | None, ents: dict) -> list[dict]:
@@ -252,12 +267,16 @@ def beat_first_queries(requirements: dict, beat_ids: list[str] | None, ents: dic
 
 
 def expansion_queries(entity: dict, round_index: int = 0) -> list[str]:
-    """Extra searches for one entity from the configured templates of its
-    type, named after the entity's name (config visual_search). Round n
-    takes the n-th slice of max_expansions_per_entity templates, so a
-    follow-up search never repeats an earlier one."""
+    """Extra searches for one entity from the configured templates of its type and era (P4:
+    the entity's own dossier era, else "historical" — the templates used project-wide before
+    era awareness existed; a caller that knows the case's era stamps it explicitly, see
+    app.documentary.visuals.dossier.merge_into_entities), named after the entity's name. Round n
+    takes the n-th slice of max_expansions_per_entity templates, so a follow-up search never
+    repeats an earlier one."""
+    from app.documentary.visuals import era as ERA
+
     cfg = ai_config.visual_search
-    templates = cfg.expansion_templates.get(entity.get("type") or "object") or []
+    templates = ERA.templates_for_era(entity.get("era") or "historical", entity.get("type") or "object")
     name = (entity.get("name") or "").strip()
     if not name:
         return []
@@ -267,9 +286,9 @@ def expansion_queries(entity: dict, round_index: int = 0) -> list[str]:
 
 def expansion_item(entity: dict, query: str) -> dict:
     """An expansion search: it names the entity, so a candidate whose own
-    text names none of the entity's words is dropped before any download."""
-    return {**query_item(entity, query, "exact"),
-            "must_name": [entity.get("name") or ""] + list(entity.get("aliases") or [])}
+    text names none of the entity's words is dropped before any download
+    (query_item already sets must_name from the same entity)."""
+    return query_item(entity, query, "exact")
 
 
 def _entities_by_need(requirements: dict, beat_ids: list[str] | None) -> list[dict]:

@@ -1,0 +1,42 @@
+{
+  "_source": "Live probe of https://api.europeana.eu/record/v2/search.json with the public wskey=api2demo (Europeana's own documented demo key, test use only), recorded 2026-10-21. Three real items trimmed to the fields the provider reads, one per rights class actually seen live.",
+  "apikey": "api2demo",
+  "success": true,
+  "itemsCount": 3,
+  "totalResults": 3,
+  "items": [
+    {
+      "id": "/91609/SMVK_VKM_fotografi_1999889",
+      "guid": "https://www.europeana.eu/item/91609/SMVK_VKM_fotografi_1999889?utm_source=api&utm_medium=api&utm_campaign=api2demo",
+      "title": ["photograph"],
+      "rights": ["http://creativecommons.org/publicdomain/zero/1.0/"],
+      "edmIsShownBy": ["https://collections.smvk.se/carlotta-vkm/web/image/zoom/2000235/image.jpg"],
+      "edmIsShownAt": ["https://collections.smvk.se/carlotta-vkm/web/object/1999889"],
+      "dataProvider": ["Museum of World Culture"],
+      "provider": ["Swedish Open Cultural Heritage"],
+      "dcDescription": ["Photography depicting two men wearing a heavy sack."]
+    },
+    {
+      "id": "/2022065/11088_de_bo133_200176",
+      "guid": "https://www.europeana.eu/item/2022065/11088_de_bo133_200176?utm_source=api&utm_medium=api&utm_campaign=api2demo",
+      "title": ["Flammengeborene?"],
+      "rights": ["http://rightsstatements.org/vocab/InC/1.0/"],
+      "edmIsShownBy": ["http://hdl.handle.net/11088/de-bo133:doc:200176"],
+      "edmIsShownAt": ["http://hdl.handle.net/11088/de-bo133:200176#1"],
+      "dataProvider": ["Library of the Friedrich Ebert Foundation"],
+      "provider": ["Europeana"],
+      "dcDescription": []
+    },
+    {
+      "id": "/438/_8623xg77g",
+      "guid": "https://www.europeana.eu/item/438/_8623xg77g",
+      "title": ["Courthouse"],
+      "rights": ["http://creativecommons.org/licenses/by-nc-nd/4.0/"],
+      "edmIsShownBy": ["https://repository.dri.ie/images/8623xg77g:8c9808452/full/full/0/default.jpg"],
+      "edmIsShownAt": ["https://repository.dri.ie/catalog/8623xg77g"],
+      "dataProvider": ["Digital Repository of Ireland"],
+      "provider": ["Europeana"],
+      "dcDescription": []
+    }
+  ]
+}

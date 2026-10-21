@@ -400,8 +400,6 @@ def _open_coverage_unless_a_test_asks(request, monkeypatch):
     from app.core.ai_config import ai_config
 
     monkeypatch.setattr(ai_config.rights, "enforce", "rights_not_a_filter" not in request.node.nodeid)
-    # the pipeline tests run without HeyGen: the avatar rule has its own tests ("avatar_required")
-    monkeypatch.setattr(ai_config.host, "required_for_film", "avatar_required" in request.node.nodeid)
     if "research_supply" not in request.node.nodeid:
         monkeypatch.setattr(ai_config.visual_search, "max_expansions_per_entity", 0)
     if "zoom_map" not in request.node.nodeid:   # the zoom maps (browser, open data) have their own tests

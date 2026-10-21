@@ -177,6 +177,53 @@ def image_for_check(asset: VisualAsset):
     return sheet if sheet is not None else thumb
 
 
+def cheap_tier_may_decide(v: dict, status: str, conf: float) -> bool:
+    """P7: whether the cheap tier's own verdict may be trusted without the strong verifier.
+    Never for a person (identity always goes to the strong tier), never when the cheap tier
+    itself was not decisive (needs_review/unverified is precisely "not confident enough"), and
+    only above an extra safety margin (cheap_tier_decisive_confidence, stricter than the normal
+    verified/reject thresholds — a cheaper model is less reliable)."""
+    if status not in ("verified", "rejected"):
+        return False
+    if str(v.get("subject_type") or "") == "person":
+        return False
+    return conf >= ai_config.visual_verification.cheap_tier_decisive_confidence
+
+
+def tier_report(assets: list) -> dict:
+    """P7: how many checked pictures each tier decided (free rules happen upstream, before an
+    asset is even stored as unverified — a size/blocked-domain/pre-filter rejection never
+    reaches this report). Person-identity pictures should never show "cheap" here."""
+    import json as _json
+
+    counts = {"cheap": 0, "strong": 0, "unknown": 0}
+    cheap_person = 0
+    for a in assets:
+        if a.verification_status == "unverified" or a.provider == "generated":
+            continue
+        stored = _json.loads(a.verification_json or "{}")
+        tier = stored.get("check_tier") or "unknown"
+        counts[tier] = counts.get(tier, 0) + 1
+        if tier == "cheap" and str(stored.get("subject_type") or "") == "person":
+            cheap_person += 1
+    total = sum(counts.values())
+    return {"checked": total, "by_tier": counts,
+            "cheap_share": round(counts["cheap"] / total, 4) if total else 0.0,
+            "cheap_person_pictures": cheap_person}
+
+
+async def gateway_available(gen) -> tuple[bool, str | None]:
+    """Whether the vision/generation gateway can answer right now: a free preflight (GET
+    /models, no billed call) before a job downloads or checks pictures (P8). Returns
+    (ok, status) — status is the provider_status() status word (e.g. "forbidden" for an
+    "Insufficient balance" account) when not ok, so a failed stage can show it. This does not
+    prove a billed vision call itself will succeed (no provider documents a free balance
+    endpoint) — only that the gateway answers at all (configured, reachable, authorized)."""
+    status = await gen.provider_status()
+    ok = status.get("status") in ("ok", "models_missing")
+    return ok, (None if ok else status.get("status"))
+
+
 def __getattr__(name: str):
     # the agent class lives in app/agents/visual_verification.py (imported when first asked for)
     if name == "VisualVerificationAgent":

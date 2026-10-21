@@ -373,7 +373,13 @@ class AutopilotRunner:
     async def _publish(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         if not all(S.step_status(run, p) == "done" for p in ("films", "titles", "shorts")):
             return False
-        films, shorts, handles = self._publish_inputs(db, run, case)
+        films, shorts, handles, avatar_missing = self._publish_inputs(db, run, case)
+        for lang in avatar_missing:
+            # Owner decision 2026-10-22 (A3): the autopilot never publishes a film with no
+            # approved avatar look for its language; it only ever asks the owner to approve one.
+            S.add_need(run, f"publish:{lang}:approve_avatar", "approve_avatar",
+                       f"No approved avatar look for {lang}: approve one in Host Studio before "
+                       "this film can publish.", language=lang)
         planned, skipped = P.plan_requests(films, shorts, handles, utc_now())
         P.store_requests(db, run.id, case.id, planned)
         for item in skipped:
@@ -400,13 +406,20 @@ class AutopilotRunner:
         return True
 
     def _publish_inputs(self, db: Session, run: AutopilotRun, case: Case
-                        ) -> tuple[list[P.FilmInput], list[P.ShortInput], dict[tuple[str, str], str]]:
+                        ) -> tuple[list[P.FilmInput], list[P.ShortInput],
+                                  dict[tuple[str, str], str], list[str]]:
         from app.documentary import storage
+        from app.documentary.production import host_timeline as HT
 
         job_ids = list(S.film_job_ids(run).values())
         films = []
+        avatar_missing = []
         for video in db.query(Video).filter(Video.job_id.in_(job_ids),
                                             Video.state == "rendered").all():
+            if (ai_config.host.required_for_film and video.production_script_id is not None
+                    and not HT.avatar_present(db, video.production_script_id)):
+                avatar_missing.append(video.language)
+                continue
             titles = live_titles(db, case.id, video.language)
             films.append(P.FilmInput(
                 language=video.language, video_id=video.id, file_path=video.file_path or "",
@@ -425,4 +438,4 @@ class AutopilotRunner:
             shorts.append(P.ShortInput(short_id=short.id, language=short.language,
                                        packages=packages))
         handles = {(c.language, c.platform): c.handle for c in db.query(ChannelSetting).all()}
-        return films, shorts, handles
+        return films, shorts, handles, avatar_missing

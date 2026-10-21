@@ -202,6 +202,41 @@ def test_the_run_completes_with_a_dry_run_queue_and_sends_nothing(db_session, ru
     assert any(n["kind"] == "confirm_titles" and not n["blocking"] for n in S.needs(run))
 
 
+def test_a_film_with_no_approved_avatar_is_kept_out_of_the_publish_queue(db_session, run, case):
+    """A3: the autopilot never queues a film for publish without an approved avatar look for
+    its language; it only ever asks the owner to approve one, and the other language is
+    unaffected."""
+    import json as J
+
+    from factories import make_story_version
+
+    from app.db.models import ProductionScript
+
+    ports = FakePorts()
+    passes(db_session, run, ports)
+    finish_films(db_session, run)
+    sv = make_story_version(db_session, case, language="en")
+    draft = ProductionScript(case_id=case.id, story_version_id=sv.id, language="en", mode="full",
+                             status="composed", duration_seconds=600.0,
+                             script_json=J.dumps({"avatar_used": False}))
+    db_session.add(draft)
+    db_session.commit()
+    for lang, job_id in S.film_job_ids(run).items():
+        db_session.add(Video(case_id=case.id, job_id=job_id, language=lang, state="rendered",
+                             file_path=f"data/{lang}.mp4",
+                             production_script_id=draft.id if lang == "en" else None))
+    db_session.commit()
+    passes(db_session, run, ports)
+    for row in db_session.query(ShortProductionJob).filter_by(case_id=case.id):
+        row.status = "done"
+    db_session.commit()
+    passes(db_session, run, ports)
+    rows = db_session.query(PublishRequest).filter_by(run_id=run.id).all()
+    assert {r.language for r in rows if r.kind == "film"} == {"de"}
+    need = next(n for n in S.needs(run) if n["kind"] == "approve_avatar")
+    assert need["language"] == "en" and need["blocking"] is True
+
+
 def test_the_case_budget_stops_the_run_before_any_paid_call(db_session, run, case):
     BudgetService(db_session).record(case_id=case.id, stage="spent", model=None, units=1,
                                      cost_eur=ai_config.budget.total_cap_eur + 1)

@@ -160,6 +160,7 @@ ENTITIES = [{"key": "fall_river", "name": "Fall River", "type": "place"}]
 def test_the_agent_leaves_an_asset_unverified_when_the_answer_is_no_verdict(db_session, monkeypatch):
     monkeypatch.setattr(VV, "image_for_check", lambda a: "t.jpg")
     monkeypatch.setattr(VV.IM, "data_url", lambda p: "data:image/jpeg;base64,")
+    monkeypatch.setattr(ai_config.visual_verification, "cheap_tier_enabled", False)
     case = _case(db_session)
     a = _asset(db_session, case, "A1")
     agent = VV.VisualVerificationAgent.__new__(VV.VisualVerificationAgent)
@@ -172,6 +173,7 @@ def test_the_agent_leaves_an_asset_unverified_when_the_answer_is_no_verdict(db_s
 def test_a_context_picture_is_stored_as_a_real_context_picture_not_an_illustration(db_session, monkeypatch):
     monkeypatch.setattr(VV, "image_for_check", lambda a: "t.jpg")
     monkeypatch.setattr(VV.IM, "data_url", lambda p: "data:image/jpeg;base64,")
+    monkeypatch.setattr(ai_config.visual_verification, "cheap_tier_enabled", False)
     case = _case(db_session)
     a = _asset(db_session, case, "A2")
     agent = VV.VisualVerificationAgent.__new__(VV.VisualVerificationAgent)

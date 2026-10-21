@@ -45,6 +45,7 @@ import type {
   SuggestionState,
   CaseDossier,
   CaseListItem,
+  ReviewQueueResponse,
   ShortFormCaseItem,
   ClaimClusterItem,
   Contradiction,
@@ -661,6 +662,13 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
+  reviewQueue: (caseId: number) =>
+    request<ReviewQueueResponse>(`/api/cases/${caseId}/visuals/review-queue/ui`),
+  reviewQueueWrongPerson: (caseId: number, assetId: number, entityKey: string) =>
+    post<{ asset_code: string; entity_key: string; not_this_note: string; dossier_updated: boolean }>(
+      `/api/cases/${caseId}/visuals/review-queue/wrong-person`,
+      { asset_id: assetId, entity_key: entityKey },
+    ),
   storyPlan: (caseId: number, language: string) =>
     request<StoryPlan>(`/api/cases/${caseId}/story-plan?language=${language}`),
   createStoryPlan: (caseId: number, payload: { target_minutes: number; language: string; instruction?: string }) =>

@@ -3,6 +3,8 @@ and "create missing variants now" (the estimate first, rendering only on confirm
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -15,6 +17,7 @@ from app.services.budget import BudgetStopped
 from app.shortform import closing_library as CL
 from app.shortform.closing_render import HeyGenClosingRenderer
 
+log = logging.getLogger(__name__)
 router = APIRouter(tags=["closing-clips"])
 
 
@@ -70,6 +73,14 @@ async def create_missing(body: CreateMissingBody, db: Session = Depends(get_db))
         raise HTTPException(status_code=409,
                             detail="Create new closing clips is off: no closing clip is rendered")
     looks = CL.approved_looks(db, body.language)
+    if not looks:
+        # A4: a film/language with no approved avatar look skips host-led closing clips
+        # cleanly — never a crash, never a silent "0 variants" indistinguishable from
+        # "the library is already full".
+        reason = f"no approved avatar look for {body.language}"
+        log.info("Host-led closing clips skipped: %s", reason)
+        return {"estimate": {"variants": 0, "per_variant": None, "total_eur": 0.0},
+                "created": [], "skipped_reason": reason}
     wanted = CL.missing_looks(db, body.language, CL.KIND_SHORTS, looks)
     renderer = get_renderer()
     sentences = CL.closing_sentences(body.language, CL.KIND_SHORTS)

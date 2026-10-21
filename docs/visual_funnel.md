@@ -421,3 +421,106 @@ Raising `pool_tries` from 2 to 6 changed nothing (the audit cache returned the s
 
 ### What I did not watch
 I did not render or watch any film; I looked at the contact sheets and at one thumbnail sheet of the 42 picture shots of script 12. The sentence-by-sentence fit of each picture was judged by the auditor model, not by me.
+
+## 7. P17 — case 9 re-run with every new mechanism active (2026-10-22)
+
+API and worker restarted first; a leftover worker process (started before this session's changes, requiring an
+env var this session never set) was stopped rather than relaunched, since this run bypasses the job queue
+entirely (`scripts/visual_stages.py` calls the pipeline's own functions directly in one process — the same
+functions a queued job would call, just without the queue). The restarted API process was confirmed live on
+HEAD: the new P1/P15/P10 endpoints (`/visuals/dossiers`, `/documentary/visuals/youtube-quota`,
+`/visuals/review-queue/ui`) all answered correctly before the run began. `scripts/visual_stages.py` itself
+was extended for this row (test-first was not applicable — it is a live-ops script, not unit-tested code) to
+also run the P1 dossier stage (`VisualDossierAgent.ensure` + `merge_into_entities`) before research, and to
+report the provider funnel, caps, intake and review-queue state, matching what the real job pipeline's
+`visual_dossier` stage now does.
+
+Estimate printed first: at most EUR 15.63 (vision checks 9.19, second pass 2.69, searches 0.75, director/audit
+allowance 3.0), against EUR 230.43 remaining (cap 300, spent 68.07). Actual spend: **EUR 1.50** (Video Auditor
+pieces 43 calls, visual_search 41 calls, Visual Director 4 calls, **Visual Query Refiner 1 call — confirms P11
+fired inside the real pipeline, not just in isolation**); cap now 69.57 / 300.
+
+### What actually happened, plainly
+* **Brave Search's prepaid credit balance is exhausted** (a real external account limit, confirmed by calling
+  Brave directly: `{"status":402,"detail":"Prepaid credit balance is insufficient for this request... current
+  balance_units":0,"min_request_cost_units":10000}`). All 41 `brave_images` queries this run failed with HTTP
+  402 and returned 0 candidates — not a bug in this task's own code, an account that needs topping up.
+* **A real, separate bug found along the way, not fixed (out of this task's scope lock)**: a failed Brave
+  search (402, 0 results) is still billed in the app's own cost ledger (`VisualResearchAgent._book_search` runs
+  after `prov.search()` returns `[]`, which is what `BraveImageProvider.search` does on any `SearchError`,
+  instead of only billing a search that actually returned something). This cost about EUR 0.18 of the EUR 1.50
+  spent this run. Reported here, not patched — P10/P12/P17/P18 is this turn's whole scope.
+* usgs_naip ran fine (21 queries, 24 candidates — all duplicates of already-stored aerial images, so 0 new
+  assets); europeana and dpla each ran 46 queries and correctly returned nothing (no key configured — the
+  clean skip proven in P12 held under a real pipeline run, not just a unit test); nasa ran 8 queries, 0 new.
+* 43 Video Auditor (piece) calls checked previously-unchecked video pieces: unverified pictures/pieces of case 9
+  went **388 -> 359** (needs_review 111 -> 113, rejected 816 -> 843, verified unchanged at 555). No new
+  assets were stored (Brave being down meant no new candidates existed to check).
+* A new visual plan (id 8) was produced: beat B04 now offered **13** candidates (used 2), beat B05 offered
+  **13** (used 7) — both still far from the original 0/0 this whole task started from. The director's own
+  adjustments this time: 2 beats got a real map instead of a held black screen, 3 shots were recut
+  (crop/zoom/merge) to an existing real picture, 1 beat fell back to a new verified image, 1 to a black screen
+  held (merged with a neighbour) — no illustration fallback anywhere (there is no illustration code left to
+  fall back to).
+* The review queue: **113 -> 101 active (12 second-pass-pending, excluded) -> (98 groups)** — essentially
+  unchanged from the P10 state earlier this session (2 new needs_review pictures appeared from this run's own
+  checks, offsetting the 2 this session's own auto-reject test had already removed).
+* **The run then hit a real, hard blocker**: building a new production script raised `AvatarRequired: No film
+  without the avatar: none of its host scenes is ready (plan, voice and render the host first)` — the owner's
+  own `host.required_for_film` rule (recorded earlier in this checklist's "Owner decisions" section) now
+  refuses to build ANY new script for a language with no rendered host scene, and case 9's English has none.
+  This is the same constraint that earlier already made "the English proof script 12 of case 9... could not be
+  produced by the pipeline any more" — now confirmed to also block a fresh VISUAL-ONLY re-run, not just a full
+  one. No new production script, audit or coverage repair exists from this run; the film-level numbers below
+  (real picture seconds/%, fallback-by-kind at the coverage-repair level) are **unchanged from script 12**
+  (the last one successfully rendered, documented in section 6 above), not refreshed by this run.
+
+### Precision check (script 8's plan — the closest thing to "the final plan" this run produced)
+24 distinct pictures referenced across the plan's 21 beats; 11 are of a named person (all Bryan Kohberger
+except one "four victims" collage), all `verified`, confidence 0.72-0.80, every title/caption naming him in a
+courtroom/extradition/arrest context consistent with the claim. **0 of 24 shot pictures carry a
+graphic_or_sensitive flag.** As throughout this task: identity still rests on caption/page-title evidence, not
+an independently checked face — I looked at the titles and entity tags, not at the faces myself.
+
+### Case 9, before -> after this run (stored-picture level; no new film)
+| measure | before | after |
+|---|---|---|
+| stored pictures | 1910 | 1910 |
+| verified / needs_review / rejected / unverified | 555 / 111 / 816 / 388 | 555 / 113 / 843 / 359 |
+| intake backlog (unchecked / 1500 cap) | 388 | 359 |
+| review queue (active / second-pass-pending) | 101 / 12 | 101 / 12 (2 resolved, 2 new) |
+| beat B04 offered / used | 0 / 0 (original) | 13 / 2 |
+| beat B05 offered / used | 0 / 0 (original) | 13 / 7 |
+| real image shots / seconds / % of film | 37 / 482.9s / 78% (script 12, unchanged) | same (no new render) |
+| video shots used | 0 | 0 |
+| illustration shots | 0 | 0 |
+| case 9 actual spend / cap | 68.07 / 300 | 69.57 / 300 |
+
+## 8. Structured archive search (Europeana + DPLA, dossier-driven) — live proof on case 9, 2026-10-21
+
+Both archive keys are now configured; the providers build their queries from the entity dossier
+instead of the planner's text (`app/documentary/visuals/open_data_archives.py`, config
+`visual_search.open_data.archives`): one call per alias (cap 4), the dossier's
+not-this/negative terms as Europeana `NOT` exclusions (DPLA's `q` has no negation — left to the
+verifier), the case/event year window (incident year ±50y padding) as `qf=YEAR:[...]` /
+`sourceResource.date.after|before`, open rights first (`reusability=open` for Europeana; local
+partition by stored rights label for DPLA, which has no rights filter), all-rights only below
+`open_min_candidates`. Parameters verified live (docs/open_sources_terms.md). Proof run:
+`VisualResearchAgent.run` scoped to the two archive providers (era provider list patched in the
+proof process; footage tail off), real HTTP, real keys (masked in logs), real downloads, real
+vision verification. Search cost EUR 0 (neither API is billed); vision checks added EUR 0.056.
+
+| provider | calls (all HTTP 200) | candidates | open share | in-copyright kept | reached download | verified | wrong persons | cost |
+|---|---|---|---|---|---|---|---|---|
+| europeana | 22 (16 open-pass + 6 all-rights: pullman/king_road/kohberger open was too thin) | 47 | 30 open (PD/CC) | 14 InC (pullman, labelled editorial_review_required) + 3 permission_required | 2 (per-entity cap full for the rest) | **0** (both rejected by the verifier as wrong subjects) | **0** | 0 |
+| dpla | 15 (no rights filter exists; local open-partition) | 38 | 8 open | 0 URI-InC (13 permission_required, 17 unknown — kept labelled) | 0 | 0 | **0** | 0 |
+
+Old plain-text search, same entities, same moment (one call each, no dossier/filters):
+europeana 0/0/0/0/0 results; dpla pullman 15, others 0 — the dossier fan-out found material the
+planner's long ANDed sentences missed (e.g. `Moscow Idaho` → 15 vs `Moscow Idaho town welcome
+sign street view` → 0). Structure clearly helped recall; the era filter + NOT exclusions held
+precision (the wrong-subject candidates that remained — generic "four victims" imagery —
+were caught by the verifier, none reached verified).
+
+New assets in case 9 from the run: VIS_002677, VIS_002680 (both europeana/four_victims, both
+`rejected` — correct verdicts; they were generic archival images, not the Idaho victims).

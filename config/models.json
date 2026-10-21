@@ -80,7 +80,10 @@
         "spoken_style_critic": "writer",
         "audio_director": "writer",
         "visual_planner": "writer",
+        "visual_entity_dossier": "writer",
+        "visual_query_refiner": "cheap",
         "visual_verifier": "premium",
+        "visual_verifier_cheap": "cheap",
         "visual_second_verifier": "sol",
         "visual_editorial_reviewer": "premium",
         "visual_director": "premium",
@@ -221,7 +224,19 @@
       "temperature": 0.3,
       "max_tokens": 32000
     },
+    "visual_entity_dossier": {
+      "temperature": 0.2,
+      "max_tokens": 12000
+    },
+    "visual_query_refiner": {
+      "temperature": 0.3,
+      "max_tokens": 2000
+    },
     "visual_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 4000
+    },
+    "visual_verifier_cheap": {
       "temperature": 0.0,
       "max_tokens": 4000
     },

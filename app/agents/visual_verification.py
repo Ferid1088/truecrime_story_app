@@ -17,6 +17,7 @@ from app.documentary.visuals import tiers as T
 from app.documentary.visuals.verification import (
     CONTEXT_VERDICTS,
     VERIFIER_SYSTEM,
+    cheap_tier_may_decide,
     decide,
     image_for_check,
     normalize_composite_match,
@@ -43,8 +44,12 @@ class VisualVerificationAgent:
             "claimed_entities": json.loads(asset.entities_json or "[]"),
             "title": asset.title, "caption": asset.caption,
             "page_url": asset.page_url, "source": asset.source_name,
-            "entity_list": [{"key": e["key"], "name": e["name"], "type": e["type"],
-                             "period": e.get("period")} for e in entities],
+            "entity_list": [
+                {"key": e["key"], "name": e["name"], "type": e["type"], "period": e.get("period"),
+                 # P1: the entity dossier's own description and name-collision warnings, when one exists
+                 **({"description": e["visual_description"]} if e.get("visual_description") else {}),
+                 **({"not_this": e["not_this"]} if e.get("not_this") else {})}
+                for e in entities],
             "facts": [{"id": f["id"], "claim": f["claim"]} for f in facts],
         }
 
@@ -76,8 +81,19 @@ class VisualVerificationAgent:
         previous = json.loads(asset.verification_json or "{}") if asset.verification_json else {}
         # what the search claimed when the asset was found (kept across re-checks)
         provisional = previous.get("provisional_tier") or asset.relevance_tier
-        v, status, conf, reason, res = await self._judge(
-            db, case, asset, entities, facts, "visual_verifier", "Visual Verifier")
+        tier_used = "strong"
+        cheap_result: tuple[dict, str, float, str | None, object] | None = None
+        if ai_config.visual_verification.cheap_tier_enabled:
+            # P7: a cheap first look; trusted only when decisive and never for a person
+            cheap_result = await self._judge(
+                db, case, asset, entities, facts, "visual_verifier_cheap", "Visual Verifier Cheap")
+            if cheap_tier_may_decide(cheap_result[0], cheap_result[1], cheap_result[2]):
+                tier_used = "cheap"
+        if tier_used == "cheap" and cheap_result is not None:
+            v, status, conf, reason, res = cheap_result
+        else:
+            v, status, conf, reason, res = await self._judge(
+                db, case, asset, entities, facts, "visual_verifier", "Visual Verifier")
         if status == "unverified":
             # the model did not answer in the schema: the picture stays unchecked and is checked again
             asset.verification_json = json.dumps({**previous, "reason": reason, "raw": v,
@@ -94,6 +110,7 @@ class VisualVerificationAgent:
         asset.case_relevance = T.tier_label(tier)
         asset.verification_json = json.dumps({**v, "reason": reason,
                                               "model": getattr(res, "model", None),
+                                              "check_tier": tier_used,
                                               "provisional_tier": provisional,
                                               "tier": tier, "tier_reason": tier_reason},
                                              ensure_ascii=False)

@@ -120,6 +120,11 @@ function RenderCard({
             {film && (
               <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
                 <FilmStateBadge state={film.state} />
+                {film.avatar_used === false && (
+                  <Badge variant="warning" title="No approved avatar look yet: approve one in Host Studio before this film can publish.">
+                    Draft, no avatar
+                  </Badge>
+                )}
                 <ProductionTypeBadge type={film.production_type} />
                 <span className="inline-flex items-center gap-1">
                   made while <ResolutionBadge status={film.status_at_production} />

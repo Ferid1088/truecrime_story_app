@@ -80,10 +80,14 @@ async def plan_from_scratch(db, case, bp_row, blueprint, old_plan, requirements,
 
     report["redecide"] = {k: v for k, v in redecide.run(db, case.id, apply=True).items() if k != "changed"}
 
+    research_raw_stats = []
+
     async def research(queries):
         from app.agents.visual_research import VisualResearchAgent
 
-        return await VisualResearchAgent().run(db, case, queries)
+        stats = await VisualResearchAgent().run(db, case, queries)
+        research_raw_stats.append(stats)
+        return stats
 
     async def verify():
         return await J.verify_candidates(db, case, blueprint, requirements, None, "preview")
@@ -94,8 +98,13 @@ async def plan_from_scratch(db, case, bp_row, blueprint, old_plan, requirements,
     report["supply_target"] = await supply.top_up(db, case, requirements, blueprint, None,
                                                   target_minutes * 60.0, research, verify, "preview")
     report["spent_after_research_eur"] = round(spent(db, case.id) - before, 4)
+    report["research_rounds_raw"] = [
+        {k: v for k, v in s.items() if k in (
+            "candidates", "added", "duplicates", "rejected", "prefiltered", "entity_cap_skipped",
+            "by_provider", "adaptive_stop", "vision_unavailable")}
+        for s in research_raw_stats]
     new_plan = VisualPlan(case_id=case.id, blueprint_id=bp_row.id, version=old_plan.version + 1,
-                          status="requirements", requirements_json=old_plan.requirements_json)
+                          status="requirements", requirements_json=json.dumps(requirements, ensure_ascii=False))
     db.add(new_plan)
     db.commit()
     await VisualDirector().create(db, case, new_plan, bp_row, ap_row, profile="preview")
@@ -124,6 +133,15 @@ async def run(case_id: int, blueprint_id: int, language: str, target_minutes: fl
         old_plan = J.latest_visual_plan(db, bp_row.id)
         requirements = json.loads(old_plan.requirements_json or "{}")
         ap_row = J.latest_audio_plan(db, bp_row.id)
+        if go:
+            # P1: build any missing entity dossier, then merge every dossier's aliases/era/
+            # not_this/identifiers into the requirements' entities — the same enrichment the
+            # real job pipeline's visual_dossier stage does, so a script re-run exercises it too
+            from app.agents.visual_dossier import VisualDossierAgent
+            from app.documentary.visuals.dossier import merge_into_entities
+
+            report["dossier"] = await VisualDossierAgent().ensure(db, case, requirements)
+            requirements["entities"] = merge_into_entities(db, case, requirements.get("entities") or [])
         if reuse_plan is None:
             new_plan = await plan_from_scratch(db, case, bp_row, blueprint, old_plan, requirements, ap_row,
                                                film_seconds, target_minutes, before, report)
@@ -139,8 +157,16 @@ async def run(case_id: int, blueprint_id: int, language: str, target_minutes: fl
         db.refresh(ps)
         report["coverage"] = await ensure_coverage(db, ps)
         db.refresh(ps)
+        from app.documentary.visuals.research import intake_status
+        from app.documentary.visuals.review_queue import review_queue
+
+        all_assets = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
         report.update(production_script_id=ps.id, visual_plan_id=new_plan.id,
                       film=funnel.film_stats(db, ps), storage=storage_budget.usage(db, case.id),
+                      provider_funnel=funnel.provider_funnel(db, case.id),
+                      caps_hit=funnel.caps_hit(db, case.id, new_plan),
+                      intake=intake_status(all_assets, ai_config.visual_search.max_assets),
+                      review_queue=review_queue(db, case.id),
                       spent_total_eur=round(spent(db, case.id) - before, 4))
         return report
     finally:

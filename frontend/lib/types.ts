@@ -852,6 +852,9 @@ export interface Film {
   created_at: string;
   /** Relative API path — prefix with API_BASE. */
   video_url: string | null;
+  /** Owner decision 2026-10-22: null = no linked script to read this from; true/false once known.
+   * false shows as "Draft, no avatar" (case page, run page) — publishing is blocked until true. */
+  avatar_used: boolean | null;
 }
 
 export interface VideoCostRun extends AgentRun {
@@ -2321,6 +2324,42 @@ export interface VisualUpdate {
   role?: AssetRole;
   rights?: string;
   verification?: VerificationStatus;
+}
+
+/** P10: the batch review page's own listing (one entry per near-duplicate group). */
+export interface ReviewQueueBeat {
+  beat_id: string;
+  summary: string;
+}
+
+export interface ReviewQueueItem {
+  group_id: number;
+  lead: string;
+  subject_type: string | null;
+  confidence: number | null;
+  asset_codes: string[];
+  entity_key: string | null;
+  entity_name: string;
+  beats: ReviewQueueBeat[];
+  beats_count: number;
+  verifier_reason: string;
+  asset: {
+    id: number;
+    asset_id: string;
+    title: string | null;
+    caption: string | null;
+    subject_type: string | null;
+    image_url: string;
+    verification_confidence: number | null;
+  };
+}
+
+export interface ReviewQueueResponse {
+  before: number;
+  second_pass_pending: number;
+  items: number;
+  groups: number;
+  queue: ReviewQueueItem[];
 }
 
 export interface VisualUpload {

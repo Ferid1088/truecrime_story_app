@@ -212,9 +212,8 @@ class LanguageChain:
             from app.documentary.render.engine import VideoRenderer
 
             script = json.loads(ps.script_json)
-            from app.documentary.production.host_timeline import require_avatar
-
-            require_avatar(script.get("host") or [])
+            # Owner decision 2026-10-22: a render (pilot or full) is never blocked for lacking an
+            # avatar (A2) — only publishing is (app.lifecycle.videos.publish_blockers, A3).
             script_sha = hashlib.sha256(ps.script_json.encode("utf-8")).hexdigest()
             out = storage.renders_dir(case.id, lang) / f"{job.mode}_v{version.id}_{ps.version}.mp4"
             prev = json.loads(ps.render_json or "null") if ps.status == "rendered" else None

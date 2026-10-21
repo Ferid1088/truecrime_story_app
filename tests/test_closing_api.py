@@ -83,6 +83,22 @@ def test_create_missing_is_refused_when_creation_is_off(client, isolate, case_id
     assert got.status_code == 409 and isolate.calls == []
 
 
+def test_create_missing_skips_cleanly_with_no_approved_avatar_look(client, isolate, case_id, caplog):
+    """A4: a film/language with no approved avatar look never attempts a host-led closing clip
+    (`CL.approved_looks` returns [] for "de" per the `isolate` fixture) — it is skipped with one
+    clear, honest reason, not a silent "0 variants"."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        got = client.post("/api/closing-clips/create-missing",
+                          json={"language": "de", "case_id": case_id, "confirm": True})
+    body = got.json()
+    assert got.status_code == 200
+    assert body["created"] == [] and body["skipped_reason"] == "no approved avatar look for de"
+    assert any("no approved avatar look" in r.message for r in caplog.records)
+    assert isolate.calls == []
+
+
 def test_an_unknown_language_or_case_is_refused(client, case_id):
     assert client.post("/api/closing-clips/create-missing",
                        json={"language": "xx", "case_id": case_id}).status_code == 422

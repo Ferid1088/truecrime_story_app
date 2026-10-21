@@ -25,15 +25,23 @@ from app.documentary.visuals.research import (
     WikimediaProvider,
     brave_backend,
     date_span,
+    adaptive_stop,
     footage_queries,
+    intake_status,
     names_entity,
     next_asset_code,
+    normalize_title,
+    normalize_url,
     query_kind,
     source_candidate_has_relevance,
     store_video_links,
 )
+from app.documentary.visuals import era as ERA
 from app.documentary.visuals.open_data import NasaProvider, UsgsNaipProvider
+from app.documentary.visuals.open_data_archives import DplaProvider, EuropeanaProvider
 from app.documentary.visuals.search_log import SearchLedger
+from app.documentary.visuals.verification import gateway_available
+from app.providers.generation import get_generation_provider
 from app.services.budget import BudgetService
 from app.services.cost_model import load_pricing
 
@@ -67,6 +75,7 @@ class VisualResearchAgent:
     def __init__(self, client: httpx.AsyncClient | None = None):
         self.cfg = ai_config.visual_search
         self._client = client
+        self.gen = get_generation_provider()
 
     def _new_client(self) -> httpx.AsyncClient:
         from app.core.provider_guard import guard_real_provider
@@ -76,8 +85,9 @@ class VisualResearchAgent:
             headers={"User-Agent": self.cfg.user_agent})
 
     def asset_budget(self, existing: list[VisualAsset]) -> int:
-        """Assets still allowed: rejected pictures are kept but take no slot."""
-        return self.cfg.max_assets - sum(a.verification_status != "rejected" for a in existing)
+        """Unchecked-backlog slots still open (P14): a verified, needs_review or rejected
+        picture has already been judged and no longer holds up new downloads."""
+        return intake_status(existing, self.cfg.max_assets)["backlog_remaining"]
 
     async def _curated_candidates(self, wiki: WikimediaProvider,
                                    queries: list[dict]) -> list[Candidate]:
@@ -113,6 +123,7 @@ class VisualResearchAgent:
         client = self._client or self._new_client()
         stats = {"candidates": 0, "added": 0, "duplicates": 0, "rejected": 0,
                  "errors": 0, "relevance_rejected": 0, "repeated_queries": 0, "refused": 0,
+                 "prefiltered": 0, "entity_cap_skipped": 0,
                  "budget_stopped": False, "storage_stopped": False, "by_provider": {}}
         held_bytes = storage_budget.usage(db, case.id)["bytes"]
         ledger = SearchLedger(db, case.id)
@@ -121,13 +132,31 @@ class VisualResearchAgent:
             existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
             hashes = [a.phash for a in existing if a.phash and a.asset_type != "video"]
             urls = {a.source_url for a in existing}
-            budget = self.asset_budget(existing)
+            norm_urls = {normalize_url(a.source_url) for a in existing}
+            norm_titles = {normalize_title(a.title) for a in existing if a.title}
+            downloads_per_entity: dict[str, int] = {}
+            for a in existing:
+                if a.entity_key and a.local_path:
+                    downloads_per_entity[a.entity_key] = downloads_per_entity.get(a.entity_key, 0) + 1
+            stopped = adaptive_stop(existing, self.cfg.adaptive_stop_min_sample,
+                                   self.cfg.adaptive_stop_min_share)
+            stats["adaptive_stop"] = stopped
+            stopped_providers = {s["provider"] for s in stopped}
+            active_providers = [p for p in ERA.providers_for_era(ERA.era_of(case))
+                               if p not in stopped_providers]
+            vision_ok, vision_status = await gateway_available(self.gen)
+            budget = self.asset_budget(existing) if vision_ok else 0
+            if not vision_ok:
+                # never fill the unchecked backlog with pictures nobody can judge right now (P8)
+                stats["vision_unavailable"] = vision_status
+                stats["degraded"] = (f"vision checks unavailable: {vision_status} — "
+                                     "no new pictures downloaded this run")
             candidates: list[Candidate] = []
             # The case's own sources are case-level, not per query: read
             # them in the research pass when exact material is wanted (a
             # context-only search never touches them).
             exact_wanted = not queries or any(query_kind(q) == "exact" for q in queries)
-            if ("source_pages" in self.cfg.providers and exact_wanted
+            if ("source_pages" in active_providers and exact_wanted
                     and found_during == "research"):
                 sp = SourcePageProvider(client)
                 sources = (db.query(Source).filter(Source.case_id == case.id)
@@ -137,9 +166,9 @@ class VisualResearchAgent:
                         c.query_kind = "source"
                         candidates.append(c)
             backend = brave_backend() if any(
-                p in self.cfg.providers for p in ("brave_images", "lead_sources", "brave_video_links")
+                p in active_providers for p in ("brave_images", "lead_sources", "brave_video_links")
             ) else None
-            if ("lead_sources" in self.cfg.providers and backend and exact_wanted
+            if ("lead_sources" in active_providers and backend and exact_wanted
                     and found_during == "research"):
                 lp = LeadSourceProvider(client, backend)
                 leads = (db.query(VisualLead).filter(
@@ -148,15 +177,23 @@ class VisualResearchAgent:
                 for lead in leads:
                     candidates.extend(await lp.images_for(lead, case))
             searchers: list = []
-            if "wikimedia" in self.cfg.providers:
+            if "wikimedia" in active_providers:
                 searchers.append(WikimediaProvider(client))
-            if "usgs_naip" in self.cfg.providers:
+            if "usgs_naip" in active_providers:
                 searchers.append(UsgsNaipProvider(client))
-            if "nasa" in self.cfg.providers:
+            if "nasa" in active_providers:
                 searchers.append(NasaProvider(client))
-            if "brave_images" in self.cfg.providers and backend:
+            if "europeana" in active_providers:
+                searchers.append(EuropeanaProvider(client))
+            if "dpla" in active_providers:
+                searchers.append(DplaProvider(client))
+            if "brave_images" in active_providers and backend:
                 searchers.append(BraveImageProvider(backend))
             if "wikimedia" in self.cfg.providers and self.cfg.wikimedia_categories:
+                # categories (and Wikidata's own "depicts" claims) are not free-text search:
+                # they stay on even for a modern case with Wikimedia free-text search off (P3),
+                # as long as Wikimedia is configured as a provider at all (`self.cfg.providers`,
+                # not the era-restricted `active_providers`)
                 candidates.extend(await self._curated_candidates(
                     WikimediaProvider(client), queries))
             for q in queries[: self.cfg.max_queries]:
@@ -167,6 +204,9 @@ class VisualResearchAgent:
                 if q.get("entity") and q["entity"] not in ents:
                     ents.append(q["entity"])
                 for prov in searchers:
+                    if getattr(prov, "out_of_credit", False):
+                        # A5: Brave already answered 402 this run; never retried, never billed again
+                        continue
                     if kind == "context" and prov.name not in RIGHTS_KNOWN_PROVIDERS:
                         continue
                     if ledger.seen(prov.name, q["query"]):
@@ -181,13 +221,20 @@ class VisualResearchAgent:
                     found = await (prov.search_for(q, self.cfg.max_candidates_per_query)
                                    if hasattr(prov, "search_for")
                                    else prov.search(q["query"], self.cfg.max_candidates_per_query))
+                    # A5: a failed call (found is None) is never billed and never recorded as a
+                    # real zero-result query — the ledger only ever sees calls that actually ran
+                    if found is None:
+                        continue
                     ledger.record(prov.name, q["query"], kind=kind, found_during=found_during,
                                   entity_key=q.get("entity"), candidates=len(found))
                     if prov.name in PAID_SEARCH_PROVIDERS:
                         self._book_search(money, case.id, prov.name)
                     for c in found:
-                        if q.get("must_name") and not names_entity(c, q["must_name"]):
+                        if (q.get("must_name") and not names_entity(c, q["must_name"])
+                                and not names_entity(c, [case.canonical_title])):
+                            # P5: the candidate's own text names neither the entity nor the case
                             stats["rejected"] += 1
+                            stats["prefiltered"] += 1
                             continue
                         c.entities = list(ents)
                         c.entity_key = q.get("entity")
@@ -201,14 +248,24 @@ class VisualResearchAgent:
                     break
                 if progress:
                     progress(i / max(len(candidates), 1), f"{c.provider}: {c.title or c.url}"[:120])
-                if c.url in urls:
+                if c.url in urls or (normalize_url(c.url) and normalize_url(c.url) in norm_urls):
+                    stats["duplicates"] += 1
+                    continue
+                if c.title and normalize_title(c.title) in norm_titles:
                     stats["duplicates"] += 1
                     continue
                 if c.query_kind == "source" and not source_candidate_has_relevance(c, case):
                     stats["rejected"] += 1
                     stats["relevance_rejected"] += 1
                     continue
+                if (c.entity_key and downloads_per_entity.get(c.entity_key, 0)
+                        >= self.cfg.max_downloads_per_entity):
+                    stats["entity_cap_skipped"] += 1
+                    continue
                 urls.add(c.url)
+                norm_urls.add(normalize_url(c.url))
+                if c.title:
+                    norm_titles.add(normalize_title(c.title))
                 status, reason = R.classify(c.provider, c.license, c.url, c.page_url)
                 if status == "do_not_use":
                     stats["rejected"] += 1
@@ -259,6 +316,8 @@ class VisualResearchAgent:
                 held_bytes += len(data)
                 budget -= 1
                 stats["added"] += 1
+                if c.entity_key:
+                    downloads_per_entity[c.entity_key] = downloads_per_entity.get(c.entity_key, 0) + 1
                 stats["by_provider"][c.provider] = stats["by_provider"].get(c.provider, 0) + 1
             if "brave_video_links" in self.cfg.providers and backend and queries:
                 stats["video_links"] = await store_video_links(

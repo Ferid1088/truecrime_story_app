@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, DocumentaryJob, FollowUpCandidate, ProductionScript, StoryVersion, Video
+from app.documentary.production import host_timeline as HT
 from app.identity.titles import (build_youtube_title, get_identity, mark_published,
                                  public_status, sync_identity)
 from app.lifecycle.status import SOLVED, UNSOLVED
@@ -178,6 +179,14 @@ def publish_blockers(db: Session, video: Video) -> list[str]:
         out.append(f"this is a {video.mode} cut, not the full film")
     if (video.render_profile or "preview") != "publish":
         out.append("rendered with the preview profile — render again with the publish profile")
+    if ai_config.host.required_for_film and video.production_script_id is not None \
+            and not HT.avatar_present(db, video.production_script_id):
+        # Owner decision 2026-10-22 (A3): a draft may render without the avatar, but it can
+        # never be marked published without one. A video with no linked production script at
+        # all (legacy data, or a test fixture) is not judged either way — there is nothing to
+        # read the fact from.
+        out.append("no approved avatar look for this language — approve one in Host Studio "
+                   "before this film can publish")
     case = db.get(Case, video.case_id)
     if video.production_type != "follow_up":
         if not public_status(case.resolution_status):
@@ -231,6 +240,12 @@ def covered_video(db: Session, case_id: int) -> Video | None:
 
 
 def video_dict(v: Video) -> dict:
+    # A2: null = no linked script to read the fact from (legacy data); true/false = it is known
+    from sqlalchemy.orm import object_session
+
+    session = object_session(v)
+    avatar_used = (HT.avatar_present(session, v.production_script_id)
+                  if session is not None and v.production_script_id is not None else None)
     return {
         "id": v.id, "case_id": v.case_id, "production_script_id": v.production_script_id,
         "job_id": v.job_id, "language": v.language, "mode": v.mode,
@@ -245,4 +260,5 @@ def video_dict(v: Video) -> dict:
         "metadata": json.loads(v.metadata_json or "{}"), "created_at": v.created_at,
         "video_url": (f"/api/documentary/production/{v.production_script_id}/video.mp4"
                       if v.production_script_id else None),
+        "avatar_used": avatar_used,
     }

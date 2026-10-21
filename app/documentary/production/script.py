@@ -1495,7 +1495,9 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     from app.documentary.production import host_timeline as HT
 
     host = HT.host_items(db, version)
-    HT.require_avatar(host)
+    # Owner decision 2026-10-22: a draft never needs the avatar (A2) — it is required only at
+    # publish time (A3, app.lifecycle.videos.publish_blockers). `avatar_used` is the one flag
+    # that fact is read back from later, so it is stamped here, on build, not re-derived.
     logo_seconds = intro_seconds(language)
     after_host = any(h["position"] == "opening" for h in host) and logo_seconds
     cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)
@@ -1525,6 +1527,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
             storage.production_dir(version.case_id, language) / f"audio_with_host_v{version.id}.wav",
             storage.resolve)
         script["audio"] = {"path": storage.rel(spliced), "with_host": True}
+    script["avatar_used"] = bool(host)      # A2/A3: the one flag "draft, no avatar" is read from
     script = ensure_pipeline_member_ids(f"production-script:{version.id}:{language}", script)
     film_key = film_key_of(plan_row, manifest)
     script["film_key"] = film_key

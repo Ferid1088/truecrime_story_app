@@ -3,31 +3,41 @@ and Brave video results kept as links only."""
 
 import asyncio
 import json
+import uuid
 
 import httpx
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, MediaLink, VideoSource, VisualAsset, VisualLead
+from app.db.models import Case, MediaLink, ProviderCall, VideoSource, VisualAsset, VisualLead
 from app.documentary.visuals import research as RS
 from app.documentary.visuals import rights as R
-from app.research_engine.search import SearchResult
+from app.research_engine.search import SearchError, SearchResult
 from app.utils import slugify
 
 
 def _case(db, title="Brave Media Case"):
-    case = Case(canonical_title=title, slug=slugify(title + str(id(db))), language="en")
+    # a random suffix, never id(db): two different db_session fixtures across two test
+    # functions can get the same id() once the first object is garbage-collected, which
+    # collided here once this file grew enough tests to shift allocation order
+    case = Case(canonical_title=title, slug=slugify(title + uuid.uuid4().hex[:8]), language="en")
     db.add(case)
     db.commit()
     return case
 
 
 class FakeBrave:
-    def __init__(self, images=None, videos=None, web=None):
+    def __init__(self, images=None, videos=None, web=None, fail_status=None):
         self.images, self.videos, self.web = images or [], videos or [], web or []
         self.calls = []
+        # A5: when set, every search_media call raises as Brave itself would for that HTTP status
+        self.fail_status = fail_status
 
     async def search_media(self, kind, query, language, limit=10):
         self.calls.append((kind, query))
+        if self.fail_status is not None:
+            raise SearchError("brave", "search_unavailable",
+                              f"search unavailable: Brave returned HTTP {self.fail_status}",
+                              {"http_status": self.fail_status})
         return list(self.images if kind == "images" else self.videos)
 
     async def search(self, query, language, categories=None, time_range=None, limit=10):
@@ -56,6 +66,72 @@ def test_brave_image_results_default_to_editorial_review_and_stock_libraries_sta
     assert blocked == "do_not_use"
     lead, _ = R.classify("lead_source", None, "https://court.example/x.jpg", "https://court.example/p")
     assert lead == "editorial_review_required"
+
+
+def test_a_failed_brave_call_returns_none_not_an_empty_list():
+    """A5: None means "the call itself failed" so the caller never bills it or logs it as a
+    real zero-result query; [] still means "it ran and genuinely found nothing"."""
+    provider = RS.BraveImageProvider(FakeBrave(fail_status=500))
+    out = asyncio.run(provider.search("Lizzie Borden house", 5))
+    assert out is None
+    assert provider.out_of_credit is False
+
+
+def test_a_402_from_brave_sets_out_of_credit_and_logs_one_clear_line(caplog):
+    provider = RS.BraveImageProvider(FakeBrave(fail_status=402))
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        out = asyncio.run(provider.search("Lizzie Borden house", 5))
+    assert out is None
+    assert provider.out_of_credit is True
+    assert any("Brave out of credit" in r.message for r in caplog.records)
+
+
+def test_a_failed_brave_search_is_never_billed_to_the_case(db_session, tmp_path, monkeypatch):
+    from app.agents import visual_research as VR
+
+    monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(ai_config.footage, "enabled", False)
+    monkeypatch.setattr(ai_config.visual_search, "providers", ["brave_images"])
+    case = _case(db_session, "Brave Billing Case")
+    brave = FakeBrave(fail_status=402)
+    monkeypatch.setattr(VR, "brave_backend", lambda: brave)
+
+    async def go():
+        async with httpx.AsyncClient() as client:
+            return await VR.VisualResearchAgent(client).run(
+                db_session, case,
+                [{"query": "Borden house", "entity": "borden_house", "entity_type": "building",
+                  "kind": "exact"}])
+
+    asyncio.run(go())
+    assert db_session.query(ProviderCall).filter(
+        ProviderCall.case_id == case.id, ProviderCall.stage == "visual_search").count() == 0
+
+
+def test_after_a_402_brave_is_skipped_for_the_rest_of_the_run_no_retry_loop(
+        db_session, tmp_path, monkeypatch):
+    from app.agents import visual_research as VR
+
+    monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
+    monkeypatch.setattr(ai_config.footage, "enabled", False)
+    monkeypatch.setattr(ai_config.visual_search, "providers", ["brave_images"])
+    case = _case(db_session, "Brave Retry Case")
+    brave = FakeBrave(fail_status=402)
+    monkeypatch.setattr(VR, "brave_backend", lambda: brave)
+
+    async def go():
+        async with httpx.AsyncClient() as client:
+            return await VR.VisualResearchAgent(client).run(
+                db_session, case, [
+                    {"query": "Borden house", "entity": "borden_house", "entity_type": "building",
+                     "kind": "exact"},
+                    {"query": "Borden barn", "entity": "borden_house", "entity_type": "building",
+                     "kind": "exact"}])
+
+    asyncio.run(go())
+    assert len(brave.calls) == 1               # the second query never calls Brave again
 
 
 def test_video_search_results_are_stored_as_links_only(db_session):

@@ -415,6 +415,9 @@ class VideoSource(Base):
     # witness_family, creative_commons, open_archive ...) and the evidence that put it there.
     source_class: Mapped[str | None] = mapped_column(String(30), nullable=True)
     class_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # P15b: the raw YouTube Data API status.license value ("youtube"|"creativeCommon"),
+    # fetched from a real videos.list call — the existing classifier already checks it.
+    youtube_license: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     case = relationship("Case")
     source = relationship("Source")
@@ -1249,6 +1252,56 @@ class VisualSearchLog(Base):
     entity_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
     candidates: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class EntityDossier(Base):
+    """One dossier per important element of a case (P1): canonical name, aliases (including
+    local-language spellings), era, a plain visual description, a "NOT this" list of
+    name-collisions and look-alikes, identifiers fetched from official APIs (Wikidata, Commons),
+    where pictures of it are likely to appear, expected caption phrases, negative search terms
+    and the fact ids it supports. Written once by a model from the case facts; read-only
+    afterwards (regenerated only by re-running the dossier stage)."""
+
+    __tablename__ = "entity_dossiers"
+    __table_args__ = (UniqueConstraint("case_id", "entity_key", name="uq_entity_dossiers_case_entity"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    entity_key: Mapped[str] = mapped_column(String(60))
+    canonical_name: Mapped[str] = mapped_column(String(200))
+    entity_type: Mapped[str] = mapped_column(String(20))
+    era: Mapped[str] = mapped_column(String(20), default="modern")
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")
+    visual_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    not_this_json: Mapped[str] = mapped_column(Text, default="[]")
+    wikidata_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    commons_category: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    likely_sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    expected_captions_json: Mapped[str] = mapped_column(Text, default="[]")
+    negative_terms_json: Mapped[str] = mapped_column(Text, default="[]")
+    supports_fact_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    generation_model: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class YoutubeQuotaLedger(Base):
+    """One YouTube Data API call (P15d): time, endpoint, units, stage and case, so the
+    discovery stage can show remaining units against its reserved share and the Pacific-day
+    reset time. `query_key`/`result_json`/`expires_at` let a call also serve as a cache entry
+    (P15a: never repeat a query), independent of its role in the quota count."""
+
+    __tablename__ = "youtube_quota_ledger"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    endpoint: Mapped[str] = mapped_column(String(40))
+    units: Mapped[int] = mapped_column(Integer)
+    stage: Mapped[str] = mapped_column(String(30))
+    query_key: Mapped[str | None] = mapped_column(String(300), nullable=True, index=True)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, index=True)
 
 
 class VisualPlan(Base):

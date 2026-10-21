@@ -187,7 +187,8 @@ def reclassify_case(db, case_id: int) -> dict:
     for video in db.query(VideoSource).filter(VideoSource.case_id == case_id):
         use = classifier.classify({"url": video.url, "title": video.title, "description": video.description,
                                    "channel_name": video.channel_name, "classification": video.classification,
-                                   "license_url": video.license_evidence_url})
+                                   "license_url": video.license_evidence_url,
+                                   "license": video.youtube_license})
         for column, value in use.fields().items():
             setattr(video, column, value)
         uses[use.use] += 1

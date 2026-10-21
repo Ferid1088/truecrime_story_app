@@ -144,11 +144,16 @@ def blocked_at(blueprint: dict, beat_id: str) -> set[str]:
 
 def entity_score(asset: VisualAsset, entity: dict) -> float:
     """1.0 the asset was found/verified for this entity, 0.7 its text
-    names it fully, 0.35 partly."""
+    names it fully, 0.35 partly. P1: a text match that names one of the entity dossier's
+    "NOT this" phrases (a name collision or look-alike) is vetoed to 0 — never a confident
+    match, which already came through the entity_key/entities_json branch above and is trusted
+    regardless of what the caption text happens to contain."""
     if entity["key"] == getattr(asset, "entity_key", None) or \
             entity["key"] in _loads(asset.entities_json, []):
         return 1.0
     text = " ".join(filter(None, [asset.title, asset.caption, asset.description])).lower()
+    if any(phrase.lower() in text for phrase in entity.get("not_this") or [] if len(phrase) > 3):
+        return 0.0
     words = [w for w in re.findall(r"\w+", entity["name"].lower()) if len(w) > 2]
     if words and all(w in text for w in words):
         return 0.7

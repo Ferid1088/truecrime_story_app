@@ -74,6 +74,17 @@ Chosen: **(ii) render the identity line together with the intro.** The host's op
 - The channel's logo video still plays after the host opening (unchanged); “the film then starts directly with the story” is true for the host's words only.
 - The long-film pipeline's new scenes only apply to host segments written **after** this change; existing stored segments (e.g. case 8) keep their old text.
 - No short-assembly pipeline in the app; `build_reel_closing` is ready but not called by one.
+- **2026-10-22 (avatar-required task, row A4)**: confirmed still true — `CL.select_clip` (the one
+  function that picks a stored closing clip for a short) has zero callers anywhere in `app/`. The
+  owner's "a film without an avatar skips host-led shorts with one clear log line" rule was
+  therefore built at the one real, live call path that DOES exist today — `POST
+  /api/closing-clips/create-missing` (`app/shortform/closing_api.py`): with no approved avatar
+  look for the language, it now returns `{"created": [], "skipped_reason": "no approved avatar
+  look for <language>"}` and logs "Host-led closing clips skipped: ..." instead of a silent
+  "0 variants" indistinguishable from "the library is already full". Verified by test
+  (`tests/test_closing_api.py::test_create_missing_skips_cleanly_with_no_approved_avatar_look`).
+  Wiring the skip into an actual production pipeline stage was not done — there is still no such
+  stage to wire it into.
 
 ## Spend
 

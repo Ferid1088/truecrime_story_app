@@ -197,6 +197,8 @@ def test_requirements_keep_only_grounded_material():
             "entity_type": "building",
             "kind": "exact",
             "footage": False,
+            "must_name": ["The farmhouse"],
+            "aliases": [], "date_window": [], "not_this": [], "negative_terms": [],
         }
     ]
 
@@ -647,6 +649,11 @@ class PipelineGen:
     def is_configured(self):
         return True
 
+    async def provider_status(self):
+        return {"provider": "fake", "role": "generation", "configured": True,
+                "reachable": True, "authorized": True, "models_available": [],
+                "models_missing": [], "status": "ok"}
+
     @staticmethod
     def _res(role):
         return GenerationResult(text="{}", model=f"m/{role}", provider="fake")
@@ -789,7 +796,23 @@ class PipelineGen:
                 "beats": beats,
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
-        if role == "visual_verifier":
+        if role == "visual_entity_dossier":
+            return {
+                "dossiers": [
+                    {
+                        "entity": "the_house",
+                        "canonical_name": "The farmhouse",
+                        "visual_description": "a weatherboard farmhouse",
+                        "not_this": [],
+                        "likely_sources": [],
+                        "expected_captions": [],
+                        "negative_terms": [],
+                        "supports_fact_ids": [],
+                    }
+                ],
+                "_mock_request_sha256": fingerprint,
+            }, self._res(role)
+        if role in ("visual_verifier", "visual_verifier_cheap"):
             assert images and images[0].startswith("data:image/jpeg;base64,")
             return {
                 "depicts": "The farmhouse",
@@ -1258,9 +1281,13 @@ def documentary_env(tmp_path, monkeypatch):
         _jpg(Path(out), (W // 4, H // 4), (30, 40, 50))
         return {"path": str(out), "marker": [W // 8, H // 8], "request_hash": fingerprint}
 
+    async def fake_identifiers(self, name):
+        return None, None
+
     monkeypatch.setattr("app.agents.visual_research.VisualResearchAgent.run", fake_research)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.geocode", fake_geocode)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.render_map", fake_map)
+    monkeypatch.setattr("app.agents.visual_dossier.VisualDossierAgent._identifiers", fake_identifiers)
     return gen
 
 

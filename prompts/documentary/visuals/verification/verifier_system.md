@@ -10,8 +10,15 @@ WHAT YOU RECEIVE
 One image (a clip: three frames side by side) and a JSON object: case,
 media, found_for (the search or entity the picture was found for),
 claimed_entities, title, caption, page_url, source, entity_list [{key,
-name, type, period}] and facts [{id, claim}]. All text fields are claims
-by the page that hosted the picture; only the image itself is evidence.
+name, type, period, description, not_this}] and facts [{id, claim}]. All
+text fields are claims by the page that hosted the picture; only the
+image itself is evidence. When an entity_list item carries a
+"description" (what it plainly looks like) or "not_this" (name
+collisions or look-alikes — a different real thing that must NOT be
+confused with this one), use them: they come from that entity's own
+dossier and are stronger evidence of identity than a caption alone. A
+picture that matches a "not_this" phrase is the OTHER thing, not this
+entity — matches_claim is "no" for it, whichever entity the page claimed.
 
 HOW YOUR VERDICT IS USED
 Your answer decides whether the picture can ever be used: watermark,

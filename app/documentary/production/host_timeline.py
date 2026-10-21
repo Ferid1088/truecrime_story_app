@@ -10,6 +10,7 @@ narration track at the same points, with a level gain."""
 from __future__ import annotations
 
 import copy
+import json
 import subprocess
 from pathlib import Path
 
@@ -170,16 +171,20 @@ def host_gain_db() -> float:
     return ai_config.host.audio_gain_db
 
 
-class AvatarRequired(RuntimeError):
-    """A film is never made without the avatar: no host scene of the film is ready."""
+def avatar_present(db, production_script_id: int | None) -> bool:
+    """Owner decision 2026-10-22: the avatar is required only for the FINAL version, never for
+    building or rendering a draft (A2/A3). This is the one place that answers "does this
+    production script actually carry the host" — read back from the `avatar_used` flag the
+    script itself was stamped with when built (`build_production_script`), never re-derived, so
+    a draft and its eventual publish gate always agree on the same fact."""
+    from app.db.models import ProductionScript
 
-
-def require_avatar(host: list[dict]) -> None:
-    from app.core.ai_config import ai_config
-
-    if ai_config.host.required_for_film and not host:
-        raise AvatarRequired("No film without the avatar: none of its host scenes is ready "
-                             "(plan, voice and render the host first)")
+    if production_script_id is None:
+        return False
+    ps = db.get(ProductionScript, production_script_id)
+    if ps is None:
+        return False
+    return bool(json.loads(ps.script_json or "{}").get("avatar_used"))
 
 
 def host_items(db, version) -> list[dict]:

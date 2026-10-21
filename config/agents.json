@@ -203,12 +203,26 @@
       "description": "What each beat needs to show.",
       "used_by": "app/agents/visual_planner.py"
     },
+    "visuals.dossier": {
+      "role": "visual_entity_dossier",
+      "prompt": "documentary/visuals/dossier/dossier_system",
+      "output": "json",
+      "description": "One reference dossier per entity: aliases, a visual description, name-collision warnings.",
+      "used_by": "app/agents/visual_dossier.py"
+    },
     "visuals.direct": {
       "role": "visual_director",
       "prompt": "documentary/visuals/director/director_system",
       "output": "json",
       "description": "Shots per sentence.",
       "used_by": "app/agents/visual_director.py"
+    },
+    "visuals.refine_queries": {
+      "role": "visual_query_refiner",
+      "prompt": "documentary/visuals/refinement/refiner_system",
+      "output": "json",
+      "description": "P11: better search queries for a low-yield entity, from its sample results' titles/snippets (never images).",
+      "used_by": "app/agents/visual_refinement.py"
     },
     "visuals.verify": {
       "role": "visual_verifier",

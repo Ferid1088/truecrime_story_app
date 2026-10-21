@@ -300,21 +300,35 @@ async def fill_visual_gaps(db: Session, case: Case, plan_row: VisualPlan,
         return {"skipped": True, "reason": "visual_direction.production_search is off"}
     from app.documentary.jobs import verify_assets
     from app.documentary.visuals.director import VisualDirector
+    from app.documentary.visuals.dossier import merge_into_entities
     from app.documentary.visuals.generated import materialize
     from app.documentary.visuals.research import VisualResearchAgent
 
+    from app.agents.visual_refinement import QueryRefinementAgent
+    from app.documentary.visuals.planner import query_item
+
     plan = _loads(plan_row.plan_json, {})
     requirements = _loads(plan_row.requirements_json, {})
+    requirements["entities"] = merge_into_entities(db, case, requirements.get("entities") or [])
     blueprint = _loads(blueprint_row.blueprint_json, {})
     assets = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
     weak = weak_sentences(plan, requirements, assets, blueprint, beat_ids, profile)
     requests = build_requests(weak, requirements, case)
+    # P11: entities whose useful share stays low get model-written queries from their own
+    # sample results' text (never images), budgeted; this runs whether or not there are weak
+    # sentences, since a low-yield entity may already look "covered" by sheer candidate count
+    entities_by_key = {e["key"]: e for e in requirements.get("entities") or []}
+    refinement = await QueryRefinementAgent().refine_low_yield_entities(db, case, requirements, assets)
+    refined_queries = [query_item(entities_by_key[key], q, "exact")
+                       for key, qs in refinement["refined"].items() if key in entities_by_key
+                       for q in qs]
     result = {"weak_sentences": len(weak), "requests": len(requests), "queries": 0,
-              "assets_found": 0, "verified": 0, "redirected_beats": [], "used": 0}
+              "assets_found": 0, "verified": 0, "redirected_beats": [], "used": 0,
+              "refinement": refinement}
     audit: list[dict] = []
-    if requests:
+    if requests or refined_queries:
         before = {a.id for a in assets}
-        queries = [q for r in requests for q in r["query_items"]]
+        queries = [q for r in requests for q in r["query_items"]] + refined_queries
         result["queries"] = len(queries)
         try:
             stats = await (agent or VisualResearchAgent()).run(

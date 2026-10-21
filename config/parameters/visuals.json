@@ -7,8 +7,23 @@
       "lead_sources",
       "brave_video_links",
       "usgs_naip",
-      "nasa"
+      "nasa",
+      "europeana",
+      "dpla"
     ],
+    "era_boundary_year": 1980,
+    "max_downloads_per_entity": 40,
+    "adaptive_stop_min_sample": 20,
+    "adaptive_stop_min_share": 0.1,
+    "refinement_min_sample": 10,
+    "refinement_min_share": 0.15,
+    "refinement_max_calls_per_case": 5,
+    "refinement_max_eur_per_case": 2.0,
+    "refinement_sample_results": 15,
+    "providers_by_era": {
+      "modern": ["source_pages", "brave_images", "lead_sources", "brave_video_links", "usgs_naip", "nasa", "europeana", "dpla"],
+      "historical": ["source_pages", "wikimedia", "brave_images", "lead_sources", "brave_video_links", "usgs_naip", "nasa", "europeana", "dpla"]
+    },
     "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
     "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
     "max_queries": 150,
@@ -101,6 +116,142 @@
         "{name} building"
       ]
     },
+    "expansion_templates_by_era": {
+      "historical": {
+        "person": [
+          "{name} historical photograph",
+          "{name} newspaper 1890s portrait",
+          "{name} archive",
+          "{name} engraving",
+          "{name} photograph museum",
+          "{name} court sketch",
+          "{name} family",
+          "{name} grave",
+          "{name} wanted poster"
+        ],
+        "place": [
+          "{name} historical photograph",
+          "{name} old postcard",
+          "{name} archive",
+          "{name} street 19th century",
+          "{name} aerial view",
+          "{name} map",
+          "{name} museum",
+          "{name} demolished",
+          "{name} film footage"
+        ],
+        "building": [
+          "{name} historical photograph",
+          "{name} old postcard",
+          "{name} floor plan",
+          "{name} interior",
+          "{name} exterior",
+          "{name} museum",
+          "{name} archive",
+          "{name} restored",
+          "{name} film footage"
+        ],
+        "event": [
+          "{name} newspaper illustration",
+          "{name} historical photograph",
+          "{name} archive",
+          "{name} courtroom sketch",
+          "{name} newsreel",
+          "{name} aftermath"
+        ],
+        "document": [
+          "{name} newspaper page",
+          "{name} original document",
+          "{name} archive",
+          "{name} handwritten",
+          "{name} headline",
+          "{name} clipping"
+        ],
+        "object": [
+          "{name} historical photograph",
+          "{name} museum",
+          "{name} archive",
+          "{name} evidence photograph"
+        ],
+        "vehicle": [
+          "{name} historical photograph",
+          "{name} museum",
+          "{name} archive"
+        ],
+        "organization": [
+          "{name} historical photograph",
+          "{name} archive",
+          "{name} building"
+        ]
+      },
+      "modern": {
+        "person": [
+          "{name} press conference",
+          "{name} mugshot",
+          "{name} court appearance",
+          "{name} courtroom sketch",
+          "{name} news photo",
+          "{name} family photo",
+          "{name} social media photo",
+          "{name} vigil",
+          "{name} memorial"
+        ],
+        "place": [
+          "{name} press conference",
+          "{name} crime scene",
+          "{name} aerial view",
+          "{name} campus",
+          "{name} map",
+          "{name} news photo",
+          "{name} memorial",
+          "{name} drone footage"
+        ],
+        "building": [
+          "{name} house exterior",
+          "{name} crime scene",
+          "{name} police tape",
+          "{name} interior",
+          "{name} exterior",
+          "{name} aerial view",
+          "{name} news photo",
+          "{name} demolition"
+        ],
+        "event": [
+          "{name} press conference",
+          "{name} news photo",
+          "{name} courtroom",
+          "{name} crime scene",
+          "{name} body camera",
+          "{name} vigil",
+          "{name} memorial",
+          "{name} aftermath"
+        ],
+        "document": [
+          "{name} court document",
+          "{name} police report",
+          "{name} press release",
+          "{name} affidavit",
+          "{name} news screenshot",
+          "{name} evidence photograph"
+        ],
+        "object": [
+          "{name} evidence photograph",
+          "{name} police evidence photo",
+          "{name} news photo",
+          "{name} crime scene"
+        ],
+        "vehicle": [
+          "{name} news photo",
+          "{name} police evidence photo",
+          "{name} crime scene"
+        ],
+        "organization": [
+          "{name} press conference",
+          "{name} news photo",
+          "{name} building exterior"
+        ]
+      }
+    },
     "max_expansions_per_entity": 3,
     "wikimedia_categories": true,
     "category_max_files": 60,
@@ -141,8 +292,36 @@
         ],
         "license": "Public Domain (NASA media usage guidelines)",
         "credit": "NASA"
+      },
+      "europeana": {
+        "search_url": "https://api.europeana.eu/record/v2/search.json",
+        "page_url": "https://www.europeana.eu/item{europeana_id}",
+        "api_key_env": "TRUECRIME_EUROPEANA_API_KEY",
+        "credit_suffix": "via Europeana"
+      },
+      "dpla": {
+        "search_url": "https://api.dp.la/v2/items",
+        "api_key_env": "TRUECRIME_DPLA_API_KEY",
+        "credit_suffix": "via DPLA"
+      },
+      "archives": {
+        "max_aliases_per_entity": 4,
+        "max_calls_per_entity": 10,
+        "max_calls_per_case": 40,
+        "open_min_candidates": 3,
+        "era_padding_before_years": 50,
+        "era_padding_after_years": 50
       }
     }
+  },
+  "entity_dossier": {
+    "max_aliases": 12,
+    "max_not_this": 8,
+    "max_likely_sources": 6,
+    "max_expected_captions": 6,
+    "max_negative_terms": 8,
+    "max_fact_ids": 40,
+    "max_description_chars": 600
   },
   "visual_verification": {
     "per_requirement": 12,
@@ -346,6 +525,10 @@
     "fill_piece_seconds": 9.5,
     "fill_concurrency": 3,
     "pool_tries": 6
+  },
+  "review_queue": {
+    "auto_reject_margin": 0.05,
+    "duplicate_hamming_threshold": 6
   },
   "supply": {
     "still_shot_seconds": 9.5,

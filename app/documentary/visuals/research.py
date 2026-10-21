@@ -369,15 +369,24 @@ class BraveImageProvider:
     def __init__(self, backend):
         self.backend = backend
         self.cfg = ai_config.visual_search
+        # A5: once Brave itself answers 402 (its prepaid credit is spent), every later call
+        # this run is skipped — never retried — so the run never pays for a call that can only fail.
+        self.out_of_credit = False
 
-    async def search(self, query: str, limit: int) -> list[Candidate]:
+    async def search(self, query: str, limit: int) -> list[Candidate] | None:
+        """A list (possibly empty) of real candidates when the call actually ran, or None when
+        the call itself failed — the caller must never bill a None result (A5)."""
         from app.research_engine.search import SearchError
 
         try:
             results = await self.backend.search_media("images", query, "en", limit)
         except SearchError as e:
-            log.warning("brave image search failed for %r: %s", query, e)
-            return []
+            if e.details.get("http_status") == 402:
+                self.out_of_credit = True
+                log.warning("Brave out of credit: HTTP 402 for %r; no more Brave searches this run", query)
+            else:
+                log.warning("brave image search failed for %r: %s", query, e)
+            return None
         out = []
         for r in results:
             props = r.get("properties") or {}
@@ -487,7 +496,7 @@ def next_asset_code(db: Session) -> str:
 
 
 # Providers asked for CONTEXT queries: rights are known per file.
-RIGHTS_KNOWN_PROVIDERS = ("wikimedia", "usgs_naip", "nasa")
+RIGHTS_KNOWN_PROVIDERS = ("wikimedia", "usgs_naip", "nasa", "europeana", "dpla")
 # Within one run: case sources first, then exact finds, then context.
 _KIND_ORDER = {"source": 0, "exact": 1, "context": 2}
 
@@ -545,3 +554,85 @@ def names_entity(candidate: Candidate, names: list[str]) -> bool:
     text = " ".join(filter(None, [candidate.title, candidate.caption, candidate.page_url])).lower()
     words = {w for n in names for w in re.findall(r"\w{4,}", n.lower())}
     return not words or any(w in text for w in words)
+
+
+def normalize_url(url: str | None) -> str:
+    """P5: a URL stripped of query string, fragment and a trailing slash, lower-cased — so
+    cosmetically different links to the same picture (tracking params, http/https, a trailing
+    slash) are caught as the same candidate before any download is attempted."""
+    if not url:
+        return ""
+    u = url.strip().lower()
+    u = u.split("#", 1)[0].split("?", 1)[0]
+    return u[:-1] if u.endswith("/") else u
+
+
+def normalize_title(title: str | None) -> str:
+    """P5: a title folded to comparable text — case and whitespace only, so two providers'
+    listings of the same picture under the same title are caught as one candidate."""
+    return re.sub(r"\s+", " ", (title or "").strip().lower())
+
+
+def provider_yield(assets: list) -> dict[str, dict]:
+    """P6: each provider's useful share among the pictures of this case that were actually
+    checked (verified + needs_review of checked; a still-unverified picture does not count
+    either way yet). {provider: {"checked": n, "useful": n, "share": float}}."""
+    out: dict[str, dict] = {}
+    for a in assets:
+        if a.verification_status == "unverified" or a.provider == "generated":
+            continue
+        row = out.setdefault(a.provider, {"checked": 0, "useful": 0})
+        row["checked"] += 1
+        if a.verification_status in ("verified", "needs_review"):
+            row["useful"] += 1
+    for row in out.values():
+        row["share"] = round(row["useful"] / row["checked"], 4) if row["checked"] else 0.0
+    return out
+
+
+def adaptive_stop(assets: list, min_sample: int, min_share: float) -> list[dict]:
+    """P6: providers whose useful share stays below `min_share` after at least `min_sample`
+    checked pictures — one row per such provider, with the evidence for the decision."""
+    out = []
+    for provider, row in sorted(provider_yield(assets).items()):
+        if row["checked"] >= min_sample and row["share"] < min_share:
+            out.append({"provider": provider, **row,
+                       "reason": (f"useful share {row['share']:.0%} of {row['checked']} checked "
+                                 f"pictures, below {min_share:.0%}")})
+    return out
+
+
+def entity_yield(assets: list) -> dict[str, dict]:
+    """P11: each entity's useful share among its own checked pictures (the same metric as
+    provider_yield, grouped by entity_key instead of provider)."""
+    out: dict[str, dict] = {}
+    for a in assets:
+        if a.verification_status == "unverified" or not a.entity_key:
+            continue
+        row = out.setdefault(a.entity_key, {"checked": 0, "useful": 0})
+        row["checked"] += 1
+        if a.verification_status in ("verified", "needs_review"):
+            row["useful"] += 1
+    for row in out.values():
+        row["share"] = round(row["useful"] / row["checked"], 4) if row["checked"] else 0.0
+    return out
+
+
+def low_yield_entities(assets: list, min_sample: int, min_share: float) -> list[str]:
+    """P11: entity keys whose useful share stays below `min_share` after at least `min_sample`
+    checked pictures — in need of better queries, not just more of the same ones."""
+    return sorted(key for key, row in entity_yield(assets).items()
+                 if row["checked"] >= min_sample and row["share"] < min_share)
+
+
+def intake_status(assets: list, max_assets: int) -> dict:
+    """Stored / checked / unchecked pictures and the unchecked-backlog slots still open (P14).
+
+    The intake limit (visual_search.max_assets) must not be filled by pictures nobody has
+    looked at yet: once a picture is verified, needs_review or rejected it has been judged and
+    no longer holds up new downloads — only an UNCHECKED picture (still "unverified") occupies a
+    backlog slot. ``backlog_remaining`` never goes below 0."""
+    stored = len(assets)
+    unchecked = sum(1 for a in assets if a.verification_status == "unverified")
+    return {"stored": stored, "checked": stored - unchecked, "unchecked": unchecked,
+            "max_unchecked": max_assets, "backlog_remaining": max(0, max_assets - unchecked)}
