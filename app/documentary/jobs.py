@@ -133,6 +133,21 @@ def estimate_film_minutes(version: StoryVersion, audio_plan: dict | None = None)
     return round(speech + pauses, 1)
 
 
+def reusable_spoken(saved: dict, pilot_seconds: float, focus_beats: list[str],
+                    blueprint: dict) -> bool:
+    """May this stored spoken version serve this pilot? The same cut (same seconds and beat
+    ids) is reused; and because a pilot that covers every beat narrates the whole film, a
+    stored FULL spoken (pilot_beat_ids explicitly None) is the same text and is reused too —
+    a pilot that covers only a subset still rewrites."""
+    same_cut = (float(saved.get("pilot_seconds") or 0) == float(pilot_seconds)
+                and set(saved.get("pilot_beat_ids") or []) == set(focus_beats or []))
+    if same_cut:
+        return True
+    all_beats = {b["id"] for b in blueprint.get("beats") or []}
+    covers_everything = bool(all_beats) and all_beats <= set(focus_beats or [])
+    return covers_everything and "pilot_beat_ids" in saved and saved["pilot_beat_ids"] is None
+
+
 def pilot_beats(blueprint: dict, seconds: float) -> list[str]:
     """Beats that fall into the first `seconds` (plus one beat margin)."""
     out, t = [], 0.0
@@ -370,11 +385,7 @@ class DocumentaryPipeline(StageRunner):
                 current = latest_spoken(db, master, lang, bp_row.id)
                 if pilot and current is not None:
                     saved = json.loads(current.narrative_structure or "{}")
-                    same_pilot = (
-                        float(saved.get("pilot_seconds") or 0) == float(pilot_seconds)
-                        and set(saved.get("pilot_beat_ids") or []) == set(focus_beats or [])
-                    )
-                    if not same_pilot:
+                    if not reusable_spoken(saved, pilot_seconds, focus_beats, bp):
                         current = None
                 history = []
 
