@@ -90,3 +90,6 @@ data/outfit_uploads/
 # map runtime (extracts, imagery cache, JS packages, pmtiles binary)
 data/maps/
 data/shared_assets/
+
+# Visual funnel reports and their picture sheets (third-party pictures)
+data/reports/
