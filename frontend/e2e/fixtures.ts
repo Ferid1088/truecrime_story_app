@@ -16,6 +16,8 @@ const CASE = {
   summary: "A keeper vanishes from a remote lighthouse in 1900.",
   created_at: "2024-06-01T10:00:00Z",
   last_activity: "2024-06-02T10:00:00Z",
+  archived: false,
+  archive_reason: null,
   languages_found: ["en", "fa"],
   narrative_angle: null,
   sources: 3,
@@ -682,6 +684,8 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/settings/status") return json(route, fixtures.settings);
     if (path === "/api/short-form/settings" && method === "GET")
       return json(route, fixtures.shortFormSettings);
+    if (path === "/api/short-form/cases" && method === "GET")
+      return json(route, [{ id: 1, title: "The Lighthouse Keeper Vanishing", produced_at: "2024-06-02T10:00:00Z", shorts: 2, published: 0, archived: false }]);
     if (path === "/api/short-form/workspace" && method === "GET")
       return json(route, fixtures.shortFormWorkspace);
     if (path === "/api/short-form/1/queue" && method === "GET") {

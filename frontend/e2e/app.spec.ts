@@ -281,7 +281,7 @@ test.describe("Discover", () => {
 test.describe("Short-Form settings", () => {
   test("opens production settings and saves the case Shorts switch", async ({ page }) => {
     await mockApi(page);
-    await page.goto("/short-form");
+    await page.goto("/short-form?case=1");
     await expect(page.getByRole("heading", { name: "Short-Form Workspace" })).toBeVisible();
     await page.getByRole("tab", { name: "Settings", exact: true }).click();
     await expect(page.getByText("Production defaults")).toBeVisible();
