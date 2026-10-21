@@ -14,6 +14,7 @@ import { MusicSourceCard } from "@/components/settings/music-source";
 import { ChannelsCard } from "@/components/settings/channels";
 import { ClosingClipsCard } from "@/components/settings/closing-clips";
 import { EditorialReviewCard } from "@/components/settings/editorial-review";
+import { YouTubeClipsCard } from "@/components/settings/youtube-clips";
 import { PolicyWarningNotice } from "@/components/policy-warning";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -289,6 +290,7 @@ export default function SettingsPage() {
       <ChannelsCard />
 
       <EditorialReviewCard />
+      <YouTubeClipsCard />
 
       <p className="mt-6 text-xs text-muted-foreground">
         API keys are never sent to the browser — only their configured status.

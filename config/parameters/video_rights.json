@@ -55,7 +55,104 @@
       "reuploader": "the channel re-uploads others' work",
       "youtube_not_cc": "the YouTube Data API does not mark it as Creative Commons",
       "unknown_host": "the host is not in the film-candidate lists",
-      "broadcaster_without_license": "a public broadcaster needs a stored license page or written permission"
+      "broadcaster_without_license": "a public broadcaster needs a stored license page or written permission",
+      "other_creator_edited": "another creator's edited film is research only, never footage",
+      "no_class": "the video belongs to none of the allowed source classes",
+      "no_evidence": "no stored evidence"
+    },
+    "research_only_classifications": [
+      "documentary",
+      "creator_narration",
+      "analysis"
+    ],
+    "source_classes": {
+      "official_body": {
+        "classifications": [
+          "official"
+        ],
+        "channel_markers": [
+          "police department",
+          "police dept",
+          "state police",
+          "sheriff",
+          "district attorney",
+          "prosecutor's office",
+          "prosecuting attorney",
+          "attorney general",
+          "county court",
+          "supreme court",
+          "court of",
+          "department of justice",
+          "fbi",
+          "city of",
+          "staatsanwaltschaft",
+          "polizei"
+        ],
+        "hosts": [
+          "gov",
+          "gov.uk",
+          "police.uk",
+          "justice.gov",
+          "uscourts.gov"
+        ]
+      },
+      "news_raw": {
+        "classifications": [
+          "news"
+        ],
+        "channel_markers": [
+          "associated press",
+          "ap archive",
+          "reuters",
+          "afp",
+          "newsflare",
+          "pool"
+        ],
+        "title_markers": [
+          "raw video",
+          "raw footage",
+          "unedited",
+          "b-roll",
+          "full video",
+          "no commentary",
+          "pool feed",
+          "full hearing",
+          "full press conference",
+          "raw:"
+        ]
+      },
+      "witness_family": {
+        "title_markers": [
+          "eyewitness video",
+          "witness video",
+          "family video",
+          "home video",
+          "cell phone video",
+          "cellphone video",
+          "dashcam",
+          "doorbell camera",
+          "surveillance video",
+          "body cam",
+          "bodycam",
+          "body-worn"
+        ]
+      },
+      "creative_commons": {
+        "classifications": [
+          "official",
+          "archive",
+          "news"
+        ]
+      }
     }
+  },
+  "youtube_clips": {
+    "default_enabled": false,
+    "max_height": 720,
+    "max_source_seconds": 1800,
+    "max_download_mb": 400,
+    "max_clip_seconds": 16.0,
+    "max_share": 0.08,
+    "credit_suffix": "(YouTube)"
   }
 }

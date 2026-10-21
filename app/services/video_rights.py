@@ -1,10 +1,14 @@
 """Two kinds of video: research only, or a candidate for our film.
 
-Every video the research finds is read for its transcript and never shown. Only a video from
-an open archive or a public body with a stated open license or public-domain mark, or a
-Creative Commons video from a non-true-crime channel that is not a re-uploader, can be a film
-candidate. The videos of other true-crime channels are always research only; doubt means
-research only. Config: `video_rights`."""
+Every video the research finds is read for its transcript and never shown unless it belongs to an
+allowed source class, with the evidence that put it there (stored with the video):
+  open_archive / public_archive / public_broadcaster  a listed host with an open licence or mark
+  official_body    police, courts, prosecutors, government: by channel kind or name, or the host
+  news_raw         a news agency's or broadcaster's raw source footage (its channel AND a raw marker)
+  witness_family   a witness's or family's own video, by the video's own words
+  creative_commons a YouTube Creative Commons video of a channel that is not a commentator
+Other creators' edited films (documentary, narration, analysis) and re-uploaders are always research
+only; doubt means research only. Config: `video_rights`."""
 
 from __future__ import annotations
 
@@ -25,13 +29,16 @@ class VideoUse:
     reason: str
     license_evidence_url: str | None = None
     attribution_text: str | None = None
+    source_class: str | None = None
+    class_evidence: str | None = None
 
     def fields(self) -> dict:
         """The columns to store on a video."""
         return {"use": self.use, "rights_status": self.rights_status,
                 "use_reason": self.reason, "license_evidence_url": self.license_evidence_url,
                 "license_checked_at": utc_now() if self.license_evidence_url else None,
-                "attribution_text": self.attribution_text}
+                "attribution_text": self.attribution_text,
+                "source_class": self.source_class, "class_evidence": self.class_evidence}
 
 
 def _host(url: str | None) -> str:
@@ -63,40 +70,81 @@ class VideoUseClassifier:
             "open_archive" if _listed(host, hosts.open_archives) else "web", license_text,
             candidate.get("url"))
 
-        archive = _listed(host, hosts.open_archives) or _listed(host, hosts.public_archives)
-        if archive:
+        archive = _listed(host, hosts.open_archives)
+        public = _listed(host, hosts.public_archives)
+        if archive or public:
+            name = archive or public
             if not evidence or not self._open(license_text, status):
                 return self._research_only("no_license_evidence", status)
-            return VideoUse(FILM_CANDIDATE, status, f"{archive}: {license_text or 'open license'}",
-                            evidence, f"{candidate.get('title') or 'Video'} / {archive}")
+            return VideoUse(FILM_CANDIDATE, status, f"{name}: {license_text or 'open license'}",
+                            evidence, f"{candidate.get('title') or 'Video'} / {name}",
+                            "open_archive" if archive else "public_archive", f"host {host}")
         broadcaster = _listed(host, hosts.public_broadcasters)
         if broadcaster:
             if not evidence:
                 return self._research_only("broadcaster_without_license", status)
             return VideoUse(FILM_CANDIDATE, "licensed", f"{broadcaster}: stored license page",
-                            evidence, f"{candidate.get('title') or 'Video'} / {broadcaster}")
+                            evidence, f"{candidate.get('title') or 'Video'} / {broadcaster}",
+                            "public_broadcaster", f"host {host}")
         if host in ("youtube.com", "youtu.be", "m.youtube.com"):
             return self._youtube(candidate, evidence)
+        official = self.cfg.source_classes.get("official_body")
+        if official and any(host == h or host.endswith("." + h) for h in official.hosts):
+            return VideoUse(FILM_CANDIDATE, "editorial_review_required", f"official body: host {host}",
+                            None, f"{candidate.get('title') or 'Video'} / {host}", "official_body",
+                            f"direct file on the official host {host}")
         return self._research_only("unknown_host")
 
     def _open(self, license_text: str, status: str) -> bool:
         return status in ("public_domain", "creative_commons") or any(
             marker in license_text.lower() for marker in self.cfg.open_license_markers)
 
+    def _candidate(self, candidate: dict, cls: str, why: str, evidence: str | None) -> VideoUse:
+        """A film candidate of a class: rights from the licence when it is open, else the public
+        material of an official, news or witness source (no licence is claimed)."""
+        cc = candidate.get("license") == self.cfg.youtube.film_candidate_license and evidence
+        status = "creative_commons" if cc else "editorial_review_required"
+        reason = f"{cls.replace('_', ' ')}: {why}"
+        channel = candidate.get("channel_name")
+        return VideoUse(FILM_CANDIDATE, status, reason, evidence if cc else None,
+                        f"{candidate.get('title') or 'Video'} / {channel}", cls, why)
+
     def _youtube(self, candidate: dict, evidence: str | None) -> VideoUse:
-        cfg = self.cfg.youtube
-        if (candidate.get("classification") or "unknown") not in cfg.film_candidate_classifications:
-            return self._research_only("other_channel")
+        cfg, classes = self.cfg.youtube, self.cfg.source_classes
+        kind = candidate.get("classification") or "unknown"
         channel = str(candidate.get("channel_name") or "").lower()
+        title = " ".join(str(candidate.get(k) or "") for k in ("title", "description")).lower()
+        if kind in self.cfg.research_only_classifications:
+            return self._research_only("other_creator_edited")
         if any(p in channel for p in cfg.reuploader_channel_patterns):
             return self._research_only("reuploader")
-        if candidate.get("license") != cfg.film_candidate_license:
-            return self._research_only("youtube_not_cc")
-        if not evidence:
-            return self._research_only("no_license_evidence")
-        return VideoUse(FILM_CANDIDATE, "creative_commons",
-                        f"YouTube Data API license {cfg.film_candidate_license}", evidence,
-                        f"{candidate.get('title') or 'Video'} / {candidate.get('channel_name')}")
+        official = classes.get("official_body")
+        if official:
+            marker = next((m for m in official.channel_markers if m in channel), None)
+            if marker:        # the channel's own name decides: the kind alone is a guess ("Court TV Podcast")
+                how = [f"channel kind {kind}"] if kind in official.classifications else []
+                how.append(f"channel '{candidate.get('channel_name')}' names the official marker '{marker}'")
+                return self._candidate(candidate, "official_body", "; ".join(how), evidence)
+        raw = classes.get("news_raw")
+        if raw and kind in raw.classifications:
+            agency = next((m for m in raw.channel_markers if m in channel), None)
+            marker = next((m for m in raw.title_markers if m in title), None)
+            if agency and marker:
+                return self._candidate(candidate, "news_raw",
+                                       f"channel '{candidate.get('channel_name')}' and raw marker '{marker}' in the title",
+                                       evidence)
+        witness = classes.get("witness_family")
+        if witness:
+            marker = next((m for m in witness.title_markers if m in title), None)
+            if marker:
+                return self._candidate(candidate, "witness_family", f"the video's own words: '{marker}'", evidence)
+        cc = classes.get("creative_commons")
+        if cc and kind in cc.classifications and candidate.get("license") == cfg.film_candidate_license:
+            if not evidence:
+                return self._research_only("no_license_evidence")
+            return self._candidate(candidate, "creative_commons",
+                                   f"YouTube Data API license {cfg.film_candidate_license}", evidence)
+        return self._research_only("no_class")
 
 
 class RightsRefused(RuntimeError):
@@ -114,11 +162,36 @@ class VideoRightsGate:
             return "research only: " + (getattr(video, "use_reason", None) or "not a film candidate")
         if not rights.allowed(video.rights_status, profile):
             return f"rights status {video.rights_status!r} is not allowed for this render profile"
-        if not video.license_evidence_url or video.license_checked_at is None:
-            return "no stored license evidence"
+        has_license = bool(video.license_evidence_url and video.license_checked_at is not None)
+        if not has_license and not getattr(video, "class_evidence", None):
+            return "no stored license evidence (and no source-class evidence)"
         return None
 
     def require(self, video, profile: str | None = None) -> None:
         reason = self.check(video, profile)
         if reason is not None:
             raise RightsRefused(reason)
+
+
+def reclassify_case(db, case_id: int) -> dict:
+    """Classify the case's stored videos again under the current source classes (a video found
+    before the classes existed has none). A video the YouTube Data API licence was never stored for
+    is judged without it. Returns the counts."""
+    from collections import Counter
+
+    from app.db.models import VideoSource
+
+    classifier = VideoUseClassifier()
+    uses: Counter = Counter()
+    classes: Counter = Counter()
+    for video in db.query(VideoSource).filter(VideoSource.case_id == case_id):
+        use = classifier.classify({"url": video.url, "title": video.title, "description": video.description,
+                                   "channel_name": video.channel_name, "classification": video.classification,
+                                   "license_url": video.license_evidence_url})
+        for column, value in use.fields().items():
+            setattr(video, column, value)
+        uses[use.use] += 1
+        if use.source_class:
+            classes[use.source_class] += 1
+    db.commit()
+    return {**dict(uses), "by_class": dict(classes)}

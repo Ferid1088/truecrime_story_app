@@ -197,7 +197,7 @@ def keep_video(db: Session, case: Case, src: Path, meta: dict, start: float = 0.
                 "source_duration": round(duration, 3), "source_had_audio": info["has_audio"],
                 "scene_changes": cuts, "query_kind": meta.get("query_kind"),
                 "uploaded_name": meta.get("uploaded_name"), "media_url": meta.get("media_url"),
-                "tier_reason": meta.get("tier_reason")}))
+                "tier_reason": meta.get("tier_reason"), "source_record": meta.get("source_record")}))
         db.add(source)
         db.commit()
         return source, cuts
@@ -235,8 +235,9 @@ def store_pieces(db: Session, source: VisualAsset, proposals: list[dict]) -> lis
                 phash=IM.dhash(pimg), duration_seconds=round(b - a, 3),
                 clip_start=a, clip_end=b, verification_status="unverified",
                 spec_json=json.dumps({"parent": source.asset_code, "piece": k, "window": [a, b],
-                                      "cut_by": "segmenter",
-                                      "why_here": p.get("why_here")}, ensure_ascii=False))
+                                      "cut_by": "segmenter", "why_here": p.get("why_here"),
+                                      "source_record": json.loads(source.spec_json or "{}").get("source_record")},
+                                     ensure_ascii=False))
             db.add(piece)
             db.flush()
             frame_sheet(proxy, a, b, sheet_path(case_id, pcode))

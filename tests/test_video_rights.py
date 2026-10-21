@@ -28,7 +28,8 @@ def test_a_video_of_another_true_crime_channel_is_always_research_only_even_with
         use = VideoUseClassifier().classify(_youtube(classification=classification, license="creativeCommon",
                                                       license_url="https://www.youtube.com/t/creative_commons"))
         assert use.use == RESEARCH_ONLY, classification
-    assert "another channel" in use.reason
+    assert use.reason in (ai_config.video_rights.reasons["no_class"],
+                          ai_config.video_rights.reasons["other_creator_edited"])
 
 
 def test_an_official_youtube_cc_video_with_evidence_is_a_film_candidate():
@@ -40,13 +41,13 @@ def test_an_official_youtube_cc_video_with_evidence_is_a_film_candidate():
 
 
 def test_a_cc_video_without_stored_evidence_or_from_a_reuploader_is_research_only():
-    base = _youtube(classification="official", channel_name="State Archives", license="creativeCommon")
+    base = _youtube(classification="news", channel_name="A Local Station", license="creativeCommon")
     assert VideoUseClassifier().classify(base).use == RESEARCH_ONLY            # no evidence url
     assert "no stored license evidence" in VideoUseClassifier().classify(base).reason
     reup = dict(base, channel_name="Case Clips Mirror", license_url="https://x.example/l")
     assert "re-uploads" in VideoUseClassifier().classify(reup).reason
     not_cc = dict(base, license="youtube", license_url="https://x.example/l")
-    assert "Creative Commons" in VideoUseClassifier().classify(not_cc).reason
+    assert VideoUseClassifier().classify(not_cc).use == RESEARCH_ONLY          # no class, no Creative Commons
 
 
 def test_open_archives_need_an_open_license_and_evidence():
@@ -88,15 +89,17 @@ def test_nothing_is_downloaded_for_rendering_without_use_rights_and_evidence():
         gate.require(_video(use=RESEARCH_ONLY))
 
 
-def test_the_footage_agent_refuses_a_research_video_a_page_and_a_missing_evidence():
+def test_the_footage_agent_refuses_a_research_video_a_page_and_a_missing_evidence(db_session):
     from app.agents.footage import FootageAgent
 
     agent = FootageAgent(client=None)
     for video, message in ((_video(use=RESEARCH_ONLY), "research only"),
                            (_video(license_evidence_url=None), "no stored license evidence"),
-                           (_video(url="https://www.youtube.com/watch?v=abc"), "web page")):
+                           (_video(url="https://archive.org/details/some-item"), "web page")):
         with pytest.raises(RightsRefused, match=message):
             asyncio.run(agent.ingest_film_candidate(None, None, video))
+    with pytest.raises(RightsRefused, match="switch is off"):     # a YouTube page: the owner's switch decides
+        asyncio.run(agent.ingest_film_candidate(db_session, None, _video(url="https://www.youtube.com/watch?v=abc")))
 
 
 def test_a_film_candidate_that_passes_the_gate_goes_through_the_normal_footage_ingest(monkeypatch):

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import asyncio
+from pathlib import Path
 import json
 import subprocess
 import httpx
@@ -15,6 +16,7 @@ from app.documentary import storage
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import tiers as T
+from app.documentary.visuals import youtube_clips as YC
 from app.documentary.visuals.research import next_asset_code
 from app.documentary.visuals.footage import (
     DEDUPE_HAMMING,
@@ -62,12 +64,17 @@ class FootageAgent:
     """Searches the footage providers for the given queries and adds
     muted clips to the case library (bounded by footage.max_clips_per_case)."""
 
-    def __init__(self, client: httpx.AsyncClient):
+    def __init__(self, client: httpx.AsyncClient | None, downloader=None):
         self.client = client
         self.cfg = ai_config.footage
+        self.downloader = downloader
+
+    def _http(self) -> httpx.AsyncClient:
+        assert self.client is not None, "searching and downloading need an HTTP client"
+        return self.client
 
     def providers(self) -> list:
-        return [PROVIDERS[p](self.client) for p in self.cfg.providers if p in PROVIDERS]
+        return [PROVIDERS[p](self._http()) for p in self.cfg.providers if p in PROVIDERS]
 
     async def run(self, db: Session, case: Case, queries: list[dict],
                   found_during: str = "research", progress=None,
@@ -129,12 +136,41 @@ class FootageAgent:
                         stats["by_provider"][prov.name] = stats["by_provider"].get(prov.name, 0) + 1
         return stats
 
+    async def ingest_film_candidates(self, db: Session, case: Case, profile: str | None = None,
+                                     found_during: str = "research") -> dict:
+        """Every research video of the case that is a film candidate and not yet in the library:
+        ingested, or refused with its reason (the counts are reported, nothing is silent)."""
+        from app.db.models import VideoSource
+
+        stats: dict = {"added": 0, "skipped": 0, "errors": 0, "refused": {}}
+        stored = {u for a in db.query(VisualAsset).filter(VisualAsset.case_id == case.id)
+                  for u in (a.page_url, a.source_url) if u}
+        for video in db.query(VideoSource).filter(VideoSource.case_id == case.id,
+                                                  VideoSource.use == "film_candidate").order_by(VideoSource.id):
+            if video.url in stored:
+                stats["skipped"] += 1
+                continue
+            try:
+                outcome = await self.ingest_film_candidate(db, case, video, profile, found_during)
+            except RightsRefused as e:
+                stats["refused"][str(e)] = stats["refused"].get(str(e), 0) + 1
+                continue
+            except (FootageError, OSError, subprocess.SubprocessError, IM.ImageError, httpx.HTTPError) as e:
+                log.warning("film candidate %s failed: %s", video.url, e)
+                stats["errors"] += 1
+                continue
+            if outcome in ("added", "uncut"):
+                stats["added"] += 1
+        return stats
+
     async def ingest_film_candidate(self, db: Session, case: Case, video, profile: str | None = None,
                                     found_during: str = "research") -> str:
         """A research video that is a film candidate goes through the same download, cutting and
         description as any footage, but only after the rights gate passed (use, rights status
         for the render profile, stored license evidence). Only a direct media file of an
         allowed host can be fetched; a page (a YouTube watch page) has no downloader."""
+        if YC.is_youtube(video.url):
+            return await self._ingest_youtube(db, case, video, profile, found_during)
         VideoRightsGate().require(video, profile)
         media = video.url if video.url.lower().split("?")[0].endswith(MEDIA_SUFFIXES) else None
         if media is None:
@@ -147,16 +183,41 @@ class FootageAgent:
         return await self._ingest(db, case, candidate, video.rights_status,
                                   f"film candidate: {video.use_reason}", [], found_during)
 
+    async def _ingest_youtube(self, db: Session, case: Case, video, profile: str | None,
+                              found_during: str) -> str:
+        """A YouTube video of an allowed source class (switch on): downloaded once, cut into
+        pieces like any footage, with its source record and an on-screen credit."""
+        YC.check_allowed(db, video, profile)
+        tmp = storage.visuals_dir(case.id, "video") / f".{next_asset_code(db)}.yt"
+        fetched = await (self.downloader or YC.YtDlpDownloader()).fetch(video.url, tmp)
+        try:
+            digest = YC.sha256_file(fetched)
+            if db.query(VisualAsset).filter(VisualAsset.case_id == case.id, VisualAsset.sha256 == digest).first():
+                return "duplicates"
+            credit = f"{video.attribution_text or video.title} {ai_config.youtube_clips.credit_suffix}".strip()
+            candidate = FootageCandidate(
+                provider="youtube_clip", url=video.url, page_url=video.url, source_url=video.url,
+                title=video.title, license=video.rights_status, credit=credit,
+                source_name=video.channel_name or "YouTube", found_for=video.discovery_query,
+                date=(video.published_at or "")[:20] or None)
+            return await self._ingest_pieces(
+                db, case, candidate, video.rights_status, f"youtube clip: {video.use_reason}", [], found_during,
+                fetched=fetched, record=YC.source_record(video, digest))
+        finally:
+            fetched.unlink(missing_ok=True)
+
     async def _ingest_pieces(self, db, case, c: FootageCandidate, status: str, reason: str,
-                             hashes: list[str], found_during: str) -> str:
+                             hashes: list[str], found_during: str, fetched: Path | None = None,
+                             record: dict | None = None) -> str:
         """The video kept whole (muted) and cut into described pieces."""
         from app.documentary.visuals.pieces import ingest_video
 
         code = next_asset_code(db)
-        tmp = storage.visuals_dir(case.id, "video") / f".{code}.download"
+        tmp = fetched or storage.visuals_dir(case.id, "video") / f".{code}.download"
         try:
-            await download_video(c.url, self.client, tmp,
-                                 int(self.cfg.max_download_mb * 1024 * 1024))
+            if fetched is None:
+                await download_video(c.url, self._http(), tmp,
+                                     int(self.cfg.max_download_mb * 1024 * 1024))
             src = await asyncio.to_thread(probe_video, tmp)
             if src is None or not src["has_video"]:
                 raise FootageRejected("unreadable video")
@@ -166,8 +227,10 @@ class FootageAgent:
             duration = src["duration"] or c.duration or 0.0
             start = (duration * START_FRACTION
                      if duration > self.cfg.max_keep_seconds else 0.0)
-            source, pieces = await ingest_video(
-                db, case, tmp, _meta_of(c, status, reason, found_during), start)
+            meta = _meta_of(c, status, reason, found_during)
+            if record:
+                meta["source_record"] = record
+            source, pieces = await ingest_video(db, case, tmp, meta, start)
             if any(IM.hamming(source.phash, h) <= DEDUPE_HAMMING for h in hashes if h):
                 # the same footage again: keep the library free of twins
                 from app.documentary.visuals.pieces import remove_video
@@ -180,7 +243,8 @@ class FootageAgent:
             # by "Cut again"): never cut by the clock
             return "added" if pieces else "uncut"
         finally:
-            tmp.unlink(missing_ok=True)
+            if fetched is None:
+                tmp.unlink(missing_ok=True)
 
     async def _consider(self, db, case, prov, c: FootageCandidate, seen: set[str],
                         hashes: list[str], found_during: str) -> str:
@@ -226,7 +290,7 @@ class FootageAgent:
         tmp, out, key = vdir / f".{code}.download", vdir / f"{code}.mp4", vdir / f".{code}.key.jpg"
         keep = False
         try:
-            await download_video(c.url, self.client, tmp, int(cfg.max_download_mb * 1024 * 1024))
+            await download_video(c.url, self._http(), tmp, int(cfg.max_download_mb * 1024 * 1024))
             src = await asyncio.to_thread(probe_video, tmp)
             if src is None or not src["has_video"]:
                 raise FootageRejected("unreadable video")
