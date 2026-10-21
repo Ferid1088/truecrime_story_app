@@ -194,3 +194,36 @@ def test_the_shipped_hold_is_long_enough_to_read():
                                     "hold_min_seconds", "hold_max_seconds")})
     assert reading_hold_seconds("Abby") >= 5.0
     assert reading_hold_seconds("Abby and Andrew killed apart") >= 5.0
+
+
+def _beats(n, purposes):
+    return {"beats": [{"id": f"b{i + 1}", "purpose": purposes.get(i + 1, "transition"), "reveals": [],
+                       "relies_on": [], "opens": [], "answers": [], "unresolved": []} for i in range(n)]}
+
+
+def test_the_board_is_planned_to_the_end_of_the_case():
+    from app.documentary.detective_board import covers_end
+
+    blueprint = _beats(12, {1: "human_introduction", 2: "orientation", 5: "evidence"})   # nothing card-worthy late
+    cards = select_cards(blueprint, [])
+    order = [b["id"] for b in blueprint["beats"]]
+    assert covers_end(cards, order)
+    last = max(order.index(c["beat_id"]) for c in cards)
+    assert last == 10 and order[last] != order[-1]            # the tail, but never the very last beat
+
+
+def test_the_cap_is_kept_when_a_tail_card_is_added(monkeypatch):
+    monkeypatch.setattr(ai_config.detective_board, "max_cards", 2)
+    monkeypatch.setattr(ai_config.detective_board, "min_beats_between_cards", 1)
+    blueprint = _beats(12, {1: "human_introduction", 2: "orientation", 3: "evidence"})
+    cards = select_cards(blueprint, [])
+    assert len(cards) == 2 and cards[-1]["beat_id"] == "b11"
+
+
+def test_a_board_that_already_reaches_the_end_is_left_as_it_is():
+    blueprint = _beats(12, {1: "human_introduction", 10: "reveal"})
+    assert [c["beat_id"] for c in select_cards(blueprint, [])] == ["b1", "b10"]
+
+
+def test_the_final_stretch_is_configured():
+    assert ai_config.detective_board.final_stretch_share == 0.25

@@ -170,6 +170,18 @@ def host_gain_db() -> float:
     return ai_config.host.audio_gain_db
 
 
+class AvatarRequired(RuntimeError):
+    """A film is never made without the avatar: no host scene of the film is ready."""
+
+
+def require_avatar(host: list[dict]) -> None:
+    from app.core.ai_config import ai_config
+
+    if ai_config.host.required_for_film and not host:
+        raise AvatarRequired("No film without the avatar: none of its host scenes is ready "
+                             "(plan, voice and render the host first)")
+
+
 def host_items(db, version) -> list[dict]:
     """The version's host scenes that are ready (their avatar video is on disk
     and unchanged): what goes into the film."""

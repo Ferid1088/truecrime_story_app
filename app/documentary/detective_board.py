@@ -115,8 +115,42 @@ def select_cards(blueprint: dict, told_events: list[dict]) -> list[dict]:
     if len(picked) > cfg.max_cards:
         step = len(picked) / cfg.max_cards
         picked = [picked[int(i * step)] for i in range(cfg.max_cards)]
+    picked = _reach_the_end(picked, candidates, order, pos, purposes)
 
     return _linked_cards(picked, blueprint)
+
+
+def _tail_start(n: int) -> int:
+    """The first beat of the final stretch (at latest the last beat that still has room)."""
+    return min(int(n * (1.0 - ai_config.detective_board.final_stretch_share)), max(n - 2, 0))
+
+
+def _reach_the_end(picked: list[dict], candidates: list[dict], order: list[str], pos: dict[str, int],
+                   purposes: dict[str, str | None]) -> list[dict]:
+    """The board is planned to the end of the case: a card lies in the last share of the beats.
+    When the selection stops earlier, the latest card-worthy beat of the tail is added (replacing the
+    last card when the maximum is reached), else the last beat that still has room, as an event note
+    of what that beat tells."""
+    cfg = ai_config.detective_board
+    n = len(order)
+    if n < 3 or not picked:
+        return picked
+    last_room = n - 2
+    tail_start = _tail_start(n)
+    if any(tail_start <= pos[c["beat_id"]] <= last_room for c in picked):
+        return picked
+    tail = [c for c in candidates if tail_start <= pos[c["beat_id"]] <= last_room]
+    extra = max(tail, key=lambda c: pos[c["beat_id"]]) if tail else {
+        "kind": "event", "source_fact": order[last_room], "beat_id": order[last_room]}
+    if len(picked) >= cfg.max_cards:
+        picked = picked[:cfg.max_cards - 1]
+    return sorted([*picked, extra], key=lambda c: pos[c["beat_id"]])
+
+
+def covers_end(cards: list[dict], order: list[str]) -> bool:
+    """Whether the cards reach the last share of the beats."""
+    pos = {b: i for i, b in enumerate(order)}
+    return any(pos.get(c["beat_id"], -1) >= _tail_start(len(order)) for c in cards)
 
 
 def _linked_cards(picked: list[dict], blueprint: dict) -> list[dict]:

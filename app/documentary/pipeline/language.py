@@ -200,7 +200,7 @@ class LanguageChain:
 
         async def visual_coverage():
             # the film's picture track must pass visuals.coverage (no black, few short cards, no
-            # endless still): the plan is repaired with illustrations, never the rule
+            # endless still): the plan is repaired with real pictures, never the rule
             from app.documentary.visuals.coverage_fill import ensure_coverage
 
             db.refresh(ps)
@@ -212,6 +212,9 @@ class LanguageChain:
             from app.documentary.render.engine import VideoRenderer
 
             script = json.loads(ps.script_json)
+            from app.documentary.production.host_timeline import require_avatar
+
+            require_avatar(script.get("host") or [])
             script_sha = hashlib.sha256(ps.script_json.encode("utf-8")).hexdigest()
             out = storage.renders_dir(case.id, lang) / f"{job.mode}_v{version.id}_{ps.version}.mp4"
             prev = json.loads(ps.render_json or "null") if ps.status == "rendered" else None

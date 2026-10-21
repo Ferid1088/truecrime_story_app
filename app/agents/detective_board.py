@@ -89,10 +89,13 @@ class BoardWriter:
                     title = _fallback_title(c["claim"], max_words)
                 if title:
                     titles[c["id"]][language] = title
-        plan = {"cards": [{"id": c["id"], "kind": c["kind"], "source_fact": c["source_fact"],
+        plan: dict = {"cards": [{"id": c["id"], "kind": c["kind"], "source_fact": c["source_fact"],
                           "beat_id": c["beat_id"], "status": c["status"], "links": c["links"],
                           "title": titles[c["id"]]}
                          for c in ctx["cards"]]}
+        from app.documentary.detective_board import covers_end
+
+        plan["covers_end"] = covers_end(plan["cards"], [b["id"] for b in json.loads(bp_row.blueprint_json or "{}").get("beats") or []])
         status = "approved" if not errors else ("partial" if any(titles.values()) else "no_texts")
         row = BoardPlan(case_id=case.id, blueprint_id=bp_row.id, status=status,
                         languages_json=json.dumps(langs), plan_json=json.dumps(plan))
