@@ -551,6 +551,78 @@ class LookOverride(BaseModel):
     look_id: int
 
 
+# ---------------------------------------------------------------------------
+# the Outfits panel (O2): one row per language, the outfit choice, the fixed picture
+# ---------------------------------------------------------------------------
+
+
+class PanelSelect(BaseModel):
+    outfit_id: int
+
+
+class PanelFixedLook(BaseModel):
+    outfit_id: int
+    look_id: int | None = None
+
+
+class PanelSamePicture(BaseModel):
+    outfit_id: int
+    look_id: int
+
+
+def _case_outfit(db: Session, case_id: int, outfit_id: int):
+    outfit = _outfit(db, outfit_id)
+    if outfit.case_id != case_id:
+        raise HTTPException(status_code=404, detail="Outfit not found")
+    return outfit
+
+
+@router.get("/api/cases/{case_id}/outfit-panel")
+def outfit_panel(case_id: int, db: Session = Depends(get_db)):
+    from app.documentary import outfits as OF
+
+    return OF.panel(db, case_id)
+
+
+@router.post("/api/cases/{case_id}/outfit-panel/select")
+def outfit_panel_select(case_id: int, payload: PanelSelect, db: Session = Depends(get_db)):
+    from app.documentary import outfits as OF
+
+    _outfit_call(lambda: OF.select_outfit(db, _case_outfit(db, case_id, payload.outfit_id)))
+    return OF.panel(db, case_id)
+
+
+@router.post("/api/cases/{case_id}/outfit-panel/same-outfit")
+def outfit_panel_same_outfit(case_id: int, payload: PanelSelect, db: Session = Depends(get_db)):
+    """Checkbox A: the same-named outfit becomes the choice of every language that has one."""
+    from app.documentary import outfits as OF
+
+    result = _outfit_call(lambda: OF.apply_same_outfit(db, case_id, payload.outfit_id))
+    return {**OF.panel(db, case_id), "result": result}
+
+
+@router.post("/api/cases/{case_id}/outfit-panel/fixed-look")
+def outfit_panel_fixed_look(case_id: int, payload: PanelFixedLook,
+                            db: Session = Depends(get_db)):
+    """Checkbox C: pin one approved picture of the language's outfit for every appearance."""
+    from app.documentary import outfits as OF
+
+    _outfit_call(lambda: OF.set_fixed_look(db, _case_outfit(db, case_id, payload.outfit_id),
+                                           payload.look_id))
+    return OF.panel(db, case_id)
+
+
+@router.post("/api/cases/{case_id}/outfit-panel/same-picture")
+def outfit_panel_same_picture(case_id: int, payload: PanelSamePicture,
+                              db: Session = Depends(get_db)):
+    """Checkbox B: pin the same pose/camera/framing in every same-named outfit that has it."""
+    from app.documentary import outfits as OF
+
+    result = _outfit_call(lambda: OF.apply_same_picture(db, case_id, payload.outfit_id,
+                                                        payload.look_id))
+    return {**OF.panel(db, case_id), "result": result}
+
+
 @router.post("/api/host-scenes/{scene_id}/look")
 def override_scene_look(scene_id: int, payload: LookOverride, db: Session = Depends(get_db)):
     """The owner picks a look for a scene: only an approved look of the scene's own outfit."""

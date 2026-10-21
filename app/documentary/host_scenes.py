@@ -311,11 +311,20 @@ def _choose_default_look(db: Session, scene: HostScene, outfit) -> None:
     preset = ai_config.studio.framing_by_position.get(scene.position or "", "HOST_MEDIUM")
     framing = {"HOST_WIDE": "WIDE", "HOST_MEDIUM": "MEDIUM", "HOST_CLOSE": "MEDIUM_CLOSE"}.get(
         preset, "MEDIUM")
-    picked = LS.choose(db, outfit, LS.Wanted("SEATED", "CAM01_FRONT", framing),
-                       _previous_look(db, scene))
+    picked = LS.choose_appearance(db, outfit, LS.Wanted("SEATED", "CAM01_FRONT", framing),
+                                  _appearance_index(db, scene), _previous_look(db, scene))
     scene.host_outfit_id, scene.look_id = outfit.id, picked["look"].id
     scene.look_choice_json = json.dumps(picked["choice"], ensure_ascii=False)
     _log(scene, "look", "chosen", picked["choice"])
+
+
+def _appearance_index(db: Session, scene: HostScene) -> int:
+    """The place of this scene among the video's host appearances (0-based): the rotation of
+    the outfit's approved looks keys on it — appearance 1 gets picture 1, and so on."""
+    return db.query(HostScene).filter(
+        HostScene.case_id == scene.case_id, HostScene.language == scene.language,
+        HostScene.story_version_id == scene.story_version_id,
+        HostScene.id < scene.id).count()
 
 
 def _previous_look(db: Session, scene: HostScene):

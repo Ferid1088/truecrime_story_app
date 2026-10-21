@@ -373,7 +373,13 @@ class AutopilotRunner:
     async def _publish(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         if not all(S.step_status(run, p) == "done" for p in ("films", "titles", "shorts")):
             return False
-        films, shorts, handles, avatar_missing = self._publish_inputs(db, run, case)
+        films, shorts, handles, avatar_missing, outfit_missing = \
+            self._publish_inputs(db, run, case)
+        for lang in outfit_missing:
+            # O2: the final version needs an outfit chosen for its language; drafts do not.
+            S.add_need(run, f"publish:{lang}:choose_outfit", "choose_outfit",
+                       f"Needs you: choose outfit ({lang}) — open the Outfits panel on the case "
+                       "page and pick the outfit this film's host wears.", language=lang)
         for lang in avatar_missing:
             # Owner decision 2026-10-22 (A3): the autopilot never publishes a film with no
             # approved avatar look for its language; it only ever asks the owner to approve one.
@@ -407,19 +413,24 @@ class AutopilotRunner:
 
     def _publish_inputs(self, db: Session, run: AutopilotRun, case: Case
                         ) -> tuple[list[P.FilmInput], list[P.ShortInput],
-                                  dict[tuple[str, str], str], list[str]]:
+                                  dict[tuple[str, str], str], list[str], list[str]]:
         from app.documentary import storage
         from app.documentary.production import host_timeline as HT
 
         job_ids = list(S.film_job_ids(run).values())
         films = []
         avatar_missing = []
+        outfit_missing = []
         for video in db.query(Video).filter(Video.job_id.in_(job_ids),
                                             Video.state == "rendered").all():
-            if (ai_config.host.required_for_film and video.production_script_id is not None
-                    and not HT.avatar_present(db, video.production_script_id)):
-                avatar_missing.append(video.language)
-                continue
+            if ai_config.host.required_for_film and video.production_script_id is not None:
+                from app.documentary import outfits as OF
+                if OF.needs_outfit_choice(db, case.id, video.language):
+                    outfit_missing.append(video.language)
+                    continue
+                if not HT.avatar_present(db, video.production_script_id):
+                    avatar_missing.append(video.language)
+                    continue
             titles = live_titles(db, case.id, video.language)
             films.append(P.FilmInput(
                 language=video.language, video_id=video.id, file_path=video.file_path or "",
@@ -438,4 +449,4 @@ class AutopilotRunner:
             shorts.append(P.ShortInput(short_id=short.id, language=short.language,
                                        packages=packages))
         handles = {(c.language, c.platform): c.handle for c in db.query(ChannelSetting).all()}
-        return films, shorts, handles, avatar_missing
+        return films, shorts, handles, avatar_missing, outfit_missing

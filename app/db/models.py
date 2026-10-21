@@ -2464,6 +2464,10 @@ class HostOutfit(Base):
     reference_image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # draft | selected | retired (one selected per case and language)
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    # O2 "one fixed picture": this approved look is used for every appearance of the video
+    # (no rotation); None = the fitting approved looks rotate in their stored order.
+    fixed_look_id: Mapped[int | None] = mapped_column(
+        ForeignKey("host_looks.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
     selected_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 

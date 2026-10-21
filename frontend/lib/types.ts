@@ -2844,6 +2844,47 @@ export interface PoseSetResult {
   outfit: HostOutfitItem;
 }
 
+/** O2 Outfits panel: one approved look of an outfit, as a thumbnail. */
+export interface OutfitPanelLook {
+  id: number;
+  stance: string;
+  camera: string;
+  framing: string;
+  pose: string;
+  has_image: boolean;
+}
+
+export interface OutfitPanelOutfit {
+  id: number;
+  name: string;
+  status: string;
+  looks: OutfitPanelLook[];
+  to_approve: string[];
+}
+
+export interface OutfitPanelLanguage {
+  language: string;
+  chosen_outfit_id: number | null;
+  fixed_look_id: number | null;
+  /** a full film of this language was rendered — a choice change needs a new render */
+  final_rendered: boolean;
+  outfits: OutfitPanelOutfit[];
+}
+
+export interface OutfitPanelResult {
+  applied: string[];
+  skipped: string[];
+  reason?: string | null;
+}
+
+export interface OutfitPanel {
+  case_id: number;
+  languages: OutfitPanelLanguage[];
+  /** lowercased outfit name → the languages that have an outfit with that name */
+  name_in_languages: Record<string, string[]>;
+  result?: OutfitPanelResult;
+}
+
 export interface HostAppearanceItem {
   id: number;
   case_id: number;

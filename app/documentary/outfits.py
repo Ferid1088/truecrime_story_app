@@ -97,6 +97,131 @@ def selected_outfit(db: Session, case_id: int, language: str) -> HostOutfit | No
                     HostOutfit.status == "selected").first())
 
 
+# ---------------------------------------------------------------------------
+# the Outfits panel (O2): one outfit per language, optionally one fixed picture
+# ---------------------------------------------------------------------------
+
+
+def _language_outfits(db: Session, case_id: int, language: str) -> list[HostOutfit]:
+    return (db.query(HostOutfit)
+            .filter(HostOutfit.case_id == case_id, HostOutfit.language == language,
+                    HostOutfit.status != "retired").order_by(HostOutfit.id).all())
+
+
+def _same_named(db: Session, case_id: int, language: str, name: str) -> HostOutfit | None:
+    """The outfit of another language with the same name (case-insensitive): the one
+    "same outfit for all languages" selects there."""
+    return next((o for o in _language_outfits(db, case_id, language)
+                 if o.name.strip().lower() == name.strip().lower()), None)
+
+
+def _final_rendered(db: Session, case_id: int, language: str) -> bool:
+    """A full film of this language was rendered (or published): the owner may still change the
+    outfit, but nothing changes on screen without a new render."""
+    from app.db.models import Video
+
+    return db.query(Video).filter(Video.case_id == case_id, Video.language == language,
+                                  Video.mode == "full",
+                                  Video.state.in_(["rendered", "published"])).count() > 0
+
+
+def needs_outfit_choice(db: Session, case_id: int, language: str) -> bool:
+    """No outfit is chosen for this case and language: drafts still work, but the final
+    version must not — the autopilot lists it as "needs you: choose outfit"."""
+    return selected_outfit(db, case_id, language) is None
+
+
+def set_fixed_look(db: Session, outfit: HostOutfit, look_id: int | None) -> HostOutfit:
+    """Checkbox C: pin one approved picture of this outfit for every appearance (None clears)."""
+    if look_id is None:
+        outfit.fixed_look_id = None
+        db.commit()
+        return outfit
+    look = db.get(HostLook, look_id)
+    if look is None or look.host_outfit_id != outfit.id or look.status != "approved":
+        raise OutfitError("a fixed picture must be an approved look of this outfit — approve "
+                          "or request this look in Host Studio")
+    outfit.fixed_look_id = look.id
+    db.commit()
+    return outfit
+
+
+def apply_same_outfit(db: Session, case_id: int, outfit_id: int) -> dict:
+    """Checkbox A: select the outfit with the same name in every language that has one."""
+    source = db.get(HostOutfit, outfit_id)
+    if source is None or source.case_id != case_id:
+        raise OutfitError("outfit not found")
+    applied, skipped = [], []
+    for lang in ai_config.channels:
+        if lang == source.language:
+            continue
+        match = _same_named(db, case_id, lang, source.name)
+        if match is None:
+            skipped.append(lang)
+            continue
+        select_outfit(db, match)
+        applied.append(lang)
+    return {"applied": applied, "skipped": skipped,
+            "reason": None if applied else "no other language has an outfit with this name"}
+
+
+def apply_same_picture(db: Session, case_id: int, outfit_id: int, look_id: int) -> dict:
+    """Checkbox B: pin the same picture (same pose/camera/framing) in every language whose
+    same-named outfit has an approved look like it."""
+    source = db.get(HostOutfit, outfit_id)
+    look = db.get(HostLook, look_id)
+    if source is None or source.case_id != case_id or look is None \
+            or look.host_outfit_id != source.id or look.status != "approved":
+        raise OutfitError("the picture must be an approved look of the chosen outfit")
+    signature = (look.pose, look.camera, look.framing)
+    applied, skipped = [], []
+    for lang in ai_config.channels:
+        if lang == source.language:
+            continue
+        match = _same_named(db, case_id, lang, source.name)
+        twin = match and next((lk for lk in outfit_looks(db, match)
+                               if lk.status == "approved"
+                               and (lk.pose, lk.camera, lk.framing) == signature), None)
+        if match is None or twin is None:
+            skipped.append(lang)
+            continue
+        match.fixed_look_id = twin.id
+        applied.append(lang)
+    db.commit()
+    return {"applied": applied, "skipped": skipped}
+
+
+def panel(db: Session, case_id: int) -> dict:
+    """Everything the Outfits panel shows: per language its outfits with their approved
+    looks (as thumbnails), the chosen outfit, the fixed picture, and whether a full film
+    of that language was already rendered (a change then needs a new render)."""
+    from app.documentary import look_selection as LS
+
+    rows = []
+    name_in_languages: dict[str, list[str]] = {}
+    for lang in ai_config.channels:
+        outfits = _language_outfits(db, case_id, lang)
+        for o in outfits:
+            name_in_languages.setdefault(o.name.strip().lower(), []).append(lang)
+        chosen = selected_outfit(db, case_id, lang)
+        rows.append({
+            "language": lang,
+            "chosen_outfit_id": chosen.id if chosen else None,
+            "fixed_look_id": chosen.fixed_look_id if chosen else None,
+            "final_rendered": _final_rendered(db, case_id, lang),
+            "outfits": [{
+                "id": o.id, "name": o.name, "status": o.status,
+                "looks": [{"id": lk.id, "stance": lk.stance, "camera": lk.camera,
+                           "framing": lk.framing, "pose": lk.pose,
+                           "has_image": bool(lk.image_path)}
+                          for lk in outfit_looks(db, o) if lk.status == "approved"],
+                "to_approve": LS.missing_looks(db, o),
+            } for o in outfits],
+        })
+    return {"case_id": case_id, "languages": rows,
+            "name_in_languages": name_in_languages}
+
+
 def outfit_looks(db: Session, outfit: HostOutfit) -> list[HostLook]:
     return (db.query(HostLook).filter(HostLook.host_outfit_id == outfit.id)
             .order_by(HostLook.id).all())

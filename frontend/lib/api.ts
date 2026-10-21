@@ -5,6 +5,7 @@ import type {
   HostLookItem,
   HostOutfitItem,
   OutfitRegistryItem,
+  OutfitPanel,
   PoseSetResult,
   HostPlanRecord,
   HostSegmentsRecord,
@@ -695,6 +696,16 @@ export const api = {
   selectOutfit: (id: number) => post<HostOutfitItem>(`/api/outfits/${id}/select`, {}),
   retireOutfit: (id: number) => post<HostOutfitItem>(`/api/outfits/${id}/retire`, {}),
   requestPoseSet: (id: number) => post<PoseSetResult>(`/api/outfits/${id}/pose-set`, {}),
+  outfitPanel: (caseId: number) =>
+    request<OutfitPanel>(`/api/cases/${caseId}/outfit-panel`),
+  panelSelectOutfit: (caseId: number, outfitId: number) =>
+    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/select`, { outfit_id: outfitId }),
+  panelSameOutfit: (caseId: number, outfitId: number) =>
+    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/same-outfit`, { outfit_id: outfitId }),
+  panelFixedLook: (caseId: number, outfitId: number, lookId: number | null) =>
+    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/fixed-look`, { outfit_id: outfitId, look_id: lookId }),
+  panelSamePicture: (caseId: number, outfitId: number, lookId: number) =>
+    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/same-picture`, { outfit_id: outfitId, look_id: lookId }),
   requestOutfitLook: (id: number, payload: { camera: string; framing: string; stance: string }) =>
     post<HostLookItem>(`/api/outfits/${id}/looks`, payload),
   overrideSceneLook: (sceneId: number, lookId: number) =>

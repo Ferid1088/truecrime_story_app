@@ -220,6 +220,10 @@ def test_a_film_with_no_approved_avatar_is_kept_out_of_the_publish_queue(db_sess
                              status="composed", duration_seconds=600.0,
                              script_json=J.dumps({"avatar_used": False}))
     db_session.add(draft)
+    # the en film passes the O2 outfit gate; the avatar gate is what fires
+    from app.documentary import outfits as OF
+    OF.select_outfit(db_session, OF.create_outfit(db_session, case.id, "en", "Navy",
+                                                outfit_ref="en/blazerJeans"))
     db_session.commit()
     for lang, job_id in S.film_job_ids(run).items():
         db_session.add(Video(case_id=case.id, job_id=job_id, language=lang, state="rendered",
@@ -235,6 +239,49 @@ def test_a_film_with_no_approved_avatar_is_kept_out_of_the_publish_queue(db_sess
     assert {r.language for r in rows if r.kind == "film"} == {"de"}
     need = next(n for n in S.needs(run) if n["kind"] == "approve_avatar")
     assert need["language"] == "en" and need["blocking"] is True
+
+
+def test_a_film_without_a_chosen_outfit_asks_for_one_and_is_kept_out(db_session, run, case):
+    """O2: the final version needs an outfit chosen for its language — a film whose language
+    has none is kept out of the publish queue and gets a 'choose outfit' need; the other
+    language is unaffected."""
+    import json as J
+
+    from factories import make_story_version
+
+    from app.db.models import ProductionScript
+    from app.documentary import outfits as OF
+
+    ports = FakePorts()
+    passes(db_session, run, ports)
+    finish_films(db_session, run)
+    sv = make_story_version(db_session, case, language="en")
+    draft = ProductionScript(case_id=case.id, story_version_id=sv.id, language="en", mode="full",
+                             status="composed", duration_seconds=600.0,
+                             script_json=J.dumps({"avatar_used": True}))
+    db_session.add(draft)
+    # de gets a real chosen outfit; en keeps none
+    OF.select_outfit(db_session, OF.create_outfit(db_session, case.id, "de", "Navy",
+                                                outfit_ref="de/blazerJeans"))
+    db_session.commit()
+    for lang, job_id in S.film_job_ids(run).items():
+        db_session.add(Video(case_id=case.id, job_id=job_id, language=lang, state="rendered",
+                             file_path=f"data/{lang}.mp4",
+                             production_script_id=draft.id if lang == "en" else None))
+    db_session.commit()
+    passes(db_session, run, ports)
+    for row in db_session.query(ShortProductionJob).filter_by(case_id=case.id):
+        row.status = "done"
+    db_session.commit()
+    passes(db_session, run, ports)
+    need = next(n for n in S.needs(run) if n["kind"] == "choose_outfit")
+    assert need["language"] == "en" and need["blocking"] is True
+    assert "choose outfit" in need["message"]
+    # the de film (no production script → no host gate) is not blocked by the en outfit need
+    rows = db_session.query(PublishRequest).filter_by(run_id=run.id).all()
+    assert "de" in {r.language for r in rows if r.kind == "film"}
+    assert not any(n["language"] == "de" and n["kind"] == "choose_outfit"
+                   for n in S.needs(run))
 
 
 def test_the_case_budget_stops_the_run_before_any_paid_call(db_session, run, case):

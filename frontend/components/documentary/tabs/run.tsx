@@ -15,6 +15,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/state";
 import { cn } from "@/lib/utils";
 import { ProductionTypeBadge } from "@/components/lifecycle/shared";
+import { OutfitPanelDialog } from "../outfit-panel";
 import {
   DEFAULT_TARGET_MINUTES,
   RunOptionsFields,
@@ -70,6 +71,7 @@ export function RunTab({
   const [viewJobId, setViewJobId] = useState<number | null>(null);
   const [estimate, setEstimate] = useState<DocumentaryDryRunResult | null>(null);
   const [costs, setCosts] = useState<CaseCostPanel | null>(null);
+  const [outfitPanelOpen, setOutfitPanelOpen] = useState(false);
   const ids = useId();
 
   const noFinal = overview.finals.length === 0;
@@ -260,14 +262,19 @@ export function RunTab({
 
             <BudgetSummary costs={costs} estimate={estimate} />
 
-            <Button
-              className="w-full"
-              onClick={start}
-              loading={busy === "start"}
-              disabled={blockers.length > 0 || busy !== null}
-            >
-              <Play className="size-4" /> {options.mode === "pilot" ? "Start pilot" : "Start full film"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={start}
+                loading={busy === "start"}
+                disabled={blockers.length > 0 || busy !== null}
+              >
+                <Play className="size-4" /> {options.mode === "pilot" ? "Start pilot" : "Start full film"}
+              </Button>
+              <Button variant="secondary" onClick={() => setOutfitPanelOpen(true)}>
+                Outfits
+              </Button>
+            </div>
             {blockers.length > 0 && (
               <ul className="space-y-1 text-[11px] leading-4 text-muted-foreground" aria-live="polite">
                 {blockers.map((b) => (
@@ -361,6 +368,9 @@ export function RunTab({
           </Card>
         )}
       </div>
+      {outfitPanelOpen && (
+        <OutfitPanelDialog caseId={caseId} open onClose={() => setOutfitPanelOpen(false)} />
+      )}
     </div>
   );
 }

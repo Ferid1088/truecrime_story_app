@@ -137,3 +137,72 @@ def choose(db: Session, outfit: HostOutfit, wanted: Wanted, previous: HostLook |
         "why": why, "continuity": note,
         "previous_look_id": previous.id if previous else None,
         "considered": [lk.id for lk in looks]}}
+
+
+def _fits(look: HostLook, wanted: Wanted) -> bool:
+    """The look the scene may legally use (the stage director's plan first): the exact
+    stance/camera/framing, or a wider front/wide picture the wanted framing is a crop of."""
+    if of_look(look) == wanted:
+        return True
+    return (look.stance == wanted.stance and look.camera in CROP_CAMERAS
+            and wanted.camera in CROP_CAMERAS and wanted.framing in CROPS.get(look.framing, ()))
+
+
+def choose_appearance(db: Session, outfit: HostOutfit, wanted: Wanted, appearance_index: int,
+                      previous: HostLook | None = None,
+                      change_reason: str | None = None) -> dict:
+    """O2: the look of the video's n-th host appearance. The owner's fixed picture
+    (checkbox C / "same picture") is used for every appearance when set; otherwise the
+    approved looks that fit the plan rotate in their stored order — appearance n takes
+    picture n — never the same one twice in a row when at least two fit. The continuity
+    limit (max_change_per_cut) is unchanged."""
+    looks = approved_looks(db, outfit)
+    if not looks:
+        raise NoApprovedLook(outfit, missing_looks(db, outfit))
+    by_id = {lk.id: lk for lk in looks}
+    fixed = by_id.get(outfit.fixed_look_id or 0)
+    if fixed is not None:
+        return {"look": fixed, "choice": {
+            "look_id": fixed.id, "wanted": wanted.__dict__, "fixed": True,
+            "chosen": {"stance": fixed.stance, "camera": fixed.camera,
+                       "framing": fixed.framing},
+            "why": "the fixed picture chosen in the Outfits panel",
+            "previous_look_id": previous.id if previous else None,
+            "considered": [lk.id for lk in looks]}}
+    ranked = sorted(looks, key=lambda lk: (distance(wanted, of_look(lk)), lk.id))
+    fitting = [lk for lk in ranked if _fits(lk, wanted)] or [ranked[0]]
+    i = appearance_index % len(fitting)
+    pick = fitting[i]
+    if len(fitting) > 1 and previous is not None and pick.id == previous.id:
+        pick = fitting[(i + 1) % len(fitting)]
+    why = ("the planned look, in rotation" if len(fitting) > 1
+           else ("the planned look" if of_look(pick) == wanted
+                 else f"a {wanted.framing} crop of the approved {pick.framing} picture"
+                 if _fits(pick, wanted) and of_look(pick) != wanted
+                 else f"the planned {wanted.stance}/{wanted.camera}/{wanted.framing} is not "
+                      f"approved; the nearest approved look is "
+                      f"{pick.stance}/{pick.camera}/{pick.framing}"))
+    note = None
+    if previous is not None and previous.id != pick.id:
+        cont = ai_config.host_looks.continuity
+        jump = distance(of_look(previous), of_look(pick))
+        if jump > cont.max_change_per_cut and not (change_reason or "").strip():
+            near = [lk for lk in ranked if distance(of_look(previous), of_look(lk))
+                    <= cont.max_change_per_cut]
+            if near:
+                note = (f"the planned change from look #{previous.id} to #{pick.id} is {jump} "
+                        f"(more than {cont.max_change_per_cut}) and has no reason")
+                pick = near[0]
+                why = (f"{note}: the nearest allowed approved look is "
+                       f"{pick.stance}/{pick.camera}/{pick.framing}")
+    return {"look": pick, "choice": {
+        "look_id": pick.id, "wanted": wanted.__dict__,
+        "chosen": {"stance": pick.stance, "camera": pick.camera, "framing": pick.framing},
+        "exact": of_look(pick) == wanted,
+        "cropped_from_framing": pick.framing
+        if of_look(pick) != wanted and _fits(pick, wanted) else None,
+        "rotation": {"appearance": appearance_index, "fitting": [lk.id for lk in fitting]},
+        "fixed_missing": outfit.fixed_look_id is not None,
+        "why": why, "continuity": note,
+        "previous_look_id": previous.id if previous else None,
+        "considered": [lk.id for lk in looks]}}
