@@ -1,14 +1,7 @@
 {
   "budget": {
     "total_cap_eur": 300.0,
-    "usd_to_eur": 0.92,
-    "stage_estimate_eur": {
-      "research": 0.5,
-      "tts": 2.0,
-      "heygen": 2.0,
-      "thumbnails": 0.2,
-      "shorts": 2.0
-    }
+    "usd_to_eur": 0.92
   },
   "discovery": {
     "soft_delete_restore_days": 30

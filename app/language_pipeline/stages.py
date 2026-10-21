@@ -44,8 +44,6 @@ LENGTH_CORRECTION_STAGE = "length_correction"
 REVIEW_STAGE = "language_review"
 FIDELITY_STAGE = "language_fidelity"
 AUDIT_FIX_STAGE = "english_audit_fix"
-# An inspector whose answer does not validate is asked once more; a second failure fails the stage.
-INSPECTOR_ATTEMPTS = 2
 
 
 class StageFailed(RuntimeError):
@@ -326,16 +324,16 @@ class LanguageStages:
     async def _native_inspect(self, db, case, material, text, language, run, agent: str,
                               stage: str = INSPECT_STAGE) -> StageOutput:
         """One call; an answer that does not validate is asked for once more, a second one fails the stage."""
-        for attempt in range(INSPECTOR_ATTEMPTS):
+        for attempt in range(ai_config.limits_settings().language_pipeline.inspector_attempts):
             data, res = await self.call(db, case, run, "language_inspector", "Language Inspector",
                                         stage, language, f"{language} {len(text.split())} words")
             try:
                 inspection = FilmInspection.model_validate(data)
                 break
             except ValidationError as e:
-                if attempt + 1 == INSPECTOR_ATTEMPTS:
+                if attempt + 1 == ai_config.limits_settings().language_pipeline.inspector_attempts:
                     raise StageFailed(stage, f"the {language} inspector's answer is not valid "
-                                      f"after {INSPECTOR_ATTEMPTS} attempts: {e}") from e
+                                      f"after {ai_config.limits_settings().language_pipeline.inspector_attempts} attempts: {e}") from e
         return self._output(stage, language, text, material, res, ai_config.prompt_of(agent),
                             data=self.film_critique(inspection))
 
@@ -394,7 +392,7 @@ class LanguageStages:
     async def _fidelity(self, db, case, material, language, english_text, text):
         task = ordered_dump({"language": language_name(language), "english_master": english_text, "story": text})
         system = self._prompt_of("language.fidelity")
-        for attempt in range(INSPECTOR_ATTEMPTS):
+        for attempt in range(ai_config.limits_settings().language_pipeline.inspector_attempts):
             data, res = await self.call(
                 db, case, lambda: run_agent("language.fidelity", self.gen, task, system=system,
                                             cache_key=material.cache_key()),
@@ -403,9 +401,9 @@ class LanguageStages:
             try:
                 return FidelityReport.model_validate(data), res
             except ValidationError as e:
-                if attempt + 1 == INSPECTOR_ATTEMPTS:
+                if attempt + 1 == ai_config.limits_settings().language_pipeline.inspector_attempts:
                     raise StageFailed(FIDELITY_STAGE, f"the {language} fidelity answer is not valid "
-                                      f"after {INSPECTOR_ATTEMPTS} attempts: {e}") from e
+                                      f"after {ai_config.limits_settings().language_pipeline.inspector_attempts} attempts: {e}") from e
 
     async def audit_fix(self, db: Session, case: Case, material: SharedMaterial, message: str):
         """The findings of the evidence audit checked against the evidence, with the edit for each

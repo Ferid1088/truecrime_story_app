@@ -26,7 +26,7 @@ const job = {
 };
 
 const ESTIMATE = {
-  languages: ["en", "de", "fa", "ar"], cap_eur: 300, estimated_eur: 38.59,
+  languages: ["en", "de", "fa", "ar"], cap_eur: 300, estimated_eur: 38.59, visual_research_eur: 6.4,
   range_eur: { low: 26.83, high: 47.23 }, pricing_last_verified: "2026-10-01", price_warnings: [],
 };
 
@@ -88,6 +88,7 @@ test.describe("Autopilot", () => {
     await expect(page.getByTestId("start-language-en")).toBeDisabled();
     await expect(page.getByTestId("start-estimate")).toContainText("€38.59");
     await expect(page.getByTestId("start-estimate")).toContainText("€300.00");
+    await expect(page.getByTestId("start-research-estimate")).toContainText("€6.40");
     await page.getByTestId("start-confirm").click();
 
     await expect(page).toHaveURL(/\/autopilot\/9$/);

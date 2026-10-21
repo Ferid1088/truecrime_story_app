@@ -127,8 +127,8 @@ class VideoAuditor:
             asset.subject_type = str(v["subject_type"])[:20]
         if v.get("role") in ("evidence", "context", "illustration"):
             asset.asset_role = v["role"]
-        if v.get("matches_claim") == "stand_in":
-            asset.asset_role = "illustration"
+        if v.get("matches_claim") in ("context", "stand_in"):
+            asset.asset_role = "context"
         known_ents = {e["key"] for e in entities}
         ents = [e for e in v.get("entities") or [] if e in known_ents]
         if ents:

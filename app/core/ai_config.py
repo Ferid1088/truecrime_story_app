@@ -107,6 +107,9 @@ REQUIRED_ROLES = {
     # shot direction, on-screen text per language.
     "visual_planner",
     "visual_verifier",
+    # A second, independent model looks at the same picture and the same inputs when the first
+    # left a place, object, document or map in needs_review.
+    "visual_second_verifier",
     # Independent of the planner: may this editorial-review picture be used at all (right
     # person, place and period; identity supported; caption matches the picture)?
     "visual_editorial_reviewer",
@@ -142,7 +145,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier", "visual_editorial_reviewer", "visual_auditor", "video_auditor", "video_segmenter",
+VISION_ROLES = {"visual_verifier", "visual_second_verifier", "visual_editorial_reviewer", "visual_auditor", "video_auditor", "video_segmenter",
                 "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
@@ -712,11 +715,40 @@ class VideoRightsYouTube(BaseModel):
     reuploader_channel_patterns: list[str]
 
 
+class VideoSourceClass(BaseModel):
+    """What puts a video into one source class: the kind of channel (video classification), words in
+    the channel name or the title, or the host of a direct media file. A class needs at least one."""
+
+    classifications: list[str] = []
+    channel_markers: list[str] = []
+    title_markers: list[str] = []
+    hosts: list[str] = []
+
+
+class YouTubeClipsConfig(BaseModel):
+    """The YouTube clip downloader (Settings switch, off by default): only videos of the allowed
+    source classes, bounded in size, length of the source, length of a clip and share of a film."""
+
+    default_enabled: bool = False
+    max_height: int = Field(default=720, ge=144)
+    max_source_seconds: float = Field(default=1800.0, gt=0)
+    max_download_mb: float = Field(default=400.0, gt=0)
+    # A clip from YouTube plays at most this long, and all of them at most this share of the film.
+    max_clip_seconds: float = Field(default=16.0, gt=1)
+    max_share: float = Field(default=0.08, ge=0.0, le=1.0)
+    credit_suffix: str = "(YouTube)"
+
+
 class VideoRightsConfig(BaseModel):
     """Which videos may ever go into our film, and why the others are research only.
     Doubt means research only."""
 
     film_candidate_hosts: VideoRightsHosts
+    # The kinds of channel whose videos are other creators' edited films: always research only.
+    research_only_classifications: list[str] = []
+    # official_body, news_raw (a news agency's or broadcaster's raw source footage), witness_family,
+    # creative_commons (a YouTube Creative Commons video of a channel that is not a commentator).
+    source_classes: dict[str, VideoSourceClass] = {}
     youtube: VideoRightsYouTube
     open_license_markers: list[str]
     evidence_url_fields: list[str]
@@ -990,10 +1022,6 @@ class BudgetConfig(BaseModel):
 
     total_cap_eur: float = Field(default=20.0, gt=0.0)
     usd_to_eur: float = Field(default=0.92, gt=0.0)
-    stage_estimate_eur: dict[str, float] = Field(default_factory=lambda: {
-        "research": 0.50,
-        "tts": 2.00, "heygen": 2.00, "thumbnails": 0.20, "shorts": 2.00,
-    })
 
 
 class DiscoveryPolicies(BaseModel):
@@ -1059,33 +1087,13 @@ class LanguageQualityConfig(BaseModel):
 
 
 class ResearchConfig(BaseModel):
-    """Provider-neutral research controls (Part 21/23).
-
-    Hard call-count caps always apply; the cost cap is enforced on
-    provider-reported spend only — never estimated."""
+    """Provider-neutral research controls (Part 21/23). The search and fetch limits of a research
+    run are search_engine.* (connections.json); the spend limit is the case cap (policies.budget)."""
     provider: str
     dedupe_similarity_threshold: int = Field(ge=50, le=100)
     job_timeout_minutes: int = Field(ge=1)
-    max_search_calls_per_language: int = Field(ge=1, default=6)
-    max_fetch_calls_per_language: int = Field(ge=0, default=5)
-    max_followup_rounds: int = Field(ge=0, default=2)
-    minimum_result_novelty: float = Field(ge=0.0, le=1.0, default=0.15)
     min_accept_score: float = Field(ge=0.0, le=1.0, default=0.2)
     default_profile: str = "DEEP_CASE_RESEARCH"
-
-
-class ResearchProfileConfig(BaseModel):
-    """A named research strategy — depth, spend and breadth knobs that
-    research jobs select by name (never hardcoded in code)."""
-
-    model_alias: str
-    search_context_size: str = "medium"
-    max_search_calls_per_language: int = Field(ge=1)
-    max_results_per_search: int = Field(ge=1, le=25)
-    max_fetch_calls_per_language: int = Field(ge=0)
-    max_followup_rounds: int = Field(ge=0)
-    max_cost_usd: float = Field(gt=0.0)
-    minimum_result_novelty: float = Field(ge=0.0, le=1.0, default=0.15)
 
 
 class VideoRelevanceConfig(BaseModel):
@@ -1739,6 +1747,9 @@ class HostConfig(BaseModel):
     heard yet, no stock phrases, nothing repeated from recent episodes)."""
 
     enabled: bool = True
+    # The avatar is part of the system: no film is built or rendered without at least one of its
+    # host scenes (owner decision 2026-10-21).
+    required_for_film: bool = True
     # The persona and its rules (repository-relative markdown file).
     persona_file: str = "persona_master_prompt.md"
     # How the host's time relates to the requested film length: "added" (the story keeps the
@@ -2020,7 +2031,45 @@ class DocumentaryConfig(BaseModel):
         return self.speech_wpm.get(language) or 140
 
 
+class UsgsNaipConfig(BaseModel):
+    """USGS/USDA NAIP aerial imagery (The National Map image service), public domain."""
+
+    export_url: str
+    page_url: str
+    # Web Mercator extent of the service (x0, y0, x1, y1): outside it no image is asked for.
+    extent: list[float] = Field(min_length=4, max_length=4)
+    # Ground width in metres of each aerial image made around a place, and its size in pixels.
+    view_meters: list[int] = Field(min_length=1)
+    size_px: int = Field(ge=256, le=4000)
+    license: str
+    credit: str
+
+
+class NasaConfig(BaseModel):
+    """NASA Image and Video Library (images-api.nasa.gov): no key; public domain unless an item
+    names a third party's copyright."""
+
+    search_url: str
+    asset_url: str
+    page_url: str
+    # File-name markers tried in this order to choose the image file of an item.
+    size_markers: list[str] = Field(min_length=1)
+    license: str
+    credit: str
+
+
+class OpenDataConfig(BaseModel):
+    usgs_naip: UsgsNaipConfig
+    nasa: NasaConfig
+
+
 class VisualSearchConfig(BaseModel):
+    def open_data_settings(self) -> OpenDataConfig:
+        """The open-data providers' settings (visual_search.open_data in visuals.json)."""
+        if self.open_data is None:
+            raise RuntimeError("visual_search.open_data is missing in config/parameters/visuals.json")
+        return self.open_data
+
     providers: list[str] = ["source_pages", "wikimedia"]
     # Part 4b: pages of the original owners named by a video's visual leads,
     # the Brave image search for the case's own people/places/documents, and
@@ -2054,6 +2103,7 @@ class VisualSearchConfig(BaseModel):
     wikipedia_languages: list[str] = []
     wikipedia_api: str = "https://{language}.wikipedia.org/w/api.php"
     max_source_pages: int = Field(default=25, ge=0)
+    open_data: OpenDataConfig | None = None
     max_assets: int = Field(default=120, ge=1)
     min_width: int = Field(default=600, ge=64)
     max_download_mb: float = Field(default=15.0, gt=0)
@@ -2146,6 +2196,9 @@ class DetectiveBoardConfig(BaseModel):
 
     enabled: bool = True
     title_max_words: int = Field(default=5, ge=2, le=10)
+    # The board is planned to the end of the case: at least one card lies in this last share of the
+    # film's beats (never in its very last beat, which has no room left to show it).
+    final_stretch_share: float = Field(default=0.25, gt=0.0, le=1.0)
     min_cards: int = Field(default=4, ge=1, le=20)
     max_cards: int = Field(default=14, ge=1, le=40)
     # beats between two selected card-beats (a turning point is not
@@ -2208,6 +2261,11 @@ class VisualVerificationConfig(BaseModel):
     per_requirement: int = Field(default=5, ge=1, le=20)
     verified_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     reject_below_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
+    # A lower bar for these kinds of subject only (never a person: identity keeps the general bar).
+    verified_min_confidence_by_subject: dict[str, float] = {}
+    # A context verdict (a real picture of the same kind, not the thing itself) needs at least this for
+    # these subjects, where a lookalike of another kind is easy to mistake for the right kind.
+    context_min_confidence_by_subject: dict[str, float] = {}
     thumbnail_px: int = Field(default=768, ge=128)
     # A picture of the right real place or thing in the wrong period (a modern photo of the
     # house) is kept, for these kinds of subject; the auditor still judges it per sentence.
@@ -2234,31 +2292,110 @@ class EditorialReviewConfig(BaseModel):
     thumbnail_px: int = Field(default=768, ge=128)
 
 
-class IllustrationsConfig(BaseModel):
-    """Generated illustrations (clearly drawn, labelled "Illustration", never a photograph) that
-    fill the moments no real picture covers, so no film shows long stretches of cards or black."""
+class StorageBudgetConfig(BaseModel):
+    """Disk use of a case's pictures and clips."""
 
-    enabled: bool = True
-    image_model: str = "gpt-image-2"
-    size: str = "1536x1024"
-    quality: str = "medium"
-    timeout_s: float = Field(default=240.0, gt=0)
-    concurrency: int = Field(default=3, ge=1, le=8)
-    style: str
-    forbidden: str
-    # One picture per this many seconds of a beat is prepared (the director takes what it needs).
-    seconds_per_picture: float = Field(default=7.0, gt=0)
-    max_per_film: int = Field(default=70, ge=0, le=300)
-    # Illustrations never carry more than this share of a film's picture time.
-    max_share: float = Field(default=0.85, gt=0, le=1.0)
+    # Searching stops taking new files once a case holds this much (MB).
+    max_case_mb: float = Field(default=3000.0, gt=0)
+    # Files of a rejected picture are removed this many days after it was found; the metadata and
+    # the reason stay.
+    rejected_retention_days: int = Field(default=14, ge=0)
+
+
+class PlannerLimits(BaseModel):
+    """Queries and aliases the visual planner may keep per entity."""
+
+    max_exact_queries: int = Field(ge=1)
+    max_context_queries: int = Field(ge=0)
+    max_aliases: int = Field(ge=0)
+
+
+class ProductionSearchLimits(BaseModel):
+    # New pictures vision-checked per production-search request, and how fully a stored picture's
+    # text must name an entity before it counts as that entity.
+    verify_per_request: int = Field(ge=0)
+    min_entity_score: float = Field(ge=0.0, le=1.0)
+
+
+class DirectorLimits(BaseModel):
+    # Beats directed per model call (the film is directed in order, chunk after chunk).
+    beats_per_call: int = Field(ge=1)
+
+
+class AudioLimits(BaseModel):
+    max_miss_tags: int = Field(ge=0)
+
+
+class LanguagePipelineLimits(BaseModel):
+    # An inspector whose answer does not validate is asked once more; a second failure fails the stage.
+    inspector_attempts: int = Field(ge=1)
+
+
+class ResearchJobLimits(BaseModel):
+    # How often a film job looks at its research job, and how long it waits for it at most.
+    poll_seconds: float = Field(gt=0)
+    max_hours: float = Field(gt=0)
+
+
+class DiscoveryLimits(BaseModel):
+    # Earlier discovery runs the cost estimate is averaged over.
+    cost_estimate_sample_size: int = Field(ge=1)
+
+
+class SearchLimits(BaseModel):
+    max_query_words: int = Field(ge=1)
+
+
+class LimitsConfig(BaseModel):
+    """Volume and retry limits that bound how much a run searches, checks, asks and pays for
+    (config/parameters/limits.json). The EUR limits are policies.budget and visuals.supply."""
+
+    planner: PlannerLimits
+    production_search: ProductionSearchLimits
+    director: DirectorLimits
+    audio: AudioLimits
+    language_pipeline: LanguagePipelineLimits
+    research_job: ResearchJobLimits
+    discovery: DiscoveryLimits
+    search: SearchLimits
+
+
+class ContactSheetConfig(BaseModel):
+    """The picture sheets of the visual funnel report: how many pictures of each verdict are
+    sampled and how the sheet is laid out."""
+
+    rejected: int = Field(ge=1)
+    verified: int = Field(ge=1)
+    needs_review: int = Field(ge=1)
+    columns: int = Field(ge=1)
+    per_sheet: int = Field(ge=1)
+    thumbnail_px: int = Field(ge=64)
+
+
+class VisualReportConfig(BaseModel):
+    """The visual funnel report (docs/visual_funnel.md)."""
+
+    # The labels a rejection is reported under; any other reason is "other".
+    rejection_reasons: list[str] = Field(min_length=1)
+    contact_sheet: ContactSheetConfig
 
 
 class SupplyConfig(BaseModel):
-    """How many verified real pictures a film needs and how often the search
-    may run to get them (the first research counts as search 1)."""
+    """How many distinct real pictures and cuts a film needs, derived from its editing rhythm, and
+    how long the search may go on to find them (the first research counts as search 1)."""
 
-    seconds_per_real_picture: float = Field(default=40.0, gt=0)
-    max_searches: int = Field(default=3, ge=1, le=3)
+    # Average seconds one still stays on screen.
+    still_shot_seconds: float = Field(default=9.5, gt=0)
+    # How often one real picture may appear (as different crops, never the same crop twice).
+    uses_per_picture: int = Field(default=2, ge=1)
+    # Share of the film's time that is real video cuts, and the average length of a cut.
+    video_share: float = Field(default=0.1, ge=0.0, lt=1.0)
+    video_cut_seconds: float = Field(default=8.0, gt=0)
+    max_searches: int = Field(default=8, ge=1, le=20)
+    # Rounds in a row that add no picture before the search ends.
+    max_empty_rounds: int = Field(default=2, ge=1)
+    # Most the follow-up searches and their vision checks may cost in one supply run (actual EUR).
+    research_cost_cap_eur: float = Field(default=15.0, gt=0)
 
 
 class MusicProviderConfig(BaseModel):
@@ -2361,22 +2498,21 @@ class HostLedShortsConfig(BaseModel):
 
 
 class FillWaysConfig(BaseModel):
-    """The ways, besides illustrations, a gap in the picture track is filled with: they use only
+    """The ways, besides another real picture, a gap in the picture track is filled with: they use only
     what the film and the case already hold (its own pictures, words and facts)."""
 
-    # Tried in this order for every gap; the illustration is always the last way.
-    order: list[Literal["reframe", "split", "board", "text"]] = ["reframe", "split", "board", "text"]
+    # Tried in this order for every gap that no unused real picture fills.
+    order: list[Literal["reframe", "split", "text"]] = ["reframe", "split", "text"]
     # A real picture shown again as a close-up: seconds since it was last on screen, and how
     # often one picture may come back.
     reuse_gap_seconds: float = Field(default=45.0, ge=0)
     max_reuse_per_picture: int = Field(default=2, ge=0)
-    max_per_film: dict[str, int] = {"reframe": 8, "split": 3, "board": 3, "text": 6}
-    # The board "what we know so far": facts shown, facts the viewer must already know, the
-    # story moments (beat purposes) it may come at, and the seconds between two boards.
-    board_facts: int = Field(default=5, ge=2, le=8)
-    board_min_known: int = Field(default=4, ge=1)
-    board_purposes: list[str] = []
-    board_gap_seconds: float = Field(default=120.0, ge=0)
+    max_per_film: dict[str, int] = {"reframe": 8, "split": 3, "text": 6}
+    # The regions of a picture (x0, y0, x1, y1 as fractions) a later appearance may be cropped to,
+    # in the order they are used; a picture never shows the same region twice.
+    crop_regions: list[list[float]] = Field(min_length=1, default_factory=lambda: [
+        [0.05, 0.05, 0.55, 0.55], [0.45, 0.05, 0.95, 0.55], [0.05, 0.45, 0.55, 0.95],
+        [0.45, 0.45, 0.95, 0.95], [0.25, 0.25, 0.75, 0.75]])
     # A spoken sentence becomes a text scene when it holds a quotation mark or a number and has
     # a length within these limits.
     text_min_chars: int = Field(default=20, ge=1)
@@ -2391,14 +2527,16 @@ class CoverageConfig(BaseModel):
     max_card_share: float = Field(default=0.12, ge=0, le=1.0)
     max_black_seconds: float = Field(default=0.0, ge=0)
     # One still (a photo, a map) is never shown longer than this; a longer stretch gets other pictures.
-    max_still_seconds: float = Field(default=12.0, gt=0)
+    max_still_seconds: float = Field(default=20.0, gt=0)
     max_repair_rounds: int = Field(default=3, ge=1, le=10)
     # A black screen in the finished file is black for at least this long (shorter dips are the fades
     # of a card or of the film's start and end).
     black_screen_min_seconds: float = Field(default=1.0, gt=0)
-    # Per gap: pool illustrations the auditor may look at first, then new drawings for the exact words.
+    # Per gap: unused real pictures the auditor may look at, and the length of the pictures a gap is
+    # cut into (the picture track's editing rhythm).
     pool_tries: int = Field(default=2, ge=0, le=6)
-    slot_attempts: int = Field(default=3, ge=1, le=8)
+    fill_piece_seconds: float = Field(default=9.5, gt=0)
+    fill_concurrency: int = Field(default=3, ge=1, le=8)
 
 
 class RightsConfig(BaseModel):
@@ -2411,6 +2549,8 @@ class RightsConfig(BaseModel):
         "publish": ["owned", "licensed", "public_domain", "creative_commons"],
     })
     attribution_required: list[str] = ["creative_commons"]
+    # Providers whose pictures are public domain but ask for a credit: the film shows it.
+    credit_providers: list[str] = []
     # False: rights are no filter. True-crime pictures and footage are taken as public material
     # (owner decision); only relevance to the case, the point in the story and the spoken words
     # decides (the verifier and the auditor). Credits for attribution_required licences stay.
@@ -3031,10 +3171,10 @@ class VisualDirectionConfig(BaseModel):
         "1": 1.0, "2": 0.92, "3": 0.78, "4": 0.55, "5": 0.3})
     # Appearances per film: every picture is shown ONCE (holding it on
     # screen, with its camera move, is one appearance — never a return).
-    max_generic_appearances: int = Field(default=1, ge=1)
-    max_context_appearances: int = Field(default=1, ge=1)
-    max_person_appearances: int = Field(default=1, ge=1)
-    max_evidence_appearances: int = Field(default=1, ge=1)
+    max_generic_appearances: int = Field(default=2, ge=1)
+    max_context_appearances: int = Field(default=2, ge=1)
+    max_person_appearances: int = Field(default=2, ge=1)
+    max_evidence_appearances: int = Field(default=3, ge=1)
     # Part 4 coverage metric: a beat whose share of case-specific picture
     # time is below this is listed as a gap.
     min_beat_coverage: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -3057,6 +3197,11 @@ class VisualDirectionConfig(BaseModel):
     queries_per_request: int = Field(default=3, ge=1, le=6)
     # A sentence is weak when its best candidate is above this tier.
     weak_tier: int = Field(default=3, ge=1, le=5)
+    # Best-ranked candidates the director is offered per requirement of a beat.
+    candidates_per_requirement: int = Field(default=12, ge=1)
+    # A verified picture whose match score reaches this is offered as a fill for a beat (related
+    # tier 3 and context tier 4 pictures count, before anything else is used).
+    fill_min_score: float = Field(default=0.35, ge=0.0, le=1.0)
 
 
 class FootageConfig(BaseModel):
@@ -3088,16 +3233,16 @@ class FootageConfig(BaseModel):
     pieces: bool = True
     max_keep_seconds: float = Field(default=600.0, gt=1)
     proxy_height: int = Field(default=720, ge=240)
-    piece_min_seconds: float = Field(default=4.0, gt=0.5)
+    piece_min_seconds: float = Field(default=3.0, gt=0.5)
     piece_max_seconds: float = Field(default=20.0, gt=2)
     piece_overlap_seconds: float = Field(default=2.0, ge=0.0)
-    max_pieces_per_source: int = Field(default=12, ge=1, le=60)
+    max_pieces_per_source: int = Field(default=30, ge=1, le=60)
     # Footage from other people (the providers below): no clip plays longer than this, and
     # all of it together fills at most this share of the film; our own and licensed
     # pictures carry the story.
-    max_third_party_clip_seconds: float = Field(default=20.0, gt=1)
-    max_third_party_share: float = Field(default=0.15, ge=0.0, le=1.0)
-    third_party_providers: list[str] = ["wikimedia_video", "internet_archive", "film_candidate"]
+    max_third_party_clip_seconds: float = Field(default=24.0, gt=1)
+    max_third_party_share: float = Field(default=0.30, ge=0.0, le=1.0)
+    third_party_providers: list[str] = ["wikimedia_video", "internet_archive", "film_candidate", "youtube_clip"]
     # ffmpeg scene-change score above which a cut is detected (0..1)
     scene_threshold: float = Field(default=0.32, gt=0.0, lt=1.0)
     # The segmenter watches the video in windows of this many seconds
@@ -3290,6 +3435,7 @@ class AIConfig(BaseModel):
     multilingual: MultilingualConfig = Field(default_factory=MultilingualConfig)
     language_pipeline: LanguagePipelineConfig
     video_rights: VideoRightsConfig
+    youtube_clips: YouTubeClipsConfig = Field(default_factory=YouTubeClipsConfig)
     cost_control: CostControlConfig
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     discovery: DiscoveryPolicies = Field(default_factory=DiscoveryPolicies)
@@ -3298,7 +3444,6 @@ class AIConfig(BaseModel):
     evidence_strength: EvidenceStrengthConfig
     follow_up_research: FollowUpResearchConfig
     research: ResearchConfig
-    research_profiles: dict[str, ResearchProfileConfig] = {}
     search_engine: SearchEngineConfig
     youtube_research: YouTubeResearchConfig
     evidence_selection: EvidenceSelectionConfig
@@ -3334,9 +3479,11 @@ class AIConfig(BaseModel):
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
     editorial_review: EditorialReviewConfig = Field(default_factory=EditorialReviewConfig)
-    illustrations: IllustrationsConfig
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
     supply: SupplyConfig = Field(default_factory=SupplyConfig)
+    visual_report: VisualReportConfig | None = None
+    storage_budget: StorageBudgetConfig = Field(default_factory=StorageBudgetConfig)
+    limits: LimitsConfig | None = None
     zoom_map: ZoomMapConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
     shorts_host_led: HostLedShortsConfig = Field(default_factory=HostLedShortsConfig)
@@ -3394,17 +3541,6 @@ class AIConfig(BaseModel):
             raise ValueError(f"generation settings define unknown roles: {sorted(unknown)}")
         rp = self.research_provider()
         if rp.type == "llm":
-            aliases = set(rp.models)
-            bad_profiles = {
-                name: p.model_alias
-                for name, p in self.research_profiles.items()
-                if p.model_alias not in aliases
-            }
-            if bad_profiles:
-                raise ValueError(
-                    f"research_profiles route to unknown model aliases: "
-                    f"{bad_profiles}. Known aliases: {sorted(aliases)}"
-                )
             # Capability-vs-routing check (Part 20): roles that must
             # search or fetch the web need the capability on the routed
             # RESEARCH model or one of its configured fallbacks.
@@ -3564,6 +3700,18 @@ class AIConfig(BaseModel):
         if self.zoom_map is None:
             raise RuntimeError("config/parameters/zoom_map.json is missing")
         return self.zoom_map
+
+    def limits_settings(self) -> LimitsConfig:
+        """The volume and retry limits (config/parameters/limits.json)."""
+        if self.limits is None:
+            raise RuntimeError("config/parameters/limits.json is missing")
+        return self.limits
+
+    def visual_report_settings(self) -> VisualReportConfig:
+        """The visual funnel report's settings (config/parameters/visuals.json)."""
+        if self.visual_report is None:
+            raise RuntimeError("visual_report is missing in config/parameters/visuals.json")
+        return self.visual_report
 
     def autopilot_settings(self) -> AutopilotConfig:
         """The Start button's settings (config/parameters/autopilot.json)."""

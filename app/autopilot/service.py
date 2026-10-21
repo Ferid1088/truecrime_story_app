@@ -49,8 +49,10 @@ def estimate_for_candidate(db: Session, cand: DiscoveryCandidate, languages: lis
     langs = _check_languages(languages)
     case = Case(canonical_title=cand.title, slug="estimate", language="en")
     result = documentary_estimate(db, case, langs)
+    research = sum(line["eur"]["expected"] for line in result["lines"]
+                   if line["stage"] in ("visual_search", "visual_check", "visual_second_pass"))
     return {"languages": langs, "cap_eur": float(ai_config.budget.total_cap_eur),
-            "estimated_eur": result["totals"]["expected"],
+            "estimated_eur": result["totals"]["expected"], "visual_research_eur": round(research, 2),
             "range_eur": {"low": result["totals"]["low"], "high": result["totals"]["high"]},
             "pricing_last_verified": result["pricing_last_verified"],
             "price_warnings": result["price_warnings"]}

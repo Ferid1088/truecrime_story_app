@@ -7,64 +7,8 @@
     "provider": "truecrime",
     "dedupe_similarity_threshold": 85,
     "job_timeout_minutes": 45,
-    "max_search_calls_per_language": 6,
-    "max_fetch_calls_per_language": 5,
-    "max_followup_rounds": 2,
-    "minimum_result_novelty": 0.15,
     "default_profile": "DEEP_CASE_RESEARCH",
     "min_accept_score": 0.2
-  },
-  "research_profiles": {
-    "FAST_DISCOVERY": {
-      "model_alias": "research",
-      "search_context_size": "low",
-      "max_search_calls_per_language": 2,
-      "max_results_per_search": 6,
-      "max_fetch_calls_per_language": 1,
-      "max_followup_rounds": 0,
-      "max_cost_usd": 0.2,
-      "minimum_result_novelty": 0.2
-    },
-    "LOW_COST_RESEARCH": {
-      "model_alias": "research",
-      "search_context_size": "medium",
-      "max_search_calls_per_language": 3,
-      "max_results_per_search": 6,
-      "max_fetch_calls_per_language": 2,
-      "max_followup_rounds": 1,
-      "max_cost_usd": 0.5,
-      "minimum_result_novelty": 0.15
-    },
-    "DEEP_CASE_RESEARCH": {
-      "model_alias": "research",
-      "search_context_size": "high",
-      "max_search_calls_per_language": 6,
-      "max_results_per_search": 10,
-      "max_fetch_calls_per_language": 5,
-      "max_followup_rounds": 2,
-      "max_cost_usd": 1.5,
-      "minimum_result_novelty": 0.15
-    },
-    "TRANSCRIPT_RESEARCH": {
-      "model_alias": "research",
-      "search_context_size": "medium",
-      "max_search_calls_per_language": 4,
-      "max_results_per_search": 8,
-      "max_fetch_calls_per_language": 3,
-      "max_followup_rounds": 1,
-      "max_cost_usd": 0.8,
-      "minimum_result_novelty": 0.15
-    },
-    "TARGETED_GAP_RESEARCH": {
-      "model_alias": "research",
-      "search_context_size": "high",
-      "max_search_calls_per_language": 4,
-      "max_results_per_search": 8,
-      "max_fetch_calls_per_language": 3,
-      "max_followup_rounds": 2,
-      "max_cost_usd": 0.6,
-      "minimum_result_novelty": 0.2
-    }
   },
   "youtube_research": {
     "languages": [

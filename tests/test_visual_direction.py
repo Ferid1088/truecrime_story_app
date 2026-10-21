@@ -86,8 +86,8 @@ def test_planner_entities_carry_type_aliases_exact_and_context_queries():
     # exact queries (by need) before every context query
     assert [x["kind"] for x in q] == ["exact"] * 3 + ["context"] * 3
     assert q[0] == {"query": "Anna Keller Stendal", "entity": "anna_keller",
-                    "entities": ["anna_keller"], "entity_type": "person", "kind": "exact",
-                    "footage": False}
+                    "entities": ["anna_keller"], "entity_name": "Anna Keller", "entity_type": "person",
+                    "kind": "exact", "footage": False}
     assert q[1]["entity"] == "forest" and q[1]["footage"] is True
     assert q[3]["query"] == "pine forest Altmark" and q[3]["entity_type"] == "place"
     assert [x["query"] for x in research_queries(reqs, max_queries=4)][-1] == "pine forest Altmark"
@@ -381,7 +381,7 @@ def _usage_case():
     return m, plan
 
 
-def test_no_picture_appears_twice(monkeypatch):
+def test_no_picture_appears_twice(monkeypatch, once_per_film):
     """Every picture is shown once per film: a planned return is swapped
     for an unused picture, or the picture on screen holds."""
     # repetition only: the 30 s holds stay holds (long holds are tested elsewhere)
@@ -405,7 +405,7 @@ def test_no_picture_appears_twice(monkeypatch):
     assert all(x["usage"]["appearance"] == 1 for x in shots)
 
 
-def test_media_usage_rows_record_reasons_and_appearances(db_session, tmp_path, monkeypatch):
+def test_media_usage_rows_record_reasons_and_appearances(db_session, tmp_path, monkeypatch, once_per_film):
     monkeypatch.setattr(ai_config.documentary, "storage_dir", str(tmp_path / "cases"))
     case, master = _story(db_session)
     assets = _usage_assets()
@@ -460,7 +460,15 @@ def test_fills_prefer_unused_pictures_and_never_repeat_a_generic_one():
         "asset_id" in x for x in s["shots"]) else True
 
 
-def test_tracker_limits_per_category():
+@pytest.fixture
+def once_per_film(monkeypatch):
+    """The strictest setting of the appearance limits: every picture once per film."""
+    for name in ("max_generic_appearances", "max_context_appearances", "max_person_appearances",
+                 "max_evidence_appearances"):
+        monkeypatch.setattr(ai_config.visual_direction, name, 1)
+
+
+def test_tracker_limits_per_category(once_per_film):
     vd = ai_config.visual_direction
     f = {"G": {"asset_id": "G", "type": "photo", "tier": 5, "entities": []},
          "C": {"asset_id": "C", "type": "photo", "tier": 3, "role": "context", "entities": []},
@@ -603,7 +611,7 @@ def test_variety_check_runs_in_review_against_other_cases(db_session, monkeypatc
     assert not any(i.get("fix") for i in flagged)   # reported, never auto-fixed
 
 
-def test_repetition_critic_replaces_unjustified_repeats_through_the_tracker():
+def test_repetition_critic_replaces_unjustified_repeats_through_the_tracker(once_per_film):
     assets = _usage_assets()
     shots = [
         {"index": 0, "kind": "image", "asset_id": "VIS_000012", "start": 0.0, "end": 10.0,
@@ -846,7 +854,8 @@ def test_found_picture_lands_on_its_sentence_even_when_the_director_ignores_it()
 
 def test_requests_are_bounded_and_skippable(db_session, monkeypatch):
     weak = [{"beat_id": "B01", "from_sentence": i, "entity": f"e{i}", "entity_name": f"Thing {i}",
-             "queries": [], "why": "x", "source": "entity_gap"} for i in range(30)]
+             "queries": [], "why": "x", "source": "entity_gap"}
+            for i in range(ai_config.visual_direction.max_search_requests + 5)]
     case = type("C", (), {"location": "Stendal, Germany", "country": "Germany"})()
     reqs = build_requests(weak, {"entities": []}, case)
     vd = ai_config.visual_direction
@@ -884,7 +893,9 @@ def test_pipeline_runs_the_gap_stage_and_records_usage(db_session, documentary_e
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
-    assert job.status == "completed", (job.error, stages)
+    assert job.status in ("completed", "completed_warnings"), (job.error, stages)
+    assert all(s["status"] in ("done", "skipped") or name == "visual_check" for name, s in stages.items()
+               if not name.startswith("short_"))
     gaps = stages["visual_gaps"]["detail"]
     assert stages["visual_gaps"]["status"] == "done" and "requests" in gaps
     if gaps["requests"]:

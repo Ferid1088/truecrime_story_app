@@ -848,6 +848,27 @@ def set_editorial_review(body: AutoReviewBody, db: Session = Depends(get_db)):
     return {"enabled": ER.set_auto_review(db, body.enabled)}
 
 
+class YouTubeClipsBody(BaseModel):
+    enabled: bool
+
+
+@router.get("/api/documentary/visuals/youtube-clips")
+def youtube_clips_overview(db: Session = Depends(get_db)):
+    """The owner's "YouTube clip downloader" switch (off until the owner turns it on)."""
+    from app.documentary.visuals import youtube_clips as YC
+
+    cfg = ai_config.youtube_clips
+    return {"enabled": YC.enabled(db), "max_clip_seconds": cfg.max_clip_seconds, "max_share": cfg.max_share,
+            "max_source_seconds": cfg.max_source_seconds}
+
+
+@router.put("/api/documentary/visuals/youtube-clips")
+def set_youtube_clips(body: YouTubeClipsBody, db: Session = Depends(get_db)):
+    from app.documentary.visuals import youtube_clips as YC
+
+    return {"enabled": YC.set_enabled(db, body.enabled)}
+
+
 @router.get("/api/documentary/visuals/editorial-review/decisions")
 def editorial_review_decisions(case_id: int | None = None, verdict: str | None = None,
                                limit: int = 100, db: Session = Depends(get_db)):
@@ -1078,6 +1099,36 @@ def production_subtitles(ps_id: int, db: Session = Depends(get_db)):
     path = storage.resolve((info or {}).get("srt"))
     return serve_file(path, "text/plain; charset=utf-8", filename=path.name if path else None,
                       missing="Not rendered yet")
+
+
+@router.get("/api/documentary/production/{ps_id}/sources.csv")
+def production_sources(ps_id: int, db: Session = Depends(get_db)):
+    """Every picture and clip of the film with its source, rights status, credit and clip range."""
+    from fastapi.responses import Response
+
+    from app.documentary import sources_export
+
+    ps = _ps(db, ps_id)
+    return Response(sources_export.csv_text(db, ps), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="film_{ps.id}_sources.csv"'})
+
+
+@router.get("/api/cases/{case_id}/visuals/storage")
+def visual_storage(case_id: int, db: Session = Depends(get_db)):
+    """Disk use of the case's pictures against its budget."""
+    from app.documentary.visuals import storage_budget
+
+    _case(db, case_id)
+    return storage_budget.usage(db, case_id)
+
+
+@router.post("/api/cases/{case_id}/visuals/storage/purge")
+def purge_visual_storage(case_id: int, db: Session = Depends(get_db)):
+    """Remove the files of rejected pictures past the retention period (their metadata stays)."""
+    from app.documentary.visuals import storage_budget
+
+    _case(db, case_id)
+    return storage_budget.purge_rejected(db, case_id)
 
 
 @router.get("/api/documentary/music")

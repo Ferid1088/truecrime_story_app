@@ -394,20 +394,20 @@ def _deny_outbound_network_in_hermetic_runs(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _no_illustrations_and_open_coverage_unless_a_test_asks(request, monkeypatch):
-    """The pipeline tests run films made of fakes (black pauses, long holds): illustrations are off
-    (they call an image model) and the picture-track limits are open. The tests of the illustrations
-    and of the coverage gate use the real limits."""
+def _open_coverage_unless_a_test_asks(request, monkeypatch):
+    """The pipeline tests run films made of fakes (black pauses, long holds): the picture-track
+    limits are open. The tests of the coverage gate use the real limits."""
     from app.core.ai_config import ai_config
 
     monkeypatch.setattr(ai_config.rights, "enforce", "rights_not_a_filter" not in request.node.nodeid)
+    # the pipeline tests run without HeyGen: the avatar rule has its own tests ("avatar_required")
+    monkeypatch.setattr(ai_config.host, "required_for_film", "avatar_required" in request.node.nodeid)
     if "research_supply" not in request.node.nodeid:
         monkeypatch.setattr(ai_config.visual_search, "max_expansions_per_entity", 0)
     if "zoom_map" not in request.node.nodeid:   # the zoom maps (browser, open data) have their own tests
         monkeypatch.setattr(ai_config.zoom_map, "enabled", False)
     if "coverage_fill" in request.node.nodeid or "editorial_review" in request.node.nodeid:
         return
-    monkeypatch.setattr(ai_config.illustrations, "enabled", False)
     for field in ("max_card_stretch_seconds", "max_black_seconds", "max_still_seconds"):
         monkeypatch.setattr(ai_config.coverage, field, 1e9)
     monkeypatch.setattr(ai_config.coverage, "max_card_share", 1.0)

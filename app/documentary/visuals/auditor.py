@@ -37,17 +37,15 @@ are audited again.
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
-from typing import TYPE_CHECKING
 import hashlib
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import (
     Case,
     EditorialBlueprint,
@@ -236,7 +234,7 @@ def _black(s: dict) -> None:
     s.update({"kind": "black", "command": "BLACK_SCREEN", "motion": "NONE"})
 
 
-async def audit_script(db: Session, row: ProductionScript, auditor: "VisualAuditor | None" = None
+async def audit_script(db: Session, row: ProductionScript, auditor: VisualAuditor | None = None
                        ) -> dict:
     """Audit (and repair) one language's production script. Writes the
     approved script back and the report to row.audit_json."""

@@ -534,6 +534,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     runs: [] as Record<string, unknown>[],
   };
   let dashboardCalls = 0;
+  let youtubeClips = false;
 
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
@@ -587,6 +588,13 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       return json(route, [
         { id: 7, at: "2026-10-11T09:00:00Z", host: "api.voice.example", method: "POST", path: "/v1/tts", status: 503, ok: false, duration_ms: 310, tokens_in: null, tokens_out: null, cost_usd: null, error: null, request_id: "abc123def456" },
       ]);
+    if (path === "/api/documentary/visuals/youtube-clips") {
+      if (method === "PUT") {
+        youtubeClips = JSON.parse(route.request().postData() ?? "{}").enabled === true;
+        return json(route, { enabled: youtubeClips });
+      }
+      return json(route, { enabled: youtubeClips, max_clip_seconds: 16, max_share: 0.08, max_source_seconds: 1800 });
+    }
     if (path === "/api/auth/session") return json(route, { authenticated: true, auth_required: false });
     if (path === "/api/dashboard") {
       dashboardCalls += 1;

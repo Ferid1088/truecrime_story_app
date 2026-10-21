@@ -5,7 +5,6 @@ not touched:
   reframe  a real picture the film showed earlier comes back as a close-up (spaced apart, a limited
            number of times, and the visual auditor must approve it for the exact words);
   split    two opposing accounts side by side, in the beat that tells the contradiction;
-  board    "what we know so far": facts the story has already told;
   text     a spoken sentence with a quotation or a number, set large on a dark ground.
 Every card is drawn from the film's own words or the case's own facts; headings and facts are in
 the film's language. Each way keeps its own cap per film (visuals.fill_ways)."""
@@ -23,19 +22,21 @@ from app.core.ai_config import ai_config
 from app.core.prompts import prompt
 from app.db.models import Case, Contradiction, Fact, Source, VisualAsset
 from app.documentary import storage
+from app.documentary.visuals import crops
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import scene_cards as SC
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import next_asset_code
+from app.documentary.visuals.usage import asset_facts, category, limit_of
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
 PROVIDER = "generated"
+# Characters of the narrated words a close-up keeps as its own anchor.
+ANCHOR_CHARS = 240
 KIND = "fill_card"
 SIDES_SYSTEM = prompt("documentary/visuals/fill/contradiction_sides_system")
-HEADINGS = {"board": "What we know so far", "split": "Two accounts"}
-QUADRANTS = ((0.05, 0.05, 0.55, 0.55), (0.45, 0.05, 0.95, 0.55), (0.05, 0.45, 0.55, 0.95),
-             (0.45, 0.45, 0.95, 0.95), (0.25, 0.25, 0.75, 0.75))
+HEADINGS = {"split": "Two accounts"}
 
 
 def quote_worthy(text: str) -> bool:
@@ -47,22 +48,6 @@ def quote_worthy(text: str) -> bool:
     return any(c in text for c in cfg.quote_marks) or bool(re.search(r"\d", text))
 
 
-def crop_box(width: int, height: int, n: int) -> list[int]:
-    """The close-up's region of the picture in pixels: a different part for every return."""
-    x0, y0, x1, y1 = QUADRANTS[n % len(QUADRANTS)]
-    return [int(x0 * width), int(y0 * height), int(x1 * width), int(y1 * height)]
-
-
-def known_facts(blueprint: dict, beat: str, limit: int) -> list[str]:
-    """Fact ids the story has revealed up to and including `beat`, the latest `limit` of them."""
-    ids: list[str] = []
-    for b in blueprint.get("beats") or []:
-        ids += [x for x in b.get("reveals") or [] if re.fullmatch(r"F\d+", x) and x not in ids]
-        if b["id"] == beat:
-            break
-    return ids[-limit:]
-
-
 class FillWays:
     def __init__(self, db: Session, case: Case, script: dict, blueprint: dict, shots: list[dict],
                  auditor):
@@ -71,13 +56,15 @@ class FillWays:
         self.language = script.get("language") or "en"
         self.beats = {b["id"]: b for b in blueprint.get("beats") or []}
         self.done: dict[str, int] = defaultdict(int)
-        self.boards: list[float] = []
         self.splits: set[str] = set()
         self.appear: dict[str, list[tuple[float, float]]] = defaultdict(list)
         self.returns: dict[str, int] = defaultdict(int)
+        self.regions: dict[str, set[int]] = defaultdict(set)
         for s in shots:
             if s.get("kind") == "image" and s.get("asset_id"):
                 self.appear[s["asset_id"]].append((s["start"], s["end"]))
+                if s.get("crop_region") is not None:
+                    self.regions[s["asset_id"]].add(s["crop_region"])
         self.assets = {a.asset_code: a for a in db.query(VisualAsset).filter(
             VisualAsset.case_id == case.id, VisualAsset.asset_code.in_(list(self.appear)))}
         self._pack: dict | None = None
@@ -132,7 +119,10 @@ class FillWays:
             a = self.assets.get(code)
             if (a is None or a.provider == PROVIDER or a.asset_type != "photo"
                     or a.asset_role not in ("evidence", "context")
-                    or self.returns[code] >= self.cfg.max_reuse_per_picture):
+                    or self.returns[code] >= self.cfg.max_reuse_per_picture
+                    or len(spans) >= limit_of(category(asset_facts(a)))
+                    or json.loads(a.verification_json or "{}").get("watermark")
+                    or self._region(a, code) is None):
                 continue
             if any(slot[0] < e + gap and slot[1] > s - gap for s, e in spans):
                 continue
@@ -143,10 +133,27 @@ class FillWays:
             verdict, shown_as, reasons = await self.auditor.check(
                 self.db, self.case, a, sentences, story, firewall)
             if verdict == "approved":
+                region = self._region(a, code)
+                assert region is not None, "a picture without a free region is not a candidate"
                 self.returns[code] += 1
                 self.appear[code].append(slot)
-                return {"asset": a, "as": shown_as, "reasons": reasons, "reframe": self.returns[code] - 1}
+                self.regions[code].add(region)
+                return {"asset": a, "as": shown_as, "reasons": reasons, "region": region,
+                        "anchor": " ".join(sentences)[:ANCHOR_CHARS]}
         return None
+
+    def _region(self, a: VisualAsset, code: str) -> int | None:
+        """The part of the picture its next return shows: the face for a person, else a region it
+        has not shown yet; None when nothing new is left to show."""
+        if a.subject_type == "person":
+            return None if crops.FACE in self.regions[code] or not self._face(a) else crops.FACE
+        return crops.free_region(self.regions[code])
+
+    @staticmethod
+    def _face(a: VisualAsset):
+        from app.documentary.production.script import _focus
+
+        return _focus(a.local_path)
 
     async def _split(self, slot, beat, sentences, story, firewall, names) -> dict | None:
         revealed = [x for x in (self.beats.get(beat) or {}).get("reveals") or []
@@ -178,23 +185,6 @@ class FillWays:
             return None
         return {"left": {k: str(left[k]).strip() for k in ("who", "says")},
                 "right": {k: str(right[k]).strip() for k in ("who", "says")}}
-
-    async def _board(self, slot, beat, sentences, story, firewall, names) -> dict | None:
-        node = self.beats.get(beat) or {}
-        known = [x for x in node.get("viewer_knows") or [] if re.fullmatch(r"F\d+", x)]
-        if (node.get("purpose") not in self.cfg.board_purposes or len(known) < self.cfg.board_min_known
-                or any(abs(slot[0] - t) < self.cfg.board_gap_seconds for t in self.boards)):
-            return None
-        claims = {f["id"]: f["claim"] for f in self.pack()["facts"]}
-        ids = [i for i in known_facts(self.blueprint, beat, self.cfg.board_facts) if i in claims]
-        if len(ids) < 2:
-            return None
-        self.boards.append(slot[0])
-        items = {f"board_{n}": claims[i][:160] for n, i in enumerate(ids)}
-        texts = await self.localized(items)
-        img = SC.board(await self.heading("board"), [texts[k] for k in items], self.language)
-        return {"asset": self._card(img, f"board|{beat}|{self.language}", beat, "What we know so far"),
-                "as": "context", "reasons": ["facts the story has already told"]}
 
     async def _text(self, slot, beat, sentences, story, firewall, names) -> dict | None:
         if slot[1] - slot[0] < 3.0:

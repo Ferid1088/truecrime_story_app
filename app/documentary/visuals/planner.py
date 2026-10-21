@@ -26,9 +26,6 @@ Visual Director, the gap check and the repetition control all ask it
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
 import re
 import unicodedata
 from collections import Counter
@@ -37,8 +34,12 @@ from sqlalchemy.orm import Session
 
 from app.agents.story import build_evidence_pack
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import (
-    Case, Contradiction, Fact, Source,
+    Case,
+    Contradiction,
+    Fact,
+    Source,
 )
 
 ENTITY_TYPES = {"person", "place", "building", "vehicle", "object", "document",
@@ -49,9 +50,6 @@ TYPE_ALIASES = {"landscape": "place", "location": "place", "city": "place",
 # Moving pictures help where something moves or happens (a town, a search,
 # a trial): the default when the planner says nothing.
 FOOTAGE_TYPES = {"place", "event"}
-MAX_EXACT_QUERIES = 4
-MAX_CONTEXT_QUERIES = 3
-MAX_ALIASES = 5
 PURPOSES = {"human_connection", "orientation", "evidence", "atmosphere", "time",
             "investigation", "emotion", "transition"}
 PRIORITIES = {"high", "medium", "low"}
@@ -100,9 +98,9 @@ def _clean_entity(e: dict) -> tuple[str, dict]:
     return key, {
         "key": key, "type": etype, "name": name,
         "period": (str(e.get("period"))[:40] if e.get("period") else None),
-        "aliases": _strings(e.get("aliases"), MAX_ALIASES, 80),
-        "search_queries": _strings(e.get("search_queries"), MAX_EXACT_QUERIES) or [name[:120]],
-        "context_queries": _strings(e.get("context_queries"), MAX_CONTEXT_QUERIES),
+        "aliases": _strings(e.get("aliases"), ai_config.limits_settings().planner.max_aliases, 80),
+        "search_queries": _strings(e.get("search_queries"), ai_config.limits_settings().planner.max_exact_queries) or [name[:120]],
+        "context_queries": _strings(e.get("context_queries"), ai_config.limits_settings().planner.max_context_queries),
         "footage": footage if isinstance(footage, bool) else etype in FOOTAGE_TYPES,
     }
 
@@ -232,7 +230,7 @@ def query_item(entity: dict, query: str, kind: str = "exact") -> dict:
     tier), exact or context, and whether footage is searched too."""
     etype = entity.get("type") or "object"
     return {"query": query, "entity": entity["key"], "entities": [entity["key"]],
-            "entity_type": etype, "kind": "context" if kind == "context" else "exact",
+            "entity_name": entity.get("name"), "entity_type": etype, "kind": "context" if kind == "context" else "exact",
             "footage": bool(entity.get("footage", etype in FOOTAGE_TYPES))}
 
 

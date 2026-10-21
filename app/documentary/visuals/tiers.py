@@ -108,10 +108,10 @@ def verified_why(asset, verification: dict | None,
     role = v.get("role") if v.get("role") in ("evidence", "context", "illustration") \
         else getattr(asset, "asset_role", None)
     matches = v.get("matches_claim")
-    if matches == "stand_in":
+    if matches in ("context", "stand_in"):
         if role == "context":
-            return 4, "verifier: stand-in of the same kind from the case's region/period"
-        return 5, "verifier: stand-in illustration (labelled on screen)"
+            return 4, "verifier: real picture of the same kind of place or thing (context)"
+        return 5, "verifier: generic atmosphere picture"
     if matches == "composite":
         if role == "evidence":
             return 2, "verified: composite image of multiple exact case entities"

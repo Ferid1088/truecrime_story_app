@@ -6,16 +6,14 @@ names, labels) is localized per language at production time.
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
-
-from app.core.prompts import prompt
-
 import json
 import re
 
 from sqlalchemy.orm import Session
 
+from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import Case, Source, VisualAsset, VisualPlan
 from app.documentary import storage
 from app.documentary.visuals import images as IM

@@ -5,14 +5,16 @@
       "wikimedia",
       "brave_images",
       "lead_sources",
-      "brave_video_links"
+      "brave_video_links",
+      "usgs_naip",
+      "nasa"
     ],
     "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
     "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
     "max_queries": 150,
     "max_candidates_per_query": 15,
     "max_source_pages": 25,
-    "max_assets": 400,
+    "max_assets": 1500,
     "min_width": 600,
     "max_download_mb": 15,
     "request_timeout_s": 25,
@@ -109,7 +111,38 @@
       "de",
       "fr",
       "es"
-    ]
+    ],
+    "open_data": {
+      "usgs_naip": {
+        "export_url": "https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage",
+        "page_url": "https://www.usgs.gov/centers/eros/science/usgs-eros-archive-aerial-photography-national-agriculture-imagery-program-naip",
+        "extent": [
+          -13896162.9,
+          2812730.7,
+          -7441890.6,
+          6372359.7
+        ],
+        "view_meters": [
+          500,
+          2000
+        ],
+        "size_px": 2000,
+        "license": "Public Domain (USGS/USDA NAIP)",
+        "credit": "USGS, USDA, The National Map: Orthoimagery"
+      },
+      "nasa": {
+        "search_url": "https://images-api.nasa.gov/search",
+        "asset_url": "https://images-api.nasa.gov/asset/{nasa_id}",
+        "page_url": "https://images.nasa.gov/details/{nasa_id}",
+        "size_markers": [
+          "~large",
+          "~medium",
+          "~orig"
+        ],
+        "license": "Public Domain (NASA media usage guidelines)",
+        "credit": "NASA"
+      }
+    }
   },
   "visual_verification": {
     "per_requirement": 12,
@@ -131,7 +164,18 @@
       "map",
       "vehicle",
       "event"
-    ]
+    ],
+    "verified_min_confidence_by_subject": {
+      "place": 0.6,
+      "building": 0.6,
+      "landscape": 0.6,
+      "object": 0.6,
+      "document": 0.6,
+      "map": 0.6
+    },
+    "context_min_confidence_by_subject": {
+      "object": 0.7
+    }
   },
   "rights": {
     "allowed_for_render": {
@@ -152,7 +196,12 @@
     "attribution_required": [
       "creative_commons"
     ],
-    "enforce": false
+    "enforce": false,
+    "credit_providers": [
+      "usgs_naip",
+      "nasa",
+      "youtube_clip"
+    ]
   },
   "maps": {
     "tile_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -169,10 +218,10 @@
       "4": 0.55,
       "5": 0.3
     },
-    "max_generic_appearances": 1,
-    "max_context_appearances": 1,
-    "max_person_appearances": 1,
-    "max_evidence_appearances": 1,
+    "max_generic_appearances": 2,
+    "max_context_appearances": 2,
+    "max_person_appearances": 2,
+    "max_evidence_appearances": 3,
     "min_repeat_gap_seconds": 45.0,
     "min_beat_coverage": 0.5,
     "cut_pattern": [
@@ -188,9 +237,11 @@
     "max_shots_per_beat": 14,
     "first_map_not_before_seconds": 20.0,
     "production_search": true,
-    "max_search_requests": 12,
+    "max_search_requests": 40,
     "queries_per_request": 3,
-    "weak_tier": 3
+    "weak_tier": 3,
+    "candidates_per_requirement": 12,
+    "fill_min_score": 0.35
   },
   "footage": {
     "enabled": true,
@@ -210,21 +261,22 @@
     "pieces": true,
     "max_keep_seconds": 600.0,
     "proxy_height": 720,
-    "piece_min_seconds": 4.0,
+    "piece_min_seconds": 3.0,
     "piece_max_seconds": 20.0,
     "piece_overlap_seconds": 2.0,
-    "max_pieces_per_source": 12,
+    "max_pieces_per_source": 30,
     "scene_threshold": 0.32,
     "segment_window_seconds": 90.0,
     "segment_fps": 0.5,
     "segment_frame_width": 256,
     "snap_seconds": 0.6,
-    "max_third_party_clip_seconds": 20.0,
-    "max_third_party_share": 0.15,
+    "max_third_party_clip_seconds": 24.0,
+    "max_third_party_share": 0.3,
     "third_party_providers": [
       "wikimedia_video",
       "internet_archive",
-      "film_candidate"
+      "film_candidate",
+      "youtube_clip"
     ],
     "fiction_markers": [
       "netflix",
@@ -284,58 +336,98 @@
     "max_per_run": 120,
     "approver_label": "auto-review"
   },
-  "illustrations": {
-    "enabled": true,
-    "image_model": "gpt-image-2",
-    "size": "1536x1024",
-    "quality": "medium",
-    "timeout_s": 240.0,
-    "concurrency": 3,
-    "style": "dark charcoal and ink engraving in the style of a 19th-century newspaper print, fine hatching, muted sepia and grey tones, wide 16:9 composition",
-    "forbidden": "no people's faces (figures only as small distant silhouettes or from behind), no readable text or letters, no logos, no violence, no blood, no bodies, no modern objects",
-    "seconds_per_picture": 7.0,
-    "max_per_film": 70,
-    "max_share": 0.85
-  },
   "coverage": {
     "max_card_stretch_seconds": 6.0,
     "max_card_share": 0.12,
     "max_black_seconds": 0.0,
-    "max_still_seconds": 12.0,
+    "max_still_seconds": 20.0,
     "max_repair_rounds": 3,
-    "black_screen_min_seconds": 1.0
+    "black_screen_min_seconds": 1.0,
+    "fill_piece_seconds": 9.5,
+    "fill_concurrency": 3,
+    "pool_tries": 6
   },
   "supply": {
-    "seconds_per_real_picture": 40.0,
-    "max_searches": 3
+    "still_shot_seconds": 9.5,
+    "uses_per_picture": 2,
+    "video_share": 0.1,
+    "video_cut_seconds": 8.0,
+    "max_searches": 8,
+    "max_empty_rounds": 2,
+    "research_cost_cap_eur": 30.0
   },
   "fill_ways": {
     "order": [
       "reframe",
       "split",
-      "board",
       "text"
     ],
     "reuse_gap_seconds": 45.0,
     "max_reuse_per_picture": 2,
     "max_per_film": {
-      "reframe": 8,
+      "reframe": 40,
       "split": 3,
-      "board": 3,
       "text": 6
     },
-    "board_facts": 5,
-    "board_min_known": 4,
-    "board_purposes": [
-      "transition",
-      "timeline",
-      "investigation",
-      "evidence",
-      "recovery"
-    ],
-    "board_gap_seconds": 120.0,
     "text_min_chars": 20,
     "text_max_chars": 160,
-    "quote_marks": "\"«»“”„"
+    "quote_marks": "\"«»“”„",
+    "crop_regions": [
+      [
+        0.05,
+        0.05,
+        0.55,
+        0.55
+      ],
+      [
+        0.45,
+        0.05,
+        0.95,
+        0.55
+      ],
+      [
+        0.05,
+        0.45,
+        0.55,
+        0.95
+      ],
+      [
+        0.45,
+        0.45,
+        0.95,
+        0.95
+      ],
+      [
+        0.25,
+        0.25,
+        0.75,
+        0.75
+      ]
+    ]
+  },
+  "visual_report": {
+    "rejection_reasons": [
+      "watermark",
+      "does_not_match",
+      "low_confidence",
+      "graphic_or_sensitive",
+      "tone",
+      "context_person",
+      "stand_in_person",
+      "no_verdict",
+      "download_too_large"
+    ],
+    "contact_sheet": {
+      "rejected": 60,
+      "verified": 20,
+      "needs_review": 20,
+      "columns": 5,
+      "thumbnail_px": 288,
+      "per_sheet": 20
+    }
+  },
+  "storage_budget": {
+    "max_case_mb": 3000.0,
+    "rejected_retention_days": 14
   }
 }

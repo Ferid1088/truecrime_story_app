@@ -12,6 +12,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, Source, VisualAsset, VisualLead
 from app.documentary import storage
 from app.documentary.visuals import images as IM
+from app.documentary.visuals import storage_budget
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import (
@@ -31,9 +32,38 @@ from app.documentary.visuals.research import (
     source_candidate_has_relevance,
     store_video_links,
 )
+from app.documentary.visuals.open_data import NasaProvider, UsgsNaipProvider
+from app.documentary.visuals.search_log import SearchLedger
+from app.services.budget import BudgetService
+from app.services.cost_model import load_pricing
+
+# Providers whose every request is billed (booked to the case's cost ledger).
+MB = 1024 * 1024
+PAID_SEARCH_PROVIDERS = ("brave_images",)
 
 
 class VisualResearchAgent:
+    def _book_search(self, money: BudgetService, case_id: int, provider: str) -> None:
+        """One billed search request, at the configured per-request price. The image-search
+        price is not published separately: it is booked at the web-search price and marked so."""
+        price = load_pricing()["search"]["brave_web"]
+        money.record(case_id=case_id, stage="visual_search", model=provider, units=1.0,
+                     cost_usd=float(price["usd_per_request"]), cost_eur=float(price["eur_per_request"]),
+                     estimated=True, cost_source="assumed_web_price")
+
+    @staticmethod
+    def _record_refused(db: Session, case: Case, c: Candidate, status: str, rights_reason: str,
+                        limit_mb: float, found_during: str) -> None:
+        """A download over the size limit stays visible: a rejected row with its source and the reason."""
+        db.add(VisualAsset(
+            case_id=case.id, asset_code=next_asset_code(db), asset_type=c.asset_type, title=c.title,
+            caption=c.caption, provider=c.provider, source_url=c.url, page_url=c.page_url,
+            source_name=c.source_name, found_for=c.found_for, license=c.license, credit=c.credit,
+            rights_status=status, rights_reason=rights_reason, verification_status="rejected",
+            verification_json=json.dumps({"reason": "download_too_large", "limit_mb": limit_mb}),
+            entity_key=c.entity_key, entity_type=c.entity_type, found_during=found_during))
+        db.commit()
+
     def __init__(self, client: httpx.AsyncClient | None = None):
         self.cfg = ai_config.visual_search
         self._client = client
@@ -82,7 +112,11 @@ class VisualResearchAgent:
         Returns a summary; assets are committed as they arrive."""
         client = self._client or self._new_client()
         stats = {"candidates": 0, "added": 0, "duplicates": 0, "rejected": 0,
-                 "errors": 0, "relevance_rejected": 0, "by_provider": {}}
+                 "errors": 0, "relevance_rejected": 0, "repeated_queries": 0, "refused": 0,
+                 "budget_stopped": False, "storage_stopped": False, "by_provider": {}}
+        held_bytes = storage_budget.usage(db, case.id)["bytes"]
+        ledger = SearchLedger(db, case.id)
+        money = BudgetService(db)
         try:
             existing = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
             hashes = [a.phash for a in existing if a.phash and a.asset_type != "video"]
@@ -116,12 +150,18 @@ class VisualResearchAgent:
             searchers: list = []
             if "wikimedia" in self.cfg.providers:
                 searchers.append(WikimediaProvider(client))
+            if "usgs_naip" in self.cfg.providers:
+                searchers.append(UsgsNaipProvider(client))
+            if "nasa" in self.cfg.providers:
+                searchers.append(NasaProvider(client))
             if "brave_images" in self.cfg.providers and backend:
                 searchers.append(BraveImageProvider(backend))
             if "wikimedia" in self.cfg.providers and self.cfg.wikimedia_categories:
                 candidates.extend(await self._curated_candidates(
                     WikimediaProvider(client), queries))
             for q in queries[: self.cfg.max_queries]:
+                if stats["budget_stopped"]:
+                    break
                 kind = query_kind(q)
                 ents = list(q.get("entities") or [])
                 if q.get("entity") and q["entity"] not in ents:
@@ -129,7 +169,23 @@ class VisualResearchAgent:
                 for prov in searchers:
                     if kind == "context" and prov.name not in RIGHTS_KNOWN_PROVIDERS:
                         continue
-                    for c in await prov.search(q["query"], self.cfg.max_candidates_per_query):
+                    if ledger.seen(prov.name, q["query"]):
+                        stats["repeated_queries"] += 1
+                        continue
+                    if prov.name in PAID_SEARCH_PROVIDERS and money.snapshot(case.id).remaining_eur <= 0:
+                        stats["budget_stopped"] = True
+                        break
+                    if q.get("entity_type") and q["entity_type"] not in getattr(
+                            prov, "entity_types", (q["entity_type"],)):
+                        continue
+                    found = await (prov.search_for(q, self.cfg.max_candidates_per_query)
+                                   if hasattr(prov, "search_for")
+                                   else prov.search(q["query"], self.cfg.max_candidates_per_query))
+                    ledger.record(prov.name, q["query"], kind=kind, found_during=found_during,
+                                  entity_key=q.get("entity"), candidates=len(found))
+                    if prov.name in PAID_SEARCH_PROVIDERS:
+                        self._book_search(money, case.id, prov.name)
+                    for c in found:
                         if q.get("must_name") and not names_entity(c, q["must_name"]):
                             stats["rejected"] += 1
                             continue
@@ -157,9 +213,16 @@ class VisualResearchAgent:
                 if status == "do_not_use":
                     stats["rejected"] += 1
                     continue
+                if held_bytes >= ai_config.storage_budget.max_case_mb * MB:
+                    stats["storage_stopped"] = True
+                    break
                 try:
                     data = await IM.download_image(c.url, client)
                     img = IM.open_image(data)
+                except IM.ImageTooLarge as e:
+                    self._record_refused(db, case, c, status, reason, e.limit_mb, found_during)
+                    stats["refused"] += 1
+                    continue
                 except IM.ImageError:
                     stats["errors"] += 1
                     continue
@@ -193,6 +256,7 @@ class VisualResearchAgent:
                 )
                 db.add(asset)
                 db.commit()
+                held_bytes += len(data)
                 budget -= 1
                 stats["added"] += 1
                 stats["by_provider"][c.provider] = stats["by_provider"].get(c.provider, 0) + 1
@@ -210,6 +274,11 @@ class VisualResearchAgent:
                 stats["added"] += fs["added"]
                 for k, n in fs["by_provider"].items():
                     stats["by_provider"][k] = stats["by_provider"].get(k, 0) + n
+            if ai_config.footage.enabled and ai_config.footage.providers:
+                from app.documentary.visuals.footage import FootageAgent
+
+                stats["film_candidates"] = await FootageAgent(client).ingest_film_candidates(
+                    db, case, found_during=found_during)
         finally:
             if self._client is None:
                 await client.aclose()

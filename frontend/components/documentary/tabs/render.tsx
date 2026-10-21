@@ -67,6 +67,7 @@ function RenderCard({
   const render = production?.render ?? null;
   const videoUrl = render && production?.video_url ? apiFileUrl(production.video_url) : null;
   const srtUrl = render && production?.subtitles_url ? apiFileUrl(production.subtitles_url) : null;
+  const sourcesUrl = render && production ? apiFileUrl(`/api/documentary/production/${production.id}/sources.csv`) : null;
   const vtt = useSubtitleTrack(srtUrl);
   const stageDetail = stage ? summarizeDetail(stage.detail) : null;
   const renderWarnings: DocumentaryWarning[] = Array.isArray(jobRender?.warnings)
@@ -158,6 +159,11 @@ function RenderCard({
               {srtUrl && (
                 <a href={srtUrl} download className="inline-flex items-center gap-1 text-primary hover:underline">
                   <Download className="size-3.5" aria-hidden /> Download subtitles (.srt)
+                </a>
+              )}
+              {sourcesUrl && (
+                <a href={sourcesUrl} download data-testid="sources-export" className="inline-flex items-center gap-1 text-primary hover:underline">
+                  <Download className="size-3.5" aria-hidden /> Sources of every picture and clip (.csv)
                 </a>
               )}
               {production && (

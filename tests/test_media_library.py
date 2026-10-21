@@ -908,21 +908,21 @@ def test_case_region_is_town_and_state():
         "Tipp City Ohio"
 
 
-def test_a_stand_in_is_verified_as_a_labelled_illustration_never_a_face():
+def test_a_context_picture_is_verified_as_background_never_a_face():
     from types import SimpleNamespace
 
     from app.documentary.visuals.tiers import verified_why
     from app.documentary.visuals.verification import decide
 
-    dog = {"matches_claim": "stand_in", "subject_type": "object", "role": "illustration",
+    dog = {"matches_claim": "context", "subject_type": "object", "role": "context",
            "confidence": 0.9}
-    assert decide(dog) == ("verified", 0.9, "stand_in")
+    assert decide(dog) == ("verified", 0.9, "context")
     face = {**dog, "subject_type": "person"}
-    assert decide(face)[0] == "rejected" and decide(face)[2] == "stand_in_person"
+    assert decide(face)[0] == "rejected" and decide(face)[2] == "context_person"
     assert decide({**dog, "confidence": 0.1})[0] == "rejected"
     asset = SimpleNamespace(provider="wikimedia", asset_role="context", entity_type="object",
                             relevance_tier=2)
-    assert verified_why(asset, dog, 2)[0] == 5
+    assert verified_why(asset, dog, 2)[0] == 4
     assert verified_why(asset, {**dog, "role": "context"}, 2)[0] == 4
     # an exact claim that does not match stays rejected
     assert decide({"matches_claim": "no", "confidence": 0.9})[0] == "rejected"

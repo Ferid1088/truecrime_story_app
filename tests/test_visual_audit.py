@@ -143,10 +143,10 @@ def test_auditor_decision_is_strict():
     assert AU.decide({})[0] == "rejected"           # no answer is no approval
 
 
-def test_verifier_rejects_wrong_tone_and_labels_every_stand_in():
+def test_verifier_rejects_wrong_tone_and_accepts_context_of_the_same_kind():
     base = {"matches_claim": "yes", "confidence": 0.9, "period_ok": "yes"}
     assert VER.decide({**base, "tone_ok": False})[0] == "rejected"
-    assert VER.decide({**base, "matches_claim": "stand_in", "subject_type": "animal"})[0] == \
+    assert VER.decide({**base, "matches_claim": "context", "subject_type": "animal"})[0] == \
         "verified"
     assert "pet or a family dog" in VER.VERIFIER_SYSTEM
     assert "tone_ok" in VER.VERIFIER_SYSTEM

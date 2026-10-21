@@ -15,7 +15,6 @@ from app.services.tracking import stamp_run, track_run
 from app.documentary.visuals.director import (
     ASSET_COMMANDS,
     DIRECTOR_SYSTEM,
-    DIRECT_CHUNK,
     OPENING_VISUALS,
     _attach_timeline,
     _beat_view,
@@ -132,7 +131,8 @@ class VisualDirector:
 
     async def create(self, db: Session, case: Case, plan_row: VisualPlan,
                      blueprint_row: EditorialBlueprint, audio_plan: AudioPlan | None,
-                     chunk: int = DIRECT_CHUNK, profile: str | None = None) -> VisualPlan:
+                     chunk: int | None = None, profile: str | None = None) -> VisualPlan:
+        chunk = chunk or ai_config.limits_settings().director.beats_per_call
         ctx = self._context(db, case, plan_row, blueprint_row, audio_plan, profile)
         beats = ctx["blueprint"].get("beats") or []
         used: Counter = Counter()

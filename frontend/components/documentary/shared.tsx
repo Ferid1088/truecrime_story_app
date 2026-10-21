@@ -445,7 +445,8 @@ export const RIGHTS_OPTIONS = [
   "do_not_use",
 ] as const;
 
-export const ROLE_OPTIONS = ["evidence", "context", "illustration"] as const;
+// "illustration" still exists on pictures stored by earlier films (shown, never made again).
+export const ROLE_OPTIONS = ["evidence", "context"] as const;
 
 export const VERIFICATION_OPTIONS = ["verified", "needs_review", "rejected", "unverified"] as const;
 

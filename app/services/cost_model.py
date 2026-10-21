@@ -220,6 +220,41 @@ def _language_pipeline_lines(db: Session, case: Case, languages: list[str],
     return lines
 
 
+def _visual_research_lines(pricing: dict[str, Any], film_seconds: float) -> list[CostLine]:
+    """The picture research of one film: the searches (Brave image requests), the vision check of
+    every candidate, and the second check of the places and objects the first left open. The counts
+    come from the supply target of the film and the measured assumptions in pricing.json."""
+    import math
+
+    from app.documentary.visuals import supply
+
+    a = pricing["assumptions"]["visual_research"]
+    mult = pricing["assumptions"]["range_multipliers"]
+    need = supply.target(film_seconds).total
+    checks = math.ceil(need / float(a["pass_rate"]))
+    second = math.ceil(checks * float(a["second_pass_share"]))
+    requests = (int(a["initial_queries"]) + (ai_config.supply.max_searches - 1) * int(a["queries_per_round"]))
+    price = pricing["search"]["brave_web"]
+    search = {key: requests * float(price["eur_per_request"]) * float(mult[key]) for key in SCENARIOS}
+    lines = [CostLine("visual_search", "run", None, {"requests": float(requests)},
+                      {"eur_per_request": float(price["eur_per_request"])}, _round_range(search),
+                      "Brave image search", "assumed",
+                      "The image-search price is not published separately: the web-search price is assumed.")]
+
+    def check_line(stage: str, model: str, n: int, tin: float, tout: float) -> CostLine:
+        scaled_in = {key: n * tin * float(mult[key]) for key in SCENARIOS}
+        scaled_out = {key: n * tout * float(mult[key]) for key in SCENARIOS}
+        line = _llm_line(pricing, stage, model, scaled_in, scaled_out)
+        return CostLine(line.stage, line.status, line.reason, {**line.units, "checks": float(n)},
+                        line.unit_price_eur, line.eur, line.model, line.price_status, line.price_warning)
+
+    lines.append(check_line("visual_check", "premium", checks, float(a["vision_input_tokens"]),
+                            float(a["vision_output_tokens"])))
+    lines.append(check_line("visual_second_pass", "sol", second, float(a["second_input_tokens"]),
+                            float(a["second_output_tokens"])))
+    return lines
+
+
 def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                    target_minutes: float | None = None,
                    pilot_seconds: float | None = None,
@@ -236,6 +271,9 @@ def estimate_lines(db: Session, case: Case, languages: list[str] | None = None,
                            tokens["research_input"], tokens["research_output"]))
     lines.extend(_language_pipeline_lines(db, case, languages, target_minutes, pilot_seconds,
                                           assumptions["range_multipliers"]))
+    film_seconds = float(pilot_seconds) if pilot_seconds else 60.0 * float(
+        target_minutes or assumptions["target_minutes"]["expected"])
+    lines.extend(_visual_research_lines(pricing, film_seconds))
     for language in languages:
         lines.append(_llm_line(pricing, f"spoken:{language}", "premium",
                                tokens["spoken_input"], tokens["spoken_output"]))

@@ -1040,6 +1040,18 @@ export type EditorialReviewDecision = {
   thumb_url: string;
 };
 
+export type YouTubeClipsOverview = {
+  enabled: boolean;
+  max_clip_seconds: number;
+  max_share: number;
+  max_source_seconds: number;
+};
+
+export const youtubeClipsApi = {
+  overview: () => request<YouTubeClipsOverview>("/api/documentary/visuals/youtube-clips"),
+  setEnabled: (enabled: boolean) => put<{ enabled: boolean }>("/api/documentary/visuals/youtube-clips", { enabled }),
+};
+
 export const editorialReviewApi = {
   overview: () => request<EditorialReviewOverview>("/api/documentary/visuals/editorial-review"),
   setEnabled: (enabled: boolean) =>
@@ -1054,6 +1066,7 @@ export interface AutopilotEstimate {
   languages: string[];
   cap_eur: number;
   estimated_eur: number;
+  visual_research_eur: number;
   range_eur: { low: number; high: number };
   pricing_last_verified: string;
   price_warnings: { stage: string; reason: string }[];

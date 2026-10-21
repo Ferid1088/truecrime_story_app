@@ -40,30 +40,6 @@ def text_scene(text: str, language: str) -> Image.Image:
     return img
 
 
-def board(heading: str, facts: list[str], language: str) -> Image.Image:
-    """"What we know so far": the facts the story has told, one per row."""
-    img = _ground()
-    d = ImageDraw.Draw(img)
-    rtl = language in RTL
-    margin = 150
-    fh = font(language, "sans", "bold", 40)
-    d.rectangle(((W - margin - 70) if rtl else margin, 118, (W - margin) if rtl else margin + 70, 124), fill=RED)
-    _draw_lines(d, [heading.upper() if language not in RTL else heading], fh, language, margin, 140,
-                W - 2 * margin, "start", GREY, 1.2)
-    f = font(language, "sans", "regular", 40)
-    width = W - 2 * margin - 60
-    rows = [wrap(" ".join(fact.split()), f, language, width)[:2] for fact in facts]
-    total = sum(_block_height(lines, f.size, 1.3) + 34 for lines in rows)
-    y = max(250, 250 + (H - 250 - 100 - total) // 2)
-    for lines in rows:
-        dot_x = (W - margin - 10) if rtl else margin + 10
-        d.ellipse((dot_x - 8, y + 14, dot_x + 8, y + 30), fill=RED)
-        text_x = margin if rtl else margin + 60
-        _draw_lines(d, lines, f, language, text_x, y, width, "start", WARM, 1.3)
-        y += _block_height(lines, f.size, 1.3) + 34
-    return img
-
-
 def split(heading: str, left: tuple[str, str], right: tuple[str, str], language: str) -> Image.Image:
     """Two accounts of the same thing side by side: (who, what they say) each."""
     img = _ground()

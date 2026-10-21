@@ -124,7 +124,7 @@ def _asset_info(a: VisualAsset) -> dict:
         "asset_id": a.asset_code, "path": a.local_path, "type": a.asset_type,
         "role": a.asset_role, "width": a.width, "height": a.height,
         "highlight": spec.get("highlight"), "marker": spec.get("marker"),
-        "rights": a.rights_status, "credit": a.credit,
+        "rights": a.rights_status, "credit": a.credit, "credit_due": R.credit_due(a),
         "subject_type": a.subject_type or ver.get("subject_type"),
         # what repetition control needs (critics check a script alone)
         "tier": facts["tier"], "entity_type": facts["entity_type"],
@@ -589,7 +589,7 @@ def credit_overlays(shots: list[dict], duration: float) -> list[dict]:
             text = " · ".join(sh["attribution"])
         elif sh.get("kind") == "map":
             text = ai_config.maps.attribution
-        elif sh.get("credit") and R.needs_attribution(sh.get("rights")):
+        elif sh.get("credit") and (sh.get("credit_due") or R.needs_attribution(sh.get("rights"))):
             text = sh["credit"]
         else:
             continue
@@ -610,7 +610,10 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
     a picture. Without an allowed picture the last frame holds."""
     hold = ai_config.motion.min_hold_seconds
     footage = ai_config.footage
-    budget = footage.max_third_party_share * max((sh["end"] for sh in shots), default=0.0)
+    film_seconds = max((sh["end"] for sh in shots), default=0.0)
+    budget = footage.max_third_party_share * film_seconds
+    yt = ai_config.youtube_clips
+    yt_budget = yt.max_share * film_seconds
     out: list[dict] = []
     for sh in shots:
         if sh.get("kind") != "video" or sh.get("clip_end") is None:
@@ -622,6 +625,9 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
         if third_party:
             # other people's footage: capped per clip and in total
             length = min(length, footage.max_third_party_clip_seconds, max(budget, 0.0))
+            if assets[sh["asset_id"]].provider == "youtube_clip":
+                length = min(length, yt.max_clip_seconds, max(yt_budget, 0.0))
+                yt_budget -= min(length, sh["end"] - sh["start"])
             budget -= min(length, sh["end"] - sh["start"])
         if length <= 0 and not third_party:
             out.append(sh)
@@ -1244,7 +1250,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                         shot["fill_reason"] = fill_reason
                     if repeat:
                         shot.update(_repeat_fields(repeat))
-                    if R.needs_attribution(a.rights_status) and a.credit:
+                    if R.credit_due(a) and a.credit:
                         credits.add(a.credit)
                         add_overlay("credit", a.credit, start, end)
                     if a.asset_role == "illustration":
@@ -1489,6 +1495,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     from app.documentary.production import host_timeline as HT
 
     host = HT.host_items(db, version)
+    HT.require_avatar(host)
     logo_seconds = intro_seconds(language)
     after_host = any(h["position"] == "opening" for h in host) and logo_seconds
     cards = cards_for(latest_chapter_plan(db, plan_row.blueprint_id), language)

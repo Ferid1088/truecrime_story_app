@@ -50,9 +50,9 @@ Return:
    - requirements: [{"entity": key, "purpose": human_connection|
      orientation|evidence|atmosphere|time|investigation|emotion|
      transition, "priority": high|medium|low, "acceptable_roles":
-     ["evidence","context","illustration"]}] — at most 3, most
-     important first. Use "illustration" only for atmosphere, never
-     for a claim about the case.
+     ["evidence","context"]}] — at most 3, most
+     important first. Use "context" for atmosphere (a real picture of
+     the place or period), never for a claim about the case.
    - map_place: a real place name with region and country when the
      beat moves the viewer somewhere new (else null).
    - date_text: the date the beat is anchored to, in English, exactly

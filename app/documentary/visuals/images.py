@@ -20,6 +20,14 @@ class ImageError(RuntimeError):
     pass
 
 
+class ImageTooLarge(ImageError):
+    """A download over visual_search.max_download_mb: refused, with the limit in the message."""
+
+    def __init__(self, limit_mb: float):
+        super().__init__(f"image larger than {limit_mb:g} MB")
+        self.limit_mb = limit_mb
+
+
 async def download_image(url: str, client: httpx.AsyncClient | None = None) -> bytes:
     cfg = ai_config.visual_search
     limit = int(cfg.max_download_mb * 1024 * 1024)
@@ -40,7 +48,7 @@ async def download_image(url: str, client: httpx.AsyncClient | None = None) -> b
             async for chunk in r.aiter_bytes():
                 data += chunk
                 if len(data) > limit:
-                    raise ImageError("image too large")
+                    raise ImageTooLarge(cfg.max_download_mb)
             return bytes(data)
     except httpx.HTTPError as e:
         raise ImageError(f"download failed: {type(e).__name__}") from e

@@ -5,7 +5,8 @@ the claims made about it (caption, page, what it was found for) and the
 case evidence. Filenames and page labels are never trusted blindly.
 Deterministic rules then decide the status:
   rejected     — wrong person/place, unrelated, watermark, unusable;
-  verified     — matches with confidence >= verified_min_confidence;
+  verified     — matches (or is real context of the same kind, or a detail of it) with
+                 confidence >= verified_min_confidence (lower for places, objects, documents, maps);
   needs_review — everything in between (a human decides in the UI).
 and the relevance tier (visuals/tiers.py): what the image shows decides
 how close to the case it really is, starting from what the search
@@ -18,12 +19,8 @@ few seconds later is checked too, by the same rules.
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
-
-
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import VisualAsset
 from app.documentary import storage
 from app.documentary.visuals import images as IM
@@ -31,13 +28,34 @@ from app.documentary.visuals import images as IM
 VERIFIER_SYSTEM = prompt("documentary/visuals/verification/verifier_system")
 
 
-def decide(v: dict) -> tuple[str, float, str | None]:
-    """(verification_status, confidence, reason)."""
+CONTEXT_VERDICTS = ("context", "stand_in")   # "stand_in" is the old name of "context"
+NO_VERDICT = "no_verdict"
+
+
+def is_verdict(v: dict) -> bool:
+    """An answer that follows the schema: it says whether the picture matches, or what it shows."""
+    return bool(v.get("matches_claim") or v.get("depicts"))
+
+
+def verified_min_confidence(subject: str) -> float:
+    """The confidence a picture of this kind of subject needs to be verified."""
     cfg = ai_config.visual_verification
+    return cfg.verified_min_confidence_by_subject.get(subject, cfg.verified_min_confidence)
+
+
+def decide(v: dict) -> tuple[str, float, str | None]:
+    """(verification_status, confidence, reason). An answer that is no verdict stays unverified:
+    a check that failed is repeated, never recorded as a rejection."""
+    cfg = ai_config.visual_verification
+    if not is_verdict(v):
+        return "unverified", 0.0, NO_VERDICT
     try:
         conf = max(0.0, min(1.0, float(v.get("confidence", 0))))
     except (TypeError, ValueError):
         conf = 0.0
+    subject = str(v.get("subject_type") or "")
+    needed = verified_min_confidence(subject)
+    matches = v.get("matches_claim")
     if v.get("watermark"):
         return "rejected", conf, "watermark"
     if v.get("graphic_or_sensitive"):
@@ -46,28 +64,33 @@ def decide(v: dict) -> tuple[str, float, str | None]:
         return "rejected", conf, "graphic_or_sensitive"
     if v.get("tone_ok") is False:
         return "rejected", conf, "tone"
-    if v.get("matches_claim") == "composite":
+    if matches == "composite":
         if conf >= cfg.verified_min_confidence:
             return "verified", conf, "composite_match"
         return "needs_review", conf, "composite_uncertain"
-    if (v.get("matches_claim") == "yes" and v.get("period_ok") == "no"
-            and str(v.get("subject_type") or "") in cfg.modern_view_subjects):
-        if conf >= cfg.verified_min_confidence:
+    if matches == "yes" and v.get("period_ok") == "no" and subject in cfg.modern_view_subjects:
+        if conf >= needed:
             return "verified", conf, "modern_view"
         return "needs_review", conf, "modern_view_uncertain"
-    if v.get("matches_claim") == "no" or v.get("period_ok") == "no":
+    if matches == "no" or v.get("period_ok") == "no":
         return "rejected", conf, "does_not_match"
     if conf < cfg.reject_below_confidence:
         return "rejected", conf, "low_confidence"
-    if v.get("matches_claim") == "stand_in":
-        # the same kind of thing, shown as an illustration (tier 4/5) —
-        # never someone else's face
-        if str(v.get("subject_type") or "") == "person":
-            return "rejected", conf, "stand_in_person"
-        if conf >= cfg.verified_min_confidence:
-            return "verified", conf, "stand_in"
+    if matches in CONTEXT_VERDICTS:
+        # a real picture of the same kind of place, object or institution — never someone else's face
+        if subject == "person":
+            return "rejected", conf, "context_person"
+        if conf >= max(needed, cfg.context_min_confidence_by_subject.get(subject, 0.0)):
+            return "verified", conf, "context"
         return "needs_review", conf, "uncertain"
-    if v.get("matches_claim") == "yes" and conf >= cfg.verified_min_confidence:
+    if matches == "partial":
+        # a detail of the exact thing (a corner of the house, a cropped object): not for a face
+        if subject == "person":
+            return "needs_review", conf, "partial_person"
+        if conf >= needed:
+            return "verified", conf, "partial"
+        return "needs_review", conf, "uncertain"
+    if matches == "yes" and conf >= needed:
         return "verified", conf, None
     return "needs_review", conf, "uncertain"
 

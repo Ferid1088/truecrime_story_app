@@ -67,9 +67,9 @@
     "max_appearances": 5,
     "min_acts_between": 1,
     "min_gap_seconds": 240,
-  "short_film_seconds": 600,
-  "short_film_min_gap_seconds": 90,
-  "short_film_min_appearances": 3,
+    "short_film_seconds": 600,
+    "short_film_min_gap_seconds": 90,
+    "short_film_min_appearances": 3,
     "roles": {
       "opening": {
         "position": "opening",
@@ -264,7 +264,8 @@
       "min_short_sentences": 1,
       "min_length_variation": 0.3
     },
-    "max_writer_repairs": 3
+    "max_writer_repairs": 3,
+    "required_for_film": true
   },
   "studio": {
     "registry_path": "config/studio_registry.json",
@@ -375,28 +376,76 @@
       ],
       "caption_fonts": {
         "en": [
-          {"file": "/System/Library/Fonts/SFNS.ttf", "family": "Arial"},
-          {"file": "/System/Library/Fonts/Supplemental/Arial.ttf", "family": "Arial"},
-          {"file": "app/documentary/assets/fonts/Inter-400.ttf", "family": "Inter"}
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
+          }
         ],
         "de": [
-          {"file": "/System/Library/Fonts/SFNS.ttf", "family": "Arial"},
-          {"file": "/System/Library/Fonts/Supplemental/Arial.ttf", "family": "Arial"},
-          {"file": "app/documentary/assets/fonts/Inter-400.ttf", "family": "Inter"}
+          {
+            "file": "/System/Library/Fonts/SFNS.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "family": "Arial"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Inter-400.ttf",
+            "family": "Inter"
+          }
         ],
         "fa": [
-          {"file": "/System/Library/Fonts/GeezaPro.ttc", "family": "Geeza Pro"},
-          {"file": "/System/Library/Fonts/SFArabic.ttf", "family": "Geeza Pro"},
-          {"file": "/System/Library/Fonts/Supplemental/Nadeem.ttc", "family": "Geeza Pro"},
-          {"file": "/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "family": "Geeza Pro"},
-          {"file": "app/documentary/assets/fonts/Vazirmatn-400.ttf", "family": "Vazirmatn"}
+          {
+            "file": "/System/Library/Fonts/GeezaPro.ttc",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "/System/Library/Fonts/SFArabic.ttf",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Nadeem.ttc",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "app/documentary/assets/fonts/Vazirmatn-400.ttf",
+            "family": "Vazirmatn"
+          }
         ],
         "ar": [
-          {"file": "/System/Library/Fonts/GeezaPro.ttc", "family": "Geeza Pro"},
-          {"file": "/System/Library/Fonts/SFArabic.ttf", "family": "Geeza Pro"},
-          {"file": "/System/Library/Fonts/Supplemental/Nadeem.ttc", "family": "Geeza Pro"},
-          {"file": "/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "family": "Geeza Pro"},
-          {"file": "app/documentary/assets/fonts/NotoNaskhArabic-400.ttf", "family": "Noto Naskh Arabic"}
+          {
+            "file": "/System/Library/Fonts/GeezaPro.ttc",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "/System/Library/Fonts/SFArabic.ttf",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Nadeem.ttc",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "family": "Geeza Pro"
+          },
+          {
+            "file": "app/documentary/assets/fonts/NotoNaskhArabic-400.ttf",
+            "family": "Noto Naskh Arabic"
+          }
         ]
       }
     },

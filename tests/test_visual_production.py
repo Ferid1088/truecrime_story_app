@@ -193,6 +193,7 @@ def test_requirements_keep_only_grounded_material():
             "query": "farmhouse Nannup",
             "entity": "the_house",
             "entities": ["the_house"],
+            "entity_name": "The farmhouse",
             "entity_type": "building",
             "kind": "exact",
             "footage": False,
@@ -1081,7 +1082,7 @@ def documentary_env(tmp_path, monkeypatch):
             "app.services.research_jobs.get_research_provider", lambda: research_provider
         )
         monkeypatch.setattr(ai_config.documentary, "video_research", False)
-        monkeypatch.setattr("app.documentary.jobs.RESEARCH_POLL_SECONDS", 0.0)
+        monkeypatch.setattr(ai_config.limits_settings().research_job, "poll_seconds", 0.0)
         from app.db.models import Case, ResearchResult, StoryVersion
         from app.documentary.pipeline.base import StageRunner
 
@@ -1267,6 +1268,10 @@ def documentary_env(tmp_path, monkeypatch):
 def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isolated_host_history,
                                               monkeypatch):
     from test_host import HostGen
+    # this film checks where the chapter card sits: two pictures must not be re-used to hold the break
+    for name in ("max_generic_appearances", "max_context_appearances", "max_person_appearances",
+                 "max_evidence_appearances"):
+        monkeypatch.setattr(f"app.core.ai_config.ai_config.visual_direction.{name}", 1)
 
     from app.core.ai_config import ai_config
     from app.documentary import jobs as J
@@ -1290,9 +1295,12 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     assert job.progress == 1.0
     assert all(
-        s["status"] in ("done", "skipped") or name.startswith("short_")
+        s["status"] in ("done", "skipped") or name.startswith("short_") or name == "visual_check"
         for name, s in stages.items()
     )
+    # the offline fake finds two pictures; the shortage against the larger target is reported
+    assert stages["visual_check"]["status"] in ("done", "degraded")
+    assert stages["visual_check"]["detail"]["supply"]["shortage"] > 0
     film = stages["film_length"]["detail"]
     assert film["warning"] and set(film["estimated_minutes"]) == {"en"}
     assert stages["visual_check"]["detail"]["verified"] == 2

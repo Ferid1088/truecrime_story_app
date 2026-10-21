@@ -1,0 +1,32 @@
+{
+  "limits": {
+    "planner": {
+      "max_exact_queries": 4,
+      "max_context_queries": 3,
+      "max_aliases": 5
+    },
+    "production_search": {
+      "verify_per_request": 3,
+      "min_entity_score": 0.7
+    },
+    "director": {
+      "beats_per_call": 10
+    },
+    "audio": {
+      "max_miss_tags": 8
+    },
+    "language_pipeline": {
+      "inspector_attempts": 2
+    },
+    "research_job": {
+      "poll_seconds": 15.0,
+      "max_hours": 6.0
+    },
+    "discovery": {
+      "cost_estimate_sample_size": 20
+    },
+    "search": {
+      "max_query_words": 8
+    }
+  }
+}

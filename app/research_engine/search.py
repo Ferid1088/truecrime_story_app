@@ -12,17 +12,17 @@ from typing import Protocol
 
 log = logging.getLogger(__name__)
 
-MAX_QUERY_WORDS = 8
 
-
-def shorten_query(query: str, max_words: int = MAX_QUERY_WORDS) -> str:
+def shorten_query(query: str, max_words: int | None = None) -> str:
     """Keep provider queries compact and predictable.
 
     The planner is allowed to be verbose, but the paid search boundary is
     deliberately bounded so each provider call remains discovery-oriented.
     """
+    from app.core.ai_config import ai_config
+
     words = (query or "").split()
-    return " ".join(words[:max_words])
+    return " ".join(words[:max_words or ai_config.limits_settings().search.max_query_words])
 
 
 @dataclass

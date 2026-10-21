@@ -35,9 +35,6 @@ seeing while this sentence is being spoken?"
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
 import hashlib
 import json
 import re
@@ -46,14 +43,19 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import (
-    Case, EditorialBlueprint, StoryVersion, VisualAsset,
+    Case,
+    EditorialBlueprint,
+    StoryVersion,
+    VisualAsset,
 )
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.planner import fold, sentence_entities
 from app.documentary.visuals.usage import asset_facts, asset_tier, category, limit_of
-from app.documentary.zoom_map.limits import MapLimits, head as place_head
+from app.documentary.zoom_map.limits import MapLimits
+from app.documentary.zoom_map.limits import head as place_head
 
 COMMANDS = ("NEW_IMAGE", "SHOW_CLIP", "KEEP_CURRENT_IMAGE", "CROP_EXISTING", "ZOOM_EXISTING",
             "SHOW_DOCUMENT", "SHOW_MAP", "SHOW_DATE", "SHOW_TIMELINE", "SHOW_QUOTE",
@@ -67,12 +69,9 @@ CHANGE_COMMANDS = {"NEW_IMAGE", "ATMOSPHERIC_BROLL", "SHOW_CLIP", "SHOW_MAP", "S
                    "SHOW_QUOTE", "SHOW_TIMELINE", "BLACK_SCREEN", "CROP_EXISTING",
                    "ZOOM_EXISTING"}
 PHOTO_MOTIONS = ("SLOW_PUSH", "SLOW_PULL", "PAN_LEFT", "PAN_RIGHT", "CROP_FOCUS", "SUBTLE_2_5D")
-CANDIDATES_PER_REQ = 4
 # Beats starting within this many seconds are the film's opening (they
 # follow the opening strategy).
 OPENING_SECONDS = 40.0
-# Beats per director call (directed in order: "already used" is exact).
-DIRECT_CHUNK = 10
 
 # What the opening strategy puts on screen first (prompt guidance) and
 # which kind of picture the fallback prefers in the opening.
@@ -882,7 +881,7 @@ def beat_candidates(db: Session, case: Case, blueprint: dict, requirements: dict
             if not ent:
                 continue
             ranked = rank_candidates(r, ent, assets, blocked, profile)
-            top = ranked[:CANDIDATES_PER_REQ]
+            top = ranked[:ai_config.visual_direction.candidates_per_requirement]
             if not any(a.asset_type == "video" for _, a in top):
                 top += [x for x in ranked if x[1].asset_type == "video"][:1]
             for sc, a in top:
@@ -913,7 +912,8 @@ def fill_candidates(cands: dict[str, list[tuple[float, VisualAsset]]]) -> dict[s
     """What else could fill each beat (fills, swaps and critic fixes pick
     from these): checked, case-specific enough, never an illustration."""
     return {bid: [a.asset_code for sc, a in lst
-                  if sc >= 0.5 and a.verification_status == "verified"
+                  if sc >= ai_config.visual_direction.fill_min_score
+                  and a.verification_status == "verified"
                   and a.asset_role != "illustration"]
             for bid, lst in cands.items()}
 

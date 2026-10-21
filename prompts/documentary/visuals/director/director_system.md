@@ -31,7 +31,7 @@ Commands:
     the dates the viewer already knows. Use it when the story moves to a
     new point in time and no picture says it better; at most one per beat)
   BLACK_SCREEN (words alone: a short pause at hard or painful moments)
-  ATMOSPHERIC_BROLL (an illustration/context candidate, mood only)
+  ATMOSPHERIC_BROLL (a real context candidate, mood only)
   NO_VISUAL_CHANGE
   REQUEST_SEARCH (from_sentence, entity, queries: 2–3 English image
     searches for exactly what that sentence shows, why) — when NOTHING

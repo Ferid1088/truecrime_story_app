@@ -41,16 +41,17 @@ from app.db.models import AudioPlan, Case, EditorialBlueprint, VisualAsset, Visu
 from app.documentary.visuals.director import blocked_at, entity_score, usable
 from app.documentary.visuals.planner import FOOTAGE_TYPES, fold, query_item
 from app.documentary.visuals.usage import (
-    CONTEXT, GENERIC, MAP, asset_facts, asset_tier, category, limit_of,
+    CONTEXT,
+    GENERIC,
+    MAP,
+    asset_facts,
+    asset_tier,
+    category,
+    limit_of,
 )
 
 log = logging.getLogger(__name__)
 
-# New assets vision-checked per request (the first ones found).
-VERIFY_PER_REQUEST = 3
-# A library picture "is" the entity only when it was found for it or its
-# text names it fully (entity_score 0.7+), not when one word matches.
-MIN_ENTITY_SCORE = 0.7
 # Request sources in the order they are served when the budget is short.
 SOURCE_ORDER = {"director": 0, "entity_gap": 1, "fallback": 2, "repeat": 3}
 
@@ -90,7 +91,7 @@ def entity_gaps(pb: dict, entities: dict[str, dict], assets: list[VisualAsset],
                          if usable(a, profile) and a.asset_type not in ("map",)
                          and a.provider != "generated"
                          and not (set(_loads(a.reveals_json, [])) & blocked)
-                         and entity_score(a, ent) >= MIN_ENTITY_SCORE]
+                         and entity_score(a, ent) >= ai_config.limits_settings().production_search.min_entity_score]
                 best[key] = min(tiers) if tiers else None
             if best[key] is None or best[key] > weak_tier:
                 out.append({
@@ -332,7 +333,7 @@ async def fill_visual_gaps(db: Session, case: Case, plan_row: VisualPlan,
             todo: list[VisualAsset] = []
             for r in requests:
                 for a in [x for x in per_request[id(r)]
-                          if x.verification_status == "unverified"][:VERIFY_PER_REQUEST]:
+                          if x.verification_status == "unverified"][:ai_config.limits_settings().production_search.verify_per_request]:
                     if a not in todo:
                         todo.append(a)
             if todo:

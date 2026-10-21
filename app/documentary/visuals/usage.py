@@ -17,6 +17,7 @@ Categories and limits (config visual_direction):
               picture of a person): max_context_appearances;
   evidence  — exact case material, people/places/objects of the case
               (tier <= 3): max_evidence_appearances.
+Every later appearance of a picture shows a different crop of it (visuals/crops.py).
 
 Reuse rules: an UNUSED alternative always comes first (lowest tier
 first). A reuse is allowed only when it is justified — the person or
@@ -33,9 +34,10 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Callable, Iterable
+from collections.abc import Callable, Iterable
 
 from app.core.ai_config import ai_config
+from app.documentary.visuals import crops
 from app.documentary.visuals import tiers as T
 
 MAP, GENERIC, PERSON, CONTEXT, EVIDENCE = "map", "generic", "person", "context", "evidence"
@@ -125,7 +127,7 @@ class UsageTracker:
     # -- construction --------------------------------------------------------
     @classmethod
     def from_shots(cls, shots: list[dict], facts: dict[str, dict] | None = None,
-                   skip: Iterable[int] = ()) -> "UsageTracker":
+                   skip: Iterable[int] = ()) -> UsageTracker:
         """A tracker that knows every picture of these shots (all of the
         film at once: a fill never takes a picture the film shows later)."""
         tr = cls(facts)
@@ -257,11 +259,11 @@ class UsageTracker:
         cat, lim = self.category(code), self.limit(code)
         if n + 1 > lim:
             return False, f"{cat} picture already shown {n}x (limit {lim})"
-        if cat == PERSON:
-            g = self.gap(code, start, end)
-            need = ai_config.visual_direction.min_repeat_gap_seconds
-            if g < need:
-                return False, f"same face {g:.0f}s ago (min {need:.0f}s apart)"
+        g = self.gap(code, start, end)
+        need = ai_config.visual_direction.min_repeat_gap_seconds
+        if g < need:
+            what = "same face" if cat == PERSON else "same picture"
+            return False, f"{what} {g:.0f}s ago (min {need:.0f}s apart)"
         return True, ""
 
     def pick(self, pool: Iterable[str], start: float, end: float,
@@ -354,6 +356,7 @@ def annotate(shots: list[dict], tracker_facts: dict[str, dict],
     tr = UsageTracker(tracker_facts)
     for s in shots:
         tr.learn(s)
+    regions: dict[str, set[int]] = {}
     prev = None
     for s in sorted(shots, key=lambda x: x["start"]):
         code = s.get("asset_id")
@@ -368,6 +371,10 @@ def annotate(shots: list[dict], tracker_facts: dict[str, dict],
         else:
             appearance = tr.appearances(code) + 1
             tr.add(code, s["start"], s["end"])
+        if appearance > 1 and not cont and s.get("kind") == "image" and s.get("crop_region") is None:
+            crops.apply_to(s, regions.get(code, set()))
+        if s.get("crop_region") is not None:
+            regions.setdefault(code, set()).add(s["crop_region"])
         usage = {"appearance": max(appearance, 1), "tier": tr.tier(code),
                  "category": tr.category(code),
                  "reason": s.get("fill_reason") or s.get("why") or default_reason(s),

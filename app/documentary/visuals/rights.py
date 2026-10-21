@@ -101,3 +101,8 @@ def usable(asset, profile: str | None = None) -> bool:
 
 def needs_attribution(rights_status: str) -> bool:
     return rights_status in ai_config.rights.attribution_required
+
+
+def credit_due(asset) -> bool:
+    """The film shows a credit for this picture: its licence asks for one, or its source does."""
+    return needs_attribution(asset.rights_status) or asset.provider in ai_config.rights.credit_providers

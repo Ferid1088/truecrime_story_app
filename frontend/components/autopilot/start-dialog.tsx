@@ -86,6 +86,9 @@ export function StartDialog({
                   (range {eur(est.range_eur.low)}–{eur(est.range_eur.high)})
                 </span>
               </p>
+              <p className="text-xs text-muted-foreground" data-testid="start-research-estimate">
+                Of this, picture research (image searches, vision checks, second checks): {eur(est.visual_research_eur)}.
+              </p>
               <p className="text-xs text-muted-foreground">
                 The only limit is the actual spend: the run stops before a paid call once {eur(est.cap_eur)} is spent.
                 Publishing is a dry run: nothing is sent to any platform.

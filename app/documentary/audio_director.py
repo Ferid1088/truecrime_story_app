@@ -85,7 +85,6 @@ MOOD_FUNCTIONS = {
 # The library kind that serves each music moment.
 LIBRARY_KIND = {"music_bridge": "bridge", "emotional_moment": "bridge",
                 "chapter_break": "bridge", "sting": "sting"}
-MAX_MISS_TAGS = 8
 
 
 def known_moods(cfg: AudioDirectionConfig | None = None) -> list[str]:
@@ -216,7 +215,7 @@ def _clean_tags(value) -> list[str]:
         t = str(t).strip().lower()[:40]
         if t and t not in tags:
             tags.append(t)
-    return tags[:MAX_MISS_TAGS]
+    return tags[:ai_config.limits_settings().audio.max_miss_tags]
 
 
 def _library_choice(pb: dict, library: dict[str, dict], previous: str | None,

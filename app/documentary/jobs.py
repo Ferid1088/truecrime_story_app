@@ -82,8 +82,6 @@ from app.utils import ensure_utc, utc_now
 log = logging.getLogger(__name__)
 _running: dict[int, asyncio.Task] = {}
 
-RESEARCH_POLL_SECONDS = 15.0
-RESEARCH_MAX_HOURS = 6.0
 
 
 from app.documentary.pipeline.base import StageRunner  # noqa: E402
@@ -266,7 +264,7 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
         ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
-        "film_length", "visual_needs", "visual_research", "visual_review", "visual_check", "visual_illustrations", "visual_plan",
+        "film_length", "visual_needs", "visual_research", "visual_review", "visual_check", "visual_plan",
         "visual_gaps"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
@@ -608,25 +606,25 @@ class DocumentaryPipeline(StageRunner):
                                                        job.render_profile)
 
                     out["supply"] = await supply.top_up(
-                        db, case, requirements, focus_beats, film_seconds, research, verify)
+                        db, case, requirements, bp, focus_beats, film_seconds, research, verify,
+                        job.render_profile)
+                    from app.documentary.visuals import storage_budget
+
+                    out["storage"] = {**storage_budget.usage(db, case.id),
+                                      "purged": storage_budget.purge_rejected(db, case.id)}
+                    plan = db.get(VisualPlan, vp_row.id)
+                    validation = json.loads(plan.validation_json or "{}")
+                    plan.validation_json = json.dumps({**validation, "supply": out["supply"]})
+                    db.commit()
                     if not out["supply"]["reached"]:
+                        report = out["supply"]
                         out["degraded"] = (
-                            f"{out['supply']['verified_after']} of {out['supply']['target']} verified "
-                            f"real pictures after {out['supply']['searches']} searches; "
-                            "illustrations fill the rest")
+                            f"{report['usable_after']} of {report['target']['total']} distinct real "
+                            f"pictures and cuts after {report['searches']} searches "
+                            f"(stopped: {report['stopped_because']}); the shortage is in the supply report")
                     return out
 
                 await self._stage("visual_check", visual_check)
-
-                async def visual_illustrations():
-                    from app.documentary.visuals import illustrations as IL
-
-                    if planned:
-                        return {"skipped": True,
-                                "reason": "visual plan exists (refresh_visuals to redo)"}
-                    return await IL.ensure_pool(db, case, bp_row, requirements)
-
-                await self._stage("visual_illustrations", visual_illustrations)
 
                 async def visual_plan():
                     from app.documentary.visuals.generated import materialize
@@ -776,10 +774,10 @@ async def research_case(db: Session, case: Case, check_cancel,
     waited = 0.0
     while job.status in ("queued", "running"):
         check_cancel()
-        await asyncio.sleep(RESEARCH_POLL_SECONDS)
-        waited += RESEARCH_POLL_SECONDS
+        await asyncio.sleep(ai_config.limits_settings().research_job.poll_seconds)
+        waited += ai_config.limits_settings().research_job.poll_seconds
         job = await research_jobs.poll_job(db, job)
-        if waited > RESEARCH_MAX_HOURS * 3600:
+        if waited > ai_config.limits_settings().research_job.max_hours * 3600:
             raise RuntimeError(f"Research job {job.id} did not finish in time.")
     if job.status != "completed":
         raise RuntimeError(f"Research job {job.id} {job.status}: {job.error or ''}"[:400])
@@ -899,7 +897,27 @@ async def verify_candidates(db: Session, case: Case, blueprint: dict, requiremen
             if (a not in todo and a.verification_status == "unverified"
                     and piece_info(a).get("parent") in parents):
                 todo.append(a)
-    return await verify_assets(db, case, todo, list(ents.values()))
+    out = await verify_assets(db, case, todo, list(ents.values()))
+    second = await second_pass_case(db, case, list(ents.values()))
+    return {**out, **{k: out.get(k, 0) + v for k, v in second.items()}}
+
+
+async def second_pass_case(db: Session, case: Case, entities: list[dict]) -> dict:
+    """The second, independent vision pass over every needs_review place, object, document or map
+    of the case that has not had it."""
+    from app.agents.story import build_evidence_pack
+    from app.db.models import Contradiction, Source
+    from app.documentary.visuals.verification import VisualVerificationAgent
+
+    agent = VisualVerificationAgent()
+    todo = agent.second_pass_candidates(db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all())
+    if not todo:
+        return {"second_checked": 0, "second_verified": 0}
+    pack = build_evidence_pack(
+        db.query(Fact).filter(Fact.case_id == case.id).all(),
+        db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
+        db.query(Source).filter(Source.case_id == case.id).all())
+    return await agent.second_pass(db, case, todo, entities, pack["facts"])
 
 
 async def verify_assets(db: Session, case: Case, assets: list[VisualAsset],
@@ -924,11 +942,13 @@ async def verify_assets(db: Session, case: Case, assets: list[VisualAsset],
     counts: dict[str, int] = {}
     errors = 0
     for a, r in zip(assets, results):
-        if isinstance(r, Exception):
-            errors += 1
+        if isinstance(r, Exception) or a.verification_status == "unverified":
+            errors += 1                      # no answer, or an answer without a verdict: checked again later
             continue
         counts[a.verification_status] = counts.get(a.verification_status, 0) + 1
-    return {"checked": len(assets), **counts, **({"errors": errors} if errors else {})}
+    second = await agent.second_pass(db, case, [a for a in assets if a.verification_status == "needs_review"],
+                                     entities, pack["facts"])
+    return {"checked": len(assets), **counts, **second, **({"errors": errors} if errors else {})}
 
 
 # ---------------------------------------------------------------------------

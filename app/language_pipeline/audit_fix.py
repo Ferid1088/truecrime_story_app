@@ -19,7 +19,6 @@ from app.db.models import Case
 from app.language_pipeline.materials import SharedMaterial, ordered_dump
 from app.language_pipeline.stages import (
     AUDIT_FIX_STAGE,
-    INSPECTOR_ATTEMPTS,
     LanguageStages,
     StageFailed,
 )
@@ -147,15 +146,15 @@ class AuditFix:
         paragraphs = self.paragraphs_for(findings, sections)
         message = self.message(findings, evidence, paragraphs)
         answer: FixAnswer | None = None
-        for attempt in range(INSPECTOR_ATTEMPTS):
+        for attempt in range(ai_config.limits_settings().language_pipeline.inspector_attempts):
             data, res = await self.stages.audit_fix(db, case, material, message)
             try:
                 answer = FixAnswer.model_validate(data)
                 break
             except ValidationError as e:
-                if attempt + 1 == INSPECTOR_ATTEMPTS:
+                if attempt + 1 == ai_config.limits_settings().language_pipeline.inspector_attempts:
                     raise StageFailed(AUDIT_FIX_STAGE, f"the audit fix answer is not valid after "
-                                      f"{INSPECTOR_ATTEMPTS} attempts: {e}") from e
+                                      f"{ai_config.limits_settings().language_pipeline.inspector_attempts} attempts: {e}") from e
         assert answer is not None   # the loop above returns or raises
         known = {f["id"] for f in findings}
         decisions = [d for d in answer.decisions if d.finding_id in known]

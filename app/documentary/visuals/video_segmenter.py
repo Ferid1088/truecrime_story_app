@@ -17,10 +17,6 @@ cut by the clock instead.
 
 from __future__ import annotations
 
-from app.agents.runner import run_agent
-
-from app.core.prompts import prompt
-
 import asyncio
 import base64
 import json
@@ -29,7 +25,9 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import Case, VisualAsset
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run

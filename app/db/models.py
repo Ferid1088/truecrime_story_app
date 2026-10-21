@@ -411,6 +411,10 @@ class VideoSource(Base):
     license_evidence_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     license_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     attribution_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which allowed source class a film candidate belongs to (official_body, news_raw,
+    # witness_family, creative_commons, open_archive ...) and the evidence that put it there.
+    source_class: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    class_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     case = relationship("Case")
     source = relationship("Source")
@@ -1208,6 +1212,9 @@ class VisualAsset(Base):
     editorial_approved_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     editorial_approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # Set when the files of a rejected picture were removed after the retention period; its metadata
+    # and the reason it was rejected stay.
+    file_removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     # Media library: how directly the asset belongs to the case.
     # 1 exact case evidence/footage, 2 exact person/place/object,
     # 3 exact city/building/area, 4 contextual licensed, 5 generic.
@@ -1223,6 +1230,25 @@ class VisualAsset(Base):
     original_media_segments = relationship(
         "OriginalMediaSegment", back_populates="asset", cascade="all, delete-orphan"
     )
+
+
+class VisualSearchLog(Base):
+    """One search a provider ran for a case: the ledger that keeps the same query from being run
+    twice on the same provider and tells the funnel report how many queries each provider took."""
+
+    __tablename__ = "visual_search_log"
+    __table_args__ = (UniqueConstraint("case_id", "provider", "query_key", name="uq_visual_search_log"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(30))
+    query_key: Mapped[str] = mapped_column(String(300))
+    query: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(10), default="exact")
+    found_during: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    entity_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    candidates: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
 class VisualPlan(Base):

@@ -10,8 +10,6 @@ from typing import Any
 from app.core.ai_config import ai_config
 
 OPEN_ISSUES = "open_issues"
-# A revision round happens at most once per language version (a hard rule, not a setting).
-REVISION_ROUNDS = 1
 
 
 def items_of(severities: Sequence[str], items: list[dict]) -> list[dict]:

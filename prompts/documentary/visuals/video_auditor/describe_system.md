@@ -36,16 +36,16 @@ that tells it).
    two neutral sentences: who/what, where, when, camera, mood).
 3. The content, every frame: burned-in captions/logos/watermarks, gore,
    wrong period, sentimental/funny/stock/advertising tone, and whether it
-   shows what it is claimed to show (matches_claim: stand_in only for the
-   SAME SPECIFIC kind — a police dog only by a working police dog, never
-   for a person).
+   shows what it is claimed to show (matches_claim: context only for a real
+   clip of the SAME SPECIFIC kind — a police dog only by a working police dog,
+   never for a person).
 
 Return JSON only:
 {"cut_ok": true, "suggested_start": null, "suggested_end": null,
  "description_ok": true, "name": "...", "description": "...",
  "subject_type": "person|place|building|vehicle|object|document|map|landscape|event|other",
- "matches_claim": "yes|stand_in|no|unclear",
- "role": "evidence|context|illustration",
+ "matches_claim": "yes|partial|context|no|unclear",
+ "role": "evidence|context",
  "entities": [], "reveals": [], "period_ok": "yes|no|unclear",
  "text_or_logo_in_any_frame": false,
  "graphic_or_sensitive_in_any_frame": false,

@@ -2,8 +2,12 @@
 
 measure() reads a production script's shots; gate() says what breaks the rules of
 visuals.coverage (black seconds, card share, longest card stretch, longest still);
-repair() fills the offending stretches with illustrations (labelled "Illustration" on screen) and
-never touches a rule: the plan is repaired, not the gate. A shot of kind black, title, chapter,
+repair() fills the offending stretches with real material only — never a generated or drawn
+picture — and never touches a rule: the plan is repaired, not the gate. The order for a gap: an
+unused real picture the auditor approves for the words; a close-up of a real picture already shown
+(a region it has not shown); a card made of the story's own facts or words; a longer hold of the
+picture before it (up to coverage.max_still_seconds); and what no real material covers is reported
+as a shortage. A shot of kind black, title, chapter,
 timeline or date is a "card"; pictures, maps, footage and the host are not."""
 
 from __future__ import annotations
@@ -16,8 +20,8 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, EditorialBlueprint, ProductionScript, VisualAsset, VisualPlan
-from app.documentary.visuals import illustrations as IL
-from app.documentary.visuals.fill_ways import FillWays, crop_box
+from app.documentary.visuals import crops
+from app.documentary.visuals.fill_ways import FillWays
 from app.documentary.visuals.usage import asset_facts, named_between
 
 CARD_KINDS = ("black", "title", "chapter", "timeline", "date")
@@ -128,8 +132,8 @@ def _beat_at(script: dict, t: float) -> str | None:
 
 
 def _pieces(a: float, b: float) -> list[tuple[float, float]]:
-    """Split a window into pictures of about seconds_per_picture each (none shorter than 3 s)."""
-    target = ai_config.illustrations.seconds_per_picture
+    """Split a window into pictures of about coverage.fill_piece_seconds each (none shorter than 3 s)."""
+    target = ai_config.coverage.fill_piece_seconds
     n = max(1, round((b - a) / target))
     step = (b - a) / n
     return [(round(a + i * step, 3), round(a + (i + 1) * step, 3)) for i in range(n)]
@@ -163,26 +167,27 @@ def _cut(shots: list[dict], windows: list[tuple[float, float]]) -> list[dict]:
     return out
 
 
-def _illustration_shot(a: VisualAsset, start: float, end: float, beat_id: str | None,
-                       n: int) -> dict:
+def _picture_shot(a: VisualAsset, start: float, end: float, beat_id: str | None, n: int) -> dict:
     from app.documentary.production.script import _asset_info
 
-    return {"beat_id": beat_id, "start": start, "end": end, "command": "ATMOSPHERIC_BROLL",
+    return {"beat_id": beat_id, "start": start, "end": end, "command": "NEW_IMAGE",
             "motion": MOTIONS[n % len(MOTIONS)], "speed": 0.8, "transition_in": "CROSSFADE",
-            "why": "coverage repair: an illustration instead of a card or an endless still",
-            "kind": "image", **_asset_info(a), "role": "illustration"}
+            "why": "coverage repair: another real picture instead of a card or an endless still",
+            "kind": "image", **_asset_info(a)}
 
 
 def _way_shot(got: dict, start: float, end: float, beat_id: str | None, n: int) -> dict:
     """The shot of a gap filled by one of the fill ways (visuals.fill_ways)."""
     a, way = got["asset"], got["way"]
-    shot = _illustration_shot(a, start, end, beat_id, n)
+    shot = _picture_shot(a, start, end, beat_id, n)
     shot["role"] = a.asset_role
     shot["fill_reason"] = f"fill way {way}: " + "; ".join(got["reasons"][:1])
     shot["why"] = f"coverage repair: {way}"
     if way == "reframe":
+        region = got["region"]
         shot.update({"command": "CROP_EXISTING", "motion": "CROP_FOCUS", "reframe": True,
-                     "focus": crop_box(a.width, a.height, got["reframe"]),
+                     "crop_region": region, "crop_anchor": got.get("anchor"),
+                     **({} if region == crops.FACE else {"focus": crops.region_box(a.width, a.height, region)}),
                      "repeat_reason": "a closer view of a real picture shown earlier (no unused picture fits these words)",
                      "repeat_justified": True})
     else:
@@ -192,18 +197,12 @@ def _way_shot(got: dict, start: float, end: float, beat_id: str | None, n: int) 
 
 async def _fill_slot(db: Session, case: Case, slot: tuple[float, float], beat: str | None,
                      sentences: list[str], story: dict, firewall, auditor, free: dict, everything: list,
-                     used: set, blueprint: dict, requirements: dict, index: list[int],
-                     ways: FillWays, names: set[str]) -> dict | None:
-    """One picture for one gap: first the fill ways (a close-up of a real picture shown earlier, two
-    accounts, the board, a spoken sentence set large), then an unused pool illustration the auditor
-    approves for these exact words, else a new one drawn for them (and drawn again with the auditor's
-    reasons when it rejects). None when nothing was approved."""
-    got = await ways.try_slot(slot, beat, sentences, story, firewall, names)
-    if got:
-        return got
+                     used: set, ways: FillWays, names: set[str]) -> dict | None:
+    """One picture for one gap: first an unused real picture the auditor approves for these exact
+    words (the beat's own pictures, then any), then the fill ways (a close-up of a real picture shown
+    earlier, two accounts, the board, a spoken sentence set large). None when nothing was approved:
+    the gap is held and reported."""
     cfg = ai_config.coverage
-    beat_summary = next((b.get("summary") for b in blueprint.get("beats") or [] if b["id"] == beat), None)
-    avoid: list[str] = []
     seen: set[str] = set()
     while len(seen) < cfg.pool_tries:
         a = next((x for items in (free.get(beat) or [], everything) for x in items
@@ -216,27 +215,7 @@ async def _fill_slot(db: Session, case: Case, slot: tuple[float, float], beat: s
         if verdict == "approved":
             return {"asset": a, "as": shown_as, "reasons": reasons}
         used.discard(a.asset_code)
-        avoid += reasons[:2]
-    if not ai_config.illustrations.enabled:
-        return None
-    keys = IL._beat_entities(requirements, beat or "")
-    for attempt in range(cfg.slot_attempts):
-        try:
-            subject = await IL.slot_brief(db, case, sentences, beat_summary, avoid)
-            png = await IL.generate_png(IL.image_prompt(subject))
-        except Exception as e:  # noqa: BLE001 — a failed draw is one attempt less, not a failed film
-            avoid.append(f"the picture could not be made ({type(e).__name__})")
-            continue
-        index[0] += 1
-        a = IL.make_asset(db, case, png, {"subject": subject}, beat or "", 1000 + index[0], keys)
-        IL.book(db, case.id, 1)
-        used.add(a.asset_code)
-        verdict, shown_as, reasons = await auditor.check(db, case, a, sentences, story, firewall)
-        if verdict == "approved":
-            return {"asset": a, "as": shown_as, "reasons": reasons, "attempts": attempt + 1}
-        used.discard(a.asset_code)
-        avoid += reasons[:2]
-    return None
+    return await ways.try_slot(slot, beat, sentences, story, firewall, names)
 
 
 async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
@@ -256,28 +235,24 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
     bp_row = db.get(EditorialBlueprint, row.blueprint_id)
     plan_row = db.get(VisualPlan, row.visual_plan_id)
     blueprint = json.loads(bp_row.blueprint_json or "{}") if bp_row else {}
-    requirements = json.loads(plan_row.requirements_json or "{}") if plan_row else {}
     plan = json.loads(plan_row.plan_json or "{}") if plan_row else {}
     texts, spans = plan_sentences(plan), script.get("sentence_entities") or []
     firewall = SP.Firewall.from_json(script.get("firewall"))
     shots = _cut(sorted(script.get("shots") or [], key=lambda s: s["start"]), windows)
     used = {s.get("asset_id") for s in shots if s.get("asset_id")}
-    free = {b: [a for a in items if a.asset_code not in used]
-            for b, items in IL.existing(db, row.case_id).items()}
-    everything = [a for items in free.values() for a in items]
+    free = real_pool(db, row.case_id, plan, used)
+    everything = free[""]
     slots = [(p, _beat_at(script, p[0])) for w in windows for p in _pieces(*w)]
     auditor = VisualAuditor()
     ways = FillWays(db, case, script, blueprint, shots, auditor)
-    sem = asyncio.Semaphore(ai_config.illustrations.concurrency)
-    counter = [0]
+    sem = asyncio.Semaphore(ai_config.coverage.fill_concurrency)
 
     async def one(slot, beat):
         sentences = shot_sentences({"start": slot[0], "end": slot[1]}, spans, texts)
         story = SP.story_point(blueprint, beat)
         async with sem:
             return await _fill_slot(db, case, slot, beat, sentences, story, firewall, auditor, free,
-                                    everything, used, blueprint, requirements, counter, ways,
-                                    named_between(spans, slot[0], slot[1]))
+                                    everything, used, ways, named_between(spans, slot[0], slot[1]))
 
     results = await asyncio.gather(*(one(sl, b) for sl, b in slots))
     filled, count, missing = 0, 0, []
@@ -286,7 +261,7 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
             missing.append((start, end))
             continue
         shot = (_way_shot(got, start, end, beat, count) if got.get("way")
-                else _illustration_shot(got["asset"], start, end, beat, count))
+                else _picture_shot(got["asset"], start, end, beat, count))
         shot["audit"] = {"verdict": "approved", "as": got["as"], "reasons": got["reasons"][:3],
                          "try": got.get("attempts", 0)}
         shots.append(shot)
@@ -306,6 +281,22 @@ async def repair(db: Session, row: ProductionScript, script: dict) -> dict:
     return {"windows": len(windows), "slots": len(slots), "filled": filled,
             "ways": {k: v for k, v in ways.done.items() if v},
             "missing_seconds": round(sum(b - a for a, b in missing), 2), "held": held}
+
+
+def real_pool(db: Session, case_id: int, plan: dict, used: set) -> dict[str, list[VisualAsset]]:
+    """The case's unused real pictures by beat: the pictures offered for a beat in the plan first
+    (best first), then every other verified real picture under the key "" (offered anywhere)."""
+    from app.documentary.visuals.director import usable
+    from app.documentary.visuals.supply import is_usable_real
+
+    real = {a.asset_code: a for a in db.query(VisualAsset).filter(VisualAsset.case_id == case_id)
+            if is_usable_real(a) and a.asset_type == "photo" and usable(a)
+            and a.asset_role in ("evidence", "context") and a.asset_code not in used}
+    out: dict[str, list[VisualAsset]] = {}
+    for beat, codes in (plan.get("candidates") or {}).items():
+        out[beat] = [real[c] for c in codes if c in real]
+    out[""] = sorted(real.values(), key=lambda a: (a.relevance_tier or 5, a.id))
+    return out
 
 
 def _hold_gaps(shots: list[dict], missing: list[tuple[float, float]]) -> int:

@@ -97,9 +97,6 @@ def _discovery_input(payload) -> dict:
     }
 
 
-DISCOVERY_COST_ESTIMATE_SAMPLE_SIZE = 20
-
-
 def discovery_cost_estimate(db: Session, count: int) -> dict:
     """A before-you-start estimate for a discovery run of `count` cases,
     built only from this app's own completed discovery runs (average
@@ -113,7 +110,7 @@ def discovery_cost_estimate(db: Session, count: int) -> dict:
         .filter(ResearchJob.job_type == "discovery", ResearchJob.status == "completed",
                 ResearchJob.total_cost_usd.isnot(None))
         .order_by(ResearchJob.id.desc())
-        .limit(DISCOVERY_COST_ESTIMATE_SAMPLE_SIZE)
+        .limit(ai_config.limits_settings().discovery.cost_estimate_sample_size)
         .all()
     )
     per_case_costs: list[float] = []

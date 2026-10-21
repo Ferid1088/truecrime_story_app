@@ -509,6 +509,16 @@ test.describe("Other pages", () => {
     });
   }
 
+  test("the YouTube clip downloader is off until the owner turns it on", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/settings");
+    const box = page.getByRole("checkbox", { name: "YouTube clip downloader" });
+    await expect(box).not.toBeChecked();
+    await expect(page.getByTestId("youtube-clips-card")).toContainText("never another creator");
+    await box.click();
+    await expect(box).toBeChecked();
+  });
+
   test("settings shows multilingual configuration", async ({ page }) => {
     await mockApi(page);
     await page.goto("/settings");

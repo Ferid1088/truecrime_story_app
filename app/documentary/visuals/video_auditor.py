@@ -19,13 +19,10 @@ frames_per_second, at most max_frames — and two jobs:
 
 from __future__ import annotations
 
-
-from app.core.prompts import prompt
-
 import base64
 import json
 
-
+from app.core.prompts import prompt
 from app.db.models import VisualAsset
 from app.documentary.visuals.verification import decide as verify_decide
 

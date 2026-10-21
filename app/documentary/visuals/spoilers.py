@@ -151,7 +151,7 @@ class Firewall:
                 "reveals": {b: sorted(v) for b, v in sorted(self.reveals.items())}}
 
     @classmethod
-    def from_json(cls, data: dict | None) -> "Firewall":
+    def from_json(cls, data: dict | None) -> Firewall:
         data = data or {}
         return cls(set(data.get("investigation") or ()), set(data.get("custody") or ()),
                    data.get("reveals") or {})

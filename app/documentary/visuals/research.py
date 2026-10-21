@@ -487,7 +487,7 @@ def next_asset_code(db: Session) -> str:
 
 
 # Providers asked for CONTEXT queries: rights are known per file.
-RIGHTS_KNOWN_PROVIDERS = ("wikimedia",)
+RIGHTS_KNOWN_PROVIDERS = ("wikimedia", "usgs_naip", "nasa")
 # Within one run: case sources first, then exact finds, then context.
 _KIND_ORDER = {"source": 0, "exact": 1, "context": 2}
 

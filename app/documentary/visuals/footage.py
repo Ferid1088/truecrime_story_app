@@ -618,7 +618,7 @@ async def add_uploaded_video(db: Session, case: Case, src: Path, filename: str,
             sheet_path(case.id, code).unlink(missing_ok=True)
 
 
-def _meta_of(c: "FootageCandidate", status: str, reason: str, found_during: str) -> dict:
+def _meta_of(c: FootageCandidate, status: str, reason: str, found_during: str) -> dict:
     tier, why = T.provisional_why(c.provider, "context", c.entity_type, c.query_kind)
     return {
         "provider": c.provider, "source_url": c.source_url or c.url, "page_url": c.page_url,
