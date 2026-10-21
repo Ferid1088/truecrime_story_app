@@ -98,7 +98,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             )
         if code in (402, 403):
             return GenerationError(
-                "forbidden", f"{self.label} permission/quota failure ({code})."
+                "forbidden",
+                f"{self.label} permission/quota failure ({code}){self._provider_message(e)}."
             )
         if code == 404:
             return GenerationError(

@@ -626,3 +626,33 @@ def test_spoken_and_audio_plan_api(client, db_session, monkeypatch):
     assert client.get(sp + "/audio-plan").json()["id"] == plan_id
     perf = client.get(sp + "/performance").json()
     assert perf["directed"] is True
+
+
+class WordyGen(SpokenGen):
+    """Tells every beat twice as long as the script; a repair that is asked to tighten it
+    tells the beat at the script's own length."""
+
+    async def generate_text(self, role, system, user):
+        self.calls.append((role, system, user))
+        payload = self._payload(user)
+        if "beats" in payload:
+            pairs = [(b["beat_id"], _told(b["source"]) if b.get("too_long_for_the_length")
+                      else _told(b["current"])) for b in payload["beats"]]
+        else:
+            pairs = [(s["id"], _told(s["text"]) + "\n\n" + _told(s["text"]))
+                     for s in _parse_sections(payload["script"])]
+        text = "\n\n".join(f"[[ACT:{i}]]\n\n{t}" for i, t in pairs)
+        return GenerationResult(text=text, model="m/spoken-writer", provider="fake")
+
+
+def test_a_beat_told_much_longer_than_its_script_is_tightened_not_just_rejected(
+        db_session, monkeypatch):
+    gen = WordyGen()
+    _, _, sv = _narrate(db_session, monkeypatch, gen)
+    notes = json.loads(sv.critic_notes)
+    assert notes["quality_gates"] == {"pass": True, "failures": []}
+    assert notes["spoken"]["repair_iterations"] >= 1
+    repair = [json.loads(u.split("INPUT:\n", 1)[1]) for r, _, u in gen.calls
+              if r == "spoken_writer" and "INPUT:\n" in u and "output_template" in u]
+    problem = repair[0]["beats"][0]["too_long_for_the_length"]
+    assert problem["max_words"] < problem["spoken_words"] and problem["source_words"] > 0

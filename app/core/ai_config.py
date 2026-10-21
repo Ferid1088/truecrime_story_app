@@ -1169,6 +1169,8 @@ class TranscriptIngestionConfig(BaseModel):
     preferred_languages: list[str] = ["en"]
     max_transcript_seconds: int = Field(ge=60)
     max_segments_per_video: int = Field(ge=10)
+    # One YouTube request may take at most this long; the library has no timeout of its own.
+    request_timeout_seconds: float = Field(gt=0)
 
 
 class TranscriptChunkingConfig(BaseModel):

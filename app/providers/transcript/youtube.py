@@ -9,6 +9,8 @@ responsive while several videos are processed.
 import asyncio
 import logging
 
+import requests
+
 from app.core.ai_config import ai_config
 from app.providers.transcript.base import (
     TranscriptProvider,
@@ -17,6 +19,15 @@ from app.providers.transcript.base import (
 )
 
 log = logging.getLogger(__name__)
+
+
+class TimeoutSession(requests.Session):
+    """A session whose requests always carry the configured timeout: a stalled YouTube
+    connection must fail in seconds, not hold a research run for many minutes."""
+
+    def request(self, method, url, **kwargs):
+        kwargs.setdefault("timeout", ai_config.transcript_ingestion.request_timeout_seconds)
+        return super().request(method, url, **kwargs)
 
 
 class YouTubeTranscriptProvider(TranscriptProvider):
@@ -31,7 +42,7 @@ class YouTubeTranscriptProvider(TranscriptProvider):
     ) -> TranscriptResult:
         from youtube_transcript_api import YouTubeTranscriptApi
 
-        api = YouTubeTranscriptApi()
+        api = YouTubeTranscriptApi(http_client=TimeoutSession())
         transcripts = api.list(video_id)
 
         # Prefer manually-created captions in a preferred language, then any

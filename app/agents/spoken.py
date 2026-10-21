@@ -184,14 +184,26 @@ class SpokenNarrator:
                 "verdict": verdict,
                 "problems": [p for p in st.get("problems") or [] if isinstance(p, dict)][:4],
                 "ear": read_aloud_metrics(s["text"], language),
+                "length": self._length(language, src[s["id"]], s["text"]),
             }
         worst = next((v for v in ("newsreader", "mixed", "storyteller") if v in overall), None)
         return result, worst, " ".join(notes)[:800]
 
+    def _length(self, language: str, source_text: str, spoken_text: str) -> dict:
+        """A beat told much longer than its script: how long it is against what the whole film may
+        grow to (every beat within the ratio keeps the film within it)."""
+        source_words = len(source_text.split())
+        spoken_words = len(spoken_text.split())
+        ratio = _words_minutes(spoken_text, language) / max(_words_minutes(source_text, "en"), 1e-6)
+        return {"source_words": source_words, "spoken_words": spoken_words,
+                "max_words": int(spoken_words / ratio * self.cfg.max_duration_ratio)
+                if ratio else spoken_words,
+                "too_long": ratio > self.cfg.max_duration_ratio}
+
     @staticmethod
     def _needs_repair(entry: dict) -> bool:
         ear = entry.get("ear") or {}
-        return (not entry["meaning_ok"]) or (
+        return (not entry["meaning_ok"]) or bool((entry.get("length") or {}).get("too_long")) or (
             entry["verdict"] in ("mixed", "newsreader") and entry["problems"]
         ) or bool(ear.get("long_sentences") or ear.get("stiff_phrases"))
 
@@ -226,7 +238,9 @@ class SpokenNarrator:
                  "too_long_for_the_ear": (checks[s["id"]].get("ear") or {}).get(
                      "long_sentences", []),
                  "stiff_phrases": (checks[s["id"]].get("ear") or {}).get(
-                     "stiff_phrases", [])}
+                     "stiff_phrases", []),
+                 "too_long_for_the_length": (
+                     checks[s["id"]]["length"] if checks[s["id"]]["length"]["too_long"] else None)}
                 for s in targets
             ],
             "output_template": _mark_sections(

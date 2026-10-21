@@ -530,3 +530,15 @@ def test_generation_http_error_keeps_the_providers_own_message():
     plain = httpx.Response(502, text="<html>Bad gateway</html>", request=response.request)
     assert "HTTP 502" in str(provider._map_http_error(httpx.HTTPStatusError(
         "bad", request=response.request, response=plain)))
+
+
+def test_a_403_keeps_the_gateways_reason_so_quota_and_permission_can_be_told_apart():
+    from app.providers.generation.apimaster import APIMasterGenerationProvider
+
+    provider = APIMasterGenerationProvider.__new__(APIMasterGenerationProvider)
+    response = httpx.Response(403, json={"error": {"message": "model gpt-x is not allowed"}},
+                              request=httpx.Request("POST", "https://gateway.example/v1/chat/completions"))
+    error = provider._map_http_error(httpx.HTTPStatusError(
+        "forbidden", request=response.request, response=response))
+    assert error.kind == "forbidden"
+    assert "(403)" in str(error) and "model gpt-x is not allowed" in str(error)

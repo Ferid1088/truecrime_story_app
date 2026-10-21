@@ -14,7 +14,10 @@ Fix exactly those problems and keep everything else word for word:
 - style problems: follow the editor's suggestion unless it would change a
   fact;
 - long sentences: split into short spoken sentences;
-- stiff phrases: say them the way people talk.
+- stiff phrases: say them the way people talk;
+- "too_long_for_the_length" (when given): the beat is told longer than the film may grow. Tell it
+  again in at most "max_words" words: cut repetition and filler and say each fact once, never a
+  fact itself.
 Keep each beat's length within about 15 percent of the script's speaking
 time. A fix may change a sentence's form, never its facts.
 
