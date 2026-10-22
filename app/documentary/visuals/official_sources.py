@@ -24,6 +24,7 @@ import contextlib
 import json
 import logging
 import re
+from collections.abc import Sequence
 from urllib.parse import urlparse
 
 import httpx
@@ -353,7 +354,7 @@ def _first_linked_host(urls: list[str]) -> str | None:
     return None
 
 
-def _title_names_entity(title: str, terms: list) -> str | None:
+def _title_names_entity(title: str, terms: Sequence) -> str | None:
     """The entity term the upload title names: the full phrase, or every word of a
     multi-word term, or a distinctive single word (>=5 chars), or — for a canonical
     person name only — the surname (>=5 chars, never on a group alias like "the four
@@ -386,7 +387,8 @@ def _title_names_entity(title: str, terms: list) -> str | None:
 # ---- P2c: uploads of proven channels ------------------------------------------------------------
 
 async def search_official_channel_videos(
-        client: httpx.AsyncClient, db: Session, case, entity_terms: list[str],
+        client: httpx.AsyncClient, db: Session, case,
+        entity_terms: Sequence[str | tuple[str, str, bool]],
         api_key: str, transcript_provider=None) -> dict:
     """A proven channel's uploads filtered by the case's entity names and the configured
     material kinds, classified and stored like every discovered video — with the channel's

@@ -191,9 +191,11 @@ def test_review_queue_for_ui_sorts_by_how_many_beats_a_picture_would_fill(db_ses
     db_session.add(plan)
     db_session.commit()
     # subject types outside the second-pass list (place/building/landscape/object/document/map),
-    # so both stay in the true human queue rather than being excluded as second-pass-pending
-    _asset(db_session, case, "U1", subject="person", entity_key="kabar_sheath", phash=1)
-    _asset(db_session, case, "U2", subject="vehicle", entity_key="white_sedan", phash=2)
+    # so both stay in the true human queue rather than being excluded as second-pass-pending;
+    # far-apart phashes keep them two groups, so the order test does not depend on which row
+    # the database returns first
+    _asset(db_session, case, "U1", subject="person", entity_key="kabar_sheath", phash=0b0000000000000000)
+    _asset(db_session, case, "U2", subject="vehicle", entity_key="white_sedan", phash=0b1111111111111111)
     out = RQ.review_queue_for_ui(db_session, case.id)
     codes = [g["asset"]["asset_id"] for g in out["queue"]]
     assert codes[0] == "U1"  # needed by 2 beats, comes first

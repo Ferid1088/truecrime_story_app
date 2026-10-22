@@ -50,8 +50,9 @@ MB = 1024 * 1024
 PAID_SEARCH_PROVIDERS = ("brave_images",)
 
 
-def _entity_terms(db: Session, case_id: int) -> list[str]:
-    """The terms an official-channel upload must name: canonical entity names plus aliases."""
+def _entity_terms(db: Session, case_id: int) -> list[tuple[str, str, bool]]:
+    """The terms an official-channel upload must name: canonical entity names plus aliases,
+    as (name, entity_type, canonical) triples."""
     import json as _json
 
     from app.db.models import EntityDossier

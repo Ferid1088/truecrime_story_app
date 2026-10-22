@@ -15,6 +15,7 @@ centred rather than aligned to a side.
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
 from PIL import Image, ImageDraw
@@ -44,16 +45,46 @@ class CoverLayout:
     contrast_ratio: float
 
 
-def _fit_label(text: str, language: str, max_width: int, max_lines: int) -> tuple[list[str], int]:
+def _force_lines(words: list[str], f, language: str, n: int) -> list[str]:
+    """Split ``words`` into exactly ``n`` lines at word boundaries, choosing the breaks that
+    keep the widest line as narrow as possible. A label designed to occupy n lines must not
+    collapse to fewer just because a different shaping engine measures it narrower."""
+    if len(words) <= n:
+        return list(words)
+    best: list[str] | None = None
+    best_width = 0
+    for cuts in itertools.combinations(range(1, len(words)), n - 1):
+        groups = [" ".join(words[a:b])
+                  for a, b in zip((0, *cuts), (*cuts, len(words)), strict=True)]
+        widest = max(T.text_width(g, f, language) for g in groups)
+        if best is None or widest < best_width:
+            best, best_width = groups, widest
+    return best or list(words)
+
+
+def _fit_label(text: str, language: str, max_width: int, max_lines: int,
+               min_lines: int = 1) -> tuple[list[str], int]:
     """The largest font size (down to LEGIBILITY_MIN_PX) whose wrap fits in max_lines lines
-    of max_width; never returns more lines than max_lines or a smaller font than the minimum."""
+    of max_width; never returns more lines than max_lines or a smaller font than the minimum.
+    ``min_lines`` enforces the label's designed line count (the Persian label is set on two
+    lines): a wrap that comes out shorter is split at a word boundary, at the largest size
+    where every line still fits."""
+    words = text.split()
     for size in range(LABEL_MAX_PX, LEGIBILITY_MIN_PX - 1, -2):
         f = T.font(language, "sans", "bold", size)
         lines = T.wrap(text, f, language, max_width)
+        if len(lines) < min_lines:
+            forced = _force_lines(words, f, language, min_lines)
+            if not all(T.text_width(line, f, language) <= max_width for line in forced):
+                continue                                # still too wide: try a smaller size
+            lines = forced
         if len(lines) <= max_lines:
             return lines, size
     f = T.font(language, "sans", "bold", LEGIBILITY_MIN_PX)
-    return T.wrap(text, f, language, max_width)[:max_lines], LEGIBILITY_MIN_PX
+    lines = T.wrap(text, f, language, max_width)
+    if len(lines) < min_lines:
+        lines = _force_lines(words, f, language, min_lines)
+    return lines[:max_lines], LEGIBILITY_MIN_PX
 
 
 def _relative_luminance(rgb: tuple[int, int, int]) -> float:
@@ -92,8 +123,8 @@ def compose_cover(language: str, portrait: Image.Image, *, background: tuple[int
     img = _cover_crop(portrait).convert("RGB")
 
     label_width = W - 2 * SIDE_SAFE_MARGIN
-    max_lines = 2 if language == "fa" else 1
-    lines, size = _fit_label(label_text, language, label_width, max_lines)
+    label_lines = 2 if language == "fa" else 1
+    lines, size = _fit_label(label_text, language, label_width, label_lines, label_lines)
 
     draw = ImageDraw.Draw(img)
     f = T.font(language, "sans", "bold", size)

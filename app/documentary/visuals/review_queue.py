@@ -86,7 +86,7 @@ def review_queue(db: Session, case_id: int) -> dict:
 
     assets = (db.query(VisualAsset)
              .filter(VisualAsset.case_id == case_id, VisualAsset.verification_status == "needs_review")
-             .all())
+             .order_by(VisualAsset.id).all())
     second_pass_pending = {a.id for a in VisualVerificationAgent.second_pass_candidates(assets)}
     queue_assets = [a for a in assets if a.id not in second_pass_pending]
     groups = group_duplicates(queue_assets)
@@ -177,7 +177,9 @@ def review_queue_for_ui(db: Session, case_id: int) -> dict:
             "verifier_reason": reason,
             "asset": asset_dict(asset),
         })
-    items.sort(key=lambda x: -x["beats_count"])
+    # groups form in asset-id order (review_queue sorts its rows); group_id is the stable
+    # secondary key so equal beat counts never depend on database row order
+    items.sort(key=lambda x: (-x["beats_count"], x["group_id"]))
     return {**base, "queue": items}
 
 
