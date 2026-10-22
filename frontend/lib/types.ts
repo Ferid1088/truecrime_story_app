@@ -2349,6 +2349,9 @@ export interface ReviewQueueItem {
     title: string | null;
     caption: string | null;
     subject_type: string | null;
+    asset_type: string | null;
+    clip_start: number | null;
+    clip_end: number | null;
     image_url: string;
     verification_confidence: number | null;
   };

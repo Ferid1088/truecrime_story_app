@@ -95,12 +95,25 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
       ) : item ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(280px,440px)_1fr]">
           <section className="flex min-h-[420px] items-center justify-center bg-muted/40 p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={apiFileUrl(item.asset.image_url)}
-              alt={item.asset.title ?? item.entity_name}
-              className="max-h-[480px] max-w-full object-contain"
-            />
+            {item.asset.asset_type === "video" ? (
+              <video
+                key={item.asset.id}
+                controls
+                preload="metadata"
+                src={apiFileUrl(item.asset.image_url) +
+                  (item.asset.clip_start != null
+                    ? `#t=${item.asset.clip_start}${item.asset.clip_end != null ? `,${item.asset.clip_end}` : ""}`
+                    : "")}
+                className="max-h-[480px] max-w-full"
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={apiFileUrl(item.asset.image_url)}
+                alt={item.asset.title ?? item.entity_name}
+                className="max-h-[480px] max-w-full object-contain"
+              />
+            )}
           </section>
           <section className="space-y-5">
             <div>

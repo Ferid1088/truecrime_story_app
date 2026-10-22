@@ -187,6 +187,8 @@ def asset_dict(asset: VisualAsset) -> dict:
     return {
         "id": asset.id, "asset_id": asset.asset_code, "title": asset.title,
         "caption": asset.caption, "subject_type": asset.subject_type,
+        "asset_type": asset.asset_type,
+        "clip_start": asset.clip_start, "clip_end": asset.clip_end,
         "image_url": f"/api/visuals/{asset.id}/file",
         "verification_confidence": asset.verification_confidence,
     }

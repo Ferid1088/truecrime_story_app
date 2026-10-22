@@ -72,6 +72,7 @@ export function RunTab({
   const [estimate, setEstimate] = useState<DocumentaryDryRunResult | null>(null);
   const [costs, setCosts] = useState<CaseCostPanel | null>(null);
   const [outfitPanelOpen, setOutfitPanelOpen] = useState(false);
+  const [reviewCount, setReviewCount] = useState<number | null>(null);
   const ids = useId();
 
   const noFinal = overview.finals.length === 0;
@@ -116,6 +117,9 @@ export function RunTab({
     api.caseCosts(caseId)
       .then((next) => { if (!cancelled) setCosts(next); })
       .catch(() => { if (!cancelled) setCosts(null); });
+    api.reviewQueue(caseId)
+      .then((next) => { if (!cancelled) setReviewCount(next.items); })
+      .catch(() => { if (!cancelled) setReviewCount(null); });
     return () => { cancelled = true; };
   }, [caseId]);
 
@@ -273,6 +277,13 @@ export function RunTab({
               </Button>
               <Button variant="secondary" onClick={() => setOutfitPanelOpen(true)}>
                 Outfits
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => router.push(`/documentary/${caseId}/review`)}
+                data-testid="review-pictures-button"
+              >
+                Review pictures{reviewCount != null ? ` (${reviewCount})` : ""}
               </Button>
             </div>
             {blockers.length > 0 && (

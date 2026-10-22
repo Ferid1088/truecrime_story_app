@@ -156,6 +156,17 @@ function NeedsYou({ run, blocking }: { run: AutopilotRunView; blocking: number }
                 <span>
                   {n.language && <span className="font-medium">{langLabel(n.language)}: </span>}
                   {n.message}
+                  {n.kind === "review_youtube_clips" && (
+                    <>
+                      {" "}
+                      <Link
+                        className="underline"
+                        href={`/documentary/${run.case.id}/review`}
+                      >
+                        Open the review queue
+                      </Link>
+                    </>
+                  )}
                 </span>
               </li>
             ))}
