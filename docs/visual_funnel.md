@@ -542,3 +542,17 @@ a witness's own video. Live proof: 59 classified, 3 film candidates, 3 downloade
 13 rejected by the auditor for a burned-in channel watermark (re-upload stamps), 1
 needs_review. 12 of 2000 discovery-share units. The funnel's per-step counts are in the V4
 report; a film-level autopilot need `review_youtube_clips` names every unreviewed clip used.
+
+## Official-source clip search (P2, 2026-10-22)
+
+Inside `VisualResearchAgent.run` (owner switch + API key): `official_sources.py` derives the
+case's official bodies from its facts (11 on case 9, evidence per name), proves channels by
+stored evidence — a domain link either way is mandatory (`official_sources` config in
+research.json; Brave finds the body's site when the channel publishes no link) — then the
+proven channel's uploads are kept only when a title names a case entity (phrase, all words,
+or a canonical person's surname). Case-9 live run: 2 proven (Pennsylvania State Police via
+governor.pa.gov, Idaho State Police via isp.idaho.gov backlink), 9 skipped with reasons,
+0 matching uploads → 0 clips. A proven-channel clip counts as reviewed at the publish gate;
+every other YouTube clip still needs the owner in the review queue (linked from the
+autopilot "needs you" list and the new "Review pictures" button on the case page — the
+queue also previews video pieces at their clip window).

@@ -48,3 +48,34 @@ Live case-9 proof (2026-10-22): 6 footage queries -> 59 videos classified -> 3 f
 candidates (all `witness_family`, private channels) -> 3 downloaded -> 14 pieces -> the
 auditor rejected 13 for a burned-in channel watermark ("TH ACTION" stamps every frame) and
 kept 1 as needs_review. YouTube Data API: 12 units of the 2000-unit daily discovery share.
+
+## P2 (2026-10-22): official channels found and proven automatically — no owner approval
+
+`app/documentary/visuals/official_sources.py`, wired into the visual-research stage
+behind the same owner switch + API key:
+
+1. **Bodies** (`derive_official_bodies`): the case's official bodies are read out of its own
+   facts/dossier names by configured markers (`official_sources.body_markers`) and stored in
+   `official_bodies` with the fact ids they came from.
+2. **Channel proof** (`prove_channels`): a budgeted channel search per body; a channel is
+   used only when its score reaches `official_sources.proof_min_score` AND a domain link
+   exists either way — the channel links to the body's official domain, or the body's site
+   (found with Brave when the channel publishes none) links back to the channel. Name match,
+   a large channel and official-looking upload titles only add to the score. The whole
+   candidate list, score and reason are stored in `proof_json`; a skipped body keeps
+   `skip_reason`. Nothing is queued for the owner.
+3. **Targeted search** (`search_official_channel_videos`): a proven channel's uploads
+   (`channel_upload_pages` × 50) are kept only when the title names a case entity — the
+   phrase, all its words, or a distinctive surname for a canonical person name. Videos become
+   `official_body` film candidates carrying `channel_proof_json`, then run the unchanged
+   classify → download → segment → audit → director chain.
+
+A clip from a proven channel counts as reviewed: the publish gate `review_youtube_clips`
+(V5) skips it. Clips from any other YouTube channel keep the blocking need.
+
+Live case-9 run: 11 bodies from facts (Moscow Police Department, Latah County
+Sheriff/Prosecutor, Idaho State Police, Pennsylvania State Police, Pullman Police
+Department, FBI, Idaho Attorney General …), 2 channels proven — Pennsylvania State Police
+(channel links to www.governor.pa.gov) and Idaho State Police (isp.idaho.gov links back) —
+9 skipped with stored reasons (Moscow Police Department's best candidate scored 4 but no
+domain link: never used). 0 case-entity uploads in either channel → 0 clips.
