@@ -29,9 +29,31 @@ function look(id: number, pose = "P01_NEUTRAL_SEATED") {
   return { id, stance: "SEATED", camera: "CAM01_FRONT", framing: "MEDIUM", pose, has_image: true };
 }
 
+interface Outfit {
+  id: number;
+  name: string;
+  status: string;
+  looks: ReturnType<typeof look>[];
+  to_approve: string[];
+}
+
+interface LanguagePanel {
+  language: string;
+  chosen_outfit_id: number | null;
+  fixed_look_id: number | null;
+  final_rendered: boolean;
+  outfits: Outfit[];
+}
+
+interface Panel {
+  case_id: number;
+  languages: LanguagePanel[];
+  name_in_languages: Record<string, string[]>;
+}
+
 /** The live panel state the mocked endpoints keep and return. */
-function makePanel() {
-  const panel = {
+function makePanel(): Panel {
+  const panel: Panel = {
     case_id: 1,
     languages: [
       {
