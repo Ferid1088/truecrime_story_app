@@ -112,6 +112,26 @@ def live_titles(db: Session, case_id: int, language: str) -> list[CaseTitleCandi
 PHASE_LABEL = {"research": "Research", "texts": "Writing the texts", "titles": "Title suggestions"}
 
 
+def _youtube_clips_needing_review(db: Session, video: Video) -> list[str]:
+    """V5: the YouTube-clip assets this film's production script uses that still carry
+    `editorial_review_required` — the owner must approve or reject them, never a silent skip."""
+    from app.db.models import ProductionScript, VisualAsset
+
+    if video.production_script_id is None:
+        return []
+    ps = db.get(ProductionScript, video.production_script_id)
+    if ps is None:
+        return []
+    shots = json.loads(ps.script_json or "{}").get("shots") or []
+    codes = {s.get("asset_id") for s in shots if s.get("asset_id")}
+    if not codes:
+        return []
+    return sorted(a.asset_code for a in db.query(VisualAsset).filter(
+        VisualAsset.asset_code.in_(codes),
+        VisualAsset.provider == "youtube_clip",
+        VisualAsset.rights_status == "editorial_review_required"))
+
+
 def explain_unapproved(db: Session, case_id: int, language: str) -> str | None:
     """Why the newest final text of a language is not approved, in the words of its own checks."""
     final = (db.query(StoryVersion)
@@ -373,13 +393,21 @@ class AutopilotRunner:
     async def _publish(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         if not all(S.step_status(run, p) == "done" for p in ("films", "titles", "shorts")):
             return False
-        films, shorts, handles, avatar_missing, outfit_missing = \
+        films, shorts, handles, avatar_missing, outfit_missing, clip_review = \
             self._publish_inputs(db, run, case)
         for lang in outfit_missing:
             # O2: the final version needs an outfit chosen for its language; drafts do not.
             S.add_need(run, f"publish:{lang}:choose_outfit", "choose_outfit",
                        f"Needs you: choose outfit ({lang}) — open the Outfits panel on the case "
                        "page and pick the outfit this film's host wears.", language=lang)
+        for lang, codes in clip_review.items():
+            # V5: a YouTube clip in the film whose rights still need a human look is never a
+            # silent skip — the owner approves or rejects it in the visuals review queue.
+            S.add_need(run, f"publish:{lang}:review_youtube_clips", "review_youtube_clips",
+                       f"Needs you: review the YouTube clips used in this film ({lang}): "
+                       + ", ".join(codes)
+                       + " — approve or reject them in the case's visuals review queue.",
+                       language=lang)
         for lang in avatar_missing:
             # Owner decision 2026-10-22 (A3): the autopilot never publishes a film with no
             # approved avatar look for its language; it only ever asks the owner to approve one.
@@ -413,7 +441,8 @@ class AutopilotRunner:
 
     def _publish_inputs(self, db: Session, run: AutopilotRun, case: Case
                         ) -> tuple[list[P.FilmInput], list[P.ShortInput],
-                                  dict[tuple[str, str], str], list[str], list[str]]:
+                                  dict[tuple[str, str], str], list[str], list[str],
+                                       dict[str, list[str]]]:
         from app.documentary import storage
         from app.documentary.production import host_timeline as HT
 
@@ -421,6 +450,7 @@ class AutopilotRunner:
         films = []
         avatar_missing = []
         outfit_missing = []
+        clip_review: dict[str, list[str]] = {}
         for video in db.query(Video).filter(Video.job_id.in_(job_ids),
                                             Video.state == "rendered").all():
             if ai_config.host.required_for_film and video.production_script_id is not None:
@@ -431,6 +461,10 @@ class AutopilotRunner:
                 if not HT.avatar_present(db, video.production_script_id):
                     avatar_missing.append(video.language)
                     continue
+            codes = _youtube_clips_needing_review(db, video)
+            if codes:
+                clip_review[video.language] = codes
+                continue
             titles = live_titles(db, case.id, video.language)
             films.append(P.FilmInput(
                 language=video.language, video_id=video.id, file_path=video.file_path or "",
@@ -449,4 +483,4 @@ class AutopilotRunner:
             shorts.append(P.ShortInput(short_id=short.id, language=short.language,
                                        packages=packages))
         handles = {(c.language, c.platform): c.handle for c in db.query(ChannelSetting).all()}
-        return films, shorts, handles, avatar_missing, outfit_missing
+        return films, shorts, handles, avatar_missing, outfit_missing, clip_review
