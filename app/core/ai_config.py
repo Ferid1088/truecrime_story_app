@@ -1147,6 +1147,28 @@ class YouTubeDataAPIConfig(BaseModel):
     discovery_max_results: int = Field(default=10, ge=1, le=50)
 
 
+class OfficialSourcesConfig(BaseModel):
+    """P2: automatic official-source discovery — no owner approval. A channel is proven
+    official only when its score reaches proof_min_score AND (when proof_requires_domain_link)
+    a real domain link exists either way: the channel links to the body's site, or the site
+    links back to the channel. Everything else is skipped with the reason stored."""
+
+    body_markers: dict[str, str] = {}
+    standalone_bodies: list[str] = []
+    channel_search_results: int = Field(default=3, ge=1, le=10)
+    upload_titles_sampled: int = Field(default=20, ge=1, le=50)
+    material_kinds: list[str] = []
+    proof_scores: dict[str, int] = {}
+    proof_min_score: int = Field(default=5, ge=1)
+    proof_requires_domain_link: bool = True
+    large_channel_subscribers: int = Field(default=50000, ge=0)
+    official_upload_share: float = Field(default=0.3, ge=0.0, le=1.0)
+    official_domain_suffixes: list[str] = []
+    domain_fetch_seconds: float = Field(default=10.0, gt=0)
+    # a channel's uploads playlist pages searched for case material (50 items per page)
+    channel_upload_pages: int = Field(default=6, ge=1, le=20)
+
+
 class YouTubeResearchConfig(BaseModel):
     languages: list[str] = ["en", "de", "fa", "ar"]
     max_results_per_language: int = Field(ge=1, le=50)
@@ -3569,6 +3591,7 @@ class AIConfig(BaseModel):
     search_engine: SearchEngineConfig
     youtube_research: YouTubeResearchConfig
     youtube_data_api: YouTubeDataAPIConfig = Field(default_factory=YouTubeDataAPIConfig)
+    official_sources: OfficialSourcesConfig = Field(default_factory=OfficialSourcesConfig)
     evidence_selection: EvidenceSelectionConfig
     transcript_ingestion: TranscriptIngestionConfig
     transcript_chunking: TranscriptChunkingConfig

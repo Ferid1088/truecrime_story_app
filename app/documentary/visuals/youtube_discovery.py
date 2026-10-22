@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import json
 import re
 
 import httpx
@@ -269,6 +270,9 @@ def upsert_discovered(db, case, candidate: dict, query: str):
                    if k in ("use", "rights_status", "use_reason", "license_evidence_url",
                             "license_checked_at", "attribution_text", "source_class",
                             "class_evidence")})
+    proof = candidate.get("channel_proof")
+    if isinstance(proof, dict) and proof.get("status") == "proven":
+        fields["channel_proof_json"] = json.dumps(proof, ensure_ascii=False)
     row = db.query(VideoSource).filter(
         VideoSource.case_id == case.id,
         VideoSource.video_id == candidate["video_id"]).first()

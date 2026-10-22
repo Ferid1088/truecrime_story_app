@@ -118,6 +118,14 @@ class VideoUseClassifier:
             return self._research_only("other_creator_edited")
         if any(p in channel for p in cfg.reuploader_channel_patterns):
             return self._research_only("reuploader")
+        # P2: a channel automatically proven an official body (stored proof with a domain
+        # link) is an official source regardless of whether its name carries a marker word.
+        proof = candidate.get("channel_proof")
+        if isinstance(proof, dict) and proof.get("status") == "proven":
+            checks = [k for k, v in (proof.get("checks") or {}).items() if v]
+            return self._candidate(candidate, "official_body",
+                                   "the channel is proven official: " + ", ".join(checks),
+                                   evidence)
         official = classes.get("official_body")
         if official:
             marker = next((m for m in official.channel_markers if m in channel), None)

@@ -126,10 +126,19 @@ def _youtube_clips_needing_review(db: Session, video: Video) -> list[str]:
     codes = {s.get("asset_id") for s in shots if s.get("asset_id")}
     if not codes:
         return []
-    return sorted(a.asset_code for a in db.query(VisualAsset).filter(
-        VisualAsset.asset_code.in_(codes),
-        VisualAsset.provider == "youtube_clip",
-        VisualAsset.rights_status == "editorial_review_required"))
+    reviewable = []
+    for a in db.query(VisualAsset).filter(
+            VisualAsset.asset_code.in_(codes),
+            VisualAsset.provider == "youtube_clip",
+            VisualAsset.rights_status == "editorial_review_required"):
+        # P2d: a clip from an automatically proven official channel counts as reviewed;
+        # every other YouTube clip keeps the blocking need
+        spec = json.loads(a.spec_json or "{}")
+        proof = ((spec.get("source_record") or {}).get("channel_proof")) or {}
+        if proof.get("status") == "proven":
+            continue
+        reviewable.append(a.asset_code)
+    return sorted(reviewable)
 
 
 def explain_unapproved(db: Session, case_id: int, language: str) -> str | None:

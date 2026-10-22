@@ -105,7 +105,14 @@ def sha256_file(path: Path) -> str:
 
 def source_record(video, sha256: str) -> dict:
     """What is stored and exported for every clip made from a YouTube video."""
+    proof = None
+    raw = getattr(video, "channel_proof_json", None)
+    if raw:
+        try:
+            proof = json.loads(raw)
+        except ValueError:
+            proof = None
     return {"url": video.url, "channel": video.channel_name, "channel_url": video.channel_url,
             "title": video.title, "video_date": video.published_at, "source_class": video.source_class,
             "class_evidence": video.class_evidence, "sha256": sha256,
-            "downloaded_at": utc_now().isoformat()}
+            "downloaded_at": utc_now().isoformat(), "channel_proof": proof}

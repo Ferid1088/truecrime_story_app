@@ -418,6 +418,9 @@ class VideoSource(Base):
     # P15b: the raw YouTube Data API status.license value ("youtube"|"creativeCommon"),
     # fetched from a real videos.list call — the existing classifier already checks it.
     youtube_license: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # P2: when the channel was automatically proven an official body, the stored proof
+    # (status, score, checks, links); shown in the clip's source record.
+    channel_proof_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     case = relationship("Case")
     source = relationship("Source")
@@ -1251,6 +1254,35 @@ class VisualSearchLog(Base):
     found_during: Mapped[str | None] = mapped_column(String(30), nullable=True)
     entity_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
     candidates: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class OfficialBody(Base):
+    """P2: one official body of a case (police department, sheriff, prosecutor, court,
+    state police, FBI ...) derived automatically from the case facts/dossiers with the
+    evidence where the name came from — and, when found, the proven official YouTube
+    channel with its proof. The owner never approves a channel: proof is automatic and
+    recorded; anything unproven is skipped with the reason stored."""
+
+    __tablename__ = "official_bodies"
+    __table_args__ = (UniqueConstraint("case_id", "name_key", name="uq_official_bodies_case_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    name: Mapped[str] = mapped_column(String(300))
+    name_key: Mapped[str] = mapped_column(String(320))          # normalized, for dedupe
+    body_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Where the name came from: {"fact_ids": [...], "claims": [...], "dossier_keys": [...]}.
+    evidence_json: Mapped[str] = mapped_column(Text, default="{}")
+    # P2b channel proof: found -> proven | skipped.
+    status: Mapped[str] = mapped_column(String(20), default="found")
+    skip_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    channel_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    channel_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    channel_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploads_playlist_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    proof_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 

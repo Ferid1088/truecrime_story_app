@@ -110,5 +110,72 @@
     "term_min_length": 4,
     "contradiction_min_shared_terms": 3,
     "same_contradiction_ratio": 85
+  },
+  "official_sources": {
+    "body_markers": {
+      "police department": "police",
+      "police": "police",
+      "sheriff": "sheriff",
+      "prosecutor": "prosecutor",
+      "district attorney": "prosecutor",
+      "attorney general": "attorney_general",
+      "district court": "court",
+      "supreme court": "court",
+      "superior court": "court",
+      "circuit court": "court",
+      "county court": "court",
+      "court": "court",
+      "state police": "state_police",
+      "department of corrections": "corrections",
+      "department of justice": "federal_agency",
+      "forensic lab": "lab",
+      "coroner": "coroner",
+      "emergency services": "dispatch"
+    },
+    "standalone_bodies": [
+      "FBI",
+      "DOJ",
+      "CIA",
+      "ATF",
+      "US Marshals Service"
+    ],
+    "channel_search_results": 3,
+    "upload_titles_sampled": 20,
+    "material_kinds": [
+      "press conference",
+      "statement",
+      "update",
+      "hearing",
+      "arraignment",
+      "bodycam",
+      "body cam",
+      "911 call",
+      "sentencing",
+      "plea",
+      "meeting",
+      "briefing",
+      "announcement"
+    ],
+    "proof_scores": {
+      "channel_links_to_domain": 4,
+      "domain_links_to_channel": 4,
+      "name_match": 2,
+      "large_channel": 1,
+      "official_uploads": 2
+    },
+    "proof_min_score": 5,
+    "proof_requires_domain_link": true,
+    "large_channel_subscribers": 50000,
+    "official_upload_share": 0.3,
+    "official_domain_suffixes": [
+      ".gov",
+      ".us",
+      ".gov.uk",
+      ".go.",
+      ".gouv.fr",
+      ".bund.de"
+    ],
+    "domain_fetch_seconds": 10.0,
+    "channel_upload_pages": 6
   }
 }

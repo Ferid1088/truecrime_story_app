@@ -50,6 +50,20 @@ MB = 1024 * 1024
 PAID_SEARCH_PROVIDERS = ("brave_images",)
 
 
+def _entity_terms(db: Session, case_id: int) -> list[str]:
+    """The terms an official-channel upload must name: canonical entity names plus aliases."""
+    import json as _json
+
+    from app.db.models import EntityDossier
+
+    terms: list[tuple[str, str, bool]] = []
+    for d in db.query(EntityDossier).filter_by(case_id=case_id):
+        terms.append((d.canonical_name, d.entity_type, True))
+        terms += [(a, d.entity_type, False) for a in _json.loads(d.aliases_json or "[]")
+                  if isinstance(a, str)]
+    return terms
+
+
 def clip_discovery_enabled(db: Session) -> bool:
     """V2: the Data API discovery for film clips runs only with the owner's downloader
     switch on AND an API key configured."""
@@ -350,11 +364,22 @@ class VisualResearchAgent:
                 # V2: the Data API turns the case's footage queries into classified
                 # clip candidates before the (owner-switched) downloader sees them.
                 if clip_discovery_enabled(db):
+                    from app.documentary.visuals import official_sources as OS
+
                     yt_queries = [q["query"] for q in footage_queries(
                         queries, ai_config.youtube_data_api.discovery_max_queries_per_case)
                         if q.get("query")]
                     stats["youtube_discovery"] = await YD.discover_for_case(
                         client, db, case, yt_queries, settings.youtube_api_key)
+                    # P2: the case's official bodies, their automatically proven channels
+                    # and the channels' case-relevant uploads — all automatic, all logged.
+                    stats["official_bodies"] = OS.derive_official_bodies(db, case)
+                    stats["official_channels"] = await OS.prove_channels(
+                        client, db, case, settings.youtube_api_key,
+                        search_backend=brave_backend())
+                    stats["official_channel_videos"] = await OS.search_official_channel_videos(
+                        client, db, case,
+                        _entity_terms(db, case.id), settings.youtube_api_key)
                 stats["film_candidates"] = await FootageAgent(client).ingest_film_candidates(
                     db, case, found_during=found_during)
         finally:
