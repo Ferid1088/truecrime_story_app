@@ -901,6 +901,13 @@ class DocumentaryMixer:
             if paid is not None:
                 generated.append(track.track_code)
                 cost += paid
+                if case_id is not None:
+                    try:
+                        from app.documentary.music_cost import book_track
+                        book_track(db, track, int(case_id))
+                    except Exception as e:  # noqa: BLE001 — cost booking never breaks a mix
+                        log.warning("music cost booking failed for %s: %s",
+                                    track.track_code, e)
             beat = p.get("after_beat") or (p.get("beats") or [None])[0]
             resolved.append({
                 **p, "mood": mood,

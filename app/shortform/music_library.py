@@ -13,6 +13,7 @@ Nothing generated here is ever uploaded to a music distribution service on its o
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -24,6 +25,8 @@ from app.documentary import audio as A
 from app.providers.music.elevenlabs_music import ElevenLabsMusicProvider
 from app.shortform.asset_store import SharedAssetStore
 from app.utils import utc_now
+
+log = logging.getLogger(__name__)
 
 _MOOD_TEXT = {
     "searching": "a quiet, unresolved searching feeling, slow harmonic movement, no resolution",
@@ -200,6 +203,11 @@ def select_track(db: Session, channel: str, case_id: int, *, mood: str | None = 
 def record_usage(db: Session, track: HostLedMusicTrack, case_id: int, reel_key: str) -> None:
     db.add(HostLedMusicUsage(track_id=track.id, case_id=case_id, reel_key=reel_key, used_at=utc_now()))
     db.commit()
+    try:
+        from app.documentary.music_cost import book_host_led
+        book_host_led(db, track, case_id)
+    except Exception as e:  # noqa: BLE001 — cost booking never breaks a run
+        log.warning("host-led music cost booking failed for track %s: %s", track.id, e)
 
 
 def mark_content_id_checked(db: Session, track: HostLedMusicTrack, *, status: str, result: str) -> None:
