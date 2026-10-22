@@ -20,8 +20,23 @@ def test_a_video_piece_uses_the_same_thresholds_as_a_picture():
     cfg = ai_config.visual_verification
     assert describe_decide(_v(confidence=cfg.verified_min_confidence))[0] == "verified"
     assert describe_decide(_v(confidence=cfg.verified_min_confidence - 0.01))[0] == "needs_review"
-    assert describe_decide(_v(confidence=0.49))[0] == "needs_review"
-    assert describe_decide(_v(confidence=0.5))[0] == "verified"
+    assert describe_decide(_v(confidence=0.39))[0] == "needs_review"
+    assert describe_decide(_v(confidence=0.4))[0] == "verified"
+
+
+def test_the_0_4_boundary_holds_for_a_video_piece_of_every_subject():
+    """Owner decision 2026-10-22 (second pass): every subject — including person and context —
+    is verified at exactly 0.4 and stays needs_review at 0.39, for a video piece as for a
+    picture."""
+    subjects = set(ai_config.visual_verification.verified_min_confidence_by_subject) | {
+        "person", "event", "vehicle"}
+    for subject in subjects:
+        assert describe_decide(_v(subject_type=subject, confidence=0.39))[0] == "needs_review", subject
+        assert describe_decide(_v(subject_type=subject, confidence=0.4))[0] == "verified", subject
+    assert describe_decide(_v(matches_claim="context", subject_type="object",
+                              confidence=0.39))[0] == "needs_review"
+    assert describe_decide(_v(matches_claim="context", subject_type="object",
+                              confidence=0.4))[0] == "verified"
 
 
 def test_a_watermarked_video_frame_stays_rejected_whatever_the_confidence():

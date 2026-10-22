@@ -62,8 +62,8 @@ def test_a_context_picture_ranks_below_an_exact_one():
 # ---- c. thresholds lower for places/objects/documents/maps only -------------------------------
 
 def test_a_place_object_document_or_map_is_verified_at_the_owner_set_confidence():
-    """Owner decision 2026-10-22: both the general and the by-subject bar are 0.5 (equal, no
-    longer "lower" for these subjects) after review of the case 9 needs_review backlog."""
+    """Owner decision 2026-10-22 (second pass): both the general and the by-subject bar are 0.4
+    (equal) after review of the case 9 needs_review backlog."""
     low = ai_config.visual_verification.verified_min_confidence_by_subject
     assert set(low) == {"place", "building", "landscape", "object", "document", "map"}
     for subject in low:
@@ -73,26 +73,36 @@ def test_a_place_object_document_or_map_is_verified_at_the_owner_set_confidence(
 
 
 def test_the_boundary_at_the_owner_set_confidence_holds_at_the_cent():
-    assert decide(v(subject_type="place", confidence=0.49))[0] == "needs_review"
-    assert decide(v(subject_type="place", confidence=0.5))[0] == "verified"
+    assert decide(v(subject_type="place", confidence=0.39))[0] == "needs_review"
+    assert decide(v(subject_type="place", confidence=0.4))[0] == "verified"
 
 
 def test_the_person_threshold_moved_with_the_owner_decision():
-    """Owner decision 2026-10-22: verified_min_confidence 0.7 -> 0.5, reviewed 113 case 9
-    needs_review pictures (~95% correct). A person has no separate entry in
-    verified_min_confidence_by_subject, so it follows the same general bar."""
+    """Owner decision 2026-10-22 (second pass): verified_min_confidence 0.5 -> 0.4 for every
+    subject. A person has no separate entry in verified_min_confidence_by_subject, so it
+    follows the same general bar."""
     cfg = ai_config.visual_verification
-    assert cfg.verified_min_confidence == 0.5 and cfg.reject_below_confidence == 0.35
-    assert decide(v(subject_type="person", confidence=0.5))[0] == "verified"
-    assert decide(v(subject_type="person", confidence=0.49))[0] == "needs_review"
+    assert cfg.verified_min_confidence == 0.4
+    assert decide(v(subject_type="person", confidence=0.4))[0] == "verified"
+    assert decide(v(subject_type="person", confidence=0.39))[0] == "needs_review"
     assert decide(v(subject_type="person", confidence=0.34))[:1] == ("rejected",)
 
 
+def test_reject_below_stays_below_every_verified_bar():
+    """Owner decision 2026-10-22 (second pass): reject_below_confidence stays 0.35 and must stay
+    below every verified bar, or the band between reject and verified would be empty."""
+    cfg = ai_config.visual_verification
+    bars = [cfg.verified_min_confidence, *cfg.verified_min_confidence_by_subject.values(),
+            *cfg.context_min_confidence_by_subject.values()]
+    assert cfg.reject_below_confidence == 0.35
+    assert all(cfg.reject_below_confidence < bar for bar in bars)
+
+
 def test_events_and_vehicles_keep_the_general_threshold():
-    assert decide(v(subject_type="event", confidence=0.49))[0] == "needs_review"
-    assert decide(v(subject_type="vehicle", confidence=0.49))[0] == "needs_review"
-    assert decide(v(subject_type="event", confidence=0.5))[0] == "verified"
-    assert decide(v(subject_type="vehicle", confidence=0.5))[0] == "verified"
+    assert decide(v(subject_type="event", confidence=0.39))[0] == "needs_review"
+    assert decide(v(subject_type="vehicle", confidence=0.39))[0] == "needs_review"
+    assert decide(v(subject_type="event", confidence=0.4))[0] == "verified"
+    assert decide(v(subject_type="vehicle", confidence=0.4))[0] == "verified"
 
 
 # ---- d. partial and modern views --------------------------------------------------------------
@@ -358,9 +368,11 @@ def test_a_failed_second_pass_call_leaves_the_picture_for_the_owner_and_the_run_
     assert good.verification_status == "verified"
 
 
-def test_a_context_picture_of_an_object_needs_more_confidence_than_one_of_a_place():
-    """Precision check of 2026-10-21: sheaths of another kind passed at 0.60 as 'the same kind'."""
-    assert decide(v(matches_claim="context", subject_type="place", confidence=0.6))[0] == "verified"
-    assert decide(v(matches_claim="context", subject_type="object", confidence=0.6))[0] == "needs_review"
-    assert decide(v(matches_claim="context", subject_type="object", confidence=0.7))[0] == "verified"
-    assert decide(v(matches_claim="yes", subject_type="object", confidence=0.6))[0] == "verified"   # the exact object
+def test_a_context_picture_of_an_object_uses_the_owner_set_context_bar():
+    """Owner decision 2026-10-22 (second pass): context_min_confidence_by_subject.object 0.7 ->
+    0.4, the same bar as a match. (An earlier precision check on 2026-10-21 had raised it:
+    sheaths of another kind passed at 0.60 as 'the same kind'.)"""
+    assert decide(v(matches_claim="context", subject_type="place", confidence=0.4))[0] == "verified"
+    assert decide(v(matches_claim="context", subject_type="object", confidence=0.39))[0] == "needs_review"
+    assert decide(v(matches_claim="context", subject_type="object", confidence=0.4))[0] == "verified"
+    assert decide(v(matches_claim="yes", subject_type="object", confidence=0.4))[0] == "verified"   # the exact object

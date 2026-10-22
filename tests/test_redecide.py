@@ -37,7 +37,7 @@ def vid(**kw):
 def test_stored_verdicts_are_judged_again_under_the_current_rules_without_a_model_call(db_session):
     case = _case(db_session)
     _asset(db_session, case, "A1", v(), "needs_review")                       # place at 0.65: now verified
-    # person at 0.65: owner decision 2026-10-22 widened verified_min_confidence to 0.5, so a
+    # person at 0.65: owner decision 2026-10-22 widened verified_min_confidence to 0.4, so a
     # person also moves now (no person-specific exception is in effect in this test)
     _asset(db_session, case, "A2", v(subject_type="person"), "needs_review")
     _asset(db_session, case, "A3", v(matches_claim="stand_in", subject_type="object", confidence=0.8,
@@ -78,29 +78,29 @@ def test_a_picture_the_second_pass_verified_or_a_human_decided_is_left_alone(db_
 def test_generated_pictures_are_not_judged_again(db_session):
     case = _case(db_session)
     _asset(db_session, case, "G1", {}, "verified")
-    db_session.query(VisualAsset).filter_by(asset_code="G1").update({"provider": "generated"})
+    db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="G1").update({"provider": "generated"})
     db_session.commit()
     assert redecide.run(db_session, case.id, apply=True)["changed"] == []
 
 
 def test_video_pieces_are_judged_again_just_like_pictures(db_session):
     case = _case(db_session)
-    _asset(db_session, case, "V1", vid(), "needs_review")   # 0.5: now verified
-    db_session.query(VisualAsset).filter_by(asset_code="V1").update({"asset_type": "video"})
+    _asset(db_session, case, "V1", vid(), "needs_review")   # 0.5: verified under the 0.4 bar
+    db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V1").update({"asset_type": "video"})
     db_session.commit()
     report = redecide.run(db_session, case.id, apply=True)
     assert {c["asset"] for c in report["changed"]} == {"V1"}
-    assert db_session.query(VisualAsset).filter_by(asset_code="V1").one().verification_status == "verified"
+    assert db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V1").one().verification_status == "verified"
 
 
 def test_a_video_piece_with_a_bad_cut_or_description_stays_rejected_at_any_confidence(db_session):
     case = _case(db_session)
     _asset(db_session, case, "V2", vid(confidence=0.99, cut_ok=False), "rejected")
-    db_session.query(VisualAsset).filter_by(asset_code="V2").update({"asset_type": "video"})
+    db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V2").update({"asset_type": "video"})
     db_session.commit()
     report = redecide.run(db_session, case.id, apply=True)
     assert report["changed"] == []
-    row = db_session.query(VisualAsset).filter_by(asset_code="V2").one()
+    row = db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V2").one()
     assert row.verification_status == "rejected"
     assert json.loads(row.verification_json)["reason"] == "cut_not_meaningful"
 
@@ -109,18 +109,18 @@ def test_a_video_piece_whose_duration_probe_failed_is_left_alone(db_session):
     case = _case(db_session)
     _asset(db_session, case, "V3", {"reason": "duration_probe_failed", "error": "x",
                                     "auditor": "video"}, "rejected")
-    db_session.query(VisualAsset).filter_by(asset_code="V3").update({"asset_type": "video"})
+    db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V3").update({"asset_type": "video"})
     db_session.commit()
     report = redecide.run(db_session, case.id, apply=True)
     assert report["changed"] == []
-    assert db_session.query(VisualAsset).filter_by(asset_code="V3").one().verification_status == "rejected"
+    assert db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V3").one().verification_status == "rejected"
 
 
 def test_a_video_piece_a_human_decided_is_left_alone(db_session):
     case = _case(db_session)
     _asset(db_session, case, "V4", vid(confidence=0.5), "rejected", human_override=True)
-    db_session.query(VisualAsset).filter_by(asset_code="V4").update({"asset_type": "video"})
+    db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V4").update({"asset_type": "video"})
     db_session.commit()
     report = redecide.run(db_session, case.id, apply=True)
     assert report["changed"] == []
-    assert db_session.query(VisualAsset).filter_by(asset_code="V4").one().verification_status == "rejected"
+    assert db_session.query(VisualAsset).filter_by(case_id=case.id, asset_code="V4").one().verification_status == "rejected"
