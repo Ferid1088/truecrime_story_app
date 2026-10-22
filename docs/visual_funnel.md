@@ -524,3 +524,21 @@ were caught by the verifier, none reached verified).
 
 New assets in case 9 from the run: VIS_002677, VIS_002680 (both europeana/four_victims, both
 `rejected` — correct verdicts; they were generic archival images, not the Idaho victims).
+
+## YouTube clips in the funnel (2026-10-22, V1-V4 live on case 9)
+
+The clip chain was found broken at its first link: the Data API discovery existed
+(`youtube_discovery.py`) but nothing called it — `video_sources` had 31 Brave-found rows with
+no channel, no licence, no class; all `research_only`. Wired inside `VisualResearchAgent.run`
+behind the owner switch + key (`clip_discovery_enabled`): footage queries → budgeted
+`search.list` → batched `videos.list` → `VideoUseClassifier` → `VideoSource` upserts →
+transcript for each film candidate → `ingest_film_candidates` (yt-dlp, per-clip source record)
+→ `VideoSegmenter` pieces → `VideoAuditor` frames → the existing director + clip caps
+(16 s/clip, 8 %/film, credit on screen).
+
+New classifier guard: `witness_family` needs a raw marker in the title AND a channel not on
+`blocked_channel_markers` — a creator reaction or news package titled "Bodycam" is no longer
+a witness's own video. Live proof: 59 classified, 3 film candidates, 3 downloaded, 14 pieces,
+13 rejected by the auditor for a burned-in channel watermark (re-upload stamps), 1
+needs_review. 12 of 2000 discovery-share units. The funnel's per-step counts are in the V4
+report; a film-level autopilot need `review_youtube_clips` names every unreviewed clip used.
