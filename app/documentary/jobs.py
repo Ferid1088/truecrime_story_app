@@ -90,6 +90,7 @@ _running: dict[int, asyncio.Task] = {}
 from app.documentary.pipeline.base import StageRunner  # noqa: E402
 from app.documentary.pipeline.errors import (  # noqa: E402,F401
     AwaitingApproval,
+    AwaitingOutfit,
     JobCancelled,
     LanguageFailed,
     SpokenRejected,
@@ -249,6 +250,13 @@ def failure_details(message: str, error_code: str | None = None) -> dict:
             "resume_allowed": True,
             "resume_disabled_reason": None,
             "next_action": "Approve the final version of this language on the story page, then resume.",
+        }
+    if error_code == "awaiting_outfit":
+        return {
+            "resume_allowed": True,
+            "resume_disabled_reason": None,
+            "next_action": ("Waiting for outfit selection: choose an outfit for every language "
+                            "in the Outfits panel (Run tab), then resume."),
         }
     if error_code == "no_relevant_sources" or message.startswith("No relevant sources found"):
         return {
@@ -1146,7 +1154,8 @@ async def run_job(job_id: int, session_factory=None):
                 job.error = plain_failure(e)[:1000]
                 result = json.loads(job.result_json or "{}")
                 result["failure"] = {**failure_details(
-                    job.error, "awaiting_approval" if isinstance(e, AwaitingApproval) else None),
+                    job.error, "awaiting_approval" if isinstance(e, AwaitingApproval)
+                    else "awaiting_outfit" if isinstance(e, AwaitingOutfit) else None),
                     "reason": job.error}
                 job.result_json = json.dumps(result, ensure_ascii=False)
             from app.services.cost_model import estimate_vs_actual_report

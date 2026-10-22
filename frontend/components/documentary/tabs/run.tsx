@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, PenLine, Play, RotateCcw, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTime, formatTimecode, humanize, langLabel } from "@/lib/format";
-import type { CaseCostPanel, CostReport, DocumentaryDryRunResult, DocumentaryJob, FilmMinutesRange } from "@/lib/types";
+import type { CaseCostPanel, CostReport, DocumentaryDryRunResult, DocumentaryJob, FilmMinutesRange, OutfitPanel } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -72,6 +72,7 @@ export function RunTab({
   const [estimate, setEstimate] = useState<DocumentaryDryRunResult | null>(null);
   const [costs, setCosts] = useState<CaseCostPanel | null>(null);
   const [outfitPanelOpen, setOutfitPanelOpen] = useState(false);
+  const [outfitPanel, setOutfitPanel] = useState<OutfitPanel | null>(null);
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const ids = useId();
 
@@ -98,6 +99,17 @@ export function RunTab({
         .join(", ")} ${outOfRange.length === 1 ? "falls" : "fall"} outside. Run a pilot, or run the language pipeline for a longer film.`,
     );
   if (isJobActive(job)) blockers.push(`Job #${job?.id} is still running.`);
+  if (settings.avatar_generation?.enabled) {
+    const missingOutfit = options.languages.filter(
+      (l) => !(outfitPanel?.languages.find((r) => r.language === l)?.chosen_outfit_id),
+    );
+    if (missingOutfit.length)
+      blockers.push(
+        `Waiting for outfit selection: choose an outfit for ${missingOutfit
+          .map(langLabel)
+          .join(", ")} (Outfits button below, or create one in the Host tab).`,
+      );
+  }
 
   const pilotLength = Number(options.pilotSeconds);
   const languageKey = options.languages.join(",");
@@ -122,6 +134,17 @@ export function RunTab({
       .catch(() => { if (!cancelled) setReviewCount(null); });
     return () => { cancelled = true; };
   }, [caseId]);
+
+  // the outfit choice per language: refetched when the Outfits dialog closes so a
+  // selection made there lifts the blocker without reloading the page
+  useEffect(() => {
+    if (outfitPanelOpen) return;
+    let cancelled = false;
+    api.outfitPanel(caseId)
+      .then((next) => { if (!cancelled) setOutfitPanel(next); })
+      .catch(() => { if (!cancelled) setOutfitPanel(null); });
+    return () => { cancelled = true; };
+  }, [caseId, outfitPanelOpen]);
 
   const shown =
     viewJobId != null && viewJobId !== job?.id

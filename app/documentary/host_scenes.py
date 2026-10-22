@@ -347,9 +347,11 @@ def look_for_avatar(db: Session, scene: HostScene):
 
     outfit = OF.selected_outfit(db, scene.case_id, scene.language)
     if outfit is None:
-        raise ST.StudioError(
-            f"no outfit is selected for case {scene.case_id} in {scene.language}: create or select "
-            "one in the Host tab and approve its looks")
+        from app.documentary.pipeline.errors import AwaitingOutfit
+
+        raise AwaitingOutfit(
+            f"no outfit is selected for case {scene.case_id} in {scene.language}: choose one "
+            "in the Outfits panel of the Run tab (or create and select one in the Host tab)")
     look = db.get(HostLook, scene.look_id) if scene.look_id else None
     if look is None or look.host_outfit_id != outfit.id or look.status != "approved":
         _choose_default_look(db, scene, outfit)          # raises NoApprovedLook with what to approve
