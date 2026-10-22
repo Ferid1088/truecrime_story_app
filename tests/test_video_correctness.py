@@ -5,7 +5,28 @@ import uuid
 from app.core.ai_config import ai_config
 from app.db.models import Case, VisualAsset
 from app.documentary.visuals import pieces
-from app.documentary.visuals.video_auditor import VideoProbeError, _source_length
+from app.documentary.visuals.video_auditor import VideoProbeError, _source_length, describe_decide
+
+
+def _v(**kw):
+    return {"matches_claim": "yes", "period_ok": "yes", "confidence": 0.5, "subject_type": "building",
+            "tone_ok": True, "text_or_logo_in_any_frame": False,
+            "graphic_or_sensitive_in_any_frame": False, "cut_ok": True, "description_ok": True, **kw}
+
+
+def test_a_video_piece_uses_the_same_thresholds_as_a_picture():
+    """Owner decision 2026-10-22: the visual_verification thresholds apply to video pieces too,
+    through describe_decide() -> verify_decide() (app/documentary/visuals/verification.decide)."""
+    cfg = ai_config.visual_verification
+    assert describe_decide(_v(confidence=cfg.verified_min_confidence))[0] == "verified"
+    assert describe_decide(_v(confidence=cfg.verified_min_confidence - 0.01))[0] == "needs_review"
+    assert describe_decide(_v(confidence=0.49))[0] == "needs_review"
+    assert describe_decide(_v(confidence=0.5))[0] == "verified"
+
+
+def test_a_watermarked_video_frame_stays_rejected_whatever_the_confidence():
+    out = describe_decide(_v(confidence=0.99, text_or_logo_in_any_frame=True))
+    assert out[0] == "rejected" and out[2] == "watermark"
 
 
 def test_duration_probe_failure_is_explicit(monkeypatch, db_session):

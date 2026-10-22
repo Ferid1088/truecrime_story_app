@@ -326,7 +326,7 @@
   "visual_verification": {
     "per_requirement": 12,
     "check_all_up_to_tier": 3,
-    "verified_min_confidence": 0.7,
+    "verified_min_confidence": 0.5,
     "reject_below_confidence": 0.35,
     "thumbnail_px": 768,
     "modern_view_subjects": [
@@ -345,12 +345,12 @@
       "event"
     ],
     "verified_min_confidence_by_subject": {
-      "place": 0.6,
-      "building": 0.6,
-      "landscape": 0.6,
-      "object": 0.6,
-      "document": 0.6,
-      "map": 0.6
+      "place": 0.5,
+      "building": 0.5,
+      "landscape": 0.5,
+      "object": 0.5,
+      "document": 0.5,
+      "map": 0.5
     },
     "context_min_confidence_by_subject": {
       "object": 0.7

@@ -22,7 +22,7 @@ def test_a_wrong_period_person_or_event_is_still_rejected():
 
 
 def test_a_modern_view_with_low_confidence_needs_review():
-    assert decide(v(period_ok="no", confidence=0.5))[0] == "needs_review"
+    assert decide(v(period_ok="no", confidence=0.49))[0] == "needs_review"
 
 
 def test_the_front_of_the_house_found_for_its_interior_is_a_house_picture():
