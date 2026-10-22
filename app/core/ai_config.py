@@ -726,6 +726,9 @@ class VideoSourceClass(BaseModel):
     channel_markers: list[str] = []
     title_markers: list[str] = []
     hosts: list[str] = []
+    # Channel names that can never be this class even when a title marker matches —
+    # for witness_family: a commentary outlet titled 'Bodycam' is not a witness's own video.
+    blocked_channel_markers: list[str] = []
 
 
 class YouTubeClipsConfig(BaseModel):
@@ -1138,6 +1141,10 @@ class YouTubeDataAPIConfig(BaseModel):
     max_video_ids_per_call: int = Field(default=50, ge=1, le=50)
     clip_margin_seconds: float = Field(default=2.0, ge=0.0)
     max_candidates_per_sentence: int = Field(default=3, ge=1)
+    # V2 clip wiring: how many search.list queries a case's clip discovery may send per run,
+    # and how many results each asks for (search.list costs stay inside the discovery share).
+    discovery_max_queries_per_case: int = Field(default=6, ge=0)
+    discovery_max_results: int = Field(default=10, ge=1, le=50)
 
 
 class YouTubeResearchConfig(BaseModel):

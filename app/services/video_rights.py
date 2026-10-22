@@ -136,7 +136,8 @@ class VideoUseClassifier:
         witness = classes.get("witness_family")
         if witness:
             marker = next((m for m in witness.title_markers if m in title), None)
-            if marker:
+            blocked = next((m for m in witness.blocked_channel_markers if m in channel), None)
+            if marker and not blocked:
                 return self._candidate(candidate, "witness_family", f"the video's own words: '{marker}'", evidence)
         cc = classes.get("creative_commons")
         if cc and kind in cc.classifications and candidate.get("license") == cfg.film_candidate_license:

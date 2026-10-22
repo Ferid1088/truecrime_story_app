@@ -135,6 +135,17 @@
           "body cam",
           "bodycam",
           "body-worn"
+        ],
+        "blocked_channel_markers": [
+          "true crime",
+          "reaction",
+          "podcast",
+          "commentary",
+          "news",
+          "network",
+          "law&crime",
+          "crime files",
+          "documentary"
         ]
       },
       "creative_commons": {

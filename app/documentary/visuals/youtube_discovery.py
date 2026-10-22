@@ -24,6 +24,7 @@ yet have — recorded as an open gap, not worked around.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 
@@ -170,7 +171,10 @@ def align_sentence(segments: list, sentence: str, margin: float) -> dict | None:
         return None
     best = None
     for seg in segments:
-        seg_words = set(re.findall(r"\w{4,}", str(getattr(seg, "text", "")).lower()))
+        # provider segments carry .text; stored TranscriptSegment rows carry .text_original
+        text = str(getattr(seg, "text", None) or getattr(seg, "text_original", None)
+                   or getattr(seg, "canonical_text_en", "") or "")
+        seg_words = set(re.findall(r"\w{4,}", text.lower()))
         overlap = len(words & seg_words)
         if overlap and (best is None or overlap > best[0]):
             best = (overlap, seg)
@@ -237,6 +241,107 @@ async def _alignment_for(video_id: str, sentence: str, margin: float, provider=N
     if not result.available:
         return None
     return align_sentence(result.segments, sentence, margin)
+
+
+# ---------------------------------------------------------------------------
+# clip discovery into the film pipeline (V2): queries -> classified VideoSource
+# ---------------------------------------------------------------------------
+
+
+def upsert_discovered(db, case, candidate: dict, query: str):
+    """Store (or refresh) one discovered video as a VideoSource. The existing row keeps its
+    transcript state and research history; the new fields — the real channel, the real API
+    license, duration and the classifier's verdict — are always refreshed. Returns the row."""
+    from app.db.models import VideoSource
+
+    fields = {
+        "url": candidate["url"], "title": (candidate.get("title") or "")[:1000],
+        "channel_name": (candidate.get("channel_name") or None),
+        "channel_url": (
+            f"https://www.youtube.com/channel/{candidate['channel_id']}"
+            if candidate.get("channel_id") else None),
+        "description": (candidate.get("description") or None),
+        "duration_seconds": candidate.get("duration_seconds"),
+        "youtube_license": candidate.get("license"),
+        "discovery_query": query[:500],
+    }
+    fields.update({k: v for k, v in candidate.items()
+                   if k in ("use", "rights_status", "use_reason", "license_evidence_url",
+                            "license_checked_at", "attribution_text", "source_class",
+                            "class_evidence")})
+    row = db.query(VideoSource).filter(
+        VideoSource.case_id == case.id,
+        VideoSource.video_id == candidate["video_id"]).first()
+    if row is not None:
+        for k, v in fields.items():
+            setattr(row, k, v)
+        db.commit()
+        return row
+    row = VideoSource(case_id=case.id, video_id=candidate["video_id"],
+                      platform="youtube", classification="unknown",
+                      transcript_status="discovered", **fields)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+async def _fetch_and_store_transcript(db, video, transcript_provider=None) -> bool:
+    """A film candidate's captions (no Data API quota) are stored like every researched
+    video's, so sentence alignment and the research corpus can use them."""
+    from app.services.transcripts import store_transcript
+
+    if transcript_provider is None:
+        from app.providers.transcript.youtube import YouTubeTranscriptProvider
+
+        transcript_provider = YouTubeTranscriptProvider()
+    result = await transcript_provider.get_transcript(video.video_id)
+    return store_transcript(db, video, result) > 0
+
+
+async def discover_for_case(client: httpx.AsyncClient, db, case, queries: list[str],
+                            api_key: str, stage: str = "discovery",
+                            transcript_provider=None) -> dict:
+    """The V2 bridge: the case's footage queries become stored clip candidates through the
+    Data API — budgeted search.list, one batched videos.list for the real license/channel,
+    the existing classifier decides, VideoSource rows dedupe by video id. A film candidate's
+    transcript is fetched and stored too (no Data API quota) so sentence alignment works.
+    Never downloads a video — that stays the separate, owner-switched clip downloader's job."""
+    cfg = ai_config.youtube_data_api
+    stats = {"queries": 0, "searched": 0, "items": 0, "classified": 0,
+             "film_candidates": 0, "new": 0, "updated": 0, "transcripts": 0,
+             "quota_stopped": False}
+    seen: set[str] = set()
+    for query in queries[: cfg.discovery_max_queries_per_case]:
+        stats["queries"] += 1
+        found = await search_videos(client, db, case.id, query, api_key, stage=stage,
+                                    max_results=cfg.discovery_max_results)
+        if found is None:
+            stats["quota_stopped"] = True
+            break
+        stats["searched"] += 1
+        ids = [v for v in (_video_id_of(i) for i in found) if v and v not in seen]
+        seen.update(ids)
+        stats["items"] += len(ids)
+        details = await video_details(client, db, case.id, ids, api_key, stage=stage)
+        for item in details:
+            snippet = item.get("snippet") or {}
+            candidate = classify_video(item)
+            candidate["channel_id"] = snippet.get("channelId")
+            stats["classified"] += 1
+            from app.db.models import VideoSource
+
+            created = db.query(VideoSource).filter_by(
+                case_id=case.id, video_id=candidate["video_id"]).first() is None
+            row = upsert_discovered(db, case, candidate, query)
+            stats["new" if created else "updated"] += 1
+            if candidate.get("use") == "film_candidate":
+                stats["film_candidates"] += 1
+                # captions are a help for sentence alignment, not a gate
+                with contextlib.suppress(Exception):
+                    stats["transcripts"] += 1 if await _fetch_and_store_transcript(
+                        db, row, transcript_provider) else 0
+    return stats
 
 
 def rank_candidates(candidates: list[dict], limit: int) -> list[dict]:

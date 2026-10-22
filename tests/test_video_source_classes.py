@@ -132,6 +132,23 @@ def test_stored_videos_are_classified_again_under_the_current_classes(db_session
     assert out == {"film_candidate": 1, "research_only": 2, "by_class": {"official_body": 1}}
 
 
+def test_a_commentary_channel_titled_like_a_witness_video_is_not_a_witness(db_session):
+    """V2: the witness/family class needs more than a raw marker in the title — a creator,
+    reaction or news channel titled 'Bodycam' is never the witness's own video."""
+    yt = dict(url="https://www.youtube.com/watch?v=x")
+    for channel in ("Julez with True Crime Reaction", "Law&Crime Network",
+                    "True Crime Rocket Science", "Moscow True Crime Podcast"):
+        use = VideoUseClassifier().classify(
+            {**yt, "title": "Crime scene bodycam released", "channel_name": channel,
+             "classification": "unknown"})
+        assert use.use == "research_only", channel
+    # a private channel's own bodycam/dashcam upload still qualifies
+    use = VideoUseClassifier().classify(
+        {**yt, "title": "My dashcam caught the white sedan", "channel_name": "Sara Temp",
+         "classification": "unknown"})
+    assert use.use == "film_candidate" and use.source_class == "witness_family"
+
+
 def test_an_official_looking_kind_without_an_official_channel_name_is_not_enough():
     """Case 9: 'Court TV Podcast', a book review and a podcast episode were typed 'official' by a guess."""
     for channel in (None, "Court TV Podcast", "Crime Weekly"):

@@ -50,6 +50,15 @@ MB = 1024 * 1024
 PAID_SEARCH_PROVIDERS = ("brave_images",)
 
 
+def clip_discovery_enabled(db: Session) -> bool:
+    """V2: the Data API discovery for film clips runs only with the owner's downloader
+    switch on AND an API key configured."""
+    from app.core.config import settings
+    from app.documentary.visuals import youtube_clips as YC
+
+    return bool(YC.enabled(db) and getattr(settings, "youtube_api_key", None))
+
+
 class VisualResearchAgent:
     def _book_search(self, money: BudgetService, case_id: int, provider: str) -> None:
         """One billed search request, at the configured per-request price. The image-search
@@ -334,8 +343,18 @@ class VisualResearchAgent:
                 for k, n in fs["by_provider"].items():
                     stats["by_provider"][k] = stats["by_provider"].get(k, 0) + n
             if ai_config.footage.enabled and ai_config.footage.providers:
+                from app.core.config import settings
+                from app.documentary.visuals import youtube_discovery as YD
                 from app.documentary.visuals.footage import FootageAgent
 
+                # V2: the Data API turns the case's footage queries into classified
+                # clip candidates before the (owner-switched) downloader sees them.
+                if clip_discovery_enabled(db):
+                    yt_queries = [q["query"] for q in footage_queries(
+                        queries, ai_config.youtube_data_api.discovery_max_queries_per_case)
+                        if q.get("query")]
+                    stats["youtube_discovery"] = await YD.discover_for_case(
+                        client, db, case, yt_queries, settings.youtube_api_key)
                 stats["film_candidates"] = await FootageAgent(client).ingest_film_candidates(
                     db, case, found_during=found_during)
         finally:
