@@ -9,6 +9,7 @@ from pathlib import Path
 import json
 import subprocess
 import httpx
+from yt_dlp.utils import DownloadError
 from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import Case, VisualAsset
@@ -161,7 +162,8 @@ class FootageAgent:
             except RightsRefused as e:
                 stats["refused"][str(e)] = stats["refused"].get(str(e), 0) + 1
                 continue
-            except (FootageError, OSError, subprocess.SubprocessError, IM.ImageError, httpx.HTTPError) as e:
+            except (FootageError, OSError, subprocess.SubprocessError, IM.ImageError, httpx.HTTPError,
+                    DownloadError) as e:
                 log.warning("film candidate %s failed: %s", video.url, e)
                 stats["errors"] += 1
                 continue

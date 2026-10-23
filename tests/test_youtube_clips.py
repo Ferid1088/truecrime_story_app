@@ -9,10 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yt_dlp
 
 from app.agents.footage import FootageAgent
 from app.core.ai_config import ai_config
 from app.db.models import AppSetting, Case, VisualAsset
+from app.documentary import storage
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import youtube_clips as YC
 from app.services.video_rights import RightsRefused
@@ -241,3 +243,22 @@ def test_a_video_already_in_the_library_is_not_ingested_again(db_session, monkey
 
     monkeypatch.setattr(FootageAgent, "ingest_film_candidate", boom)
     assert asyncio.run(FootageAgent(client=None).ingest_film_candidates(db_session, case))["skipped"] == 1
+
+
+def test_a_failed_yt_dlp_download_is_a_candidate_error_not_a_job_failure(db_session, monkeypatch, tmp_path):
+    """A 403/removed YouTube candidate used to kill the whole visual_research stage
+    (and the film job): yt-dlp's DownloadError was not a tolerated candidate
+    failure. It is one candidate's technical error — counted, the loop goes on."""
+    case = _case(db_session)
+    _row(db_session, case, url="https://www.youtube.com/watch?v=dead403")
+    YC.set_enabled(db_session, True)
+    monkeypatch.setattr(storage, "visuals_dir", lambda *a, **k: tmp_path)
+
+    def boom(self, urls):
+        raise yt_dlp.utils.DownloadError(
+            "ERROR: unable to download video data: HTTP Error 403: Forbidden")
+    monkeypatch.setattr(yt_dlp.YoutubeDL, "download", boom)
+
+    stats = asyncio.run(FootageAgent(client=None).ingest_film_candidates(db_session, case))
+    assert stats["errors"] == 1
+    assert stats["added"] == 0
