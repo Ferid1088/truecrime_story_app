@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from app.lifecycle.identity import IdentityIndex
 from app.lifecycle.selection import legal_risk_flags, prepare_candidates
 from app.research_engine.orchestrator import (
@@ -7,7 +9,7 @@ from app.research_engine.orchestrator import (
     ResearchOrchestrator,
     _discovery_queries,
 )
-from app.research_engine.search import SearchBackendRegistry, SearchResult
+from app.research_engine.search import SearchBackendRegistry, SearchError, SearchResult
 from tests.test_case_lifecycle import FakeFetcher, FakeGen, FakeRegistry
 
 
@@ -65,6 +67,61 @@ def test_discover_cases_counts_real_brave_search_spend():
     expected = round(tel["searches"] * _MeteredBraveLikeBackend.PER_REQUEST_COST_USD, 8)
     assert tel["search_cost_usd"] == expected
     assert tel["cost_usd"] >= expected
+
+
+class _PerLanguageFailingBackend:
+    """Raises SearchError for one language (e.g. a Brave 422 on a bad
+    search_lang) and returns real results for the rest — the shape of the
+    2026-10-23 incident where "other" 422'd but en/de/fa/ar worked fine."""
+
+    name = "fake_brave"
+
+    def __init__(self, failing_languages: set[str]):
+        self.failing_languages = failing_languages
+        self.calls: list[str] = []
+        self.last_search_diagnostics: dict | None = None
+
+    def is_available(self) -> bool:
+        return True
+
+    async def search(self, query, language, categories=None, time_range=None, limit=10):
+        self.calls.append(language)
+        if language in self.failing_languages:
+            raise SearchError("brave", "search_unavailable",
+                              "search unavailable: Brave returned HTTP 422 (results=0)",
+                              {"http_status": 422, "attempts": [{"http_status": 422}]})
+        self.last_search_diagnostics = {"query": query, "http_status": 200,
+                                        "estimated_cost_usd": 0.005}
+        return [SearchResult(backend=self.name, query=query, language=language, rank=1,
+                             url=f"https://news.example/{language}", title=f"A case ({language})")]
+
+
+def test_discover_cases_continues_other_languages_after_one_search_error():
+    """One language's search failing (invalid param, transient error) must
+    not discard the candidates already found in the other languages, and
+    must not be silently swallowed either."""
+    backend = _PerLanguageFailingBackend(failing_languages={"other"})
+    registry = SearchBackendRegistry([backend])
+    orch = ResearchOrchestrator(registry=registry, fetcher=FakeFetcher(),
+                                generation_provider=FakeGen(), config=EngineConfig())
+    result = asyncio.run(
+        orch.discover_cases(1, ["en", "other"], None, [], known_identities=[]))
+    assert "en" in backend.calls and "other" in backend.calls
+    assert result["_telemetry"]["searches"] > 0
+    failed = [d for d in result["search_diagnostics"] if d.get("error_kind")]
+    assert failed and failed[0]["http_status"] == 422
+    assert failed[0]["language"] == "other"
+
+
+def test_discover_cases_fails_loudly_when_every_search_fails():
+    """If every language's search fails, the job must fail (not quietly
+    report zero candidates, which would look like "no cases out there")."""
+    backend = _PerLanguageFailingBackend(failing_languages={"en", "de"})
+    registry = SearchBackendRegistry([backend])
+    orch = ResearchOrchestrator(registry=registry, fetcher=FakeFetcher(),
+                                generation_provider=FakeGen(), config=EngineConfig())
+    with pytest.raises(SearchError, match="search unavailable"):
+        asyncio.run(orch.discover_cases(1, ["en", "de"], None, [], known_identities=[]))
 
 
 def test_prepare_candidates_rejects_cases_outside_the_requested_country():

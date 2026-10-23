@@ -130,6 +130,83 @@ def test_brave_honors_retry_after_and_reports_attempt_diagnostics(monkeypatch):
     assert backend.last_search_diagnostics["attempts"][0]["http_status"] == 429
 
 
+def test_brave_omits_search_lang_for_a_language_outside_the_catalog(monkeypatch):
+    """Regression for the live incident on 2026-10-23: discovery sent
+    language="other" (the UI's catch-all bucket), which used to be guessed
+    into search_lang="ot" and got HTTP 422 from Brave. The param must be
+    left off the request instead."""
+    from app.research_engine.search_adapters import brave
+
+    seen_params = []
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, *args, **kwargs):
+            seen_params.append(kwargs["params"])
+            return httpx.Response(200, json={"web": {"results": [
+                {"title": "A", "url": "https://example.test/a"}]}})
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = brave.BraveSearchBackend("test-key", min_interval_s=0)
+    asyncio.run(backend.search("case", "other"))
+    assert "search_lang" not in seen_params[0]
+
+
+def test_brave_422_is_reported_as_invalid_request_not_empty_results(monkeypatch):
+    """A 422 (Brave rejected our request parameters) must never read like a
+    legitimate empty result: it fails on the first attempt (no retry, unlike
+    429/5xx) and the message names the HTTP status, not just "0 results"."""
+    from app.research_engine.search_adapters import brave
+
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, *args, **kwargs):
+            calls.append(1)
+            return httpx.Response(422, json={
+                "type": "ErrorResponse",
+                "error": {"status": 422, "detail": "Unable to validate request parameter(s)",
+                          "meta": {"errors": [{"loc": ["query", "search_lang"], "input": "ot"}]}},
+            })
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = brave.BraveSearchBackend("test-key", min_interval_s=0)
+    with pytest.raises(brave.SearchError) as exc_info:
+        asyncio.run(backend.search("case", "en"))
+    assert len(calls) == 1
+    assert "422" in str(exc_info.value)
+    assert "0 results" not in str(exc_info.value)
+    assert exc_info.value.details["http_status"] == 422
+    assert not exc_info.value.details.get("rate_limited")
+
+
+def test_brave_rate_limit_after_retry_books_the_retry_not_zero(monkeypatch):
+    """A 429 that is still a 429 after the one retry must report retries=1,
+    not retries=0 — the ledger must book the retry as a retry, never as if
+    only the original attempt happened."""
+    from app.research_engine.search_adapters import brave
+
+    calls = []
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def get(self, *args, **kwargs):
+            calls.append(1)
+            return httpx.Response(429)
+
+    monkeypatch.setattr(brave.httpx, "AsyncClient", lambda **kwargs: FakeClient())
+    backend = brave.BraveSearchBackend("test-key", min_interval_s=0)
+    with pytest.raises(brave.SearchError) as exc_info:
+        asyncio.run(backend.search("case", "en"))
+    assert len(calls) == 2
+    assert exc_info.value.details["retries"] == 1
+    assert exc_info.value.details["rate_limited"] is True
+
+
 def test_brave_retries_once_on_rate_limit_and_zero_results_are_unavailable(monkeypatch):
     from app.research_engine.search_adapters import brave
     calls = []

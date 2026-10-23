@@ -661,10 +661,32 @@ class ResearchOrchestrator:
             for q in _discovery_queries(theme, lang, country_name=country_display,
                                         year_from=incident_year_from, year_to=incident_year_to):
                 progress.stage(f"searching:{lang}")
+                q_idx = len(queries_out)
                 queries_out.append({
                     "language": lang, "query": q, "purpose": "case_identity",
                     "priority": "1", "round": 0, "time_range": time_range})
-                raw = await self.registry.search(q, lang, limit=10, time_range=time_range)
+                try:
+                    raw = await self.registry.search(q, lang, limit=10, time_range=time_range)
+                except SearchError as exc:
+                    # One language's bad query/param must not lose the other
+                    # languages' already-gathered candidates: log it loudly,
+                    # stop this language (a repeat of the same call would
+                    # fail the same way), move on to the next one.
+                    failure = dict(exc.details or {})
+                    failure.setdefault("query", q)
+                    failure.setdefault("language", lang)
+                    failure.setdefault("provider", exc.backend)
+                    failure.setdefault("result_count", 0)
+                    failure.setdefault("retries", 0)
+                    failure.setdefault("error_kind", exc.kind)
+                    search_diagnostics.append(failure)
+                    queries_out[q_idx]["search"] = failure
+                    tel["search_errors"] = tel.get("search_errors", 0) + 1
+                    log.warning(
+                        "discovery search failed language=%s query=%r status=%s "
+                        "error_kind=%s retries=%s", lang, q, failure.get("http_status"),
+                        failure.get("error_kind"), failure.get("retries", 0))
+                    break
                 tel["searches"] += 1
                 diagnostic = {
                     "query": q,
@@ -699,6 +721,17 @@ class ResearchOrchestrator:
                         "title": r.title, "snippet": r.snippet,
                         "url": r.url, "language": lang,
                         "published_at": r.published_at})
+        if queries_out and tel["searches"] == 0:
+            # Every query in every language failed: a quiet empty result here
+            # would look like "no cases out there" rather than "search is
+            # broken" — surface it as the job failure it is.
+            last = search_diagnostics[-1] if search_diagnostics else {}
+            raise SearchError(
+                "registry", "search_unavailable",
+                f"search unavailable: all {len(search_diagnostics)} discovery "
+                f"searches failed (last: HTTP {last.get('http_status')} "
+                f"{last.get('error_kind')})",
+                {"attempts": search_diagnostics})
         progress.stage("analyzing")
         candidates = await self._extract_candidates(
             found, min(max(count * 3, count + 4), 30), existing_titles, theme, tel)

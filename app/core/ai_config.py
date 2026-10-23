@@ -483,6 +483,18 @@ class StoryQualityConfig(BaseModel):
     max_evidence_for_long_draft: int | None = Field(default=None, ge=20)
 
 
+# Brave's web-search `search_lang` enum, read verbatim off a live HTTP 422
+# validation error from Brave itself (checked 2026-10-23): any value outside
+# this set is rejected by Brave with HTTP 422, not treated as "no results".
+VALID_BRAVE_SEARCH_LANG = frozenset({
+    "ar", "eu", "bn", "bg", "ca", "zh-hans", "zh-hant", "hr", "cs", "da",
+    "nl", "en", "en-gb", "et", "fi", "fr", "gl", "de", "el", "gu", "he",
+    "hi", "hu", "is", "it", "ja", "jp", "kn", "ko", "lv", "lt", "ms", "ml",
+    "mr", "nb", "pl", "pt-br", "pt-pt", "pa", "ro", "ru", "sr", "sk", "sl",
+    "es", "sv", "ta", "te", "th", "tr", "uk", "vi",
+})
+
+
 class LanguageEntry(BaseModel):
     """One language the research can run in: how Brave is asked for it and
     the native query stems used to find videos about a case."""
@@ -496,6 +508,15 @@ class LanguageEntry(BaseModel):
     # translation of one English query.
     video_search_stems: list[str] = Field(min_length=1)
     video_query_stem: str
+
+    @field_validator("brave_search_lang")
+    @classmethod
+    def _brave_search_lang_is_accepted_by_brave(cls, v: str | None) -> str | None:
+        if v is not None and v not in VALID_BRAVE_SEARCH_LANG:
+            raise ValueError(
+                f"{v!r} is not a value Brave's search_lang accepts "
+                f"(use one of {sorted(VALID_BRAVE_SEARCH_LANG)} or null to omit it)")
+        return v
 
 
 class MultilingualConfig(BaseModel):
@@ -531,8 +552,16 @@ class MultilingualConfig(BaseModel):
         return (self.language_catalog.get(language) or self.language_catalog["en"]).video_query_stem
 
     def brave_search_lang(self, language: str) -> str | None:
+        """Brave's search_lang for a language, or None to omit the param.
+
+        A language outside the catalog (e.g. a free-text "other" bucket, or
+        any code we have not vetted) never gets its first two letters
+        guessed into a Brave code — that produced invalid values Brave
+        answers with HTTP 422 (checked live 2026-10-23: "other" -> "ot" ->
+        422). Omitting the param lets Brave search without a language
+        filter instead of failing the request."""
         entry = self.language_catalog.get(language)
-        return entry.brave_search_lang if entry else (language or "en")[:2].lower()
+        return entry.brave_search_lang if entry else None
 
 
 class StoryPlanConfig(BaseModel):

@@ -307,3 +307,36 @@ def test_brave_search_lang_comes_from_the_catalog():
     assert m.brave_search_lang("ja") == "ja"
 
 
+def test_brave_search_lang_omits_the_param_for_a_language_outside_the_catalog():
+    """Regression: the discovery UI's "other" language bucket (and any other
+    code never vetted against Brave) used to be guessed down to its first two
+    letters (e.g. "other" -> "ot"), which Brave rejects with HTTP 422 -
+    checked live on 2026-10-23. The code must omit search_lang instead of
+    guessing one Brave might reject."""
+    m = ai_config.multilingual
+    assert m.brave_search_lang("other") is None
+    assert m.brave_search_lang("xx") is None
+    assert m.brave_search_lang("") is None
+
+
+def test_language_catalog_rejects_a_brave_search_lang_brave_does_not_accept():
+    """Brave's search_lang is a closed enum (read verbatim off a live HTTP
+    422 validation error on 2026-10-23); a language_catalog entry with a
+    code outside it must fail at config load, not at the first live search."""
+    import pytest
+
+    from app.core.ai_config import LanguageEntry
+
+    with pytest.raises(ValueError, match="not a value Brave's search_lang accepts"):
+        LanguageEntry(name="Nonsense", brave_search_lang="xx",
+                      video_search_stems=["{t}"], video_query_stem="{title}")
+    with pytest.raises(ValueError, match="not a value Brave's search_lang accepts"):
+        LanguageEntry(name="Chinese", brave_search_lang="zh",
+                      video_search_stems=["{t}"], video_query_stem="{title}")
+    # None (omit the param) and a real Brave code both still work.
+    LanguageEntry(name="Persian", brave_search_lang=None,
+                  video_search_stems=["{t}"], video_query_stem="{title}")
+    LanguageEntry(name="German", brave_search_lang="de",
+                  video_search_stems=["{t}"], video_query_stem="{title}")
+
+

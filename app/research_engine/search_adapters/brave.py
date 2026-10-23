@@ -69,9 +69,12 @@ class BraveSearchBackend:
             "count": min(max(limit, 1), self.result_count, 20),
             "safesearch": "strict",
         }
-        # Brave answers HTTP 422 to some codes (checked live 2026-10-16: fa and
-        # a bare zh -> 422; zh-hans, ja, fr, es, it, ar, de -> 200), so the
-        # code comes from the language catalog, never from the first two letters.
+        # Brave answers HTTP 422 to any search_lang outside its own enum
+        # (checked live 2026-10-16: fa and a bare zh -> 422; zh-hans, ja, fr,
+        # es, it, ar, de -> 200; checked live 2026-10-23: a code outside the
+        # enum, e.g. the UI's "other" bucket, also -> 422), so the code comes
+        # from the vetted language catalog only — never guessed from the
+        # first two letters of whatever language string we were given.
         search_lang = ai_config.multilingual.brave_search_lang(language)
         if search_lang:
             params["search_lang"] = search_lang
@@ -112,12 +115,13 @@ class BraveSearchBackend:
                                       f"search unavailable: Brave returned HTTP {response.status_code} "
                                       f"after retry (results={count})",
                                       {"http_status": response.status_code, "attempts": attempts,
-                                       "rate_limited": response.status_code == 429})
+                                       "retries": attempt, "rate_limited": response.status_code == 429})
                 if response.status_code >= 400:
                     raise SearchError(self.name, "search_unavailable",
                                       f"search unavailable: Brave returned HTTP {response.status_code} "
                                       f"(results={count})",
-                                      {"http_status": response.status_code, "attempts": attempts})
+                                      {"http_status": response.status_code, "attempts": attempts,
+                                       "retries": attempt})
                 data = response_data if response_data is not None else response.json()
                 if not isinstance(data, dict):
                     raise ValueError("invalid Brave response")
@@ -136,7 +140,8 @@ class BraveSearchBackend:
         raise SearchError(self.name, "search_unavailable",
                           f"search unavailable: Brave Search request failed ({last_status or 'unknown'})",
                           {"http_status": last_status, "attempts": attempts,
-                           "rate_limited": any(a["http_status"] == 429 for a in attempts)})
+                           "retries": len(attempts), "rate_limited": any(
+                               a["http_status"] == 429 for a in attempts)})
 
     @staticmethod
     def _results(data: dict) -> list[dict]:
