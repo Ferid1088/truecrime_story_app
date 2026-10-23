@@ -1,27 +1,17 @@
-"""Phase 8 rights gate against a real case-6 asset."""
+"""Phase 8 rights gate: an asset with unknown rights forces human sign-off
+and a platform warning — built on a fixture asset, not a file snapshot."""
 
 from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.db.models import VisualAsset
 from app.shortform.gates import AssetUse, rights_checker
 
 
-def test_case6_unknown_rights_forces_human_signoff_and_platform_warning():
-    database_path = Path(__file__).resolve().parents[1] / "truecrime.db"
-    if not database_path.exists():
-        pytest.skip("repository real database is unavailable")
-    real_engine = create_engine(f"sqlite:///{database_path}", connect_args={"check_same_thread": False})
-    RealSession = sessionmaker(bind=real_engine)
-    with RealSession() as db:
-        asset = db.query(VisualAsset).filter_by(
-            case_id=6, asset_code="VIS_000027", rights_status="unknown"
-        ).one()
+def test_unknown_rights_forces_human_signoff_and_platform_warning(db_session, monkeypatch):
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.rights, "enforce", True)
+    asset = VisualAsset(asset_code="VIS_000027", rights_status="unknown")
     result = rights_checker(
         [AssetUse(asset_id=asset.asset_code, rights_status=asset.rights_status)],
         platform="tiktok_video",

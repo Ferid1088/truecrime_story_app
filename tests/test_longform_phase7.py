@@ -1,38 +1,69 @@
-"""Phase 7 gate: real per-case rollout readiness reporting."""
+"""Phase 7 gate: per-case rollout readiness reporting — fixture-driven, no
+snapshot database file."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
+from app.db.models import (
+    Case,
+    EditorialBlueprint,
+    EpistemicContractSet,
+    RevealGraph,
+    StoryVersion,
+    VisualAsset,
+)
 from app.longform.rollout import assess_all_cases
 
 
-def test_real_case_readiness_reports_cases_1_to_5_as_not_candidates_and_case6_ready():
-    database_path = Path(__file__).resolve().parents[1] / "truecrime.db"
-    if not database_path.exists():
-        pytest.skip("repository real database is unavailable")
-    real_engine = create_engine(f"sqlite:///{database_path}", connect_args={"check_same_thread": False})
-    RealSession = sessionmaker(bind=real_engine)
-    with RealSession() as db:
-        rows = assess_all_cases(db)
+def _ready_case(db, slug: str) -> Case:
+    """A case with everything readiness wants: a valid blueprint on a story version,
+    visual assets, a validated graph and an approved contract set."""
+    case = Case(canonical_title=f"case {slug}", slug=slug)
+    db.add(case)
+    db.flush()
+    story = StoryVersion(case_id=case.id, version=1, kind="direct",
+                         narrative_angle="angle", story_text="text")
+    db.add(story)
+    db.flush()
+    blueprint = EditorialBlueprint(case_id=case.id, story_version_id=story.id,
+                                   version=1, status="valid")
+    db.add(blueprint)
+    db.flush()
+    for n in range(3):
+        db.add(VisualAsset(case_id=case.id, asset_code=f"VIS_{n:06d}"))
+    db.add(RevealGraph(case_id=case.id, blueprint_id=blueprint.id, status="validated"))
+    db.add(EpistemicContractSet(case_id=case.id, blueprint_id=blueprint.id,
+                                story_version_id=story.id, status="approved"))
+    db.commit()
+    return case
+
+
+def _bare_case(db, slug: str) -> Case:
+    case = Case(canonical_title=f"case {slug}", slug=slug)
+    db.add(case)
+    db.commit()
+    return case
+
+
+def test_readiness_reports_bare_cases_as_not_candidate_and_built_case_ready(db_session):
+    ready = _ready_case(db_session, "ready")
+    bare = [_bare_case(db_session, f"bare-{i}") for i in range(2)]
+
+    rows = assess_all_cases(db_session)
     by_id = {row.case_id: row for row in rows}
-    assert set(by_id) >= {1, 2, 3, 4, 5, 6}
-    for case_id in range(1, 6):
-        row = by_id[case_id]
+
+    for case in bare:
+        row = by_id[case.id]
         assert row.status == "NOT_CANDIDATE"
         assert row.blueprint_count == 0
         assert row.visual_asset_count == 0
         assert "no EditorialBlueprint exists" in row.reasons
         assert "no VisualAsset rows exist" in row.reasons
-    case6 = by_id[6]
-    assert case6.status == "READY"
-    assert case6.usable_blueprint_ids == (1,)
-    assert case6.visual_asset_count == 32
-    assert case6.original_media_segment_count == 0
-    assert case6.validated_graph_count == 1
-    assert case6.contract_set_count == 1
-    assert case6.approved_contract_set_count == 1
+
+    row = by_id[ready.id]
+    assert row.status == "READY"
+    assert len(row.usable_blueprint_ids) == 1
+    assert row.visual_asset_count == 3
+    assert row.original_media_segment_count == 0
+    assert row.validated_graph_count == 1
+    assert row.contract_set_count == 1
+    assert row.approved_contract_set_count == 1
