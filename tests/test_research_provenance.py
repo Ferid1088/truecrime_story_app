@@ -497,6 +497,27 @@ def test_poll_unknown_job_fails_clearly():
     assert "unknown" in (pjob.error or "").lower()
 
 
+def test_a_paused_job_is_marked_failed_not_left_running_forever():
+    """JobPaused is a BaseException: it used to escape _run()'s except-Exception,
+    leaving the registry at "running" — the UI showed a dead job as alive."""
+    from app.documentary.pipeline.errors import JobPaused
+    from app.research_engine.provider import TrueCrimeSearchProvider
+
+    provider = TrueCrimeSearchProvider()
+
+    async def go():
+        async def boom(progress):
+            raise JobPaused()
+
+        ext = provider._launch(boom)
+        await asyncio.sleep(0.05)  # let the spawned task run and die
+        return await provider.poll(ext)
+
+    pjob = asyncio.run(go())
+    assert pjob.status == "failed"
+    assert "stop" in (pjob.error or "").lower()
+
+
 # --- stop conditions -----------------------------------------------------------
 
 

@@ -17,6 +17,7 @@ from typing import Any, Awaitable, Callable
 from app.core.tasks import spawn
 from app.core.ai_config import ai_config
 from app.core.env import env_value
+from app.documentary.pipeline.errors import JobCancelled, JobPaused
 from app.providers.base import ProviderJob, ResearchProvider
 from app.providers.generation import get_generation_provider
 from app.research_engine.embeddings import EmbeddingClient
@@ -201,6 +202,18 @@ class TrueCrimeSearchProvider(ResearchProvider):
                     result = await runner(_JobProgress(external_id))
                 _JOBS[external_id].update(
                     status="completed", result=result, stage="completed")
+            except (JobPaused, JobCancelled) as e:
+                # Control flow, deliberately outside "except Exception": the global
+                # stop or a case pause ended this job. Record it — otherwise the
+                # registry keeps saying "running" forever and the UI shows a dead
+                # job as alive.
+                _JOBS[external_id].update(
+                    status="failed",
+                    error={"kind": "paused" if isinstance(e, JobPaused) else "cancelled",
+                           "message": "stopped: the global stop or a case pause is on",
+                           "details": {}},
+                    stage="failed")
+                raise
             except Exception as e:  # noqa: BLE001
                 log.exception("research job %s failed", external_id)
                 kind = getattr(e, "kind", "engine_error")
