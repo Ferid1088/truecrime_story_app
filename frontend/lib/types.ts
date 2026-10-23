@@ -3459,6 +3459,8 @@ export type PipelineDraft = PipelineStage & {
   evidence_audit: EvidenceAuditReport | null;
   draft_checks: DraftChecks | null;
   approval: { by: string; at: string; draft_version_id: number; cost_eur: number | null; evidence_audit: string | null } | null;
+  /** Set once new facts exist that this plan's acts were never checked against; the plan is kept. */
+  plan_note: string | null;
 };
 export interface LanguagePipelineState {
   draft: PipelineDraft | null;

@@ -19,7 +19,7 @@ from app.agents.story import (
     normalize_act_budgets,
 )
 from app.core.ai_config import ai_config
-from app.db.models import Case, Contradiction, Fact, Source, StoryPlan
+from app.db.models import Case, Contradiction, Fact, Source, StoryPlan, StoryVersion
 from app.services import story_plans as SP
 from app.services.tracking import stamp_run, track_run
 from app.utils import utc_now
@@ -55,17 +55,39 @@ class StoryPlanService:
         return q.order_by(StoryPlan.id.desc()).first()
 
     def usable_approved(self, case: Case, language: str, target_minutes: float) -> StoryPlan | None:
-        """The approved plan for this film, only while the evidence is the same
-        one it was planned from."""
+        """The approved plan for this film. Before the first draft, a changed evidence fingerprint
+        means the plan was never built from this evidence, so a fresh one replaces it. Once a draft
+        exists, the plan is pinned to that chain: case 15's own 7-act plan was silently replaced by a
+        6-act one mid-chain when a claims re-run added 578 facts, breaking the English final's act
+        count. Evidence added after the plan was made is reported (see evidence_changed_since), never
+        used to replan an in-flight chain by itself — only an explicit replan, asked for in the UI,
+        does that."""
         plan = (self.db.query(StoryPlan).filter(
             StoryPlan.case_id == case.id, StoryPlan.status == "approved",
             StoryPlan.language == language)
             .order_by(StoryPlan.id.desc()).first())
         if plan is None or abs(plan.target_minutes - float(target_minutes)) > 1e-6:
             return None
+        if self._has_draft(case.id, language):
+            return plan
         if plan.evidence_fingerprint != evidence_fingerprint(_pack(self.db, case)):
             return None
         return plan
+
+    def _has_draft(self, case_id: int, language: str) -> bool:
+        from app.language_pipeline.store import DRAFT
+
+        return self.db.query(StoryVersion).filter(
+            StoryVersion.case_id == case_id, StoryVersion.kind == DRAFT,
+            StoryVersion.language == language, StoryVersion.status != "retired").first() is not None
+
+    def evidence_changed_since(self, case: Case, plan: StoryPlan) -> bool:
+        """True once new evidence exists that this plan's acts were never checked against — a
+        read-only signal for the UI ("new facts available, plan kept"), never acted on by itself."""
+        try:
+            return plan.evidence_fingerprint != evidence_fingerprint(_pack(self.db, case))
+        except StoryPlanError:
+            return False
 
     # -- creating ----------------------------------------------------------
     def _store(self, case: Case, plan: dict, pack: dict, language: str, target_minutes: float,

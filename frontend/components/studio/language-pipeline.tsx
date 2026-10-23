@@ -256,6 +256,12 @@ function DraftCard({ caseId, draft }: { caseId: number; draft: PipelineDraft | n
                 </span>
               )}
             </div>
+            {draft.plan_note && (
+              <p className="rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground"
+                 data-testid="plan-note">
+                {draft.plan_note}
+              </p>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>
               {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />} Read the draft
             </Button>

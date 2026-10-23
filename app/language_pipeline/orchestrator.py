@@ -16,7 +16,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.agents.story import strip_section_markers
+from app.agents.story import _parse_sections, strip_section_markers
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt_sha256
 from app.db.base import SessionLocal
@@ -472,6 +472,27 @@ class LanguagePipeline:
                                             _source_text(base))
         gates = await self.gates.run(db, case, material, language, output, self._gate_span(db, span, previous),
                                      gates=ai_config.language_pipeline.blocking_gates_for(language))
+        if previous is not None and "markers" in [f["gate"] for f in gates.failures]:
+            # A revise/improve round that loses the plan's act markers must never become the new
+            # version silently (case 15 v237: markers lost, saved anyway as "needs_revision", and the
+            # text that actually had the markers and the real open items — v235 — was shadowed by it).
+            # One automatic retry; if that also loses them, the previous version stands untouched.
+            log.warning("language %s: the final writer lost the act markers from version %s; retrying once",
+                       language, previous.id)
+            self._emit(event="markers_lost_retry", stage=FINAL, language=language, version_id=previous.id)
+            retry_output = await self.stages.finalize(db, case, material, language, span, last_text, used,
+                                                      _source_text(base))
+            retry_gates = await self.gates.run(db, case, material, language, retry_output,
+                                               self._gate_span(db, span, previous),
+                                               gates=ai_config.language_pipeline.blocking_gates_for(language))
+            if "markers" not in [f["gate"] for f in retry_gates.failures]:
+                output, gates = retry_output, retry_gates
+            else:
+                log.warning("language %s: the final writer lost the act markers twice in a row; "
+                           "keeping version %s, not saving the broken retry", language, previous.id)
+                self._emit(event="markers_lost_kept_previous", stage=FINAL, language=language,
+                           version_id=previous.id)
+                return previous
         failures = [f["gate"] for f in gates.failures]
         self._emit(event="gates", stage=FINAL, language=language, passed=gates.passed, failures=failures)
         notes = {"quality_gates": gates.as_dict(),
@@ -799,15 +820,25 @@ class LanguagePipeline:
         hedge rewrite, which would itself need a model to read naturally; a clean cut never does. A
         finding whose quote is not found verbatim (the text moved on) is left for the next report."""
         self._emit(event="stage_started", stage=DETERMINISTIC_FIX_STAGE, language=language, version_id=final.id)
+        severities = ai_config.language_pipeline.audit_fix.severities
+        before_ids = [s["id"] for s in _parse_sections(final.story_text)]
         text = final.story_text
         removed: list[dict] = []
+        no_quote_match: list[dict] = []
         acts_touched: set[str] = set()
         for f in findings:
+            if f.get("severity") not in severities:
+                continue                                    # the fixer itself would not have touched this one
             quote = (f.get("quote") or "").strip()
-            if quote and quote in text:
-                text = text.replace(quote, "", 1)
-                removed.append(f)
-                acts_touched.update(a.strip() for a in (f.get("act") or "").split(","))
+            candidate = text.replace(quote, "", 1) if quote and quote in text else None
+            # A removal that merges, drops or reorders an act boundary is never applied — only a
+            # cut that leaves every act exactly where it was is safe without a model to check it.
+            if candidate is None or [s["id"] for s in _parse_sections(candidate)] != before_ids:
+                no_quote_match.append(f)
+                continue
+            text = candidate
+            removed.append(f)
+            acts_touched.update(a.strip() for a in (f.get("act") or "").split(","))
         text = re.sub(r"[ \t]{2,}", " ", text)
         text = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text))
         new_sections = self.stages._sections(text, material)[0]
@@ -817,26 +848,33 @@ class LanguagePipeline:
         gates = await self.gates.run(db, case, material, language, output, self._gate_span(db, span, final),
                                      gates=ai_config.language_pipeline.blocking_gates_for(language))
         failures = [f["gate"] for f in gates.failures]
+        self._emit(event="stage_done", stage=DETERMINISTIC_FIX_STAGE, language=language,
+                   removed=len(removed), unmatched=len(no_quote_match), gates_passed=gates.passed)
+        if not gates.passed:
+            # Never save a version that fails its own gates — the previous final stands (case 15
+            # v238: saved anyway as "needs_revision", silently shadowing v235 as the chain's latest).
+            log.warning("language %s: the deterministic fix's result failed the gates (%s); keeping version %s",
+                       language, ", ".join(failures), final.id)
+            self._emit(event="deterministic_fix_rejected", stage=DETERMINISTIC_FIX_STAGE, language=language,
+                       version_id=final.id, failures=failures)
+            return final, [{"severity": "high", "kind": "gates_failed", "decision": "confirmed",
+                           "problem": f"the deterministic fix's result failed the gates: {', '.join(failures)}; "
+                                      f"version {final.id} was kept"}]
         targets = self.stages.act_targets(material, language, span)
         corrected_notes = {
             "quality_gates": gates.as_dict(), "gate_history": [{"words": len(text.split()), "failures": failures}],
             "inspection_version_id": inspection.id, "rewrite_version_id": rewrite.id,
             "act_lengths": act_length_report(targets, new_sections),
             "fact_report": self._fact_report(material, language, base, text),
-            "deterministic_fix": {"removed": removed, "unresolved_no_match": [
-                f for f in findings if f not in removed]}, "deterministic_fix_from": final.id}
+            "deterministic_fix": {"removed": removed, "no_quote_match": no_quote_match},
+            "deterministic_fix_from": final.id}
         row = store.save(
             case_id=case.id, kind=FINAL, language=language, output=output, material=material,
             started=utc_now(), requested_minutes=requested, base=base, critic_notes=corrected_notes,
-            status="ready" if gates.passed else "needs_revision",
+            status="ready",
             parents={"parent_id": inspection.id, "rewrite_id": rewrite.id},
             extra={"stage": "deterministic_fix", "fixes_version_id": final.id, "acts_changed": sorted(acts_touched)},
             similarity=(None, "not_evaluated"))
-        self._emit(event="stage_done", stage=DETERMINISTIC_FIX_STAGE, language=language,
-                   removed=len(removed), unmatched=len(findings) - len(removed))
-        if row.status != "ready":
-            return row, [{"severity": "high", "kind": "length", "problem": "the deterministic fix's text fails "
-                          "the gates: " + ", ".join(failures), "decision": "confirmed"}]
         EvidenceAudit.carry_over(db, row, report, acts_touched, material, new_sections)
         self._emit(event="stage_started", stage="evidence_audit", language=language, version_id=row.id,
                    acts=sorted(acts_touched))

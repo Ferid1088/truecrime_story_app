@@ -232,7 +232,26 @@ def case_state(db: Session, case_id: int, with_text: bool = False) -> dict:
     ledger = ledger_table(db, case_id)
     notes = _notes(draft)
     return {"draft": {**stage_dict(draft, with_text), "evidence_audit": notes.get("evidence_audit"),
-                      "draft_checks": notes.get("draft_checks"), "approval": notes.get("approval")},
+                      "draft_checks": notes.get("draft_checks"), "approval": notes.get("approval"),
+                      "plan_note": _plan_note(db, case_id, draft)},
             "retired_method": retired, "languages": blocks, "ledger": ledger,
             "cost_total_eur": round(sum(r["eur"] for r in ledger), 4),
             "calls_total": sum(r["calls"] for r in ledger)}
+
+
+def _plan_note(db: Session, case_id: int, draft: StoryVersion) -> str | None:
+    """Evidence added since the chain's plan was made never replans it by itself (case 15: a claims
+    re-run did, silently, breaking the English final's act count) — only reported, so the owner can
+    decide whether a replan is worth it."""
+    if not draft.story_plan_id:
+        return None
+    from app.db.models import Case, StoryPlan
+    from app.services.story_plan_service import StoryPlanService
+
+    plan = db.get(StoryPlan, draft.story_plan_id)
+    case = db.get(Case, case_id)
+    if plan is None or case is None:
+        return None
+    if StoryPlanService(db).evidence_changed_since(case, plan):
+        return "New facts available since this plan was made; the plan was kept as is."
+    return None

@@ -8,16 +8,24 @@ import asyncio
 import json
 
 import pytest
-from test_language_pipeline_flow import ACTS, FakeGen, _pipeline, setup  # noqa: F401
+from test_language_pipeline_flow import ACTS, FakeGen, _marked, _pipeline, setup  # noqa: F401
 
 from app.core.ai_config import ai_config
-from app.db.models import Case, StoryPlan, StoryVersion
+from app.db.models import Case, Fact, StoryPlan, StoryVersion
 from app.language_pipeline import review
 from app.language_pipeline.audit_fix import AuditFix, FixAnswer, FixDecision, FixEdit, carries
 from app.language_pipeline.lengths import final_range
 from app.language_pipeline.stages import StageFailed
 from app.language_pipeline.state import case_state
-from app.language_pipeline.store import FIDELITY, FINAL, INSPECTION, REVIEW, REWRITE, StageStore
+from app.language_pipeline.store import (
+    FIDELITY,
+    FINAL,
+    INSPECTION,
+    REVIEW,
+    REWRITE,
+    StageStore,
+    pipeline_of,
+)
 from app.utils import utc_now
 
 
@@ -77,6 +85,51 @@ def test_a_high_item_in_the_review_starts_one_revision_and_a_clean_second_review
     assert revision_call["user"]["last_version"] == finals[0].story_text           # starts from the delivered text
     assert revision_call["user"]["critique"]["items"][0]["severity"] == "high"
     assert len(rows(db_session, setup, kind=REVIEW)) == 2                           # the revision is reviewed again
+
+
+class LosesMarkers(FakeGen):
+    """The final writer loses the plan's act markers on its revision call(s) — case 15 v237: a
+    /revise round produced prose with no [[ACT:id]] markers at all, saved anyway as a new, broken
+    version. `fail_times` calls lose the markers; the next one is clean."""
+
+    def __init__(self, fail_times: int):
+        super().__init__()
+        self.fail_times = fail_times
+        self.revision_calls = 0
+
+    async def generate_text(self, role, system, user, images=None, **k):
+        task = json.loads(user)
+        if role == "language_final_writer" and task.get("critique", {}).get("summary", "").startswith("Revision"):
+            self.revision_calls += 1
+            self.calls.append({"role": role, "system": system, "user": task, "raw": user, **k})
+            if self.revision_calls <= self.fail_times:
+                return self._result("Prose with no act markers at all, lost in the rewrite.", role)
+            words = task.get("target_words_min") or 100
+            per_act = int((words + 20) / len(ACTS))
+            return self._result(_marked(per_act, "fixedx"), role)
+        return await super().generate_text(role, system, user, images, **k)
+
+
+def test_a_revision_that_loses_the_act_markers_is_retried_once_then_saved_clean(setup, db_session):
+    gen = LosesMarkers(fail_times=1)
+    gen.review_severity = "high"
+    run(gen, setup)
+    assert gen.revision_calls == 2                                    # the lost-markers call, then one retry
+    finals = rows(db_session, setup, kind=FINAL)
+    assert len(finals) == 2                                           # the retry's clean text was saved
+    revision = finals[-1]
+    assert pipeline_of(revision).get("stage") == "revision"
+    assert "fixedx" in revision.story_text and "no act markers" not in revision.story_text
+
+
+def test_a_revision_that_loses_the_act_markers_twice_keeps_the_previous_version(setup, db_session):
+    gen = LosesMarkers(fail_times=99)                                  # never recovers
+    gen.review_severity = "high"
+    run(gen, setup)
+    assert gen.revision_calls == 2                                    # retried once, never a third time
+    finals = rows(db_session, setup, kind=FINAL)
+    assert len(finals) == 1                                           # no broken "revision" version was saved
+    assert "no act markers" not in finals[0].story_text
 
 
 def test_a_blocking_item_that_remains_after_the_one_revision_leaves_the_text_open_and_unapproved(setup, db_session):
@@ -203,6 +256,20 @@ def test_an_invalid_fidelity_answer_is_asked_once_more_and_then_fails_the_check(
 
 
 # ------------------------------------------------------------------------------ out of date when the English changes
+def test_the_case_state_shows_a_note_once_evidence_changed_after_the_plan_was_made(setup, db_session):
+    run(FakeGen(), setup)
+    draft = rows(db_session, setup, kind="draft")[0]
+
+    db_session.add(Fact(case_id=setup.id, claim="A fact found after the plan was made.",
+                        category="context", confidence=0.9))
+    db_session.commit()
+
+    note = case_state(db_session, setup.id)["draft"]["plan_note"]
+    assert note == "New facts available since this plan was made; the plan was kept as is."
+    # the plan itself (and the draft it belongs to) is unchanged — not silently replaced
+    assert rows(db_session, setup, kind="draft")[0].id == draft.id
+
+
 def test_a_new_english_final_makes_the_dependent_language_versions_out_of_date(setup, db_session):
     run(FakeGen(), setup, ("en", "fa"))
     state = case_state(db_session, setup.id)
@@ -361,6 +428,72 @@ def test_after_max_fix_rounds_a_confirmed_finding_is_removed_by_code_not_asked_t
     assert json.loads(row.narrative_structure)["pipeline"]["stage"] == "deterministic_fix"
     assert json.loads(row.critic_notes)["deterministic_fix"]["removed"][0]["quote"] == second_finding["quote"]
     assert unresolved == []                                          # the re-audit found nothing new
+
+
+def test_a_removal_that_would_empty_out_a_whole_act_is_never_applied(setup, db_session, monkeypatch):
+    """Removing a quote must never merge or delete act boundaries: a finding whose quote is an
+    entire act's content would delete that act outright if applied — it is left for the next
+    report instead, exactly like a quote the text has already moved past."""
+    monkeypatch.setattr(ai_config.language_pipeline.audit_fix, "max_fix_rounds", 1)
+    gen = Confirms([finding("high")], edit_enxword)
+    run(gen, setup)
+    (original, fixed) = rows(db_session, setup, kind=FINAL)
+    material = asyncio.run(_pipeline(gen)._material(db_session, db_session.get(Case, setup.id)))
+    store = StageStore(db_session)
+    rewrite_row = rows(db_session, setup, kind=REWRITE)[0]
+    inspection_row = rows(db_session, setup, kind=INSPECTION)[0]
+    base = db_session.get(StoryVersion, fixed.draft_version_id)
+
+    from app.agents.story import _parse_sections
+    act2_body = next(s["text"] for s in _parse_sections(fixed.story_text) if s["id"] == "act2")
+    whole_act_finding = finding("high", quote=act2_body)
+
+    pipeline = _pipeline(gen)
+    span = final_range("en", 60.0)
+    report = {"status": "ok", "items": [whole_act_finding]}
+    row, _ = asyncio.run(pipeline._deterministic_fix(
+        db_session, db_session.get(Case, setup.id), store, material, base, rewrite_row, inspection_row,
+        fixed, "en", span, 60.0, report, [whole_act_finding],
+        pipeline.stages._sections(fixed.story_text, material)[0]))
+
+    assert "act2" in [s["id"] for s in _parse_sections(row.story_text)]
+    fix_notes = json.loads(row.critic_notes)["deterministic_fix"]
+    assert fix_notes["removed"] == [] and fix_notes["no_quote_match"][0]["quote"] == act2_body
+
+
+def test_a_deterministic_fix_that_fails_its_own_gates_is_never_saved(setup, db_session, monkeypatch):
+    """The deterministic fix must run the same gates on its result before saving a new version and
+    never leave a failed version as the latest (case 15 v238: saved anyway as "needs_revision",
+    silently shadowing v235, the chain's last good version, as the latest final)."""
+    monkeypatch.setattr(ai_config.language_pipeline.audit_fix, "max_fix_rounds", 1)
+    gen = Confirms([finding("high")], edit_enxword)
+    run(gen, setup)
+    (original, fixed) = rows(db_session, setup, kind=FINAL)
+    material = asyncio.run(_pipeline(gen)._material(db_session, db_session.get(Case, setup.id)))
+    store = StageStore(db_session)
+    rewrite_row = rows(db_session, setup, kind=REWRITE)[0]
+    inspection_row = rows(db_session, setup, kind=INSPECTION)[0]
+    base = db_session.get(StoryVersion, fixed.draft_version_id)
+
+    from app.language_pipeline.gates import GateResult
+
+    pipeline = _pipeline(gen)
+
+    async def always_fails(*a, **k):
+        return GateResult(failures=[{"gate": "length", "problem": "too short", "passages": []}])
+
+    monkeypatch.setattr(pipeline.gates, "run", always_fails)
+    span = final_range("en", 60.0)
+    second_finding = finding("high", quote="enact2final0 enact2final1")
+    report = {"status": "ok", "items": [second_finding]}
+    row, unresolved = asyncio.run(pipeline._deterministic_fix(
+        db_session, db_session.get(Case, setup.id), store, material, base, rewrite_row, inspection_row,
+        fixed, "en", span, 60.0, report, [second_finding],
+        pipeline.stages._sections(fixed.story_text, material)[0]))
+
+    assert row.id == fixed.id                                          # the previous version stands
+    assert len(rows(db_session, setup, kind=FINAL)) == 2                # no broken version was saved
+    assert unresolved[0]["kind"] == "gates_failed" and "length" in unresolved[0]["problem"]
 
 
 def test_a_confirmed_finding_whose_edit_cannot_be_applied_keeps_the_text_open(setup, db_session):

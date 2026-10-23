@@ -76,6 +76,39 @@ def test_approve_then_the_plan_is_usable_only_for_the_same_film(db_session, dire
     assert service.usable_approved(case, "fa", 10) is None          # evidence moved on
 
 
+def test_once_a_draft_exists_the_plan_is_pinned_even_if_evidence_changes_after(db_session, director):
+    """Case 15: a claims re-run added 578 facts mid-chain, and the next pipeline call silently
+    replanned to a different act count, breaking the already-written English final (7 acts -> 6,
+    "found: ['full']" on every gate check afterward). Once a draft exists under this plan, new
+    evidence must never replace it by itself — only an explicit replan does."""
+    from app.db.models import StoryVersion
+    from app.language_pipeline.store import DRAFT
+
+    case = _case(db_session)
+    service = StoryPlanService(db_session)
+    plan = _create(db_session, case)
+    service.approve(plan, "owner")
+    db_session.add(StoryVersion(case_id=case.id, kind=DRAFT, language="fa", version=1,
+                                narrative_angle="{}", story_text="[[ACT:act1]]\n\nx", status="ready",
+                                narrative_structure="{}", critic_notes="{}", text_hash="h",
+                                story_plan_id=plan.id))
+    db_session.commit()
+
+    db_session.add(Fact(case_id=case.id, claim="new evidence", category="context", confidence=0.9))
+    db_session.commit()
+
+    assert service.evidence_changed_since(case, plan) is True
+    assert service.usable_approved(case, "fa", 10).id == plan.id        # pinned, not silently replaced
+
+
+def test_evidence_changed_since_is_false_right_after_the_plan_is_made(db_session, director):
+    case = _case(db_session)
+    service = StoryPlanService(db_session)
+    plan = _create(db_session, case)
+    service.approve(plan, "owner")
+    assert service.evidence_changed_since(case, plan) is False
+
+
 def test_edit_needs_a_fresh_preview_and_supersedes_the_old_plan(db_session, director):
     case = _case(db_session)
     service = StoryPlanService(db_session)
