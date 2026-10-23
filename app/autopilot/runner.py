@@ -170,6 +170,10 @@ class AutopilotRunner:
         self.ports = ports or Ports()
         self.sleep = sleep
         self.cfg = ai_config.autopilot_settings()
+        # the texts of all languages are written off the pass path: one task per run, so a
+        # language's film starts as soon as its own final is approved instead of waiting for
+        # every language's text
+        self._texts_tasks: dict[int, asyncio.Task] = {}
 
     # -- the loop --------------------------------------------------------------------------
     async def run(self, run_id: int) -> None:
@@ -178,6 +182,7 @@ class AutopilotRunner:
             try:
                 run = db.get(AutopilotRun, run_id)
                 if run is None or run.status in TERMINAL:
+                    self._texts_tasks.pop(run_id, None)
                     return
                 try:
                     finished = await self.advance(db, run)
@@ -303,6 +308,18 @@ class AutopilotRunner:
                         settled_on_return=False)
         return bool(db.query(Fact).filter(Fact.case_id == case.id).count())
 
+    async def _write_texts(self, case_id: int, languages: list[str]) -> dict:
+        """One pass's background work: the shared draft, the English final, then the other
+        languages in parallel. Runs on its own session, off the pass path — the run keeps
+        advancing so a finished language's film starts while the rest are still written."""
+        db = self.session_factory()
+        try:
+            case = db.get(Case, case_id)
+            assert case is not None
+            return await self.ports.write_texts(db, case, languages)
+        finally:
+            db.rollback()  # release the connection; close() would detach shared fixtures
+
     async def _texts(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         if all(approved_final(db, case.id, lang) is not None for lang in languages):
             return True
@@ -312,14 +329,52 @@ class AutopilotRunner:
             # more texts are approved than at the last attempt (the owner got one through):
             # the languages that wait on it may be tried again
             S.set_attempts(run, "texts", 0)
-
-        async def write():
-            result = await self.ports.write_texts(db, case, languages)
+        limit = self.cfg.max_attempts_per_phase
+        task = self._texts_tasks.get(run.id)
+        if task is None and S.attempts(run, "texts") < limit:
+            try:
+                await self.ports.authorize()
+            except HTTPException as exc:
+                detail = exc.detail if isinstance(exc.detail, dict) else {"message": str(exc.detail)}
+                raise Blocked("provider", str(detail.get("message") or detail)) from exc
+            S.set_attempts(run, "texts", S.attempts(run, "texts") + 1)
+            db.commit()
+            task = asyncio.create_task(self._write_texts(case.id, languages))
+            self._texts_tasks[run.id] = task
+            await asyncio.sleep(0)  # one slice: a cheap fake or a cached draft settles inline
+        if task is not None:
+            if not task.done():
+                return False
+            self._texts_tasks.pop(run.id, None)
+            if task.cancelled():
+                return False
+            err = task.exception()
+            if err is not None:
+                if isinstance(err, (Cancelled, Paused, JobPaused, BudgetStopped)):
+                    raise err
+                if isinstance(err, Blocked):
+                    S.remember(run, "texts", "failure",
+                               {"kind": err.kind, "message": str(err)})
+                    S.set_attempts(run, "texts", limit)
+                    db.commit()
+                    raise err
+                message = f"{PHASE_LABEL['texts']} stopped: {err}"
+                S.remember(run, "texts", "failure",
+                           {"kind": "texts_failed", "message": message})
+                db.commit()
+                raise Blocked("texts_failed", message) from err
+            result = task.result() or {}
             S.remember(run, "texts", "outcomes", {
                 o["language"]: o.get("error") or o.get("status")
                 for o in result.get("languages", [])})
-
-        await self._try(db, run, "texts", write, settled_on_return=True)
+            S.remember(run, "texts", "failure", None)
+            # a finished write is settled: a text that stayed unapproved is not paid for again
+            S.set_attempts(run, "texts", limit)
+            db.commit()
+        else:
+            failure = S.recall(run, "texts", "failure")
+            if failure:
+                raise Blocked(failure["kind"], failure["message"])
         db.expire_all()
         S.remember(run, "texts", "approved",
                    sum(approved_final(db, case.id, lang) is not None for lang in languages))
@@ -331,13 +386,44 @@ class AutopilotRunner:
                        f"The {lang} final text is not approved: {why}.", language=lang)
         return not still
 
+    def _visual_searches_done(self, db: Session, run: AutopilotRun, ids: dict[str, int],
+                              english: str, languages: list[str]) -> bool:
+        """The non-base film jobs wait until the base language's job has run its case-level
+        visual searches: the search ledger dedups only queries already recorded, so two jobs
+        whose gap filling overlaps would pay for the same search twice. The gate opens when the
+        English job's visual_gaps stage settled, when the job itself settled (a broken English
+        film never blocks the others), or when English's text failed for good."""
+        if english not in languages:
+            return True
+        job_id = ids.get(english)
+        if job_id is not None:
+            job = db.get(DocumentaryJob, job_id)
+            if job is None or job.status not in ("queued", "running"):
+                return True
+            stage = next((s for s in json.loads(job.stages_json or "[]")
+                          if s["name"] == "visual_gaps"), None)
+            return stage is not None and stage["status"] in (
+                "done", "skipped", "degraded", "failed")
+        if approved_final(db, run.case_id, english) is not None:
+            return False  # the English film starts on this pass; the others wait for it
+        return (S.step_status(run, "texts") == "done"
+                or S.recall(run, "texts", "failure") is not None
+                or S.recall(run, "texts", "outcomes") is not None
+                or S.attempts(run, "texts") >= self.cfg.max_attempts_per_phase)
+
     async def _films(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         ids = S.film_job_ids(run)
         from app.documentary import jobs as J
 
-        for lang in languages:
+        english = ai_config.language_pipeline.draft_language
+        gate_open = self._visual_searches_done(db, run, ids, english, languages)
+        held: list[str] = []
+        for lang in sorted(languages, key=lambda lg: lg != english):
             final = approved_final(db, case.id, lang)
             if final is None or lang in ids:
+                continue
+            if lang != english and not gate_open:
+                held.append(lang)
                 continue
             self._budget(db, case)
             await self.ports.authorize()
@@ -358,7 +444,11 @@ class AutopilotRunner:
                 S.add_need(run, f"films:{lang}:film_stopped", "film_stopped",
                            f"The {lang} film (job {film.id}) is {film.status}: "
                            f"{film.error or 'no reason recorded'}", language=lang)
-        S.set_step(run, "films", "running", f"{finished} of {len(languages)} films finished")
+        detail = f"{finished} of {len(languages)} films finished"
+        if held:
+            detail += (f"; {', '.join(held)} wait for the {english} film's "
+                       "visual searches to finish")
+        S.set_step(run, "films", "running", detail)
         return finished == len(languages)
 
     def _ready_jobs(self, db: Session, run: AutopilotRun) -> dict[str, DocumentaryJob]:

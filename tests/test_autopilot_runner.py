@@ -80,10 +80,28 @@ def runner(db_session, ports):
 
 
 def passes(db_session, run, ports, n=1):
+    """n advances on ONE loop: the texts task the runner spawns keeps running between passes,
+    the way it does on the worker's long-lived loop."""
     r = runner(db_session, ports)
-    for _ in range(n):
-        asyncio.run(r.advance(db_session, run))
+
+    async def drive():
+        for _ in range(n):
+            await r.advance(db_session, run)
+
+    asyncio.run(drive())
     db_session.refresh(run)
+
+
+def open_visual_gate(db_session, run, lang="en"):
+    """Record the base language's film job as past its case-level visual searches — the point
+    where the other languages' film jobs are released."""
+    job = db_session.get(DocumentaryJob, S.film_job_ids(run)[lang])
+    stages = json.loads(job.stages_json or "[]")
+    for stage in stages:
+        if stage["name"] == "visual_gaps":
+            stage["status"] = "done"
+    job.stages_json = json.dumps(stages)
+    db_session.commit()
 
 
 def finish_films(db_session, run, status="completed"):
@@ -104,6 +122,9 @@ def test_research_runs_only_when_the_case_has_no_facts(db_session, run):
 def test_one_film_job_per_language_is_made_from_the_approved_final_with_the_configured_profile(
         db_session, run, case):
     ports = FakePorts()
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == {"en"}  # de waits for en's visual searches
+    open_visual_gate(db_session, run)
     passes(db_session, run, ports)
     ids = S.film_job_ids(run)
     assert set(ids) == set(LANGS)
@@ -132,6 +153,8 @@ def test_a_stopped_film_is_listed_with_its_reason_and_clears_when_the_job_is_res
         db_session, run):
     ports = FakePorts()
     passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
+    passes(db_session, run, ports)
     job = db_session.get(DocumentaryJob, S.film_job_ids(run)["de"])
     job.status, job.error = "failed", "the narrator voice was refused"
     db_session.commit()
@@ -150,6 +173,8 @@ def test_titles_are_made_for_languages_that_lack_seven_and_never_confirmed(
         db_session, run, case):
     ports = FakePorts(titles=3)
     passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
+    passes(db_session, run, ports)
     finish_films(db_session, run)
     passes(db_session, run, ports)
     assert "titles:en,de" in ports.calls
@@ -162,6 +187,8 @@ def test_titles_are_made_for_languages_that_lack_seven_and_never_confirmed(
 
 def test_a_failed_shorts_item_blocks_and_a_skipped_one_only_informs(db_session, run, case):
     ports = FakePorts()
+    passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
     passes(db_session, run, ports)
     finish_films(db_session, run)
     job_id = S.film_job_ids(run)["en"]
@@ -181,6 +208,8 @@ def test_a_failed_shorts_item_blocks_and_a_skipped_one_only_informs(db_session, 
 
 def test_the_run_completes_with_a_dry_run_queue_and_sends_nothing(db_session, run, case):
     ports = FakePorts()
+    passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
     passes(db_session, run, ports)
     finish_films(db_session, run)
     for lang, job_id in S.film_job_ids(run).items():
@@ -213,6 +242,8 @@ def test_a_film_with_no_approved_avatar_is_kept_out_of_the_publish_queue(db_sess
     from app.db.models import ProductionScript
 
     ports = FakePorts()
+    passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
     passes(db_session, run, ports)
     finish_films(db_session, run)
     sv = make_story_version(db_session, case, language="en")
@@ -253,6 +284,8 @@ def test_a_film_without_a_chosen_outfit_asks_for_one_and_is_kept_out(db_session,
     from app.documentary import outfits as OF
 
     ports = FakePorts()
+    passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
     passes(db_session, run, ports)
     finish_films(db_session, run)
     sv = make_story_version(db_session, case, language="en")
@@ -295,6 +328,8 @@ def test_a_film_with_a_youtube_clip_pending_review_asks_the_owner(db_session, ru
     from app.documentary import outfits as OF
 
     ports = FakePorts()
+    passes(db_session, run, ports)
+    open_visual_gate(db_session, run)
     passes(db_session, run, ports)
     finish_films(db_session, run)
     sv = make_story_version(db_session, case, language="en")
@@ -402,3 +437,81 @@ def test_a_text_the_owner_gets_approved_lets_the_autopilot_try_the_other_languag
                        approved_by="owner")
     passes(db_session, run, ports)
     assert ports.calls.count("texts") == 2
+
+
+def test_the_other_film_jobs_wait_for_the_english_films_visual_searches(db_session, run):
+    ports = FakePorts()
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == {"en"}
+    detail = S.step_detail(run, "films") or ""
+    assert "de wait" in detail and "visual searches" in detail
+    open_visual_gate(db_session, run)
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == set(LANGS)
+
+
+def test_a_stopped_english_film_releases_the_waiting_languages(db_session, run):
+    ports = FakePorts()
+    passes(db_session, run, ports)
+    en = db_session.get(DocumentaryJob, S.film_job_ids(run)["en"])
+    en.status, en.error = "failed", "render exploded"
+    db_session.commit()
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == set(LANGS)
+    need = next(n for n in S.needs(run) if n["kind"] == "film_stopped")
+    assert need["language"] == "en"
+
+
+def test_a_failed_english_text_does_not_hold_the_other_languages_films(db_session, run):
+    ports = FakePorts(approve=["de"])
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == {"de"}
+    need = next(n for n in S.needs(run) if n["kind"] == "text_not_approved")
+    assert need["language"] == "en"
+
+
+def test_the_english_film_starts_while_the_other_texts_are_still_written(
+        db_session, run, case):
+    release = asyncio.Event()
+
+    class Slow(FakePorts):
+        def __init__(self):
+            super().__init__(approve=[])
+
+        async def write_texts(self, db, case, languages):
+            self.calls.append("texts")
+            for lang in languages:
+                if lang != "en" and not release.is_set():
+                    continue
+                if R.approved_final(db, case.id, lang) is None:
+                    make_story_version(db, case, kind="final", language=lang,
+                                       approved_at=utc_now(), approved_by="automatic")
+            if not release.is_set():
+                await release.wait()
+            return {"languages": [{"language": lang, "status": "done"} for lang in languages]}
+
+    ports = Slow()
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == {"en"}
+    assert R.approved_final(db_session, case.id, "de") is None
+    release.set()
+    passes(db_session, run, ports)
+    assert R.approved_final(db_session, case.id, "de") is not None
+    assert set(S.film_job_ids(run)) == {"en"}
+    open_visual_gate(db_session, run)
+    passes(db_session, run, ports)
+    assert set(S.film_job_ids(run)) == set(LANGS)
+
+
+def test_a_failed_texts_write_is_retried_up_to_the_limit_then_listed(db_session, run):
+    class Boom(FakePorts):
+        async def write_texts(self, db, case, languages):
+            self.calls.append("texts")
+            raise ValueError("gateway exploded")
+
+    ports = Boom()
+    limit = ai_config.autopilot_settings().max_attempts_per_phase
+    passes(db_session, run, ports, n=limit + 3)
+    assert ports.calls.count("texts") == limit
+    need = next(n for n in S.needs(run) if n["kind"] == "texts_failed")
+    assert "gateway exploded" in need["message"]
