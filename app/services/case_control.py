@@ -452,13 +452,14 @@ def delete_case_rows(db: Session, case_id: int) -> int:
         total += int(db.execute(
             text(f"DELETE FROM {name} WHERE {_row_filter(name, paths, scoped)}"),
             {"cid": case_id}).rowcount or 0)  # type: ignore[attr-defined]
-    # polymorphic case-scoped logs and settings keys
+    # polymorphic case-scoped logs and settings keys — scope_id is VARCHAR:
+    # compare to the string form only (PG refuses varchar = smallint)
     for table in ("edit_log", "override_log"):
         total += int(db.execute(text(
             f"DELETE FROM {table} WHERE scope_type IN "
             "('case','case_action','story_version','short_form','documentary_job','autopilot_run')"
-            " AND (scope_id = :cid OR scope_id = :cidstr)"),
-            {"cid": case_id, "cidstr": str(case_id)}).rowcount or 0)  # type: ignore[attr-defined]
+            " AND scope_id = :cidstr"),
+            {"cidstr": str(case_id)}).rowcount or 0)  # type: ignore[attr-defined]
     total += int(db.execute(text(
         "DELETE FROM app_settings WHERE key LIKE :pat"),
         {"pat": f"%:{case_id}:%"}).rowcount or 0)  # type: ignore[attr-defined]

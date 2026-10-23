@@ -139,7 +139,12 @@ def ensure_template(destination: Path, postgres_admin_url: str | None = None) ->
     if destination.exists():
         archive = Path(tempfile.mkdtemp(prefix="stale-template-", dir=destination.parent))
         destination.rename(archive / "template")  # old evidence remains recoverable
-    build.rename(destination)
+    # the build lives in the system tmp dir — on Linux CI it sits on another
+    # filesystem than the checkout, so os.rename alone would fail (EXDEV)
+    try:
+        build.rename(destination)
+    except OSError:
+        shutil.move(str(build), str(destination))
     return destination, {"rebuilt": True, "rebuild_seconds": elapsed}
 
 
