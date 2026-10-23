@@ -563,11 +563,54 @@ def test_cross_language_claims_cluster(db_session, monkeypatch):
     assert res["clusters"] == 1
 
     from app.db.models import ClaimCluster
-    cl = db_session.query(ClaimCluster).one()
+    cl = db_session.query(ClaimCluster).filter(ClaimCluster.case_id == case.id).one()
     assert len(json.loads(cl.member_claim_ids_json)) == 3
     # three different channels => three independent families
     assert cl.independent_source_family_count == 3
     assert set(json.loads(cl.languages_json)) == {"en"}
+
+
+def test_semantic_merge_runs_in_bounded_batches_and_covers_every_claim(db_session, monkeypatch):
+    """A live case with 1,569 singleton claims (29 distinct true-crime channels) never
+    merged a single one: _semantic_merge sliced to only the first claim_clustering.batch_size
+    claims and silently dropped the rest from the LLM pass, so cross-channel paraphrases
+    past that slice could never be recognized as the same claim. Every claim must get a
+    chance, batch_size at a time — the same pattern verify_clusters already uses."""
+    from app.core.ai_config import ai_config
+    from app.db.models import ClaimCluster
+    from app.services.claims import cluster_claims
+
+    monkeypatch.setattr(ai_config.claim_clustering, "batch_size", 2)
+    seen_batches = []
+
+    def groups(system, user):
+        claims = json.loads(user)["claims"]
+        seen_batches.append([c["id"] for c in claims])
+        # merge the batch's two claims into one group; a lone leftover claim stays singleton
+        return {"groups": [{"canonical_claim_en": claims[0]["text"],
+                            "claim_ids": [c["id"] for c in claims]}]} if len(claims) > 1 else {"groups": []}
+
+    fake = FakeGen()
+    fake.structured["claim_clusterer"] = groups
+    _patch_gen(monkeypatch, fake)
+
+    case = _mk_case(db_session)
+    channels = [_mk_video(db_session, case, channel=f"Channel{i}") for i in range(5)]
+    claim_ids = [_claim(db_session, case, v, f"distinct paraphrase {i} xq").id
+                 for i, v in enumerate(channels)]
+
+    res = asyncio.run(cluster_claims(db_session, case))
+
+    # every claim up to a mergeable pair reached the LLM pass, in bounded batches — not
+    # just the first 2; a lone trailing claim has nothing to merge with, so it is kept
+    # singleton without spending a call on it.
+    assert seen_batches == [claim_ids[0:2], claim_ids[2:4]]
+    assert res["claims"] == 5
+    assert res["clusters"] == 3  # {1,2} merged, {3,4} merged, 5 stays a singleton
+    family_counts = sorted(c.independent_source_family_count
+                           for c in db_session.query(ClaimCluster).filter(
+                               ClaimCluster.case_id == case.id))
+    assert family_counts == [1, 2, 2]  # the two merged clusters span two channels each
 
 
 def test_same_channel_counts_as_one_family(db_session, monkeypatch):
@@ -590,7 +633,7 @@ def test_same_channel_counts_as_one_family(db_session, monkeypatch):
     res = asyncio.run(cluster_claims(db_session, case))
     from app.db.models import ClaimCluster
     assert res["clusters"] == 1
-    cl = db_session.query(ClaimCluster).one()
+    cl = db_session.query(ClaimCluster).filter(ClaimCluster.case_id == case.id).one()
     assert cl.independent_source_family_count == 1
 
 

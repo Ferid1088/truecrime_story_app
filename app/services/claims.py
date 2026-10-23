@@ -11,6 +11,7 @@ evidence item's independent-source-family count.
 """
 
 import json
+import logging
 
 from rapidfuzz import fuzz
 from sqlalchemy.orm import Session
@@ -31,6 +32,8 @@ from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
 from app.utils import utc_now
+
+log = logging.getLogger(__name__)
 
 _CLAIM_TO_NV = {
     "human_detail": "human_detail",
@@ -141,14 +144,26 @@ async def cluster_claims(db: Session, case: Case) -> dict:
         else:
             singles.append(claim)
 
-    # LLM semantic merge for what deterministic matching missed. A provider
-    # failure degrades to deterministic-only clustering — claims are kept
-    # as singletons, never dropped.
+    # LLM semantic merge for what deterministic matching missed, one batch
+    # of claim_clustering.batch_size at a time — every single gets a chance
+    # to be matched against its peers, not just the first batch. A batch's
+    # provider failure degrades that batch to deterministic-only clustering
+    # (its claims are kept as singletons, never dropped); the rest proceed.
     if len(singles) > 1:
-        try:
-            singles = await _semantic_merge(db, case, singles, clusters, add_to)
-        except Exception:
-            pass
+        size = ai_config.claim_clustering.batch_size
+        still_single: list[TranscriptClaim] = []
+        for i in range(0, len(singles), size):
+            batch = singles[i:i + size]
+            if len(batch) <= 1:
+                still_single.extend(batch)
+                continue
+            try:
+                still_single.extend(await _semantic_merge(db, case, batch, clusters, add_to))
+            except Exception:
+                log.exception("semantic claim merge failed for case %s (batch %d-%d of %d)",
+                             case.id, i, i + len(batch), len(singles))
+                still_single.extend(batch)
+        singles = still_single
     for claim in singles:
         new_cluster(claim)
 
@@ -175,8 +190,9 @@ async def cluster_claims(db: Session, case: Case) -> dict:
 
 
 async def _semantic_merge(db, case, singles, clusters, add_to) -> list[TranscriptClaim]:
-    """Ask claim_clusterer to group semantically-equal singletons. Any claim
-    the model does not group remains a singleton cluster."""
+    """Ask claim_clusterer to group semantically-equal singletons within one batch (the
+    caller splits into claim_clustering.batch_size-sized batches). Any claim the model
+    does not group remains a singleton cluster."""
     gen = get_generation_provider()
     system = (
         prompt("services/claims/semantic_merge")
@@ -186,7 +202,7 @@ async def _semantic_merge(db, case, singles, clusters, add_to) -> list[Transcrip
             "claims": [
                 {"id": c.id, "text": c.canonical_claim_en, "type": c.claim_type}
                 for c in singles
-            ][: ai_config.claim_clustering.batch_size],
+            ],
             "output_schema": {
                 "groups": [{"canonical_claim_en": "...", "claim_ids": [1, 2]}]
             },
