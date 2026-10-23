@@ -119,6 +119,7 @@ def track_run(db: Session, case_id: int | None, agent_name: str, input_summary: 
     try:
         _check_stage_time_budget(context, case_id)
         _check_case_budget(db, case_id, context.get("pipeline_stage"))
+        _check_case_pause(db, case_id)
         _set_call_progress(db, row, context, started)
         yield row
     except (Exception, asyncio.CancelledError) as e:
@@ -234,6 +235,17 @@ def _check_case_budget(db: Session, case_id: int | None, stage: str | None) -> N
     if case_id is None:
         return
     BudgetService(db).check(case_id, stage)
+
+
+def _check_case_pause(db: Session, case_id: int | None) -> None:
+    """No new paid call may start while the case is held (pause/stop/trash) or the
+    global emergency stop is active. A call already in flight finishes normally and
+    is still booked; this check runs before the call, not after."""
+    from app.documentary.pipeline.errors import JobPaused
+    from app.services.case_control import case_held, global_stop_active
+
+    if global_stop_active(db) or (case_id is not None and case_held(db, case_id)):
+        raise JobPaused()
 
 
 def _set_call_progress(db: Session, row: AgentRun, context: dict, started: datetime) -> None:

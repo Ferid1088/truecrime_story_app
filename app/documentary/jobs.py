@@ -65,7 +65,6 @@ from app.agents.stages import get_stage_agent
 from app.agents.story import stored_sections
 from app.core.ai_config import ai_config
 from app.core.concurrency import gather_limited, slot
-from app.documentary.visuals.verification import gateway_available
 from app.core.policy import PolicyDecision
 from app.db.models import (
     Artifact,
@@ -80,6 +79,7 @@ from app.db.models import (
 )
 from app.documentary.audio_director import latest_audio_plan
 from app.documentary.blueprint import latest_blueprint
+from app.documentary.visuals.verification import gateway_available
 from app.utils import ensure_utc, utc_now
 
 log = logging.getLogger(__name__)
@@ -92,6 +92,7 @@ from app.documentary.pipeline.errors import (  # noqa: E402,F401
     AwaitingApproval,
     AwaitingOutfit,
     JobCancelled,
+    JobPaused,
     LanguageFailed,
     SpokenRejected,
 )
@@ -1116,6 +1117,14 @@ async def run_job(job_id: int, session_factory=None):
                         getattr(pipeline, "executed_stage_names", []), "cancelled")
                 job.status = "cancelled"
                 _set_case_state(db, job.case_id, "story_ready")
+            except JobPaused:
+                # held at a step boundary: stages keep their results, the job waits in
+                # "paused" until the case control resumes it (resume re-queues it)
+                db.rollback()
+                job = db.get(DocumentaryJob, job_id)
+                assert job is not None
+                job.status = "paused"
+                job.error = "paused by owner"
             except BudgetStopped as e:
                 db.rollback()
                 job = db.get(DocumentaryJob, job_id)

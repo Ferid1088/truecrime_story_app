@@ -1,5 +1,11 @@
 import type {
+  CaseControlEvent,
+  CaseControlView,
+  CaseTombstone,
+  GlobalStopState,
   MediaCoverage,
+  OutfitLibraryView,
+  TrashPreview,
   MediaLinkItem,
   HostMemoryItem,
   HostLookItem,
@@ -698,6 +704,28 @@ export const api = {
   requestPoseSet: (id: number) => post<PoseSetResult>(`/api/outfits/${id}/pose-set`, {}),
   outfitPanel: (caseId: number) =>
     request<OutfitPanel>(`/api/cases/${caseId}/outfit-panel`),
+  // case controls: pause / resume / stop (keep|delete) / restore + audit + global stop
+  caseControl: (caseId: number) =>
+    request<CaseControlView>(`/api/cases/${caseId}/control`),
+  caseTrashPreview: (caseId: number) =>
+    request<TrashPreview>(`/api/cases/${caseId}/control/trash-preview`),
+  pauseCase: (caseId: number, payload: { languages?: string[]; reason?: string }) =>
+    post<CaseControlView>(`/api/cases/${caseId}/pause`, payload),
+  resumeCase: (caseId: number) =>
+    post<CaseControlView>(`/api/cases/${caseId}/resume`, {}),
+  stopCase: (caseId: number, payload: { mode: "keep" | "delete"; confirm_name?: string; reason?: string }) =>
+    post<CaseControlView>(`/api/cases/${caseId}/stop`, payload),
+  restoreCase: (caseId: number) =>
+    post<CaseControlView>(`/api/cases/${caseId}/restore`, {}),
+  caseControlEvents: (caseId: number) =>
+    request<CaseControlEvent[]>(`/api/cases/${caseId}/control/events`),
+  globalStop: () => request<GlobalStopState>("/api/control/global"),
+  setGlobalStop: (active: boolean) =>
+    post<GlobalStopState>("/api/control/global", { active }),
+  controlTombstones: () => request<CaseTombstone[]>("/api/control/tombstones"),
+  // the outfit library: data/outfits as the source of truth
+  outfitLibrary: () => request<OutfitLibraryView>("/api/outfit-library"),
+  rescanOutfitLibrary: () => post<{ scan_id: number }>("/api/outfit-library/rescan", {}),
   panelSelectOutfit: (caseId: number, outfitId: number) =>
     post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/select`, { outfit_id: outfitId }),
   panelSameOutfit: (caseId: number, outfitId: number) =>

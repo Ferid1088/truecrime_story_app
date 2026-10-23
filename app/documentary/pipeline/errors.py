@@ -5,6 +5,14 @@ class JobCancelled(Exception):
     pass
 
 
+class JobPaused(BaseException):
+    """The case was paused (or the global stop is on): the job stops at this step
+    boundary and waits in status "paused" until resume puts it back in the queue.
+
+    BaseException like asyncio.CancelledError: this is control flow, not a stage
+    failure — inner ``except Exception`` handlers must let it propagate."""
+
+
 class LanguageFailed(Exception):
     pass
 

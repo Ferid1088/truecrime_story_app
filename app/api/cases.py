@@ -1,33 +1,32 @@
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api import deps
+from app.api.deps import duplicate_or_409, get_case_or_404, unique_slug
+from app.api.serializers import case_stats, contradiction_dict, fact_dict, source_dict
 from app.db.base import get_db
 from app.db.models import (
-    Case,
-    Source,
-    SourceChunk,
-    Fact,
-    Contradiction,
-    StoryVersion,
     AgentRun,
+    Case,
+    Contradiction,
+    Fact,
     ResearchQuery,
     ResearchResult,
     ResearchSourceLink,
+    Source,
+    SourceChunk,
+    StoryVersion,
 )
-from app.schemas import (
-    CreateCaseRequest,
-    UpdateCaseRequest,
-    AddSourceRequest,
-)
-
-
 from app.lifecycle import case_archive
 from app.lifecycle.api import resolution_dict
-from app.api.deps import duplicate_or_409, get_case_or_404, unique_slug
-from app.api.serializers import case_stats, contradiction_dict, fact_dict, source_dict
-from app.api import deps
+from app.schemas import (
+    AddSourceRequest,
+    CreateCaseRequest,
+    UpdateCaseRequest,
+)
 
 router = APIRouter()
 
@@ -58,6 +57,13 @@ def create_case(payload: CreateCaseRequest, db: Session = Depends(get_db)):
                    reason="set when the case was created", commit=False)
     db.commit()
     db.refresh(row)
+    # the outfit library syncs on every case creation so the owner always picks
+    # from the current data/outfits folder
+    try:
+        from app.outfits.library import scan_library
+        scan_library(db, trigger="case_create")
+    except Exception:
+        logging.getLogger(__name__).warning("outfit library scan failed", exc_info=True)
 
     return {
         "id": row.id,
@@ -322,9 +328,9 @@ async def corpus_search(
     limit = max(1, min(int(limit or 10), 50))
 
     from app.research_engine.index import (
+        INDEX_CACHE,
         CorpusIndex,
         IndexedChunk,
-        INDEX_CACHE,
     )
 
     idx = INDEX_CACHE.get(case_id)

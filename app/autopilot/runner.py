@@ -32,6 +32,7 @@ from app.db.models import (
     StoryVersion,
     Video,
 )
+from app.documentary.pipeline.errors import JobPaused
 from app.services.budget import BudgetService, BudgetStopped
 from app.utils import utc_now
 
@@ -49,6 +50,11 @@ class Blocked(Exception):
     def __init__(self, kind: str, message: str, language: str | None = None):
         super().__init__(message)
         self.kind, self.language = kind, language
+
+
+class Paused(Exception):
+    """The run's case was paused (or the global stop is on): the run waits in
+    "paused" until the case control resumes it."""
 
 
 class Cancelled(Exception):
@@ -177,6 +183,13 @@ class AutopilotRunner:
                     finished = await self.advance(db, run)
                 except Cancelled:
                     return
+                except (Paused, JobPaused):
+                    run = db.get(AutopilotRun, run_id)
+                    if run is not None:
+                        run.status = "paused"
+                        run.updated_at = utc_now()
+                        db.commit()
+                    return
                 except Exception as exc:  # noqa: BLE001 - one bad pass must not end the run
                     log.exception("autopilot run %s: pass failed", run_id)
                     db.rollback()
@@ -239,6 +252,10 @@ class AutopilotRunner:
         db.refresh(run)
         if run.status == "cancelled":
             raise Cancelled()
+        from app.services import case_control
+        if (case_control.global_stop_active(db)
+                or case_control.case_held(db, run.case_id)):
+            raise Paused()
 
     def _budget(self, db: Session, case: Case) -> None:
         BudgetService(db).check(case.id, "autopilot")
@@ -260,7 +277,7 @@ class AutopilotRunner:
         db.commit()
         try:
             await call()
-        except (Cancelled, BudgetStopped):
+        except (Cancelled, Paused, JobPaused, BudgetStopped):
             raise
         except Blocked as b:
             S.remember(run, phase, "failure", {"kind": b.kind, "message": str(b)})

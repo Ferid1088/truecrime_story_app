@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 from app.shortform.music_library import (
@@ -85,10 +87,11 @@ def test_claimed_track_is_never_selected(db_session, monkeypatch):
 
     _unpinned(monkeypatch)
     case = _make_case(db_session)
-    clean = _make_track(db_session, mood="waiting")
-    claimed = _make_track(db_session, mood="waiting", claimed=True)
+    mood = f"waiting-{uuid.uuid4().hex[:6]}"  # unique mood: the shared DB can hold stale tracks
+    clean = _make_track(db_session, mood=mood)
+    claimed = _make_track(db_session, mood=mood, claimed=True)
     for _ in range(10):
-        picked = select_track(db_session, "en", case.id, mood="waiting")
+        picked = select_track(db_session, "en", case.id, mood=mood)
         assert picked.id == clean.id, "a Content-ID-claimed track must never be selected"
     assert claimed.excluded is True
 

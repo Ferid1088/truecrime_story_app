@@ -37,6 +37,7 @@ export function CaseOverview({
   selectedId,
   onArchive,
   onRestore,
+  rowActions,
 }: {
   items: OverviewItem[];
   idPrefix: string;
@@ -46,6 +47,8 @@ export function CaseOverview({
   selectedId?: number | null;
   onArchive?: (id: number) => Promise<void>;
   onRestore?: (id: number) => Promise<void>;
+  /** extra controls at the right of each row (pause/resume/stop for cases) */
+  rowActions?: (item: OverviewItem) => React.ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>("Active");
   const [busy, setBusy] = useState<number | null>(null);
@@ -120,6 +123,7 @@ export function CaseOverview({
                       {body}
                     </button>
                   )}
+                  {rowActions?.(item)}
                   {!item.archived && onArchive && (
                     <Button
                       variant="ghost"

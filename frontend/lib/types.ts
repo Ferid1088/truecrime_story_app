@@ -1456,7 +1456,9 @@ export type DocumentaryJobStatus =
   | "failed"
   | "cancelled"
   /** The app restarted while the job ran: saved stages are kept, Resume continues. */
-  | "interrupted";
+  | "interrupted"
+  /** Held by the case control: waits in queue until the case is resumed. */
+  | "paused";
 /** "blocked": never ran because its language failed earlier.
  * "degraded": finished without part of its work (reason in detail.degraded). */
 export type DocumentaryStageStatus =
@@ -2878,6 +2880,101 @@ export interface OutfitPanelResult {
   applied: string[];
   skipped: string[];
   reason?: string | null;
+}
+
+// case controls: pause / resume / stop / restore / global emergency stop
+export interface CaseControlView {
+  case_id: number;
+  /** running | pausing | paused | stopped | trashed */
+  state: string;
+  pausing_step: boolean;
+  running_jobs: number[];
+  paused_jobs: number[];
+  /** configured channel languages — the pause dialog offers per-language holds */
+  languages: string[];
+  paused_languages: string[];
+  trashed_at: string | null;
+  purge_after: string | null;
+  restorable: boolean;
+  cost_eur: number;
+  requeued?: number;
+  state_before?: string;
+}
+
+export interface TrashPreview {
+  files: number;
+  bytes: number;
+  db_rows: number;
+  cost_eur: number;
+}
+
+export interface CaseControlEvent {
+  id: number;
+  action: string;
+  actor: string;
+  stage: string | null;
+  reason: string | null;
+  state_before: string | null;
+  state_after: string | null;
+  cost_eur_at_event: number | null;
+  created_at: string;
+  detail: Record<string, unknown>;
+}
+
+export interface GlobalStopState {
+  active: boolean;
+  at: string | null;
+  by: string | null;
+  stopped: { queued_jobs?: number; running_jobs?: number; autopilot_runs?: number };
+}
+
+export interface CaseTombstone {
+  case_id: number;
+  name: string;
+  slug: string | null;
+  who: string;
+  total_cost_eur: number | null;
+  deleted_at: string;
+  restore_until: string | null;
+  restored_at: string | null;
+  purged_at: string | null;
+}
+
+// the outfit library: data/outfits mirrored to the API
+export interface OutfitLibraryItem {
+  id: number;
+  situation: string;
+  label: string;
+  status: string;              // available | missing_on_disk | invalid
+  stance: string;              // standing | sitting | unknown
+  pose: { hands?: boolean; crossed_legs?: boolean; crossed_arms?: boolean; tokens?: string[] };
+  issues: string[];
+  file_path: string;
+  width: number | null;
+  height: number | null;
+  sha256: string;
+}
+
+export interface OutfitLibraryOutfit {
+  slug: string;
+  ref: string;
+  in_use: boolean;
+  items: OutfitLibraryItem[];
+}
+
+export interface OutfitLibraryView {
+  studios: { studio: string; outfits: OutfitLibraryOutfit[] }[];
+  last_scan: {
+    id: number;
+    trigger: string;
+    finished_at: string;
+    found: number;
+    added: number;
+    updated: number;
+    missing: number;
+    problems: { file?: string; folder?: string; issue: string }[];
+  } | null;
+  counts: { items: number; outfits: number; available: number; missing_on_disk: number };
 }
 
 export interface OutfitPanel {

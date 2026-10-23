@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[2] / "data" / "outfits"
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -49,19 +52,24 @@ class OutfitRegistry:
 
     @staticmethod
     def _stance(pose: str) -> str:
+        """Sit/stand from the pose name; anything new is UNKNOWN, not an error — the
+        library classifier (app/outfits/library.py) reads it by keyword instead."""
         for prefix, stance in _STANCE_PREFIX.items():
             if pose.startswith(prefix):
                 return stance
-        raise ValueError(f"pose {pose!r} starts with neither 'sit' nor 'stand'")
+        return "UNKNOWN"
 
     def _read_outfit(self, language: str, directory: Path) -> Outfit:
         stem = f"{language}_{directory.name}_"
         poses: dict[str, OutfitPose] = {}
         for path in sorted(p for p in directory.iterdir() if p.is_file() and p.name != ".DS_Store"):
             if path.suffix.lower() != ".png" or not path.name.startswith(stem):
-                raise ValueError(f"{directory}: unexpected outfit file {path.name!r}")
+                log.warning("%s: unexpected outfit file %r — skipped",
+                            directory, path.name)
+                continue
             if path.read_bytes()[:8] != _PNG_MAGIC:
-                raise ValueError(f"{directory}: invalid PNG file {path.name!r}")
+                log.warning("%s: invalid PNG file %r — skipped", directory, path.name)
+                continue
             role = path.stem.removeprefix(stem)
             poses[role] = OutfitPose(role=role, stance=self._stance(role), path=path)
         if not poses:
@@ -74,12 +82,18 @@ class OutfitRegistry:
             raise ValueError(f"outfit root does not exist: {self.root}")
         languages = sorted(p for p in self.root.iterdir() if p.is_dir()
                            and (language is None or p.name == language))
-        outfits = tuple(self._read_outfit(lang.name, directory)
-                        for lang in languages
-                        for directory in sorted(p for p in lang.iterdir() if p.is_dir()))
+        outfits = []
+        for lang in languages:
+            for directory in sorted(p for p in lang.iterdir() if p.is_dir()):
+                try:
+                    outfits.append(self._read_outfit(lang.name, directory))
+                except ValueError as exc:
+                    # a broken outfit folder is reported and skipped — it must not
+                    # take down every other outfit of the library
+                    log.warning("outfit skipped: %s", exc)
         if not outfits:
             raise ValueError(f"no outfit directories found: {self.root}")
-        return outfits
+        return tuple(outfits)
 
     def get(self, outfit_id: str) -> Outfit:
         for outfit in self.all():

@@ -61,6 +61,15 @@ class Case(Base):
     # Set when the owner archives the case; a case whose shorts are all published is archived
     # without it (app.lifecycle.case_archive).
     archived_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Case controls: None/"running" | "pausing" | "paused" | "stopped" | "trashed". Workers
+    # read this at every claim and stage boundary — persisted here so a pause survives a
+    # restart (app/services/case_control.py).
+    control_state: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    paused_languages_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Soft-delete ("stop and delete"): the case sits in the trash until purge_after, then the
+    # cleanup pass removes rows and media (case_control.purge_expired_trash).
+    trashed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    purge_after: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     sources = relationship("Source", back_populates="case", cascade="all, delete-orphan")
     facts = relationship("Fact", back_populates="case", cascade="all, delete-orphan")
@@ -2339,9 +2348,50 @@ class ProviderCall(Base):
     # Recorded/e2e calls are retained for auditability but never count toward
     # a case's spend or EUR budget cap.
     is_test_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Set when the case was deleted: the ledger rows are kept forever, marked.
+    case_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     documentary_job_id: Mapped[int | None] = mapped_column(
         ForeignKey("documentary_jobs.id"), nullable=True, index=True
     )
+
+
+class CaseEvent(Base):
+    """Audit trail of case controls: every pause/resume/stop/delete/restore — who,
+    when, case, stage, reason, state before/after and the cost at that moment. The
+    case_id is deliberately not a foreign key: the row must outlive a deleted case."""
+
+    __tablename__ = "case_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    case_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    action: Mapped[str] = mapped_column(String(30), index=True)
+    actor: Mapped[str] = mapped_column(String(120))
+    stage: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    state_before: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    state_after: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    cost_eur_at_event: Mapped[float | None] = mapped_column(Float, nullable=True)
+    detail_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class CaseTombstone(Base):
+    """The record of a deleted case that survives it: id, name, deleted at, who,
+    total cost — cost history stays exportable after the case row is gone."""
+
+    __tablename__ = "case_tombstones"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(500))
+    slug: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    who: Mapped[str] = mapped_column(String(120))
+    total_cost_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    deleted_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    restore_until: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    restored_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    purged_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class PolicyEvent(Base):
@@ -2688,3 +2738,49 @@ class PublishRequest(Base):
     scheduled_for: Mapped[datetime] = mapped_column(UTCDateTime)
     status: Mapped[str] = mapped_column(String(20), default="dry_run")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class OutfitItem(Base):
+    """One photo in the outfit library (``data/outfits/<studio>/<outfit>/…``).
+
+    The folder is the source of truth; this table is its mirror — hash-tracked,
+    marked ``missing_on_disk`` when a file goes away, never deleted.
+    """
+
+    __tablename__ = "outfit_items"
+    __table_args__ = (UniqueConstraint("studio", "outfit_slug", "situation",
+                                       name="uq_outfit_items_key"),
+                      Index("ix_outfit_items_studio_outfit", "studio", "outfit_slug"))
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    studio: Mapped[str] = mapped_column(String(20))
+    outfit_slug: Mapped[str] = mapped_column(String(120))
+    situation: Mapped[str] = mapped_column(String(160))
+    file_path: Mapped[str] = mapped_column(String(500))
+    sha256: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="available", index=True)
+    stance: Mapped[str] = mapped_column(String(20), default="unknown")
+    pose_detail_json: Mapped[str] = mapped_column(Text, default="{}")
+    issues_json: Mapped[str] = mapped_column(Text, default="[]")
+    first_seen_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class OutfitScan(Base):
+    """One rescan of the outfit library and its outcome."""
+
+    __tablename__ = "outfit_scans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(30))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    finished_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    found: Mapped[int] = mapped_column(Integer, default=0)
+    added: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[int] = mapped_column(Integer, default=0)
+    missing: Mapped[int] = mapped_column(Integer, default=0)
+    problems_json: Mapped[str] = mapped_column(Text, default="[]")

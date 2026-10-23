@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/page-header";
+import { CaseControls } from "@/components/case/controls";
 
 const POLL_MS = 5000;
 const ACTIVE = ["running", "waiting_owner"];
@@ -68,6 +69,7 @@ export function RunPage({ runId }: { runId: number }) {
                 Cancel run
               </Button>
             )}
+            <CaseControls caseId={run.case.id} caseTitle={run.case.title} onChanged={refetch} />
           </>
         }
       />

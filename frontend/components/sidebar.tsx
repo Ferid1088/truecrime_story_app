@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/config";
 import { authApi } from "@/lib/api";
+import { EmergencyStop } from "@/components/global-stop";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -211,6 +212,7 @@ export function Sidebar() {
         </div>
         <NavLinks />
         <div className="space-y-2 border-t border-border p-3">
+          <EmergencyStop />
           <ApiStatus />
           <ThemeToggle />
           <SignOut />
@@ -256,6 +258,7 @@ export function Sidebar() {
             </div>
             <NavLinks onNavigate={() => setMobileOpen(false)} />
             <div className="space-y-2 border-t border-border p-3">
+              <EmergencyStop />
               <ApiStatus />
               <ThemeToggle />
               <SignOut />

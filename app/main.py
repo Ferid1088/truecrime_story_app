@@ -47,6 +47,9 @@ async def _lifespan(_app):
         from app.services.background_jobs import recover_after_restart
 
         recover_after_restart(db, include_documentary_jobs=settings.job_runner != "external")
+        # the outfit library mirrors data/outfits on every start
+        from app.outfits.library import scan_library
+        scan_library(db, trigger="startup")
     except Exception as e:  # never block the app from starting
         logging.getLogger(__name__).error("startup recovery failed: %s", e)
     finally:
@@ -81,10 +84,12 @@ app.add_exception_handler(PolicyError, policy_exception_handler)  # type: ignore
 from app.api import (  # noqa: E402
     background_jobs,
     cases,
+    controls,
     costs,
     discovery,
     language_pipeline,
     ops,
+    outfit_library,
     research,
     stories,
     story_plans,
@@ -119,6 +124,8 @@ for _router in (
     autopilot_router,
     system.router,
     costs.router,
+    controls.router,
+    outfit_library.router,
     discovery.router,
     cases.router,
     research.router,

@@ -9,6 +9,7 @@ import { useApi } from "@/lib/hooks";
 import { langLabel } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { CaseOverview } from "@/components/case/overview";
+import { CaseControls } from "@/components/case/controls";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -185,6 +186,9 @@ function CasesView() {
             await api.unarchiveCase(id);
             refetch();
           }}
+          rowActions={(item) => (
+            <CaseControls compact caseId={item.id} caseTitle={item.title} onChanged={refetch} />
+          )}
         />
       )}
 

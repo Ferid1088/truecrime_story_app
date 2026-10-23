@@ -35,23 +35,33 @@ def test_variants_change_the_outfit_before_the_pose():
     assert all(a[0] != b[0] for a, b in zip(variants, variants[1:], strict=False))
 
 
-def test_registry_rejects_a_file_that_is_not_named_after_its_outfit(tmp_path: Path, outfit_root: Path):
+def test_registry_skips_a_file_not_named_after_its_outfit(tmp_path: Path, outfit_root: Path):
+    """Unexpected files are skipped (the library scan reports them) — the outfit
+    and every other outfit still resolve."""
     source = outfit_root / "en" / "navySuit"
     target = tmp_path / "en" / "navySuit"
     target.mkdir(parents=True)
     for path in source.iterdir():
         (target / path.name).write_bytes(path.read_bytes())
     (target / "unexpected.txt").write_text("no", encoding="utf-8")
-    with pytest.raises(ValueError, match="unexpected outfit file"):
-        OutfitRegistry(tmp_path).all()
+    outfit = OutfitRegistry(tmp_path).resolve("en/navySuit")
+    assert len(outfit.poses) == len(list(source.iterdir()))
 
 
-def test_registry_rejects_a_non_png(tmp_path: Path):
+def test_registry_skips_a_non_png(tmp_path: Path):
+    """An invalid PNG is skipped; an outfit left with no poses is dropped from
+    all() without taking the rest down."""
     folder = tmp_path / "en" / "navySuit"
     folder.mkdir(parents=True)
     (folder / "en_navySuit_stand.png").write_bytes(b"not a png")
-    with pytest.raises(ValueError, match="invalid PNG"):
-        OutfitRegistry(tmp_path).all()
+    (folder / "en_navySuit_sitHands.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * 64)
+    outfit = OutfitRegistry(tmp_path).resolve("en/navySuit")
+    assert list(outfit.poses) == ["sitHands"]
+
+    empty = tmp_path / "de" / "onlyBad"
+    empty.mkdir(parents=True)
+    (empty / "de_onlyBad_stand.png").write_bytes(b"also not a png")
+    assert all(o.outfit_id != "de/onlyBad" for o in OutfitRegistry(tmp_path).all())
 
 
 def test_the_real_outfit_folder_is_readable():

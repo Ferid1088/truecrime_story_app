@@ -4,6 +4,7 @@ import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
 import { HostLooksPanel } from "./host-looks";
 import { HostOutfitsPanel } from "./host-outfits";
+import { OutfitLibraryBrowser } from "./outfit-library";
 import { HostMemoryPanel } from "./host-memory";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
@@ -64,6 +65,7 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
       <HostPlanPanel caseId={caseId} scenes={data ?? []} />
       <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />
       <HostOutfitsPanel caseId={caseId} language={language} />
+      <OutfitLibraryBrowser caseId={caseId} language={language} />
       <HostLooksPanel language={language} channel={channel} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}

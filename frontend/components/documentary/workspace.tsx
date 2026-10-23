@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TabBar, tabId, tabPanelId } from "@/components/ui/tabs";
 import { ErrorState } from "@/components/state";
 import { CaseStatusBadge, ResolutionBadge } from "@/components/status-badge";
+import { CaseControls } from "@/components/case/controls";
 import { ProductionTypeBadge } from "@/components/lifecycle/shared";
 import { useJobPoller } from "./hooks";
 import { InlineAlert, isJobActive, jobActivity, productionLanguages } from "./shared";
@@ -132,6 +133,7 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
           <Button variant="secondary" size="sm" onClick={() => router.push(`/cases/${caseId}`)}>
             <FolderOpen className="size-3.5" /> Case workspace
           </Button>
+          <CaseControls caseId={caseId} caseTitle={caseData.title} onChanged={refresh} />
         </div>
       </div>
 

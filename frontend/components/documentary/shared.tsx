@@ -63,6 +63,7 @@ export function runningStages(job: DocumentaryJob): string[] {
 /** One line for what a job is doing right now. */
 export function jobActivity(job: DocumentaryJob): string {
   if (job.status === "queued") return "Waiting for a free slot…";
+  if (job.status === "paused") return "Paused — Resume continues from here";
   if (job.status === "cancelling") return "Stopping after the running stages…";
   const running = runningStages(job);
   if (job.status === "running" && running.length) return `Now: ${running.map(stageLabel).join(" · ")}`;
@@ -130,6 +131,7 @@ const JOB_STATUS: Record<DocumentaryJobStatus, { label: string; variant: Variant
   failed: { label: "Failed", variant: "danger" },
   cancelled: { label: "Cancelled", variant: "outline" },
   interrupted: { label: "Interrupted", variant: "warning" },
+  paused: { label: "Paused", variant: "info" },
 };
 
 export function JobStatusBadge({ status }: { status: DocumentaryJobStatus }) {

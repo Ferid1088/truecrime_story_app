@@ -26,6 +26,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.documentary.pipeline.errors import JobPaused
 from app.db.models import DocumentaryJob
 from app.documentary.recovery import interrupt_job, reap_stale_jobs, requeue_job
 from app.utils import utc_now
@@ -38,11 +39,20 @@ def new_worker_id() -> str:
 
 
 def claim_next_job(db: Session, worker_id: str) -> int | None:
-    """Take the oldest queued job nobody holds. Returns its id, or None."""
+    """Take the oldest queued job nobody holds. Returns its id, or None.
+    Held cases (paused/stopped/trashed) and the global emergency stop hold
+    their queue entries unclaimed — held, never deleted."""
+    from app.services import case_control
+
+    if case_control.global_stop_active(db):
+        return None
+    held = case_control.held_case_ids(db)
     now = utc_now()
-    ids = [r[0] for r in db.query(DocumentaryJob.id).filter(
-        DocumentaryJob.status == "queued", DocumentaryJob.worker_id.is_(None)
-    ).order_by(DocumentaryJob.id).limit(5).all()]
+    query = db.query(DocumentaryJob.id).filter(
+        DocumentaryJob.status == "queued", DocumentaryJob.worker_id.is_(None))
+    if held:
+        query = query.filter(DocumentaryJob.case_id.notin_(held))
+    ids = [r[0] for r in query.order_by(DocumentaryJob.id).limit(5).all()]
     for job_id in ids:
         result = db.execute(
             update(DocumentaryJob)
@@ -140,6 +150,12 @@ class Worker:
         """One round: tidy up, report in, take work if there is room."""
         db = self._db()
         try:
+            from app.services import case_control
+            try:
+                case_control.purge_expired_trash(db)
+            except Exception:  # noqa: BLE001 - a purge hiccup must not stall the queue
+                log.exception("trash purge failed")
+                db.rollback()
             reap_stale_jobs(db, lease_seconds=self.lease, max_auto_resumes=self.max_auto)
             from app.shortform.pipeline import (
                 beat_short_jobs,
@@ -173,9 +189,13 @@ class Worker:
         """Every autopilot run that has not finished is driven by this worker, once. A run is
         resumable from the database, so a restarted worker simply picks it up again."""
         from app.autopilot.service import resume_active_runs
+        from app.services import case_control
 
+        if case_control.global_stop_active(db):
+            return
+        held = case_control.held_case_ids(db)
         self.autopilot_tasks = {i: t for i, t in self.autopilot_tasks.items() if not t.done()}
-        for run_id in resume_active_runs(db):
+        for run_id in resume_active_runs(db, held_case_ids=held):
             if run_id not in self.autopilot_tasks and not self.stop.is_set():
                 log.info("worker %s drives autopilot run %s", self.worker_id, run_id)
                 self.autopilot_tasks[run_id] = asyncio.create_task(self.run_autopilot(run_id))
@@ -185,6 +205,8 @@ class Worker:
             await self.run_job(job_id, self.session_factory)
         except asyncio.CancelledError:
             raise
+        except JobPaused:
+            pass  # held at a step boundary — run_job already set the status
         except Exception:  # run_job records its own failures; this is the last line of defence
             log.exception("job %s crashed the runner", job_id)
         finally:

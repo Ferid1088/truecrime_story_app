@@ -31,6 +31,7 @@ import { AuditTab } from "./tabs/audit";
 import { NamingTab } from "./tabs/naming";
 import { ThumbnailTab } from "./tabs/thumbnail";
 import { StageControlPanel } from "@/components/documentary/stage-control";
+import { CaseControls } from "@/components/case/controls";
 import { Select } from "@/components/ui/select";
 
 const TABS = [
@@ -201,6 +202,7 @@ export function CaseWorkspace({ caseId }: { caseId: number }) {
           >
             <Archive className="size-3.5" /> Archive
           </Button>
+          <CaseControls caseId={caseId} caseTitle={caseData.title} onChanged={refetch} />
         </div>
       </div>
 

@@ -554,9 +554,16 @@ def enqueue_for_finished_job(db: Session, job_id: int, language: str | None = No
 
 def claim_next_short_job(db: Session, worker_id: str, *, lease_seconds: float = SHORT_QUEUE_LEASE_SECONDS,
                          film_job_id: int | None = None) -> int | None:
+    from app.services import case_control
+
+    if case_control.global_stop_active(db):
+        return None
+    held = case_control.held_case_ids(db)
     now = utc_now()
     query = (db.query(ShortProductionJob.id)
              .filter(ShortProductionJob.status == "queued", ShortProductionJob.worker_id.is_(None)))
+    if held:
+        query = query.filter(ShortProductionJob.case_id.notin_(held))
     if film_job_id is not None:
         query = query.filter(ShortProductionJob.film_job_id == film_job_id)
     candidates = (query

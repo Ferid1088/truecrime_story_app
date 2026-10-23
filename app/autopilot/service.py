@@ -138,8 +138,11 @@ def run_view(db: Session, run: AutopilotRun) -> dict:
     }
 
 
-def resume_active_runs(db: Session) -> list[int]:
-    """Run ids a worker should be driving: every run that has not finished or been cancelled."""
-    return [r.id for r in db.query(AutopilotRun).filter(AutopilotRun.status.in_(ACTIVE_RUN))
-            .order_by(AutopilotRun.id).all()]
+def resume_active_runs(db: Session, *, held_case_ids: set[int] | None = None) -> list[int]:
+    """Run ids a worker should be driving: every run that has not finished or been
+    cancelled. Runs of held cases (paused/stopped/trashed) are left alone."""
+    query = db.query(AutopilotRun).filter(AutopilotRun.status.in_(ACTIVE_RUN))
+    if held_case_ids:
+        query = query.filter(AutopilotRun.case_id.notin_(held_case_ids))
+    return [r.id for r in query.order_by(AutopilotRun.id).all()]
 

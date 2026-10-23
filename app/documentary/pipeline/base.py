@@ -18,7 +18,7 @@ from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES
 from app.core.concurrency import gather_limited
 from app.core.policy import PolicyDecision, warning_for
 from app.db.models import Artifact, DocumentaryJob
-from app.documentary.pipeline.errors import JobCancelled
+from app.documentary.pipeline.errors import JobCancelled, JobPaused
 from app.services.budget import BudgetService, BudgetStopped, StageTimeBudgetExceeded
 from app.services.cost_model import configured_stage_time_budget_seconds
 from app.services.tracking import documentary_run_context
@@ -94,6 +94,10 @@ class StageRunner:
         self.db.refresh(self.job)
         if self.job.status == "cancelling":
             raise JobCancelled()
+        from app.services import case_control
+        if case_control.global_stop_active(self.db) or case_control.case_held(
+                self.db, self.job.case_id):
+            raise JobPaused()
 
     def _entry(self, name: str) -> dict:
         st = next((s for s in self.stages if s["name"] == name), None)
@@ -161,6 +165,12 @@ class StageRunner:
         if st["status"] in ("done", "skipped", "degraded"):
             return st.get("detail")
         self._check_cancel()
+        if language:
+            from app.db.models import Case
+            from app.services import case_control
+            case = self.db.get(Case, self.job.case_id)
+            if case is not None and language in case_control.paused_languages(case):
+                raise JobPaused()
         budget_stage = (
             "translation" if pipeline_stage == "spoken" else
             "tts" if pipeline_stage in {"performance", "voice"} else
@@ -258,6 +268,18 @@ class StageRunner:
                         "reason": reason,
                     },
                 )
+        except JobPaused:
+            # paused at a step boundary: the stage stays pending (not failed) so the
+            # resume re-runs it cleanly — nothing done inside it is lost or billed twice
+            st["status"] = "pending"
+            st["detail"] = {"paused": True}
+            st.pop("finished_at", None)
+            if name in self.running:
+                self.running.remove(name)
+            if not self.db.is_active:
+                self.db.rollback()
+            self._save()
+            raise
         except Exception as e:
             st["status"] = "failed"
             # Some gates have measured diagnostics that the job page can
