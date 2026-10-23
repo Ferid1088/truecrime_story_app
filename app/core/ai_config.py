@@ -891,6 +891,12 @@ class AuditFixConfig(BaseModel):
     # A paragraph repeats a finding's claim when this share of the quote's word trigrams stands in it.
     repeat_overlap: float = Field(gt=0.0, le=1.0)
     max_paragraphs_per_finding: int = Field(ge=1, le=20)
+    # English's own fact audit/fix rounds across the whole case (every audit_fix or deterministic_fix
+    # version already produced for this language, not per StoryVersion): once this many LLM rounds have
+    # run without a clean result, the next round is the deterministic fallback — never a 4th model
+    # attempt. Not a per-language rule: de/fa/ar have no fact audit at all (they run a meaning check
+    # against the approved English text instead), so this cap never applies to them.
+    max_fix_rounds: int = Field(ge=1, le=20)
 
 
 class DraftSceneCheckConfig(BaseModel):

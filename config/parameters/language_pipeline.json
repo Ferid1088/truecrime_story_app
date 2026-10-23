@@ -279,7 +279,8 @@
       "max_findings": 40,
       "evidence_per_finding": 6,
       "repeat_overlap": 0.5,
-      "max_paragraphs_per_finding": 4
+      "max_paragraphs_per_finding": 4,
+      "max_fix_rounds": 3
     },
     "draft_packaging": {
       "mode": "full",

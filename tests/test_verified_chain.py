@@ -14,9 +14,10 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, StoryPlan, StoryVersion
 from app.language_pipeline import review
 from app.language_pipeline.audit_fix import AuditFix, FixAnswer, FixDecision, FixEdit, carries
+from app.language_pipeline.lengths import final_range
 from app.language_pipeline.stages import StageFailed
 from app.language_pipeline.state import case_state
-from app.language_pipeline.store import FIDELITY, FINAL, REVIEW, StageStore
+from app.language_pipeline.store import FIDELITY, FINAL, INSPECTION, REVIEW, REWRITE, StageStore
 from app.utils import utc_now
 
 
@@ -308,6 +309,58 @@ def test_a_false_alarm_and_an_unclear_finding_change_nothing_and_block_nothing(s
     (final,) = rows(db_session, setup, kind=FINAL)
     assert json.loads(final.critic_notes)["audit_fix"]["counts"] == {"unclear": 1, "false_alarm": 1}
     assert final.approved_by == "automatic"
+
+
+def test_fix_rounds_so_far_counts_every_audit_fix_version_across_chains(setup, db_session):
+    """Case 15: 5 manual /revise and /improve rounds on English never converged, each a fresh
+    "revision"-stage chain from the latest final — counting only the current chain would never see
+    the cap. The count is per case+language, across every chain."""
+    gen = Confirms([finding("high")], edit_enxword)
+    run(gen, setup)
+    pipeline = _pipeline(gen)
+    assert pipeline._fix_rounds_so_far(db_session, setup.id, "en") == 1
+    other = StoryVersion(case_id=setup.id, version=99, kind=FINAL, language="en", narrative_angle="{}",
+                         story_text="[[ACT:act1]]\n\nx", status="ready",
+                         narrative_structure=json.dumps({"pipeline": {"stage": "audit_fix"}}),
+                         critic_notes="{}", text_hash="other-chain")
+    db_session.add(other)
+    db_session.commit()
+    assert pipeline._fix_rounds_so_far(db_session, setup.id, "en") == 2
+    assert pipeline._fix_rounds_so_far(db_session, setup.id, "de") == 0
+
+
+def test_after_max_fix_rounds_a_confirmed_finding_is_removed_by_code_not_asked_to_a_model_again(
+        setup, db_session, monkeypatch):
+    """Case 15: each model fixer round introduced new unsupported claims while fixing old ones —
+    6 rounds, never converged. After audit_fix.max_fix_rounds, the next confirmed finding's flagged
+    quote is deleted deterministically (no "language_audit_fix" call), then re-audited once."""
+    monkeypatch.setattr(ai_config.language_pipeline.audit_fix, "max_fix_rounds", 1)
+    gen = Confirms([finding("high")], edit_enxword)
+    run(gen, setup)                                                # round 1: a real audit_fix version
+    (original, fixed) = rows(db_session, setup, kind=FINAL)
+    material = asyncio.run(_pipeline(gen)._material(db_session, db_session.get(Case, setup.id)))
+    store = StageStore(db_session)
+    rewrite_row = rows(db_session, setup, kind=REWRITE)[0]
+    inspection_row = rows(db_session, setup, kind=INSPECTION)[0]
+    base = db_session.get(StoryVersion, fixed.draft_version_id)
+
+    def fixer_calls():
+        return sum(1 for c in gen.calls if c["role"] == "english_evidence_auditor" and "findings" in c["user"])
+
+    pipeline = _pipeline(gen)
+    span = final_range("en", 60.0)
+    second_finding = finding("high", quote="enact2final0 enact2final1")
+    report = {"status": "ok", "items": [second_finding]}
+    calls_before = fixer_calls()
+    row, unresolved = asyncio.run(pipeline._deterministic_fix(
+        db_session, db_session.get(Case, setup.id), store, material, base, rewrite_row, inspection_row,
+        fixed, "en", span, 60.0, report, [second_finding],
+        pipeline.stages._sections(fixed.story_text, material)[0]))
+    assert fixer_calls() == calls_before                               # no new model call for the fix itself
+    assert "enact2final0 enact2final1" not in row.story_text
+    assert json.loads(row.narrative_structure)["pipeline"]["stage"] == "deterministic_fix"
+    assert json.loads(row.critic_notes)["deterministic_fix"]["removed"][0]["quote"] == second_finding["quote"]
+    assert unresolved == []                                          # the re-audit found nothing new
 
 
 def test_a_confirmed_finding_whose_edit_cannot_be_applied_keeps_the_text_open(setup, db_session):

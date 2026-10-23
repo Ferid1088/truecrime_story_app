@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -50,6 +51,7 @@ from app.language_pipeline.review import (
 from app.language_pipeline.review import counts as review_counts
 from app.language_pipeline.stages import (
     AUDIT_FIX_STAGE,
+    DETERMINISTIC_FIX_STAGE,
     DRAFT_REVIEW_STAGE,
     FIDELITY_STAGE,
     REVIEW_STAGE,
@@ -74,6 +76,7 @@ from app.language_pipeline.store import (
     pipeline_of,
     structure_of,
 )
+from app.providers.generation.base import GenerationResult
 from app.services import writer_metrics
 from app.services.budget import BudgetStopped
 from app.utils import utc_now
@@ -731,6 +734,10 @@ class LanguagePipeline:
             return final, self._unresolved(notes)
         if "audit_fix" in notes:
             return final, self._unresolved(notes)
+        findings = report.get("items") or []
+        if findings and self._fix_rounds_so_far(db, case.id, language) >= ai_config.language_pipeline.audit_fix.max_fix_rounds:
+            return await self._deterministic_fix(db, case, store, material, base, rewrite, inspection,
+                                                 final, language, span, requested, report, findings, sections)
         self._emit(event="stage_started", stage=AUDIT_FIX_STAGE, language=language, version_id=final.id)
         fix_started = utc_now()
         fix = await self.fixer.run(db, case, material, report, sections)
@@ -769,6 +776,70 @@ class LanguagePipeline:
         EvidenceAudit.carry_over(db, row, report, set(fix["acts_changed"]), material, new_sections)
         self._emit(event="stage_started", stage="evidence_audit", language=language, version_id=row.id,
                    acts=fix["acts_changed"])
+        again = await self.audit.run(db, case, material, row, new_sections)
+        self._emit(event="stage_done", stage="evidence_audit", language=language, status=again["status"],
+                   items=len(again.get("items") or []), cost_eur=(again.get("usage") or {}).get("cost_eur"))
+        return row, self._unresolved(json.loads(row.critic_notes), previous=report)
+
+    @staticmethod
+    def _fix_rounds_so_far(db: Session, case_id: int, language: str) -> int:
+        """Every audit_fix or deterministic_fix version already produced for this case+language —
+        across every StoryVersion chain, not just the current one (a new /revise call starts a fresh
+        chain from an earlier final, so counting only the current chain would never see the cap)."""
+        rows = (db.query(StoryVersion)
+                .filter(StoryVersion.case_id == case_id, StoryVersion.kind == FINAL,
+                        StoryVersion.language == language, StoryVersion.status != "retired").all())
+        return sum(1 for r in rows if pipeline_of(r).get("stage") in (AUDIT_FIX_STAGE, DETERMINISTIC_FIX_STAGE,
+                                                                      "audit_fix", "deterministic_fix"))
+
+    async def _deterministic_fix(self, db, case, store, material, base, rewrite, inspection, final,
+                                 language, span, requested, report, findings, sections) -> tuple[StoryVersion, list[dict]]:
+        """audit_fix.max_fix_rounds LLM rounds without a clean result: remove each finding's flagged
+        quote verbatim — no model call, so this never adds another unconverging round. Safer than a
+        hedge rewrite, which would itself need a model to read naturally; a clean cut never does. A
+        finding whose quote is not found verbatim (the text moved on) is left for the next report."""
+        self._emit(event="stage_started", stage=DETERMINISTIC_FIX_STAGE, language=language, version_id=final.id)
+        text = final.story_text
+        removed: list[dict] = []
+        acts_touched: set[str] = set()
+        for f in findings:
+            quote = (f.get("quote") or "").strip()
+            if quote and quote in text:
+                text = text.replace(quote, "", 1)
+                removed.append(f)
+                acts_touched.update(a.strip() for a in (f.get("act") or "").split(","))
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text))
+        new_sections = self.stages._sections(text, material)[0]
+        result = GenerationResult(text="", model="deterministic", provider="none")
+        output = StageOutput(stage=DETERMINISTIC_FIX_STAGE, language=language, text=text, sections=new_sections,
+                             markers_ok=True, result=result, prompt_name="", prompt_sha256="")
+        gates = await self.gates.run(db, case, material, language, output, self._gate_span(db, span, final),
+                                     gates=ai_config.language_pipeline.blocking_gates_for(language))
+        failures = [f["gate"] for f in gates.failures]
+        targets = self.stages.act_targets(material, language, span)
+        corrected_notes = {
+            "quality_gates": gates.as_dict(), "gate_history": [{"words": len(text.split()), "failures": failures}],
+            "inspection_version_id": inspection.id, "rewrite_version_id": rewrite.id,
+            "act_lengths": act_length_report(targets, new_sections),
+            "fact_report": self._fact_report(material, language, base, text),
+            "deterministic_fix": {"removed": removed, "unresolved_no_match": [
+                f for f in findings if f not in removed]}, "deterministic_fix_from": final.id}
+        row = store.save(
+            case_id=case.id, kind=FINAL, language=language, output=output, material=material,
+            started=utc_now(), requested_minutes=requested, base=base, critic_notes=corrected_notes,
+            status="ready" if gates.passed else "needs_revision",
+            parents={"parent_id": inspection.id, "rewrite_id": rewrite.id},
+            extra={"stage": "deterministic_fix", "fixes_version_id": final.id, "acts_changed": sorted(acts_touched)},
+            similarity=(None, "not_evaluated"))
+        self._emit(event="stage_done", stage=DETERMINISTIC_FIX_STAGE, language=language,
+                   removed=len(removed), unmatched=len(findings) - len(removed))
+        if row.status != "ready":
+            return row, [{"severity": "high", "kind": "length", "problem": "the deterministic fix's text fails "
+                          "the gates: " + ", ".join(failures), "decision": "confirmed"}]
+        EvidenceAudit.carry_over(db, row, report, acts_touched, material, new_sections)
+        self._emit(event="stage_started", stage="evidence_audit", language=language, version_id=row.id,
+                   acts=sorted(acts_touched))
         again = await self.audit.run(db, case, material, row, new_sections)
         self._emit(event="stage_done", stage="evidence_audit", language=language, status=again["status"],
                    items=len(again.get("items") or []), cost_eur=(again.get("usage") or {}).get("cost_eur"))

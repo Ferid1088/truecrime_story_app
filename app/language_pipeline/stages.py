@@ -44,6 +44,9 @@ LENGTH_CORRECTION_STAGE = "length_correction"
 REVIEW_STAGE = "language_review"
 FIDELITY_STAGE = "language_fidelity"
 AUDIT_FIX_STAGE = "english_audit_fix"
+# After audit_fix.max_fix_rounds LLM rounds still leave a confirmed finding open: its flagged quote
+# is removed deterministically (no model call) instead of looping or publishing it unresolved.
+DETERMINISTIC_FIX_STAGE = "deterministic_fix"
 
 
 class StageFailed(RuntimeError):
