@@ -7,6 +7,7 @@ import json
 from sqlalchemy.orm import Session
 
 from app.autopilot import state as S
+from app.autopilot.runner import approved_final, explain_unapproved
 from app.core.ai_config import ai_config
 from app.db.models import (
     AutopilotRun,
@@ -119,11 +120,29 @@ def _language_view(db: Session, run: AutopilotRun, case: Case, lang: str) -> dic
                        for t in titles]}
 
 
+def _live_texts_detail(db: Session, case_id: int, languages: list[str]) -> str:
+    """The stored "texts" step detail only changes when the autopilot's own pass writes it — a
+    manually-triggered /revise or /improve (case 15: 5 rounds outside the autopilot's own attempts)
+    moves the real state forward without the step ever refreshing, so the UI can show an hours-old
+    snapshot while the text keeps changing underneath it. Recomputed live on every read instead."""
+    parts = []
+    for lang in languages:
+        if approved_final(db, case_id, lang) is not None:
+            parts.append(f"{lang}: approved")
+        else:
+            parts.append(f"{lang}: {explain_unapproved(db, case_id, lang) or 'not yet approved'}")
+    return "; ".join(parts)
+
+
 def run_view(db: Session, run: AutopilotRun) -> dict:
     case = db.get(Case, run.case_id)
     assert case is not None
     snapshot = BudgetService(db).snapshot(case.id)
     languages = json.loads(run.languages_json)
+    steps = S.steps(run)
+    for step in steps:
+        if step["name"] == "texts" and step["status"] not in ("done", "pending"):
+            step["detail"] = _live_texts_detail(db, case.id, languages)
     return {
         "id": run.id, "status": run.status, "stage": run.stage, "error": run.error,
         "created_at": run.created_at, "updated_at": run.updated_at,
@@ -131,7 +150,7 @@ def run_view(db: Session, run: AutopilotRun) -> dict:
         "case": {"id": case.id, "title": case.canonical_title},
         "estimate": json.loads(run.estimate_json or "{}"),
         "budget": {"cap_eur": snapshot.cap_eur, "spent_eur": snapshot.spent_eur},
-        "steps": S.steps(run), "needs_you": S.needs(run),
+        "steps": steps, "needs_you": S.needs(run),
         "languages": {lang: _language_view(db, run, case, lang) for lang in languages},
         "publish_requests": db.query(PublishRequest).filter(
             PublishRequest.run_id == run.id).count(),

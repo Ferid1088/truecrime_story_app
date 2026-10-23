@@ -6,7 +6,7 @@ from conftest import _delete_case_tree
 from app.autopilot import service as SV
 from app.autopilot import state as S
 from app.core.ai_config import ai_config
-from app.db.models import AutopilotRun, Case, DiscoveryCandidate, DocumentaryJob
+from app.db.models import AutopilotRun, Case, DiscoveryCandidate, DocumentaryJob, StoryVersion
 from app.services import research_jobs
 
 LANGS = ["en", "de", "fa", "ar"]
@@ -106,6 +106,31 @@ def test_the_view_shows_languages_spend_against_the_cap_and_the_needs_you_list(
     assert set(view["languages"]) == set(LANGS)
     assert view["needs_you"][0]["message"] == "The de film stopped."
     assert view["publish_requests"] == 0
+
+
+def test_the_texts_step_detail_is_recomputed_live_not_frozen_at_the_last_autopilot_pass(
+        db_session, candidate):
+    """Case 15: manual /revise and /improve rounds moved English forward long after the autopilot's
+    own attempts were exhausted; the stored step detail stayed frozen at the last pass while the real
+    state kept changing underneath it. run_view() must recompute it from the current StoryVersion,
+    not trust the stored snapshot, whenever the step is not settled."""
+    run = SV.start_run(db_session, candidate.id, LANGS)
+    S.set_step(run, "texts", "waiting", "stale detail from hours ago")
+    db_session.commit()
+    final = StoryVersion(case_id=run.case_id, kind="final", language="en", version=1,
+                         narrative_angle="{}", story_text="[[ACT:act1]]\n\ntext", status="open_issues",
+                         narrative_structure="{}",
+                         critic_notes=json.dumps({"checks": {"open_issues": [
+                             {"severity": "high", "kind": "unsupported", "problem": "invented detail"}]}}),
+                         text_hash="h1")
+    db_session.add(final)
+    db_session.commit()
+
+    texts_step = next(s for s in SV.run_view(db_session, run)["steps"] if s["name"] == "texts")
+    assert "stale detail" not in texts_step["detail"]
+    assert "invented detail" in texts_step["detail"]
+    for lang in ("de", "fa", "ar"):
+        assert f"{lang}: not yet approved" in texts_step["detail"]
 
 
 def test_no_run_row_survives_for_a_refused_start(db_session, candidate):
