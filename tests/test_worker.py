@@ -1,6 +1,7 @@
 """The job worker: claims once, reports in, notices a dead worker, hands jobs back on shutdown."""
 import asyncio
 import json
+import time
 import uuid
 from datetime import timedelta
 
@@ -204,6 +205,47 @@ def test_worker_runs_a_queued_job_to_completion_and_lets_go(db_session):
     db_session.expire_all()
     j = db_session.get(DocumentaryJob, job.id)
     assert ran == [job.id] and j.status == "completed" and j.worker_id is None
+
+
+def test_worker_runs_up_to_max_parallel_jobs_at_once_and_queues_the_rest(db_session):
+    """concurrency.jobs (here max_parallel=4) is what lets the autopilot's
+    one-job-per-language films (app/autopilot/runner.py's `_films`, one
+    DocumentaryJob per language) run side by side: a worker claims up to
+    that many at once, in a single tick, and leaves the rest "queued" —
+    overlapping start times prove it is real parallelism, not a fast
+    sequence."""
+    jobs = [_job(db_session) for _ in range(5)]
+    started_at: dict[int, float] = {}
+    release = asyncio.Event()
+
+    async def fake_run(job_id, session_factory=None):
+        started_at[job_id] = time.monotonic()
+        db = session_factory()
+        j = db.get(DocumentaryJob, job_id)
+        j.status = "running"
+        db.commit()
+        db.close()
+        await release.wait()
+
+    async def go():
+        w = W.Worker(run_job=fake_run, worker_id="t", poll_seconds=0.02,
+                     lease_seconds=3, max_parallel=4)
+        await w.tick()
+        await asyncio.sleep(0.05)
+        assert len(w.tasks) == 4
+        release.set()
+        await asyncio.gather(*w.tasks.values())
+
+    asyncio.run(go())
+    db_session.expire_all()
+    claimed = [j for j in jobs if db_session.get(DocumentaryJob, j.id).worker_id == "t"]
+    queued = [j for j in jobs if j not in claimed]
+    assert len(claimed) == 4 and len(queued) == 1
+    assert db_session.get(DocumentaryJob, queued[0].id).status == "queued"
+    # All 4 claimed jobs were running before the first one finished: a real
+    # overlap, not 4 fast sequential runs.
+    spread = max(started_at.values()) - min(started_at.values())
+    assert spread < 0.05, f"jobs did not overlap: start times spread {spread}s apart"
 
 
 def test_worker_stopped_mid_job_returns_the_job_to_the_queue(db_session):

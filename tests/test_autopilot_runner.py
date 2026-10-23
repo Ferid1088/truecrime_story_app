@@ -8,6 +8,7 @@ from factories import make_story_version
 from app.autopilot import runner as R
 from app.autopilot import state as S
 from app.core.ai_config import ai_config
+from app.db.base import SessionLocal
 from app.db.models import (
     AutopilotRun,
     Case,
@@ -76,7 +77,12 @@ def run(db_session, case):
 
 
 def runner(db_session, ports):
-    return R.AutopilotRunner(session_factory=lambda: db_session, ports=ports)
+    # The texts background task (app/autopilot/runner.py's _write_texts) needs its own
+    # session: it rolls that session back when done, and rolling db_session itself back
+    # would detach objects the rest of the test still holds. SessionLocal makes real,
+    # independently-committing sessions against the same test database, so writes the
+    # background task commits are visible to db_session once it is refreshed/expired.
+    return R.AutopilotRunner(session_factory=SessionLocal, ports=ports)
 
 
 def passes(db_session, run, ports, n=1):

@@ -3440,9 +3440,15 @@ class ConcurrencyConfig(BaseModel):
     asr: int = Field(default=1, ge=1, le=8)
     render: int = Field(default=2, ge=1, le=8)
     downloads: int = Field(default=4, ge=1, le=32)
-    # Documentaries running at the same time; more wait in "queued".
-    jobs: int = Field(default=2, ge=1, le=16)
-    # Language branches of one documentary running at the same time.
+    # Documentary jobs running at the same time, worker-wide — including the
+    # autopilot's one-job-per-language films (checked live 2026-10-23: this
+    # machine's 8 cores/16GB fit 4; it is the per-provider semaphores below,
+    # not this count, that keep any one external service within its limit).
+    # More jobs than this wait in "queued".
+    jobs: int = Field(default=4, ge=1, le=16)
+    # Language branches of one documentary running at the same time (only
+    # matters for a job given several languages at once; the autopilot's
+    # one-job-per-language films are capped by `jobs` instead).
     languages: int = Field(default=4, ge=1, le=8)
 
 
