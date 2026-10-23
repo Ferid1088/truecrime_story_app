@@ -60,6 +60,25 @@ def _latest(rows: list[StoryVersion], kind: str, language: str) -> StoryVersion 
     return found[-1] if found else None
 
 
+def _waiting_reason(rows: list[StoryVersion], language: str, english: str,
+                    english_final: StoryVersion | None) -> str | None:
+    """Every non-English language is re-told from the approved English final, so until English's own
+    checks clear there is nothing for it to start from — it has no stages at all, which otherwise
+    looks indistinguishable from "not started yet" or "stuck". None once this language has its own
+    final (its own `stale`/`open` fields explain its state from there)."""
+    if language == english or english_final is not None:
+        return None
+    base_finals = [r for r in rows if r.language == english and r.kind == FINAL and r.status != "retired"]
+    if not base_finals:
+        return "Waiting for the English story to be written."
+    latest = base_finals[-1]
+    open_issues = (_notes(latest).get("checks") or {}).get("open_issues") or []
+    detail = (f"{len(open_issues)} open item(s) of blocking severity" if open_issues
+             else f"status {latest.status}")
+    return (f"Waiting for the English story to be approved — version {latest.id}, "
+           f"round {len(base_finals)}, {detail}.")
+
+
 def _saving_eur(model: str | None, cached_tokens: int) -> float:
     """What the cached input tokens did not cost, against paying the full input price."""
     pricing = load_pricing()
@@ -157,7 +176,9 @@ def case_state(db: Session, case_id: int, with_text: bool = False) -> dict:
     retired = retired_method(db, case_id)
     if not drafts:
         return {"draft": None, "retired_method": retired,
-                "languages": [{"language": lg, "stages": {}} for lg in languages],
+                "languages": [{"language": lg, "stages": {},
+                              "waiting_reason": "Waiting for the shared English draft to be written."}
+                             for lg in languages],
                 "ledger": ledger_table(db, case_id), "cost_total_eur": 0.0}
     draft = drafts[-1]
     english = ai_config.language_pipeline.draft_language
@@ -204,7 +225,9 @@ def case_state(db: Session, case_id: int, with_text: bool = False) -> dict:
                  "stale": stale, "stale_reason": reason,
                  "approved": bool(final and final.approved_at and not stale),
                  "open": bool(final and final.status == OPEN_ISSUES),
-                 "final_version_id": final.id if final else None}
+                 "final_version_id": final.id if final else None,
+                 "waiting_reason": (_waiting_reason(rows, language, english, english_final)
+                                   if final is None else None)}
         blocks.append(block)
     ledger = ledger_table(db, case_id)
     notes = _notes(draft)

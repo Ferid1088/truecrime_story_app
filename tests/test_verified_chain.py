@@ -94,6 +94,29 @@ def test_a_blocking_item_that_remains_after_the_one_revision_leaves_the_text_ope
     assert block["open"] is True and block["approved"] is False and block["stages"]["review"]["id"]
 
 
+def test_a_language_with_no_approved_english_base_says_why_instead_of_looking_blank(setup, db_session):
+    """de/fa/ar are re-told from the approved English final; while English is stuck open they have no
+    stages at all (`case_state` returns `"stages": {}` for them) — indistinguishable in the UI from
+    "not started" or "stuck" without a reason. `waiting_reason` names the English version, the revision
+    round and the open-item count."""
+    gen = FakeGen()
+    gen.review_severity = "high"
+    out = run(gen, setup, ("en", "fa"))
+    assert out["languages"][0]["status"] == "open"
+    assert out["languages"][1]["status"] == "failed"               # fa never started: no base to re-tell from
+
+    state = case_state(db_session, setup.id)
+    fa = next(b for b in state["languages"] if b["language"] == "fa")
+    assert fa["stages"] == {}
+    english_final = rows(db_session, setup, kind=FINAL, language="en")[-1]
+    assert fa["waiting_reason"] == (
+        f"Waiting for the English story to be approved — version {english_final.id}, round 2, "
+        "1 open item(s) of blocking severity.")
+
+    en = next(b for b in state["languages"] if b["language"] == "en")
+    assert en["waiting_reason"] is None                             # en has its own stages; no reason needed
+
+
 def test_markers_and_length_alone_no_longer_approve_a_text(setup, db_session, monkeypatch):
     monkeypatch.setattr(ai_config.language_pipeline.review, "blocking_severities", ["medium"])
     out = run(FakeGen(), setup)                  # the fake inspector always has a medium item

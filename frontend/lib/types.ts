@@ -3349,6 +3349,8 @@ export interface PipelineLanguage {
   originality: Record<string, unknown> | null;
   approved: boolean;
   final_version_id: number | null;
+  /** Why this language has no stages yet (e.g. waiting on the English final to be approved). */
+  waiting_reason: string | null;
 }
 
 export interface LedgerRow {

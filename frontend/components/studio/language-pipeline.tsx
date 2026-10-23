@@ -330,6 +330,12 @@ function LanguageCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {!final && lang.waiting_reason && (
+          <p className="rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground"
+             data-testid="waiting-reason">
+            {lang.waiting_reason}
+          </p>
+        )}
         {draft && (
           <p className="text-xs text-muted-foreground">
             Re-told from the English draft v{draft.id} and the shared plan; it reads no evidence.
