@@ -7,8 +7,8 @@ application-level taxonomy so agents and fallback logic never see raw
 HTTP details.
 """
 
-import hashlib
 import asyncio
+import hashlib
 import json
 import logging
 from typing import Any
