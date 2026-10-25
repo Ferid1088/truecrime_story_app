@@ -634,8 +634,12 @@ def reap_short_jobs(db: Session, *, lease_seconds: float = SHORT_QUEUE_LEASE_SEC
 
 
 def _prepare_for_job(db: Session, job: DocumentaryJob, language: str | None = None) -> dict:
+    from app.services.production_gates import all_four_full_films_finished
+
     if job.status not in ("completed", "completed_warnings"):
         return {"status": "skipped", "reason": "long film is not finished"}
+    if not all_four_full_films_finished(db, job.case_id):
+        return {"status": "skipped", "reason": "all four full-length language films are required"}
     if not _enabled(db, job.case_id):
         for lang in json.loads(job.languages_json or "[]"):
             _set_stage(db, job, f"short_script:{lang}", "skipped", {"reason": "shorts disabled for case"})
