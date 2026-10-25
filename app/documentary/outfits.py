@@ -9,6 +9,7 @@ the studio of the outfit's own language."""
 from __future__ import annotations
 
 import hashlib
+from contextlib import suppress
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -291,10 +292,8 @@ def selected_library_item_ids(db: Session, outfit: HostOutfit) -> list[int]:
     for look in outfit_looks(db, outfit):
         source = look.image_model or ""
         if source.startswith("owner_upload:library:item_id:"):
-            try:
+            with suppress(ValueError):
                 selected.add(int(source.split(":", 3)[3]))
-            except ValueError:
-                pass
         elif source.startswith("owner_upload:library:"):
             path = source.removeprefix("owner_upload:library:")
             if path in by_path:
