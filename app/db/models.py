@@ -57,6 +57,10 @@ class Case(Base):
     # value baked in at creation, or raising the configured default later
     # would silently not apply to any case created before that change.
     total_cost_cap_eur: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
+    # Ledger spend already behind the owner's last "reset to 0": the ledger rows stay as
+    # history, and the cap is measured against spend recorded after this amount.
+    budget_spend_baseline_eur: Mapped[float] = mapped_column(Float, nullable=False, default=0.0,
+                                                             server_default="0")
     budget_stop_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Set when the owner archives the case; a case whose shorts are all published is archived
     # without it (app.lifecycle.case_archive).

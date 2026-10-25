@@ -59,6 +59,13 @@ def update_case_budget(case_id: int, payload: BudgetUpdate, db: Session = Depend
     return BudgetService(db).set_cap(case_id, payload.cap_eur)
 
 
+@router.post("/api/cases/{case_id}/budget/reset")
+def reset_case_budget(case_id: int, db: Session = Depends(get_db)):
+    if db.get(Case, case_id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return BudgetService(db).reset_spend(case_id)
+
+
 ARCHIVE_STATES = ("published", "archived")
 
 

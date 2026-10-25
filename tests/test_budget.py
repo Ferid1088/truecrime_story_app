@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.db.models import Case
+from app.db.models import Case, ProviderCall
 from app.services.budget import BudgetService, BudgetStopped
 
 
@@ -130,3 +130,22 @@ def test_a_new_case_with_no_explicit_cap_tracks_the_configured_default(db_sessio
 
     monkeypatch.setattr(ai_config.budget, "total_cap_eur", 456.0)
     assert BudgetService(db_session).snapshot(case.id).cap_eur == pytest.approx(456.0)
+
+
+def test_reset_spend_zeroes_the_counter_but_keeps_the_ledger(db_session):
+    case = _case(db_session)
+    case.total_cost_cap_eur = 20.0
+    db_session.commit()
+    ledger = BudgetService(db_session)
+    ledger.record(case_id=case.id, stage="research", model="fake", units=1, cost_eur=20.0)
+    with pytest.raises(BudgetStopped):
+        ledger.check(case.id, "tts")
+    snapshot = ledger.reset_spend(case.id)
+    assert snapshot.spent_eur == pytest.approx(0.0)
+    assert snapshot.remaining_eur == pytest.approx(20.0)
+    db_session.refresh(case)
+    assert case.status == "story_ready"
+    ledger.record(case_id=case.id, stage="tts", model="fake", units=1, cost_eur=3.0)
+    assert ledger.snapshot(case.id).spent_eur == pytest.approx(3.0)
+    assert ledger.reset_spend(case.id).spent_eur == pytest.approx(0.0)
+    assert db_session.query(ProviderCall).filter_by(case_id=case.id).count() == 2

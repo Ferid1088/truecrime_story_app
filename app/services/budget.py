@@ -68,7 +68,8 @@ class BudgetService:
             ProviderCall.cost_eur.is_(None),
             ProviderCall.is_test_data.is_(False),
         ).scalar() or 0.0
-        spent = float(eur) + float(legacy_usd) * ai_config.budget.usd_to_eur
+        gross = float(eur) + float(legacy_usd) * ai_config.budget.usd_to_eur
+        spent = max(gross - float(case.budget_spend_baseline_eur or 0.0), 0.0)
         cap = _cap(case)
         return BudgetSnapshot(cap, round(spent, 6), round(max(cap - spent, 0.0), 6), case.status)
 
@@ -116,6 +117,20 @@ class BudgetService:
         self.db.add(row)
         self.db.commit()
         return row
+
+    def reset_spend(self, case_id: int) -> BudgetSnapshot:
+        """Owner reset to 0 of the cap. The provider_calls ledger is never edited: the
+        spend recorded so far becomes the baseline, and only later spend counts."""
+        case = self.db.get(Case, case_id)
+        if case is None:
+            raise ValueError("case not found")
+        case.budget_spend_baseline_eur = float(case.budget_spend_baseline_eur or 0.0) \
+            + self.snapshot(case_id).spent_eur
+        case.budget_stop_reason = None
+        if case.status == "budget stopped":
+            case.status = "story_ready"
+        self.db.commit()
+        return self.snapshot(case_id)
 
     def set_cap(self, case_id: int, cap_eur: float) -> BudgetSnapshot:
         if cap_eur <= 0:
