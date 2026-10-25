@@ -4,7 +4,14 @@ import uuid
 
 import pytest
 
-from app.db.models import ApprovalBundle, ApprovalBundleItem, Case, DocumentaryJob, ShortProductionJob, Video
+from app.db.models import (
+    ApprovalBundle,
+    ApprovalBundleItem,
+    Case,
+    DocumentaryJob,
+    ShortProductionJob,
+    Video,
+)
 from app.services.production_gates import (
     all_four_full_films_finished,
     approved_english_film,
