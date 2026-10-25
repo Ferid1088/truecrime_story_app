@@ -18,11 +18,30 @@
     "refinement_min_sample": 10,
     "refinement_min_share": 0.15,
     "refinement_max_calls_per_case": 5,
-    "refinement_max_eur_per_case": 2.0,
+    "refinement_max_eur_per_case": 2,
     "refinement_sample_results": 15,
     "providers_by_era": {
-      "modern": ["source_pages", "brave_images", "lead_sources", "brave_video_links", "usgs_naip", "nasa", "europeana", "dpla"],
-      "historical": ["source_pages", "wikimedia", "brave_images", "lead_sources", "brave_video_links", "usgs_naip", "nasa", "europeana", "dpla"]
+      "modern": [
+        "source_pages",
+        "brave_images",
+        "lead_sources",
+        "brave_video_links",
+        "usgs_naip",
+        "nasa",
+        "europeana",
+        "dpla"
+      ],
+      "historical": [
+        "source_pages",
+        "wikimedia",
+        "brave_images",
+        "lead_sources",
+        "brave_video_links",
+        "usgs_naip",
+        "nasa",
+        "europeana",
+        "dpla"
+      ]
     },
     "user_agent": "TrueCrimeStudio/1.0 (local documentary research tool; https://github.com/Ferid1088/truecrime_story_app)",
     "wikimedia_api": "https://commons.wikimedia.org/w/api.php",
@@ -43,7 +62,7 @@
       "123rf.",
       "stock.adobe."
     ],
-    "min_request_interval_s": 1.0,
+    "min_request_interval_s": 1,
     "max_lead_sources": 30,
     "max_lead_pages_per_lead": 2,
     "max_video_link_queries": 12,
@@ -375,7 +394,7 @@
     "attribution_required": [
       "creative_commons"
     ],
-    "enforce": false,
+    "enforce": true,
     "credit_providers": [
       "usgs_naip",
       "nasa",
@@ -391,7 +410,7 @@
   },
   "visual_direction": {
     "tier_weights": {
-      "1": 1.0,
+      "1": 1,
       "2": 0.92,
       "3": 0.78,
       "4": 0.55,
@@ -401,20 +420,20 @@
     "max_context_appearances": 2,
     "max_person_appearances": 2,
     "max_evidence_appearances": 3,
-    "min_repeat_gap_seconds": 45.0,
+    "min_repeat_gap_seconds": 45,
     "min_beat_coverage": 0.5,
     "cut_pattern": [
-      7.0,
-      9.0,
-      6.0,
+      7,
+      9,
+      6,
       8.5,
       5.5,
-      8.0
+      8
     ],
-    "min_cut_seconds": 4.0,
-    "seconds_per_shot": 7.0,
+    "min_cut_seconds": 4,
+    "seconds_per_shot": 7,
     "max_shots_per_beat": 14,
-    "first_map_not_before_seconds": 20.0,
+    "first_map_not_before_seconds": 20,
     "production_search": true,
     "max_search_requests": 40,
     "queries_per_request": 3,
@@ -432,24 +451,24 @@
     "max_queries": 25,
     "max_clips_per_case": 40,
     "max_candidates_per_query": 8,
-    "max_download_mb": 250.0,
-    "max_source_seconds": 1800.0,
-    "clip_seconds": 24.0,
+    "max_download_mb": 250,
+    "max_source_seconds": 1800,
+    "clip_seconds": 24,
     "min_height": 360,
-    "upload_max_seconds": 600.0,
+    "upload_max_seconds": 600,
     "pieces": true,
-    "max_keep_seconds": 600.0,
+    "max_keep_seconds": 600,
     "proxy_height": 720,
-    "piece_min_seconds": 3.0,
-    "piece_max_seconds": 20.0,
-    "piece_overlap_seconds": 2.0,
+    "piece_min_seconds": 3,
+    "piece_max_seconds": 20,
+    "piece_overlap_seconds": 2,
     "max_pieces_per_source": 30,
     "scene_threshold": 0.32,
-    "segment_window_seconds": 90.0,
+    "segment_window_seconds": 90,
     "segment_fps": 0.5,
     "segment_frame_width": 256,
     "snap_seconds": 0.6,
-    "max_third_party_clip_seconds": 24.0,
+    "max_third_party_clip_seconds": 24,
     "max_third_party_share": 0.3,
     "third_party_providers": [
       "wikimedia_video",
@@ -516,12 +535,12 @@
     "approver_label": "auto-review"
   },
   "coverage": {
-    "max_card_stretch_seconds": 6.0,
+    "max_card_stretch_seconds": 6,
     "max_card_share": 0.12,
-    "max_black_seconds": 0.0,
-    "max_still_seconds": 20.0,
+    "max_black_seconds": 0,
+    "max_still_seconds": 20,
     "max_repair_rounds": 3,
-    "black_screen_min_seconds": 1.0,
+    "black_screen_min_seconds": 1,
     "fill_piece_seconds": 9.5,
     "fill_concurrency": 3,
     "pool_tries": 6
@@ -534,10 +553,10 @@
     "still_shot_seconds": 9.5,
     "uses_per_picture": 2,
     "video_share": 0.1,
-    "video_cut_seconds": 8.0,
+    "video_cut_seconds": 8,
     "max_searches": 8,
     "max_empty_rounds": 2,
-    "research_cost_cap_eur": 30.0
+    "research_cost_cap_eur": 30
   },
   "fill_ways": {
     "order": [
@@ -545,7 +564,7 @@
       "split",
       "text"
     ],
-    "reuse_gap_seconds": 45.0,
+    "reuse_gap_seconds": 45,
     "max_reuse_per_picture": 2,
     "max_per_film": {
       "reframe": 40,
@@ -610,7 +629,7 @@
     }
   },
   "storage_budget": {
-    "max_case_mb": 3000.0,
+    "max_case_mb": 3000,
     "rejected_retention_days": 14
   }
 }
