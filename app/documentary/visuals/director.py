@@ -116,7 +116,7 @@ def _loads(text, default):
 
 
 def usable(asset: VisualAsset, profile: str | None = None) -> bool:
-    return (asset.verification_status != "rejected"
+    return (asset.verification_status == "verified"
             and asset.local_path is not None
             and R.usable(asset, profile))
 
