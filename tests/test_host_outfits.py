@@ -5,13 +5,13 @@ import hashlib
 import json
 
 import pytest
-from test_studio import FakeAvatar, FakeVoice, _nosleep, _renderer, _segments
 
 from app.core.ai_config import ai_config
 from app.db.models import HostLook
 from app.documentary import look_selection as LS
 from app.documentary import outfits as OF
 from app.documentary import studio as ST
+from test_studio import FakeAvatar, FakeVoice, _nosleep, _renderer, _segments
 
 
 def _case(db):
