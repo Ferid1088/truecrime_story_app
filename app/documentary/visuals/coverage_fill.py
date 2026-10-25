@@ -35,6 +35,32 @@ def _is_card(shot: dict) -> bool:
     return shot.get("kind") in CARD_KINDS
 
 
+def uncovered_intervals(script: dict) -> list[dict]:
+    """Find gaps in the visual track using actual narration-time coordinates.
+
+    This enforces temporal coverage only: semantic and factual coverage require
+    independent evidence-backed checks.
+    """
+    duration = max(0.0, float(script.get("duration") or 0.0))
+    valid = []
+    for shot in script.get("shots") or []:
+        try:
+            start, end = float(shot["start"]), float(shot["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if end > start and end > 0 and start < duration:
+            valid.append((max(0.0, start), min(duration, end)))
+    covered_to = 0.0
+    gaps = []
+    for start, end in sorted(valid):
+        if start - covered_to > EPS:
+            gaps.append({"start": round(covered_to, 3), "end": round(start, 3)})
+        covered_to = max(covered_to, end)
+    if duration - covered_to > EPS:
+        gaps.append({"start": round(covered_to, 3), "end": round(duration, 3)})
+    return gaps
+
+
 def measure(script: dict) -> dict:
     """What the picture track looks like: black seconds, card seconds and share, the longest run of
     consecutive cards and the longest single still, with every offending stretch."""
@@ -54,7 +80,8 @@ def measure(script: dict) -> dict:
     stills = [{"start": s["start"], "end": s["end"], "asset_id": s.get("asset_id")}
               for s in shots if s.get("kind") in STILL_KINDS]
     longest_still = max((x["end"] - x["start"] for x in stills), default=0.0)
-    return {"duration": round(duration, 2), "black_seconds": round(black, 2),
+    return {"duration": round(duration, 2), "uncovered_intervals": uncovered_intervals(script),
+            "black_seconds": round(black, 2),
             "card_seconds": round(cards, 2), "card_share": round(cards / duration, 4),
             "longest_card_stretch": round(longest_card, 2),
             "longest_still": round(longest_still, 2),
@@ -69,6 +96,8 @@ def gate(report: dict) -> list[str]:
     """The rules the report breaks (empty: the picture track passes)."""
     cfg = ai_config.coverage
     out = []
+    if report.get("uncovered_intervals"):
+        out.append(f"{len(report['uncovered_intervals'])} uncovered timeline interval(s)")
     if report["black_seconds"] > cfg.max_black_seconds + EPS:
         out.append(f"{report['black_seconds']} s of black (max {cfg.max_black_seconds})")
     if report["card_share"] > cfg.max_card_share + 1e-6:
