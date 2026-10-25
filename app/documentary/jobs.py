@@ -322,6 +322,12 @@ class DocumentaryPipeline(StageRunner):
         pilot_seconds = job.pilot_seconds or ai_config.documentary.pilot_seconds
         state: dict = {}
 
+        # Server-side check also protects resumed and previously queued jobs.
+        from app.services.production_gates import require_english_film_approval
+
+        for language in langs:
+            require_english_film_approval(db, case.id, language, job.mode)
+
         if job.from_zero:
             await self._stage("research",
                               lambda: research_case(db, case, self._check_cancel, job))
@@ -999,6 +1005,10 @@ def create_job(db: Session, case: Case, master: StoryVersion | None, languages: 
                refresh_visuals: bool = False, from_zero: bool = False,
                target_minutes: float | None = None, batch_id: str | None = None
                ) -> DocumentaryJob:
+    from app.services.production_gates import require_english_film_approval
+
+    for language in languages:
+        require_english_film_approval(db, case.id, language, mode)
     if master is None and not from_zero:
         raise ValueError("A job needs the final version of its language unless it starts from zero.")
     if len(languages) != 1:
