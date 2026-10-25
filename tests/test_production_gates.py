@@ -5,12 +5,12 @@ import uuid
 import pytest
 
 from app.db.models import ApprovalBundle, ApprovalBundleItem, Case, DocumentaryJob, ShortProductionJob, Video
-from app.shortform.pipeline import enqueue_for_finished_job
 from app.services.production_gates import (
     all_four_full_films_finished,
     approved_english_film,
     require_english_film_approval,
 )
+from app.shortform.pipeline import enqueue_for_finished_job
 
 
 def _case(db):
