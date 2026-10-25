@@ -25,7 +25,9 @@ def film_hash(row: Video) -> str:
     if row.file_path:
         path = storage.resolve(row.file_path)
         if path is not None and path.exists():
-            return hashlib.sha256(path.read_bytes()).hexdigest()
+            # Full documentaries can be gigabytes: hash as a stream, not in RAM.
+            with path.open("rb") as stream:
+                return hashlib.file_digest(stream, "sha256").hexdigest()
     return _digest({"type": "film", "id": row.id, "language": row.language,
                     "title": row.title, "file_path": row.file_path,
                     "metadata": row.metadata_json})
