@@ -19,3 +19,5 @@ psycopg[binary]==3.3.6
 
 # Explicit transitive security floor (CI pip-audit: CVE-2026-112940/112913/112907).
 filelock>=4.2.1,<5
+# Required by app/documentary YouTube source support and tests.
+yt-dlp>=2026.8.19
