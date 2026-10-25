@@ -542,15 +542,43 @@ def _queue(db: Session, *, job: DocumentaryJob, stage: str, unique_key: str,
 
 
 def enqueue_for_finished_job(db: Session, job_id: int, language: str | None = None) -> ShortProductionJob | None:
-    """Persist the post-film selection task; this never runs work in-process."""
-    job = db.get(DocumentaryJob, job_id)
-    if job is None or job.status not in ("completed", "completed_warnings"):
-        return None
-    suffix = f":{language}" if language else ""
-    row = _queue(db, job=job, stage="selection", unique_key=f"selection:{job.id}{suffix}", language=language)
-    db.commit()
-    return row
+    """Queue Shorts only when all four complete full-length language films exist.
 
+    The fourth full film unlocks selection for the earlier completed film jobs
+    as well. This reuses the existing unique-key queue and does not create a
+    second Shorts pipeline. Pilot films never count or trigger the queue.
+    """
+    from app.services.production_gates import (
+        all_four_full_films_finished,
+        full_films_by_language,
+    )
+
+    job = db.get(DocumentaryJob, job_id)
+    if job is None or job.mode != "full" or job.status not in ("completed", "completed_warnings"):
+        return None
+    if not all_four_full_films_finished(db, job.case_id):
+        return None
+
+    queued: ShortProductionJob | None = None
+    for film_language, film in full_films_by_language(db, job.case_id).items():
+        if language is not None and film_language != language:
+            continue
+        if film.job_id is None:
+            continue
+        source_job = db.get(DocumentaryJob, film.job_id)
+        if source_job is None or source_job.mode != "full" or source_job.status not in (
+            "completed", "completed_warnings"
+        ):
+            continue
+        unique_key = f"selection:{source_job.id}"
+        row = _queue(
+            db, job=source_job, stage="selection", unique_key=unique_key,
+            language=film_language,
+        )
+        if source_job.id == job_id:
+            queued = row
+    db.commit()
+    return queued
 
 def claim_next_short_job(db: Session, worker_id: str, *, lease_seconds: float = SHORT_QUEUE_LEASE_SECONDS,
                          film_job_id: int | None = None) -> int | None:
