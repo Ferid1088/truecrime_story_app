@@ -425,6 +425,14 @@ class OutfitRequest(BaseModel):
     outfit_ref: str | None = None
 
 
+class ReuseLibraryPhotosRequest(BaseModel):
+    """The checked outfit-library photos to use for this film.
+
+    ``None`` keeps the legacy behavior of using every available photo.
+    """
+    item_ids: list[int] | None = None
+
+
 def _outfit(db: Session, outfit_id: int):
     from app.db.models import HostOutfit
 
@@ -443,6 +451,7 @@ def _outfit_view(db: Session, outfit) -> dict:
     return {"id": outfit.id, "case_id": outfit.case_id, "language": outfit.language,
             "name": outfit.name, "outfit_ref": outfit.outfit_ref, "status": outfit.status,
             "selected_at": outfit.selected_at, "looks": looks,
+            "library_item_ids": OF.selected_library_item_ids(db, outfit),
             "approved": sum(1 for x in looks if x["status"] == "approved"),
             "to_approve": LS.missing_looks(db, outfit),
             "studio": {stance: OF.studio_supports(outfit.language, stance)
@@ -545,6 +554,18 @@ def request_pose_set(outfit_id: int, db: Session = Depends(get_db)):
     return {"requested": [LK.look_dict(x) for x in done["requested"]],
             "already_there": [LK.look_dict(x) for x in done["already_there"]],
             "skipped": done["skipped"], "outfit": _outfit_view(db, outfit)}
+
+
+@router.post("/api/outfits/{outfit_id}/reuse-library-photos")
+def reuse_library_photos(outfit_id: int, payload: ReuseLibraryPhotosRequest | None = None,
+                         db: Session = Depends(get_db)):
+    """Use existing outfit-library photos for requested looks; never calls an image provider."""
+    from app.documentary import outfits as OF
+
+    outfit = _outfit(db, outfit_id)
+    done = _outfit_call(lambda: OF.reuse_library_photos(
+        db, outfit, None if payload is None else payload.item_ids))
+    return {**done, "outfit": _outfit_view(db, outfit)}
 
 
 class LookOverride(BaseModel):

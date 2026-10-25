@@ -1,6 +1,7 @@
 """Outfits per case and language, their looks, and the mapping of the director's plan to one
 approved look of the video's own outfit."""
 import asyncio
+import hashlib
 import json
 
 import pytest
@@ -123,6 +124,58 @@ def test_the_pose_set_skips_what_the_studio_cannot_hold_and_says_why(db_session,
     assert len(done["requested"]) == 4
     assert done["skipped"] == [{"label": "standing, front, wide",
                                 "why": "the en studio picture has no free floor for standing"}]
+
+
+def test_existing_library_photos_can_be_reused_without_generation(db_session, monkeypatch, tmp_path):
+    from app.db.models import OutfitItem
+    from app.outfits import library as outfit_library
+
+    case = _case(db_session)
+    outfit = _outfit(db_session, case, "de", ref="de/brownSweater", name="brown Sweater")
+    photo = tmp_path / "data" / "outfits" / "de" / "brownSweater" / "de_brownSweater_stand.png"
+    photo.parent.mkdir(parents=True)
+    photo.write_bytes(b"\x89PNG\r\n\x1a\nexisting")
+    monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
+    from app.documentary import looks as LK
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    db_session.add(OutfitItem(studio="de", outfit_slug="brownSweater", situation="stand",
+                              file_path="data/outfits/de/brownSweater/de_brownSweater_stand.png",
+                              sha256="x", status="available", stance="standing"))
+    db_session.commit()
+
+    OF.request_pose_set(db_session, outfit)
+    done = OF.reuse_library_photos(db_session, outfit)
+    assert len(done["attached"]) == 1
+    assert len(done["skipped"]) == 4
+    look = db_session.query(HostLook).filter_by(host_outfit_id=outfit.id, stance="STANDING").one()
+    assert look.status == "generated" and look.image_model.startswith("owner_upload:library:")
+
+
+def test_only_checked_library_photos_are_used_for_a_video(db_session, monkeypatch, tmp_path):
+    from app.db.models import OutfitItem
+    from app.outfits import library as outfit_library
+    from app.documentary import looks as LK
+
+    case = _case(db_session)
+    outfit = _outfit(db_session, case, "de", ref="de/navySuit", name="Navy suit")
+    root = tmp_path / "data" / "outfits" / "de" / "navySuit"
+    root.mkdir(parents=True)
+    monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    rows = []
+    for situation in ("stand", "standPockets"):
+        path = root / f"de_navySuit_{situation}.png"
+        path.write_bytes(b"\x89PNG\r\n\x1a\n" + situation.encode())
+        rows.append(OutfitItem(studio="de", outfit_slug="navySuit", situation=situation,
+                               file_path=str(path.relative_to(tmp_path)), sha256=situation,
+                               status="available", stance="standing"))
+    db_session.add_all(rows)
+    db_session.commit()
+
+    OF.request_pose_set(db_session, outfit)
+    done = OF.reuse_library_photos(db_session, outfit, selected_item_ids=[rows[1].id])
+    assert done["selected_item_ids"] == [rows[1].id]
+    assert {entry["item_id"] for entry in done["attached"]} == {rows[1].id}
 
 
 def test_the_look_prompt_names_the_stance():
@@ -267,20 +320,24 @@ def test_the_avatar_step_stops_before_any_upload_without_an_outfit_or_an_approve
     assert av.uploads == 0 and av.requests == 0 and scene.status == "voice_ready"
 
 
-def test_an_approved_look_that_is_not_uploaded_to_heygen_stops_the_step(db_session, tmp_path,
-                                                                        monkeypatch):
+def test_an_approved_library_look_is_uploaded_automatically_before_avatar_step(
+        db_session, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.documentary.looks.storage.ROOT", tmp_path)
     scene = _scene(db_session, tmp_path, monkeypatch)
     outfit = OF.select_outfit(db_session, OF.create_outfit(
         db_session, scene.case_id, "en", "Navy", outfit_ref="en/navySuit"))
     look = _look(db_session, outfit, "CAM01_FRONT", "MEDIUM", "SEATED", heygen=None)
-    av = FakeAvatar()
-    with pytest.raises(ST.StudioError, match=f"look #{look.id} .* not uploaded to HeyGen"):
-        _run(db_session, scene, av)
-    assert av.uploads == 0
-    look.heygen_look_id = "hg-ok"
+    picture = b"\x89PNG\r\n\x1a\nselected-library-photo"
+    picture_path = tmp_path / "selected.png"
+    picture_path.write_bytes(picture)
+    look.image_path = "selected.png"
+    look.image_sha256 = hashlib.sha256(picture).hexdigest()
     db_session.commit()
+    av = FakeAvatar()
     _run(db_session, scene, av)
-    assert scene.status == "avatar_ready" and scene.avatar_id == "hg-ok"
+    assert scene.status == "avatar_ready" and scene.avatar_id == "look-1"
+    assert look.heygen_look_id == "look-1"
+    assert av.uploads >= 2  # selected look picture and the scene audio
     assert scene.look_id == look.id and scene.host_outfit_id == outfit.id
     choice = json.loads(scene.look_choice_json)
     assert choice["look_id"] == look.id and choice["considered"] == [look.id]

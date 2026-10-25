@@ -1021,6 +1021,28 @@ def create_job(db: Session, case: Case, master: StoryVersion | None, languages: 
     return job
 
 
+def prepare_resume(job: DocumentaryJob, *, count_auto_resume: bool = False) -> None:
+    """Reset only unfinished stages so a failed job can be queued again safely.
+
+    Completed artifacts stay in place and the idempotent pipeline reuses them.  The
+    bounded counter is shared with worker crash recovery so automatic retries cannot
+    loop forever.
+    """
+    stages = json.loads(job.stages_json or "[]")
+    for stage in stages:
+        if stage.get("status") in ("failed", "running", "blocked"):
+            stage["status"] = "pending"
+    job.stages_json = json.dumps(stages, ensure_ascii=False)
+    job.status = "queued"
+    job.worker_id = None
+    job.heartbeat_at = None
+    job.completed_at = None
+    job.error = None
+    job.stage = None
+    if count_auto_resume:
+        job.auto_resumes = (job.auto_resumes or 0) + 1
+
+
 def new_batch_id() -> str:
     return "b" + uuid.uuid4().hex[:12]
 

@@ -339,9 +339,12 @@ def _previous_look(db: Session, scene: HostScene):
 
 
 def look_for_avatar(db: Session, scene: HostScene):
-    """The look this scene's video is made with, checked before anything goes to HeyGen: the
-    selected outfit of this video, one of its approved looks (in this language's studio), already
-    uploaded to HeyGen. Otherwise it stops and says what to do."""
+    """Return the approved look selected for this scene's outfit.
+
+    The autopilot imports and approves the checked library photos at start,
+    then uploads each selected look to HeyGen immediately before the first
+    avatar request. This lookup itself never calls a provider.
+    """
     from app.db.models import HostLook
     from app.documentary import outfits as OF
 
@@ -351,16 +354,12 @@ def look_for_avatar(db: Session, scene: HostScene):
 
         raise AwaitingOutfit(
             f"no outfit is selected for case {scene.case_id} in {scene.language}: choose one "
-            "in the Outfits panel of the Run tab (or create and select one in the Host tab)")
+            "for this language in the Autopilot start dialog")
     look = db.get(HostLook, scene.look_id) if scene.look_id else None
     if look is None or look.host_outfit_id != outfit.id or look.status != "approved":
         _choose_default_look(db, scene, outfit)          # raises NoApprovedLook with what to approve
         look = db.get(HostLook, scene.look_id)
         assert look is not None
-    if not look.heygen_look_id:
-        raise ST.StudioError(
-            f"look #{look.id} ({look.stance} {look.camera} {look.framing}) is approved but not "
-            "uploaded to HeyGen yet: upload it first")
     scene.avatar_id = look.heygen_look_id
     return look
 
@@ -559,13 +558,25 @@ async def run_scene(db: Session, scene: HostScene, until: str = "voice",
         step = "avatar_upload"
         if not ai_config.avatar.enabled and avatar_provider is None:
             raise ST.StudioError("avatar generation is disabled (config avatar.enabled)")
-        if ORDER.index(scene.status) < ORDER.index("avatar_ready"):
-            look_for_avatar(db, scene)  # stop here, before anything is paid, when no look is ready
-            db.commit()
         from app.providers.avatar import get_avatar_provider
+        from app.core.env import env_value
+        from app.documentary import looks as LK
 
         cp = ST.channel_profile(scene.language)
         prov = avatar_provider or get_avatar_provider(key_env=cp["heygen_key_env"])
+        if ORDER.index(scene.status) < ORDER.index("avatar_ready"):
+            look = look_for_avatar(db, scene)
+            if not look.heygen_look_id:
+                group = env_value(cp["heygen_avatar_env"]) or ""
+                if not group:
+                    raise ST.StudioError(
+                        f"{cp['heygen_avatar_env']} is not set (.env): cannot upload the "
+                        f"selected {scene.language} outfit photo to HeyGen")
+                # The checked library photo is owner-approved by the Autopilot
+                # start choice. This is the only upload path for a new case.
+                await LK.upload_to_heygen(db, look, prov, group)
+                scene.avatar_id = look.heygen_look_id
+            db.commit()
         step = "avatar_upload"
         r = await _step_avatar_upload(db, scene, prov)
         _done(scene, "avatar_upload", db, r, {"asset_id": scene.provider_asset_id})

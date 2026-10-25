@@ -339,6 +339,12 @@ class FakeAvatar:
         self.uploads += 1
         return f"asset-{self.uploads}"
 
+    async def create_look(self, group, name, asset):
+        return f"look-{self.uploads}"
+
+    async def look_status(self, look_id):
+        return "completed", None
+
     async def create_video(self, look_id, audio_asset_id, idempotency_key, output_format,
                            resolution, background_asset_id=None, title=None, **extra):
         self.extra = extra

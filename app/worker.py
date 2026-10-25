@@ -19,6 +19,7 @@ import logging
 import os
 import signal
 import socket
+import threading
 import uuid
 from pathlib import Path
 
@@ -134,6 +135,10 @@ class Worker:
             max_parallel = int(ai_config.concurrency.jobs)
         self.max_parallel = max_parallel
         self.stop = asyncio.Event()
+        # Provider/native work inside a documentary task can be synchronous for
+        # a while.  Keep the lease heartbeat on a real OS thread so a blocked
+        # asyncio event loop cannot make this worker look dead to its rescuer.
+        self._heartbeat_stop = threading.Event()
         self.tasks: dict[int, asyncio.Task] = {}
         self.short_tasks: dict[int, asyncio.Task] = {}
         self.alive_file = alive_file or settings.worker_alive_file
@@ -156,7 +161,8 @@ class Worker:
             except Exception:  # noqa: BLE001 - a purge hiccup must not stall the queue
                 log.exception("trash purge failed")
                 db.rollback()
-            reap_stale_jobs(db, lease_seconds=self.lease, max_auto_resumes=self.max_auto)
+            reap_stale_jobs(db, lease_seconds=self.lease, max_auto_resumes=self.max_auto,
+                            worker_id=self.worker_id)
             from app.shortform.pipeline import (
                 beat_short_jobs,
                 claim_next_short_job,
@@ -243,21 +249,29 @@ class Worker:
             finally:
                 db.close()
 
-    async def _heartbeat_loop(self) -> None:
+    def _heartbeat_thread(self) -> None:
         interval = max(0.05, min(self.lease / 3, 30.0))
-        while not self.stop.is_set():
+        while not self._heartbeat_stop.is_set():
             db = self._db()
             try:
-                beat(db, self.worker_id)
-                from app.shortform.pipeline import beat_short_jobs
-                beat_short_jobs(db, self.worker_id, lease_seconds=self.lease)
+                try:
+                    beat(db, self.worker_id)
+                    from app.shortform.pipeline import beat_short_jobs
+                    beat_short_jobs(db, self.worker_id, lease_seconds=self.lease)
+                except Exception:  # noqa: BLE001 - one heartbeat failure must not kill the loop
+                    log.exception("worker %s heartbeat tick failed; retrying", self.worker_id)
             finally:
                 db.close()
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(self.stop.wait(), timeout=interval)
+            self._heartbeat_stop.wait(interval)
 
     async def run(self) -> None:
-        heart = asyncio.create_task(self._heartbeat_loop())
+        self._heartbeat_stop.clear()
+        heart = threading.Thread(
+            target=self._heartbeat_thread,
+            name=f"worker-heartbeat-{os.getpid()}",
+            daemon=True,
+        )
+        heart.start()
         try:
             while not self.stop.is_set():
                 await self.tick()
@@ -274,7 +288,8 @@ class Worker:
             await asyncio.gather(*self.tasks.values(), *self.short_tasks.values(),
                                  *self.autopilot_tasks.values(), return_exceptions=True)
             self.stop.set()
-            await heart
+            self._heartbeat_stop.set()
+            heart.join(timeout=max(1.0, min(self.lease, 10.0)))
             db = self._db()
             try:
                 released = release_held_jobs(db, self.worker_id)

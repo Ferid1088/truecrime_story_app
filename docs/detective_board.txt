@@ -1,0 +1,90 @@
+TASK (LOOP): REPLACE THE "WHAT WE KNOW SO FAR" SLIDE WITH A GROWING DETECTIVE BOARD. Self-contained.
+
+STANDING RULES
+No commit and no push. Real app and database; prove live on case 8. EUR 300 cap on ACTUAL spend per case. No manual SQL. Test first,
+no dead code, model names and numbers only in config/. English UI. The spoiler firewall, the visual auditors and the rights rules
+stay unchanged. No new facts: the board only shows what the narrator has already said at that moment.
+
+OWNER DECISION (20 Oct): the current board is a bullet slide with long sentences and is rebuilt from scratch each time. Useless.
+Wanted: a detective-board shot where each new fact is ADDED as a new card to the existing board, so viewers can follow how the facts
+were discovered and clarified. Every time the board is shown it opens on the board as it stands so far, and the new card is
+visibly PASTED onto it and becomes part of it. Small title per card, no long text. Viewers get enough time to read; the film must
+stay fully followable by ear alone (the board is extra information for people who want to look). Every board shot CONTINUES the
+last one and never creates the same board again.
+
+B0  AUDIT (read-only). Find the current "what we know so far" implementation (code, config, tests, how beats are chosen, how long
+    it is shown, how it is rendered). Report how it is built and why it recreates itself. Write docs/detective_board_checklist.md
+    with one row per requirement below.
+B1  BOARD STATE. A persistent BoardState per film and language in the database (migration): ordered cards with id, type
+    (person, place, object, document, event, statement, contradiction), title, optional date, optional verified image reference,
+    position, rotation, links, source beat id, the spoken words that triggered it and the time it was added. Each board shot loads the
+    last state, appends only new cards and saves the new state. Existing cards never change position, rotation or content (test:
+    positions byte-identical across shots). No board is ever rebuilt from nothing after the first one.
+B2  CARD CONTENT, STRICT. Title at most config board.max_title_words (default 6) words, no sentences, no verbs required; optional
+    date line; a type symbol. Person cards use a verified real photo only if one exists and passed identity verification, otherwise
+    a name tag with a neutral silhouette: NEVER a generated face. A statement card shows the speaker and 3-6 words ("Lizzie: in
+    the barn"). A contradiction is two linked statement cards with a not-equal mark between them; the board never settles it.
+    Card titles are produced per language from that language's own final text (never translated from another language): one cheap
+    model call per language returns JSON {beat_id, cards:[{type, title, date, links_to}]}; validate with code: word limit, every
+    name/number/date in a title occurs in the narrated words of that beat, links point to existing cards. Reject and report a card
+    that fails; no retry loop beyond the existing bounded repair. Each card carries its source beat id.
+B3  LAYOUT, "THE ROAD", AND THE PASTE. The board grows as a path from left to right in every language (also fa and ar; text inside a
+    card is right-to-left there), time-ordered, with thin connection lines between related cards and branches for side threads.
+    Deterministic incremental layout: a new card is placed next to its linked card in free space, with a small deterministic
+    rotation seeded by the card id (a pasted look, no randomness between renders). Default style dark and minimal (paper-like cards,
+    thin lines); the cork look is a config option board.style.
+    EVERY BOARD SHOT HAS THIS STRUCTURE:
+      (1) It opens on the board exactly as it stood at the end of the previous shot: all earlier cards already in place, calm
+          (slightly dimmed), nothing re-animated, nothing rebuilt. The camera starts framed on the previous board or its latest region.
+          It stays on this state for at least config board.lead_in_seconds (default 1.0 s) when the narration allows it, so the viewer
+          sees what was known so far.
+      (2) At the narrated moment of the new fact the new card is PASTED: it enters from outside the frame with a slight turn, lands at
+          its place, is pressed on with a pin (a short press and the card's shadow tightens), and the thin string to its linked card
+          draws itself. Paste duration config board.paste_seconds (default 0.5-0.8 s). The camera pans and slightly zooms to the new
+          card while it is pasted.
+      (3) The new card is highlighted for the reading time (B4), then settles to the same calm state as the older cards.
+      (4) If the shot has 2-4 new cards, they are pasted one after another, each at the narrated moment of its own fact, never
+          simultaneously and never with an old card moving.
+      (5) The final state is saved as the new BoardState (B1) and is the opening state of the next board shot.
+B4  TIMING AND READING TIME. A card is pasted at the narrated moment of its fact (word-aligned). A board shot lasts at least:
+    max(config minimum, words on the new cards divided by config reading_words_per_second plus config margin) after the last paste.
+    If the narrated beat is shorter, the shot is held longer through the existing audio-plan pause mechanism, limited by config
+    board.max_hold_extension_seconds, and NEVER over speech. The shot may stay under the next narrated beat only when that beat is
+    about the same card or thread; otherwise it cuts away to other visuals.
+B5  FREQUENCY. A board shot only when at least one new card exists, at natural beats (a discovery, a contradiction, the end of an
+    act), with config board.min_gap_seconds (default 90) and board.max_shots_per_film, and 1-4 new cards per shot. At the end of each
+    act an optional overview shot shows the whole board zoomed out for a few seconds (no new card, no paste); the final board closes
+    the film's board thread. Never two board shots back to back.
+B6  SPOILERS AND AUDIT. A card is created only from facts the narrator has already said by that moment (spoiler firewall) and the
+    existing visual auditor must approve each shot for the exact spoken words. Test: a fact from a later beat never appears early.
+B7  RENDERING. Use the existing renderer if it can do this; otherwise the same deterministic frame-stepping approach used for map
+    shots (headless Chromium via Playwright, per-frame camera and per-frame paste animation, ffmpeg). Fonts and safe areas as in the
+    film; fa/ar shaping and bidi correct. Same input gives identical frames. The animation timeline (lead-in, paste, highlight,
+    settle) is a pure function of the card, the narrated word time and config.
+B8  UI. The story page shows the board per act (state after each act, card list with its source beat and spoken words) and lets the
+    owner exclude a card and redo only that board shot (existing per-part rebuild). Export the final board as a PNG for the owner.
+B9  REMOVE THE OLD SLIDE. Delete the old "what we know so far" implementation, config and tests ONLY after a search proves nothing
+    else uses them; list what was removed.
+B10 TESTS. State continuity (existing cards unchanged across shots), append-only, the FIRST FRAME of every shot contains exactly the
+    cards that stood at the end of the previous shot (compare the card layer), old cards never re-animate, lead-in respected, the new
+    card appears at its word-aligned time and in the paste phases (enter, land, pin, string), several new cards come one after another
+    and never together, title word limit, no sentences, the validation that names/numbers/dates in a title occur in the narrated
+    words, never a generated face, spoiler firewall, per-language titles (en, de, fa, ar fixtures) with RTL card text and a
+    left-to-right road, reading-time computation, hold extension limited and never over speech, frequency limits, no two board shots
+    back to back, deterministic frames, removal of the old slide.
+B11 LIVE PROOF ON CASE 8 (English first). Build the board for the whole film. Show: the list of cards with beat, time and the spoken
+    words that trigger each; a contact sheet of every board shot (so the growth is visible) with, for at least three consecutive
+    shots, four frames each: the opening state, the moment before the paste, the paste in motion and the settled result; proof that
+    shot N+1 opens on exactly the cards of the end of shot N; the final board; per shot the reading time needed vs the shot length
+    and any pause extension; the old slide next to the new board for the same beat; the cost (expected one cheap call per language).
+    Render a clip with at least three consecutive board shots. Say plainly what you did not watch. Do not run the other languages yet.
+B12 AUDIT. Walk this text sentence by sentence into the checklist with evidence, then a line-by-line self-review of the diff. State
+    what is unproven (taste, whether the titles read well in fa/de/ar, how it feels at full film length).
+
+LOOP PROTOCOL: take the first non-DONE row, test first, then code, targeted tests then the full suite, prove it live, record the
+evidence. Stop early ONLY for a real owner blocker (a decision only the owner can take) and continue with every row that is not
+blocked. Never mark a row DONE without evidence. Final report: the checklist, the contact sheets, actual spend, what is unproven.
+Do not commit or push.
+
+
+

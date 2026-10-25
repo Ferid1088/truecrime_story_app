@@ -697,14 +697,7 @@ async def resume_documentary_job(job_id: int, db: Session = Depends(get_db)):
     # ones too (later stages already built on them; a new run redoes
     # them); failed, interrupted and blocked ones run again, their
     # attempt and error history stays on the stage
-    stages = json.loads(job.stages_json)
-    for s in stages:
-        if s["status"] in ("failed", "running", "blocked"):
-            s["status"] = "pending"
-    job.stages_json = json.dumps(stages)
-    job.status = "queued"
-    job.worker_id = None
-    job.heartbeat_at = None
+    J.prepare_resume(job)
     job.auto_resumes = 0
     db.commit()
     J.launch(job.id)

@@ -8,6 +8,7 @@ HTTP details.
 """
 
 import hashlib
+import asyncio
 import json
 import logging
 from typing import Any
@@ -55,6 +56,15 @@ def _sum_optional[N: (int, float)](a: N | None, b: N | None) -> N | None:
 _FALLABLE_KINDS = {
     "model_unavailable", "rate_limited", "provider_error", "timeout"
 }
+
+
+def _content_risk_fallback(error: GenerationError) -> bool:
+    """A gateway content-risk 403 may be retried on the configured independent reviewer.
+    Credential and ordinary permission failures must still fail visibly."""
+    if error.kind != "forbidden":
+        return False
+    message = str(error).lower()
+    return any(marker in message for marker in ("risk", "风险", "内容审计", "content audit"))
 
 
 class OpenAICompatibleGenerationProvider(GenerationProvider):
@@ -459,9 +469,17 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                     discarded_cost = _sum_optional(discarded_cost, e.cost_usd)
                     discarded_cached = _sum_optional(discarded_cached, e.cached_tokens)
                     discarded_reasoning = _sum_optional(discarded_reasoning, e.reasoning_tokens)
+                    # APIMaster can return a transient 503 while its CPU is above the
+                    # gateway threshold.  Retrying/falling back immediately only adds
+                    # another concurrent expensive request and makes the overload worse.
+                    # A short bounded pause lets the gateway shed work without delaying
+                    # ordinary provider errors or changing the retry policy for them.
+                    if e.kind == "provider_error" and "cpu overloaded" in str(e).lower():
+                        await asyncio.sleep(2.0 if _attempt == 0 else 4.0)
+                    can_fallback = e.kind in _FALLABLE_KINDS or _content_risk_fallback(e)
                     if e.kind not in _FALLABLE_KINDS | {
                         "invalid_output", "unreachable"
-                    }:
+                    } and not _content_risk_fallback(e):
                         e.provider, e.model = discarded_provider, discarded_model
                         e.input_tokens = discarded_input
                         e.output_tokens = discarded_output
@@ -470,7 +488,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
                         e.cached_tokens = discarded_cached
                         e.reasoning_tokens = discarded_reasoning
                         raise
-                    if e.kind in _FALLABLE_KINDS:
+                    if can_fallback:
                         break  # straight to the fallback candidate
         if last_error is not None:
             last_error.provider, last_error.model = discarded_provider, discarded_model

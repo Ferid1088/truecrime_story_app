@@ -61,6 +61,28 @@ def test_start_opens_the_case_records_the_estimate_and_launches_the_run(
     assert no_launch == [run.id]
 
 
+def test_start_persists_one_outfit_choice_per_language_before_launch(
+        db_session, candidate, no_launch):
+    from app.documentary import outfits as OF
+    from app.lifecycle.candidates import open_case_from_candidate
+    from app.outfits.registry import OutfitRegistry
+
+    case = open_case_from_candidate(db_session, candidate, "en")
+    choices = {}
+    for lang in LANGS:
+        registered = OutfitRegistry().all(lang)[0]
+        outfit = OF.create_outfit(
+            db_session, case.id, lang, registered.label,
+            reference_image=registered.reference_pose("SEATED").path,
+        )
+        choices[lang] = f"existing:{outfit.id}"
+    run = SV.start_run(db_session, candidate.id, LANGS, choices, {})
+
+    case_id = run.case_id
+    assert all(OF.selected_outfit(db_session, case_id, lang) is not None for lang in LANGS)
+    assert [OF.selected_outfit(db_session, case_id, lang).language for lang in LANGS] == LANGS
+
+
 def test_english_is_required_and_unknown_languages_are_refused(db_session, candidate):
     with pytest.raises(SV.StartError, match="English"):
         SV.start_run(db_session, candidate.id, ["de", "fa"])

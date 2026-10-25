@@ -4,15 +4,9 @@ import type {
   CaseTombstone,
   GlobalStopState,
   MediaCoverage,
-  OutfitLibraryView,
   TrashPreview,
   MediaLinkItem,
   HostMemoryItem,
-  HostLookItem,
-  HostOutfitItem,
-  OutfitRegistryItem,
-  OutfitPanel,
-  PoseSetResult,
   HostPlanRecord,
   HostSegmentsRecord,
   HostAppearanceItem,
@@ -694,16 +688,6 @@ export const api = {
     request<HostPlanRecord>(`/api/cases/${caseId}/documentary/host-plan`),
   hostSegments: (versionId: number) =>
     request<HostSegmentsRecord>(`/api/documentary/versions/${versionId}/host`),
-  outfits: (caseId: number, language: string) =>
-    request<HostOutfitItem[]>(`/api/cases/${caseId}/outfits?language=${language}`),
-  outfitRegistry: () => request<OutfitRegistryItem[]>("/api/outfit-registry"),
-  createOutfit: (caseId: number, payload: { language: string; name: string; outfit_ref: string }) =>
-    post<HostOutfitItem>(`/api/cases/${caseId}/outfits`, payload),
-  selectOutfit: (id: number) => post<HostOutfitItem>(`/api/outfits/${id}/select`, {}),
-  retireOutfit: (id: number) => post<HostOutfitItem>(`/api/outfits/${id}/retire`, {}),
-  requestPoseSet: (id: number) => post<PoseSetResult>(`/api/outfits/${id}/pose-set`, {}),
-  outfitPanel: (caseId: number) =>
-    request<OutfitPanel>(`/api/cases/${caseId}/outfit-panel`),
   // case controls: pause / resume / stop (keep|delete) / restore + audit + global stop
   caseControl: (caseId: number) =>
     request<CaseControlView>(`/api/cases/${caseId}/control`),
@@ -723,32 +707,6 @@ export const api = {
   setGlobalStop: (active: boolean) =>
     post<GlobalStopState>("/api/control/global", { active }),
   controlTombstones: () => request<CaseTombstone[]>("/api/control/tombstones"),
-  // the outfit library: data/outfits as the source of truth
-  outfitLibrary: () => request<OutfitLibraryView>("/api/outfit-library"),
-  rescanOutfitLibrary: () => post<{ scan_id: number }>("/api/outfit-library/rescan", {}),
-  panelSelectOutfit: (caseId: number, outfitId: number) =>
-    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/select`, { outfit_id: outfitId }),
-  panelSameOutfit: (caseId: number, outfitId: number) =>
-    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/same-outfit`, { outfit_id: outfitId }),
-  panelFixedLook: (caseId: number, outfitId: number, lookId: number | null) =>
-    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/fixed-look`, { outfit_id: outfitId, look_id: lookId }),
-  panelSamePicture: (caseId: number, outfitId: number, lookId: number) =>
-    post<OutfitPanel>(`/api/cases/${caseId}/outfit-panel/same-picture`, { outfit_id: outfitId, look_id: lookId }),
-  requestOutfitLook: (id: number, payload: { camera: string; framing: string; stance: string }) =>
-    post<HostLookItem>(`/api/outfits/${id}/looks`, payload),
-  overrideSceneLook: (sceneId: number, lookId: number) =>
-    post<HostScene>(`/api/host-scenes/${sceneId}/look`, { look_id: lookId }),
-  hostLooks: (language: string) =>
-    request<HostLookItem[]>(`/api/host-looks?language=${language}`),
-  requestHostLook: (payload: { language: string; camera: string; framing: string; outfit_id: string; pose: string }) =>
-    post<HostLookItem>("/api/host-looks", payload),
-  generateHostLook: (id: number) =>
-    request<HostLookItem>(`/api/host-looks/${id}/generate`, { method: "POST", body: "{}", timeoutMs: 300_000 }),
-  approveHostLook: (id: number) => post<HostLookItem>(`/api/host-looks/${id}/approve`, { by: "owner" }),
-  rejectHostLook: (id: number, reason: string) => post<HostLookItem>(`/api/host-looks/${id}/reject`, { reason }),
-  regenerateHostLook: (id: number, prompt: string) => post<HostLookItem>(`/api/host-looks/${id}/regenerate`, { prompt }),
-  uploadHostLook: (id: number) =>
-    request<HostLookItem>(`/api/host-looks/${id}/upload`, { method: "POST", body: "{}", timeoutMs: 600_000 }),
   hostAppearances: (channel?: string) =>
     request<HostAppearanceItem[]>(`/api/host-appearances${channel ? `?channel=${encodeURIComponent(channel)}` : ""}`),
   hostMemories: (caseId: number) =>
@@ -1119,6 +1077,34 @@ export interface AutopilotEstimate {
   price_warnings: { stage: string; reason: string }[];
 }
 
+export interface AutopilotOutfitOption {
+  key: string;
+  name: string;
+  ref: string | null;
+  source: "case" | "library";
+  status: string;
+  selected: boolean;
+  photos: {
+    id: number;
+    situation: string;
+    stance: string;
+    status: string;
+    selected: boolean;
+  }[];
+}
+
+export interface AutopilotOutfitLanguage {
+  language: string;
+  selected: string | null;
+  options: AutopilotOutfitOption[];
+}
+
+export interface AutopilotOutfitOptions {
+  candidate_id: number;
+  case_id: number | null;
+  languages: AutopilotOutfitLanguage[];
+}
+
 export interface AutopilotNeed {
   key: string;
   kind: string;
@@ -1178,8 +1164,13 @@ export interface ChannelSettingRow {
 export const autopilotApi = {
   estimate: (candidateId: number, languages: string[]) =>
     request<AutopilotEstimate>(`/api/autopilot/estimate${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
-  start: (candidateId: number, languages: string[]) =>
-    post<AutopilotRunView>("/api/autopilot/runs", { candidate_id: candidateId, languages }),
+  start: (candidateId: number, languages: string[], outfits?: Record<string, string>,
+         outfitPhotos?: Record<string, number[]>) =>
+    post<AutopilotRunView>("/api/autopilot/runs", {
+      candidate_id: candidateId, languages, outfits, outfit_photos: outfitPhotos,
+    }),
+  outfitOptions: (candidateId: number, languages: string[]) =>
+    request<AutopilotOutfitOptions>(`/api/autopilot/outfit-options${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
   runs: () => request<{ runs: AutopilotRunView[] }>("/api/autopilot/runs"),
   run: (runId: number) => request<AutopilotRunView>(`/api/autopilot/runs/${runId}`),
   cancel: (runId: number) => post<AutopilotRunView>(`/api/autopilot/runs/${runId}/cancel`),

@@ -10,7 +10,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.db.models import DocumentaryJob, HostScene, MonitorRun, ResearchJob
+from app.db.models import AgentRun, DocumentaryJob, HostScene, MonitorRun, ResearchJob
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
@@ -60,7 +60,8 @@ def requeue_job(job: DocumentaryJob, at, *, count_attempt: bool) -> None:
         job.auto_resumes = (job.auto_resumes or 0) + 1
 
 
-def reap_stale_jobs(db: Session, *, lease_seconds: float, max_auto_resumes: int, now=None) -> dict:
+def reap_stale_jobs(db: Session, *, lease_seconds: float, max_auto_resumes: int,
+                    worker_id: str | None = None, now=None) -> dict:
     """External-worker mode: find jobs whose worker stopped reporting (crash, power loss) and either
     queue them again (up to max_auto_resumes times) or leave them "interrupted" for a manual resume."""
     from datetime import timedelta
@@ -72,6 +73,11 @@ def reap_stale_jobs(db: Session, *, lease_seconds: float, max_auto_resumes: int,
         DocumentaryJob.status.in_(("running", "cancelling")) | (
             (DocumentaryJob.status == "queued") & DocumentaryJob.worker_id.isnot(None))).all()
     for job in held:
+        # This worker can be inside a long synchronous provider/native call.  Its
+        # heartbeat may be late, but the owner identity is still alive in this
+        # process; only a different worker may reap that lease.
+        if worker_id is not None and job.worker_id == worker_id:
+            continue
         beat = job.heartbeat_at or job.updated_at
         if beat is not None and beat.tzinfo is None:
             from datetime import timezone
@@ -79,6 +85,14 @@ def reap_stale_jobs(db: Session, *, lease_seconds: float, max_auto_resumes: int,
             beat = beat.replace(tzinfo=timezone.utc)
         if beat is not None and beat > cutoff:
             continue  # its worker is alive
+        # A provider call can occupy the event loop longer than the lease while
+        # its durable agent row is still progressing.  Do not requeue that job
+        # underneath the live pipeline; doing so can create duplicate work.
+        if (worker_id is None or job.worker_id == worker_id) and db.query(AgentRun.id).filter(
+                AgentRun.documentary_job_id == job.id,
+                AgentRun.status == "running").first() is not None:
+            job.heartbeat_at = now
+            continue
         was_cancelling = job.status == "cancelling"
         interrupt_job(job, now, "its worker stopped responding")
         if job.status == "interrupted" and not was_cancelling and (job.auto_resumes or 0) < max_auto_resumes:

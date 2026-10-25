@@ -2,9 +2,6 @@
 
 import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
-import { HostLooksPanel } from "./host-looks";
-import { HostOutfitsPanel } from "./host-outfits";
-import { OutfitLibraryBrowser } from "./outfit-library";
 import { HostMemoryPanel } from "./host-memory";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
@@ -64,9 +61,12 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
       <HostMemoryPanel caseId={caseId} />
       <HostPlanPanel caseId={caseId} scenes={data ?? []} />
       <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />
-      <HostOutfitsPanel caseId={caseId} language={language} />
-      <OutfitLibraryBrowser caseId={caseId} language={language} />
-      <HostLooksPanel language={language} channel={channel} />
+      <Card>
+        <CardContent className="p-3 text-xs text-muted-foreground">
+          Outfit and host-photo selection is completed once per language in the Autopilot start dialog.
+          There are no separate outfit or photo creation controls here.
+        </CardContent>
+      </Card>
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}
       {data && data.length === 0 && (
@@ -163,7 +163,7 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
 
         {scene.voice_ready && <VoiceChecks scene={scene} />}
 
-        <LookChoice scene={scene} onChanged={onChanged} />
+        <LookChoice scene={scene} />
 
         {scene.avatar_ready && (
           <video
@@ -256,26 +256,9 @@ function VoiceChecks({ scene }: { scene: HostScene }) {
 }
 
 
-/** Which look the director's plan was mapped to, why, and an override among the outfit's approved looks. */
-function LookChoice({ scene, onChanged }: { scene: HostScene; onChanged: () => void }) {
-  const { data: outfits } = useApi(() => api.outfits(scene.case_id, scene.language), [scene.case_id, scene.language, scene.look_id], {
-    keepPrevious: true,
-  });
-  const [error, setError] = useState<string | null>(null);
-  const outfit = (outfits ?? []).find((o) => o.status === "selected");
-  const approved = (outfit?.looks ?? []).filter((l) => l.status === "approved");
+/** Which approved look the director's plan mapped to, and why. */
+function LookChoice({ scene }: { scene: HostScene }) {
   const choice = scene.look_choice ?? {};
-  const locked = ["avatar_requested", "avatar_ready", "composited"].includes(scene.status);
-
-  async function pick(id: number) {
-    setError(null);
-    try {
-      await api.overrideSceneLook(scene.id, id);
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
 
   return (
     <div className="space-y-1 text-xs" data-testid={`look-choice-${scene.id}`}>
@@ -295,20 +278,8 @@ function LookChoice({ scene, onChanged }: { scene: HostScene; onChanged: () => v
         ) : (
           <span className="text-muted-foreground">not chosen yet (the stage direction or the avatar step chooses it)</span>
         )}
-        {approved.length > 0 && !locked && (
-          <select className="rounded-md border border-border bg-background px-2 py-0.5" aria-label="Choose a look"
-                  value={scene.look_id ?? ""} onChange={(e) => pick(Number(e.target.value))}>
-            <option value="" disabled>override…</option>
-            {approved.map((l) => (
-              <option key={l.id} value={l.id}>
-                #{l.id} {l.stance.toLowerCase()} · {l.camera} · {l.framing}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
       {choice.why && <p className="text-muted-foreground">{choice.why}{choice.continuity ? ` — ${choice.continuity}` : ""}</p>}
-      {error && <p className="text-rose-600 dark:text-rose-400">{error}</p>}
     </div>
   );
 }

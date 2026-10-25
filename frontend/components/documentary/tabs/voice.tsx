@@ -623,7 +623,16 @@ function GainCurve({ dynamics }: { dynamics: VoiceDynamics }) {
   const W = 720;
   const H = 110;
   const PAD = 4;
-  const tMax = Math.max(...series.flatMap((s) => s.curve.map((c) => c.t)));
+  // Curves can contain tens of thousands of samples.  Spreading all samples
+  // into Math.max turns them into function arguments and overflows the JS call
+  // stack in the browser.  Scan them iteratively instead.
+  let tMax = 0;
+  for (const s of series) {
+    for (const c of s.curve) {
+      if (Number.isFinite(c.t) && c.t > tMax) tMax = c.t;
+    }
+  }
+  tMax = Math.max(1, tMax);
   const gMax = Math.max(1, ...series.map((s) => s.max_gr_db ?? 0));
   const x = (t: number) => PAD + (t / tMax) * (W - 2 * PAD);
   const y = (g: number) => H - PAD - (g / gMax) * (H - 2 * PAD);

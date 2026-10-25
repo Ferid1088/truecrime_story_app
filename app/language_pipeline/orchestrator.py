@@ -76,13 +76,33 @@ from app.language_pipeline.store import (
     pipeline_of,
     structure_of,
 )
-from app.providers.generation.base import GenerationResult
+from app.providers.generation.base import GenerationError, GenerationResult
 from app.services import writer_metrics
 from app.services.budget import BudgetStopped
 from app.utils import utc_now
 
 log = logging.getLogger(__name__)
 Progress = Callable[[dict], None]
+
+
+class _RoleMappedGeneration:
+    """Use an independent configured model for one safety retry without changing global routing."""
+
+    def __init__(self, provider, source_role: str, target_role: str):
+        self.provider = provider
+        self.source_role = source_role
+        self.target_role = target_role
+
+    def _role(self, role: str) -> str:
+        return self.target_role if role == self.source_role else role
+
+    async def generate_text(self, role, system, user, images=None, *, prefix=None, cache_key=None):
+        return await self.provider.generate_text(self._role(role), system, user, images,
+                                                 prefix=prefix, cache_key=cache_key)
+
+    async def generate_structured(self, role, system, user, images=None, *, prefix=None, cache_key=None):
+        return await self.provider.generate_structured(self._role(role), system, user, images,
+                                                       prefix=prefix, cache_key=cache_key)
 
 @dataclass
 class LanguageOutcome:
@@ -676,8 +696,25 @@ class LanguagePipeline:
         if row is None:
             started = utc_now()
             self._emit(event="stage_started", stage=REVIEW, language=language, version_id=final.id)
-            output = await self.stages.inspect(db, case, material, final.story_text, language, span,
-                                               stage=REVIEW_STAGE)
+            try:
+                output = await self.stages.inspect(db, case, material, final.story_text, language, span,
+                                                   stage=REVIEW_STAGE)
+            except GenerationError as exc:
+                # APIMaster may reject a crime-narration review prompt as a content-risk request.
+                # Retry this one review with a neutral editorial-QA preamble; never bypass the
+                # review or the later approval gates, and never retry other forbidden errors.
+                message = str(exc).lower()
+                if exc.kind != "forbidden" or not any(
+                        marker in message for marker in ("risk", "风险", "内容审计", "content audit")):
+                    raise
+                log.warning("%s review hit the provider content filter; retrying with neutral QA prompt",
+                            language)
+                safe_stages = LanguageStages(
+                    _RoleMappedGeneration(self.stages.gen, "language_inspector",
+                                          "language_safety_inspector"))
+                output = await safe_stages.inspect(
+                    db, case, material, final.story_text, language, span,
+                    stage=REVIEW_STAGE, safety_mode=True)
             critique = output.data
             output.text = critique.get("summary") or f"{len(critique['items'])} items"
             row = store.save(
@@ -1018,7 +1055,8 @@ class LanguagePipeline:
     # --------------------------------------------------------------------- the whole case
     async def run_case(self, case_id: int, languages: list[str] | None = None,
                        requested_minutes: float | None = None, tone: str = "documentary",
-                       follow_up: dict | None = None, new_attempt: bool = False) -> dict:
+                       follow_up: dict | None = None, new_attempt: bool = False,
+                       parallel_languages: bool = False) -> dict:
         """The draft, its audit and approval; then English (the base of every other language) from the
         approved draft; then the other languages, in parallel, each from the approved English final. A
         language whose base is not approved does not start. With `new_attempt` the chain of each requested
@@ -1040,14 +1078,33 @@ class LanguagePipeline:
         others = [lg for lg in languages if lg != english]
         outcomes: list[LanguageOutcome] = []
         base_id = None
+
+        # A later recovery run must fan out from the approved English final that already
+        # exists.  Re-running the newest English attempt here could select a newer open-issues
+        # version and would incorrectly block all other languages again.  This also makes a
+        # restart after automatic English approval idempotent.
+        if others and not new_attempt:
+            with SessionLocal() as db:
+                approved = (db.query(StoryVersion)
+                            .filter(StoryVersion.case_id == case_id,
+                                    StoryVersion.kind == FINAL,
+                                    StoryVersion.language == english,
+                                    StoryVersion.approved_at.isnot(None))
+                            .order_by(StoryVersion.approved_at.desc(), StoryVersion.id.desc())
+                            .first())
+                if approved is not None:
+                    base_id = approved.id
         if english in languages or others:
             if new_attempt and english in languages:
                 self._set_aside(case_id, english, draft_id)
-            outcome = await self.run_language(case_id, english, material, draft_id, requested)
-            if english in languages:
-                outcomes.append(outcome)
-            if outcome.status == "done":
-                base_id = outcome.final_id
+            if base_id is None:
+                outcome = await self.run_language(case_id, english, material, draft_id, requested)
+                if english in languages:
+                    outcomes.append(outcome)
+                if outcome.status == "done":
+                    base_id = outcome.final_id
+            elif english in languages:
+                outcomes.append(LanguageOutcome(english, status="done", final_id=base_id))
         if others:
             if base_id is None:
                 reason = (f"no approved {english} final text to re-tell from "
@@ -1060,7 +1117,9 @@ class LanguagePipeline:
                 if new_attempt:
                     for lg in others:
                         self._set_aside(case_id, lg, base_id)
-                outcomes += await self.run_languages(case_id, others, material, base_id, requested)
+                outcomes += await self.run_languages(
+                    case_id, others, material, base_id, requested,
+                    cache_primer=False if parallel_languages else None)
         outcomes.sort(key=lambda o: languages.index(o.language))
         return {"draft_version_id": draft_id, "draft_reused": reused,
                 "languages": [o.as_dict() for o in outcomes]}
@@ -1072,14 +1131,17 @@ class LanguagePipeline:
             log.info("language %s: %d rows of the earlier attempt set aside", language, len(rows))
 
     async def run_languages(self, case_id: int, languages: list[str], material: SharedMaterial,
-                            base_id: int, requested: float) -> list[LanguageOutcome]:
+                            base_id: int, requested: float,
+                            cache_primer: bool | None = None) -> list[LanguageOutcome]:
         """All languages in parallel from the same approved English final. With the cache primer on,
         the first language writes its stage 2 text alone; the others start their stage 2 once it
         exists, so their calls read the shared prefix (plan, English text) from the provider's cache.
         The first language goes on to the later stages meanwhile."""
         gate = asyncio.Semaphore(ai_config.language_pipeline.language_concurrency)
         primed = asyncio.Event()
-        primer = languages[0] if ai_config.language_pipeline.stage2_cache_primer else None
+        use_primer = (ai_config.language_pipeline.stage2_cache_primer
+                      if cache_primer is None else cache_primer)
+        primer = languages[0] if use_primer else None
         if primer is None:
             primed.set()
 

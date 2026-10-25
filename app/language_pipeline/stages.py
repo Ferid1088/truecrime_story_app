@@ -309,23 +309,34 @@ class LanguageStages:
 
     # -- stage 3 -------------------------------------------------------------
     async def inspect(self, db: Session, case: Case, material: SharedMaterial, text: str,
-                      language: str, span: LengthRange, stage: str = INSPECT_STAGE) -> StageOutput:
+                      language: str, span: LengthRange, stage: str = INSPECT_STAGE,
+                      safety_mode: bool = False) -> StageOutput:
         """The language's inspector on a text. `stage` names the ledger line: the inspection of the
         rewrite (language_inspect) or the review of the delivered text (language_review)."""
         agent = ai_config.language_pipeline.agents_for(language).inspect
-        return await self._runner(self._inspectors, agent)(db, case, material, text, language, span, stage)
+        return await self._runner(self._inspectors, agent)(
+            db, case, material, text, language, span, stage, safety_mode)
 
-    def _native_inspect_request(self, agent: str, material, text, language, span) -> tuple[str, str]:
+    def _native_inspect_request(self, agent: str, material, text, language, span,
+                                safety_mode: bool = False) -> tuple[str, str]:
         """Stage 3 of a native film language: the text, the plan and the counts; never the master,
         never evidence."""
         task = ordered_dump({"language": language, "plan": material.inspector_plan_view(),
                              "word_count": len(text.split()),
                              "allowed_word_range": {"min": span.words_min, "max": span.words_max},
                              "story": text})
-        return task, self._prompt_of(agent, style_guide=style_guide(language))
+        system = self._prompt_of(agent, style_guide=style_guide(language))
+        if safety_mode:
+            system = (
+                "This is a neutral editorial QA task on supplied narration. The text may describe "
+                "crime or harm; do not classify, endorse or expand its subject matter. Assess only "
+                "language, listening clarity and the requested production rules, and return the "
+                "required JSON without commentary.\n\n" + system
+            )
+        return task, system
 
     async def _native_inspect(self, db, case, material, text, language, run, agent: str,
-                              stage: str = INSPECT_STAGE) -> StageOutput:
+                              stage: str = INSPECT_STAGE, safety_mode: bool = False) -> StageOutput:
         """One call; an answer that does not validate is asked for once more, a second one fails the stage."""
         for attempt in range(ai_config.limits_settings().language_pipeline.inspector_attempts):
             data, res = await self.call(db, case, run, "language_inspector", "Language Inspector",
@@ -340,33 +351,37 @@ class LanguageStages:
         return self._output(stage, language, text, material, res, ai_config.prompt_of(agent),
                             data=self.film_critique(inspection))
 
-    async def _inspect_en(self, db, case, material, text, language, span, stage):
-        task, system = self._native_inspect_request("language.inspect.en", material, text, language, span)
+    async def _inspect_en(self, db, case, material, text, language, span, stage, safety_mode=False):
+        task, system = self._native_inspect_request("language.inspect.en", material, text, language, span,
+                                                    safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-                "language.inspect.en", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.inspect.en", stage)
+            "language.inspect.en", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.en", stage, safety_mode)
 
-    async def _inspect_fa(self, db, case, material, text, language, span, stage):
-        task, system = self._native_inspect_request("language.inspect.fa", material, text, language, span)
+    async def _inspect_fa(self, db, case, material, text, language, span, stage, safety_mode=False):
+        task, system = self._native_inspect_request("language.inspect.fa", material, text, language, span,
+                                                    safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-                "language.inspect.fa", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.inspect.fa", stage)
+            "language.inspect.fa", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.fa", stage, safety_mode)
 
-    async def _inspect_de(self, db, case, material, text, language, span, stage):
-        task, system = self._native_inspect_request("language.inspect.de", material, text, language, span)
+    async def _inspect_de(self, db, case, material, text, language, span, stage, safety_mode=False):
+        task, system = self._native_inspect_request("language.inspect.de", material, text, language, span,
+                                                    safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-                "language.inspect.de", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.inspect.de", stage)
+            "language.inspect.de", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.de", stage, safety_mode)
 
-    async def _inspect_ar(self, db, case, material, text, language, span, stage):
-        task, system = self._native_inspect_request("language.inspect.ar", material, text, language, span)
+    async def _inspect_ar(self, db, case, material, text, language, span, stage, safety_mode=False):
+        task, system = self._native_inspect_request("language.inspect.ar", material, text, language, span,
+                                                    safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-                "language.inspect.ar", self.gen, task, system=system, cache_key=material.cache_key()),
-            "language.inspect.ar", stage)
+            "language.inspect.ar", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.ar", stage, safety_mode)
 
     @staticmethod
     def film_critique(inspection: FilmInspection) -> dict:
@@ -535,7 +550,4 @@ def check_draft(sections: list[dict], requested_minutes: float | None = None) ->
         return []
     return [f"draft is {words} words; at least {minimum} are needed (as long as the longest "
             f"final text it feeds); the target is {draft_words()}"]
-
-
-
 

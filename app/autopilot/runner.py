@@ -91,7 +91,7 @@ class Ports:
             raise Blocked("evidence", f"The evidence is not enough to write the film "
                                       f"({report['master_readiness']['reason']}).")
         return await LanguagePipeline(embedder=default_embedder()).run_case(
-            case.id, languages, minutes)
+            case.id, languages, minutes, parallel_languages=True)
 
     async def write_titles(self, db: Session, case: Case, languages: list[str]) -> None:
         from app.naming import agent as naming_agent
@@ -241,6 +241,16 @@ class AutopilotRunner:
             S.set_step(run, phase, "done" if done else ("waiting" if waiting else "running"),
                        S.step_detail(run, phase))
             db.commit()
+            # Research must finish before writing can start.  Film jobs, however, are
+            # deliberately allowed to start for languages whose text is already approved
+            # while the remaining language texts are being written.  Nothing downstream of
+            # the film phase may be advertised as running until every film is finished.
+            if phase == "films" and not done:
+                for later in ("titles", "shorts", "publish"):
+                    if S.step_status(run, later) != "done":
+                        S.set_step(run, later, "pending")
+                db.commit()
+                break
             if phase == "research" and not done:
                 break
         all_done = all(S.step_status(run, p) == "done" for p in S.PHASES)
@@ -325,6 +335,34 @@ class AutopilotRunner:
             return True
         self._budget(db, case)
         approved = sum(approved_final(db, case.id, lang) is not None for lang in languages)
+        outcomes = S.recall(run, "texts", "outcomes", {})
+        # A previous pass may have reached the attempt limit because English was still open.
+        # English can become approved later (for example when its documentary job finishes),
+        # so that old base-block is recoverable automatically.  Treat it as a new text fan-out,
+        # without asking the owner to click anything and without retrying already approved text.
+        english = ai_config.language_pipeline.draft_language
+        base_recovered = (
+            approved < len(languages)
+            and approved_final(db, case.id, english) is not None
+            and any("no approved" in str(outcomes.get(lang) or "").lower()
+                    for lang in languages if lang != english)
+        )
+        provider_review_recovered = (
+            approved < len(languages)
+            and not S.recall(run, "texts", "provider_fallback_retry_used", False)
+            and any(
+                any(marker in str(outcomes.get(lang) or "").lower()
+                    for marker in ("permission/quota", "content-risk", "risk rule"))
+                for lang in languages if lang != english
+            )
+        )
+        if base_recovered or provider_review_recovered:
+            S.set_attempts(run, "texts", 0)
+            S.remember(run, "texts", "failure", None)
+            S.remember(run, "texts", "outcomes", {})
+            if provider_review_recovered:
+                S.remember(run, "texts", "provider_fallback_retry_used", True)
+            outcomes = {}
         if approved > S.recall(run, "texts", "approved", 0):
             # more texts are approved than at the last attempt (the owner got one through):
             # the languages that wait on it may be tried again
@@ -441,6 +479,8 @@ class AutopilotRunner:
             if film.status in FILM_DONE:
                 finished += 1
             elif film.status not in FILM_ACTIVE:
+                if self._auto_resume_transient_film(db, film, J):
+                    continue
                 S.add_need(run, f"films:{lang}:film_stopped", "film_stopped",
                            f"The {lang} film (job {film.id}) is {film.status}: "
                            f"{film.error or 'no reason recorded'}", language=lang)
@@ -450,6 +490,33 @@ class AutopilotRunner:
                        "visual searches to finish")
         S.set_step(run, "films", "running", detail)
         return finished == len(languages)
+
+    @staticmethod
+    def _auto_resume_transient_film(db: Session, film: DocumentaryJob, jobs_module) -> bool:
+        """Retry bounded provider overloads without turning them into owner blockers."""
+        if film.status != "failed":
+            return False
+        error = (film.error or "").lower()
+        transient_markers = (
+            "http 503", "http 429", "cpu overloaded", "temporarily unavailable",
+            "timed out", "timeout", "connection reset", "connection refused",
+            "completion truncated at max_tokens", "non-json output",
+        )
+        if not any(marker in error for marker in transient_markers):
+            return False
+        from app.core.config import settings
+
+        # ``auto_resumes`` predates provider retry handling and is also used by
+        # worker-crash recovery.  Use the dedicated provider budget here so a
+        # couple of crash recoveries do not consume the film's transient retry
+        # allowance.
+        limit = max(1, settings.job_max_provider_retries)
+        if (film.auto_resumes or 0) >= limit:
+            return False
+        jobs_module.prepare_resume(film, count_auto_resume=True)
+        db.commit()
+        jobs_module.launch(film.id)
+        return True
 
     def _ready_jobs(self, db: Session, run: AutopilotRun) -> dict[str, DocumentaryJob]:
         out = {}
@@ -514,8 +581,8 @@ class AutopilotRunner:
         for lang in outfit_missing:
             # O2: the final version needs an outfit chosen for its language; drafts do not.
             S.add_need(run, f"publish:{lang}:choose_outfit", "choose_outfit",
-                       f"Needs you: choose outfit ({lang}) — open the Outfits panel on the case "
-                       "page and pick the outfit this film's host wears.", language=lang)
+                       f"Needs you: choose outfit ({lang}) in the Autopilot start dialog "
+                       "before starting the run.", language=lang)
         for lang, codes in clip_review.items():
             # V5: a YouTube clip in the film whose rights still need a human look is never a
             # silent skip — the owner approves or rejects it in the visuals review queue.
@@ -528,8 +595,8 @@ class AutopilotRunner:
             # Owner decision 2026-10-22 (A3): the autopilot never publishes a film with no
             # approved avatar look for its language; it only ever asks the owner to approve one.
             S.add_need(run, f"publish:{lang}:approve_avatar", "approve_avatar",
-                       f"No approved avatar look for {lang}: approve one in Host Studio before "
-                       "this film can publish.", language=lang)
+                       f"No approved avatar look for {lang}: the selected outfit photo could not "
+                       "be prepared for this film.", language=lang)
         planned, skipped = P.plan_requests(films, shorts, handles, utc_now())
         P.store_requests(db, run.id, case.id, planned)
         for item in skipped:

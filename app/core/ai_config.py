@@ -67,6 +67,7 @@ REQUIRED_ROLES = {
     "language_draft_writer",
     "language_rewrite_writer",
     "language_inspector",
+    "language_safety_inspector",
     "language_final_writer",
     # The Persian and Arabic writers have their own roles, so that their model is chosen apart from
     # the English and German writers (owner decision, 2026-10-18).
@@ -3919,6 +3920,16 @@ class AIConfig(BaseModel):
         there is deliberately no cross-provider fallback (Part 13/14)."""
         section = self._section_for_role(role)
         alias = self.alias_for(role)
+        # Host dialogue is optional for a film, but a provider content filter or
+        # transient quota error must not silently remove an entire language's
+        # host layer when a safe writer model is available.  Keep this narrow:
+        # adding a global sol/luna fallback would let protected review roles
+        # fall back to their own authors and violate reviewer independence.
+        if role in {"host_writer", "host_writer_fa_ar"}:
+            writer_model = section.models.get("writer")
+            primary_model = section.models.get(alias)
+            if writer_model and writer_model != primary_model:
+                return [writer_model]
         chain = section.fallbacks.get(alias) or []
         ri = self.review_independence
         if ri.enabled and role in ri.all_reviewers():

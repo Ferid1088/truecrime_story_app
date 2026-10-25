@@ -14,7 +14,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import HostLook, HostOutfit
+from app.db.models import HostLook, HostOutfit, OutfitItem
 from app.documentary import storage
 from app.documentary import studio as ST
 from app.outfits.registry import OutfitRegistry
@@ -271,6 +271,116 @@ def request_pose_set(db: Session, outfit: HostOutfit) -> dict:
         except OutfitError as e:
             skipped.append({"label": entry.label, "why": str(e)})
     return {"requested": made, "already_there": kept, "skipped": skipped}
+
+
+def selected_library_item_ids(db: Session, outfit: HostOutfit) -> list[int]:
+    """Return library photos currently used by this video's outfit.
+
+    The source is intentionally derived from the look records, so this works with
+    existing databases without adding a schema migration. New attachments store the
+    stable OutfitItem id; older attachments are matched by their stored path.
+    """
+    if not outfit.outfit_ref or "/" not in outfit.outfit_ref:
+        return []
+    studio, outfit_slug = outfit.outfit_ref.split("/", 1)
+    rows = (db.query(OutfitItem)
+            .filter(OutfitItem.studio == studio, OutfitItem.outfit_slug == outfit_slug)
+            .all())
+    by_path = {row.file_path: row.id for row in rows}
+    selected: set[int] = set()
+    for look in outfit_looks(db, outfit):
+        source = look.image_model or ""
+        if source.startswith("owner_upload:library:item_id:"):
+            try:
+                selected.add(int(source.split(":", 3)[3]))
+            except ValueError:
+                pass
+        elif source.startswith("owner_upload:library:"):
+            path = source.removeprefix("owner_upload:library:")
+            if path in by_path:
+                selected.add(by_path[path])
+    return sorted(selected)
+
+
+def reuse_library_photos(db: Session, outfit: HostOutfit,
+                         selected_item_ids: list[int] | None = None) -> dict:
+    """Attach existing outfit-library photos to requested looks without image generation.
+
+    The library stores real, already-created outfit pictures, while ``HostLook`` stores the
+    camera/framing/stance slot the stage director uses. Reusing a library picture is therefore
+    an explicit import into the look record. The Autopilot start choice approves the imported
+    look; the Autopilot avatar step uploads it to HeyGen when the film needs it.
+    """
+    from app.documentary import looks as LK
+    from app.outfits import library as outfit_library
+
+    if not outfit.outfit_ref or "/" not in outfit.outfit_ref:
+        raise OutfitError("this outfit has no library reference")
+    studio, outfit_slug = outfit.outfit_ref.split("/", 1)
+    if studio != outfit.language:
+        raise OutfitError("the outfit library studio does not match this language")
+
+    # Make the new button a complete no-generation path: if the user has not requested
+    # the standard slots yet, create the empty look records first, then attach the files.
+    if not any(look.status == "requested" for look in outfit_looks(db, outfit)):
+        request_pose_set(db, outfit)
+
+    query = (db.query(OutfitItem)
+            .filter(OutfitItem.studio == studio, OutfitItem.outfit_slug == outfit_slug,
+                    OutfitItem.status == "available")
+            .order_by(OutfitItem.id).all())
+    available = query
+    if selected_item_ids is not None:
+        wanted = set(selected_item_ids)
+        if not wanted:
+            raise OutfitError("select at least one outfit photo for this film")
+        rows = [row for row in available if row.id in wanted]
+        foreign = wanted - {row.id for row in rows}
+        if foreign:
+            raise OutfitError("one or more selected photos do not belong to this outfit")
+    else:
+        rows = available
+    if not rows:
+        raise OutfitError("no available library photos found for this outfit")
+
+    by_stance = {
+        "SEATED": [row for row in rows if row.stance == "sitting"],
+        "STANDING": [row for row in rows if row.stance == "standing"],
+    }
+    attached, skipped = [], []
+    offsets = {stance: 0 for stance in by_stance}
+    for look in outfit_looks(db, outfit):
+        if look.status == "approved":
+            # Changing the source photo invalidates the previous owner approval, but
+            # never silently replaces a look that has already been uploaded to HeyGen.
+            if look.heygen_look_id:
+                skipped.append({"label": f"look #{look.id}",
+                                "why": "already uploaded to HeyGen — cannot replace it"})
+                continue
+            look.status = "generated"
+        if look.status not in ("requested", "generated", "rejected"):
+            continue
+        candidates = by_stance.get(look.stance, [])
+        if not candidates:
+            skipped.append({"label": f"look #{look.id}",
+                            "why": f"no {look.stance.lower()} library photo is available"})
+            continue
+        row = candidates[offsets[look.stance] % len(candidates)]
+        offsets[look.stance] += 1
+        path = Path(row.file_path)
+        if not path.is_absolute():
+            path = outfit_library.ROOT / path
+        if not path.is_file():
+            skipped.append({"label": f"look #{look.id}",
+                            "why": f"library photo is missing on disk: {row.file_path}"})
+            continue
+        LK.attach_picture(db, look, path.read_bytes(), f"library:item_id:{row.id}")
+        attached.append({"look_id": look.id, "photo": row.file_path,
+                         "item_id": row.id,
+                         "stance": look.stance, "camera": look.camera,
+                         "framing": look.framing})
+    return {"attached": attached, "skipped": skipped,
+            "selected_item_ids": selected_library_item_ids(db, outfit)}
 
 
 def reference_png(outfit: HostOutfit, stance: str) -> bytes:

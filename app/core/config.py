@@ -71,6 +71,15 @@ class Settings(BaseSettings):
         default=2,
         validation_alias=AliasChoices("TRUECRIME_JOB_MAX_AUTO_RESUMES", "JOB_MAX_AUTO_RESUMES"),
     )
+    # Provider-side truncation/overload failures are independent of a dead-worker
+    # recovery. Keep their retry budget separate so a couple of transient provider
+    # errors do not turn an otherwise automatic film into a manual blocker.
+    job_max_provider_retries: int = Field(
+        default=5,
+        validation_alias=AliasChoices(
+            "TRUECRIME_JOB_MAX_PROVIDER_RETRIES", "JOB_MAX_PROVIDER_RETRIES"
+        ),
+    )
     # The worker touches this file every poll; local status checks read its age.
     worker_alive_file: str = "/tmp/tc-worker-alive"
 

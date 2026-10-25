@@ -44,4 +44,4 @@ def test_no_outfit_raises_awaiting_outfit_not_generic_error(db_session):
         raise AssertionError("expected AwaitingOutfit")
     except AwaitingOutfit as e:
         assert "outfit" in str(e).lower()
-        assert "Outfits panel" in str(e)
+        assert "Autopilot start dialog" in str(e)

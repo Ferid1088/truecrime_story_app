@@ -111,6 +111,7 @@
         "language_draft_writer": "writer",
         "language_rewrite_writer": "sol",
         "language_inspector": "sol",
+        "language_safety_inspector": "premium",
         "language_final_writer": "sol",
         "language_rewrite_writer_fa_ar": "luna",
         "language_final_writer_fa_ar": "luna",
@@ -122,6 +123,7 @@
           "premium"
         ],
         "writer": [
+          "sol",
           "premium"
         ],
         "premium": [
@@ -351,6 +353,11 @@
       "reasoning_effort": "high"
     },
     "language_inspector": {
+      "temperature": 0.2,
+      "max_tokens": 32000,
+      "reasoning_effort": "high"
+    },
+    "language_safety_inspector": {
       "temperature": 0.2,
       "max_tokens": 32000,
       "reasoning_effort": "high"

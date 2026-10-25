@@ -85,7 +85,8 @@ async def _dispatch(db: Session, job: BackgroundJob) -> dict[str, Any]:
         result = await pipeline.run_case(case.id, data.get("languages"),
                                          data.get("requested_minutes"),
                                          data.get("tone") or "documentary",
-                                         new_attempt=bool(data.get("new_attempt")))
+                                         new_attempt=bool(data.get("new_attempt")),
+                                         parallel_languages=True)
         return {**result, "events": events[-200:]}
 
     if job.kind == "language_improve":
