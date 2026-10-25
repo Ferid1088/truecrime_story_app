@@ -116,7 +116,16 @@
         "language_rewrite_writer_fa_ar": "luna",
         "language_final_writer_fa_ar": "luna",
         "english_evidence_auditor": "sol",
-        "host_meaning_checker": "writer"
+        "host_meaning_checker": "writer",
+        "mvp_needs_planner": "premium",
+        "mvp_query_planner": "research_intelligence",
+        "mvp_candidate_verifier": "premium",
+        "mvp_second_verifier": "sol",
+        "mvp_rights_reader": "cheap",
+        "mvp_segment_scout": "cheap",
+        "mvp_scene_director": "premium",
+        "mvp_coverage_auditor": "premium",
+        "mvp_graphic_localizer": "writer"
       },
       "fallbacks": {
         "cheap": [
@@ -385,6 +394,47 @@
     "host_meaning_checker": {
       "temperature": 0.0,
       "max_tokens": 8000
+    },
+    "mvp_needs_planner": {
+      "temperature": 0.3,
+      "max_tokens": 32000,
+      "reasoning_effort": "high"
+    },
+    "mvp_query_planner": {
+      "temperature": 0.3,
+      "max_tokens": 4000
+    },
+    "mvp_candidate_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 4000,
+      "reasoning_effort": "medium"
+    },
+    "mvp_second_verifier": {
+      "temperature": 0.0,
+      "max_tokens": 4000,
+      "reasoning_effort": "medium"
+    },
+    "mvp_rights_reader": {
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "mvp_segment_scout": {
+      "temperature": 0.1,
+      "max_tokens": 6000
+    },
+    "mvp_scene_director": {
+      "temperature": 0.4,
+      "max_tokens": 32000,
+      "reasoning_effort": "high"
+    },
+    "mvp_coverage_auditor": {
+      "temperature": 0.0,
+      "max_tokens": 12000,
+      "reasoning_effort": "medium"
+    },
+    "mvp_graphic_localizer": {
+      "temperature": 0.2,
+      "max_tokens": 6000
     }
   }
 }

@@ -107,6 +107,20 @@ REQUIRED_ROLES = {
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
     "visual_planner",
+    # The Main Visual Planner's own agents (config/parameters/main_visual_planner.json):
+    # needs per beat from the reveal graph, search queries per unmet requirement, candidate
+    # verification (vision) with an independent second verifier, rights reading, video
+    # segment scouting (vision), shot direction, coverage audit of the compiled timeline,
+    # and on-screen graphic text per language.
+    "mvp_needs_planner",
+    "mvp_query_planner",
+    "mvp_candidate_verifier",
+    "mvp_second_verifier",
+    "mvp_rights_reader",
+    "mvp_segment_scout",
+    "mvp_scene_director",
+    "mvp_coverage_auditor",
+    "mvp_graphic_localizer",
     "visual_entity_dossier",
     "visual_verifier",
     "visual_verifier_cheap",
@@ -2827,6 +2841,58 @@ class ZoomLabels(BaseModel):
     rtl_languages: list[str]
 
 
+class MvpSearchConfig(BaseModel):
+    """Bounded search rounds per unmet visual requirement."""
+
+    initial_rounds: int = Field(ge=1, le=3)
+    extra_rounds_max: int = Field(ge=0, le=5)
+    min_new_candidates_to_continue: int = Field(ge=0)
+
+
+class MvpShotsConfig(BaseModel):
+    min_seconds: float = Field(gt=0.0)
+    max_still_seconds: float = Field(gt=0.0)
+    max_asset_reuse: int = Field(ge=1)
+    target_shots_per_minute: float = Field(gt=0.0)
+
+
+class MvpCoverageConfig(BaseModel):
+    min_temporal_coverage: float = Field(gt=0.0, le=1.0)
+    max_uncovered_gap_seconds: float = Field(ge=0.0)
+    max_black_frame_seconds: float = Field(ge=0.0)
+    evidence_requirements_need_evidence_roles: bool
+
+
+class MvpVerificationConfig(BaseModel):
+    escalate_conflicts_to_second_verifier: bool
+    transient_failure_retries: int = Field(ge=0)
+    approving_statuses: list[str] = Field(min_length=1)
+    never_approving_statuses: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _disjoint(self):
+        if set(self.approving_statuses) & set(self.never_approving_statuses):
+            raise ValueError("main_visual_planner.verification: a status cannot both approve and never approve")
+        return self
+
+
+class MvpReviewConfig(BaseModel):
+    """The persisted owner-review workflow; the film is a candidate until APPROVED."""
+
+    state_machine: list[str] = Field(min_length=2)
+
+
+class MainVisualPlannerConfig(BaseModel):
+    """The Main Visual Planner's limits (config/parameters/main_visual_planner.json). Its
+    agents' models and sampling parameters are the mvp_* roles in config/models.json."""
+
+    search: MvpSearchConfig
+    shots: MvpShotsConfig
+    coverage: MvpCoverageConfig
+    verification: MvpVerificationConfig
+    review: MvpReviewConfig
+
+
 class ZoomMapConfig(BaseModel):
     """The cinematic zoom-in map (globe -> region -> street) built from open data, offline:
     a Protomaps/OpenStreetMap extract, open imagery and a MapLibre scene rendered frame by
@@ -3675,6 +3741,7 @@ class AIConfig(BaseModel):
     storage_budget: StorageBudgetConfig = Field(default_factory=StorageBudgetConfig)
     limits: LimitsConfig | None = None
     zoom_map: ZoomMapConfig | None = None
+    main_visual_planner: MainVisualPlannerConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
     shorts_host_led: HostLedShortsConfig = Field(default_factory=HostLedShortsConfig)
     visual_verification: VisualVerificationConfig = Field(
@@ -3884,6 +3951,12 @@ class AIConfig(BaseModel):
         if not name:
             raise KeyError(f"agent {agent} has no prompt")
         return name
+
+    def mvp(self) -> MainVisualPlannerConfig:
+        """The Main Visual Planner's settings (config/parameters/main_visual_planner.json)."""
+        if self.main_visual_planner is None:
+            raise RuntimeError("config/parameters/main_visual_planner.json is missing")
+        return self.main_visual_planner
 
     def zoom(self) -> ZoomMapConfig:
         """The zoom-in map's settings (config/parameters/zoom_map.json)."""

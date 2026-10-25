@@ -1,0 +1,44 @@
+{
+  "main_visual_planner": {
+    "search": {
+      "initial_rounds": 1,
+      "extra_rounds_max": 2,
+      "min_new_candidates_to_continue": 1
+    },
+    "shots": {
+      "min_seconds": 2.5,
+      "max_still_seconds": 9.0,
+      "max_asset_reuse": 2,
+      "target_shots_per_minute": 9
+    },
+    "coverage": {
+      "min_temporal_coverage": 0.98,
+      "max_uncovered_gap_seconds": 3.0,
+      "max_black_frame_seconds": 0.5,
+      "evidence_requirements_need_evidence_roles": true
+    },
+    "verification": {
+      "escalate_conflicts_to_second_verifier": true,
+      "transient_failure_retries": 3,
+      "approving_statuses": [
+        "approved"
+      ],
+      "never_approving_statuses": [
+        "unknown",
+        "needs_review",
+        "transient_failure"
+      ]
+    },
+    "review": {
+      "state_machine": [
+        "IMPLEMENTING",
+        "PRODUCING",
+        "VALIDATING",
+        "AWAITING_OWNER_REVIEW",
+        "APPROVED",
+        "REVISION_REQUIRED",
+        "REJECTED"
+      ]
+    }
+  }
+}
