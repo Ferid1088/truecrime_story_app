@@ -454,14 +454,21 @@ class AutopilotRunner:
         from app.documentary import jobs as J
 
         english = ai_config.language_pipeline.draft_language
-        gate_open = self._visual_searches_done(db, run, ids, english, languages)
+        from app.services.production_gates import approved_english_film
+
+        english_approved = approved_english_film(db, case.id) is not None
         held: list[str] = []
         for lang in sorted(languages, key=lambda lg: lg != english):
             final = approved_final(db, case.id, lang)
             if final is None or lang in ids:
                 continue
-            if lang != english and not gate_open:
+            if lang != english and not english_approved:
                 held.append(lang)
+                S.add_need(
+                    run, f"films:{lang}:english_film_approval", "english_film_approval",
+                    "The complete English film must be watched and explicitly approved "
+                    "before downstream audiovisual production.", language=lang,
+                )
                 continue
             self._budget(db, case)
             await self.ports.authorize()
@@ -486,8 +493,8 @@ class AutopilotRunner:
                            f"{film.error or 'no reason recorded'}", language=lang)
         detail = f"{finished} of {len(languages)} films finished"
         if held:
-            detail += (f"; {', '.join(held)} wait for the {english} film's "
-                       "visual searches to finish")
+            detail += (f"; {', '.join(held)} wait for explicit approval of the completed "
+                       f"{english} film")
         S.set_step(run, "films", "running", detail)
         return finished == len(languages)
 
