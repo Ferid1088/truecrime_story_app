@@ -424,31 +424,6 @@ class AutopilotRunner:
                        f"The {lang} final text is not approved: {why}.", language=lang)
         return not still
 
-    def _visual_searches_done(self, db: Session, run: AutopilotRun, ids: dict[str, int],
-                              english: str, languages: list[str]) -> bool:
-        """The non-base film jobs wait until the base language's job has run its case-level
-        visual searches: the search ledger dedups only queries already recorded, so two jobs
-        whose gap filling overlaps would pay for the same search twice. The gate opens when the
-        English job's visual_gaps stage settled, when the job itself settled (a broken English
-        film never blocks the others), or when English's text failed for good."""
-        if english not in languages:
-            return True
-        job_id = ids.get(english)
-        if job_id is not None:
-            job = db.get(DocumentaryJob, job_id)
-            if job is None or job.status not in ("queued", "running"):
-                return True
-            stage = next((s for s in json.loads(job.stages_json or "[]")
-                          if s["name"] == "visual_gaps"), None)
-            return stage is not None and stage["status"] in (
-                "done", "skipped", "degraded", "failed")
-        if approved_final(db, run.case_id, english) is not None:
-            return False  # the English film starts on this pass; the others wait for it
-        return (S.step_status(run, "texts") == "done"
-                or S.recall(run, "texts", "failure") is not None
-                or S.recall(run, "texts", "outcomes") is not None
-                or S.attempts(run, "texts") >= self.cfg.max_attempts_per_phase)
-
     async def _films(self, db: Session, run: AutopilotRun, case: Case, languages) -> bool:
         ids = S.film_job_ids(run)
         from app.documentary import jobs as J
