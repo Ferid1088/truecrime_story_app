@@ -38,9 +38,9 @@ def test_the_shorts_rights_gate_passes_when_rights_are_not_a_filter(monkeypatch)
     assert rights_checker(uses, "tiktok_video").passed
 
 
-def test_the_config_has_the_filter_off_for_the_films():
+def test_the_config_enforces_rights_for_film_selection():
     import json
     from pathlib import Path
 
     cfg = json.loads((Path(__file__).resolve().parents[1] / "config/parameters/visuals.json").read_text())
-    assert cfg["rights"]["enforce"] is False
+    assert cfg["rights"]["enforce"] is True
