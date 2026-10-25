@@ -21,13 +21,13 @@ from app.db.models import (
     PublishRequest,
 )
 from app.documentary import jobs as documentary_jobs
+from app.documentary import outfits as documentary_outfits
 from app.lifecycle.candidates import open_case_from_candidate
 from app.lifecycle.identity import IdentityIndex, candidate_identity
+from app.outfits.registry import OutfitRegistry
 from app.services.budget import BudgetService
 from app.services.cost_model import documentary_estimate
 from app.utils import utc_now
-from app.documentary import outfits as documentary_outfits
-from app.outfits.registry import OutfitRegistry
 
 BLOCKED_STATES = ("archived", "deleted", "ignored", "duplicate", "filtered")
 ACTIVE_RUN = ("running", "waiting_owner")
