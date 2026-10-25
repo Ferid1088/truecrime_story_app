@@ -36,8 +36,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import HostScene, HostSegments, StoryVersion
 from app.documentary import stage_direction as SD
-from app.documentary import storage
-from app.documentary import studio as ST
+from app.documentary import storage, studio as ST
 from app.documentary.identity_line import ends_with_identity, identity_line
 from app.documentary.text_order import logical_order_issues
 from app.utils import utc_now
