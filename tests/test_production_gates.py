@@ -4,7 +4,8 @@ import uuid
 
 import pytest
 
-from app.db.models import ApprovalBundle, ApprovalBundleItem, Case, Video
+from app.db.models import ApprovalBundle, ApprovalBundleItem, Case, DocumentaryJob, ShortProductionJob, Video
+from app.shortform.pipeline import enqueue_for_finished_job
 from app.services.production_gates import (
     all_four_full_films_finished,
     approved_english_film,
@@ -76,3 +77,31 @@ def test_shorts_gate_requires_four_full_films(db_session):
     assert not all_four_full_films_finished(db_session, case.id)
     _film(db_session, case, "ar")
     assert all_four_full_films_finished(db_session, case.id)
+
+
+def test_short_queue_unlocks_previous_full_language_jobs_after_fourth(db_session):
+    case = _case(db_session)
+    jobs = []
+    for language in ("en", "de", "fa", "ar"):
+        job = DocumentaryJob(
+            case_id=case.id, mode="full",
+            languages_json=f'["{language}"]', status="completed",
+        )
+        db_session.add(job)
+        db_session.flush()
+        film = Video(
+            case_id=case.id, job_id=job.id, mode="full",
+            language=language, state="rendered", file_path=f"{language}.mp4",
+        )
+        db_session.add(film)
+        db_session.commit()
+        jobs.append(job)
+        if language != "ar":
+            assert enqueue_for_finished_job(db_session, job.id) is None
+    assert db_session.query(ShortProductionJob).filter_by(case_id=case.id).count() == 0
+    assert enqueue_for_finished_job(db_session, jobs[-1].id) is not None
+    rows = db_session.query(ShortProductionJob).filter_by(case_id=case.id).all()
+    assert len(rows) == 4
+    assert {row.language for row in rows} == {"en", "de", "fa", "ar"}
+    enqueue_for_finished_job(db_session, jobs[-1].id)
+    assert db_session.query(ShortProductionJob).filter_by(case_id=case.id).count() == 4
