@@ -36,7 +36,7 @@ def full_films_by_language(db: Session, case_id: int) -> dict[str, Video]:
 
 def all_four_full_films_finished(db: Session, case_id: int) -> bool:
     """Pilot films and incomplete language sets do not unlock Shorts."""
-    return FILM_LANGUAGES <= full_films_by_language(db, case_id).keys()
+    return full_films_by_language(db, case_id).keys() >= FILM_LANGUAGES
 
 
 def approved_english_film(db: Session, case_id: int) -> Video | None:
