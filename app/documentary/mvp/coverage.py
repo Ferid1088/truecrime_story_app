@@ -59,6 +59,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
     approved_codes = {a.asset_code for a in db.query(VisualAsset).filter(VisualAsset.id.in_(approved))} \
         if approved else set()
     generated = {s.get("asset_id") for s in shots if s.get("kind") in ("map", "timeline", "detective_board")}
+    generated |= {c for c, a in asset_rows.items() if a.provider == "generated"}
     unapproved = sorted({s["asset_id"] for s in shots if s.get("asset_id") and s.get("kind") in
                          ("image", "video", "document") and s["asset_id"] not in approved_codes
                          and s["asset_id"] not in generated})

@@ -201,6 +201,40 @@ async def stage_host(db: Session, case: Case, version, language: str) -> dict:
             "host_seconds": round(sum(i["seconds"] for i in items), 1)}
 
 
+def beat_cards_from_evidence(db: Session, case: Case, bp_row: EditorialBlueprint) -> dict[str, dict]:
+    """Per beat, the validated evidence a factual card may show: verified quotations, conflicting accounts
+    and the established facts of that beat (its blueprint `reveals`). Nothing is added or paraphrased."""
+    import re
+
+    pack, _sources = ND.build_pack(db, case.id)
+    facts = {f["id"]: f for f in pack["facts"]}
+    contradictions = {c["id"]: c for c in pack["contradictions"]}
+    quoted = {q["id"] for q in pack.get("approved_quotes") or []}
+    out: dict[str, dict] = {}
+    for beat in json.loads(bp_row.blueprint_json or "{}").get("beats") or []:
+        entry: dict = {"quotes": [], "conflicts": [], "facts": []}
+        for ref in beat.get("reveals") or []:
+            fact, conflict = facts.get(ref), contradictions.get(ref)
+            if fact and fact["id"] in quoted:
+                match = re.search(r'[\u201c"]([^"\u201d]{12,220})[\u201d"]', fact["claim"])
+                if match:
+                    entry["quotes"].append({"text": match.group(1).strip(), "speaker": fact.get("speaker")})
+            elif fact and not fact.get("disputed") and not fact.get("uncertain") and len(entry["facts"]) < 3:
+                entry["facts"].append(fact["claim"][:170])
+            if conflict:
+                entry["conflicts"].append({"topic": conflict["topic"][:160],
+                                           "text": conflict["description"][:700]})
+        out[beat["id"]] = entry
+    return out
+
+
+def case_region(case: Case) -> str | None:
+    """The last two parts of the case's location ("Ohio, United States"): appended to a place that is
+    named alone, so the geocoder resolves it near the case and not to a namesake elsewhere."""
+    parts = [p.strip() for p in (case.location or "").split(",") if p.strip()]
+    return ", ".join(parts[-2:]) if len(parts) >= 2 else None
+
+
 def timeline_events_by_beat(db: Session, bp_row: EditorialBlueprint) -> dict[str, str]:
     """beat -> the approved chapter plan's timeline event the story first tells there (one per beat)."""
     from app.documentary.chapters import latest_chapter_plan
@@ -228,8 +262,10 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
 
     requirements = requirements_of(needs_plan)
     events = timeline_events_by_beat(db, bp_row)
+    cards = beat_cards_from_evidence(db, case, bp_row)
+    region = case_region(case)
     report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                  director if use_agent else None, target, events)
+                                  director if use_agent else None, target, events, None, cards, region)
     for _ in range(ai_config.mvp().topup.passes):
         if not report["gaps"]:
             break
@@ -238,11 +274,14 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             break
         verified = await verify_pending(db, case, needs_plan, requirements)
         report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                      director if use_agent else None, target, events)
+                                      director if use_agent else None, target, events, None, cards, region)
         report["topup"] = {**made, "judged": verified["judged"]}
     from app.documentary.visuals.generated import materialize
 
+    from app.documentary.mvp import cards as CD
+
     report["graphics"] = await materialize(db, case, target)
+    report["cards_made"] = await CD.materialize_cards(db, case, target, language)
     return target, report
 
 

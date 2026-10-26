@@ -75,13 +75,13 @@ def test_shares_sum_to_one_assets_are_unique_in_a_beat_and_gaps_are_reported(db_
     assert all(s_["share"] * 60 <= 20.5 for s_ in shots if "asset_id" in s_)
     assert report["gaps"] and report["gap_seconds"] > 0
     uncovered = [s for s in shots if "asset_id" not in s]
-    assert uncovered and all(s.get("gap") or s["command"] == "SHOW_MAP" for s in uncovered)
+    assert uncovered and all(s.get("gap") or s["command"] in ("SHOW_MAP", "SHOW_CARD") for s in uncovered)
 
 
 def test_unapproved_candidates_are_never_planned(db_session):
     case, plan = _plan(db_session, 5, approved=False)
     report = run(D.direct_film(db_session, case, plan, _manifest([30.0]), None, {"B01": 0}, {}))
-    assert json.loads(plan.plan_json)["beats"][0]["shots"][0]["command"] == "BLACK_SCREEN"
+    assert all("asset_id" not in s for s in json.loads(plan.plan_json)["beats"][0]["shots"])
     assert report["assets_used"] == 0
 
 
@@ -256,3 +256,40 @@ def test_a_named_place_gets_a_map_once_in_the_film_where_no_picture_covers_it(db
     beats = json.loads(plan.plan_json)["beats"]
     maps = [s for b in beats for s in b["shots"] if s["command"] == "SHOW_MAP"]
     assert len(maps) == 1 and maps[0]["map_place"] == "Flynn house"
+
+
+def test_a_map_is_placed_only_where_the_place_is_spoken_and_geocoded_near_the_case(db_session):
+    case, plan = _plan(db_session, 0)
+    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "place", "name": "Tipp City"}],
+                                         "beats": []})
+    db_session.commit()
+    manifest = _manifest([60.0])
+    manifest["timeline"]["sentences"][5]["speech"] = "They drove back to Tipp City that night."
+    run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, region="Ohio, United States"))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    maps = [s for s in shots if s["command"] == "SHOW_MAP"]
+    assert len(maps) == 1 and maps[0]["map_place"] == "Tipp City, Ohio, United States"
+    assert "Tipp City" in maps[0]["said"]
+
+
+def test_bare_stretches_get_verified_cards_from_the_beats_evidence_within_the_caps(db_session):
+    case, plan = _plan(db_session, 0)
+    cards = {"B01": {"quotes": [{"text": "I heard two shots", "speaker": "Caleb Flynn"}],
+                     "conflicts": [{"topic": "Daughters in court", "text": "Accounts conflict."}],
+                     "facts": ["Ashley Flynn was shot twice."]}}
+    run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}, beat_cards=cards))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    kinds = [s["card"]["kind"] for s in shots if s["command"] == "SHOW_CARD"]
+    assert kinds[:3] == ["quote", "conflict", "facts"]
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
+
+
+def test_a_bare_stretch_next_to_a_picture_is_absorbed_before_it_is_left_black(db_session):
+    shots = [{"command": "NEW_IMAGE", "asset_id": "A", "share": 0.2, "motion": "NONE"},
+             {"command": "BLACK_SCREEN", "gap": True, "share": 0.1, "motion": "NONE"}]
+    D.absorb_gaps(shots, 100.0)
+    assert len(shots) == 1 and abs(shots[0]["share"] - 0.3) < 1e-9
+    far = [{"command": "NEW_IMAGE", "asset_id": "A", "share": 0.3, "motion": "NONE"},
+           {"command": "BLACK_SCREEN", "gap": True, "share": 0.2, "motion": "NONE"}]
+    D.absorb_gaps(far, 100.0)               # 50 s would pass max_hold_seconds: the stretch stays bare
+    assert len(far) == 2

@@ -51,6 +51,17 @@
       "max_assets": 500,
       "passes": 1,
       "min_relevance": 0.2
+    },
+    "cards": {
+      "max_per_film": {
+        "quote": 20,
+        "conflict": 4,
+        "facts": 25,
+        "text": 12
+      },
+      "card_seconds": 8.0,
+      "max_hold_seconds": 30.0,
+      "min_gap_seconds": 5.0
     }
   }
 }

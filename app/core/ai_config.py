@@ -2785,6 +2785,16 @@ class MvpTopupConfig(BaseModel):
     min_relevance: float = Field(ge=0.0)
 
 
+class MvpCardsConfig(BaseModel):
+    """Factual graphics that fill what no related picture covers, and the last resort before black."""
+
+    max_per_film: dict[str, int]
+    card_seconds: float = Field(gt=0.0)
+    # A picture may be held this long (past max_still_seconds) rather than leave a stretch black.
+    max_hold_seconds: float = Field(gt=0.0)
+    min_gap_seconds: float = Field(gt=0.0)
+
+
 class MvpReviewConfig(BaseModel):
     """The persisted owner-review workflow; the film is a candidate until APPROVED."""
 
@@ -2805,6 +2815,7 @@ class MainVisualPlannerConfig(BaseModel):
     coverage: MvpCoverageConfig
     verification: MvpVerificationConfig
     topup: MvpTopupConfig
+    cards: MvpCardsConfig
     review: MvpReviewConfig
 
 

@@ -1074,8 +1074,9 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     # the offline fake finds two pictures and the planner approves both for the farmhouse
     assert stages["mvp_research"]["status"] in ("done", "degraded")
     assert stages["mvp_research"]["detail"]["rounds"][0]["new_assets"] == 2
-    assert db_session.query(VisualAsset).filter_by(
-        case_id=case.id, verification_status="verified").count() == 2
+    assert db_session.query(VisualAsset).filter(
+        VisualAsset.case_id == case.id, VisualAsset.verification_status == "verified",
+        VisualAsset.provider != "generated").count() == 2
     film = stages["film_length"]["detail"]
     assert film["warning"] and set(film["estimated_minutes"]) == {"en"}
     result = json.loads(job.result_json)
