@@ -12,7 +12,6 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.core.concurrency import slot
 from app.db.models import (
     Case,
     EditorialBlueprint,
@@ -93,16 +92,17 @@ async def verify_pending(db: Session, case: Case, plan: VisualPlan, requirements
     money = BudgetService(db)
 
     async def one(asset_id: int, items):
-        async with slot("vision"):
-            if stats["budget_stopped"]:
-                return
-            snap = money.snapshot(case.id)
-            if snap.spent_eur >= snap.cap_eur - 1e-9:
-                stats["budget_stopped"] = True
-                return
-            asset = db.get(VisualAsset, asset_id)
-            await VF.verify_asset(db, case, asset, items, entities, facts)
-            stats["judged"] += 1
+        # the generation provider paces vision calls with its own slot; taking the same slot here
+        # would deadlock once every slot-holder waits for the inner one
+        if stats["budget_stopped"]:
+            return
+        snap = money.snapshot(case.id)
+        if snap.spent_eur >= snap.cap_eur - 1e-9:
+            stats["budget_stopped"] = True
+            return
+        asset = db.get(VisualAsset, asset_id)
+        await VF.verify_asset(db, case, asset, items, entities, facts)
+        stats["judged"] += 1
 
     await asyncio.gather(*(one(a, items) for a, items in by_asset.items()))
     stats["sync"] = VF.sync_asset_status(db, case.id)
@@ -167,8 +167,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     graph_id = json.loads(needs_plan.validation_json)["mvp"].get("reveal_graph_id")
 
     async def director(case_, beat, slots, pool):
-        async with slot("llm"):
-            return await DR.model_director(case_, beat, slots, pool, db)
+        return await DR.model_director(case_, beat, slots, pool, db)
 
     report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                   director if use_agent else None, target)
