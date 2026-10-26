@@ -77,7 +77,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Picture review</h1>
         <p className="mt-1 text-sm text-muted-foreground" data-testid="review-queue-counter">
-          {queue.length} {shown === "rejected" ? "rejected pictures" : "pictures the verifiers could not settle"}
+          {queue.length} left to review: {shown === "rejected" ? "pictures the planner rejected" : "pictures the verifiers could not settle"}
         </p>
         {message && (
           <p role="status" className="mt-2 text-sm text-emerald-700">

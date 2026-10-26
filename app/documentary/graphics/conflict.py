@@ -150,7 +150,7 @@ def _board(data_json: str, language: str, step: int) -> Image.Image:
         status = T.label(language, f"status_{c['status']}").split(":")[-1].strip()
         pill_w = page.measure(status, "mono", 20) + 28
         parts.pill(page, left + width - pill_w - 32, y + 18, status, color, px=20)
-        page.text(left + 32, y + 66, width - 64, c["title"], "title", 50, T.rgb("ink"), lines_max=2, min_px=34,
+        page.text(left + 32, y + 66, width - 64, c["title"], "title", 50, T.rgb("ink"), lines_max=2, min_px=30,
                   spacing=1.0, upper=True)
         page.text(left + 32, y + 150, width - 64, f"{c['a']}\n{c['b']}".replace("\n", " · "), "body", 28,
                   T.rgb("grey"), lines_max=3, min_px=22, spacing=1.2)

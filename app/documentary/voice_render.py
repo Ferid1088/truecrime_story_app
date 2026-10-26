@@ -323,11 +323,10 @@ class VoiceRenderer:
         if self.asr is not None:
             # The check compares what people should hear (no tags, no
             # harakat added for pronunciation) with what Whisper heard.
-            async with slot("asr"):
-                heard = await asyncio.to_thread(self.asr.transcribe, str(wav), language)
+            heard_text = await self._heard(wav, meta, meta_path, language)
             expected = block.get("display_text") or block["text"]
-            asr = compare_transcript(expected, heard["text"], language, self.asr_cfg)
-            asr["heard_text"] = heard["text"]
+            asr = compare_transcript(expected, heard_text, language, self.asr_cfg)
+            asr["heard_text"] = heard_text
         return {
             "cache_key": key, "cache_hit": cache_hit, "seed": req.seed,
             "raw_path": str(raw), "wav_path": str(wav),
@@ -339,6 +338,19 @@ class VoiceRenderer:
             "request_id": meta.get("request_id"), "asr": asr,
             "text": req.text, "alignment": al,
         }
+
+    async def _heard(self, wav: Path, meta: dict, meta_path: Path, language: str) -> str:
+        """What the speech-to-text model heard in this take, remembered with the take: the same audio, language and
+        model are never transcribed twice (the comparison with the script is cheap and redone with today's rules)."""
+        cfg = self.asr_cfg.for_language(language)
+        key = hashlib.sha256(wav.read_bytes() + f"|{language}|{cfg.model}|{cfg.compute_type}".encode()).hexdigest()
+        if (meta.get("heard") or {}).get("key") == key:
+            return meta["heard"]["text"]
+        async with slot("asr"):
+            heard = await asyncio.to_thread(self.asr.transcribe, str(wav), language)
+        meta["heard"] = {"key": key, "text": heard["text"]}
+        storage.write_atomic(meta_path, json.dumps(meta, ensure_ascii=False))
+        return heard["text"]
 
     @staticmethod
     def _take_rank(take: dict) -> tuple:

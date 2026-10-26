@@ -295,9 +295,10 @@ def test_the_board_comes_after_two_or_more_conflict_pages_and_lists_only_those_s
     state = AL.State()
     assert AL.board_offer(state, 5) is None
     for n in (1, 2):
-        state.pages.append({"id": f"C{n}", "title": f"T{n}", "a": "A", "b": "B", "status": "open"})
+        state.pages.append({"id": f"C{n}", "title": f"T{n}", "summary": f"S{n}", "a": "A", "b": "B", "status": "open"})
     board = AL.board_offer(state, 5)
     assert [c["id"] for c in board.data["cards"]] == ["C1", "C2"] and board.data["new_card"] == "C2"
+    assert [c["title"] for c in board.data["cards"]] == ["S1", "S2"]            # the board shows each page's summary
     pages = [AL.Offer("conflict", f"conflict|C{n}", 0, 3, 0, {}, 24.0, 12.0, frozenset({f"C{n}"})) for n in (1, 2)]
     pages[0].placed = True
     assert not AL.board_due(pages, state, 1)                            # one page can still be placed
@@ -502,3 +503,24 @@ def test_the_text_of_a_placed_graphic_is_translated_but_names_numbers_and_headli
 def test_an_unknown_graphic_type_and_a_missing_cue_are_refused_at_plan_time():
     with pytest.raises(GraphicUnavailable, match="unknown graphic type"):
         GS.render_for({"type": "hologram", "data": {}, "cue_fractions": []}, 10.0, "en")
+
+
+def test_a_page_that_cannot_be_set_is_never_offered():
+    data = {"conflict": {"id": "C1", "number": 1, "title": "Was the door open?", "kind": "witnesses", "status": "open",
+                         "summary": "Two accounts"},
+            "sides": [{"who": "W" * 200, "claim": "Open.", "source": "s", "fact_id": "C1"},
+                      {"who": "B", "claim": "W" * 150, "source": "s", "fact_id": "C1"}]}
+    assert AL.offer("conflict", "conflict|C1", data, 0) is None
+
+
+def test_a_recap_does_not_list_two_facts_that_say_the_same():
+    facts = {"F1": {"claim": "x", "confidence": 0.9, "evidence_strength": "strong_secondary"},
+             "F2": {"claim": "y", "confidence": 0.85, "evidence_strength": "strong_secondary"},
+             "F3": {"claim": "z", "confidence": 0.8, "evidence_strength": "strong_secondary"}}
+    ev = evidence(facts=facts)
+    ev.beats[7]["viewer_knows"] = ["F1", "F2", "F3"]
+    ev.starts = {b["id"]: 10.0 * i for i, b in enumerate(ev.beats)}
+    lines = {"F1": "Ashley was born to Todd and Jill Smith in Tipp City", "F2": "Todd and Jill Smith are Ashley's parents",
+             "F3": "A refrigerator blocked the garage entry"}
+    recap = AL.recap_offers(ev, lines, {}, set())[0]
+    assert [x["fact_id"] for x in recap.data["confirmed"]] == ["F1", "F3"]

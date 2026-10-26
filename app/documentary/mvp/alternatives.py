@@ -11,10 +11,11 @@ import re
 from dataclasses import dataclass, field
 
 from app.documentary.graphics import dates
+from app.documentary.graphics import shots as GS
 from app.documentary.graphics import theme as T
+from app.documentary.graphics.base import GraphicUnavailable
 from app.documentary.graphics.keyfacts import extract
 from app.documentary.graphics.registry import graphic
-from app.documentary.graphics.shots import plan_fields
 from app.documentary.mvp import headlines as HL
 from app.documentary.mvp.copy import words
 
@@ -74,7 +75,10 @@ def offer(kind: str, key: str, data: dict, best: int, first: int | None = None, 
           count: int = 0, credit: str | None = None) -> Offer | None:
     """An offer if the graphic accepts its data (with the cues the planner would give it at its normal length)."""
     seconds, minimum = seconds_for(kind, count)
-    if graphic(kind).can_render(data):
+    try:                                   # drawn once at its full length: a page that cannot be set is never offered
+        GS.render_for({"type": kind, "data": data, "cue_fractions": GS.cue_fractions(kind, graphic(kind).required_cues(data))},
+                      seconds, "en")
+    except GraphicUnavailable:
         return None
     return Offer(kind, key, first if first is not None else best, best + drift(kind), best, data, seconds, minimum,
                  frozenset(items), credit)
@@ -208,6 +212,11 @@ def headline_offers(ev: Evidence, placed: dict[str, dict]) -> list[Offer]:
     return out
 
 
+def similar(a: str, b: str, share: float = 0.6) -> bool:
+    wa, wb = words(a), words(b)
+    return bool(wa and wb) and len(wa & wb) / min(len(wa), len(wb)) >= share
+
+
 def recap_offers(ev: Evidence, lines: dict[str, str], conflict_best: dict[str, int],
                  exclude: set[str]) -> list[Offer]:
     """A recap every few beats: only facts, disputes and questions the story has told by then, each item once."""
@@ -229,7 +238,12 @@ def recap_offers(ev: Evidence, lines: dict[str, str], conflict_best: dict[str, i
         recent = [f for f in known if (reveal_index(ev, f) or 0) > previous]
         pool = sorted(recent or known, key=lambda f: (ranked.get(ev.facts[f]["evidence_strength"], 2),
                                                       -(ev.facts[f].get("confidence") or 0)))
-        confirmed = pool[:min(cfg["confirmed"], p["recap"]["max_facts"])]
+        confirmed: list[str] = []
+        for f in pool:
+            if len(confirmed) >= min(cfg["confirmed"], p["recap"]["max_facts"]):
+                break
+            if not any(similar(lines[f], lines[c]) for c in confirmed):      # two facts saying the same count once
+                confirmed.append(f)
         disputed = [c for c in ev.contradictions if c["id"] not in used_conflicts and c["id"] in conflict_best
                     and conflict_best[c["id"]] <= anchor and lines.get(c["id"])][:cfg["disputed"]]
         unknown = [q for q in ev.questions if q["id"] not in used_questions and lines.get(q["id"])
@@ -291,7 +305,7 @@ def gap_runs(shots: list[dict], window_len: float) -> list[tuple[int, int, float
 
 def graphic_shot(o: Offer, seconds: float, window_len: float, why: str) -> dict:
     shot = {"command": "SHOW_GRAPHIC", "share": seconds / window_len, "motion": "NONE", "speed": 1.0,
-            "transition_in": "CROSSFADE", "why": why, **plan_fields(o.kind, o.data)}
+            "transition_in": "CROSSFADE", "why": why, **GS.plan_fields(o.kind, o.data)}
     if o.credit:
         shot["credit"] = o.credit
     return shot
@@ -342,7 +356,7 @@ def board_offer(state: State, idx: int) -> Offer | None:
     """The board of every conflict page shown so far (only pages already used, in the order they were used)."""
     if len(state.pages) < 2:
         return None
-    cards = [{"id": p["id"], "number": n, "title": p["title"], "a": p["a"], "b": p["b"], "status": p["status"]}
+    cards = [{"id": p["id"], "number": n, "title": p["summary"], "a": p["a"], "b": p["b"], "status": p["status"]}
              for n, p in enumerate(state.pages, 1)][:12]
     data = {"cards": cards, "new_card": cards[-1]["id"]}
     return offer("conflict_board", f"board|{cards[-1]['id']}", data, idx, items=(f"board:{cards[-1]['id']}",))

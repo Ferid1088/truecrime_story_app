@@ -438,3 +438,13 @@ def test_voice_render_api(client, db_session, workdir, monkeypatch):
     assert client.get(base).json()["timeline"]["words"]
     audio = client.get(base + "/narration.mp3")
     assert audio.status_code == 200 and audio.headers["content-type"] == "audio/mpeg"
+
+
+def test_a_take_is_transcribed_once_and_its_check_is_redone_with_todays_rules(workdir):
+    tts, asr = FakeTTS(), FakeASR()
+    blocks = [_block("EN_a_01", "act1", TEXT_A), _block("EN_a_02", "act1", TEXT_B)]
+    _render(VoiceRenderer(provider=tts, asr=asr), blocks)
+    assert asr.calls == 2
+    again = _render(VoiceRenderer(provider=FakeTTS(), asr=asr), blocks)
+    assert asr.calls == 2                                          # same audio, language and model: not heard again
+    assert all(b["asr"]["passed"] and b["asr"]["heard_text"] for b in again["blocks"])
