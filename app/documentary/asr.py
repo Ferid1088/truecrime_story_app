@@ -235,6 +235,20 @@ def _is_spelling_variant(ref: list[str], hyp: list[str], min_similarity: float) 
 # ---------------------------------------------------------------------------
 
 
+def sensitive_tokens(script: str, language: str) -> set[str]:
+    """Normalized tokens of the names (capitalized words that do not open a
+    sentence) and numbers (words with a digit) of the script."""
+    found: set[str] = set()
+    opens_sentence = True
+    for word in script.split():
+        bare = word.strip(".,;:!?\"'()[]«»“”‘’…—-")
+        if bare and (any(c.isdigit() for c in bare)
+                     or (bare[0].isupper() and not opens_sentence)):
+            found.update(normalize_tokens(bare, language))
+        opens_sentence = word.endswith((".", "!", "?", "…"))
+    return found
+
+
 def compare_transcript(
     script: str, heard: str, language: str, cfg: ASRCheckConfig | None = None
 ) -> dict:
@@ -276,9 +290,17 @@ def compare_transcript(
         failures.append("missing_words")
     if extra_run >= cfg.max_extra_run:
         failures.append("extra_words")
+    sensitive = []
+    if cfg.mode == "warn":
+        names_numbers = sensitive_tokens(script, language)
+        sensitive = [d for d in diffs
+                     if names_numbers & set(d["script"].split())]
+        failures = ["name_or_number"] if sensitive else []
     return {
+        "mode": cfg.mode,
         "passed": not failures,
         "failures": failures,
+        "sensitive_diffs": sensitive,
         "word_error_rate": round(wer, 4),
         "script_words": len(ref),
         "substitutions": subs,

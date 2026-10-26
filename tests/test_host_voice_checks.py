@@ -345,3 +345,21 @@ def test_the_arabic_editor_is_told_how_plural_and_dual_endings_are_read():
 
     text = prompt("documentary/pronunciation/editor_system_ar")
     assert "# ADDED: plural, dual and foreign names" in text and "mukhtaliiin" in text
+
+
+def test_asr_is_strict_for_persian_and_arabic_and_only_warns_on_names_and_numbers_elsewhere():
+    from app.documentary.asr import compare_transcript
+
+    cfg = ai_config.asr_check
+    assert [cfg.for_language(x).mode for x in ("fa", "ar", "en", "de")] == [
+        "strict", "strict", "warn", "warn"]
+    script = "Then Detective Harlan found 42 boxes in the old garage near the lake today."
+    plain = compare_transcript(script, "Then Detective Harlan found 42 boxes in the old garage "
+                               "near the lake", "en", cfg)
+    assert plain["passed"] and plain["mode"] == "warn"                # dropped words, no name/number
+    wrong_name = compare_transcript(script, "Then Detective Harper found 42 boxes in the old "
+                                    "garage near the lake today", "en", cfg)
+    assert not wrong_name["passed"] and wrong_name["failures"] == ["name_or_number"]
+    wrong_number = compare_transcript(script, "Then Detective Harlan found 14 boxes in the old "
+                                      "garage near the lake today", "en", cfg)
+    assert wrong_number["sensitive_diffs"]

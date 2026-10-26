@@ -388,7 +388,8 @@ class VoiceRenderer:
         if occurrences and self.listener() is None:
             occurrences = []
         text = scrub_forbidden(b.get("tts_text") or b["text"])
-        asr_retakes = self.asr_cfg.auto_retakes
+        asr_cfg = self.asr_cfg.for_language(language)
+        asr_retakes = asr_cfg.auto_retakes if asr_cfg.mode == "strict" else 0
         rounds = self.pron_cfg.max_rounds if occurrences else 0
         fixes: list[dict] = []
         for attempt in range(1 + asr_retakes + rounds):
@@ -609,7 +610,8 @@ class VoiceRenderer:
             asr = take["asr"]
             block_flags = []
             if asr and not asr["passed"]:
-                block_flags.append("asr_check_failed")
+                block_flags.append("asr_check_failed" if asr.get("mode", "strict") == "strict"
+                                   else "asr_name_or_number_warning")
             if dev is not None and abs(dev) > self.loud.max_block_deviation_lu:
                 block_flags.append("loudness_outlier")
             if b.get("oversize"):

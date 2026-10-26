@@ -1498,6 +1498,9 @@ class ASRCheckConfig(BaseModel):
     spelling_variant_similarity: float = Field(default=80.0, ge=0.0, le=100.0)
     # Extra takes (different seed) when a block fails the check.
     auto_retakes: int = Field(default=1, ge=0, le=3)
+    # "strict": every difference fails the block and earns a retake.
+    # "warn": only differences in names and numbers are flagged, no retake.
+    mode: Literal["strict", "warn"] = "strict"
     # Per-language overrides (e.g. a larger Whisper model and a more
     # lenient threshold where small Whisper models are weak, like Persian).
     languages: dict[str, "ASRLanguageOverride"] = {}
@@ -1515,6 +1518,7 @@ class ASRLanguageOverride(BaseModel):
     max_missing_run: int | None = Field(default=None, ge=1)
     max_extra_run: int | None = Field(default=None, ge=1)
     spelling_variant_similarity: float | None = Field(default=None, ge=0.0, le=100.0)
+    mode: Literal["strict", "warn"] | None = None
 
 
 ASRCheckConfig.model_rebuild()

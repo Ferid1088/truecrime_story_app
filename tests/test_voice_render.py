@@ -176,7 +176,13 @@ def test_compare_ignores_spelling_dates_possessives_and_spacing():
     assert {v["script"] for v in r["spelling_variants"]} >= {"chantelle mcdougall"}
 
 
-def test_compare_flags_a_skipped_phrase_even_with_low_error_rate():
+@pytest.fixture
+def strict_english(monkeypatch):
+    monkeypatch.setitem(ai_config.asr_check.languages, "en",
+                        ai_config.asr_check.languages["en"].model_copy(update={"mode": "strict"}))
+
+
+def test_compare_flags_a_skipped_phrase_even_with_low_error_rate(strict_english):
     script = " ".join(f"w{i}" for i in range(100))
     heard = " ".join(f"w{i}" for i in range(100) if not 40 <= i < 44)
     r = compare_transcript(script, heard, "en")
@@ -185,7 +191,7 @@ def test_compare_flags_a_skipped_phrase_even_with_low_error_rate():
     assert r["diffs"][0]["type"] == "missing"
 
 
-def test_compare_flags_invented_words():
+def test_compare_flags_invented_words(strict_english):
     r = compare_transcript("the car was found", "the red car was found near the old river", "en")
     assert not r["passed"]
 
@@ -265,7 +271,7 @@ def test_unchanged_blocks_are_never_paid_twice(workdir):
     assert m["characters_paid"] == len(blocks[1]["text"])
 
 
-def test_failed_speech_check_triggers_a_new_take(workdir):
+def test_failed_speech_check_triggers_a_new_take(workdir, strict_english):
     tts = FakeTTS()
     seed = ai_config.voice.seed
     m = _render(VoiceRenderer(provider=tts, asr=FakeASR(drop_for_seeds={seed})),
@@ -276,7 +282,16 @@ def test_failed_speech_check_triggers_a_new_take(workdir):
     assert b["asr"]["passed"] and m["flags"] == []
 
 
-def test_block_failing_every_take_is_flagged(workdir):
+def test_english_speech_check_only_warns_and_never_retakes(workdir):
+    tts = FakeTTS()
+    seed = ai_config.voice.seed
+    m = _render(VoiceRenderer(provider=tts, asr=FakeASR(drop_for_seeds={seed})),
+                [_block("EN_a_01", "act1", TEXT_A)])
+    assert [r.seed for r in tts.requests] == [seed]           # skipped words are no name or number
+    assert m["blocks"][0]["attempts"] == 1 and m["flags"] == []
+
+
+def test_block_failing_every_take_is_flagged(workdir, strict_english):
     seed = ai_config.voice.seed
     asr = FakeASR(drop_for_seeds={seed + i for i in range(5)})
     m = _render(VoiceRenderer(provider=FakeTTS(), asr=asr),

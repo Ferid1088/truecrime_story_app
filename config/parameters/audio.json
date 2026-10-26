@@ -144,13 +144,21 @@
         "model": "large-v3-turbo",
         "max_word_error_rate": 0.2,
         "max_missing_run": 4,
-        "spelling_variant_similarity": 70
+        "spelling_variant_similarity": 70,
+        "mode": "strict"
       },
       "ar": {
         "model": "large-v3-turbo",
         "max_word_error_rate": 0.2,
         "max_missing_run": 4,
-        "spelling_variant_similarity": 70
+        "spelling_variant_similarity": 70,
+        "mode": "strict"
+      },
+      "en": {
+        "mode": "warn"
+      },
+      "de": {
+        "mode": "warn"
       }
     }
   },
