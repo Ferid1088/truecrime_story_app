@@ -365,8 +365,8 @@ def add_fact_cards(shots: list[dict], window_len: float, beat: dict, counts: dic
     cfg = ai_config.mvp().cards
     queue: list[tuple[str, dict]] = [("quote", q) for q in beat.get("quotes", [])]
     queue += [("conflict", c) for c in beat.get("conflicts", [])]
-    if beat.get("facts"):
-        queue.append(("facts", {"items": beat["facts"]}))
+    facts = beat.get("facts") or []
+    queue += [("facts", {"items": facts[i:i + 3]}) for i in range(0, len(facts), 3)]
     for gap in [s for s in shots if s.get("gap") and s["share"] * window_len >= cfg.min_gap_seconds]:
         pick = next(((k, p) for k, p in queue if counts.get(k, 0) < cfg.max_per_film.get(k, 0)), None)
         if pick is None and quotable(gap.get("said", "")) and counts.get("text", 0) < cfg.max_per_film["text"]:

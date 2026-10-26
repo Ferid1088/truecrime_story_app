@@ -54,13 +54,13 @@
     },
     "cards": {
       "max_per_film": {
-        "quote": 20,
+        "quote": 30,
         "conflict": 4,
-        "facts": 25,
-        "text": 12
+        "facts": 80,
+        "text": 25
       },
       "card_seconds": 8.0,
-      "max_hold_seconds": 30.0,
+      "max_hold_seconds": 40.0,
       "min_gap_seconds": 5.0
     }
   }

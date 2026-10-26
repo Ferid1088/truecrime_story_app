@@ -219,7 +219,7 @@ def beat_cards_from_evidence(db: Session, case: Case, bp_row: EditorialBlueprint
                 match = re.search(r'[\u201c"]([^"\u201d]{12,220})[\u201d"]', fact["claim"])
                 if match:
                     entry["quotes"].append({"text": match.group(1).strip(), "speaker": fact.get("speaker")})
-            elif fact and not fact.get("disputed") and not fact.get("uncertain") and len(entry["facts"]) < 3:
+            elif fact and not fact.get("disputed") and not fact.get("uncertain") and len(entry["facts"]) < 9:
                 entry["facts"].append(fact["claim"][:170])
             if conflict:
                 entry["conflicts"].append({"topic": conflict["topic"][:160],
