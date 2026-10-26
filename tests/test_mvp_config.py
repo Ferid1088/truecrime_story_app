@@ -30,4 +30,7 @@ def test_search_rounds_are_one_initial_and_two_further():
 def test_a_status_cannot_both_approve_and_never_approve():
     with pytest.raises(ValueError, match="both approve"):
         MvpVerificationConfig(escalate_conflicts_to_second_verifier=True, transient_failure_retries=1,
+                              min_confidence_exact_person=0.8, min_confidence_other=0.6, min_quality=0.3,
+                              max_candidates_per_requirement=5, max_requirements_per_asset=3,
+                              rights_profile="preview",
                               approving_statuses=["approved"], never_approving_statuses=["approved"])

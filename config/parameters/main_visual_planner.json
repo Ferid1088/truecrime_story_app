@@ -27,7 +27,13 @@
         "unknown",
         "needs_review",
         "transient_failure"
-      ]
+      ],
+      "min_confidence_exact_person": 0.85,
+      "min_confidence_other": 0.7,
+      "min_quality": 0.35,
+      "max_candidates_per_requirement": 12,
+      "max_requirements_per_asset": 6,
+      "rights_profile": "preview"
     },
     "review": {
       "state_machine": [

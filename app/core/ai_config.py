@@ -2866,6 +2866,12 @@ class MvpCoverageConfig(BaseModel):
 class MvpVerificationConfig(BaseModel):
     escalate_conflicts_to_second_verifier: bool
     transient_failure_retries: int = Field(ge=0)
+    min_confidence_exact_person: float = Field(gt=0.0, le=1.0)
+    min_confidence_other: float = Field(gt=0.0, le=1.0)
+    min_quality: float = Field(ge=0.0, le=1.0)
+    max_candidates_per_requirement: int = Field(ge=1)
+    max_requirements_per_asset: int = Field(ge=1)
+    rights_profile: str
     approving_statuses: list[str] = Field(min_length=1)
     never_approving_statuses: list[str] = Field(min_length=1)
 

@@ -517,6 +517,27 @@
       "output": "json",
       "description": "Checks each factual finding of the evidence audit against the evidence and gives the smallest edit for the confirmed ones.",
       "used_by": "app/language_pipeline/stages.py"
+    },
+    "mvp.needs": {
+      "role": "mvp_needs_planner",
+      "prompt": "documentary/mvp/needs_system",
+      "output": "json",
+      "description": "Main Visual Planner step 4: graph-aware visual needs per beat.",
+      "used_by": "app/documentary/mvp/needs.py"
+    },
+    "mvp.verify": {
+      "role": "mvp_candidate_verifier",
+      "prompt": "documentary/mvp/verify_system",
+      "output": "json",
+      "description": "Main Visual Planner step 8: one picture judged against the entities the film needs.",
+      "used_by": "app/documentary/mvp/verify.py"
+    },
+    "mvp.verify_second": {
+      "role": "mvp_second_verifier",
+      "prompt": "documentary/mvp/verify_system",
+      "output": "json",
+      "description": "Independent second verifier for an uncertain exact-identity judgement.",
+      "used_by": "app/documentary/mvp/verify.py"
     }
   }
 }
