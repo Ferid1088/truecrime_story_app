@@ -53,7 +53,8 @@ def test_build_candidates_is_idempotent_and_capped(db_session):
     first = L.build_candidates(db_session, plan, reqs)
     second = L.build_candidates(db_session, plan, reqs)
     assert first["created"] == 12 and second["created"] == 0 and second["reused"] == 12
-    assert db_session.query(MvpCandidate).count() == 12
+    requirement = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id).one()
+    assert db_session.query(MvpCandidate).filter_by(requirement_id=requirement.id).count() == 12
 
 
 def test_reset_clears_old_decisions_but_keeps_files_and_mvp_plans(db_session):
