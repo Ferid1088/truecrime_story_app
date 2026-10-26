@@ -105,7 +105,7 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
         "place": usage_place(place, returns), "place_name": place, "return": returns,
         "lat": target[0], "lon": target[1], "granularity": info.get("granularity"),
         "route_from": other, "seconds": res.seconds, "frames": res.frames,
-        "fps": render.fps, "size": [width, render.height], "step_times": step_times(plan, info, width, render),
+        "fps": render.fps, "size": [width, render.height], "step_times": step_times(plan, info, width, render), "camera": camera_curve(plan, width, render),
         "attribution": attribution, "imagery": res.imagery,
         "imagery_best_zoom": REG.best_zoom(*target, cfg),
         "vector_data": {k: extract[k] for k in ("build", "source", "bbox", "created", "licence")},
@@ -128,6 +128,14 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
     db.add(a)
     db.commit()
     return a
+
+
+def camera_curve(plan: CAM.ZoomPlan, width: int, render, every: int = 5) -> list[dict]:
+    """The camera sampled along the shot (every few frames), for the labels drawn on the map beside the panel."""
+    frames = CAM.frames(plan, render.fps, width, render.height)
+    return [{"t": round(i / render.fps, 3), "zoom": round(fr.camera.zoom, 4), "lon": round(fr.camera.lon, 6),
+             "lat": round(fr.camera.lat, 6), "pitch": fr.camera.pitch, "bearing": fr.camera.bearing}
+            for i, fr in enumerate(frames) if i % every == 0]
 
 
 def step_times(plan: CAM.ZoomPlan, info: dict, width: int, render) -> list[float]:
@@ -160,7 +168,8 @@ def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) ->
                 "motion": "NONE", "marker": spec.get("marker"), "attribution": spec["attribution"],
                 "map_variant": spec["variant"]}
             if reached:
-                fields["panel"] = {"names": [n for n, _ in reached], "step_times": [t for _, t in reached]}
+                fields["panel"] = {"names": [n for n, _ in reached], "step_times": [t for _, t in reached],
+                                   "camera": spec.get("camera") or [], "target": [spec["lat"], spec["lon"]]}
             return {"fields": fields}
     return None
 

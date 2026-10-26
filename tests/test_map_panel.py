@@ -27,15 +27,30 @@ def test_each_place_becomes_current_at_its_zoom_level_and_the_last_at_the_closes
 def test_the_map_takes_its_share_of_the_frame_and_the_panel_the_rest():
     width = PANEL.map_width(1920)
     assert abs(width / 1920 - ai_config.zoom().panel["map_share"]) < 0.01 and width % 2 == 0
-    names, attribution = ["United States", "Ohio", "Tipp City", "Cunningham Court"], ["© OpenStreetMap contributors"]
+    attribution = ["\u00a9 OpenStreetMap contributors"]
+    panel = {"names": ["United States", "Ohio", "Tipp City", "Cunningham Court"], "target": [39.96, -84.18],
+             "camera": [{"t": t, "zoom": z, "lon": -84.18, "lat": 39.96, "pitch": 0.0, "bearing": 0.0}
+                        for t, z in ((0.0, 2.0), (3.0, 6.0), (6.0, 10.0), (9.0, 15.0))]}
     map_frame = np.full((1080, width, 3), 90, np.uint8)
-    en = PANEL.MapPanel("en", names, attribution).compose(map_frame, 0.5, [0.0, 3.0, 6.0, 9.0], 1920)
-    fa = PANEL.MapPanel("fa", names, attribution).compose(map_frame, 0.5, [0.0, 3.0, 6.0, 9.0], 1920)
+    times = [0.0, 3.0, 6.0, 9.0]
+    en = PANEL.MapPanel("en", panel, "Cunningham Court, Ohio", attribution).compose(map_frame, 0.5, times, 1920)
+    fa = PANEL.MapPanel("fa", panel, "Cunningham Court, Ohio", attribution).compose(map_frame, 0.5, times, 1920)
     assert en.shape == fa.shape == (1080, 1920, 3)
-    assert (en[:, :width] == 90).all() and (fa[:, 1920 - width:] == 90).all()      # the map is mirrored with the page
-    later = PANEL.MapPanel("en", names, attribution).compose(map_frame, 9.5, [0.0, 3.0, 6.0, 9.0], 1920)
+    assert (en[600:, :width] == 90).all() and (fa[600:, 1920 - width:] == 90).all()   # the map is mirrored with the page
+    later = PANEL.MapPanel("en", panel, "Cunningham Court, Ohio", attribution).compose(map_frame, 9.5, times, 1920)
     assert not np.array_equal(en[:, width:], later[:, width:])                        # the lit place changed
-    assert np.array_equal(later[:, :width], map_frame)                                # the map itself is untouched
+    assert not np.array_equal(later[:600, :width], map_frame[:600])                   # level label and place card on the map
+    assert np.array_equal(en[600:, :width], map_frame[600:])                          # the rest of the map is untouched
+
+
+def test_the_map_names_its_level_and_scale_and_projects_the_marked_place():
+    assert PANEL.level_keys(4) == list(PANEL.LEVELS) and PANEL.level_keys(2) == ["level_country", "level_place"]
+    assert PANEL.level_keys(1) == ["level_place"]
+    assert PANEL.scale_text(15.0, 40.0).startswith("1:") and PANEL.scale_text(3.0, 40.0).startswith("1:")
+    camera = {"zoom": 12.0, "lon": -84.18, "lat": 39.96}
+    assert PANEL.project(-84.18, 39.96, camera, 1248, 1080) == (624.0, 540.0)
+    x, y = PANEL.project(-84.17, 39.97, camera, 1248, 1080)
+    assert x > 624.0 and y < 540.0                                                   # east of centre, north is up
 
 
 def test_a_zoom_shot_carries_the_places_the_camera_really_reaches(monkeypatch):

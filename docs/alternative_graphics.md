@@ -3,6 +3,16 @@
 What the film shows when no approved picture or video fits a moment. Design source: `docs/alternavie_options.pdf`;
 plan and requirement list: `docs/ALTERNATIVE_GRAPHICS_PLAN.md`.
 
+## Design reference
+
+The looks follow the owner's six design pictures (timeline, map zoom, floor plan, document card, recap board, conflict
+page, conflict board). Deliberate differences: the conflict label is red with a colon (owner instruction of 2026-10-26;
+the picture has it amber); a timeline node that has not been told is not drawn (spoiler rule; the picture greys it);
+the "not yet told" slots and the "N of M told" counter of the conflict board are off unless `conflict_board.show_total`
+(they reveal how many conflicts the film has); the recap draws only the sections that have items; the
+"SAMPLE ..." footers of the pictures are design notes and never appear in a film; the route chip of the map picture
+("[TIME] · LAST SEEN") needs a timed fact and is not drawn.
+
 ## Rules
 
 - Made by code from stored evidence; never a generated picture, never placeholder text. If the data is incomplete
@@ -27,9 +37,9 @@ plan and requirement list: `docs/ALTERNATIVE_GRAPHICS_PLAN.md`.
 | `key_facts` | up to 3 figures (numbers, times) as large text | one per fact | stated facts with a figure; caption = agent `mvp.copy` line that keeps every figure |
 | `quote` | a verified quotation with who said it | the quote | approved quotes; only complete quotations |
 | `headline` | a real newspaper headline with newspaper and date | the headline | case sources that are listed newspapers (`headline.source_names`); earliest beat by agent `mvp.headline` |
-| `document` | verbatim words of a court/police document with source, filing date, page | highlight wipe | an official stored document; quote checked character for character (`verify_verbatim`) |
-| `floor_plan` | rooms with numbered markers | one per marker | only a real plan in the case sources; never invented |
-| map panel | country → region → town → place beside the zoom-in map | the camera's own zoom level | geocoder address; the map video is rendered at `zoom_map.panel.map_share` of the frame |
+| `document` | verbatim words of a court record with its type, issuer and date | highlight wipe | a verified quotation that stands word for word in an official stored source (`verify_verbatim`); otherwise the quote card |
+| `floor_plan` | rooms, doors, entrances with numbered markers and a legend | one per marker | only a real plan in the case sources (rooms on a grid, from the stored plan); never invented. Case 15 has no plan source, so it is not offered |
+| map page | the zoom-in map (65 % of the frame) with its level and scale label and the card naming the marked place, beside a panel of country → region → town → place | the camera's own zoom level | geocoder address; the map video is rendered at `zoom_map.panel.map_share` of the frame |
 
 The detective board keeps its own renderer and now carries its name ("DETECTIVE BOARD" / DETEKTIVTAFEL / تابلوی کارآگاه /
 لوحة المحقق) on a plate above the notes.

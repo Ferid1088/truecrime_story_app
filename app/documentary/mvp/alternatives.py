@@ -14,6 +14,7 @@ from app.documentary.graphics import dates
 from app.documentary.graphics import shots as GS
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import GraphicUnavailable
+from app.documentary.graphics.document import verify_verbatim
 from app.documentary.graphics.keyfacts import extract
 from app.documentary.graphics.registry import graphic
 from app.documentary.mvp import headlines as HL
@@ -50,6 +51,7 @@ class Evidence:
     narration: dict[str, str]
     starts: dict[str, float]
     total_seconds: float
+    official: dict[int, dict] = field(default_factory=dict)   # source id -> official source with its stored text
     notes: list[str] = field(default_factory=list)
 
 
@@ -166,11 +168,27 @@ def quote_offers(ev: Evidence) -> list[Offer]:
         if beat is None or text.lower() in seen:
             continue
         seen.add(text.lower())
-        data = {"text": text, "fact_id": q["fact_id"], **({"speaker": q["speaker"]} if q.get("speaker") else {})}
-        made = offer("quote", f"quote|{q['fact_id']}", data, beat, items=(q["fact_id"],))
+        made = document_offer(ev, q, beat) or offer(
+            "quote", f"quote|{q['fact_id']}",
+            {"text": text, "fact_id": q["fact_id"], **({"speaker": q["speaker"]} if q.get("speaker") else {})},
+            beat, items=(q["fact_id"],))
         if made:
             out.append(made)
     return out
+
+
+def document_offer(ev: Evidence, quote: dict, beat: int) -> Offer | None:
+    """A quotation that stands word for word in an official source (a court record) is shown as that document's
+    page: its type, issuer and date from the stored source, the quote checked against the stored text."""
+    for sid, src in ev.official.items():
+        if verify_verbatim(src["text"], quote["text"]):
+            parsed = HL.parse_date(src.get("published_at"))
+            data = {"document": {"id": sid, "type": src["type"], "issuer": src["issuer"], "language": src["language"],
+                                 **({"date": " ".join(dates.display(parsed, "en")).strip()} if parsed else {})},
+                    "quote": {"text": quote["text"], "fact_id": quote["fact_id"], "verified": True},
+                    "context_before": [], "context_after": [], "redactions": []}
+            return offer("document", f"document|{quote['fact_id']}", data, beat, items=(quote["fact_id"],))
+    return None
 
 
 def key_fact_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:

@@ -74,3 +74,15 @@ def headline() -> dict:
     return {"headline": "Four students found dead in off-campus home", "source": "The New York Times",
             "url": "https://www.nytimes.com/2022/11/14/us/idaho.html", "published": {"year": 2022, "month": 11, "day": 14},
             "fact_id": "F1", "language": "en"}
+
+
+def floor_plan() -> dict:
+    return {"title": "Inside the house", "source": {"document_id": 4, "page": 2, "name": "Police report"},
+            "rooms": [{"id": "a", "label": "Room A", "x": 0, "y": 0, "w": 4, "h": 5},
+                      {"id": "b", "label": "Room B", "x": 4, "y": 0, "w": 4, "h": 5},
+                      {"id": "k", "label": "Kitchen", "x": 4, "y": 5, "w": 4, "h": 4},
+                      {"id": "l", "label": "Living area", "x": 0, "y": 5, "w": 4, "h": 4}],
+            "doors": [{"x": 2, "y": 5, "w": 1, "axis": "h"}], "entrances": [{"x": 5, "y": 9, "w": 1, "axis": "h"}],
+            "markers": [{"kind": "found", "room": "a", "text": TEXT["en"]["fact"], "fact_id": "F1"},
+                        {"kind": "entry", "room": "k", "text": TEXT["en"]["sum"], "fact_id": "F2"},
+                        {"kind": "witness", "room": "l", "text": TEXT["en"]["open"], "fact_id": "F3"}]}

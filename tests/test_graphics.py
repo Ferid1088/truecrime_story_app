@@ -22,14 +22,15 @@ GOLDEN = Path(__file__).parent / "golden" / "graphics"
 def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
     data = {"conflict": S.conflict(language), "conflict_board": S.board(language), "recap": S.recap(language),
             "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
-            "headline": S.headline(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
+            "headline": S.headline(), "floor_plan": S.floor_plan(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
                                                 "fact_id": "F1"}}[kind]
     cues = {"conflict": [2, 6, 10], "conflict_board": [2], "recap": [2, 6, 10], "timeline": [2, 5, 8],
-            "key_facts": [2, 5], "document": [2], "headline": [2], "quote": [2]}[kind]
+            "key_facts": [2, 5], "document": [2], "headline": [2], "quote": [2],
+            "floor_plan": [2, 5, 8]}[kind]
     return data, 16.0, [float(c) for c in cues]
 
 
-KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote")
+KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote", "floor_plan")
 
 
 def thumb(image: Image.Image) -> np.ndarray:
@@ -93,8 +94,9 @@ def test_persian_and_arabic_pages_are_mirrored():
     def blue_x(language):
         data, duration, cues = sample("conflict", language)
         frame = graphic("conflict").render(data, duration, cues, language).frame_at(duration - 1)
-        row = frame[425:432, :, :].astype(int)          # the cards' coloured top rules
-        mask = (row[:, :, 2] > 150) & (row[:, :, 0] < 140)    # the blue rule
+        hexa = ai_config.graphics_settings().colors["blue"].lstrip("#")
+        rgb = np.array([int(hexa[i:i + 2], 16) for i in (0, 2, 4)])
+        mask = (np.abs(frame[250:520].astype(int) - rgb).sum(axis=2) < 12)        # the first side's rule
         return np.argwhere(mask.any(axis=0)).mean()
     assert blue_x("en") < 960 < blue_x("fa") and blue_x("en") < 960 < blue_x("ar")
 
@@ -172,10 +174,11 @@ def test_the_floor_plan_is_never_invented():
         graphic("floor_plan").render({"rooms": [{"id": "a", "label": "A", "x": 0, "y": 0, "w": 1, "h": 1}],
                                       "markers": [{"kind": "found", "room": "a", "text": "t", "fact_id": "F"}]},
                                      16.0, [2.0], "en")
-    plan = {"source": {"document_id": 4, "page": 2, "name": "Police report"},
-            "rooms": [{"id": "a", "label": "Room A", "x": 0, "y": 0, "w": 2, "h": 2}],
-            "markers": [{"kind": "found", "room": "a", "text": "Found here.", "fact_id": "F1"}]}
-    assert graphic("floor_plan").render(plan, 12.0, [2.0], "en").image_at(8.0).size == (1920, 1080)
+    plan = S.floor_plan()
+    plan["doors"] = [{"x": 2, "y": 5, "axis": "x"}]
+    with pytest.raises(GraphicUnavailable, match="axis"):
+        graphic("floor_plan").render(plan, 16.0, [2.0, 5.0, 8.0], "en")
+    assert graphic("floor_plan").render(S.floor_plan(), 16.0, [2.0, 5.0, 8.0], "en").image_at(14.0).size == (1920, 1080)
 
 
 def test_the_board_lists_one_to_twelve_conflicts_and_names_the_new_one():

@@ -1,5 +1,5 @@
 """Floor plan: a building room by room with numbered markers, drawn only from a real plan in the case sources
-(rooms and markers come from the stored document) - never from an invented layout."""
+(rooms, doors and markers come from the stored document) - never from an invented layout."""
 
 from __future__ import annotations
 
@@ -13,8 +13,11 @@ from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
 from app.documentary.graphics.page import Page
 
-GRID_LEFT, GRID_TOP, GRID_W, GRID_H = 120, 330, 1100, 600
+PLAN_LEFT, PLAN_TOP, PLAN_W, PLAN_H = 120, 280, 1120, 680
+SIDE_LEFT, SIDE_W = 1340, 460
+WALL, INNER_WALL, MARKER = 8, 4, 40
 KIND_COLOR = {"found": "amber", "entry": "red", "witness": "blue"}
+CREAM = (238, 232, 220)
 
 
 class FloorPlan(Graphic):
@@ -33,6 +36,10 @@ class FloorPlan(Graphic):
             if not (r.get("id") and r.get("label")) or not all(isinstance(r.get(k), int) for k in ("x", "y", "w", "h")):
                 return "every room needs an id, a label and a rectangle on the grid"
             ids.add(r["id"])
+        for d in [*(data.get("doors") or []), *(data.get("entrances") or [])]:
+            if not (isinstance(d.get("x"), int) and isinstance(d.get("y"), int) and isinstance(d.get("w"), int)
+                    and d.get("axis") in ("h", "v")):
+                return "a door or entrance needs a position on the grid, a length and an axis (h or v)"
         if not 1 <= len(markers) <= cfg["max_markers"]:
             return f"1 to {cfg['max_markers']} markers"
         for n, mk in enumerate(markers, 1):
@@ -53,46 +60,67 @@ class FloorPlan(Graphic):
 def _plan(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     page = Page(language)
-    parts.header(page, T.label(language, "floor_plan"), T.rgb("amber"), data.get("title") or T.label(language, "floor_plan"),
-                 T.size("title_small"), lines_max=1)
+    parts.header(page, T.label(language, "floor_plan"), T.rgb("amber"),
+                 data.get("title") or T.label(language, "floor_plan"), 108, lines_max=1)
     rooms = {r["id"]: r for r in data["rooms"]}
     cols = max(r["x"] + r["w"] for r in rooms.values())
     rows = max(r["y"] + r["h"] for r in rooms.values())
-    cell = min(GRID_W // cols, GRID_H // rows)
+    cw, ch = PLAN_W / cols, PLAN_H / rows
+
+    def px(gx: float, gy: float) -> tuple[float, float]:
+        return PLAN_LEFT + gx * cw, PLAN_TOP + gy * ch
+
+    page.rect(PLAN_LEFT, PLAN_TOP, PLAN_W, PLAN_H, fill=T.rgb("card"))
+    grid = (28, 36, 44)
+    for gx in range(cols * 2 + 1):                      # a faint drawing grid, as on plan paper
+        page.vline(PLAN_LEFT + gx * cw / 2, PLAN_TOP, PLAN_H, grid, 1)
+    for gy in range(rows * 2 + 1):
+        page.hline(PLAN_LEFT, PLAN_TOP + gy * ch / 2, PLAN_W, grid, 1)
+    for r in rooms.values():                            # inner walls first, the outer wall over them
+        x0, y0 = px(r["x"], r["y"])
+        page.rect(x0, y0, r["w"] * cw, r["h"] * ch, outline=CREAM, line=INNER_WALL)
+    page.rect(PLAN_LEFT, PLAN_TOP, PLAN_W, PLAN_H, outline=CREAM, line=WALL)
+    for door in data.get("doors") or []:                # a gap in the wall
+        x0, y0 = px(door["x"], door["y"])
+        if door["axis"] == "h":
+            page.rect(x0, y0 - 6, door["w"] * cw, 12, fill=T.rgb("card"))
+        else:
+            page.rect(x0 - 6, y0, 12, door["w"] * ch, fill=T.rgb("card"))
+    for gate in data.get("entrances") or []:            # where people came in, on the outer wall
+        x0, y0 = px(gate["x"], gate["y"])
+        if gate["axis"] == "h":
+            page.rect(x0, y0 - 12, gate["w"] * cw, 24, fill=T.rgb("amber"))
+        else:
+            page.rect(x0 - 12, y0, 24, gate["w"] * ch, fill=T.rgb("amber"))
     for r in rooms.values():
-        left, top = GRID_LEFT + r["x"] * cell, GRID_TOP + r["y"] * cell
-        page.rect(left, top, r["w"] * cell, r["h"] * cell, fill=T.rgb("card"), outline=T.rgb("ink"), line=4)
-        page.text(left + 14, top + 10, r["w"] * cell - 28, r["label"], "mono", 24, T.rgb("grey"), lines_max=1,
+        x0, y0 = px(r["x"], r["y"])
+        page.text(x0 + 28, y0 + 26, int(r["w"] * cw) - 56, r["label"], "mono", 26, T.rgb("grey"), lines_max=1,
                   min_px=16, upper=True)
-    centers = {}
     for n, mk in enumerate(data["markers"], 1):
+        if step < n:
+            continue
         r = rooms[mk["room"]]
-        cx = GRID_LEFT + r["x"] * cell + r["w"] * cell // 2 + (n % 2) * 30
-        cy = GRID_TOP + r["y"] * cell + r["h"] * cell // 2 + 14
-        centers[n] = (cx, cy)
-        if step >= n:
-            color = T.rgb(KIND_COLOR[mk["kind"]])
-            page.disc(cx, cy, 26, color, halo=38, halo_alpha=80)
-            page.text(cx - 26, cy - 22, 52, str(n), "title_medium", 42, T.rgb("ground"), align="center", lines_max=1,
-                      spacing=1.0)
-    left_panel = GRID_LEFT + GRID_W + 60
-    panel_w = page.W - left_panel - page.margin
-    page.rect(left_panel, GRID_TOP, panel_w, 250, fill=T.rgb("card"))
-    page.tracked(left_panel + 30, GRID_TOP + 24, T.label(language, "legend"), "mono", 24, T.rgb("grey"), 4)
-    y = GRID_TOP + 80
+        x0, y0 = px(r["x"], r["y"])
+        cx = x0 + r["w"] * cw * (0.5 + 0.18 * (-1) ** n * (n % 2)) if n % 2 else x0 + r["w"] * cw * 0.5
+        cy = y0 + r["h"] * ch * 0.56
+        color = T.rgb(KIND_COLOR[mk["kind"]])
+        page.disc(cx, cy, MARKER, color, halo=54, halo_alpha=80)
+        page.text(cx - MARKER, cy - 27, 2 * MARKER, str(n), "title_medium", 44, T.rgb("ground"), align="center",
+                  lines_max=1, spacing=1.0)
+    page.rect(SIDE_LEFT, PLAN_TOP, SIDE_W, 318, fill=T.rgb("card"), outline=T.rgb("rule"), line=2)
+    page.tracked(SIDE_LEFT + 50, PLAN_TOP + 38, T.label(language, "legend"), "mono", 26, T.rgb("grey"), 5)
+    y = PLAN_TOP + 112
     for kind in T.config().floor_plan["legend_kinds"]:
-        page.disc(left_panel + 46, y + 18, 13, T.rgb(KIND_COLOR[kind]))
-        page.text(left_panel + 80, y, panel_w - 100, T.label(language, kind), "body", 32, T.rgb("ink"), lines_max=1,
+        page.disc(SIDE_LEFT + 64, y + 22, 14, T.rgb(KIND_COLOR[kind]))
+        page.text(SIDE_LEFT + 102, y, SIDE_W - 130, T.label(language, kind), "body", 38, T.rgb("ink"), lines_max=1,
                   min_px=22)
-        y += 54
+        y += 64
     if step >= 1:
-        mk = data["markers"][min(step, len(data["markers"])) - 1]
-        page.rect(left_panel, GRID_TOP + 300, 6, 220, fill=T.rgb("amber"))
-        page.tracked(left_panel + 30, GRID_TOP + 300, f"{T.label(language, 'point')} {min(step, len(data['markers']))}",
-                     "mono", 24, T.rgb("amber"), 4)
-        page.text(left_panel + 30, GRID_TOP + 340, panel_w - 40, mk["text"], "body", 36, T.rgb("ink"), lines_max=5,
-                  min_px=26, spacing=1.25)
-    page.text(page.margin, 970, page.W - 2 * page.margin,
-              f"{T.label(language, 'schematic')} · {data['source'].get('name', '')}".strip(" ·"), "mono", 22,
-              T.rgb("grey"), lines_max=1, min_px=16)
+        n = min(step, len(data["markers"]))
+        page.rect(SIDE_LEFT, 680, 6, 266, fill=T.rgb("amber"))
+        page.tracked(SIDE_LEFT + 54, 718, f"{T.label(language, 'point')} {n}", "mono", 26, T.rgb("amber"), 5)
+        page.text(SIDE_LEFT + 54, 756, SIDE_W - 60, data["markers"][n - 1]["text"], "body", 40, T.rgb("ink"),
+                  lines_max=4, min_px=26, spacing=1.3)
+    footer = f"{T.label(language, 'schematic')} · {data['source'].get('name', '')}".strip(" ·")
+    page.text(page.margin, 1002, page.W - 2 * page.margin, footer, "mono", 24, T.rgb("grey"), lines_max=1, min_px=14)
     return page.done()

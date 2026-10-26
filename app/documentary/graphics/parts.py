@@ -7,11 +7,11 @@ from app.documentary.graphics.page import Page
 
 
 def header(page: Page, label: str, label_color, title: str, title_px: int | None = None, lines_max: int = 2,
-           top: int = 130, width: int | None = None) -> int:
+           top: int = 88, width: int | None = None) -> int:
     """Small spaced label over a large condensed title; returns the y below the title."""
     if label:
         page.tracked(page.margin, top, label, "mono", T.size("label"), label_color, 5)
-    return page.text(page.margin, top + (52 if label else 20), width or page.width_inside(), title, "title",
+    return page.text(page.margin, top + (36 if label else 8), width or page.width_inside(), title, "title",
                      title_px or T.size("title"), T.rgb("ink"), lines_max=lines_max, min_px=60, spacing=1.02,
                      upper=True)
 

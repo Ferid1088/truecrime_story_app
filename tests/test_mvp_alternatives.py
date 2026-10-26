@@ -524,3 +524,18 @@ def test_a_recap_does_not_list_two_facts_that_say_the_same():
              "F3": "A refrigerator blocked the garage entry"}
     recap = AL.recap_offers(ev, lines, {}, set())[0]
     assert [x["fact_id"] for x in recap.data["confirmed"]] == ["F1", "F3"]
+
+
+def test_a_quotation_found_word_for_word_in_a_court_record_is_shown_as_that_document():
+    record = "The judge said: I did not kill my wife! The court then adjourned for the day."
+    ev = evidence(facts={"F1": {"claim": "x"}, "F2": {"claim": "y"}}, quotes=[
+        {"text": "I did not kill my wife!", "fact_id": "F1", "beat": "B03", "speaker": "Caleb Flynn"},
+        {"text": "It was never my gun.", "fact_id": "F2", "beat": "B04", "speaker": "Caleb Flynn"}],
+        official={7: {"text": record, "type": "LIVE UPDATES: the sentencing hearing", "issuer": "Courtroom Insider",
+                      "published_at": "2026-10-05", "language": "en"}})
+    ev.beats[2]["reveals"], ev.beats[3]["reveals"] = ["F1"], ["F2"]
+    offers = {o.key: o for o in AL.quote_offers(ev)}
+    page = offers["document|F1"]
+    assert page.kind == "document" and page.data["document"]["id"] == 7 and page.data["quote"]["verified"] is True
+    assert page.data["document"]["date"].startswith("OCT 5") and page.data["context_before"] == []
+    assert offers["quote|F2"].kind == "quote"                         # not in any record: an ordinary quote card

@@ -232,7 +232,15 @@
         "detective_board": "DETECTIVE BOARD",
         "quote": "ON THE RECORD",
         "step": "STEP",
-        "map_title": "WHERE IT HAPPENED"
+        "map_title": "WHERE IT HAPPENED",
+        "told_of": "{n} of {total} told",
+        "level_country": "COUNTRY LEVEL",
+        "level_region": "REGION LEVEL",
+        "level_town": "TOWN LEVEL",
+        "level_place": "STREET LEVEL",
+        "the_town": "the town",
+        "marker_place": "THE PLACE",
+        "map_source": "MAP: OPEN DATA"
       },
       "de": {
         "conflict": "WIDERSPRUCH",
@@ -278,7 +286,15 @@
         "detective_board": "DETEKTIVTAFEL",
         "quote": "AUS DER AKTE",
         "step": "SCHRITT",
-        "map_title": "WO ES GESCHAH"
+        "map_title": "WO ES GESCHAH",
+        "told_of": "{n} von {total} erzählt",
+        "level_country": "LÄNDEREBENE",
+        "level_region": "REGIONSEBENE",
+        "level_town": "STADTEBENE",
+        "level_place": "STRASSENEBENE",
+        "the_town": "die Stadt",
+        "marker_place": "DER ORT",
+        "map_source": "KARTE: OFFENE DATEN"
       },
       "fa": {
         "conflict": "تضاد",
@@ -324,7 +340,15 @@
         "detective_board": "تابلوی کارآگاه",
         "quote": "از پرونده",
         "step": "مرحله",
-        "map_title": "جایی که رخ داد"
+        "map_title": "جایی که رخ داد",
+        "told_of": "{n} از {total} روایت‌شده",
+        "level_country": "سطح کشور",
+        "level_region": "سطح منطقه",
+        "level_town": "سطح شهر",
+        "level_place": "سطح خیابان",
+        "the_town": "شهر",
+        "marker_place": "محل",
+        "map_source": "نقشه: داده‌های باز"
       },
       "ar": {
         "conflict": "تعارض",
@@ -370,7 +394,15 @@
         "detective_board": "لوحة المحقق",
         "quote": "من السجل",
         "step": "خطوة",
-        "map_title": "أين حدث ذلك"
+        "map_title": "أين حدث ذلك",
+        "told_of": "{n} من {total} رُوي",
+        "level_country": "مستوى الدولة",
+        "level_region": "مستوى المنطقة",
+        "level_town": "مستوى المدينة",
+        "level_place": "مستوى الشارع",
+        "the_town": "المدينة",
+        "marker_place": "المكان",
+        "map_source": "الخريطة: بيانات مفتوحة"
       }
     },
     "planner": {

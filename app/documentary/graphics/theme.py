@@ -19,22 +19,25 @@ FILES = {
     ("latin", "title_medium"): "BarlowCondensed-500.ttf",
     ("latin", "body"): "Newsreader-var.ttf",
     ("latin", "body_bold"): "Newsreader-var.ttf",
+    ("latin", "body_italic"): "Newsreader-Italic-var.ttf",
     ("latin", "mono"): "IBMPlexMono-400.ttf",
     ("latin", "mono_bold"): "IBMPlexMono-500.ttf",
     ("fa", "title"): "Vazirmatn-700.ttf",
     ("fa", "title_medium"): "Vazirmatn-700.ttf",
     ("fa", "body"): "Vazirmatn-400.ttf",
     ("fa", "body_bold"): "Vazirmatn-700.ttf",
+    ("fa", "body_italic"): "Vazirmatn-400.ttf",
     ("fa", "mono"): "Vazirmatn-400.ttf",
     ("fa", "mono_bold"): "Vazirmatn-700.ttf",
     ("ar", "title"): "NotoNaskhArabic-700.ttf",
     ("ar", "title_medium"): "NotoNaskhArabic-700.ttf",
     ("ar", "body"): "NotoNaskhArabic-400.ttf",
     ("ar", "body_bold"): "NotoNaskhArabic-700.ttf",
+    ("ar", "body_italic"): "NotoNaskhArabic-400.ttf",
     ("ar", "mono"): "NotoNaskhArabic-400.ttf",
     ("ar", "mono_bold"): "NotoNaskhArabic-700.ttf",
 }
-VARIABLE_WEIGHT = {"body": 400, "body_bold": 700}
+VARIABLE_WEIGHT = {"body": 400, "body_bold": 700, "body_italic": 400}
 
 
 def config() -> GraphicsConfig:

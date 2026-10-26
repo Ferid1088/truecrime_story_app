@@ -11,7 +11,7 @@ All fonts here are licensed under the SIL Open Font License 1.1
 | NotoNaskhArabic-400/700.ttf | Noto Naskh Arabic (Google) | Arabic |
 | SpecialElite-400.ttf | Special Elite (Astigmatic) | document cards |
 | BarlowCondensed-500/600.ttf | Barlow Condensed (Jeremy Tribby) | graphic titles and big numbers |
-| Newsreader-var.ttf | Newsreader (Production Type, variable weight/optical size) | graphic body text |
+| Newsreader-var.ttf, Newsreader-Italic-var.ttf | Newsreader (Production Type, variable weight/optical size) | graphic body text and quotes |
 | IBMPlexMono-400/500.ttf | IBM Plex Mono (IBM) | graphic labels and sources |
 
 The OFL allows bundling and redistribution with software; the fonts may

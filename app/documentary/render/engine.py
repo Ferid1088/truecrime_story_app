@@ -369,7 +369,8 @@ class FrameMaker:
         """A zoom map with its panel of places beside it."""
         key = ("panel", float(shot["start"]))
         if key not in self._cards:
-            self._cards[key] = PANEL.MapPanel(self.script.get("language") or "en", shot["panel"]["names"],
+            self._cards[key] = PANEL.MapPanel(self.script.get("language") or "en", shot["panel"],
+                                              str(shot.get("place_name") or shot.get("place") or ""),
                                               list(shot.get("attribution") or []))
         return self._cards[key].compose(map_frame, t - float(shot["start"]), shot["panel"]["step_times"], self.W)
 

@@ -15,7 +15,8 @@ from app.documentary.graphics.page import Page
 
 SECTIONS = ("confirmed", "disputed", "unknown")
 RULE_COLOR = {"confirmed": "amber", "disputed": "blue", "unknown": "red"}
-TOP, HEIGHT, GAP = 360, 520, 40
+TOP, HEIGHT, WIDTH, GAP = 312, 540, 520, 60
+BAR_LEFT, BAR_RIGHT, BAR_Y = 244, 1678, 951
 
 
 def sections_with_items(data: dict) -> list[str]:
@@ -56,52 +57,31 @@ class RecapBoard(Graphic):
         return _recap(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step)
 
 
-def _glyph(page: Page, kind: str, cx: float, cy: float, color) -> None:
-    """A small symbol so the section is recognisable without its colour."""
-    cx = page.W - cx if page.rtl else cx
-    d = page.d
-    if kind == "confirmed":
-        d.line([(cx - 16, cy), (cx - 5, cy + 12), (cx + 18, cy - 14)], fill=color, width=7, joint="curve")
-    elif kind == "disputed":
-        d.line([(cx - 18, cy - 14), (cx + 18, cy + 14)], fill=color, width=7)
-        d.line([(cx - 18, cy + 14), (cx + 18, cy - 14)], fill=color, width=7)
-    else:
-        d.arc((cx - 17, cy - 20, cx + 17, cy + 6), 200, 360 + 70, fill=color, width=7)
-        d.line([(cx, cy + 6), (cx, cy + 12)], fill=color, width=7)
-        d.ellipse((cx - 4, cy + 20, cx + 4, cy + 28), fill=color)
-
-
 @lru_cache(maxsize=24)
 def _recap(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     page = Page(language)
     m = page.margin
-    parts.header(page, T.label(language, "recap"), T.rgb("amber"), T.label(language, "recap_title"),
-                 T.size("title"), lines_max=1)
-    names = sections_with_items(data)
-    width = (page.W - 2 * m - GAP * (len(names) - 1)) // len(names) if len(names) > 1 else 760
-    for n, name in enumerate(names):
-        left = m + n * (width + GAP) if len(names) > 1 else m
+    parts.header(page, T.label(language, "recap"), T.rgb("amber"), T.label(language, "recap_title"), 112, lines_max=1)
+    for n, name in enumerate(sections_with_items(data)):
+        left = m + n * (WIDTH + GAP)
         shown = step >= n + 1
         color = T.rgb(RULE_COLOR[name])
-        parts.card(page, left, TOP, width, HEIGHT, color, alpha=255 if shown else 70)
+        parts.card(page, left, TOP, WIDTH, HEIGHT, color, alpha=255 if shown else 70)
         if not shown:
             continue
-        _glyph(page, name, left + 64, TOP + 78, color)
-        page.text(left + 112, TOP + 40, width - 150, T.label(language, name), "title", 62, color, lines_max=1,
+        page.text(left + 52, TOP + 62, WIDTH - 104, T.label(language, name), "title", 60, color, lines_max=1,
                   min_px=40, spacing=1.0, upper=True)
-        y = TOP + 140
+        y = TOP + 150
         for item in data[name]:
-            page.rect(left + 40, y + 20, 12, 12, fill=color)
-            y = page.text(left + 76, y, width - 116, item["text"], "body", 38, T.rgb("ink"), lines_max=3,
-                          min_px=28, spacing=1.22) + 22
+            y = page.text(left + 52, y, WIDTH - 104, item["text"], "body", 40, T.rgb("ink"), lines_max=3,
+                          min_px=28, spacing=1.35) + 26
     progress = data["progress"]
-    bar_left, bar_w, bar_y = m + 150, page.W - 2 * m - 300, 960
-    page.text(m, bar_y - 16, 140, clock(progress["elapsed_s"]), "mono", 30, T.rgb("grey"), lines_max=1)
-    page.text(page.W - m - 140, bar_y - 16, 140, clock(progress["total_s"]), "mono", 30, T.rgb("grey"),
-              align="end", lines_max=1)
-    page.rect(bar_left, bar_y, bar_w, 6, fill=T.rgb("rule"))
-    reach = int(bar_w * progress["elapsed_s"] / max(progress["total_s"], 1))
-    page.rect(bar_left, bar_y, reach, 6, fill=T.rgb("amber"))
-    page.disc(bar_left + reach, bar_y + 3, 13, T.rgb("amber"))
+    page.text(m, BAR_Y - 20, 120, clock(progress["elapsed_s"]), "mono", 28, T.rgb("grey"), lines_max=1)
+    page.text(page.W - m - 120, BAR_Y - 20, 120, clock(progress["total_s"]), "mono", 28, T.rgb("grey"), align="end",
+              lines_max=1)
+    page.rect(BAR_LEFT, BAR_Y, BAR_RIGHT - BAR_LEFT, 6, fill=T.rgb("rule"))
+    reach = int((BAR_RIGHT - BAR_LEFT) * progress["elapsed_s"] / max(progress["total_s"], 1))
+    page.rect(BAR_LEFT, BAR_Y, reach, 6, fill=T.rgb("amber"))
+    page.disc(BAR_LEFT + reach, BAR_Y + 3, 14, T.rgb("amber"))
     return page.done()
