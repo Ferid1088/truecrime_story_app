@@ -11,4 +11,4 @@ torch>=2.3
 transformers>=5.5,<6
 setuptools>=83             # torch needs it; older releases carry known advisories
 playwright>=1.49,<2          # headless Chromium for the zoom-in map shots (MapLibre)
-yt-dlp==2026.8.19  # the YouTube clip route (Unlicense); behind an owner switch, off by default
+yt-dlp==2026.10.21  # the YouTube clip route (Unlicense); behind an owner switch, off by default
