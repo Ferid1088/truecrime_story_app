@@ -538,6 +538,13 @@
       "output": "json",
       "description": "Independent second verifier for an uncertain exact-identity judgement.",
       "used_by": "app/documentary/mvp/verify.py"
+    },
+    "mvp.queries": {
+      "role": "mvp_query_planner",
+      "prompt": "documentary/mvp/queries_system",
+      "output": "json",
+      "description": "Main Visual Planner step 6: the next bounded search round for one unmet requirement.",
+      "used_by": "app/documentary/mvp/research.py"
     }
   }
 }

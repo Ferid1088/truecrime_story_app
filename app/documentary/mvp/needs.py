@@ -228,7 +228,7 @@ def store_requirements(db: Session, plan: VisualPlan, graph_id: int | None, requ
 def latest_mvp_plan(db: Session, blueprint_id: int) -> VisualPlan | None:
     rows = (db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_id)
             .order_by(VisualPlan.version.desc()).all())
-    return next((r for r in rows if json.loads(r.validation_json or "{}").get("mvp")
+    return next((r for r in rows if "mvp" in json.loads(r.validation_json or "{}")
                  and r.status != "invalid"), None)
 
 
