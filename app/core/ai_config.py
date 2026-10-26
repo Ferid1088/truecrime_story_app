@@ -2777,6 +2777,15 @@ class MvpVerificationConfig(BaseModel):
         return self
 
 
+class MvpTopupConfig(BaseModel):
+    """Coverage top-up: stored pictures no requirement named are judged for the place and context needs of
+    the beats the shot list left bare, before the film is directed again."""
+
+    max_assets: int = Field(ge=0)
+    passes: int = Field(ge=0, le=3)
+    min_relevance: float = Field(ge=0.0)
+
+
 class MvpReviewConfig(BaseModel):
     """The persisted owner-review workflow; the film is a candidate until APPROVED."""
 
@@ -2796,6 +2805,7 @@ class MainVisualPlannerConfig(BaseModel):
     shots: MvpShotsConfig
     coverage: MvpCoverageConfig
     verification: MvpVerificationConfig
+    topup: MvpTopupConfig
     review: MvpReviewConfig
 
 

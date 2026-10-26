@@ -27,7 +27,7 @@ from app.documentary.mvp import needs as ND
 from app.documentary.mvp import research as RS
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
-from app.documentary.mvp.library import build_candidates
+from app.documentary.mvp.library import build_candidates, build_gap_candidates
 from app.longform import service as LF
 from app.services.budget import BudgetService
 
@@ -169,8 +169,19 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     async def director(case_, beat, slots, pool):
         return await DR.model_director(case_, beat, slots, pool, db)
 
+    requirements = requirements_of(needs_plan)
     report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                   director if use_agent else None, target)
+    for _ in range(ai_config.mvp().topup.passes):
+        if not report["gaps"]:
+            break
+        made = build_gap_candidates(db, needs_plan, requirements, {g["beat"] for g in report["gaps"]})
+        if not made["created"]:
+            break
+        verified = await verify_pending(db, case, needs_plan, requirements)
+        report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
+                                      director if use_agent else None, target)
+        report["topup"] = {**made, "judged": verified["judged"]}
     return target, report
 
 

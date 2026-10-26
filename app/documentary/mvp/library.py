@@ -77,6 +77,46 @@ def build_candidates(db: Session, plan: VisualPlan, requirements: dict) -> dict:
     return {"created": made, "reused": reused, "requirements_without_candidates": starved}
 
 
+CONTEXT_TYPES = ("place", "building", "event", "object", "vehicle", "document", "organization")
+
+
+def build_gap_candidates(db: Session, plan: VisualPlan, requirements: dict, gap_beats: set[str]) -> dict:
+    """The coverage top-up: stored pictures that were never judged (no requirement named them) become
+    candidates for the place/context requirements of the beats the shot list left bare. A person is never
+    attached this way; each picture is judged once for at most max_requirements_per_asset entities."""
+    cfg = ai_config.mvp()
+    entities = {e["key"]: e for e in requirements["entities"] if e.get("type") in CONTEXT_TYPES}
+    reqs = [r for r in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id,
+                                                       MvpRequirement.beat_id.in_(gap_beats))
+            if r.entity_key in entities and "context" in (json.loads(r.spec_json or "{}")
+                                                           .get("acceptable_roles") or [r.role_needed])]
+    judged = {c.visual_asset_id for r in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id)
+              for c in r.candidates}
+    assets = [a for a in db.query(VisualAsset).filter(
+        VisualAsset.case_id == plan.case_id, VisualAsset.asset_type.in_(CANDIDATE_TYPES),
+        VisualAsset.local_path.isnot(None), VisualAsset.file_removed_at.is_(None)).all()
+        if a.id not in judged and a.verification_status != "rejected"]
+    scored = []
+    for asset in assets:
+        best = sorted(((relevance(asset, entities[k]), k) for k in {r.entity_key for r in reqs}), reverse=True)
+        top = [k for score, k in best if score >= cfg.topup.min_relevance][:cfg.verification.max_requirements_per_asset]
+        if top:
+            scored.append((best[0][0], asset, top))
+    scored.sort(key=lambda x: -x[0])
+    created = 0
+    by_entity: dict[str, list[MvpRequirement]] = {}
+    for r in reqs:
+        by_entity.setdefault(r.entity_key, []).append(r)
+    for _score, asset, keys in scored[:cfg.topup.max_assets]:
+        for key in keys:
+            for req in by_entity[key]:
+                db.add(MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id))
+                created += 1
+    db.commit()
+    return {"assets": min(len(scored), cfg.topup.max_assets), "created": created,
+            "unjudged_left": max(len(scored) - cfg.topup.max_assets, 0)}
+
+
 def reset_case_visual_state(db: Session, case_id: int) -> dict:
     """The cutover from the old visual pipeline: its plans, audits, search log, usage records and
     production scripts are removed, and the old inspectors' verdicts on stored pictures are cleared so

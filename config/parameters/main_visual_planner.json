@@ -47,6 +47,11 @@
       ],
       "require_english_first": true
     },
-    "call_timeout_s": 150
+    "call_timeout_s": 150,
+    "topup": {
+      "max_assets": 500,
+      "passes": 1,
+      "min_relevance": 0.2
+    }
   }
 }

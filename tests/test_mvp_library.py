@@ -87,3 +87,30 @@ def test_a_languages_shot_list_row_is_never_taken_for_the_shared_needs_plan(db_s
     db_session.add_all([needs, shots])
     db_session.commit()
     assert latest_mvp_plan(db_session, bp.id).id == needs.id
+
+
+def test_the_top_up_attaches_unjudged_pictures_to_place_requirements_of_bare_beats_only(db_session):
+    case, bp, _sv = _case(db_session)
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1)
+    db_session.add(plan)
+    db_session.commit()
+    court = {"key": "county_court", "type": "building", "name": "Miami County Courthouse"}
+    judge = {"key": "judge_pratt", "type": "person", "name": "Judge Pratt"}
+    db_session.add_all([
+        MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
+                       function="orientation", entity_key="county_court", role_needed="context",
+                       spec_json=json.dumps({"acceptable_roles": ["context"]})),
+        MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.2", beat_id="B01",
+                       function="human_connection", entity_key="judge_pratt", role_needed="evidence",
+                       spec_json=json.dumps({"acceptable_roles": ["evidence", "context"]})),
+        MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B02.1", beat_id="B02",
+                       function="orientation", entity_key="county_court", role_needed="context",
+                       spec_json=json.dumps({"acceptable_roles": ["context"]}))])
+    hit = _asset(db_session, case, asset_type="photo", found_for="Miami County courthouse Troy")
+    _asset(db_session, case, asset_type="photo", found_for="Judge Pratt portrait")
+    _asset(db_session, case, asset_type="photo", found_for="something else entirely")
+    db_session.commit()
+    out = L.build_gap_candidates(db_session, plan, {"entities": [court, judge], "beats": []}, {"B01"})
+    rows = db_session.query(MvpCandidate).join(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id).all()
+    assert out["created"] == 1 and rows[0].visual_asset_id == hit.id
+    assert db_session.get(MvpRequirement, rows[0].requirement_id).requirement_key == "B01.1"
