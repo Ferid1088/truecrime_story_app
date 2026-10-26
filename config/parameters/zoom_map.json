@@ -3,7 +3,7 @@
     "enabled": true,
     "data": {
       "pmtiles_source": "https://build.protomaps.com/{build}.pmtiles",
-      "build": "20261019",
+      "build": "20261025",
       "bbox_margin_km": 30.0,
       "min_zoom": 0,
       "max_zoom": 15,
