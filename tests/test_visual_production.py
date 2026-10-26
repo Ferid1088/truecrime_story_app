@@ -1144,6 +1144,13 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
         "visual_accuracy_critic",
         "production_critic",
     }
+    # the same job resumed after its needs stage was done plans nothing again and still directs
+    job = db_session.get(DocumentaryJob, job.id)
+    job.status, job.error = "queued", None
+    db_session.commit()
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    assert db_session.get(DocumentaryJob, job.id).error is None
 
 
 @needs_ffmpeg

@@ -179,8 +179,8 @@ class LanguageChain:
                                    f"({report['gap_seconds']}s)")
             return out
 
-        await pipe._stage(f"mvp_direct:{lang}", mvp_direct)
-        plan_row = holder["plan"]
+        direct = await pipe._stage(f"mvp_direct:{lang}", mvp_direct)
+        plan_row = holder["plan"] if "plan" in holder else db.get(VisualPlan, direct["visual_plan_id"])
 
         async def zoom_maps():
             from app.documentary.zoom_map.stage import render_zoom_maps

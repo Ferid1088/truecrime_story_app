@@ -559,9 +559,12 @@ class DocumentaryPipeline(StageRunner):
 
         await self._stage("film_length", film_length)
 
-        vp_row = state.get("vp")
-        if vp_row is None:
-            raise RuntimeError("No visual requirements could be planned.")
+        if state.get("vp") is None:
+            # a resumed job skips the finished needs stage; the plan is reused, not planned again
+            from app.documentary.mvp import pipeline as MVP
+
+            state["vp"], state["graph"], _ = await MVP.stage_needs(db, case, bp_row)
+        vp_row = state["vp"]
 
         # ---- phase C: the planner's shared chain || each language's chain --
         visual_ready = asyncio.Event()
