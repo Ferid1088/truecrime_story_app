@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, PenLine, Play, RotateCcw, Square } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, mvpApi } from "@/lib/api";
 import { formatDateTime, formatTimecode, humanize, langLabel } from "@/lib/format";
 import type { CaseCostPanel, CostReport, DocumentaryDryRunResult, DocumentaryJob, FilmMinutesRange } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -114,8 +114,8 @@ export function RunTab({
     api.caseCosts(caseId)
       .then((next) => { if (!cancelled) setCosts(next); })
       .catch(() => { if (!cancelled) setCosts(null); });
-    api.reviewQueue(caseId)
-      .then((next) => { if (!cancelled) setReviewCount(next.items); })
+    mvpApi.candidates(caseId, "needs_review")
+      .then((next) => { if (!cancelled) setReviewCount(next.length); })
       .catch(() => { if (!cancelled) setReviewCount(null); });
     return () => { cancelled = true; };
   }, [caseId]);

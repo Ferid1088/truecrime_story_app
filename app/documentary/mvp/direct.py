@@ -162,6 +162,42 @@ def baseline_assign(slots: list[dict], pool: list[Item], used: Counter, max_reus
     return chosen
 
 
+def coalesce_slots(slots: list[dict], available: int, max_still: float) -> list[dict]:
+    """When the beat has fewer approved items than slots, neighbouring slots are joined so each item is
+    held a little longer instead of the tail of the beat going bare; no joined slot passes max_still."""
+    if available <= 0 or len(slots) <= available:
+        return slots
+    total = slots[-1]["end"] - slots[0]["start"]
+    groups = max(available, math.ceil(total / max_still))
+    if groups >= len(slots):
+        return slots
+    per = total / groups
+    out: list[dict] = []
+    for slot in slots:
+        if out and (out[-1]["end"] - out[-1]["start"]) < per - 1e-6 and (
+                slot["end"] - out[-1]["start"]) <= max_still:
+            out[-1] = {**out[-1], "to": slot["to"], "end": slot["end"]}
+        else:
+            out.append(dict(slot))
+    return out
+
+
+def hold_into_gaps(slots: list[dict], chosen: dict[int, Item], max_still: float) -> list[tuple[int, dict]]:
+    """A slot with nothing honest to show is covered by holding the previous picture longer, but never past
+    max_still and never a clip (it plays once). What cannot be covered stays a gap, reported as a shortage."""
+    out: list[tuple[int, dict]] = []
+    for n, slot in enumerate(slots):
+        if n not in chosen and out:
+            last_n, last = out[-1]
+            held_item = chosen.get(last_n)
+            if (held_item is not None and held_item.asset.asset_type != "video"
+                    and slot["end"] - last["start"] <= max_still):
+                out[-1] = (last_n, {**last, "end": slot["end"]})
+                continue
+        out.append((n, dict(slot)))
+    return out
+
+
 def validate_assignment(raw: list[dict], slots: list[dict], pool: list[Item]) -> dict[int, Item] | None:
     """The agent's choice, or None if any of it breaks a rule (unknown item, twice in the beat, a clip too
     short for its slot). Nulls are allowed: a slot may honestly stay empty for the baseline to fill."""
@@ -197,6 +233,31 @@ async def model_director(case: Case, beat: dict, slots_view: list[dict], pool_vi
     return (data or {}).get("assignments") or []
 
 
+QUOTE_SECONDS = 6.0
+DATE_SHARE = 0.02
+
+
+def add_text_cards(shots: list[dict], extras: dict, window_len: float) -> None:
+    """The beat's date (laid over the picture when it is spoken) and its verified quote (a quote card at
+    the end of a beat long enough to hold one). Both come from the validated needs, never from a model here."""
+    if extras.get("date_text") and len(shots) >= 1:
+        shots.insert(1, {"command": "SHOW_DATE", "share": DATE_SHARE, "motion": "NONE", "speed": 1.0,
+                         "transition_in": "CROSSFADE",
+                         "overlay": {"kind": "date", "text_en": extras["date_text"]},
+                         "why": "the beat is anchored to this date"})
+    quote = extras.get("quote")
+    if quote and window_len >= 4 * QUOTE_SECONDS and shots:
+        share = QUOTE_SECONDS / window_len
+        last = shots[-1]
+        if "asset_id" in last and last["share"] * window_len - QUOTE_SECONDS >= 4.0:
+            last["share"] = round(last["share"] - share, 5)
+        else:
+            shots.pop()
+        shots.append({"command": "SHOW_QUOTE", "share": share, "motion": "NONE", "speed": 1.0,
+                      "transition_in": "CROSSFADE", "overlay": {"kind": "quote", "text_en": quote["text"]},
+                      "why": "a verified quotation from the evidence"})
+
+
 def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str) -> dict:
     share = (slot["end"] - slot["start"]) / window_len
     if item is None:
@@ -219,11 +280,13 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     used: Counter = Counter()
     out_beats, candidates, gaps, agent_used = [], {}, [], 0
     windows = beat_windows(manifest)
+    extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
     fingerprint = hashlib.sha256(json.dumps({
         "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"])]
                     for w in windows],
         "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
-        "graph": graph_id, "shots": cfg.model_dump()}, sort_keys=True).encode()).hexdigest()
+        "graph": graph_id, "shots": cfg.model_dump(),
+        "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -237,6 +300,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                 and other != bid for i in group
                 if i.entity in {p.entity for p in pool} and not reveal_blocked(
                     db, graph_id, beat_order, bid, i.asset)]
+        slots = coalesce_slots(slots, len(pool) + len(near), cfg.max_still_seconds)
         chosen: dict[int, Item] = {}
         if director is not None and pool:
             slots_view = [{"slot": n, "seconds": round(s["end"] - s["start"], 1),
@@ -259,11 +323,13 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
             if item is not None:
                 chosen[n] = item
         window_len = window["end"] - window["start"]
+        held = hold_into_gaps(slots, chosen, cfg.max_still_seconds)
         shots = [_shot(s, chosen.get(n), window_len, n, "approved item for this moment")
-                 for n, s in enumerate(slots)]
-        for n, s in enumerate(slots):
+                 for n, s in held]
+        for n, s in held:
             if n not in chosen:
                 gaps.append({"beat": bid, "start": round(s["start"], 2), "end": round(s["end"], 2)})
+        add_text_cards(shots, extras.get(bid) or {}, window_len)
         total = sum(s["share"] for s in shots)
         for s in shots:
             s["share"] = round(s["share"] / total, 5)

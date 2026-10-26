@@ -3,67 +3,57 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
-import { api, apiFileUrl } from "@/lib/api";
+import { ApiError, apiFileUrl, mvpApi } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const DECISIONS = ["provenance", "identity", "rights_decision", "ethics", "scene"] as const;
+const DECISION_LABEL: Record<(typeof DECISIONS)[number], string> = {
+  provenance: "Provenance",
+  identity: "Identity / context",
+  rights_decision: "Rights",
+  ethics: "Ethics",
+  scene: "Scene fit",
+};
+
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
-  const { data, loading, error, refetch } = useApi(() => api.reviewQueue(caseId), [caseId]);
+  const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, "needs_review"), [caseId]);
   const [index, setIndex] = useState(0);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const queue = data?.queue ?? [];
+  const queue = data ?? [];
   const safeIndex = queue.length === 0 ? 0 : Math.min(index, queue.length - 1);
   const item = queue[safeIndex];
 
-  const markUse = useCallback(async () => {
-    if (!item || busy) return;
-    setBusy(true);
-    try {
-      await api.updateVisual(item.asset.id, { verification: "verified" });
-      setMessage(`Used ${item.asset.asset_id} for ${item.entity_name}.`);
-      await refetch();
-    } finally {
-      setBusy(false);
-    }
-  }, [item, busy, refetch]);
-
-  const reject = useCallback(async () => {
-    if (!item || busy) return;
-    setBusy(true);
-    try {
-      await api.updateVisual(item.asset.id, { verification: "rejected" });
-      setMessage(`Rejected ${item.asset.asset_id}.`);
-      await refetch();
-    } finally {
-      setBusy(false);
-    }
-  }, [item, busy, refetch]);
-
-  const wrongPerson = useCallback(async () => {
-    if (!item || busy || !item.entity_key) return;
-    setBusy(true);
-    try {
-      await api.reviewQueueWrongPerson(caseId, item.asset.id, item.entity_key);
-      setMessage(`Marked wrong person for ${item.entity_name} — added to its "not this" list.`);
-      await refetch();
-    } finally {
-      setBusy(false);
-    }
-  }, [item, busy, caseId, refetch]);
+  const decide = useCallback(
+    async (decision: "approve" | "reject") => {
+      if (!item || busy) return;
+      setBusy(true);
+      try {
+        await mvpApi.decideCandidate(item.id, decision);
+        setMessage(`${decision === "approve" ? "Approved" : "Rejected"} ${item.asset_code} for ${item.requirement}.`);
+        await refetch();
+      } catch (e) {
+        setMessage(e instanceof ApiError ? e.message : "Could not save the decision.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [item, busy, refetch],
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
-      if (e.key === "a" || e.key === "A") void markUse();
-      else if (e.key === "r" || e.key === "R") void reject();
-      else if (e.key === "w" || e.key === "W") void wrongPerson();
+      if (e.key === "a" || e.key === "A") void decide("approve");
+      else if (e.key === "r" || e.key === "R") void decide("reject");
       else if (e.key === "n" || e.key === "N") setIndex((i) => Math.min(i + 1, queue.length - 1));
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [markUse, reject, wrongPerson, queue.length]);
+  }, [decide, queue.length]);
 
   if (loading && !data) return <Skeleton className="h-[620px]" />;
   if (error && !data) return <p className="p-8 text-sm text-rose-700">{error}</p>;
@@ -79,7 +69,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Picture review</h1>
         <p className="mt-1 text-sm text-muted-foreground" data-testid="review-queue-counter">
-          {queue.length} left to review, sorted by how many beats they would fill
+          {queue.length} left to review: pictures the verifiers could not settle
         </p>
         {message && (
           <p role="status" className="mt-2 text-sm text-emerald-700">
@@ -95,66 +85,47 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
       ) : item ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(280px,440px)_1fr]">
           <section className="flex min-h-[420px] items-center justify-center bg-muted/40 p-4">
-            {item.asset.asset_type === "video" ? (
-              <video
-                key={item.asset.id}
-                controls
-                preload="metadata"
-                src={apiFileUrl(item.asset.image_url) +
-                  (item.asset.clip_start != null
-                    ? `#t=${item.asset.clip_start}${item.asset.clip_end != null ? `,${item.asset.clip_end}` : ""}`
-                    : "")}
-                className="max-h-[480px] max-w-full"
-              />
-            ) : (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={apiFileUrl(item.asset.image_url)}
-                alt={item.asset.title ?? item.entity_name}
-                className="max-h-[480px] max-w-full object-contain"
-              />
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={apiFileUrl(item.thumb_url)}
+              alt={item.title ?? item.asset_code}
+              className="max-h-[480px] max-w-full object-contain"
+            />
           </section>
           <section className="space-y-5">
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Should show</div>
-              <div className="text-lg font-medium">{item.entity_name}</div>
+              <div className="text-lg font-medium">{item.entity ?? item.requirement}</div>
+              {item.need && <p className="text-sm text-muted-foreground">{item.need}</p>}
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className="font-mono">{item.beat_id}</span> · needs {item.role_needed} · {item.function.replace("_", " ")}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2" data-testid="review-queue-decisions">
+              {DECISIONS.map((key) => (
+                <Badge key={key} variant="outline">
+                  {DECISION_LABEL[key]}: {item[key]}
+                </Badge>
+              ))}
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Beat{item.beats.length === 1 ? "" : "s"} it would fill ({item.beats_count})
-              </div>
-              <ul className="mt-1 space-y-1 text-sm" data-testid="review-queue-beats">
-                {item.beats.length === 0 && <li className="text-muted-foreground">No beat currently needs it.</li>}
-                {item.beats.map((b) => (
-                  <li key={b.beat_id}>
-                    <span className="font-mono text-xs text-muted-foreground">{b.beat_id}</span> {b.summary}
-                  </li>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Why it is open</div>
+              <ul className="mt-1 list-disc pl-5 text-sm" data-testid="review-queue-reason">
+                {item.reasons.length === 0 && <li>The verifiers did not agree.</li>}
+                {item.reasons.map((r) => (
+                  <li key={r}>{r}</li>
                 ))}
               </ul>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Verifier&apos;s reason</div>
-              <p className="text-sm" data-testid="review-queue-reason">{item.verifier_reason}</p>
-              {item.confidence != null && (
-                <p className="text-xs text-muted-foreground">Confidence {item.confidence.toFixed(2)}</p>
-              )}
-            </div>
-            {item.asset_codes.length > 1 && (
-              <p className="text-xs text-muted-foreground">
-                Grouped with {item.asset_codes.length - 1} near-duplicate(s): {item.asset_codes.slice(1).join(", ")}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {item.source ?? "unknown source"} · rights {item.rights}
               </p>
-            )}
-
+            </div>
             <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={() => void markUse()} disabled={busy}>
-                Use <span className="ml-1 text-xs opacity-70">(A)</span>
+              <Button type="button" onClick={() => void decide("approve")} disabled={busy}>
+                Approve <span className="ml-1 text-xs opacity-70">(A)</span>
               </Button>
-              <Button type="button" variant="outline" onClick={() => void reject()} disabled={busy}>
+              <Button type="button" variant="outline" onClick={() => void decide("reject")} disabled={busy}>
                 Reject <span className="ml-1 text-xs opacity-70">(R)</span>
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => void wrongPerson()} disabled={busy || !item.entity_key}>
-                Wrong person <span className="ml-1 text-xs opacity-70">(W)</span>
               </Button>
               <Button
                 type="button"
@@ -165,9 +136,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 Next <span className="ml-1 text-xs opacity-70">(N)</span>
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Keyboard: A = Use, R = Reject, W = Wrong person, N = Next.
-            </p>
+            <p className="text-xs text-muted-foreground">Keyboard: A = Approve, R = Reject, N = Next.</p>
           </section>
         </div>
       ) : null}

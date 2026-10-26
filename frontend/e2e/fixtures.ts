@@ -536,32 +536,22 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
   let dashboardCalls = 0;
   let youtubeClips = false;
 
+  const candidate = (id: number, code: string, entity: string, need: string, reason: string) => ({
+    id, requirement: `B0${id}.1`, beat_id: `B0${id}`, entity, function: "human_connection",
+    role_needed: "evidence", need, asset_id: id + 100, asset_code: code, asset_type: "photo",
+    title: `${entity} photo`, source: "Local news", rights: "editorial_review_required",
+    thumb_url: `/api/visuals/${id + 100}/file?thumb=1`, role: "evidence", status: "needs_review",
+    provenance: "passed", identity: "needs_review", rights_decision: "preview_only", ethics: "approved",
+    scene: "approved", reasons: [reason], verifiers: [],
+  });
   const reviewQueueItems = [
-    {
-      group_id: 0, lead: "VIS_101", subject_type: "person", confidence: 0.55,
-      asset_codes: ["VIS_101"], entity_key: "bryan_kohberger", entity_name: "Bryan Kohberger",
-      beats: [{ beat_id: "B04", summary: "The suspect was arrested in Pennsylvania." },
-        { beat_id: "B09", summary: "He appeared in court for the first time." }],
-      beats_count: 2, verifier_reason: "A young man in a dark jacket, identity from the page caption only.",
-      asset: { id: 101, asset_id: "VIS_101", title: "Suspect photo", caption: "Caption claims Bryan Kohberger",
-        subject_type: "person", image_url: "/api/visuals/101/file", verification_confidence: 0.55 },
-    },
-    {
-      group_id: 1, lead: "VIS_205", subject_type: "object", confidence: 0.5,
-      asset_codes: ["VIS_205"], entity_key: "kabar_sheath", entity_name: "Ka-Bar sheath",
-      beats: [{ beat_id: "B04", summary: "Police found no murder weapon, only a sheath." }],
-      beats_count: 1, verifier_reason: "A leather knife sheath on an evidence table.",
-      asset: { id: 205, asset_id: "VIS_205", title: "Evidence photo", caption: null,
-        subject_type: "object", image_url: "/api/visuals/205/file", verification_confidence: 0.5 },
-    },
+    candidate(1, "VIS_101", "Bryan Kohberger", "his face at the arrest", "identity from the page caption only"),
+    candidate(2, "VIS_205", "Ka-Bar sheath", "the sheath on the evidence table", "verifiers disagree; stored for review"),
   ];
   const reviewQueueState = {
-    body: () => ({
-      before: reviewQueueItems.length + 3, second_pass_pending: 3,
-      items: reviewQueueItems.length, groups: reviewQueueItems.length, queue: reviewQueueItems,
-    }),
-    resolve: (assetId: number) => {
-      const i = reviewQueueItems.findIndex((item) => item.asset.id === assetId);
+    list: () => reviewQueueItems,
+    resolve: (id: number) => {
+      const i = reviewQueueItems.findIndex((item) => item.id === id);
       if (i >= 0) reviewQueueItems.splice(i, 1);
     },
   };
@@ -670,20 +660,16 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       return json(route, { case_id: 1, language: "en", outfit_id: route.request().postDataJSON().outfit_id });
     if (path === "/api/cases/1/thumbnails" && method === "GET") return json(route, [thumbnailFixture]);
     if (path === "/api/thumbnails/1/image") return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
-    if (path === "/api/cases/1/visuals/review-queue/ui" && method === "GET")
-      return json(route, reviewQueueState.body());
-    if (path === "/api/cases/1/visuals/review-queue/wrong-person" && method === "POST") {
-      const body = route.request().postDataJSON() as { asset_id: number; entity_key: string };
-      reviewQueueState.resolve(body.asset_id);
-      return json(route, { asset_code: `VIS_${body.asset_id}`, entity_key: body.entity_key,
-        not_this_note: "owner marked this a wrong person", dossier_updated: true });
+    if (path === "/api/cases/1/mvp/candidates" && method === "GET") return json(route, reviewQueueState.list());
+    if (path.match(/^\/api\/mvp\/candidates\/\d+\/decision$/) && method === "POST") {
+      const id = Number(path.split("/")[4]);
+      const body = route.request().postDataJSON() as { decision: string };
+      const row = reviewQueueItems.find((item) => item.id === id);
+      reviewQueueState.resolve(id);
+      return json(route, { ...row, status: body.decision === "approve" ? "approved" : "rejected" });
     }
-    if (path.match(/^\/api\/visuals\/\d+$/) && method === "PATCH") {
-      const body = route.request().postDataJSON() as { verification?: string };
-      const assetId = Number(path.split("/").pop());
-      if (body.verification) reviewQueueState.resolve(assetId);
-      return json(route, { id: assetId, verification: body.verification ?? "needs_review" });
-    }
+    if (path === "/api/cases/1/mvp/plan") return json(route, { detail: "No Main Visual Planner plan for this case yet" }, 404);
+    if (path === "/api/cases/1/mvp/reviews") return json(route, []);
     if (path.startsWith("/api/visuals/")) return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
     if (path === "/api/cases/1/naming" && method === "GET") return json(route, namingFixture);
     if (path === "/api/cases/1/facts") return json(route, fixtures.facts);

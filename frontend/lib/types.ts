@@ -2328,43 +2328,94 @@ export interface VisualUpdate {
   verification?: VerificationStatus;
 }
 
-/** P10: the batch review page's own listing (one entry per near-duplicate group). */
-export interface ReviewQueueBeat {
+/** The Main Visual Planner: one candidate picture judged for one requirement (five separate decisions). */
+export interface MvpCandidate {
+  id: number;
+  requirement: string;
   beat_id: string;
-  summary: string;
+  entity: string | null;
+  function: string;
+  role_needed: string;
+  need: string | null;
+  asset_id: number;
+  asset_code: string;
+  asset_type: string;
+  title: string | null;
+  source: string | null;
+  rights: string;
+  thumb_url: string;
+  role: string | null;
+  status: string;
+  provenance: string;
+  identity: string;
+  rights_decision: string;
+  ethics: string;
+  scene: string;
+  reasons: string[];
+  verifiers: { verifier: string; model?: string | null; confidence?: number | null; decision?: string }[];
 }
 
-export interface ReviewQueueItem {
-  group_id: number;
-  lead: string;
-  subject_type: string | null;
-  confidence: number | null;
-  asset_codes: string[];
-  entity_key: string | null;
-  entity_name: string;
-  beats: ReviewQueueBeat[];
-  beats_count: number;
-  verifier_reason: string;
-  asset: {
-    id: number;
-    asset_id: string;
-    title: string | null;
-    caption: string | null;
-    subject_type: string | null;
-    asset_type: string | null;
-    clip_start: number | null;
-    clip_end: number | null;
-    image_url: string;
-    verification_confidence: number | null;
+export interface MvpSearchRound {
+  round: number;
+  provider: string;
+  query: string;
+  new_candidates: number;
+  cost_eur: number | null;
+  error: string | null;
+}
+
+export interface MvpRequirement {
+  key: string;
+  beat_id: string;
+  node_key: string | null;
+  function: string;
+  entity: string | null;
+  role_needed: string;
+  priority: string;
+  status: string;
+  rounds_used: number;
+  shortage: { rounds_used: number; queries: string[] } | null;
+  candidates: number;
+  approved: number;
+  search_rounds: MvpSearchRound[];
+}
+
+export interface MvpPlan {
+  visual_plan_id: number;
+  reveal_graph_id: number | null;
+  requirements: MvpRequirement[];
+  candidate_totals: Record<string, number>;
+  shortages: number;
+}
+
+export type MvpReviewState =
+  | "IMPLEMENTING"
+  | "PRODUCING"
+  | "VALIDATING"
+  | "AWAITING_OWNER_REVIEW"
+  | "APPROVED"
+  | "REVISION_REQUIRED"
+  | "REJECTED";
+
+export interface MvpFilmReview {
+  id: number;
+  case_id: number;
+  language: string;
+  state: MvpReviewState;
+  production_script_id: number | null;
+  render_path: string | null;
+  render_sha256: string | null;
+  validation: {
+    review_ready?: boolean;
+    blocking?: string[];
+    publication_blockers?: string[];
+    coverage?: { temporal_coverage: number; black_seconds: number; weak_sentence_count: number };
+    file?: { duration: number; width: number; height: number; fps: number; video_codec: string;
+      audio_codec: string; black_seconds: number; integrated_lufs: number | null };
   };
-}
-
-export interface ReviewQueueResponse {
-  before: number;
-  second_pass_pending: number;
-  items: number;
-  groups: number;
-  queue: ReviewQueueItem[];
+  owner_note: string | null;
+  created_at: string;
+  decided_at: string | null;
 }
 
 export interface VisualUpload {

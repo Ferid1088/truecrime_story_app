@@ -13,7 +13,6 @@ import { ChannelStudios } from "@/components/settings/channel-studios";
 import { MusicSourceCard } from "@/components/settings/music-source";
 import { ChannelsCard } from "@/components/settings/channels";
 import { ClosingClipsCard } from "@/components/settings/closing-clips";
-import { EditorialReviewCard } from "@/components/settings/editorial-review";
 import { YouTubeClipsCard } from "@/components/settings/youtube-clips";
 import { PolicyWarningNotice } from "@/components/policy-warning";
 
@@ -289,7 +288,6 @@ export default function SettingsPage() {
       <ClosingClipsCard />
       <ChannelsCard />
 
-      <EditorialReviewCard />
       <YouTubeClipsCard />
 
       <p className="mt-6 text-xs text-muted-foreground">

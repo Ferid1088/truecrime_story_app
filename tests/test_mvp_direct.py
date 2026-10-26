@@ -64,12 +64,13 @@ def run(coro):
 
 
 def test_shares_sum_to_one_assets_are_unique_in_a_beat_and_gaps_are_reported(db_session):
-    case, plan = _plan(db_session, 3)
+    case, plan = _plan(db_session, 2)
     report = run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
     shots = json.loads(plan.plan_json)["beats"][0]["shots"]
     assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
     coded = [s["asset_id"] for s in shots if s.get("asset_id")]
-    assert len(coded) == len(set(coded)) == 3
+    assert len(coded) == len(set(coded)) == 2
+    assert all(s_["share"] * 60 <= 20.5 for s_ in shots if "asset_id" in s_)
     assert report["gaps"] and report["gap_seconds"] > 0
     assert all(s["command"] == "BLACK_SCREEN" and s["gap"] for s in shots if "asset_id" not in s)
 
@@ -126,3 +127,25 @@ def test_unchanged_inputs_reuse_the_saved_direction_without_calling_the_agent(db
     assert calls["n"] == 1 and second["fingerprint"] == first["fingerprint"]
     run(D.direct_film(db_session, case, plan, _manifest([40.0]), None, {"B01": 0}, {}, director))
     assert calls["n"] == 2
+
+
+def test_a_missing_picture_is_covered_by_holding_the_previous_one_within_the_still_limit(db_session):
+    case, plan = _plan(db_session, 4)
+    report = run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    assert all(s["share"] * 60.0 <= ai_config.mvp().shots.max_still_seconds + 0.5 for s in shots)
+    assert report["gap_seconds"] == 0.0 and all("gap" not in s for s in shots)
+
+
+def test_a_beats_date_and_verified_quote_become_overlay_shots(db_session):
+    case, plan = _plan(db_session, 8)
+    plan.requirements_json = json.dumps({"beats": [{"beat_id": "B01", "date_text": "February 16, 2026",
+                                                     "quote": {"fact_id": "F1", "text": "I heard two shots"}}]})
+    db_session.commit()
+    run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    date = next(s for s in shots if s["command"] == "SHOW_DATE")
+    quote = next(s for s in shots if s["command"] == "SHOW_QUOTE")
+    assert date["overlay"] == {"kind": "date", "text_en": "February 16, 2026"}
+    assert quote["overlay"]["text_en"] == "I heard two shots" and shots[-1] is quote
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3

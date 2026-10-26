@@ -46,7 +46,9 @@ import type {
   SuggestionState,
   CaseDossier,
   CaseListItem,
-  ReviewQueueResponse,
+  MvpCandidate,
+  MvpFilmReview,
+  MvpPlan,
   ShortFormCaseItem,
   ClaimClusterItem,
   Contradiction,
@@ -663,13 +665,6 @@ export const api = {
   },
   updateVisual: (assetId: number, payload: VisualUpdate) =>
     patch<VisualAsset>(`/api/visuals/${assetId}`, payload),
-  reviewQueue: (caseId: number) =>
-    request<ReviewQueueResponse>(`/api/cases/${caseId}/visuals/review-queue/ui`),
-  reviewQueueWrongPerson: (caseId: number, assetId: number, entityKey: string) =>
-    post<{ asset_code: string; entity_key: string; not_this_note: string; dossier_updated: boolean }>(
-      `/api/cases/${caseId}/visuals/review-queue/wrong-person`,
-      { asset_id: assetId, entity_key: entityKey },
-    ),
   storyPlan: (caseId: number, language: string) =>
     request<StoryPlan>(`/api/cases/${caseId}/story-plan?language=${language}`),
   createStoryPlan: (caseId: number, payload: { target_minutes: number; language: string; instruction?: string }) =>
@@ -1022,29 +1017,6 @@ export const musicApi = {
   setSource: (mode: MusicSourceMode) => put<{ mode: MusicSourceMode }>("/api/documentary/music/source", { mode }),
 };
 
-export type EditorialReviewOverview = {
-  enabled: boolean;
-  counts: Record<string, number>;
-  waiting: number;
-};
-
-export type EditorialReviewDecision = {
-  id: number;
-  case_id: number;
-  asset_id: number;
-  asset_code: string;
-  title: string | null;
-  caption: string | null;
-  source: string | null;
-  verdict: "approved" | "rejected" | "kept";
-  reasons: string[];
-  model: string | null;
-  mode: string;
-  created_at: string;
-  approved_by: string | null;
-  thumb_url: string;
-};
-
 export type YouTubeClipsOverview = {
   enabled: boolean;
   max_clip_seconds: number;
@@ -1057,14 +1029,18 @@ export const youtubeClipsApi = {
   setEnabled: (enabled: boolean) => put<{ enabled: boolean }>("/api/documentary/visuals/youtube-clips", { enabled }),
 };
 
-export const editorialReviewApi = {
-  overview: () => request<EditorialReviewOverview>("/api/documentary/visuals/editorial-review"),
-  setEnabled: (enabled: boolean) =>
-    put<{ enabled: boolean }>("/api/documentary/visuals/editorial-review", { enabled }),
-  decisions: (verdict?: string) =>
-    request<EditorialReviewDecision[]>(
-      `/api/documentary/visuals/editorial-review/decisions?limit=200${verdict ? `&verdict=${verdict}` : ""}`,
-    ),
+export const mvpApi = {
+  plan: (caseId: number) => request<MvpPlan>(`/api/cases/${caseId}/mvp/plan`),
+  candidates: (caseId: number, status = "needs_review") =>
+    request<MvpCandidate[]>(`/api/cases/${caseId}/mvp/candidates?status=${status}`),
+  decideCandidate: (candidateId: number, decision: "approve" | "reject", note?: string) =>
+    post<MvpCandidate>(`/api/mvp/candidates/${candidateId}/decision`, { decision, note }),
+  reviews: (caseId: number) => request<MvpFilmReview[]>(`/api/cases/${caseId}/mvp/reviews`),
+  decideFilm: (reviewId: number, decision: "APPROVED" | "REVISION_REQUIRED" | "REJECTED",
+    renderSha256: string, note?: string) =>
+    post<MvpFilmReview>(`/api/mvp/reviews/${reviewId}/decision`, {
+      decision, note, render_sha256: renderSha256,
+    }),
 };
 
 export interface AutopilotEstimate {

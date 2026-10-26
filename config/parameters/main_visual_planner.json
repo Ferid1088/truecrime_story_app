@@ -7,9 +7,9 @@
     },
     "shots": {
       "min_seconds": 2.5,
-      "max_still_seconds": 9.0,
+      "max_still_seconds": 20.0,
       "max_asset_reuse": 2,
-      "target_shots_per_minute": 9
+      "target_shots_per_minute": 8.5
     },
     "coverage": {
       "min_temporal_coverage": 0.98,

@@ -45,33 +45,6 @@ test.describe("Review entry point and video pieces", () => {
     await expect(page.getByTestId("review-queue-page")).toBeVisible();
   });
 
-  test("a video piece in the queue shows a playable preview of its window", async ({ page }) => {
-    await mockPage(page);
-    await page.route("**/api/cases/1/visuals/review-queue/ui", (r: Route) =>
-      r.fulfill(fulfil({
-        before: 1, second_pass_pending: 0, items: 1, groups: 1,
-        queue: [{
-          group_id: 0, lead: "VIS_900", subject_type: "other", confidence: 0.5,
-          asset_codes: ["VIS_900"], entity_key: "white_sedan", entity_name: "White Hyundai Elantra",
-          beats: [{ beat_id: "B07", summary: "A white sedan was seen circling." }],
-          beats_count: 1, verifier_reason: "Blurred night clip; the cyan box marks the light.",
-          asset: { id: 900, asset_id: "VIS_900", title: "Night surveillance clip", caption: null,
-            subject_type: "other", asset_type: "video", clip_start: 27.0, clip_end: 30.5,
-            image_url: "/api/visuals/900/file", verification_confidence: 0.5 },
-        }],
-      })));
-    // the video file endpoint serves bytes; the player must get the clip window
-    await page.route("**/api/visuals/900/file", (r: Route) =>
-      r.fulfill({ status: 200, contentType: "video/mp4", body: Buffer.alloc(8) }));
-    await page.goto("/documentary/1/review");
-    const player = page.locator("video");
-    await expect(player).toBeVisible();
-    await expect(player).toHaveAttribute("src", /#t=27(\.0)?,30\.5$/);
-    // the same three actions work on a clip
-    await page.getByRole("button", { name: "Reject", exact: false }).click();
-    await expect(page.getByText(/Rejected VIS_900/)).toBeVisible();
-  });
-
   test("a review_youtube_clips need links to the review queue", async ({ page }) => {
     await mockApi(page);
     const RUN = {
