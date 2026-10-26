@@ -209,8 +209,10 @@ def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str
 
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
-                      director: Director | None = None) -> dict:
-    """Build the plan: beat by beat, agent first, rules always. Stores plan_json on the plan row."""
+                      director: Director | None = None, target: VisualPlan | None = None) -> dict:
+    """Build the plan: beat by beat, agent first, rules always. `plan` holds the approved requirements;
+    the shot list is stored on `target` (the language's own plan row; `plan` itself when not given)."""
+    target = target or plan
     cfg = ai_config.mvp().shots
     items = approved_items(db, plan)
     used: Counter = Counter()
@@ -262,11 +264,11 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "assets_used": len(used),
               "reuse": {k: v for k, v in used.items() if v > 1}}
-    plan.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
-                                ensure_ascii=False)
-    plan.status = "planned"
-    validation = json.loads(plan.validation_json or "{}")
-    plan.validation_json = json.dumps({**validation, "plan": {"status": "valid" if not gaps else "needs_review",
+    target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
+                                  ensure_ascii=False)
+    target.status = "planned"
+    validation = json.loads(target.validation_json or "{}")
+    target.validation_json = json.dumps({**validation, "plan": {"status": "valid" if not gaps else "needs_review",
                                                                **report}}, ensure_ascii=False)
     db.commit()
     return report

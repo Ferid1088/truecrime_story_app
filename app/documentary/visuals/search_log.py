@@ -8,7 +8,7 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.db.models import VisualSearchLog
-from app.documentary.visuals.planner import fold
+from app.documentary.mvp.needs import fold
 
 KEY_CHARS = 300
 

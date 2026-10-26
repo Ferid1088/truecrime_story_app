@@ -40,7 +40,7 @@ from app.documentary.visuals import era as ERA
 from app.documentary.visuals.open_data import NasaProvider, UsgsNaipProvider
 from app.documentary.visuals.open_data_archives import DplaProvider, EuropeanaProvider
 from app.documentary.visuals.search_log import SearchLedger
-from app.documentary.visuals.verification import gateway_available
+from app.documentary.mvp.media import gateway_available
 from app.providers.generation import get_generation_provider
 from app.services.budget import BudgetService
 from app.services.cost_model import load_pricing

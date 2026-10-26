@@ -24,12 +24,7 @@ STAGE_AGENTS: dict[str, tuple[str, str]] = {
     "board": ("app.agents.detective_board", "BoardWriter"),
     "host": ("app.agents.host", "HostDirector"),
     "voice_performance": ("app.agents.voice_performance", "VoicePerformanceDirector"),
-    "visual_planner": ("app.agents.visual_planner", "VisualPlanner"),
     "visual_research": ("app.agents.visual_research", "VisualResearchAgent"),
-    "visual_verification": ("app.agents.visual_verification", "VisualVerificationAgent"),
-    "visual_director": ("app.agents.visual_director", "VisualDirector"),
-    "visual_auditor": ("app.agents.visual_auditor", "VisualAuditor"),
-    "video_auditor": ("app.agents.video_auditor", "VideoAuditor"),
     "footage": ("app.agents.footage", "FootageAgent"),
     "critics": ("app.agents.critics", "DocumentaryCritics"),
 }

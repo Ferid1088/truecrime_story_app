@@ -22,7 +22,7 @@ from app.db.models import (
     VisualPlan,
 )
 from app.documentary.mvp.library import build_candidates
-from app.documentary.mvp.needs import fold
+from app.documentary.mvp.needs import FOOTAGE_TYPES, fold
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
@@ -91,10 +91,29 @@ def _history(req: MvpRequirement) -> list[dict]:
              "new_candidates": r.new_candidates, "error": r.error} for r in req.search_rounds]
 
 
-def _query_item(entity: dict, q: dict) -> dict:
-    return {"query": q["query"], "entity": entity["key"], "entities": [entity["key"]],
-            "entity_type": entity["type"], "kind": q["kind"], "footage": bool(entity.get("footage")),
-            "must_name": [entity["name"], *entity.get("aliases", [])]}
+def query_item(entity: dict, query: str, kind: str = "exact") -> dict:
+    """One search for VisualResearchAgent.run: what to search, for which
+    entity (key and type: the asset's library fields and provisional
+    tier), exact or context, and whether footage is searched too.
+
+    must_name (P5): the candidate's own text (title, caption, page url, filename) must name the
+    entity (by any alias) or the case; VisualResearchAgent.run also accepts a case-title match
+    as an alternative, so a genuine source picture about the case is never dropped just because
+    it does not repeat the entity's own name."""
+    etype = entity.get("type") or "object"
+    is_context = kind == "context"
+    return {"query": query, "entity": entity["key"], "entities": [entity["key"]],
+            "entity_name": entity.get("name"), "entity_type": etype, "kind": "context" if is_context else "exact",
+            "footage": bool(entity.get("footage", etype in FOOTAGE_TYPES)),
+            # a context query deliberately looks for a stand-in, never the exact thing's own
+            # name, so the pre-filter does not apply to it
+            "must_name": [] if is_context else [entity.get("name") or ""] + list(entity.get("aliases") or []),
+            # the merged dossier fields the structured providers (open_data_archives) build
+            # their per-alias, era-filtered, exclusion-marked queries from
+            "aliases": list(entity.get("aliases") or []),
+            "date_window": list(entity.get("date_window") or []),
+            "not_this": list(entity.get("not_this") or []),
+            "negative_terms": list(entity.get("negative_terms") or [])}
 
 
 async def research_unmet(db: Session, case: Case, plan: VisualPlan, requirements: dict,
@@ -127,7 +146,7 @@ async def research_unmet(db: Session, case: Case, plan: VisualPlan, requirements
                 queries = fresh_queries(await planner(db, case, reqs[0], entity, history, round_no), history)
             for req in reqs:
                 planned[req.id] = queries
-            items += [_query_item(entity, q) for q in queries]
+            items += [query_item(entity, q["query"], q["kind"]) for q in queries]
         stats = await research(db, case, items) if items else {}
         new_ids = [a.id for a in db.query(VisualAsset).filter(VisualAsset.case_id == case.id,
                                                               VisualAsset.id > before_assets)]

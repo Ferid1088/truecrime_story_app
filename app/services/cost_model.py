@@ -222,20 +222,20 @@ def _language_pipeline_lines(db: Session, case: Case, languages: list[str],
 
 def _visual_research_lines(pricing: dict[str, Any], film_seconds: float) -> list[CostLine]:
     """The picture research of one film: the searches (Brave image requests), the vision check of
-    every candidate, and the second check of the places and objects the first left open. The counts
-    come from the supply target of the film and the measured assumptions in pricing.json."""
+    every candidate, and the second check of the places and objects the first left open. The counts come from the film's length, the planner's search rounds and the assumptions in pricing.json."""
     import math
-
-    from app.documentary.visuals import supply
 
     a = pricing["assumptions"]["visual_research"]
     mult = pricing["assumptions"]["range_multipliers"]
-    need = supply.target(film_seconds).total
-    checks = math.ceil(need / float(a["pass_rate"]))
+    rounds = ai_config.mvp().search
+    checks = math.ceil(film_seconds / 60.0 * float(a["requirements_per_minute"])
+                       * int(a["candidates_checked_per_requirement"]))
     second = math.ceil(checks * float(a["second_pass_share"]))
-    requests = (int(a["initial_queries"]) + (ai_config.supply.max_searches - 1) * int(a["queries_per_round"]))
+    requests = int(a["initial_queries"]) + (rounds.initial_rounds + rounds.extra_rounds_max - 1) * int(
+        a["queries_per_round"])
+    search = {key: requests * float(pricing["search"]["brave_web"]["eur_per_request"]) * float(mult[key])
+              for key in SCENARIOS}
     price = pricing["search"]["brave_web"]
-    search = {key: requests * float(price["eur_per_request"]) * float(mult[key]) for key in SCENARIOS}
     lines = [CostLine("visual_search", "run", None, {"requests": float(requests)},
                       {"eur_per_request": float(price["eur_per_request"])}, _round_range(search),
                       "Brave image search", "assumed",

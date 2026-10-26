@@ -106,41 +106,26 @@ REQUIRED_ROLES = {
     "video_relevance_checker",
     # Visual intelligence: needs per beat, image verification (vision),
     # shot direction, on-screen text per language.
-    "visual_planner",
     # The Main Visual Planner's own agents (config/parameters/main_visual_planner.json):
     # needs per beat from the reveal graph, search queries per unmet requirement, candidate
-    # verification (vision) with an independent second verifier, rights reading, video
-    # segment scouting (vision), shot direction, coverage audit of the compiled timeline,
-    # and on-screen graphic text per language.
+    # verification (vision) with an independent second verifier, video segment scouting
+    # (vision) and shot direction. Rights and coverage are deterministic.
     "mvp_needs_planner",
     "mvp_query_planner",
     "mvp_candidate_verifier",
     "mvp_second_verifier",
-    "mvp_rights_reader",
     "mvp_segment_scout",
     "mvp_scene_director",
-    "mvp_coverage_auditor",
-    "mvp_graphic_localizer",
-    "visual_entity_dossier",
-    "visual_verifier",
-    "visual_verifier_cheap",
-    "visual_query_refiner",
     # A second, independent model looks at the same picture and the same inputs when the first
     # left a place, object, document or map in needs_review.
-    "visual_second_verifier",
     # Independent of the planner: may this editorial-review picture be used at all (right
     # person, place and period; identity supported; caption matches the picture)?
-    "visual_editorial_reviewer",
-    "visual_director",
     # Strict gate before render: is THIS picture/clip right for THESE
     # words (exact kind, tone, honesty)? Independent of the director.
-    "visual_auditor",
     # Video pieces: the segmenter watches a whole video and cuts it by
     # MEANING (complete actions/moments, named and described); the video
     # auditor checks each piece frame by frame — the cut, the description,
     # the content — and judges it against the words before render.
-    "video_segmenter",
-    "video_auditor",
     # Chapters and the running case timeline: the writer gives every
     # chapter a title and every dated event the story tells a short label
     # (all languages at once); an independent auditor checks each text —
@@ -163,8 +148,7 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"visual_verifier", "visual_second_verifier", "visual_editorial_reviewer", "visual_auditor", "video_auditor", "video_segmenter",
-                "thumbnail_critic"}
+VISION_ROLES = {"mvp_candidate_verifier", "mvp_second_verifier", "mvp_segment_scout", "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — Brave Search + fetcher + index), not an LLM
@@ -2419,18 +2403,6 @@ class DetectiveBoardConfig(BaseModel):
     })
 
 
-class VisualAuditConfig(BaseModel):
-    """The visual auditor (gate before render): every photo and clip on
-    screen must be verified AND approved for the words spoken over it.
-    A rejected one is replaced (and the replacement audited again) up to
-    max_redos times; then the moment is held, carded or left dark."""
-
-    enabled: bool = True
-    max_redos: int = Field(default=2, ge=0, le=5)
-    # what the auditor needs to approve (0–1): fit to the words
-    min_fit: float = Field(default=0.7, ge=0.0, le=1.0)
-
-
 class VisualVerificationConfig(BaseModel):
     # Candidates vision-checked per visual need (more checked = more
     # usable pictures = less repetition).
@@ -2462,20 +2434,6 @@ class VisualVerificationConfig(BaseModel):
     cheap_tier_decisive_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
 
 
-class EditorialReviewConfig(BaseModel):
-    """The automatic editorial review of pictures with unclear rights (no person approves them)."""
-
-    # The owner setting "auto_editorial_review" starts from this value.
-    auto_default: bool = True
-    # The reviewer's own confidence must reach this for an approval; below it the picture is rejected.
-    min_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
-    # Pictures reviewed in one run (the best-ranked first).
-    max_per_run: int = Field(default=120, ge=1, le=1000)
-    # Recorded as "approved by" next to the model's name.
-    approver_label: str = "auto-review"
-    thumbnail_px: int = Field(default=768, ge=128)
-
-
 class StorageBudgetConfig(BaseModel):
     """Disk use of a case's pictures and clips."""
 
@@ -2492,18 +2450,6 @@ class PlannerLimits(BaseModel):
     max_exact_queries: int = Field(ge=1)
     max_context_queries: int = Field(ge=0)
     max_aliases: int = Field(ge=0)
-
-
-class ProductionSearchLimits(BaseModel):
-    # New pictures vision-checked per production-search request, and how fully a stored picture's
-    # text must name an entity before it counts as that entity.
-    verify_per_request: int = Field(ge=0)
-    min_entity_score: float = Field(ge=0.0, le=1.0)
-
-
-class DirectorLimits(BaseModel):
-    # Beats directed per model call (the film is directed in order, chunk after chunk).
-    beats_per_call: int = Field(ge=1)
 
 
 class AudioLimits(BaseModel):
@@ -2535,61 +2481,11 @@ class LimitsConfig(BaseModel):
     (config/parameters/limits.json). The EUR limits are policies.budget and visuals.supply."""
 
     planner: PlannerLimits
-    production_search: ProductionSearchLimits
-    director: DirectorLimits
     audio: AudioLimits
     language_pipeline: LanguagePipelineLimits
     research_job: ResearchJobLimits
     discovery: DiscoveryLimits
     search: SearchLimits
-
-
-class ContactSheetConfig(BaseModel):
-    """The picture sheets of the visual funnel report: how many pictures of each verdict are
-    sampled and how the sheet is laid out."""
-
-    rejected: int = Field(ge=1)
-    verified: int = Field(ge=1)
-    needs_review: int = Field(ge=1)
-    columns: int = Field(ge=1)
-    per_sheet: int = Field(ge=1)
-    thumbnail_px: int = Field(ge=64)
-
-
-class VisualReportConfig(BaseModel):
-    """The visual funnel report (docs/visual_funnel.md)."""
-
-    # The labels a rejection is reported under; any other reason is "other".
-    rejection_reasons: list[str] = Field(min_length=1)
-    contact_sheet: ContactSheetConfig
-
-
-class ReviewQueueConfig(BaseModel):
-    """P10: the owner's batch review queue. A needs_review picture this close to the reject
-    floor, with no case-source provenance, is auto-rejected with a stored reason instead of
-    shown; the rest are grouped by near-duplicate (the same phash closeness the download-time
-    dedupe uses) so one decision can resolve a whole group."""
-
-    auto_reject_margin: float = Field(default=0.05, ge=0.0, le=0.5)
-    duplicate_hamming_threshold: int = Field(default=6, ge=0, le=64)
-
-
-class SupplyConfig(BaseModel):
-    """How many distinct real pictures and cuts a film needs, derived from its editing rhythm, and
-    how long the search may go on to find them (the first research counts as search 1)."""
-
-    # Average seconds one still stays on screen.
-    still_shot_seconds: float = Field(default=9.5, gt=0)
-    # How often one real picture may appear (as different crops, never the same crop twice).
-    uses_per_picture: int = Field(default=2, ge=1)
-    # Share of the film's time that is real video cuts, and the average length of a cut.
-    video_share: float = Field(default=0.1, ge=0.0, lt=1.0)
-    video_cut_seconds: float = Field(default=8.0, gt=0)
-    max_searches: int = Field(default=8, ge=1, le=20)
-    # Rounds in a row that add no picture before the search ends.
-    max_empty_rounds: int = Field(default=2, ge=1)
-    # Most the follow-up searches and their vision checks may cost in one supply run (actual EUR).
-    research_cost_cap_eur: float = Field(default=15.0, gt=0)
 
 
 class MusicProviderConfig(BaseModel):
@@ -2886,6 +2782,8 @@ class MvpReviewConfig(BaseModel):
     """The persisted owner-review workflow; the film is a candidate until APPROVED."""
 
     state_machine: list[str] = Field(min_length=2)
+    # Full films in the other languages wait for the owner's approval of the exact English render.
+    require_english_first: bool
 
 
 class MainVisualPlannerConfig(BaseModel):
@@ -3739,11 +3637,7 @@ class AIConfig(BaseModel):
     documentary: DocumentaryConfig = Field(default_factory=DocumentaryConfig)
     visual_search: VisualSearchConfig = Field(default_factory=VisualSearchConfig)
     entity_dossier: EntityDossierConfig = Field(default_factory=EntityDossierConfig)
-    editorial_review: EditorialReviewConfig = Field(default_factory=EditorialReviewConfig)
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
-    supply: SupplyConfig = Field(default_factory=SupplyConfig)
-    review_queue: ReviewQueueConfig = Field(default_factory=ReviewQueueConfig)
-    visual_report: VisualReportConfig | None = None
     storage_budget: StorageBudgetConfig = Field(default_factory=StorageBudgetConfig)
     limits: LimitsConfig | None = None
     zoom_map: ZoomMapConfig | None = None
@@ -3752,7 +3646,6 @@ class AIConfig(BaseModel):
     shorts_host_led: HostLedShortsConfig = Field(default_factory=HostLedShortsConfig)
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
-    visual_audit: VisualAuditConfig = Field(default_factory=VisualAuditConfig)
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
@@ -3975,12 +3868,6 @@ class AIConfig(BaseModel):
         if self.limits is None:
             raise RuntimeError("config/parameters/limits.json is missing")
         return self.limits
-
-    def visual_report_settings(self) -> VisualReportConfig:
-        """The visual funnel report's settings (config/parameters/visuals.json)."""
-        if self.visual_report is None:
-            raise RuntimeError("visual_report is missing in config/parameters/visuals.json")
-        return self.visual_report
 
     def autopilot_settings(self) -> AutopilotConfig:
         """The Start button's settings (config/parameters/autopilot.json)."""

@@ -228,7 +228,7 @@ def _upsert_candidate(db: Session, job: DocumentaryJob, film: Video | None,
     script = _film_script(db, film)
     window = film_window(script, candidate.get("source_beat_ids") or [])
     if window and candidate.get("source_start_seconds") is None:
-        from app.documentary.visuals.coverage_fill import window_cards
+        from app.documentary.mvp.coverage import window_cards
 
         assert script is not None   # a window comes from the script
         cards, longest = window_cards(script, *window)

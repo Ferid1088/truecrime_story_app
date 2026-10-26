@@ -293,11 +293,6 @@
     "intro_dir": "data/intros",
     "intro_duck_db": -18.0
   },
-  "visual_audit": {
-    "enabled": true,
-    "max_redos": 2,
-    "min_fit": 0.7
-  },
   "video_audit": {
     "frames_per_second": 1.0,
     "max_frames": 20,

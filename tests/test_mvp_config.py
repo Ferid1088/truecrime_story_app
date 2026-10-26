@@ -3,8 +3,7 @@ import pytest
 from app.core.ai_config import MvpVerificationConfig, ai_config
 
 MVP_ROLES = ["mvp_needs_planner", "mvp_query_planner", "mvp_candidate_verifier", "mvp_second_verifier",
-             "mvp_rights_reader", "mvp_segment_scout", "mvp_scene_director", "mvp_coverage_auditor",
-             "mvp_graphic_localizer"]
+             "mvp_segment_scout", "mvp_scene_director"]
 VISION_ROLES = ["mvp_candidate_verifier", "mvp_second_verifier", "mvp_segment_scout"]
 
 

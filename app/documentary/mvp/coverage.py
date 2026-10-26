@@ -17,6 +17,7 @@ from app.db.models import MvpCandidate, MvpRequirement, VisualAsset, VisualPlan
 PICTURE_KINDS = {"image", "video", "map", "document", "timeline", "detective_board"}
 STRUCTURE_KINDS = {"chapter", "title", "intro", "host", "status", "label"}
 EPS = 0.05
+CARD_KINDS = ("black", "title", "chapter", "timeline", "date")
 
 
 def _runs(shots: list[dict], kinds: set[str]) -> list[tuple[float, float]]:
@@ -156,3 +157,18 @@ def probe_file(path: Path) -> dict:
             "fps": round(int(num) / max(int(den), 1), 3), "audio_codec": audio.get("codec_name"),
             "audio_rate": int(audio.get("sample_rate") or 0), "black_seconds": round(black, 2),
             "frozen_stretches": frozen, "integrated_lufs": float(loud[-1]) if loud else None}
+
+
+def window_cards(script: dict, start: float, end: float) -> tuple[float, float]:
+    """(card seconds, longest card stretch) of the film inside [start, end]: a short cut from a
+    stretch of cards would be a text frame, not a picture."""
+    total, longest, run_end, run = 0.0, 0.0, None, 0.0
+    for s in sorted(script.get("shots") or [], key=lambda x: x["start"]):
+        a, b = max(s["start"], start), min(s["end"], end)
+        if b <= a or not s.get("kind") in CARD_KINDS:
+            continue
+        total += b - a
+        run = run + (b - a) if run_end is not None and abs(run_end - a) <= EPS else (b - a)
+        run_end = b
+        longest = max(longest, run)
+    return round(total, 2), round(longest, 2)

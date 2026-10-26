@@ -131,12 +131,3 @@ def merge_into_entities(db: Session, case: Case, entities: list[dict]) -> list[d
         merged["negative_terms"] = json.loads(d.negative_terms_json or "[]")
         out.append(merged)
     return out
-
-
-def __getattr__(name: str):
-    # the agent class lives in app/agents/visual_dossier.py (imported when first asked for)
-    if name == "VisualDossierAgent":
-        from app.agents.visual_dossier import VisualDossierAgent
-
-        return VisualDossierAgent
-    raise AttributeError(name)

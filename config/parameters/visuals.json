@@ -509,12 +509,6 @@
       "century"
     ]
   },
-  "editorial_review": {
-    "auto_default": true,
-    "min_confidence": 0.75,
-    "max_per_run": 120,
-    "approver_label": "auto-review"
-  },
   "coverage": {
     "max_card_stretch_seconds": 6.0,
     "max_card_share": 0.12,
@@ -525,19 +519,6 @@
     "fill_piece_seconds": 9.5,
     "fill_concurrency": 3,
     "pool_tries": 6
-  },
-  "review_queue": {
-    "auto_reject_margin": 0.05,
-    "duplicate_hamming_threshold": 6
-  },
-  "supply": {
-    "still_shot_seconds": 9.5,
-    "uses_per_picture": 2,
-    "video_share": 0.1,
-    "video_cut_seconds": 8.0,
-    "max_searches": 8,
-    "max_empty_rounds": 2,
-    "research_cost_cap_eur": 30.0
   },
   "fill_ways": {
     "order": [
@@ -587,27 +568,6 @@
         0.75
       ]
     ]
-  },
-  "visual_report": {
-    "rejection_reasons": [
-      "watermark",
-      "does_not_match",
-      "low_confidence",
-      "graphic_or_sensitive",
-      "tone",
-      "context_person",
-      "stand_in_person",
-      "no_verdict",
-      "download_too_large"
-    ],
-    "contact_sheet": {
-      "rejected": 60,
-      "verified": 20,
-      "needs_review": 20,
-      "columns": 5,
-      "thumbnail_px": 288,
-      "per_sheet": 20
-    }
   },
   "storage_budget": {
     "max_case_mb": 3000.0,

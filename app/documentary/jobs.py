@@ -10,21 +10,18 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   spoken:<lang>      storyteller version per language
   host_plan          when/why the on-screen host appears (persona)
   film_length        every finished film must run 45–120 min
-  visual_needs       visual requirements per beat
-  visual_dossier     one dossier per important entity (P1): aliases, era, a visual
-                     description, name-collision warnings, identifiers (Wikidata/Commons)
-  visual_research    real photos/documents for those needs
-  visual_review      automatic editorial review of pictures with unclear rights
-  visual_check       vision verification of the best candidates
-  visual_plan        shots per sentence + motion; maps/document cards
-  visual_gaps        targeted searches for sentences with weak pictures,
-                     then those beats are directed again
+  mvp_needs          Main Visual Planner: visual requirements per beat from the reveal graph
+  mvp_verify         library candidates for each requirement, judged on five separate decisions
+  mvp_research       bounded search rounds (1 + 2) for the requirements still unmet
   host:<lang>        the host's dialogue, natively per language
   performance:<lang> narrator arc + ElevenLabs v4 audio tags
   voice:<lang>       narration + music mix (pilot: first N seconds)
+  mvp_direct:<lang>  shot list against this language's real narration timing
   production:<lang>  language-specific timeline
   critique:<lang>    critics + targeted fixes
+  mvp_coverage:<lang> coverage measured on the compiled script
   render:<lang>      MP4 (+ subtitles)
+  mvp_review:<lang>  the rendered file probed, then held for the owner's decision
 
 Parallel inside one documentary:
   * the spoken versions of all languages and the visual needs together;
@@ -64,7 +61,7 @@ from sqlalchemy.orm import Session
 from app.agents.stages import get_stage_agent
 from app.agents.story import stored_sections
 from app.core.ai_config import ai_config
-from app.core.concurrency import gather_limited, slot
+from app.core.concurrency import slot
 from app.core.policy import PolicyDecision
 from app.db.models import (
     Artifact,
@@ -74,12 +71,10 @@ from app.db.models import (
     Fact,
     ProductionScript,
     StoryVersion,
-    VisualAsset,
     VisualPlan,
 )
 from app.documentary.audio_director import latest_audio_plan
 from app.documentary.blueprint import latest_blueprint
-from app.documentary.visuals.verification import gateway_available
 from app.utils import ensure_utc, utc_now
 
 log = logging.getLogger(__name__)
@@ -291,12 +286,11 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         ["host_plan"] if host else []) + (
         ["chapters"] if ai_config.chapters.enabled else []) + (
         ["naming"] if ai_config.case_naming.generate_in_pipeline else []) + [
-        "film_length", "visual_needs", "visual_dossier", "visual_research", "visual_review",
-        "visual_check", "visual_plan", "visual_gaps"]
+        "film_length", "mvp_needs", "mvp_verify", "mvp_research"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
-            f"performance:{l}", f"voice:{l}", f"zoom_maps:{l}", f"production:{l}", f"critique:{l}",
-            f"visual_audit:{l}", f"visual_coverage:{l}", f"render:{l}"]
+            f"performance:{l}", f"voice:{l}", f"mvp_direct:{l}", f"zoom_maps:{l}", f"production:{l}",
+            f"critique:{l}", f"mvp_coverage:{l}", f"render:{l}", f"mvp_review:{l}"]
     # Shorts are real post-film stages.  They remain pending while the film
     # runs and are claimed only after the documentary job is finished.
     names += ["short_selection"]
@@ -440,17 +434,12 @@ class DocumentaryPipeline(StageRunner):
             spoken[lang] = db.get(StoryVersion, d["version_id"]) if d else latest_spoken(
                 db, master, lang, bp_row.id)
 
-        async def visual_needs():
+        async def mvp_needs():
+            from app.documentary.mvp import pipeline as MVP
 
-            row = latest_visual_plan(db, bp_row.id)
-            tries = 0
-            while row is None or row.status == "invalid":
-                if tries > ai_config.documentary.max_redos:
-                    raise RuntimeError(f"Visual needs stayed invalid after {tries} attempts.")
-                row = await get_stage_agent("visual_planner").create(db, case, bp_row)
-                tries += 1
-            state["vp"] = row
-            return {"visual_plan_id": row.id, "status": row.status, "attempts": tries}
+            row, graph, detail = await MVP.stage_needs(db, case, bp_row)
+            state["vp"], state["graph"] = row, graph
+            return detail
 
         async def host_plan():
             from app.documentary.host import latest_host_plan
@@ -469,7 +458,7 @@ class DocumentaryPipeline(StageRunner):
                     "memory_updates": len(plan.get("memory_updates") or [])}
 
         await self._parallel([spoken_branch(l) for l in langs]
-                             + [self._stage("visual_needs", visual_needs),
+                             + [self._stage("mvp_needs", mvp_needs),
                                 self._optional("host_plan", host_plan)],
                              shared_from=len(langs), shared_count=1)
         if "host_plan" not in state and host_active():
@@ -569,127 +558,21 @@ class DocumentaryPipeline(StageRunner):
 
         await self._stage("film_length", film_length)
 
-        vp_row = state.get("vp") or latest_visual_plan(db, bp_row.id)
+        vp_row = state.get("vp")
         if vp_row is None:
             raise RuntimeError("No visual requirements could be planned.")
-        requirements = json.loads(vp_row.requirements_json or "{}")
-        planned = vp_row.status == "planned" and not job.refresh_visuals
 
-        async def visual_dossier():
-            from app.agents.visual_dossier import VisualDossierAgent
-            from app.documentary.visuals.dossier import merge_into_entities
-
-            stats = await VisualDossierAgent().ensure(db, case, requirements)
-            requirements["entities"] = merge_into_entities(db, case, requirements.get("entities") or [])
-            return stats
-
-        await self._stage("visual_dossier", visual_dossier)
-
-        # ---- phase C: visual chain || each language's chain ----------------
+        # ---- phase C: the planner's shared chain || each language's chain --
         visual_ready = asyncio.Event()
         visual_state: dict = {}
 
         async def visual_chain():
+            from app.documentary.mvp import pipeline as MVP
+
             try:
-                async def visual_research():
-                    if planned:
-                        return {"skipped": True,
-                                "reason": "visual plan exists (refresh_visuals to redo)"}
-                    from app.documentary.visuals.planner import research_queries
-
-                    queries = research_queries(requirements, focus_beats)
-                    stats = await get_stage_agent("visual_research").run(db, case, queries)
-                    return {"queries": len(queries), **stats}
-
-                await self._stage("visual_research", visual_research)
-
-                async def visual_review():
-                    from app.documentary.visuals import editorial_review as ER
-
-                    if not ai_config.rights.enforce:
-                        return {"skipped": True, "reason": "rights are not a filter (rights.enforce off)"}
-                    if not ER.auto_review_enabled(db):
-                        return {"skipped": True, "reason": "auto_editorial_review is off"}
-                    stats = await ER.review_pending(db, case)
-                    if stats.get("errors"):
-                        stats["degraded"] = (f"{stats['errors']} editorial reviews failed — those "
-                                             "pictures stay unreviewed (not used)")
-                    return stats
-
-                await self._stage("visual_review", visual_review)
-
-                async def visual_check():
-                    if planned:
-                        return {"skipped": True}
-                    out = await verify_candidates(db, case, bp, requirements, focus_beats,
-                                                  job.render_profile)
-                    if out.get("errors"):
-                        out["degraded"] = (f"{out['errors']} vision checks failed — "
-                                           "those candidates stay unverified")
-                    from app.documentary.visuals import supply
-
-                    minutes = max((self.result.get("film_minutes") or {0: 0}).values())
-                    film_seconds = pilot_seconds if pilot else minutes * 60.0
-
-                    async def research(queries):
-                        return await get_stage_agent("visual_research").run(db, case, queries)
-
-                    async def verify():
-                        return await verify_candidates(db, case, bp, requirements, focus_beats,
-                                                       job.render_profile)
-
-                    out["supply"] = await supply.top_up(
-                        db, case, requirements, bp, focus_beats, film_seconds, research, verify,
-                        job.render_profile)
-                    from app.documentary.visuals import storage_budget
-
-                    out["storage"] = {**storage_budget.usage(db, case.id),
-                                      "purged": storage_budget.purge_rejected(db, case.id)}
-                    plan = db.get(VisualPlan, vp_row.id)
-                    validation = json.loads(plan.validation_json or "{}")
-                    plan.validation_json = json.dumps({**validation, "supply": out["supply"]})
-                    db.commit()
-                    if not out["supply"]["reached"]:
-                        report = out["supply"]
-                        out["degraded"] = (
-                            f"{report['usable_after']} of {report['target']['total']} distinct real "
-                            f"pictures and cuts after {report['searches']} searches "
-                            f"(stopped: {report['stopped_because']}); the shortage is in the supply report")
-                    return out
-
-                await self._stage("visual_check", visual_check)
-
-                async def visual_plan():
-                    from app.documentary.visuals.generated import materialize
-
-                    row = db.get(VisualPlan, vp_row.id)
-                    if row.status != "planned" or job.refresh_visuals:
-                        await get_stage_agent("visual_director").create(db, case, row, bp_row, ap_row,
-                                                      profile=job.render_profile)
-                    stats = await materialize(db, case, row)
-                    report = json.loads(row.validation_json or "{}").get("plan", {})
-                    return {"visual_plan_id": row.id, "shots": report.get("shots"),
-                            "fallbacks": report.get("fallbacks"), **stats}
-
-                await self._stage("visual_plan", visual_plan)
-
-                async def visual_gaps():
-                    # production-time search for weak sentences; a plan made
-                    # by an earlier job already had its search
-                    if planned:
-                        return {"skipped": True,
-                                "reason": "visual plan exists (refresh_visuals to redo)"}
-                    from app.documentary.visuals.gaps import fill_visual_gaps
-
-                    out = await fill_visual_gaps(db, case, db.get(VisualPlan, vp_row.id),
-                                                 bp_row, ap_row, profile=job.render_profile,
-                                                 beat_ids=focus_beats)
-                    if out.get("error"):
-                        out["degraded"] = "production search failed — " + out["error"]
-                    return out
-
-                await self._stage("visual_gaps", visual_gaps)
-                visual_state["row"] = db.get(VisualPlan, vp_row.id)
+                await self._stage("mvp_verify", lambda: MVP.stage_library_and_verify(db, case, vp_row))
+                await self._stage("mvp_research", lambda: MVP.stage_research(db, case, vp_row))
+                visual_state["row"] = vp_row
             except BaseException as e:
                 visual_state["error"] = e
                 raise
@@ -886,107 +769,6 @@ def _load_manifest(case_id: int, version: StoryVersion) -> dict:
 
     out = VoiceRenderer().out_dir(case_id, version.language or "en", version.id)
     return json.loads((out / "manifest.json").read_text(encoding="utf-8"))
-
-
-async def verify_candidates(db: Session, case: Case, blueprint: dict, requirements: dict,
-                            beat_ids: list[str] | None, profile: str | None,
-                            per_requirement: int | None = None) -> dict:
-    """Vision-check the best unverified candidates of each need (a pilot
-    only checks the beats it shows)."""
-    from app.documentary.visuals.director import blocked_at, rank_candidates
-
-    assets = db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all()
-    ents = {e["key"]: e for e in requirements.get("entities") or []}
-    todo: list[VisualAsset] = []
-    for rb in requirements.get("beats") or []:
-        if beat_ids and rb["beat_id"] not in beat_ids:
-            continue
-        blocked = blocked_at(blueprint, rb["beat_id"])
-        for r in rb["requirements"]:
-            ent = ents.get(r["entity"])
-            if not ent:
-                continue
-            loose = dict(r, acceptable_roles=["evidence", "context", "illustration"])
-            n = per_requirement or ai_config.visual_verification.per_requirement
-            for _, a in rank_candidates(loose, ent, assets, blocked, profile)[:n]:
-                if a.verification_status == "unverified" and a not in todo:
-                    todo.append(a)
-    # a close photo (exact case/person/place) is never left unchecked because other pictures
-    # ranked higher for its need
-    last_tier = ai_config.visual_verification.check_all_up_to_tier
-    for a in assets:
-        if (a.verification_status == "unverified" and a.asset_type == "photo"
-                and a.local_path and a.rights_status != "do_not_use"
-                and (a.relevance_tier or 5) <= last_tier and a not in todo):
-            todo.append(a)
-    # a relevant piece of a video brings its sibling pieces: the whole
-    # video gets described (each piece by the video auditor), so every
-    # part of it can serve the sentence it belongs to
-    from app.documentary.visuals.pieces import piece_info
-
-    parents = {piece_info(a).get("parent") for a in todo} - {None}
-    if parents:
-        for a in assets:
-            if (a not in todo and a.verification_status == "unverified"
-                    and piece_info(a).get("parent") in parents):
-                todo.append(a)
-    out = await verify_assets(db, case, todo, list(ents.values()))
-    second = await second_pass_case(db, case, list(ents.values()))
-    return {**out, **{k: out.get(k, 0) + v for k, v in second.items()}}
-
-
-async def second_pass_case(db: Session, case: Case, entities: list[dict]) -> dict:
-    """The second, independent vision pass over every needs_review place, object, document or map
-    of the case that has not had it."""
-    from app.agents.story import build_evidence_pack
-    from app.db.models import Contradiction, Source
-    from app.documentary.visuals.verification import VisualVerificationAgent
-
-    agent = VisualVerificationAgent()
-    todo = agent.second_pass_candidates(db.query(VisualAsset).filter(VisualAsset.case_id == case.id).all())
-    if not todo:
-        return {"second_checked": 0, "second_verified": 0}
-    pack = build_evidence_pack(
-        db.query(Fact).filter(Fact.case_id == case.id).all(),
-        db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
-        db.query(Source).filter(Source.case_id == case.id).all())
-    return await agent.second_pass(db, case, todo, entities, pack["facts"])
-
-
-async def verify_assets(db: Session, case: Case, assets: list[VisualAsset],
-                        entities: list[dict]) -> dict:
-    """Vision-check these assets against the case evidence (shared by the
-    visual_check stage and the production-time search)."""
-    from app.agents.story import build_evidence_pack
-    from app.db.models import Contradiction, Source
-    from app.documentary.visuals.verification import VisualVerificationAgent
-
-    if not assets:
-        return {"checked": 0}
-    agent = VisualVerificationAgent()
-    ok, status = await gateway_available(agent.gen)
-    if not ok:
-        # never burn every candidate as an "error" against a gateway that cannot answer (P8)
-        return {"checked": 0, "vision_unavailable": status,
-                "degraded": f"vision checks unavailable: {status} — {len(assets)} picture(s) stay unverified"}
-    pack = build_evidence_pack(
-        db.query(Fact).filter(Fact.case_id == case.id).all(),
-        db.query(Contradiction).filter(Contradiction.case_id == case.id).all(),
-        db.query(Source).filter(Source.case_id == case.id).all())
-    # all candidates at once; the vision limit (concurrency.vision) paces them
-    results = await gather_limited(
-        None, [agent.verify(db, case, a, entities, pack["facts"]) for a in assets],
-        return_exceptions=True)
-    counts: dict[str, int] = {}
-    errors = 0
-    for a, r in zip(assets, results):
-        if isinstance(r, Exception) or a.verification_status == "unverified":
-            errors += 1                      # no answer, or an answer without a verdict: checked again later
-            continue
-        counts[a.verification_status] = counts.get(a.verification_status, 0) + 1
-    second = await agent.second_pass(db, case, [a for a in assets if a.verification_status == "needs_review"],
-                                     entities, pack["facts"])
-    return {"checked": len(assets), **counts, **second, **({"errors": errors} if errors else {})}
 
 
 # ---------------------------------------------------------------------------

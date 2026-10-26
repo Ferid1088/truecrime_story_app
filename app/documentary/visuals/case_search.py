@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, Fact, MediaLink, VisualAsset
-from app.documentary.visuals.planner import query_item
+from app.documentary.mvp.research import query_item
 
 
 def case_queries(db: Session, case: Case) -> list[dict]:

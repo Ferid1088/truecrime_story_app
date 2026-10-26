@@ -1,6 +1,6 @@
 """Video segmenter: cuts a video by MEANING, never by the clock.
 
-The segmenter (role video_segmenter, a vision model) watches the whole
+The segmenter (role mvp_segment_scout, a vision model) watches the whole
 video window by window — frames in order with their timestamps, and the
 scene changes ffmpeg found — and proposes pieces: each one a complete,
 meaningful moment (an action from its start to its end, an establishing
@@ -32,7 +32,7 @@ from app.db.models import Case, VisualAsset
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
-SEGMENTER_SYSTEM = prompt("documentary/visuals/video_segmenter/segmenter_system")
+SEGMENTER_SYSTEM = prompt("documentary/mvp/segment_system")
 
 
 def _frame_times(start: float, end: float, fps: float) -> list[float]:
@@ -134,7 +134,7 @@ class VideoSegmenter:
             }
             with track_run(db, case.id, "Video Segmenter",
                            input_summary=f"{source.asset_code} {a:.0f}-{b:.0f}s") as run:
-                data, res = await run_agent("visuals.segment_video", self.gen, json.dumps(payload, ensure_ascii=False), system=system, images=["data:image/jpeg;base64," + base64.b64encode(f).decode()
+                data, res = await run_agent("mvp.segment", self.gen, json.dumps(payload, ensure_ascii=False), system=system, images=["data:image/jpeg;base64," + base64.b64encode(f).decode()
                             for _, f in kept])
                 stamp_run(run, res, "video_segmenter")
             raw = (data or {}).get("pieces") if isinstance(data, dict) else None

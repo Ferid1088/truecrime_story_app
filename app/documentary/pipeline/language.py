@@ -15,6 +15,7 @@ from app.documentary import storage
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.errors import LanguageFailed
 from app.documentary.pipeline.base import record_warning
+from app.documentary.mvp import coverage as CV
 
 
 class LanguageChain:
@@ -152,7 +153,29 @@ class LanguageChain:
         await visual_ready.wait()
         if "error" in visual_state:
             raise LanguageFailed("visual plan failed")
-        plan_row = visual_state.get("row") or db.get(VisualPlan, vp_row.id)
+        needs_plan = visual_state.get("row") or db.get(VisualPlan, vp_row.id)
+
+        from app.documentary.mvp import pipeline as MVP
+        from app.documentary.mvp import review as RV
+
+        RV.guard_no_progress_past_review(db, case.id, lang)
+        if (lang != "en" and ai_config.mvp().review.require_english_first
+                and not RV.english_approved(db, case.id)):
+            raise LanguageFailed("Full-film production for this language requires the owner to watch and "
+                                 "explicitly approve the English film first.")
+
+        async def mvp_direct():
+            plan, report = await MVP.stage_direct(db, case, needs_plan, state["bp"], manifest, lang)
+            holder["plan"] = plan
+            out = {"visual_plan_id": plan.id, **{k: report[k] for k in (
+                "shots", "gap_seconds", "agent_directed_beats", "assets_used")}}
+            if report["gaps"]:
+                out["degraded"] = (f"{len(report['gaps'])} moment(s) without an approved visual "
+                                   f"({report['gap_seconds']}s)")
+            return out
+
+        await pipe._stage(f"mvp_direct:{lang}", mvp_direct)
+        plan_row = holder["plan"]
 
         async def zoom_maps():
             from app.documentary.zoom_map.stage import render_zoom_maps
@@ -184,29 +207,20 @@ class LanguageChain:
 
         await pipe._stage(f"critique:{lang}", critique)
 
-        async def visual_audit():
-            # the gate before render: every picture and clip on screen
-            # verified and approved for the words spoken over it
-            # (rejected ones replaced and audited again, else left out)
-            from app.documentary.visuals.auditor import audit_script, audit_summary
-
-            if not ai_config.visual_audit.enabled:
-                return {"skipped": True, "reason": "visual_audit disabled"}
+        async def mvp_coverage():
             db.refresh(ps)
-            return {"production_script_id": ps.id,
-                    **audit_summary(await audit_script(db, ps))}
+            script = json.loads(ps.script_json)
+            report = MVP.stage_coverage(db, needs_plan, script, manifest)
+            ps.audit_json = json.dumps(report, ensure_ascii=False)
+            db.commit()
+            out = {"production_script_id": ps.id, **{k: report[k] for k in (
+                "temporal_coverage", "black_seconds", "longest_black", "weak_sentence_count",
+                "review_ready")}, "requirements": report["requirements"]}
+            if report["blocking"]:
+                out["degraded"] = "; ".join(report["blocking"])
+            return out
 
-        await pipe._stage(f"visual_audit:{lang}", visual_audit)
-
-        async def visual_coverage():
-            # the film's picture track must pass visuals.coverage (no black, few short cards, no
-            # endless still): the plan is repaired with real pictures, never the rule
-            from app.documentary.visuals.coverage_fill import ensure_coverage
-
-            db.refresh(ps)
-            return {"production_script_id": ps.id, **await ensure_coverage(db, ps)}
-
-        await pipe._stage(f"visual_coverage:{lang}", visual_coverage)
+        await pipe._stage(f"mvp_coverage:{lang}", mvp_coverage)
 
         async def render():
             from app.documentary.render.engine import VideoRenderer
@@ -243,14 +257,17 @@ class LanguageChain:
                                warning.get("language", lang), warning.get("code", "STAGE_WARNING"))
             renders[lang] = {"production_script_id": ps.id, "video_id": video.id,
                              "youtube_title": video.youtube_title, **info}
-            from app.documentary.visuals.coverage_fill import render_check
-
-            check = await asyncio.to_thread(render_check, out, json.loads(ps.script_json))
-            ps.render_json = json.dumps({**json.loads(ps.render_json or "{}"), "coverage_check": check})
-            db.commit()
-            return {**info, "video_id": video.id, "youtube_title": video.youtube_title,
-                    "coverage_check": check,
-                    **({"degraded": "the rendered film breaks the picture rules: "
-                                    + "; ".join(check["problems"])} if check["problems"] else {})}
+            holder["render_path"] = out
+            return {**info, "video_id": video.id, "youtube_title": video.youtube_title}
 
         await pipe._stage(f"render:{lang}", render)
+
+        async def mvp_review():
+            db.refresh(ps)
+            coverage = json.loads(ps.audit_json or "{}")
+            probe = await asyncio.to_thread(CV.probe_file, holder["render_path"])
+            out = MVP.stage_review(db, case, lang, ps.id, holder["render_path"], coverage, probe)
+            return {**out, "file": probe,
+                    **({"degraded": "; ".join(out["blocking"])} if out["blocking"] else {})}
+
+        await pipe._stage(f"mvp_review:{lang}", mvp_review)

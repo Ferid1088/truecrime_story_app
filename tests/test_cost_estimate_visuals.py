@@ -30,17 +30,17 @@ def test_the_estimate_has_a_line_for_searches_vision_checks_and_second_pass_chec
     assert lines["visual_check"].units["checks"] > lines["visual_second_pass"].units["checks"] > 0
 
 
-def test_the_numbers_follow_the_supply_target_and_the_configured_assumptions(db_session):
+def test_the_numbers_follow_the_film_length_and_the_configured_assumptions(db_session):
     import math
-
-    from app.documentary.visuals import supply
 
     a = json.loads(CM.PRICING_PATH.read_text())["assumptions"]["visual_research"]
     lines = _lines(db_session, target_minutes=60)
-    need = supply.target(3600).total
-    assert lines["visual_check"].units["checks"] == math.ceil(need / a["pass_rate"])
+    need = 60 * a["requirements_per_minute"] * a["candidates_checked_per_requirement"]
+    assert lines["visual_check"].units["checks"] == math.ceil(need)
     assert lines["visual_second_pass"].units["checks"] == math.ceil(lines["visual_check"].units["checks"] * a["second_pass_share"])
-    assert lines["visual_search"].units["requests"] == a["initial_queries"] + ai_config.supply.max_searches * a["queries_per_round"] - a["queries_per_round"]
+    rounds = ai_config.mvp().search
+    assert lines["visual_search"].units["requests"] == (
+        a["initial_queries"] + (rounds.initial_rounds + rounds.extra_rounds_max - 1) * a["queries_per_round"])
 
 
 def test_a_longer_film_costs_more_picture_research(db_session):

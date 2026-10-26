@@ -15,9 +15,8 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, VisualAsset
 from app.documentary import storage
+from app.documentary.mvp.media import image_for_check
 from app.documentary.visuals import images as IM
-from app.documentary.visuals import rights as R
-from app.documentary.visuals.verification import image_for_check
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
@@ -160,7 +159,11 @@ async def model_judge(case: Case, asset: VisualAsset, entities: list[dict], fact
         image = IM.data_url(image_for_check(asset))
         gen = get_generation_provider()
         with track_run(db, case.id, "Main Visual Planner: verify", input_summary=asset.asset_code) as run:
-            data, res = await run_agent(agent, gen, json.dumps(payload, ensure_ascii=False), images=[image])
+            body = json.dumps(payload, ensure_ascii=False)
+            if agent == "mvp.verify_second":
+                data, res = await run_agent("mvp.verify_second", gen, body, images=[image])
+            else:
+                data, res = await run_agent("mvp.verify", gen, body, images=[image])
             stamp_run(run, res, ai_config.agents[agent].role)
     except (GenerationError, OSError, IM.ImageError) as e:
         log.warning("verify %s failed transiently: %s", asset.asset_code, e)

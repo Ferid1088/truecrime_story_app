@@ -44,7 +44,8 @@
         "APPROVED",
         "REVISION_REQUIRED",
         "REJECTED"
-      ]
+      ],
+      "require_english_first": true
     }
   }
 }

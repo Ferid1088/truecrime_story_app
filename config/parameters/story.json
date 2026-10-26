@@ -230,15 +230,13 @@
       {
         "name": "documentary_production",
         "authors": [
-          "visual_director"
+          "mvp_scene_director"
         ],
         "reviewers": [
           "automation_feel_critic",
           "attention_critic",
           "visual_accuracy_critic",
-          "production_critic",
-          "visual_auditor",
-          "video_auditor"
+          "production_critic"
         ],
         "strict": true
       },
@@ -252,16 +250,6 @@
         "reviewers": [
           "host_critic",
           "host_meaning_checker"
-        ],
-        "strict": true
-      },
-      {
-        "name": "video_pieces",
-        "authors": [
-          "video_segmenter"
-        ],
-        "reviewers": [
-          "video_auditor"
         ],
         "strict": true
       },
@@ -299,11 +287,11 @@
       {
         "name": "visual_planning",
         "authors": [
-          "visual_planner"
+          "mvp_needs_planner"
         ],
         "reviewers": [
-          "visual_verifier",
-          "visual_editorial_reviewer"
+          "mvp_candidate_verifier",
+          "mvp_second_verifier"
         ],
         "strict": false
       },

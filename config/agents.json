@@ -196,89 +196,12 @@
       "description": "Audio tags per sentence.",
       "used_by": "app/agents/voice_performance.py"
     },
-    "visuals.plan": {
-      "role": "visual_planner",
-      "prompt": "documentary/visuals/planner/planner_system",
-      "output": "json",
-      "description": "What each beat needs to show.",
-      "used_by": "app/agents/visual_planner.py"
-    },
-    "visuals.dossier": {
-      "role": "visual_entity_dossier",
-      "prompt": "documentary/visuals/dossier/dossier_system",
-      "output": "json",
-      "description": "One reference dossier per entity: aliases, a visual description, name-collision warnings.",
-      "used_by": "app/agents/visual_dossier.py"
-    },
-    "visuals.direct": {
-      "role": "visual_director",
-      "prompt": "documentary/visuals/director/director_system",
-      "output": "json",
-      "description": "Shots per sentence.",
-      "used_by": "app/agents/visual_director.py"
-    },
-    "visuals.refine_queries": {
-      "role": "visual_query_refiner",
-      "prompt": "documentary/visuals/refinement/refiner_system",
-      "output": "json",
-      "description": "P11: better search queries for a low-yield entity, from its sample results' titles/snippets (never images).",
-      "used_by": "app/agents/visual_refinement.py"
-    },
-    "visuals.verify": {
-      "role": "visual_verifier",
-      "prompt": "documentary/visuals/verification/verifier_system",
-      "output": "json",
-      "description": "Does the picture show what is claimed?",
-      "used_by": "app/agents/visual_verification.py"
-    },
-    "visuals.editorial_review": {
-      "role": "visual_editorial_reviewer",
-      "prompt": "documentary/visuals/editorial_review/reviewer_system",
-      "output": "json",
-      "description": "May this editorial-review picture be used at all (person, place, period, identity, caption)?",
-      "used_by": "app/agents/visual_editorial_review.py"
-    },
-    "visuals.contradiction_sides": {
-      "role": "visual_planner",
-      "prompt": "documentary/visuals/fill/contradiction_sides_system",
-      "output": "json",
-      "description": "The two opposing accounts of a contradiction, for the side-by-side card.",
-      "used_by": "app/documentary/visuals/fill_ways.py"
-    },
-    "visuals.audit": {
-      "role": "visual_auditor",
-      "prompt": "documentary/visuals/auditor/auditor_system",
-      "output": "json",
-      "description": "May this picture be shown with these words?",
-      "used_by": "app/agents/visual_auditor.py"
-    },
     "visuals.localize_overlays": {
       "role": "overlay_localizer",
       "prompt": "documentary/visuals/generated/localizer_system",
       "output": "json",
       "description": "On-screen texts per language.",
       "used_by": "app/documentary/visuals/generated.py"
-    },
-    "visuals.describe_piece": {
-      "role": "video_auditor",
-      "prompt": "documentary/visuals/video_auditor/describe_system",
-      "output": "json",
-      "description": "Check a video piece's cut and description.",
-      "used_by": "app/agents/video_auditor.py"
-    },
-    "visuals.audit_piece": {
-      "role": "video_auditor",
-      "prompt": "documentary/visuals/video_auditor/placement_system",
-      "output": "json",
-      "description": "May this piece be shown here?",
-      "used_by": "app/agents/video_auditor.py"
-    },
-    "visuals.segment_video": {
-      "role": "video_segmenter",
-      "prompt": "documentary/visuals/video_segmenter/segmenter_system",
-      "output": "json",
-      "description": "Cut a video by meaning.",
-      "used_by": "app/documentary/visuals/video_segmenter.py"
     },
     "documentary.critic": {
       "role": "production_critic",
@@ -552,6 +475,13 @@
       "output": "json",
       "description": "Main Visual Planner step 8: which approved item fills which shot slot of a beat.",
       "used_by": "app/documentary/mvp/direct.py"
+    },
+    "mvp.segment": {
+      "role": "mvp_segment_scout",
+      "prompt": "documentary/mvp/segment_system",
+      "output": "json",
+      "description": "Main Visual Planner step 6: cut a source video by meaning, from sparse frames.",
+      "used_by": "app/documentary/visuals/video_segmenter.py"
     }
   }
 }

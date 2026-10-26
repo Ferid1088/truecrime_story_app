@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.core.env import env_value
 from app.core.files import serve as serve_file
-from app.core.tasks import spawn
 from app.db.base import get_db
 from app.db.models import (
     Artifact,
@@ -26,7 +25,6 @@ from app.db.models import (
     ProductionScript,
     StoryVersion,
     VisualAsset,
-    VisualPlan,
 )
 from app.documentary import jobs as J
 from app.documentary import storage
@@ -810,37 +808,6 @@ def approve_editorial(asset_id: int, payload: EditorialApproval, db: Session = D
     return asset_dict(a)
 
 
-class AutoReviewBody(BaseModel):
-    enabled: bool
-
-
-@router.get("/api/documentary/visuals/editorial-review")
-def editorial_review_overview(case_id: int | None = None, db: Session = Depends(get_db)):
-    """The owner's setting, the decision counts and how many pictures still wait for a review."""
-    from sqlalchemy import func
-
-    from app.db.models import EditorialReviewDecision
-    from app.documentary.visuals import editorial_review as ER
-
-    q = db.query(EditorialReviewDecision.verdict, func.count(EditorialReviewDecision.id))
-    if case_id is not None:
-        q = q.filter(EditorialReviewDecision.case_id == case_id)
-    counts: dict[str, int] = {verdict: n for verdict, n in q.group_by(EditorialReviewDecision.verdict).all()}
-    waiting = db.query(VisualAsset).filter(
-        VisualAsset.rights_status == "editorial_review_required",
-        VisualAsset.editorial_approved_at.is_(None))
-    if case_id is not None:
-        waiting = waiting.filter(VisualAsset.case_id == case_id)
-    return {"enabled": ER.auto_review_enabled(db), "counts": counts, "waiting": waiting.count()}
-
-
-@router.put("/api/documentary/visuals/editorial-review")
-def set_editorial_review(body: AutoReviewBody, db: Session = Depends(get_db)):
-    from app.documentary.visuals import editorial_review as ER
-
-    return {"enabled": ER.set_auto_review(db, body.enabled)}
-
-
 class YouTubeClipsBody(BaseModel):
     enabled: bool
 
@@ -887,38 +854,6 @@ def set_youtube_quota(body: YouTubeQuotaSettingsBody, db: Session = Depends(get_
     return {**YQ.discovery_status(db), "overrides": YQ.settings_overrides(db)}
 
 
-@router.get("/api/documentary/visuals/editorial-review/decisions")
-def editorial_review_decisions(case_id: int | None = None, verdict: str | None = None,
-                               limit: int = 100, db: Session = Depends(get_db)):
-    """Every automatic decision, newest first, for the audit view."""
-    from app.db.models import EditorialReviewDecision
-
-    q = db.query(EditorialReviewDecision, VisualAsset).join(
-        VisualAsset, VisualAsset.id == EditorialReviewDecision.asset_id)
-    if case_id is not None:
-        q = q.filter(EditorialReviewDecision.case_id == case_id)
-    if verdict:
-        q = q.filter(EditorialReviewDecision.verdict == verdict)
-    rows = q.order_by(EditorialReviewDecision.id.desc()).limit(min(max(limit, 1), 500)).all()
-    return [{"id": d.id, "case_id": d.case_id, "asset_id": d.asset_id, "asset_code": d.asset_code,
-             "title": a.title, "caption": a.caption, "source": a.source_name,
-             "verdict": d.verdict, "reasons": json.loads(d.reasons_json or "[]"),
-             "model": d.model, "mode": d.mode, "created_at": d.created_at,
-             "approved_by": a.editorial_approved_by,
-             "thumb_url": f"/api/visuals/{a.id}/file?thumb=1"} for d, a in rows]
-
-
-@router.post("/api/cases/{case_id}/visuals/editorial-review")
-async def run_editorial_review(case_id: int, redo: bool = False, db: Session = Depends(get_db)):
-    """Review the case's pending pictures now (also what the film's visual_review stage does)."""
-    from app.documentary.visuals import editorial_review as ER
-
-    case = db.get(Case, case_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail="Case not found")
-    return await ER.review_pending(db, case, redo=redo)
-
-
 @router.delete("/api/visuals/{asset_id}/approve-editorial")
 def revoke_editorial(asset_id: int, db: Session = Depends(get_db)):
     a = db.get(VisualAsset, asset_id)
@@ -957,7 +892,6 @@ async def cut_video_again(asset_id: int, db: Session = Depends(get_db)):
     if not pieces:
         err = (_loads(a.spec_json, {}) or {}).get("segment_error") or "no meaningful piece"
         raise HTTPException(status_code=502, detail=f"Not cut: {err}")
-    _verify_later(case.id, a.id)
     return {**asset_dict(a), "pieces": len(pieces)}
 
 
@@ -967,10 +901,9 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
                         role: str = Form("evidence"), rights: str = Form("owned"),
                         start: float = Form(0.0),
                         db: Session = Depends(get_db)):
-    """A photo or a video supplied by the production. Either starts
-    unverified and is vision-checked right away (in the background):
-    nothing uploaded goes on screen unchecked. A video is stored muted,
-    at most footage.upload_max_seconds from `start`."""
+    """A photo or a video supplied by the production. Either starts unverified: the Main Visual
+    Planner judges it for every requirement it is a candidate of, and nothing goes on screen
+    unchecked. A video is stored muted, at most footage.upload_max_seconds from `start`."""
     import shutil
     import tempfile
     from pathlib import Path
@@ -1011,42 +944,7 @@ async def upload_visual(case_id: int, file: UploadFile = File(...),
             a = add_uploaded_image(db, case, data, name, title, caption, role, rights)
         except ImageError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
-    _verify_later(case.id, a.id)
     return asset_dict(a)
-
-
-def _verify_later(case_id: int, asset_id: int) -> None:
-    """Vision-check an uploaded asset in the background (entities from
-    the case's latest visual plan, so the director can match it)."""
-
-    async def run():
-        from app.db.base import SessionLocal
-
-        bg = SessionLocal()
-        try:
-            case, a = bg.get(Case, case_id), bg.get(VisualAsset, asset_id)
-            if case is None or a is None:
-                return
-            vp = (bg.query(VisualPlan).filter(VisualPlan.case_id == case_id)
-                  .order_by(VisualPlan.id.desc()).first())
-            ents = (_loads(vp.requirements_json, {}) if vp else {}).get("entities") or []
-            todo = [a]
-            if a.asset_type == "video_source":  # a video: its pieces are checked
-                from app.documentary.visuals.pieces import piece_info
-
-                todo = [r for r in bg.query(VisualAsset).filter(
-                    VisualAsset.case_id == case_id, VisualAsset.asset_type == "video").all()
-                        if piece_info(r).get("parent") == a.asset_code]
-            await J.verify_assets(bg, case, todo, ents)
-        except Exception as e:  # noqa: BLE001 — the asset stays unverified (audited later)
-            log.warning("upload %s: verification failed: %s", asset_id, e)
-        finally:
-            bg.close()
-
-    try:
-        spawn(run(), name="upload_verification")
-    except RuntimeError:  # no loop (tests calling the function directly)
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -1131,58 +1029,6 @@ def production_sources(ps_id: int, db: Session = Depends(get_db)):
                     headers={"Content-Disposition": f'attachment; filename="film_{ps.id}_sources.csv"'})
 
 
-@router.get("/api/cases/{case_id}/visuals/review-queue")
-def visual_review_queue(case_id: int, db: Session = Depends(get_db)):
-    """P10: the owner's batch review queue — needs_review pictures grouped by near-duplicate,
-    after the second pass (S3.b) and an obvious-junk auto-reject have each had their turn."""
-    from app.documentary.visuals.review_queue import review_queue
-
-    _case(db, case_id)
-    return review_queue(db, case_id)
-
-
-@router.get("/api/cases/{case_id}/visuals/review-queue/ui")
-def visual_review_queue_ui(case_id: int, db: Session = Depends(get_db)):
-    """P10: the batch review page's own listing — one entry per group, the beat(s) it would
-    fill, the entity it should show, the verifier's reason, sorted by how many beats it would
-    fill (most first)."""
-    from app.documentary.visuals.review_queue import review_queue_for_ui
-
-    _case(db, case_id)
-    return review_queue_for_ui(db, case_id)
-
-
-class WrongPersonBody(BaseModel):
-    asset_id: int
-    entity_key: str
-
-
-@router.post("/api/cases/{case_id}/visuals/review-queue/wrong-person")
-def visual_review_queue_wrong_person(case_id: int, body: WrongPersonBody, db: Session = Depends(get_db)):
-    """P10: "Wrong person" — rejects the picture and writes a negative example into the
-    entity's own dossier (P1's not_this list)."""
-    from app.documentary.visuals.review_queue import mark_wrong_person
-
-    _case(db, case_id)
-    try:
-        return mark_wrong_person(db, body.asset_id, body.entity_key)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-
-@router.post("/api/cases/{case_id}/visuals/review-queue/auto-reject")
-def visual_review_queue_auto_reject(case_id: int, db: Session = Depends(get_db)):
-    """P10: rejects every obvious-junk needs_review picture now, with a stored reason, and
-    returns the queue size before and after."""
-    from app.documentary.visuals.review_queue import auto_reject_obvious_junk, review_queue
-
-    _case(db, case_id)
-    before = review_queue(db, case_id)
-    rejected = auto_reject_obvious_junk(db, case_id)
-    after = review_queue(db, case_id)
-    return {"rejected": rejected, "before": before, "after": after}
-
-
 @router.get("/api/cases/{case_id}/visuals/dossiers")
 def visual_dossiers(case_id: int, db: Session = Depends(get_db)):
     """Read-only: every entity dossier of the case (P1) — canonical name, aliases, era, visual
@@ -1204,19 +1050,6 @@ def visual_dossiers(case_id: int, db: Session = Depends(get_db)):
         "supports_fact_ids": json.loads(d.supports_fact_ids_json or "[]"),
         "generation_model": d.generation_model, "created_at": d.created_at, "updated_at": d.updated_at,
     } for d in rows]
-
-
-@router.get("/api/cases/{case_id}/visuals/tiers")
-def visual_tiers(case_id: int, db: Session = Depends(get_db)):
-    """P7 tiered checking: how many checked pictures the cheap tier decided vs the strong
-    verifier, and whether any person picture was ever decided by the cheap tier (should be 0:
-    identity decisions always go to the strong tier). Cost per tier is in /costs, grouped by
-    stage ("Visual Verifier Cheap" vs "Visual Verifier")."""
-    from app.documentary.visuals.verification import tier_report
-
-    _case(db, case_id)
-    assets = db.query(VisualAsset).filter(VisualAsset.case_id == case_id).all()
-    return tier_report(assets)
 
 
 @router.get("/api/cases/{case_id}/visuals/intake")

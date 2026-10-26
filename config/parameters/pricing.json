@@ -142,7 +142,6 @@
       "high": 1.25
     },
     "visual_research": {
-      "pass_rate": 0.17,
       "second_pass_share": 0.2,
       "initial_queries": 60,
       "queries_per_round": 24,
@@ -150,7 +149,9 @@
       "vision_output_tokens": 380,
       "second_input_tokens": 8300,
       "second_output_tokens": 600,
-      "source": "measured on case 9 (agent_runs, Visual Verifier, 391 completed checks: 8,290 input and 375 output tokens on average; 54+12 of 388 judged photos passed = 0.17); queries from the research stage of job 20 (56) and the gap search (18)"
+      "source": "vision-call size measured on case 9 (agent_runs, 391 checks: 8,290 input and 375 output tokens on average); queries from the research stage of job 20 (56) and the gap search (18); requirements per minute from case 15's blueprint (51 beats, 2.1 requirements each over 59 minutes would be 1.8; the planner keeps the 0.85/min that survive validation)",
+      "requirements_per_minute": 0.85,
+      "candidates_checked_per_requirement": 4
     }
   },
   "elevenlabs_sound": {
