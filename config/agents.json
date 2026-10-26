@@ -545,6 +545,13 @@
       "output": "json",
       "description": "Main Visual Planner step 6: the next bounded search round for one unmet requirement.",
       "used_by": "app/documentary/mvp/research.py"
+    },
+    "mvp.direct": {
+      "role": "mvp_scene_director",
+      "prompt": "documentary/mvp/direct_system",
+      "output": "json",
+      "description": "Main Visual Planner step 8: which approved item fills which shot slot of a beat.",
+      "used_by": "app/documentary/mvp/direct.py"
     }
   }
 }
