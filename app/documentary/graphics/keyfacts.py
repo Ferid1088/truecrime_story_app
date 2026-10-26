@@ -26,7 +26,9 @@ TOP = 470
 def extract(sentence: str) -> dict | None:
     """The first number/time/date of a stated fact as the big value and the fact itself as the caption; None
     when the fact has no figure or is too long to be a caption."""
-    text = " ".join(sentence.split()).rstrip(".")
+    text = " ".join(sentence.split())
+    if text.endswith(".") and not re.search(r"\b[ap]\.m\.$", text, re.IGNORECASE):
+        text = text[:-1]
     found = VALUE.search(text)
     if not found or len(text) > T.config().key_facts["caption_max_chars"]:
         return None

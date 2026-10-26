@@ -24,7 +24,7 @@ def clean_title(title: str, publisher: str, newspaper: str) -> str:
         if m and (any(part in m.group(0).lower() for part in (publisher.lower(), newspaper.lower().replace("the ", "")))
                   or len(m.group(0)) < 28):
             text = text[:m.start()].strip()
-    return text.strip(" \"'")
+    return text.strip()
 
 
 def parse_date(value) -> dict | None:
