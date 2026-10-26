@@ -374,8 +374,7 @@ def _replace(shots: list[dict], i: int, script: dict | None = None,
     if choice.get("repeat"):
         s.update({"repeat_justified": choice["repeat_justified"],
                   "repeat_reason": choice["repeat_reason"]})
-    if s.get("motion") in ("CROP_FOCUS", "CONTINUE", "NONE", "MAP_ZOOM",
-                           "DOCUMENT_HIGHLIGHT", None):
+    if s.get("motion") in ("CROP_FOCUS", "CONTINUE", "NONE", "MAP_ZOOM", None):
         s["motion"] = "SLOW_PUSH"
     return choice
 

@@ -136,6 +136,13 @@ async def localize_graphics(db: Session, case: Case, plan_row: VisualPlan, langu
     refs: dict[str, tuple[dict, str]] = {}
     for beat in plan.get("beats") or []:
         for shot in beat["shots"]:
+            zoom = shot.get("map_zoom")
+            if zoom and zoom.get("names") and zoom.get("names_language") != language:
+                for n, name in enumerate(zoom["names"]):
+                    ref = f"g{len(pending)}"
+                    pending[ref] = name
+                    refs[ref] = (zoom["names"], n)
+                zoom["names_language"] = language
             spec = shot.get("graphic")
             if not spec or spec.get("language") == language:
                 continue

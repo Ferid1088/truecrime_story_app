@@ -11,7 +11,7 @@
       "runtime_dir": "data/maps/_runtime",
       "pmtiles_bin": "data/maps/_tools/pmtiles",
       "basemap_assets_url": "https://protomaps.github.io/basemaps-assets/",
-      "vector_attribution": "\u00a9 OpenStreetMap contributors",
+      "vector_attribution": "© OpenStreetMap contributors",
       "js_packages": {
         "maplibre-gl": "5.6.0",
         "pmtiles": "4.3.0",
@@ -272,6 +272,15 @@
       "first": "zoom_in",
       "move": "route",
       "return": "pitched_3d"
+    },
+    "panel": {
+      "map_share": 0.65,
+      "step_zooms": [
+        -100.0,
+        4.5,
+        8.5,
+        12.0
+      ]
     }
   }
 }

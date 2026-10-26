@@ -229,7 +229,20 @@ def _place_info(x: dict) -> dict:
             "display_name": x.get("display_name"),
             "granularity": granularity(x), "bbox": _bbox(x),
             "addresstype": x.get("addresstype"), "osm_class": x.get("class"),
-            "osm_type": x.get("type"), "place_rank": x.get("place_rank")}
+            "osm_type": x.get("type"), "place_rank": x.get("place_rank"), "address": x.get("address") or {}}
+
+
+def step_names(geo: dict, place: str) -> list[str]:
+    """The places a zoom passes, widest first, from the geocoder's address: country, region (state and county),
+    town, then the place itself. A level the address does not have is left out; the place is always last."""
+    a = geo.get("address") or {}
+    country = a.get("country")
+    state = a.get("state") or a.get("region") or a.get("province")
+    region = " \u00b7 ".join(x for x in (state, a.get("county")) if x)
+    town = next((a[k] for k in ("city", "town", "village", "municipality", "hamlet", "suburb") if a.get(k)), None)
+    names = [x for x in (country, region, town) if x]
+    label = place.split(",")[0].strip()
+    return [*[n for n in names if n != label], label]
 
 
 def _fold(t: str) -> str:
@@ -246,7 +259,7 @@ async def _lookup(place: str, client: httpx.AsyncClient | None,
     maps = ai_config.maps
     bias = ("" if near is None else f"|{round(near[0], 1)},{round(near[1], 1)}")
     key = hashlib.sha1((place.lower() + bias).encode()).hexdigest()[:16]
-    f = cache_dir() / f"geo6_{key}.json"
+    f = cache_dir() / f"geo7_{key}.json"
     if f.exists():
         res = json.loads(f.read_text())
     else:
@@ -256,7 +269,7 @@ async def _lookup(place: str, client: httpx.AsyncClient | None,
             guard_real_provider("map/geocoder", "construct an HTTP client")
         client = client or httpx.AsyncClient(
             timeout=25, headers={"User-Agent": ai_config.visual_search.user_agent})
-        params: dict = {"q": place, "format": "json", "limit": 5}
+        params: dict = {"q": place, "format": "json", "limit": 5, "addressdetails": 1, "accept-language": "en"}
         if near is not None:
             params["limit"] = maps.near_limit
             d = maps.near_viewbox_degrees

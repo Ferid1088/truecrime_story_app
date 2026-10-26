@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import Case, VisualAsset
 from app.documentary import storage
+from app.documentary.graphics import mappanel as PANEL
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import next_asset_code
@@ -89,9 +90,10 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
     code = next_asset_code(db)
     out = storage.visuals_dir(case.id, "map") / f"{code}.mp4"
     render = ai_config.render
+    width = PANEL.map_width(render.width)
     try:
         res = await renderer(plan, case.id, Path(extract["path"]), out, language,
-                             render.width, render.height, render.fps, fetcher=fetcher)
+                             width, render.height, render.fps, fetcher=fetcher)
     except RENDER.RenderError as e:
         raise ZoomMapUnavailable(str(e)) from e
     thumb = storage.thumbs_dir(case.id) / f"{code}.jpg"
@@ -103,7 +105,7 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
         "place": usage_place(place, returns), "place_name": place, "return": returns,
         "lat": target[0], "lon": target[1], "granularity": info.get("granularity"),
         "route_from": other, "seconds": res.seconds, "frames": res.frames,
-        "fps": render.fps, "size": [render.width, render.height],
+        "fps": render.fps, "size": [width, render.height], "step_times": step_times(plan, info, width, render),
         "attribution": attribution, "imagery": res.imagery,
         "imagery_best_zoom": REG.best_zoom(*target, cfg),
         "vector_data": {k: extract[k] for k in ("build", "source", "bbox", "created", "licence")},
@@ -120,12 +122,20 @@ async def zoom_asset(db: Session, case: Case, language: str, info: dict,
         credit="; ".join(attribution), license="ODbL (map data); imagery licences in the asset spec",
         verification_status="verified", verification_confidence=1.0,
         local_path=storage.rel(out), thumbnail_path=storage.rel(thumb),
-        width=render.width, height=render.height, duration_seconds=res.seconds,
+        width=width, height=render.height, duration_seconds=res.seconds,
         relevance_tier=tier, case_relevance=T.tier_label(tier),
         entity_type="place", found_during="generated", spec_json=json.dumps(spec))
     db.add(a)
     db.commit()
     return a
+
+
+def step_times(plan: CAM.ZoomPlan, info: dict, width: int, render) -> list[float]:
+    """When the camera reaches the zoom level of each place the panel lists (None for a level it never reaches)."""
+    zooms = PANEL.step_thresholds(len(info.get("names") or []), list(ai_config.zoom().panel["step_zooms"]))
+    frames = CAM.frames(plan, render.fps, width, render.height)
+    return [next((round(i / render.fps, 3) for i, fr in enumerate(frames) if fr.camera.zoom >= z), None)
+            for z in zooms]
 
 
 def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) -> dict | None:
@@ -141,11 +151,17 @@ def zoom_shot(plan_shot: dict, assets: dict[str, VisualAsset], language: str) ->
             continue
         spec = json.loads(a.spec_json or "{}")
         if spec.get("key") == key and spec.get("kind") == "zoom":
-            return {"fields": {
+            names = info.get("names") or []
+            times = spec.get("step_times") or []
+            reached = [(n, t) for n, t in zip(names, times, strict=False) if t is not None]
+            fields = {
                 "kind": "map", "zoom_video": True, "path": a.local_path, "clip_start": 0.0,
                 "clip_end": spec["seconds"], "asset_id": a.asset_code, "type": "map",
                 "motion": "NONE", "marker": spec.get("marker"), "attribution": spec["attribution"],
-                "map_variant": spec["variant"]}}
+                "map_variant": spec["variant"]}
+            if reached:
+                fields["panel"] = {"names": [n for n, _ in reached], "step_times": [t for _, t in reached]}
+            return {"fields": fields}
     return None
 
 

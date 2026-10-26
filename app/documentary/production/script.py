@@ -1174,8 +1174,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                         shot["zoom_trimmed"] = True
                     for line in zoom["fields"]["attribution"]:
                         credits.add(line)
-                    add_overlay("place", texts.get(text_key),
-                                start + ai_config.zoom().limits["place_label_after_seconds"], end - 0.3)
+                    if "panel" not in zoom["fields"]:     # the panel names the places; the label is for a bare map
+                        add_overlay("place", texts.get(text_key),
+                                    start + ai_config.zoom().limits["place_label_after_seconds"], end - 0.3)
                     tracker.add(zoom["fields"]["asset_id"], start, end)
                     current = shot
                 elif not maps:

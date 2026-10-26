@@ -2869,6 +2869,9 @@ class ZoomMapConfig(BaseModel):
     imagery_dim: float = Field(ge=0.0, le=1.0)
     style: dict[str, str | float]
     labels: ZoomLabels
+    # The page around the zoom video: the map takes `map_share` of the frame width, a panel lists the places
+    # the camera passes (country, region, town, the place); a step is current from the zoom level in step_zooms.
+    panel: dict
     camera: dict
     variants: dict[str, ZoomVariant]
     # which variant a map beat gets: first mention, a move from the place shown before, a place coming back

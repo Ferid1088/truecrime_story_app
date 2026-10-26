@@ -14,13 +14,12 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
-from app.db.models import Case, Source, VisualAsset, VisualPlan
+from app.db.models import Case, VisualAsset, VisualPlan
 from app.documentary import storage
 from app.documentary.visuals import images as IM
 from app.documentary.visuals import maps as MAPS
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals.research import next_asset_code
-from app.documentary.visuals.typography import document_card
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 
@@ -91,7 +90,7 @@ async def zoom_info(db: Session, case: Case, place: str, previous=None, returns:
     after = None
     if isinstance(previous, dict) and previous.get("place") and previous["place"] != place:
         after = {"place": previous["place"], "lat": previous["lat"], "lon": previous["lon"]}
-    return {"place": place, "lat": geo["lat"], "lon": geo["lon"],
+    return {"place": place, "lat": geo["lat"], "lon": geo["lon"], "names": MAPS.step_names(geo, place),
             "granularity": geo.get("granularity") or "city", "return": returns, "after": after}
 
 
@@ -163,71 +162,11 @@ async def ensure_map(db: Session, case: Case, place: str, previous=None) -> list
     return [a.asset_code for a in info["assets"]] if info else []
 
 
-def ensure_document(db: Session, case: Case, source: Source, passage: str) -> VisualAsset:
-    key = f"doc|{source.id}|{passage[:120].lower()}"
-    a = _find_generated(db, case.id, "document", key)
-    if a:
-        return a
-    code = next_asset_code(db)
-    img, bbox = document_card(source.title or "", source.publisher, passage,
-                              source.raw_text or passage)
-    out = storage.visuals_dir(case.id, "document") / f"{code}.jpg"
-    img.save(out, "JPEG", quality=92)
-    thumb = storage.thumbs_dir(case.id) / f"{code}.jpg"
-    IM.save_thumbnail(img, thumb)
-    # a card quoting a case source is case material (tier 1): repetition
-    # control counts it as evidence, the audit can say why
-    tier, why = T.provisional_why("generated", "evidence", "document")
-    a = VisualAsset(
-        case_id=case.id, asset_code=code, asset_type="document", subject_type="document",
-        title=f"Document: {source.title}"[:500], description=passage[:1000],
-        provider="generated", asset_role="evidence", source_url=source.url,
-        source_name=source.publisher or source.title,
-        rights_status="editorial_review_required",
-        rights_reason="quotes a passage of a case source (short quotation)",
-        verification_status="verified", verification_confidence=1.0,
-        local_path=storage.rel(out), thumbnail_path=storage.rel(thumb),
-        width=img.width, height=img.height,
-        relevance_tier=tier, case_relevance=T.tier_label(tier),
-        entity_type="document", found_during="generated",
-        spec_json=json.dumps({"key": key, "source_id": source.id, "passage": passage,
-                              "highlight": list(bbox), "tier_reason": why}),
-    )
-    db.add(a)
-    db.commit()
-    return a
-
-
-def attach_overlays(plan: dict, requirements: dict) -> dict:
-    """English source text of every on-screen text (localized later). A
-    map names the place it shows (the shot's own place — a place the
-    sentence named — else the beat's map place)."""
-    reqs = {b["beat_id"]: b for b in requirements.get("beats") or []}
-    for pb in plan.get("beats") or []:
-        req = reqs.get(pb["beat_id"], {})
-        for s in pb["shots"]:
-            cmd = s["command"]
-            place = s.get("map_place") or req.get("map_place")
-            if cmd == "SHOW_MAP" and place:
-                s["overlay"] = {"kind": "place", "text_en": place.split(",")[0]}
-            elif cmd == "SHOW_QUOTE" and req.get("quote"):
-                s["overlay"] = {"kind": "quote", "text_en": req["quote"]["text"],
-                                "fact_id": req["quote"]["fact_id"]}
-            elif cmd == "SHOW_DATE" and req.get("date_text"):
-                s["overlay"] = {"kind": "date", "text_en": req["date_text"]}
-            elif cmd == "SHOW_TIMELINE" and req.get("timeline_event"):
-                s["event"] = req["timeline_event"]["id"]
-                if req.get("date_text"):  # (a date over the picture if the card is lost)
-                    s["overlay"] = {"kind": "date", "text_en": req["date_text"]}
-    return plan
-
-
 async def materialize(db: Session, case: Case, plan_row: VisualPlan) -> dict:
-    """Create the maps/document cards the plan uses; attach their asset
-    codes and the English source text of every on-screen text."""
+    """Find and attach what the plan's map shots need (the zoom info of each place, or the old map stills)."""
     plan = json.loads(plan_row.plan_json or "{}")
     reqs = {b["beat_id"]: b for b in json.loads(plan_row.requirements_json or "{}").get("beats", [])}
-    stats = {"maps": 0, "documents": 0, "dropped": 0}
+    stats = {"maps": 0, "dropped": 0}
     # the film's previously mapped place: a nearby next map starts at city
     # level (the viewer already knows the country)
     previous: dict | None = None
@@ -267,15 +206,6 @@ async def materialize(db: Session, case: Case, plan_row: VisualPlan) -> dict:
                     if spec.get("lat") is not None:
                         previous = {"place": place, "lat": spec["lat"], "lon": spec["lon"]}
                     stats["maps"] += 1
-            elif cmd == "SHOW_DOCUMENT":
-                doc = req["document"]
-                src = db.get(Source, doc["source_id"])
-                if src is None:
-                    stats["dropped"] += 1
-                    continue
-                a = ensure_document(db, case, src, doc["passage"])
-                s["asset_id"] = a.asset_code
-                stats["documents"] += 1
             keep.append(s)
         pb["shots"] = keep or pb["shots"]
     plan_row.plan_json = json.dumps(plan, ensure_ascii=False)

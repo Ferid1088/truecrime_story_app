@@ -231,7 +231,8 @@
         "published": "PUBLISHED",
         "detective_board": "DETECTIVE BOARD",
         "quote": "ON THE RECORD",
-        "step": "STEP"
+        "step": "STEP",
+        "map_title": "WHERE IT HAPPENED"
       },
       "de": {
         "conflict": "WIDERSPRUCH",
@@ -276,7 +277,8 @@
         "published": "ERSCHIENEN",
         "detective_board": "DETEKTIVTAFEL",
         "quote": "AUS DER AKTE",
-        "step": "SCHRITT"
+        "step": "SCHRITT",
+        "map_title": "WO ES GESCHAH"
       },
       "fa": {
         "conflict": "تضاد",
@@ -321,7 +323,8 @@
         "published": "تاریخ انتشار",
         "detective_board": "تابلوی کارآگاه",
         "quote": "از پرونده",
-        "step": "مرحله"
+        "step": "مرحله",
+        "map_title": "جایی که رخ داد"
       },
       "ar": {
         "conflict": "تعارض",
@@ -366,7 +369,8 @@
         "published": "تاريخ النشر",
         "detective_board": "لوحة المحقق",
         "quote": "من السجل",
-        "step": "خطوة"
+        "step": "خطوة",
+        "map_title": "أين حدث ذلك"
       }
     },
     "planner": {

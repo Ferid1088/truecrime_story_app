@@ -31,6 +31,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 from app.core.ai_config import ai_config
 from app.core.policy import warning_for
 from app.documentary import storage
+from app.documentary.graphics import mappanel as PANEL
 from app.documentary.graphics.shots import GraphicCard
 from app.documentary.render.cards import (
     CARD_KINDS,
@@ -253,12 +254,6 @@ def _view(shot: dict, p: float, cw: int, ch: int, W: int, H: int) -> tuple[float
         focus = _src_point(shot, "focus", cw, ch) or (cx, cy * 0.9)
         z = base * (1 + 0.14 * amp * e) if motion == "CROP_FOCUS" else base * (1 + 0.05 * amp * e)
         return z, cx + (focus[0] - cx) * 0.6 * e, cy + (focus[1] - cy) * 0.6 * e
-    if motion == "DOCUMENT_HIGHLIGHT":
-        focus = _src_point(shot, "highlight", cw, ch) or (cx, cy)
-        z = base * (1 + 0.38 * e)
-        return z, cx + (focus[0] - cx) * e, cy + (focus[1] - cy) * e
-    if motion == "DOCUMENT_SCROLL":
-        return base * 1.15, cx, cy - ch * 0.12 * (e - 0.5)
     return base, cx, cy
 
 
@@ -320,14 +315,12 @@ class FrameMaker:
                 nxt = self._map_frame(paths[seg + 1], 0.0, shot)
                 frame = cv2.addWeighted(frame, 1 - a, nxt, a, 0)
             return frame
-        canvas = _canvas(shot["path"], W, H, "document" if kind == "document" else "image")
+        canvas = _canvas(shot["path"], W, H, "image")
         ch, cw = canvas.shape[:2]
         z, vx, vy = _view(shot, p, cw, ch, W, H)
         frame = _warp(canvas, z, vx, vy, W, H)
         if shot.get("motion") == "SUBTLE_2_5D":
             frame = self._parallax_frame(shot, canvas, p, z, vx, vy, frame)
-        if shot.get("motion") == "DOCUMENT_HIGHLIGHT":
-            frame = self._dim_outside(frame, shot, p, z, vx, vy, cw, ch)
         return frame
 
     def _card_frame(self, shot: dict, t: float) -> np.ndarray:
@@ -357,9 +350,10 @@ class FrameMaker:
         """The clip's frame at clip_start + (t - shot start), the last
         frame of the window once the shot outlasts the clip."""
         key = (str(shot["path"]), float(shot["start"]))
+        panel = shot.get("panel")
         reader = self._clips.get(key)
         if reader is None:
-            reader = self._clips[key] = ClipReader(shot["path"], self.W, self.H,
+            reader = self._clips[key] = ClipReader(shot["path"], PANEL.map_width(self.W) if panel else self.W, self.H,
                                                    float(shot.get("end") or shot["start"]))
         start = float(shot.get("clip_start") or 0.0)
         at = start + max(t - float(shot["start"]), 0.0)
@@ -367,7 +361,17 @@ class FrameMaker:
         if end is not None and float(end) > start:
             at = min(at, max(float(end) - 1.0 / reader.fps, start))
         frame = reader.frame_at(at)
-        return self.black if frame is None else frame
+        if frame is None:
+            return self.black
+        return self._map_page(shot, frame, t) if panel else frame
+
+    def _map_page(self, shot: dict, map_frame: np.ndarray, t: float) -> np.ndarray:
+        """A zoom map with its panel of places beside it."""
+        key = ("panel", float(shot["start"]))
+        if key not in self._cards:
+            self._cards[key] = PANEL.MapPanel(self.script.get("language") or "en", shot["panel"]["names"],
+                                              list(shot.get("attribution") or []))
+        return self._cards[key].compose(map_frame, t - float(shot["start"]), shot["panel"]["step_times"], self.W)
 
     def release_clips(self, t: float | None = None) -> None:
         """Close clip readers whose shot ended a while ago (all with None)."""
@@ -395,29 +399,6 @@ class FrameMaker:
         fg = _warp(canvas, z * 1.012, vx - shift / max(z, 1e-3), vy, self.W, self.H)
         m = self._parallax[key]
         return (fg * m + frame * (1 - m)).astype(np.uint8)
-
-    def _dim_outside(self, frame, shot, p, z, vx, vy, cw, ch):
-        hl = shot.get("highlight")
-        w, h = shot.get("width"), shot.get("height")
-        if not hl or not w or not h:
-            return frame
-        s = max(cw / w, ch / h)
-        ox, oy = (w * s - cw) / 2, (h * s - ch) / 2
-        ww, wh = cw / z, ch / z
-        vx = min(max(vx, ww / 2), cw - ww / 2)
-        vy = min(max(vy, wh / 2), ch - wh / 2)
-
-        def to_frame(x, y):
-            cx_, cy_ = x * s - ox, y * s - oy
-            return ((cx_ - (vx - ww / 2)) * self.W / ww, (cy_ - (vy - wh / 2)) * self.H / wh)
-
-        x0, y0 = to_frame(hl[0], hl[1])
-        x1, y1 = to_frame(hl[2], hl[3])
-        mask = np.full((self.H, self.W), 1.0, np.float32)
-        cv2.rectangle(mask, (int(x0) - 20, int(y0) - 20), (int(x1) + 20, int(y1) + 20), 0.0, -1)
-        mask = cv2.GaussianBlur(mask, (0, 0), 25)
-        dim = 0.45 * _ease(min(1.0, p * 2))
-        return (frame * (1 - dim * mask[..., None])).astype(np.uint8)
 
 
 class Overlays:
