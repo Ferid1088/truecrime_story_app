@@ -41,8 +41,7 @@
       "key_facts": 12.0,
       "timeline": 16.0,
       "conflict_board": 14.0,
-      "floor_plan": 16.0,
-      "text": 8.0
+      "floor_plan": 16.0
     },
     "cue_fractions": {
       "conflict": [
@@ -83,9 +82,6 @@
         0.4,
         0.6,
         0.8
-      ],
-      "text": [
-        0.1
       ]
     },
     "timeline": {
@@ -170,7 +166,25 @@
         "telegraph.co.uk": "The Telegraph",
         "thetimes.co.uk": "The Times",
         "dispatch.com": "The Columbus Dispatch",
-        "cincinnati.com": "The Cincinnati Enquirer"
+        "cincinnati.com": "The Cincinnati Enquirer",
+        "abcnews.com": "ABC News",
+        "abc7.com": "ABC7 Los Angeles",
+        "abc7ny.com": "ABC7 New York",
+        "daytondailynews.com": "Dayton Daily News",
+        "journal-news.com": "Journal-News",
+        "springfieldnewssun.com": "Springfield News-Sun",
+        "bostonherald.com": "Boston Herald",
+        "courier-journal.com": "The Courier-Journal",
+        "tampabay.com": "Tampa Bay Times",
+        "denverpost.com": "The Denver Post",
+        "nypost.com": "New York Post",
+        "mirror.co.uk": "Daily Mirror",
+        "dailymail.co.uk": "Daily Mail",
+        "smh.com.au": "The Sydney Morning Herald",
+        "theage.com.au": "The Age",
+        "globeandmail.com": "The Globe and Mail",
+        "toronto.com": "Toronto Star",
+        "thestar.com": "Toronto Star"
       }
     },
     "labels": {
@@ -353,6 +367,71 @@
         "detective_board": "لوحة المحقق",
         "quote": "من السجل",
         "step": "خطوة"
+      }
+    },
+    "planner": {
+      "chain": [
+        "quote",
+        "headline",
+        "key_facts",
+        "timeline",
+        "recap",
+        "conflict",
+        "conflict_board",
+        "document"
+      ],
+      "min_seconds": {
+        "conflict": 12.0,
+        "recap": 12.0,
+        "document": 8.0,
+        "quote": 6.0,
+        "headline": 8.0,
+        "key_facts": 8.0,
+        "timeline": 10.0,
+        "conflict_board": 8.0,
+        "floor_plan": 10.0
+      },
+      "timeline": {
+        "max_events_per_card": 5,
+        "base_seconds": 4.0,
+        "seconds_per_event": 3.4,
+        "min_base_seconds": 4.0,
+        "min_seconds_per_event": 2.4
+      },
+      "recap": {
+        "every_beats": 8,
+        "max_facts": 3
+      },
+      "key_facts": {
+        "per_card": 3,
+        "min_confidence": 0.7
+      },
+      "copy": {
+        "fact_line_chars": 60,
+        "caption_chars": 90,
+        "event_label_chars": 70
+      },
+      "headline": {
+        "max_per_film": 12
+      },
+      "conflict": {
+        "max_per_film": 6
+      },
+      "confirmed_strengths": [
+        "strong_primary",
+        "strong_secondary",
+        "documented"
+      ],
+      "min_run_seconds": 6.0,
+      "drift_beats": {
+        "quote": 2,
+        "key_facts": 2,
+        "timeline": 4,
+        "recap": 2,
+        "conflict": 3,
+        "headline": 3,
+        "conflict_board": 6,
+        "document": 2
       }
     }
   }

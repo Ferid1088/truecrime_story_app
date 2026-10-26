@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import ImageFont, features
 
 from app.core.ai_config import GraphicsConfig, ai_config
-from app.documentary.visuals.typography import RTL
+from app.documentary.visuals.shaping import RTL
 
 FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
 RAQM = features.check("raqm")

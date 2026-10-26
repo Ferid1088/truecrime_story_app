@@ -11,8 +11,8 @@
       "target_shots_per_minute": 8.5
     },
     "coverage": {
-      "min_temporal_coverage": 0.98,
-      "max_uncovered_gap_seconds": 3.0,
+      "min_temporal_coverage": 0.995,
+      "max_uncovered_gap_seconds": 0.5,
       "max_black_frame_seconds": 0.5,
       "evidence_requirements_need_evidence_roles": true
     },
@@ -51,17 +51,6 @@
       "max_assets": 500,
       "passes": 1,
       "min_relevance": 0.2
-    },
-    "cards": {
-      "max_per_film": {
-        "quote": 30,
-        "conflict": 4,
-        "facts": 80,
-        "text": 25
-      },
-      "card_seconds": 8.0,
-      "max_hold_seconds": 40.0,
-      "min_gap_seconds": 5.0
     }
   }
 }

@@ -1,4 +1,4 @@
-"""Chapters and the running case timeline: chapter breaks at every act end
+"""Chapters and the case timeline events: chapter breaks at every act end
 (audio plan), the card texts written for every language and approved by
 an independent auditor (rejected -> rewritten with the reasons -> still
 rejected: left out and reported), chapter/title cards at the end of the
@@ -22,7 +22,6 @@ from app.documentary.production.critics import apply_fixes, describe_cut
 from app.documentary.production.script import (
     compose,
     insert_chapter_cards,
-    timeline_card,
 )
 from app.providers.generation.base import GenerationResult
 
@@ -238,16 +237,6 @@ CARDS = {"cold_open": True, "film_title": "The lake",
                      "date_text": "2 April 1998", "year": "1998", "label": None}]}
 
 
-def test_the_timeline_shows_only_what_was_told():
-    tl = timeline_card(CARDS, "B03", "T002")
-    assert [e["id"] for e in tl["events"]] == ["T001", "T002"]      # T003 not told yet
-    assert tl["from_x"] == 0.0 and tl["to_x"] == 1.0 and tl["label"] == "Reported missing"
-    assert timeline_card(CARDS, "B03", "T003") is None              # a later event: never
-    tl4 = timeline_card(CARDS, "B04", "T003", previous="T002")
-    assert tl4["from_x"] == next(e["x"] for e in tl4["events"] if e["id"] == "T002")
-    assert tl4["date"] == "2 April 1998" and tl4["label"] is None
-
-
 def _manifest():
     beats = [("B01", 0.0, 6.0), ("B02", 22.0, 40.0), ("B03", 58.0, 80.0), ("B04", 81.5, 95.0)]
     return {"duration_seconds": 100.0, "files": {"narration_wav": "n.wav"},
@@ -292,36 +281,6 @@ def test_cards_sit_at_the_end_of_the_chapter_break():
     assert left and "too short" in left[0]["why"] and len(shots2) == 1
 
 
-def test_compose_puts_a_timeline_card_where_the_director_asked():
-    from test_visual_production import _asset
-
-    house = _asset("VIS_000011")
-    plan = {"candidates": {}, "beats": [
-        {"beat_id": "B03", "shots": [
-            {"command": "NEW_IMAGE", "asset_id": "VIS_000011", "share": 0.5},
-            {"command": "SHOW_TIMELINE", "event": "T002", "share": 0.5,
-             "overlay": {"kind": "date", "text_en": "12 March 1998"}}]},
-        {"beat_id": "B04", "shots": [
-            {"command": "SHOW_TIMELINE", "event": "T001", "share": 1.0}]}]}
-    m = {"duration_seconds": 40.0, "files": {"narration_wav": "n.wav"},
-         "timeline": {"beats": [{"beat_id": "B03", "start": 0.0, "end": 19.5},
-                                {"beat_id": "B04", "start": 20.0, "end": 40.0}],
-                      "blocks": [], "words": [], "sentences": []}}
-    s = compose(m, plan, {"VIS_000011": house}, {"date|12 March 1998": "12 March 1998"}, "en",
-                cards={**CARDS, "chapters": []})
-    tl = [x for x in s["shots"] if x["kind"] == "timeline"]
-    assert len(tl) == 2 and tl[0]["timeline"]["event"] == "T002"
-    # the second card moves from where the first one stood
-    assert tl[1]["timeline"]["to_x"] == next(e["x"] for e in tl[1]["timeline"]["events"]
-                                             if e["id"] == "T001")
-    assert tl[1]["timeline"]["from_x"] == next(e["x"] for e in tl[1]["timeline"]["events"]
-                                               if e["id"] == "T002")
-    # a card that cannot be made (event not told yet) falls back to the date
-    plan["beats"][1]["shots"][0]["event"] = "T009"
-    s2 = compose(m, plan, {"VIS_000011": house}, {}, "en", cards={**CARDS, "chapters": []})
-    assert [x["kind"] for x in s2["shots"]].count("timeline") == 1
-
-
 def test_critics_respect_cards():
     shots = [_shot(0, 10, "B01"), {"index": 1, "beat_id": "B02", "start": 10, "end": 14,
                                    "kind": "chapter", "command": "CHAPTER_CARD",
@@ -343,45 +302,10 @@ def test_the_renderer_draws_the_cards():
     fm = FrameMaker(script, W, H)
     ch = fm.shot_frame({"kind": "chapter", "start": 0, "end": 4,
                         "card": {"label": "فصل ۲", "title": "جست‌وجو"}}, 1.0)
-    tl = timeline_card(CARDS, "B03", "T002")
-    f0 = fm.shot_frame({"kind": "timeline", "start": 10, "end": 15, "timeline": tl}, 10.0)
-    f1 = fm.shot_frame({"kind": "timeline", "start": 10, "end": 15, "timeline": tl}, 13.0)
     assert ch.shape == (H, W, 3) and ch.max() > 200          # text on the dark ground
-    assert not np.array_equal(f0, f1)                         # the marker moves
-    # time runs left to right in Persian too: the latest date is on the RIGHT
-    red = np.argwhere((f1[..., 0] > 180) & (f1[..., 1] < 80))
-    assert len(red) and red[:, 1].mean() > W / 2
-
-
-def test_each_timeline_label_appears_once():
-    from app.documentary.production.script import timeline_layout
-
-    window = [{"id": "T1", "date": "1997-06-01"}, {"id": "T2", "date": "1998-03-10"},
-              {"id": "T3", "date": "1998-03-12"}, {"id": "T4", "date": "2003-01-01"}]
-    xs, points = timeline_layout(window, "fa")
-    # one point per year, each with its label right under it — 1998 once
-    assert [p["text"] for p in points] == ["۱۹۹۷", "۱۹۹۸", "۲۰۰۳"]
-    assert points[1]["ids"] == ["T2", "T3"] and xs["T2"] == xs["T3"] == points[1]["x"]
-    assert xs["T1"] < xs["T2"] < xs["T4"]                             # left to right
-    # all in one year: one point per day, day and month under it
-    xs, points = timeline_layout(window[1:3], "de")
-    assert [p["text"] for p in points] == ["10. März", "12. März"]
-    xs, points = timeline_layout([{"id": "A", "date": "1998-03-12"},
-                                  {"id": "B", "date": "1998-03-12"}], "en")
-    assert [p["text"] for p in points] == ["12 Mar"] and points[0]["ids"] == ["A", "B"]
-    tl = timeline_card(CARDS, "B04", "T003", "T002", "en")
-    assert [lb["text"] for lb in tl["labels"]] == ["10 Mar", "12 Mar", "2 Apr"]
-    assert [lb["current"] for lb in tl["labels"]] == [False, False, True]
-    # no ball without a label: as many balls as labels, at the same places
-    cards = {"beat_order": ["B1", "B2"], "events": [
-        {**w, "first_beat": "B1", "date_text": w["date"]} for w in window]}
-    tl = timeline_card(cards, "B2", "T3", None, "en")
-    assert [(e["x"], e["current"]) for e in tl["events"]] == \
-        [(lb["x"], lb["current"]) for lb in tl["labels"]]
-    assert next(e["id"] for e in tl["events"] if e["current"]) == "T3"
-    # moving to T2 in the beat that also tells later dates: those are not shown yet
-    tl = timeline_card({**cards, "beat_order": ["B1"]}, "B1", "T2", None, "en")
-    assert [lb["text"] for lb in tl["labels"]] == ["1997", "1998"]
+    # a card never zooms or moves: the same page at the start and near the end
+    assert np.array_equal(ch, fm.shot_frame({"kind": "chapter", "start": 0, "end": 4,
+                                             "card": {"label": "فصل ۲", "title": "جست‌وجو"}}, 3.5))
 
 
 def _zoom(start, end, beat="B02"):

@@ -248,6 +248,13 @@ def failure_details(message: str, error_code: str | None = None) -> dict:
             "resume_disabled_reason": None,
             "next_action": "Approve the final version of this language on the story page, then resume.",
         }
+    if error_code == "awaiting_picture_review" or "Awaiting picture review" in message:
+        return {
+            "resume_allowed": True,
+            "resume_disabled_reason": None,
+            "next_action": ("Open Review pictures: moments of the film have no picture, video or graphic. Approve "
+                            "pictures the planner rejected or was unsure about, then resume."),
+        }
     if error_code == "awaiting_outfit":
         return {
             "resume_allowed": True,
@@ -290,8 +297,8 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         "film_length", "mvp_needs", "mvp_verify", "mvp_research"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
-            f"performance:{l}", f"voice:{l}", f"mvp_host:{l}", f"mvp_direct:{l}", f"zoom_maps:{l}", f"production:{l}",
-            f"critique:{l}", f"mvp_coverage:{l}", f"render:{l}", f"mvp_review:{l}"]
+            f"performance:{l}", f"voice:{l}", f"mvp_host:{l}", f"mvp_direct:{l}", f"mvp_complete:{l}",
+            f"zoom_maps:{l}", f"production:{l}", f"critique:{l}", f"mvp_coverage:{l}", f"render:{l}", f"mvp_review:{l}"]
     # Shorts are real post-film stages.  They remain pending while the film
     # runs and are claimed only after the documentary job is finished.
     names += ["short_selection"]

@@ -37,7 +37,6 @@ def test_decision_limits_are_explicit_json_keys():
         "chapters.lead_out_seconds",
         "chapters.max_title_chars",
         "chapters.max_label_chars",
-        "chapters.max_timeline_events",
         "chapters.max_labelled_events",
         "chapters.intro_enabled",
         "chapters.intro_dir",

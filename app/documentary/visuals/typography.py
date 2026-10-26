@@ -20,11 +20,12 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, features
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+from app.documentary.visuals import shaping
+from app.documentary.visuals.shaping import RAQM, RTL
 
 FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
-RTL = {"fa", "ar"}
-RAQM = features.check("raqm")
 
 FONTS = {
     ("latin", "serif", "regular"): "SourceSerif4-400.ttf",
@@ -51,35 +52,16 @@ def font(language: str, family: str, weight: str, size: int) -> ImageFont.FreeTy
     return ImageFont.truetype(str(FONT_DIR / name), size, layout_engine=layout)
 
 
-def _kw(language: str) -> dict:
-    if not RAQM:
-        return {}
-    if language in RTL:
-        return {"direction": "rtl", "language": language}
-    return {"direction": "ltr", "language": language}
+text_width = shaping.width
+wrap = shaping.wrap
 
 
-def text_width(text: str, f: ImageFont.FreeTypeFont, language: str) -> int:
-    l, _, r, _ = f.getbbox(text, **_kw(language))
-    return r - l
-
-
-def wrap(text: str, f: ImageFont.FreeTypeFont, language: str, max_width: int) -> list[str]:
-    words, lines, cur = text.split(), [], []
-    for w in words:
-        trial = " ".join(cur + [w])
-        if cur and text_width(trial, f, language) > max_width:
-            lines.append(" ".join(cur))
-            cur = [w]
-        else:
-            cur.append(w)
-    if cur:
-        lines.append(" ".join(cur))
-    return lines
+def draw_text(draw: ImageDraw.ImageDraw, xy, text: str, f: ImageFont.FreeTypeFont, language: str, **kwargs) -> None:
+    """Draw one line of text in its language: shaped and ordered right-to-left for Persian/Arabic with or without raqm."""
+    draw.text(xy, shaping.display(text, language), font=f, **shaping.kwargs(language), **kwargs)
 
 
 def _draw_lines(draw, lines, f, language, box_x, y, width, align, fill, spacing):
-    kw = _kw(language)
     for line in lines:
         w = text_width(line, f, language)
         if align == "center":
@@ -88,7 +70,7 @@ def _draw_lines(draw, lines, f, language, box_x, y, width, align, fill, spacing)
             x = box_x + width - w
         else:
             x = box_x
-        draw.text((x, y), line, font=f, fill=fill, **kw)
+        draw_text(draw, (x, y), line, f, language, fill=fill)
         y += int(f.size * spacing)
     return y
 
@@ -130,19 +112,6 @@ def overlay(kind: str, text: str, language: str, W: int, H: int) -> Image.Image:
         _draw_lines(d, lines, f, language, x0, y, width, "start",
                     (245, 242, 235, 255), 1.3)
         return _shadowed(layer)
-    if kind == "quote":
-        f = font(language, "serif", "regular", int(56 * s))
-        width = int(W * 0.68)
-        lines = wrap(text, f, language, width)
-        total = int(len(lines) * f.size * 1.35)
-        y = (H - total) // 2
-        q_open, q_close = ("«", "»") if language in ("fa", "ar") else (
-            ("„", "“") if language == "de" else ("“", "”"))
-        lines = [f"{q_open}{lines[0]}"] + lines[1:]
-        lines[-1] = lines[-1] + q_close
-        _draw_lines(d, lines, f, language, (W - width) // 2, y, width, "center",
-                    (245, 242, 235, 255), 1.35)
-        return _shadowed(layer, 10, 200)
     if kind == "title":
         f = font(language, "serif", "bold", int(76 * s))
         width = int(W * 0.8)
@@ -155,7 +124,7 @@ def overlay(kind: str, text: str, language: str, W: int, H: int) -> Image.Image:
         f = font(language, "sans", "regular", int(24 * s))
         w = text_width(text, f, language)
         x = W - margin // 2 - w if rtl else margin // 2
-        d.text((x, int(36 * s)), text, font=f, fill=(235, 235, 235, 190), **_kw(language))
+        draw_text(d, (x, int(36 * s)), text, f, language, fill=(235, 235, 235, 190))
         return _shadowed(layer, 3, 150)
     if kind == "credit":
         f = font("en", "sans", "regular", int(20 * s))

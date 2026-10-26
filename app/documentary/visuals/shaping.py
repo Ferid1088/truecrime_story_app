@@ -8,8 +8,7 @@ import arabic_reshaper
 from bidi import get_display
 from PIL import ImageFont, features
 
-from app.documentary.visuals.typography import RTL
-
+RTL = {"fa", "ar"}
 RAQM = features.check("raqm")
 _reshaper = arabic_reshaper.ArabicReshaper(configuration={"delete_harakat": False, "support_ligatures": True})
 

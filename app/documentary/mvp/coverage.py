@@ -15,10 +15,11 @@ from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 from app.db.models import MvpCandidate, MvpRequirement, VisualAsset, VisualPlan
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 
-PICTURE_KINDS = {"image", "video", "map", "document", "timeline", "detective_board"}
+PICTURE_KINDS = {"image", "video", "map", "document", "timeline", "detective_board", "graphic"}
+TEXT_KINDS = {"graphic", "chapter", "title", "timeline", "detective_board"}
 STRUCTURE_KINDS = {"chapter", "title", "intro", "host", "status", "label"}
 EPS = 0.05
-CARD_KINDS = ("black", "title", "chapter", "timeline", "date")
+CARD_KINDS = ("black", "title", "chapter", "timeline", "date", "graphic")
 
 
 def _runs(shots: list[dict], kinds: set[str]) -> list[tuple[float, float]]:
@@ -78,7 +79,45 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         "over_reused": over_reused,
         "unapproved_assets": unapproved, "weak_sentences": weak[:50], "weak_sentence_count": len(weak),
         "requirements": requirement_coverage(db, plan, shots),
+        "graphics": graphic_checks(script),
     }
+
+
+def fact_ids(value) -> set[str]:
+    """Every fact id a graphic's data names (they say what evidence the page shows)."""
+    found: set[str] = set()
+    if isinstance(value, dict):
+        if isinstance(value.get("fact_id"), str):
+            found.add(value["fact_id"])
+        for v in value.values():
+            found |= fact_ids(v)
+    elif isinstance(value, list):
+        for v in value:
+            found |= fact_ids(v)
+    return found
+
+
+def graphic_checks(script: dict) -> dict:
+    """What the film shows that is not a picture: nothing of it appears twice, nothing of it moves, all of it is in
+    the film's language, and none was dropped for no longer fitting."""
+    shots = [s for s in script.get("shots") or [] if s.get("kind") == "graphic"]
+    seen: dict[str, int] = {}
+    repeated = []
+    for n, s in enumerate(shots):
+        for fid in fact_ids(s["graphic"]["data"]):
+            if fid in seen and seen[fid] != n:
+                repeated.append({"evidence": fid, "at": s["start"]})
+            seen[fid] = n
+    moving = [{"kind": s["kind"], "start": s["start"], "motion": s.get("motion")}
+              for s in script.get("shots") or [] if s.get("kind") in TEXT_KINDS and s.get("motion") not in (None, "NONE")]
+    wrong = [{"type": s["graphic"]["type"], "start": s["start"], "language": s["graphic"].get("language")}
+             for s in shots if s["graphic"].get("language") != script.get("language")]
+    by_type: dict[str, float] = {}
+    for s in shots:
+        by_type[s["graphic"]["type"]] = by_type.get(s["graphic"]["type"], 0.0) + s["end"] - s["start"]
+    return {"count": len(shots), "seconds": {k: round(v, 1) for k, v in sorted(by_type.items())},
+            "repeated": repeated, "moving": moving, "wrong_language": wrong,
+            "dropped": script.get("graphics_dropped") or []}
 
 
 def requirement_coverage(db: Session, plan: VisualPlan, shots: list[dict]) -> dict:
@@ -129,6 +168,15 @@ def verdict(report: dict) -> dict:
         blocking.append(f"{len(report['over_reused'])} asset(s) shown more often than allowed")
     if report["requirements"]["uncovered"]:
         blocking.append(f"{report['requirements']['uncovered']} requirement(s) approved but not on screen")
+    graphics = report["graphics"]
+    if graphics["repeated"]:
+        blocking.append(f"{len(graphics['repeated'])} graphic item(s) shown more than once")
+    if graphics["moving"]:
+        blocking.append(f"{len(graphics['moving'])} text page(s) zoom or move")
+    if graphics["wrong_language"]:
+        blocking.append(f"{len(graphics['wrong_language'])} graphic(s) not in the film's language")
+    if graphics["dropped"]:
+        blocking.append(f"{len(graphics['dropped'])} graphic(s) no longer fitted their length")
     if report["requirements"]["shortage"]:
         publication.append(f"{report['requirements']['shortage']} requirement(s) recorded as shortage")
     return {"review_ready": not blocking, "blocking": blocking, "publication_blockers": publication}
@@ -166,7 +214,7 @@ def window_cards(script: dict, start: float, end: float) -> tuple[float, float]:
     total, longest, run_end, run = 0.0, 0.0, None, 0.0
     for s in sorted(script.get("shots") or [], key=lambda x: x["start"]):
         a, b = max(s["start"], start), min(s["end"], end)
-        if b <= a or not s.get("kind") in CARD_KINDS:
+        if b <= a or s.get("kind") not in CARD_KINDS:
             continue
         total += b - a
         run = run + (b - a) if run_end is not None and abs(run_end - a) <= EPS else (b - a)

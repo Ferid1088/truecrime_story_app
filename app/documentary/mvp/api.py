@@ -92,13 +92,43 @@ def mvp_plan(case_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/cases/{case_id}/mvp/candidates")
-def mvp_candidates(case_id: int, status: str = "needs_review", limit: int = 100,
+def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None = None, limit: int = 100,
                    db: Session = Depends(get_db)):
-    rows = (db.query(MvpCandidate, MvpRequirement)
-            .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
-            .filter(MvpRequirement.case_id == case_id, MvpCandidate.final_status == status)
-            .order_by(MvpCandidate.id).limit(min(max(limit, 1), 500)).all())
+    """The pictures the planner was unsure about (needs_review) or rejected, optionally of one beat only; the
+    asset of each candidate is judged once, so a picture appears once per requirement it was judged for."""
+    wanted = [s for s in status.split(",") if s in ("needs_review", "rejected", "approved")]
+    query = (db.query(MvpCandidate, MvpRequirement)
+             .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+             .filter(MvpRequirement.case_id == case_id, MvpCandidate.final_status.in_(wanted or ["needs_review"])))
+    if beat:
+        query = query.filter(MvpRequirement.beat_id == beat)
+    rows = query.order_by(MvpCandidate.final_status.desc(), MvpCandidate.id).limit(min(max(limit, 1), 500)).all()
     return [candidate_dict(db, c, r) for c, r in rows]
+
+
+@router.get("/api/cases/{case_id}/mvp/gaps")
+def mvp_gaps(case_id: int, language: str = "en", db: Session = Depends(get_db)):
+    """The moments of the film that have no picture, video or graphic after every alternative, with how many
+    pictures of each beat the planner rejected or was unsure about (what the owner can still approve)."""
+    rows = db.query(VisualPlan).filter_by(case_id=case_id).order_by(VisualPlan.id.desc()).all()
+    plan = next((p for p in rows if json.loads(p.validation_json or "{}").get("mvp", {}).get("language") == language
+                 and "plan" in json.loads(p.validation_json or "{}")), None)
+    if plan is None:
+        raise HTTPException(404, f"No {language} direction for this case yet")
+    report = json.loads(plan.validation_json)["plan"]
+    gaps = report.get("gaps") or []
+    open_by_beat: dict[str, dict[str, int]] = {}
+    for cand, req in (db.query(MvpCandidate, MvpRequirement)
+                      .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+                      .filter(MvpRequirement.case_id == case_id,
+                              MvpCandidate.final_status.in_(("needs_review", "rejected"))).all()):
+        counts = open_by_beat.setdefault(req.beat_id, {"needs_review": 0, "rejected": 0})
+        counts[cand.final_status] += 1
+    return {"language": language, "gap_count": len(gaps),
+            "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1), "gaps": gaps,
+            "alternatives": report.get("alternatives", {}),
+            "beats": [{"beat_id": b, **open_by_beat.get(b, {"needs_review": 0, "rejected": 0})}
+                      for b in sorted({g["beat"] for g in gaps})]}
 
 
 @router.post("/api/mvp/candidates/{candidate_id}/decision")

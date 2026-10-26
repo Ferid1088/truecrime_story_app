@@ -286,9 +286,7 @@
     "lead_out_seconds": 0.4,
     "max_title_chars": 48,
     "max_label_chars": 48,
-    "max_timeline_events": 9,
     "max_labelled_events": 24,
-    "timeline_move_seconds": 1.2,
     "intro_enabled": true,
     "intro_dir": "data/intros",
     "intro_duck_db": -18.0

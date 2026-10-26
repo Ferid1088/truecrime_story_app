@@ -8,8 +8,8 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from app.documentary.graphics import shaping
 from app.documentary.graphics import theme as T
+from app.documentary.visuals import shaping
 
 Color = tuple[int, int, int]
 

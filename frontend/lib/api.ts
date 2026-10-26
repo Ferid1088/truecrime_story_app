@@ -47,6 +47,7 @@ import type {
   CaseDossier,
   CaseListItem,
   MvpCandidate,
+  MvpGaps,
   MvpFilmReview,
   MvpPlan,
   ShortFormCaseItem,
@@ -1031,8 +1032,12 @@ export const youtubeClipsApi = {
 
 export const mvpApi = {
   plan: (caseId: number) => request<MvpPlan>(`/api/cases/${caseId}/mvp/plan`),
-  candidates: (caseId: number, status = "needs_review") =>
-    request<MvpCandidate[]>(`/api/cases/${caseId}/mvp/candidates?status=${status}`),
+  candidates: (caseId: number, status = "needs_review", beat?: string) =>
+    request<MvpCandidate[]>(
+      `/api/cases/${caseId}/mvp/candidates?status=${status}${beat ? `&beat=${encodeURIComponent(beat)}` : ""}`,
+    ),
+  gaps: (caseId: number, language = "en") =>
+    request<MvpGaps>(`/api/cases/${caseId}/mvp/gaps?language=${language}`),
   decideCandidate: (candidateId: number, decision: "approve" | "reject", note?: string) =>
     post<MvpCandidate>(`/api/mvp/candidates/${candidateId}/decision`, { decision, note }),
   reviews: (caseId: number) => request<MvpFilmReview[]>(`/api/cases/${caseId}/mvp/reviews`),

@@ -144,7 +144,7 @@ def compose_thumbnail(brief: dict, host_path: Path, primary_path: Path, out_path
     by = max(py - bh - 14, m // 2)
     d.rounded_rectangle((bx, by, bx + bw, by + bh), radius=bh // 4, fill=accent)
     ink = _text_color_on(accent)
-    d.text((bx + bw / 2, by + bh / 2), label, font=fnt, fill=ink, anchor="mm", **TY._kw(lang))
+    TY.draw_text(d, (bx + bw / 2, by + bh / 2), label, fnt, lang, fill=ink, anchor="mm")
     layout["badge"] = [bx, by, bw, bh]
     layout["badge_ink_contrast"] = round(contrast(accent, ink), 2)
     layout["elements"].append("status_badge")
@@ -166,8 +166,7 @@ def compose_thumbnail(brief: dict, host_path: Path, primary_path: Path, out_path
         for i, line in enumerate(lines):
             y = py + ph - sh_h + 14 + i * lh + lh // 2
             x = px + pw - 20 if rtl else px + 20
-            d.text((x, y), line, font=tf, fill=(250, 247, 240), anchor="rm" if rtl else "lm",
-                   **TY._kw(lang))
+            TY.draw_text(d, (x, y), line, tf, lang, fill=(250, 247, 240), anchor="rm" if rtl else "lm")
         layout["text"] = [px, py + ph - sh_h, pw, sh_h]
         layout["elements"].append("text")
 

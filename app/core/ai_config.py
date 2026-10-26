@@ -116,6 +116,11 @@ REQUIRED_ROLES = {
     "mvp_second_verifier",
     "mvp_segment_scout",
     "mvp_scene_director",
+    # The alternative graphics: a disputed point structured into two sourced sides, stored facts
+    # shortened faithfully, and the earliest beat a real newspaper headline may be shown.
+    "mvp_conflict_structurer",
+    "mvp_copywriter",
+    "mvp_headline_placer",
     # A second, independent model looks at the same picture and the same inputs when the first
     # left a place, object, document or map in needs_review.
     # Independent of the planner: may this editorial-review picture be used at all (right
@@ -2313,11 +2318,9 @@ class ChaptersConfig(BaseModel):
     max_title_chars: int = Field(default=48, ge=12, le=120)
     max_label_chars: int = Field(default=48, ge=12, le=120)
     # events on one timeline card (the current one and its neighbours)
-    max_timeline_events: int = Field(default=9, ge=2, le=30)
     # events labelled by the writer (the ones the story tells, in order)
     max_labelled_events: int = Field(default=24, ge=1, le=80)
     # the marker slides to the new date in this time
-    timeline_move_seconds: float = Field(default=1.2, ge=0.2, le=4.0)
     # The channel intro (app/documentary/intros.py): rendered once per
     # channel into intro_dir/<lang>/ and the same in every film — after
     # the cold open (in its chapter break), else before the first word.
@@ -2789,16 +2792,6 @@ class MvpTopupConfig(BaseModel):
     min_relevance: float = Field(ge=0.0)
 
 
-class MvpCardsConfig(BaseModel):
-    """Factual graphics that fill what no related picture covers, and the last resort before black."""
-
-    max_per_film: dict[str, int]
-    card_seconds: float = Field(gt=0.0)
-    # A picture may be held this long (past max_still_seconds) rather than leave a stretch black.
-    max_hold_seconds: float = Field(gt=0.0)
-    min_gap_seconds: float = Field(gt=0.0)
-
-
 class MvpReviewConfig(BaseModel):
     """The persisted owner-review workflow; the film is a candidate until APPROVED."""
 
@@ -2819,7 +2812,6 @@ class MainVisualPlannerConfig(BaseModel):
     coverage: MvpCoverageConfig
     verification: MvpVerificationConfig
     topup: MvpTopupConfig
-    cards: MvpCardsConfig
     review: MvpReviewConfig
 
 
@@ -2843,6 +2835,7 @@ class GraphicsConfig(BaseModel):
     floor_plan: dict
     key_facts: dict
     headline: dict
+    planner: dict
     labels: dict[str, dict[str, str]]
 
     @model_validator(mode="after")

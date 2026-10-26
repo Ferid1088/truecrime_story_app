@@ -31,12 +31,11 @@ from PIL import Image, ImageEnhance, ImageFilter
 from app.core.ai_config import ai_config
 from app.core.policy import warning_for
 from app.documentary import storage
+from app.documentary.graphics.shots import GraphicCard
 from app.documentary.render.cards import (
     CARD_KINDS,
     DetectiveBoardCard,
-    TimelineCard,
     chapter_image,
-    push,
     title_image,
 )
 from app.documentary.visuals.typography import overlay as text_layer
@@ -338,8 +337,8 @@ class FrameMaker:
         card = self._cards.get(key)
         if card is None:
             info = shot.get("card") or {}
-            if shot["kind"] == "timeline":
-                card = TimelineCard(shot, lang, self.W, self.H)
+            if shot["kind"] == "graphic":
+                card = GraphicCard(shot, lang, self.W, self.H)
             elif shot["kind"] == "detective_board":
                 card = DetectiveBoardCard(shot, lang, self.W, self.H)
             elif shot["kind"] == "title":
@@ -350,9 +349,9 @@ class FrameMaker:
             self._cards[key] = card
         length = max(shot["end"] - shot["start"], 0.1)
         since = max(t - shot["start"], 0.0)
-        if isinstance(card, (TimelineCard, DetectiveBoardCard)):
+        if isinstance(card, (DetectiveBoardCard, GraphicCard)):
             return card.frame(since, since / length)
-        return push(card, since / length)
+        return card
 
     def _video_frame(self, shot: dict, t: float) -> np.ndarray:
         """The clip's frame at clip_start + (t - shot start), the last

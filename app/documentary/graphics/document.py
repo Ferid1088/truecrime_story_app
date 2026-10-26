@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFilter
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic, ease
 from app.documentary.graphics.page import Page
-from app.documentary.visuals.typography import RTL
+from app.documentary.visuals.shaping import RTL
 
 PAPER_W, PAPER_H = 790, 720
 QUOTE_MARKS = {"en": ("“", "”"), "de": ("„", "“"), "fa": ("«", "»"),

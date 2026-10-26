@@ -23,14 +23,13 @@ def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
     data = {"conflict": S.conflict(language), "conflict_board": S.board(language), "recap": S.recap(language),
             "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
             "headline": S.headline(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
-                                                "fact_id": "F1"},
-            "text": {"text": S.TEXT[language]["ac"]}}[kind]
+                                                "fact_id": "F1"}}[kind]
     cues = {"conflict": [2, 6, 10], "conflict_board": [2], "recap": [2, 6, 10], "timeline": [2, 5, 8],
-            "key_facts": [2, 5], "document": [2], "headline": [2], "quote": [2], "text": [2]}[kind]
+            "key_facts": [2, 5], "document": [2], "headline": [2], "quote": [2]}[kind]
     return data, 16.0, [float(c) for c in cues]
 
 
-KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote", "text")
+KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote")
 
 
 def thumb(image: Image.Image) -> np.ndarray:

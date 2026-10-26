@@ -411,7 +411,7 @@ def test_render_engine_produces_mp4_with_audio_and_subtitles(tmp_path):
             },
         ],
         "overlays": [
-            {"kind": "quote", "text": "دیگر نمی‌خواست", "start": 4.6, "end": 5.9},
+            {"kind": "place", "text": "تپه‌ها", "start": 4.6, "end": 5.9},
             {"kind": "label", "text": "تصویر نمادین", "start": 2.5, "end": 4.5},
         ],
         "subtitles": [{"start": 0.2, "end": 2.0, "text": "صبح بود."}],
@@ -1161,7 +1161,6 @@ def test_shadow_pipeline_real_job(
     from app.core.artifact_dependencies import ARTIFACT_DEPENDENCIES, ARTIFACT_SCOPES
     from app.db.models import Artifact, ArtifactDep, MusicTrack, MusicUsage
     from app.documentary import jobs as J
-    from app.documentary.production.script import timeline_layout
     from app.services.artifact_shadow import registry_consistency
     from app.services.artifacts import ArtifactRegistry
     from app.services.soundness import saved_output_snapshot
@@ -1296,10 +1295,7 @@ def test_shadow_pipeline_real_job(
             ).script_json
         )
         assert script["language"] == language
-        for shot in script.get("shots") or []:
-            if shot.get("kind") == "timeline":
-                xs = [label["x"] for label in shot["timeline"].get("labels") or []]
-                assert xs == sorted(xs)
+        assert not any(s.get("kind") == "timeline" for s in script.get("shots") or [])
         assert stages[f"render:{language}"]["status"] == "done"
     # Shorts are a post-film worker and may still be running when the long
     # film's completion assertions execute; exclude those deliberately async
@@ -1466,12 +1462,6 @@ def test_shadow_pipeline_real_job(
 
     differences = diff_values(first_scripts["en"], second_scripts["en"])
     assert first_scripts == second_scripts, differences[:20]
-
-    # The real renderer's timeline layout is language-independent in direction.
-    window = [{"id": "T1", "date": "1998"}, {"id": "T2", "date": "2007"}]
-    for language in ("fa", "ar"):
-        _, points = timeline_layout(window, language)
-        assert [point["x"] for point in points] == sorted(point["x"] for point in points)
 
 
 @needs_ffmpeg

@@ -98,6 +98,7 @@ const STAGE_LABELS: Record<string, string> = {
   mvp_research: "Bounded media research",
   mvp_host: "Host scenes (voice and avatar)",
   mvp_direct: "Shot direction",
+  mvp_complete: "Completeness check (every moment shown)",
   performance: "Narrator performance",
   voice: "Narration & Music Mix",
   production: "Production script",

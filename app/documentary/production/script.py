@@ -41,6 +41,7 @@ from app.db.models import (
     VisualPlan,
 )
 from app.documentary import storage
+from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.generated import LABELS, localize_texts
@@ -710,126 +711,7 @@ def status_overlays(case_status: str | None, production_type: str | None,
 # cards: chapters, the film title, the running timeline
 # ---------------------------------------------------------------------------
 
-CARD_KINDS = ("chapter", "title", "timeline", "detective_board")
-
-
-def _ordinal(date: str) -> float:
-    from datetime import date as _date
-
-    from app.documentary.chapters import parse_date_text
-
-    p = parse_date_text(date)
-    if not p:
-        return 0.0
-    y, m, d = p
-    try:
-        return float(_date(y, m or 7, d or (15 if m else 1)).toordinal())
-    except ValueError:
-        return float(_date(y, 7, 1).toordinal())
-
-
-_SHORT_MONTHS = {
-    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    "de": ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.",
-           "Nov.", "Dez."],
-}
-_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
-
-
-def _num(n: int, language: str) -> str:
-    return str(n).translate(_FA_DIGITS) if language == "fa" else str(n)
-
-
-def _short_date(p: tuple, language: str) -> str:
-    """'10 Mar' / '10. März' / '۱۰ مارس' — a tick label inside one year."""
-    from app.documentary.visuals.generated import MONTHS
-
-    _, m, d = p
-    if not m:
-        return ""
-    month = (_SHORT_MONTHS.get(language) or MONTHS.get(language) or MONTHS["en"])[m - 1]
-    if not d:
-        return month
-    day = _num(d, language) + ("." if language == "de" else "")
-    return f"{day} {month}"
-
-
-def _spread(values: list[float], lo: float = 0.0, hi: float = 1.0) -> list[float]:
-    """Half time scale, half order: close dates stay apart, far ones far."""
-    m = len(values)
-    if m == 1:
-        return [(lo + hi) / 2]
-    span = (max(values) - min(values)) or 1.0
-    return [lo + (hi - lo) * (0.5 * (v - min(values)) / span + 0.5 * i / (m - 1))
-            for i, v in enumerate(values)]
-
-
-def timeline_layout(window: list[dict], language: str) -> tuple[dict[str, float], list[dict]]:
-    """The points on the line and their labels — every point carries its
-    label right under it, no point without one. Several years: ONE point
-    per year (labelled with the year). All in one year: one point per day
-    (labelled day and month). Time runs left to right in every language;
-    positions are half time scale, half order. Returns (x of every event
-    = the x of its point, points [{text, x, ids}])."""
-    from app.documentary.chapters import parse_date_text
-
-    dates = [parse_date_text(e["date"]) or (0, None, None) for e in window]
-    one_year = len({d[0] for d in dates}) == 1
-    groups: dict[str, dict] = {}
-    for e, d in zip(window, dates, strict=True):
-        key = (_short_date(d, language) or _num(d[0], language)) if one_year \
-            else _num(d[0], language)
-        g = groups.setdefault(key, {"text": key, "ids": [], "at": _ordinal(e["date"])})
-        g["ids"].append(e["id"])
-    points = list(groups.values())
-    for g, x in zip(points, _spread([g["at"] for g in points]), strict=True):
-        g["x"] = x
-    xs = {i: g["x"] for g in points for i in g["ids"]}
-    return xs, [{"text": g["text"], "x": g["x"], "ids": g["ids"]} for g in points]
-
-
-def timeline_card(cards: dict | None, beat_id: str, event_id: str | None,
-                  previous: str | None = None, language: str = "en") -> dict | None:
-    """The running timeline at this beat, moving to `event_id`: only the
-    events the story has told by this beat (never a later one), at most
-    chapters.max_timeline_events around the current one, laid out by
-    timeline_layout (left to right, one labelled point per year or day);
-    the marker slides
-    from the previous card's date (or the previous event) to the current
-    one. None when the event is not told yet or unknown — the caller
-    shows the date over the picture instead."""
-    cards = cards or {}
-    order = cards.get("beat_order") or []
-    pos = {b: i for i, b in enumerate(order)}
-    if beat_id not in pos or not event_id:
-        return None
-    told = sorted((e for e in cards.get("events") or []
-                   if pos.get(e["first_beat"], 10 ** 9) <= pos[beat_id]),
-                  key=lambda e: (e["date"], e["id"]))
-    cur = next((e for e in told if e["id"] == event_id), None)
-    if cur is None:
-        return None
-    # what this same beat tells only later (a later date) is not shown yet
-    told = [e for e in told if pos[e["first_beat"]] < pos[beat_id]
-            or e["id"] == cur["id"] or e["date"] <= cur["date"]]
-    n = ai_config.chapters.max_timeline_events
-    k = told.index(cur)
-    lo = max(0, min(k - n // 2, len(told) - n))
-    window = told[lo:lo + n]
-    xs, points = timeline_layout(window, language)
-    i = window.index(cur)
-    prev = next((e for e in window if e["id"] == previous and e["id"] != cur["id"]), None) \
-        or (window[i - 1] if i > 0 else None)
-    return {"event": cur["id"], "date": cur.get("date_text") or cur["date"],
-            "label": cur.get("label"),
-            # one ball per point (the current event's where it is), its label under it
-            "events": [{"id": cur["id"] if cur["id"] in pt["ids"] else pt["ids"][0],
-                        "x": round(pt["x"], 4), "current": cur["id"] in pt["ids"]}
-                       for pt in points],
-            "labels": [{"text": pt["text"], "x": round(pt["x"], 4),
-                        "current": cur["id"] in pt["ids"]} for pt in points],
-            "from_x": round(xs[prev["id"]], 4) if prev else 0.0,
-            "to_x": round(xs[cur["id"]], 4)}
+CARD_KINDS = ("chapter", "title", "detective_board", "graphic")
 
 
 def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict],
@@ -931,7 +813,7 @@ def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict
             t += dur
     if placed:
         overlays[:] = [o for o in overlays
-                       if o["kind"] not in ("date", "place", "quote", "status")
+                       if o["kind"] not in ("date", "place", "status")
                        or not any(o["start"] < b and o["end"] > a for a, b in placed)]
     if intro_s and intro is None:
         intro = {"mode": "prepend", "seconds": intro_s}
@@ -1102,7 +984,6 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     overlays: list[dict] = []
     credits: set[str] = set()
     current: dict | None = None  # last image shot
-    last_event: str | None = None  # where the running timeline stands
 
     def add_overlay(kind, text, start, end):
         if not text or end - start <= 0.5:
@@ -1145,12 +1026,6 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             t = end
             cmd = s["command"]
             text_key = f"{s.get('overlay', {}).get('kind', 'x')}|{s.get('overlay', {}).get('text_en', '')}"
-            timeline = None
-            if cmd == "SHOW_TIMELINE":
-                timeline = timeline_card(cards, span["beat_id"], s.get("event"), last_event,
-                                         language)
-                if timeline is None:
-                    cmd = "SHOW_DATE"  # the date over the current picture instead
             if cmd == "SHOW_DATE":
                 said = _spoken_at(words, s.get("overlay", {}).get("text_en"), w_start, w_end,
                                   manifest["timeline"].get("sentences"))
@@ -1315,14 +1190,10 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                     add_overlay("place", texts.get(text_key), start + 1.0, min(start + 6.0, end - 0.5))
                     tracker.add(maps[-1].asset_code, start, end)
                     current = shot
-            elif cmd == "SHOW_QUOTE":
-                shot.update({"kind": "black", "motion": "NONE"})
-                add_overlay("quote", texts.get(text_key), start + 0.3, end - 0.3)
-                current = None
-            elif cmd == "SHOW_TIMELINE" and timeline is not None:
-                shot.update({"kind": "timeline", "motion": "NONE", "timeline": timeline,
-                             "event": timeline["event"]})
-                last_event = timeline["event"]
+            elif cmd == "SHOW_GRAPHIC":
+                shot.update({"kind": "graphic", "motion": "NONE", "graphic": json.loads(json.dumps(s["graphic"]))})
+                if s.get("credit"):
+                    credits.add(s["credit"])
                 current = None
             elif cmd == "SHOW_DATE":
                 shot.update({"kind": "black", "motion": "NONE"})
@@ -1366,6 +1237,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
     cards_left_out, intro = insert_chapter_cards(final, cards, spans, overlays)
     board_appearances = insert_detective_board_cards(final, board, spans, overlays, language)
+    graphics_dropped = finalize_graphics(final, language)
     for n, sh in enumerate(final):
         sh["index"] = n
         if n == 0:
@@ -1414,6 +1286,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         # chapter / title cards that found no room (the gap was too short)
         "cards_left_out": cards_left_out,
         "board": board_appearances,
+        # graphics that no longer fitted their final length (the picture before them holds)
+        "graphics_dropped": graphics_dropped,
         # the channel intro: in the cold open's break, or before the first word
         "intro": intro,
     }

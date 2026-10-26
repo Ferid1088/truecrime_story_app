@@ -12,10 +12,10 @@ from app.core.ai_config import ai_config
 from app.core.concurrency import slot
 from app.db.models import ProductionScript, VisualPlan
 from app.documentary import storage
-from app.documentary.performance import performance_for_version
-from app.documentary.pipeline.errors import LanguageFailed
-from app.documentary.pipeline.base import record_warning
 from app.documentary.mvp import coverage as CV
+from app.documentary.performance import performance_for_version
+from app.documentary.pipeline.base import record_warning
+from app.documentary.pipeline.errors import LanguageFailed
 
 
 class LanguageChain:
@@ -28,7 +28,11 @@ class LanguageChain:
     async def run(self) -> None:
         from app.agents.stages import get_stage_agent
         from app.documentary.jobs import (
-            _load_manifest, latest_production, render_cap_seconds, tts_budget_left)
+            _load_manifest,
+            latest_production,
+            render_cap_seconds,
+            tts_budget_left,
+        )
         from app.documentary.spoken import spoken_blueprint
 
         pipe, lang, version, sh = self.pipe, self.lang, self.version, self.shared

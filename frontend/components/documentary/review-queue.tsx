@@ -18,8 +18,16 @@ const DECISION_LABEL: Record<(typeof DECISIONS)[number], string> = {
   scene: "Scene fit",
 };
 
+const SHOWN = [
+  { key: "needs_review", label: "Not sure" },
+  { key: "rejected", label: "Rejected" },
+] as const;
+
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
-  const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, "needs_review"), [caseId]);
+  const [shown, setShown] = useState<(typeof SHOWN)[number]["key"]>("needs_review");
+  const [beat, setBeat] = useState<string | undefined>(undefined);
+  const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, shown, beat), [caseId, shown, beat]);
+  const { data: gaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
   const [index, setIndex] = useState(0);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,18 +77,63 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Picture review</h1>
         <p className="mt-1 text-sm text-muted-foreground" data-testid="review-queue-counter">
-          {queue.length} left to review: pictures the verifiers could not settle
+          {queue.length} {shown === "rejected" ? "rejected pictures" : "pictures the verifiers could not settle"}
         </p>
         {message && (
           <p role="status" className="mt-2 text-sm text-emerald-700">
             {message}
           </p>
         )}
+        <div className="mt-4 flex flex-wrap gap-2" data-testid="review-queue-shown">
+          {SHOWN.map((option) => (
+            <Button
+              key={option.key}
+              type="button"
+              size="sm"
+              variant={shown === option.key ? "default" : "outline"}
+              onClick={() => {
+                setShown(option.key);
+                setIndex(0);
+              }}
+            >
+              {option.label}
+            </Button>
+          ))}
+          {beat && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => setBeat(undefined)}>
+              All beats (now {beat})
+            </Button>
+          )}
+        </div>
+        {gaps && gaps.gap_count > 0 && (
+          <section className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm" data-testid="review-queue-gaps">
+            <p className="font-medium">
+              {gaps.gap_count} moment(s), {gaps.gap_seconds} s of the film, still have no picture, video or graphic. The
+              film is not made until they do: approve pictures for these beats, or leave them and resume to be asked again.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {gaps.beats.map((b) => (
+                <Button
+                  key={b.beat_id}
+                  type="button"
+                  size="sm"
+                  variant={beat === b.beat_id ? "default" : "outline"}
+                  onClick={() => {
+                    setBeat(b.beat_id);
+                    setIndex(0);
+                  }}
+                >
+                  {b.beat_id} · {b.needs_review} not sure · {b.rejected} rejected
+                </Button>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {queue.length === 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="review-queue-empty">
-          Nothing needs a human decision right now.
+          Nothing to show here right now.
         </p>
       ) : item ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(280px,440px)_1fr]">

@@ -111,7 +111,10 @@
         "mvp_candidate_verifier": "premium",
         "mvp_second_verifier": "sol",
         "mvp_segment_scout": "cheap",
-        "mvp_scene_director": "premium"
+        "mvp_scene_director": "premium",
+        "mvp_conflict_structurer": "writer",
+        "mvp_copywriter": "writer",
+        "mvp_headline_placer": "premium"
       },
       "fallbacks": {
         "cheap": [
@@ -363,6 +366,18 @@
       "temperature": 0.4,
       "max_tokens": 32000,
       "reasoning_effort": "high"
+    },
+    "mvp_conflict_structurer": {
+      "temperature": 0.2,
+      "max_tokens": 4000
+    },
+    "mvp_copywriter": {
+      "temperature": 0.2,
+      "max_tokens": 16000
+    },
+    "mvp_headline_placer": {
+      "temperature": 0.0,
+      "max_tokens": 2000
     }
   }
 }

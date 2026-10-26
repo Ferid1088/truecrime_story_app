@@ -17,10 +17,11 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
-from app.providers.generation import get_generation_provider
-from app.providers.generation.base import GenerationError
+from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
+from app.providers.generation import get_generation_provider
+from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
 
 log = logging.getLogger(__name__)
@@ -162,7 +163,7 @@ def content_words(text: str) -> set[str]:
     return {w for w in fold(text or "").split() if len(w) > 2 and w not in STOP}
 
 
-def related(item: "Item", sentence_text: str, names: dict[str, set[str]]) -> bool:
+def related(item: Item, sentence_text: str, names: dict[str, set[str]]) -> bool:
     """Whether the words spoken over a slot are about what the picture shows: the entity the picture was
     approved for is named in them, or at least two content words of its verified description are."""
     spoken = content_words(sentence_text)
@@ -215,22 +216,6 @@ def coalesce_slots(slots: list[dict], available: int, max_still: float) -> list[
     return out
 
 
-def hold_into_gaps(slots: list[dict], chosen: dict[int, Item], max_still: float) -> list[tuple[int, dict]]:
-    """A slot with nothing honest to show is covered by holding the previous picture longer, but never past
-    max_still and never a clip (it plays once). What cannot be covered stays a gap, reported as a shortage."""
-    out: list[tuple[int, dict]] = []
-    for n, slot in enumerate(slots):
-        if n not in chosen and out:
-            last_n, last = out[-1]
-            held_item = chosen.get(last_n)
-            if (held_item is not None and held_item.asset.asset_type != "video"
-                    and slot["end"] - last["start"] <= max_still):
-                out[-1] = (last_n, {**last, "end": slot["end"]})
-                continue
-        out.append((n, dict(slot)))
-    return out
-
-
 def validate_assignment(raw: list[dict], slots: list[dict], pool: list[Item]) -> dict[int, Item] | None:
     """The agent's choice, or None if any of it breaks a rule (unknown item, twice in the beat, a clip too
     short for its slot). Nulls are allowed: a slot may honestly stay empty for the baseline to fill."""
@@ -267,9 +252,16 @@ async def model_director(case: Case, beat: dict, slots_view: list[dict], pool_vi
     return (data or {}).get("assignments") or []
 
 
-QUOTE_SECONDS = 6.0
-TIMELINE_SECONDS = 7.0
 DATE_SHARE = 0.02
+
+
+def add_date_overlay(shots: list[dict], extras: dict) -> None:
+    """The beat's date, laid over the picture when it is spoken (from the needs plan, never from a model here)."""
+    if extras.get("date_text") and len(shots) >= 1:
+        shots.insert(1, {"command": "SHOW_DATE", "share": DATE_SHARE, "motion": "NONE", "speed": 1.0,
+                         "transition_in": "CROSSFADE",
+                         "overlay": {"kind": "date", "text_en": extras["date_text"]},
+                         "why": "the beat is anchored to this date"})
 
 
 def _take_gap(shots: list[dict], window_len: float, minimum: float) -> dict | None:
@@ -278,55 +270,10 @@ def _take_gap(shots: list[dict], window_len: float, minimum: float) -> dict | No
     return max(gaps, key=lambda s: s["share"]) if gaps else None
 
 
-def _card_in_gap_or_tail(shots: list[dict], window_len: float, seconds: float, card: dict) -> bool:
-    """Put a factual card where nothing else could be shown (a bare stretch), else at the end of the beat
-    by shortening its longest picture that can spare the time; False when the beat has no room."""
-    gap = _take_gap(shots, window_len, min(seconds, 4.0))
-    if gap is not None:
-        share = gap["share"]
-        gap.clear()
-        gap.update({**card, "share": share})
-        return True
-    donor = max((s for s in shots if "asset_id" in s), key=lambda s: s["share"], default=None)
-    if donor is not None and donor["share"] * window_len - seconds >= 4.0:
-        donor["share"] = round(donor["share"] - seconds / window_len, 5)
-        shots.append({**card, "share": seconds / window_len})
-        return True
-    pictures = [s for s in shots if "asset_id" in s]
-    if len(pictures) >= 3:                       # no spare time: the card takes the beat's last picture's place
-        last = pictures[-1]
-        share = max(last["share"], seconds / window_len)
-        shots.remove(last)
-        shots.append({**card, "share": share})
-        return True
-    return False
-
-
-def add_text_cards(shots: list[dict], extras: dict, window_len: float, event: str | None = None) -> None:
-    """The beat's date (laid over the picture when it is spoken), its verified quote and the timeline card
-    of the event it tells. All come from validated evidence and the chapter plan, never from a model here."""
-    if extras.get("date_text") and len(shots) >= 1:
-        shots.insert(1, {"command": "SHOW_DATE", "share": DATE_SHARE, "motion": "NONE", "speed": 1.0,
-                         "transition_in": "CROSSFADE",
-                         "overlay": {"kind": "date", "text_en": extras["date_text"]},
-                         "why": "the beat is anchored to this date"})
-    quote = extras.get("quote")
-    if quote and shots:
-        _card_in_gap_or_tail(shots, window_len, QUOTE_SECONDS, {
-            "command": "SHOW_QUOTE", "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE",
-            "overlay": {"kind": "quote", "text_en": quote["text"]},
-            "why": "a verified quotation from the evidence"})
-    if event and shots:
-        _card_in_gap_or_tail(shots, window_len, TIMELINE_SECONDS, {
-            "command": "SHOW_TIMELINE", "event": event, "motion": "NONE", "speed": 1.0,
-            "transition_in": "CROSSFADE", "why": "the story tells this event here"})
-
-
-def add_graphic_cards(shots: list[dict], extras: dict, window_len: float, places: list[str],
-                      mapped: set[str], region: str | None) -> None:
-    """Factual graphics for the stretches no related picture covers. A map only where the narration
-    names its place (the gap whose words say it), each place once in the film, geocoded with the case's
-    region so a common name resolves near the case; and the beat's verified document passage."""
+def add_map_cards(shots: list[dict], extras: dict, window_len: float, places: list[str],
+                  mapped: set[str], region: str | None) -> None:
+    """A map only where the narration names its place (the bare stretch whose words say it), each place once in
+    the film, geocoded with the case's region so a common name resolves near the case."""
     wanted = ([extras["map_place"]] if extras.get("map_place") else []) + places
     for place in wanted:
         if not place or fold(place) in mapped:
@@ -342,63 +289,12 @@ def add_graphic_cards(shots: list[dict], extras: dict, window_len: float, places
                     else place, "share": share, "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE",
                     "said": said, "why": "the narration names this place; a map shows where it is"})
         mapped.add(fold(place))
-    if extras.get("document"):
-        gap = _take_gap(shots, window_len, 6.0)
-        if gap is not None:
-            share = gap["share"]
-            gap.clear()
-            gap.update({"command": "SHOW_DOCUMENT", "share": share, "motion": "NONE", "speed": 1.0,
-                        "transition_in": "CROSSFADE", "why": "a verified passage from the case's own source"})
-
-
-def quotable(text: str) -> bool:
-    """A spoken sentence worth setting large: a quotation or a number, and a fitting length."""
-    text = " ".join(text.split())
-    return 20 <= len(text) <= 160 and (any(c in text for c in '"\u201c\u201d\u00ab\u00bb')
-                                         or any(ch.isdigit() for ch in text))
-
-
-def add_fact_cards(shots: list[dict], window_len: float, beat: dict, counts: dict[str, int]) -> None:
-    """Fill the beat's bare stretches with cards made from validated evidence: a verified quotation, the
-    accounts that conflict, what the story has established, or the spoken sentence itself - within the
-    per-film caps. A card takes at most card_seconds; what is left of the stretch stays bare."""
-    cfg = ai_config.mvp().cards
-    queue: list[tuple[str, dict]] = [("quote", q) for q in beat.get("quotes", [])]
-    queue += [("conflict", c) for c in beat.get("conflicts", [])]
-    facts = beat.get("facts") or []
-    queue += [("facts", {"items": facts[i:i + 3]}) for i in range(0, len(facts), 3)]
-    for gap in [s for s in shots if s.get("gap") and s["share"] * window_len >= cfg.min_gap_seconds]:
-        pick = next(((k, p) for k, p in queue if counts.get(k, 0) < cfg.max_per_film.get(k, 0)), None)
-        if pick is None and quotable(gap.get("said", "")) and counts.get("text", 0) < cfg.max_per_film["text"]:
-            pick = ("text", {"text": " ".join(gap["said"].split())})
-        if pick is None:
-            continue
-        kind, payload = pick
-        if (kind, payload) in queue:
-            queue.remove((kind, payload))
-        card = {"kind": kind, **({"text": payload.get("text"), "speaker": payload.get("speaker")}
-                                 if kind == "quote" else
-                                 {"topic": payload.get("topic"), "text": payload.get("text")}
-                                 if kind == "conflict" else
-                                 {"items": payload["items"]} if kind == "facts" else {"text": payload["text"]})}
-        seconds = min(gap["share"] * window_len, cfg.card_seconds)
-        share = gap["share"]
-        said = gap.get("said", "")
-        gap.clear()
-        gap.update({"command": "SHOW_CARD", "card": card, "share": seconds / window_len, "motion": "NONE",
-                    "speed": 1.0, "transition_in": "CROSSFADE", "why": f"a verified {kind} card"})
-        counts[kind] = counts.get(kind, 0) + 1
-        left = share - seconds / window_len
-        if left * window_len >= 1.0:
-            shots.insert(shots.index(gap) + 1, {"command": "BLACK_SCREEN", "share": left, "motion": "NONE",
-                                                "speed": 1.0, "transition_in": "CROSSFADE", "gap": True,
-                                                "said": said, "why": "no approved visual for this moment"})
 
 
 def absorb_gaps(shots: list[dict], window_len: float) -> None:
     """The last resort before black: hold the picture next to a bare stretch longer (never a clip, never
     past max_hold_seconds). What cannot be absorbed stays bare and is reported."""
-    limit = ai_config.mvp().cards.max_hold_seconds
+    limit = ai_config.mvp().shots.max_still_seconds
     for i, shot in enumerate(list(shots)):
         if not shot.get("gap"):
             continue
@@ -428,19 +324,19 @@ def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
                       director: Director | None = None, target: VisualPlan | None = None,
-                      timeline_events: dict[str, str] | None = None,
-                      entities: list[dict] | None = None, beat_cards: dict[str, dict] | None = None,
-                      region: str | None = None) -> dict:
+                      entities: list[dict] | None = None, region: str | None = None,
+                      offers: list[AL.Offer] | None = None) -> dict:
     """Build the plan: beat by beat, agent first, rules always. `plan` holds the approved requirements;
     the shot list is stored on `target` (the language's own plan row; `plan` itself when not given)."""
     target = target or plan
-    timeline_events = timeline_events or {}
+    offers = offers or []
+    for o in offers:
+        o.placed = False
+    state = AL.State()
     entities = entities or json.loads(plan.requirements_json or "{}").get("entities") or []
     names = {e["key"]: content_words(" ".join([e["name"], *e.get("aliases", [])])) for e in entities}
     place_names = {e["key"]: e["name"] for e in entities if e.get("type") in ("place", "building")}
     mapped: set[str] = set()
-    beat_cards = beat_cards or {}
-    card_counts: dict[str, int] = {}
     cfg = ai_config.mvp().shots
     items = approved_items(db, plan)
     tracker = UsageTracker({i.code: asset_facts(i.asset) for group in items.values() for i in group})
@@ -453,9 +349,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
         "graph": graph_id, "shots": cfg.model_dump(),
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
-        "timeline": timeline_events, "places": sorted(place_names), "region": region,
-        "cards": {b: [len(v.get("quotes", [])), len(v.get("conflicts", [])), len(v.get("facts", []))]
-                  for b, v in beat_cards.items()}}, sort_keys=True).encode()).hexdigest()
+        "places": sorted(place_names), "region": region,
+        "offers": [[o.key, o.first, o.last, o.seconds] for o in offers]}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -513,19 +408,17 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
             if item is not None:
                 chosen[n] = item
         window_len = window["end"] - window["start"]
-        held = hold_into_gaps(slots, chosen, cfg.max_still_seconds)
-        for n, slot_ in held:
-            item = chosen.get(n)
-            original = slots[n]
-            if item is not None and slot_["end"] > original["end"] + 1e-6:
-                tracker.add(item.code, original["end"], slot_["end"])
         shots = [_shot(s, chosen.get(n), window_len, n, "approved item for this moment",
-                       slot_text.get(id(slots[n]), "")) for n, s in held]
+                       slot_text.get(id(s), "")) for n, s in enumerate(slots)]
         spoken = " ".join(x["speech"] for x in window["sentences"])
         places = [name for key, name in place_names.items() if content_words(name) <= content_words(spoken)]
-        add_graphic_cards(shots, extras.get(bid) or {}, window_len, places, mapped, region)
-        add_text_cards(shots, extras.get(bid) or {}, window_len, timeline_events.get(bid))
-        add_fact_cards(shots, window_len, beat_cards.get(bid) or {}, card_counts)
+        add_map_cards(shots, extras.get(bid) or {}, window_len, places, mapped, region)
+        add_date_overlay(shots, extras.get(bid) or {})
+        idx = beat_order.get(bid, 0)
+        AL.fill_beat(shots, window_len, idx, offers, state)
+        board = AL.board_offer(state, idx + 1) if AL.board_due(offers, state, idx) else None
+        if board is not None:
+            offers.append(board)
         absorb_gaps(shots, window_len)
         total = sum(s["share"] for s in shots)
         for s in shots:
@@ -533,13 +426,15 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         at = window["start"]
         for s in shots:
             if s.get("gap"):
-                gaps.append({"beat": bid, "start": round(at, 2), "end": round(at + s["share"] * window_len, 2)})
+                gaps.append({"beat": bid, "start": round(at, 2), "end": round(at + s["share"] * window_len, 2),
+                             "said": (s.get("said") or "")[:240]})
             at += s["share"] * window_len
         out_beats.append({"beat_id": bid, "shots": shots})
         candidates[bid] = sorted({i.code for i in pool + near})
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
-              "agent_directed_beats": agent_used, "cards": card_counts, "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
+              "agent_directed_beats": agent_used, "alternatives": AL.seconds_report(state),
+              "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
                                   ensure_ascii=False)

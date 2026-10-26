@@ -2355,6 +2355,16 @@ export interface MvpCandidate {
   verifiers: { verifier: string; model?: string | null; confidence?: number | null; decision?: string }[];
 }
 
+/** Moments of the film that have no picture, video or graphic after every alternative. */
+export interface MvpGaps {
+  language: string;
+  gap_count: number;
+  gap_seconds: number;
+  gaps: { beat: string; start: number; end: number; said: string }[];
+  alternatives: Record<string, number>;
+  beats: { beat_id: string; needs_review: number; rejected: number }[];
+}
+
 export interface MvpSearchRound {
   round: number;
   provider: string;

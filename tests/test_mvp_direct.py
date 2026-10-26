@@ -140,18 +140,15 @@ def test_a_missing_picture_is_covered_by_holding_the_previous_one_within_the_sti
     assert report["gap_seconds"] == 0.0 and all("gap" not in s for s in shots)
 
 
-def test_a_beats_date_and_verified_quote_become_overlay_shots(db_session):
+def test_a_beats_date_becomes_an_overlay_shot(db_session):
     case, plan = _plan(db_session, 8)
     plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "building", "name": "Flynn house"}],
-                                         "beats": [{"beat_id": "B01", "date_text": "February 16, 2026",
-                                                     "quote": {"fact_id": "F1", "text": "I heard two shots"}}]})
+                                         "beats": [{"beat_id": "B01", "date_text": "February 16, 2026"}]})
     db_session.commit()
     run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
     shots = json.loads(plan.plan_json)["beats"][0]["shots"]
     date = next(s for s in shots if s["command"] == "SHOW_DATE")
-    quote = next(s for s in shots if s["command"] == "SHOW_QUOTE")
     assert date["overlay"] == {"kind": "date", "text_en": "February 16, 2026"}
-    assert quote["overlay"]["text_en"] == "I heard two shots" and shots[-1] is quote
     assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
 
 
@@ -220,21 +217,6 @@ def test_a_picture_is_never_planned_where_the_films_repetition_rules_forbid_it(d
         t = end
 
 
-def test_a_verified_quote_and_the_beats_timeline_event_become_cards_in_bare_stretches(db_session):
-    case, plan = _plan(db_session, 1)
-    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "building", "name": "Flynn house"}],
-                                         "beats": [{"beat_id": "B01",
-                                                     "quote": {"fact_id": "F1", "text": "I heard two shots"}}]})
-    db_session.commit()
-    run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {},
-                      timeline_events={"B01": "T003"}))
-    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
-    commands = [s["command"] for s in shots]
-    assert "SHOW_QUOTE" in commands and "SHOW_TIMELINE" in commands
-    assert next(s for s in shots if s["command"] == "SHOW_TIMELINE")["event"] == "T003"
-    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
-
-
 def test_a_picture_that_is_not_about_the_words_never_fills_a_slot(db_session):
     case, plan = _plan(db_session, 3)
     for a in db_session.query(VisualAsset).filter_by(case_id=case.id):
@@ -272,24 +254,12 @@ def test_a_map_is_placed_only_where_the_place_is_spoken_and_geocoded_near_the_ca
     assert "Tipp City" in maps[0]["said"]
 
 
-def test_bare_stretches_get_verified_cards_from_the_beats_evidence_within_the_caps(db_session):
-    case, plan = _plan(db_session, 0)
-    cards = {"B01": {"quotes": [{"text": "I heard two shots", "speaker": "Caleb Flynn"}],
-                     "conflicts": [{"topic": "Daughters in court", "text": "Accounts conflict."}],
-                     "facts": ["Ashley Flynn was shot twice."]}}
-    run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}, beat_cards=cards))
-    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
-    kinds = [s["card"]["kind"] for s in shots if s["command"] == "SHOW_CARD"]
-    assert kinds[:3] == ["quote", "conflict", "facts"]
-    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
-
-
 def test_a_bare_stretch_next_to_a_picture_is_absorbed_before_it_is_left_black(db_session):
-    shots = [{"command": "NEW_IMAGE", "asset_id": "A", "share": 0.2, "motion": "NONE"},
-             {"command": "BLACK_SCREEN", "gap": True, "share": 0.1, "motion": "NONE"}]
+    shots = [{"command": "NEW_IMAGE", "asset_id": "A", "share": 0.1, "motion": "NONE"},
+             {"command": "BLACK_SCREEN", "gap": True, "share": 0.05, "motion": "NONE"}]
     D.absorb_gaps(shots, 100.0)
-    assert len(shots) == 1 and abs(shots[0]["share"] - 0.3) < 1e-9
-    far = [{"command": "NEW_IMAGE", "asset_id": "A", "share": 0.3, "motion": "NONE"},
-           {"command": "BLACK_SCREEN", "gap": True, "share": 0.2, "motion": "NONE"}]
-    D.absorb_gaps(far, 100.0)               # 50 s would pass max_hold_seconds: the stretch stays bare
+    assert len(shots) == 1 and abs(shots[0]["share"] - 0.15) < 1e-9
+    far = [{"command": "NEW_IMAGE", "asset_id": "A", "share": 0.15, "motion": "NONE"},
+           {"command": "BLACK_SCREEN", "gap": True, "share": 0.1, "motion": "NONE"}]
+    D.absorb_gaps(far, 100.0)               # 25 s would pass max_still_seconds: the stretch stays bare
     assert len(far) == 2
