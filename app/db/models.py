@@ -2788,3 +2788,91 @@ class OutfitScan(Base):
     updated: Mapped[int] = mapped_column(Integer, default=0)
     missing: Mapped[int] = mapped_column(Integer, default=0)
     problems_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class MvpRequirement(Base):
+    """One visual requirement of the Main Visual Planner: what a beat's viewer needs to see,
+    tied to a reveal-graph node, with the search rounds it has used and its shortage if unmet."""
+
+    __tablename__ = "mvp_requirements"
+    __table_args__ = (UniqueConstraint("visual_plan_id", "requirement_key", name="uq_mvp_requirement_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    visual_plan_id: Mapped[int] = mapped_column(ForeignKey("visual_plans.id"), index=True)
+    graph_id: Mapped[int | None] = mapped_column(ForeignKey("reveal_graphs.id"), nullable=True)
+    requirement_key: Mapped[str] = mapped_column(String(80))
+    beat_id: Mapped[str] = mapped_column(String(20), index=True)
+    node_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    function: Mapped[str] = mapped_column(String(30))
+    entity_key: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    role_needed: Mapped[str] = mapped_column(String(20), default="context")
+    priority: Mapped[str] = mapped_column(String(10), default="medium")
+    spec_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    rounds_used: Mapped[int] = mapped_column(Integer, default=0)
+    shortage_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    search_rounds = relationship("MvpSearchRound", cascade="all, delete-orphan")
+    candidates = relationship("MvpCandidate", cascade="all, delete-orphan")
+
+
+class MvpSearchRound(Base):
+    """One external search for one unmet requirement: provider, query, yield and cost."""
+
+    __tablename__ = "mvp_search_rounds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    requirement_id: Mapped[int] = mapped_column(ForeignKey("mvp_requirements.id"), index=True)
+    round_no: Mapped[int] = mapped_column(Integer)
+    provider: Mapped[str] = mapped_column(String(30))
+    query: Mapped[str] = mapped_column(Text)
+    new_candidates: Mapped[int] = mapped_column(Integer, default=0)
+    cost_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
+class MvpCandidate(Base):
+    """A library asset judged for one requirement. Provenance, identity/context, rights, ethics and
+    scene suitability are separate decisions; only `approved` may be shown, and unknown, needs_review
+    or transient_failure never count as approval."""
+
+    __tablename__ = "mvp_candidates"
+    __table_args__ = (UniqueConstraint("requirement_id", "visual_asset_id", name="uq_mvp_candidate"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    requirement_id: Mapped[int] = mapped_column(ForeignKey("mvp_requirements.id"), index=True)
+    visual_asset_id: Mapped[int] = mapped_column(ForeignKey("visual_assets.id"), index=True)
+    role: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    provenance_status: Mapped[str] = mapped_column(String(20), default="unknown")
+    identity_status: Mapped[str] = mapped_column(String(20), default="unknown")
+    rights_status: Mapped[str] = mapped_column(String(20), default="unknown")
+    ethics_status: Mapped[str] = mapped_column(String(20), default="unknown")
+    scene_status: Mapped[str] = mapped_column(String(20), default="unknown")
+    final_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    verifiers_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
+class MvpFilmReview(Base):
+    """The persisted owner-review state of one rendered film. A film is a review candidate until
+    the owner approves its exact checksum; nothing runs past AWAITING_OWNER_REVIEW without it."""
+
+    __tablename__ = "mvp_film_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(5))
+    production_script_id: Mapped[int | None] = mapped_column(ForeignKey("production_scripts.id"),
+                                                             nullable=True)
+    render_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    render_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    state: Mapped[str] = mapped_column(String(30), default="IMPLEMENTING", index=True)
+    validation_json: Mapped[str] = mapped_column(Text, default="{}")
+    owner_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
