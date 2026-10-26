@@ -292,6 +292,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
+    beat_cache: dict = previous.get("beat_cache") or {}
+    new_cache: dict = {}
     for window in windows:
         bid = window["beat_id"]
         slots = make_slots(window)
@@ -304,7 +306,16 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                     db, graph_id, beat_order, bid, i.asset)]
         slots = coalesce_slots(slots, len(pool) + len(near), cfg.max_still_seconds)
         chosen: dict[int, Item] = {}
-        if director is not None and pool:
+        pool_key = hashlib.sha256(json.dumps(
+            [[i.code, i.role, used[i.code]] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
+            sort_keys=True).encode()).hexdigest()
+        cached = beat_cache.get(bid)
+        if cached and cached["key"] == pool_key:
+            by_code = {i.code: i for i in pool}
+            chosen = {int(n): by_code[c] for n, c in cached["assignment"].items() if c in by_code}
+            for item in chosen.values():
+                used[item.code] += 1
+        elif director is not None and pool:
             slots_view = [{"slot": n, "seconds": round(s["end"] - s["start"], 1),
                            "sentences": [x["speech"] for x in window["sentences"][s["from"]:s["to"] + 1]]}
                           for n, s in enumerate(slots)]
@@ -317,6 +328,10 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                 chosen, agent_used = proposal, agent_used + 1
                 for item in proposal.values():
                     used[item.code] += 1
+        if not (cached and cached["key"] == pool_key):
+            new_cache[bid] = {"key": pool_key, "assignment": {str(n): i.code for n, i in chosen.items()}}
+        else:
+            new_cache[bid] = cached
         leftover = [n for n in range(len(slots)) if n not in chosen]
         taken = {i.code for i in chosen.values()}
         fill = baseline_assign([slots[n] for n in leftover], [i for i in pool if i.code not in taken], used,
@@ -337,7 +352,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
             s["share"] = round(s["share"] / total, 5)
         out_beats.append({"beat_id": bid, "shots": shots})
         candidates[bid] = sorted({i.code for i in pool + near})
-    report = {"fingerprint": fingerprint, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
+    report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "assets_used": len(used),
               "reuse": {k: v for k, v in used.items() if v > 1}}

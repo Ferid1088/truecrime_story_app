@@ -149,3 +149,29 @@ def test_a_beats_date_and_verified_quote_become_overlay_shots(db_session):
     assert date["overlay"] == {"kind": "date", "text_en": "February 16, 2026"}
     assert quote["overlay"]["text_en"] == "I heard two shots" and shots[-1] is quote
     assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
+
+
+def test_a_second_pass_asks_the_agent_only_about_beats_whose_pool_changed(db_session):
+    case, plan = _plan(db_session, 6)
+    asked = []
+
+    async def director(case, beat, slots, pool):
+        asked.append(beat["beat_id"])
+        return [{"slot": 0, "asset": pool[0]["asset"]}]
+    manifest = _manifest([30.0, 30.0])
+    beats = {"B01": {"beat_id": "B01"}, "B02": {"beat_id": "B02"}}
+    run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0, "B02": 1}, beats, director))
+    assert asked == ["B01"]            # B02 has no approved pool of its own
+    extra = VisualAsset(case_id=case.id, asset_code="V900", local_path="x.jpg", asset_type="photo")
+    db_session.add(extra)
+    db_session.commit()
+    req = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id).one()
+    db_session.add(MvpCandidate(requirement_id=req.id, visual_asset_id=extra.id, role="evidence",
+                                final_status="approved"))
+    db_session.commit()
+    asked.clear()
+    run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0, "B02": 1}, beats, director))
+    assert asked == ["B01"]            # B01's pool changed; nothing else is asked twice
+    asked.clear()
+    run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0, "B02": 1}, beats, director))
+    assert asked == []
