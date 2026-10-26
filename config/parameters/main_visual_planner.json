@@ -46,6 +46,7 @@
         "REJECTED"
       ],
       "require_english_first": true
-    }
+    },
+    "call_timeout_s": 150
   }
 }

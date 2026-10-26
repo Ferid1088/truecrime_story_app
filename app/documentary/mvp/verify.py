@@ -4,6 +4,7 @@ count as approval, and a conflict between two verifiers is stored, never average
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -168,17 +169,20 @@ async def model_judge(case: Case, asset: VisualAsset, entities: list[dict], fact
         "entity_list": entities, "facts": [{"id": f["id"], "claim": f["claim"]} for f in facts],
     }
     try:
-        image = IM.data_url(image_for_check(asset))
+        image = IM.data_url(await asyncio.to_thread(image_for_check, asset))
         gen = get_generation_provider()
+        timeout = ai_config.mvp().call_timeout_s
         with track_run(db, case.id, "Main Visual Planner: verify", input_summary=asset.asset_code) as run:
             body = json.dumps(payload, ensure_ascii=False)
             if agent == "mvp.verify_second":
-                data, res = await run_agent("mvp.verify_second", gen, body, images=[image])
+                data, res = await asyncio.wait_for(
+                    run_agent("mvp.verify_second", gen, body, images=[image]), timeout)
             else:
-                data, res = await run_agent("mvp.verify", gen, body, images=[image])
+                data, res = await asyncio.wait_for(
+                    run_agent("mvp.verify", gen, body, images=[image]), timeout)
             stamp_run(run, res, ai_config.agents[agent].role)
-    except (GenerationError, OSError, IM.ImageError) as e:
-        log.warning("verify %s failed transiently: %s", asset.asset_code, e)
+    except (GenerationError, OSError, IM.ImageError, TimeoutError) as e:
+        log.warning("verify %s failed transiently: %s", asset.asset_code, type(e).__name__)
         return Verdict(False, {"error": f"{type(e).__name__}: {e}"})
     if not isinstance(data, dict) or not isinstance(data.get("matches"), list):
         return Verdict(False, {"error": "answer outside the schema"}, getattr(res, "model", None))

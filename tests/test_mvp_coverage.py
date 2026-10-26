@@ -51,8 +51,8 @@ def test_full_coverage_with_an_approved_asset_is_review_ready(db_session):
 
 def test_black_stretch_unapproved_asset_and_long_still_block_review(db_session):
     plan = _plan(db_session)
-    script = {"duration": 30.0, "shots": [shot(0, 20, asset="V9"), shot(20, 30, kind="black")]}
-    report = C.measure(script, plan, db_session, [{"start": 21, "end": 29, "display": "uncovered line"}])
+    script = {"duration": 40.0, "shots": [shot(0, 30, asset="V9"), shot(30, 40, kind="black")]}
+    report = C.measure(script, plan, db_session, [{"start": 31, "end": 39, "display": "uncovered line"}])
     verdict = C.verdict(report)
     assert not verdict["review_ready"]
     joined = " ".join(verdict["blocking"])

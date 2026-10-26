@@ -4,6 +4,7 @@ and fill what it leaves). The result is the declarative visual plan the producti
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -224,10 +225,11 @@ async def model_director(case: Case, beat: dict, slots_view: list[dict], pool_vi
                "rules": {"max_still_seconds": ai_config.mvp().shots.max_still_seconds}}
     try:
         with track_run(db, case.id, "Main Visual Planner: direct", input_summary=beat["beat_id"]) as run:
-            data, res = await run_agent("mvp.direct", get_generation_provider(),
-                                        json.dumps(payload, ensure_ascii=False))
+            data, res = await asyncio.wait_for(
+                run_agent("mvp.direct", get_generation_provider(), json.dumps(payload, ensure_ascii=False)),
+                ai_config.mvp().call_timeout_s)
             stamp_run(run, res, "mvp_scene_director")
-    except GenerationError as e:
+    except (GenerationError, TimeoutError) as e:
         log.warning("scene director failed for %s: %s", beat["beat_id"], e)
         return []
     return (data or {}).get("assignments") or []

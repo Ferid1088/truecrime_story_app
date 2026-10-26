@@ -2789,6 +2789,9 @@ class MainVisualPlannerConfig(BaseModel):
     """The Main Visual Planner's limits (config/parameters/main_visual_planner.json). Its
     agents' models and sampling parameters are the mvp_* roles in config/models.json."""
 
+    # One model call of the planner (a picture check, a query round, a beat's direction) that has not
+    # answered by then counts as a transient failure and is retried, never waited for indefinitely.
+    call_timeout_s: float = Field(gt=0.0)
     search: MvpSearchConfig
     shots: MvpShotsConfig
     coverage: MvpCoverageConfig

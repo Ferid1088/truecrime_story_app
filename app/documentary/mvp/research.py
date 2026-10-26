@@ -4,6 +4,7 @@ and an early stop when another search is unlikely to add a legitimate option."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -64,10 +65,11 @@ async def model_query_planner(db: Session, case: Case, req: MvpRequirement, enti
                "entity": entity, "prior_rounds": history}
     try:
         with track_run(db, case.id, "Main Visual Planner: queries", input_summary=req.requirement_key) as run:
-            data, res = await run_agent("mvp.queries", get_generation_provider(),
-                                        json.dumps(payload, ensure_ascii=False))
+            data, res = await asyncio.wait_for(
+                run_agent("mvp.queries", get_generation_provider(), json.dumps(payload, ensure_ascii=False)),
+                ai_config.mvp().call_timeout_s)
             stamp_run(run, res, "mvp_query_planner")
-    except GenerationError as e:
+    except (GenerationError, TimeoutError) as e:
         log.warning("query planner failed for %s: %s", req.requirement_key, e)
         return []
     return [q for q in (data or {}).get("queries") or [] if isinstance(q, dict) and q.get("query")]
