@@ -15,7 +15,7 @@ from app.documentary import storage
 from app.documentary.mvp import coverage as CV
 from app.documentary.performance import performance_for_version
 from app.documentary.pipeline.base import record_warning
-from app.documentary.pipeline.errors import LanguageFailed
+from app.documentary.pipeline.errors import AwaitingPictureReview, LanguageFailed
 
 
 class LanguageChain:
@@ -185,6 +185,16 @@ class LanguageChain:
 
         direct = await pipe._stage(f"mvp_direct:{lang}", mvp_direct)
         plan_row = holder["plan"] if "plan" in holder else db.get(VisualPlan, direct["visual_plan_id"])
+
+        async def mvp_complete():
+            try:
+                return MVP.stage_complete(plan_row, lang)
+            except AwaitingPictureReview:
+                # the owner's review changes what direction can use: direction runs again on resume
+                pipe._entry(f"mvp_direct:{lang}").update({"status": "pending", "detail": None})
+                raise
+
+        await pipe._stage(f"mvp_complete:{lang}", mvp_complete)
 
         async def zoom_maps():
             from app.documentary.zoom_map.stage import render_zoom_maps

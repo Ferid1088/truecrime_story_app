@@ -691,10 +691,19 @@ class PipelineGen:
         raise AssertionError(f"unexpected role {role}")
 
 
+ORIGINAL_STAGE_COMPLETE = __import__("app.documentary.mvp.pipeline", fromlist=["stage_complete"]).stage_complete
+
+
 @pytest.fixture
 def documentary_env(tmp_path, monkeypatch):
     from test_spoken_audio import FakeSound
     from test_voice_render import FakeASR, FakeTTS
+
+    from app.documentary.mvp import pipeline as MVP
+
+    # the owner's picture review is tested on its own (test_one_button_pipeline_pilot_end_to_end); the other
+    # films here are small fixtures whose few empty moments are not what they test
+    monkeypatch.setattr(MVP, "stage_complete", lambda plan_row, language: {"gaps": 0})
 
     from app.documentary.music import DocumentaryMixer, MusicLibrary
     from app.documentary.voice_render import VoiceRenderer
@@ -1059,12 +1068,29 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     case, master = _story(db_session)
     case.resolution_status = "UNSOLVED"  # no public title without a solved/unsolved status
     db_session.commit()
+    from app.documentary.mvp import pipeline as MVP
+
+    passes = MVP.stage_complete
+    monkeypatch.setattr(MVP, "stage_complete", ORIGINAL_STAGE_COMPLETE)
     job = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    job = db_session.get(DocumentaryJob, job.id)
+    first = {s["name"]: s for s in json.loads(job.stages_json)}
+    # the film has moments no picture or graphic can fill: the run stops BEFORE anything is rendered and asks
+    # the owner; direction is set to run again when the owner has reviewed the pictures and resumes
+    assert job.status == "failed" and "Awaiting picture review" in job.error
+    assert first["mvp_direct:en"]["status"] in ("pending", "blocked") and first["mvp_complete:en"]["status"] == "failed"
+    assert first["zoom_maps:en"]["status"] != "done" and first["render:en"]["status"] != "done"
+    assert "Review pictures" in J.failure_details(job.error)["next_action"]
+    monkeypatch.setattr(MVP, "stage_complete", passes)       # (the owner approved pictures; here: nothing is empty)
+    J.prepare_resume(job)
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
     stages = {s["name"]: s for s in json.loads(job.stages_json)}
     assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
+    assert stages["mvp_direct:en"]["attempts"] == first["mvp_direct:en"]["attempts"] + 1   # direction ran again
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     assert job.progress == 1.0
     assert all(
