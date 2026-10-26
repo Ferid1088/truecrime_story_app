@@ -1,0 +1,82 @@
+import json
+import subprocess
+from uuid import uuid4
+
+import pytest
+
+from app.core.media_tools import ffmpeg_bin
+from app.db.models import (Case, EditorialBlueprint, MvpCandidate, MvpRequirement, StoryVersion,
+                           VisualAsset, VisualPlan)
+from app.documentary.mvp import coverage as C
+
+
+def _plan(db):
+    case = Case(canonical_title="Coverage proof", slug=f"cv-{uuid4().hex[:8]}", language="en")
+    db.add(case)
+    db.commit()
+    sv = StoryVersion(case_id=case.id, version=1, kind="final", language="en", story_text="t",
+                      narrative_angle="a")
+    db.add(sv)
+    db.commit()
+    bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
+    db.add(bp)
+    db.commit()
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1)
+    db.add(plan)
+    db.commit()
+    req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
+                         function="evidence", entity_key="e", role_needed="evidence", priority="high",
+                         spec_json="{}")
+    asset = VisualAsset(case_id=case.id, asset_code="V1", local_path="x.jpg")
+    db.add_all([req, asset])
+    db.commit()
+    db.add(MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id, role="evidence",
+                        final_status="approved"))
+    db.commit()
+    return plan
+
+
+def shot(a, b, kind="image", asset="V1", beat="B01"):
+    return {"start": a, "end": b, "kind": kind, "asset_id": asset if kind != "black" else None,
+            "beat_id": beat}
+
+
+def test_full_coverage_with_an_approved_asset_is_review_ready(db_session):
+    plan = _plan(db_session)
+    script = {"duration": 8.0, "shots": [shot(0, 4), shot(4, 8, asset="V1")]}
+    report = C.measure(script, plan, db_session, [{"start": 0, "end": 7, "display": "x"}])
+    assert report["temporal_coverage"] == 1.0 and report["requirements"]["covered"] == 1
+    assert C.verdict(report)["review_ready"] is True
+
+
+def test_black_stretch_unapproved_asset_and_long_still_block_review(db_session):
+    plan = _plan(db_session)
+    script = {"duration": 30.0, "shots": [shot(0, 20, asset="V9"), shot(20, 30, kind="black")]}
+    report = C.measure(script, plan, db_session, [{"start": 21, "end": 29, "display": "uncovered line"}])
+    verdict = C.verdict(report)
+    assert not verdict["review_ready"]
+    joined = " ".join(verdict["blocking"])
+    assert "black stretch" in joined and "without an approved verdict" in joined and "held beyond" in joined
+    assert report["weak_sentence_count"] == 1 and report["requirements"]["uncovered"] == 1
+
+
+def test_shortage_requirements_block_publication_only(db_session):
+    plan = _plan(db_session)
+    req = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id).one()
+    req.status = "shortage"
+    db_session.query(MvpCandidate).filter_by(requirement_id=req.id).delete()
+    db_session.commit()
+    script = {"duration": 4.0, "shots": [shot(0, 4, kind="map", asset="MAP1")]}
+    verdict = C.verdict(C.measure(script, plan, db_session, []))
+    assert verdict["review_ready"] and verdict["publication_blockers"]
+
+
+@pytest.mark.skipif(ffmpeg_bin() is None, reason="ffmpeg missing")
+def test_probe_reads_the_real_file(tmp_path):
+    out = tmp_path / "t.mp4"
+    subprocess.run([ffmpeg_bin(), "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25:duration=2",
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-shortest", "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", "-c:a", "aac", str(out)], check=True, capture_output=True)
+    info = C.probe_file(out)
+    assert (info["width"], info["height"], info["video_codec"]) == (320, 180, "h264")
+    assert 1.8 < info["duration"] < 2.3 and info["black_seconds"] == 0.0
