@@ -196,3 +196,53 @@ def test_atmosphere_pictures_fill_only_what_a_beats_own_pictures_leave_bare(db_s
     coded = [s["asset_id"] for s in shots if "asset_id" in s]
     assert coded[0] == "V000" and all(c.startswith("A") for c in coded[1:]) and len(coded) > 1
     assert report["gap_seconds"] == 0.0
+
+
+def test_every_requirement_gets_one_of_its_pictures_before_any_gets_a_second(db_session):
+    case, plan = _plan(db_session, 0)
+    second = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.2", beat_id="B01",
+                            function="orientation", entity_key="e2", role_needed="context", priority="medium",
+                            spec_json="{}")
+    db_session.add(second)
+    db_session.commit()
+    first = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id, requirement_key="B01.1").one()
+    for i, req in enumerate((first, first, first, second)):
+        a = VisualAsset(case_id=case.id, asset_code=f"R{i}", local_path="x.jpg", asset_type="photo")
+        db_session.add(a)
+        db_session.commit()
+        db_session.add(MvpCandidate(requirement_id=req.id, visual_asset_id=a.id, role="evidence",
+                                    final_status="approved"))
+    db_session.commit()
+    run(D.direct_film(db_session, case, plan, _manifest([20.0]), None, {"B01": 0}, {}))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    assert "R3" in {s["asset_id"] for s in shots if "asset_id" in s}      # the second requirement is on screen
+
+
+def test_a_picture_is_never_planned_where_the_films_repetition_rules_forbid_it(db_session):
+    from app.documentary.visuals.usage import UsageTracker, asset_facts
+
+    case, plan = _plan(db_session, 2)
+    run(D.direct_film(db_session, case, plan, _manifest([40.0, 40.0]), None, {"B01": 0, "B02": 1}, {}))
+    shots = [s for b in json.loads(plan.plan_json)["beats"] for s in b["shots"] if "asset_id" in s]
+    assets = {a.asset_code: a for a in db_session.query(VisualAsset).filter_by(case_id=case.id)}
+    tracker = UsageTracker({c: asset_facts(a) for c, a in assets.items()})
+    t = 0.0
+    for s in shots:
+        end = t + s["share"] * 40.0
+        assert tracker.allows(s["asset_id"], t, end)[0] or tracker.continues(s["asset_id"], t)
+        tracker.add(s["asset_id"], t, end)
+        t = end
+
+
+def test_a_verified_quote_and_the_beats_timeline_event_become_cards_in_bare_stretches(db_session):
+    case, plan = _plan(db_session, 1)
+    plan.requirements_json = json.dumps({"beats": [{"beat_id": "B01",
+                                                     "quote": {"fact_id": "F1", "text": "I heard two shots"}}]})
+    db_session.commit()
+    run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {},
+                      timeline_events={"B01": "T003"}))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    commands = [s["command"] for s in shots]
+    assert "SHOW_QUOTE" in commands and "SHOW_TIMELINE" in commands
+    assert next(s for s in shots if s["command"] == "SHOW_TIMELINE")["event"] == "T003"
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3

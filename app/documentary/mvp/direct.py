@@ -9,9 +9,8 @@ import hashlib
 import json
 import logging
 import math
-from collections import Counter
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +20,7 @@ from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, Visual
 from app.documentary.mvp.library import ATMOSPHERE_BEAT
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
+from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.services.tracking import stamp_run, track_run
 
 log = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ class Item:
     role: str
     entity: str | None
     rank: int
+    serves: list[str] = field(default_factory=list)      # requirement keys this item is approved for
 
     @property
     def code(self) -> str:
@@ -111,18 +112,31 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
             .filter(MvpRequirement.visual_plan_id == plan.id, MvpCandidate.final_status == "approved")
             .all())
     out: dict[str, list[Item]] = {}
-    seen: dict[str, set[int]] = {}
     for cand, req in sorted(rows, key=lambda x: (priority[x[1].priority], ROLE_RANK.get(x[0].role or "", 3))):
         asset = db.get(VisualAsset, cand.visual_asset_id)
         if asset is None or asset.local_path is None:
             continue
-        if asset.id in seen.setdefault(req.beat_id, set()):
+        existing = next((i for i in out.get(req.beat_id, []) if i.asset.id == asset.id), None)
+        if existing is not None:
+            existing.serves.append(req.requirement_key)
             continue
-        seen[req.beat_id].add(asset.id)
         out.setdefault(req.beat_id, []).append(
             Item(asset, cand.role or "context", req.entity_key, priority[req.priority] * 3
-                 + ROLE_RANK.get(cand.role or "", 3)))
+                 + ROLE_RANK.get(cand.role or "", 3), [req.requirement_key]))
     return out
+
+
+def requirement_first(pool: list[Item]) -> list[Item]:
+    """The beat's items ordered so every requirement gets one of its pictures before any requirement
+    gets a second: the best item per requirement (most important requirement first), then the rest."""
+    first: list[Item] = []
+    seen: set[str] = set()
+    for item in sorted(pool, key=lambda i: i.rank):
+        keys = [k for k in item.serves if k not in seen]
+        if keys:
+            first.append(item)
+            seen.update(item.serves)
+    return first + [i for i in sorted(pool, key=lambda i: i.rank) if i not in first]
 
 
 
@@ -144,23 +158,19 @@ def fits(item: Item, seconds: float) -> bool:
     return length is None or length >= seconds - 0.5
 
 
-def baseline_assign(slots: list[dict], pool: list[Item], used: Counter, max_reuse: int,
+def baseline_assign(slots: list[dict], pool: list[Item], tracker: UsageTracker,
                     extra: list[Item]) -> list[Item | None]:
-    """Fill slots in order from the beat's pool (never twice in the beat, never past the film-wide reuse
-    cap); when the beat's own pool runs out, related approved items of nearby beats within the cap."""
+    """Fill slots in order from the beat's pool, then from related approved items; an item is taken only
+    if the film's repetition rules (category limits, minimum gap between appearances) allow it there."""
     taken: set[str] = set()
     chosen: list[Item | None] = []
     for slot in slots:
         seconds = slot["end"] - slot["start"]
-        pick = None
-        for candidate in pool + extra:
-            if candidate.code in taken or used[candidate.code] >= max_reuse or not fits(candidate, seconds):
-                continue
-            pick = candidate
-            break
+        pick = next((c for c in pool + extra if c.code not in taken and fits(c, seconds)
+                     and tracker.allows(c.code, slot["start"], slot["end"])[0]), None)
         if pick is not None:
             taken.add(pick.code)
-            used[pick.code] += 1
+            tracker.add(pick.code, slot["start"], slot["end"])
         chosen.append(pick)
     return chosen
 
@@ -238,28 +248,58 @@ async def model_director(case: Case, beat: dict, slots_view: list[dict], pool_vi
 
 
 QUOTE_SECONDS = 6.0
+TIMELINE_SECONDS = 7.0
 DATE_SHARE = 0.02
 
 
-def add_text_cards(shots: list[dict], extras: dict, window_len: float) -> None:
-    """The beat's date (laid over the picture when it is spoken) and its verified quote (a quote card at
-    the end of a beat long enough to hold one). Both come from the validated needs, never from a model here."""
+def _take_gap(shots: list[dict], window_len: float, minimum: float) -> dict | None:
+    """The longest bare stretch of the beat that can hold a card of at least `minimum` seconds."""
+    gaps = [s for s in shots if s.get("gap") and s["share"] * window_len >= minimum]
+    return max(gaps, key=lambda s: s["share"]) if gaps else None
+
+
+def _card_in_gap_or_tail(shots: list[dict], window_len: float, seconds: float, card: dict) -> bool:
+    """Put a factual card where nothing else could be shown (a bare stretch), else at the end of the beat
+    by shortening its longest picture that can spare the time; False when the beat has no room."""
+    gap = _take_gap(shots, window_len, min(seconds, 4.0))
+    if gap is not None:
+        share = gap["share"]
+        gap.clear()
+        gap.update({**card, "share": share})
+        return True
+    donor = max((s for s in shots if "asset_id" in s), key=lambda s: s["share"], default=None)
+    if donor is not None and donor["share"] * window_len - seconds >= 4.0:
+        donor["share"] = round(donor["share"] - seconds / window_len, 5)
+        shots.append({**card, "share": seconds / window_len})
+        return True
+    pictures = [s for s in shots if "asset_id" in s]
+    if len(pictures) >= 3:                       # no spare time: the card takes the beat's last picture's place
+        last = pictures[-1]
+        share = max(last["share"], seconds / window_len)
+        shots.remove(last)
+        shots.append({**card, "share": share})
+        return True
+    return False
+
+
+def add_text_cards(shots: list[dict], extras: dict, window_len: float, event: str | None = None) -> None:
+    """The beat's date (laid over the picture when it is spoken), its verified quote and the timeline card
+    of the event it tells. All come from validated evidence and the chapter plan, never from a model here."""
     if extras.get("date_text") and len(shots) >= 1:
         shots.insert(1, {"command": "SHOW_DATE", "share": DATE_SHARE, "motion": "NONE", "speed": 1.0,
                          "transition_in": "CROSSFADE",
                          "overlay": {"kind": "date", "text_en": extras["date_text"]},
                          "why": "the beat is anchored to this date"})
     quote = extras.get("quote")
-    if quote and window_len >= 4 * QUOTE_SECONDS and shots:
-        share = QUOTE_SECONDS / window_len
-        last = shots[-1]
-        if "asset_id" in last and last["share"] * window_len - QUOTE_SECONDS >= 4.0:
-            last["share"] = round(last["share"] - share, 5)
-        else:
-            shots.pop()
-        shots.append({"command": "SHOW_QUOTE", "share": share, "motion": "NONE", "speed": 1.0,
-                      "transition_in": "CROSSFADE", "overlay": {"kind": "quote", "text_en": quote["text"]},
-                      "why": "a verified quotation from the evidence"})
+    if quote and shots:
+        _card_in_gap_or_tail(shots, window_len, QUOTE_SECONDS, {
+            "command": "SHOW_QUOTE", "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE",
+            "overlay": {"kind": "quote", "text_en": quote["text"]},
+            "why": "a verified quotation from the evidence"})
+    if event and shots:
+        _card_in_gap_or_tail(shots, window_len, TIMELINE_SECONDS, {
+            "command": "SHOW_TIMELINE", "event": event, "motion": "NONE", "speed": 1.0,
+            "transition_in": "CROSSFADE", "why": "the story tells this event here"})
 
 
 def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str) -> dict:
@@ -275,13 +315,15 @@ def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str
 
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
-                      director: Director | None = None, target: VisualPlan | None = None) -> dict:
+                      director: Director | None = None, target: VisualPlan | None = None,
+                      timeline_events: dict[str, str] | None = None) -> dict:
     """Build the plan: beat by beat, agent first, rules always. `plan` holds the approved requirements;
     the shot list is stored on `target` (the language's own plan row; `plan` itself when not given)."""
     target = target or plan
+    timeline_events = timeline_events or {}
     cfg = ai_config.mvp().shots
     items = approved_items(db, plan)
-    used: Counter = Counter()
+    tracker = UsageTracker({i.code: asset_facts(i.asset) for group in items.values() for i in group})
     out_beats, candidates, gaps, agent_used = [], {}, [], 0
     windows = beat_windows(manifest)
     extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
@@ -290,7 +332,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                     for w in windows],
         "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
         "graph": graph_id, "shots": cfg.model_dump(),
-        "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()}}, sort_keys=True).encode()).hexdigest()
+        "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
+        "timeline": timeline_events}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -312,46 +355,54 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         slots = coalesce_slots(slots, len(pool) + len(near) + len(atmosphere), cfg.max_still_seconds)
         chosen: dict[int, Item] = {}
         pool_key = hashlib.sha256(json.dumps(
-            [[i.code, i.role, used[i.code]] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
+            [[i.code, i.role, tracker.appearances(i.code)] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
             sort_keys=True).encode()).hexdigest()
         cached = beat_cache.get(bid)
         if cached and cached["key"] == pool_key:
             by_code = {i.code: i for i in pool}
             chosen = {int(n): by_code[c] for n, c in cached["assignment"].items() if c in by_code}
-            for item in chosen.values():
-                used[item.code] += 1
+            for n, item in chosen.items():
+                tracker.add(item.code, slots[n]["start"], slots[n]["end"])
         elif director is not None and pool:
             slots_view = [{"slot": n, "seconds": round(s["end"] - s["start"], 1),
                            "sentences": [x["speech"] for x in window["sentences"][s["from"]:s["to"] + 1]]}
                           for n, s in enumerate(slots)]
             pool_view = [{"asset": i.code, "kind": i.asset.asset_type, "role": i.role, "entity": i.entity,
                           "depicts": (i.asset.description or i.asset.title or "")[:160],
-                          "clip_seconds": i.clip_seconds, "shown_before": used[i.code]} for i in pool]
+                          "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves} for i in pool]
             proposal = validate_assignment(await director(case, beats.get(bid, {"beat_id": bid}),
                                                           slots_view, pool_view), slots, pool)
             if proposal:
-                chosen, agent_used = proposal, agent_used + 1
-                for item in proposal.values():
-                    used[item.code] += 1
+                for n, item in sorted(proposal.items()):
+                    if tracker.allows(item.code, slots[n]["start"], slots[n]["end"])[0]:
+                        tracker.add(item.code, slots[n]["start"], slots[n]["end"])
+                        chosen[n] = item
+                agent_used += 1 if chosen else 0
         if not (cached and cached["key"] == pool_key):
             new_cache[bid] = {"key": pool_key, "assignment": {str(n): i.code for n, i in chosen.items()}}
         else:
             new_cache[bid] = cached
         leftover = [n for n in range(len(slots)) if n not in chosen]
         taken = {i.code for i in chosen.values()}
-        fill = baseline_assign([slots[n] for n in leftover], [i for i in pool if i.code not in taken], used,
-                               cfg.max_asset_reuse, [i for i in near + atmosphere if i.code not in taken])
+        fill = baseline_assign([slots[n] for n in leftover],
+                               requirement_first([i for i in pool if i.code not in taken]), tracker,
+                               [i for i in near + atmosphere if i.code not in taken])
         for n, item in zip(leftover, fill, strict=True):
             if item is not None:
                 chosen[n] = item
         window_len = window["end"] - window["start"]
         held = hold_into_gaps(slots, chosen, cfg.max_still_seconds)
+        for n, slot_ in held:
+            item = chosen.get(n)
+            original = slots[n]
+            if item is not None and slot_["end"] > original["end"] + 1e-6:
+                tracker.add(item.code, original["end"], slot_["end"])
         shots = [_shot(s, chosen.get(n), window_len, n, "approved item for this moment")
                  for n, s in held]
         for n, s in held:
             if n not in chosen:
                 gaps.append({"beat": bid, "start": round(s["start"], 2), "end": round(s["end"], 2)})
-        add_text_cards(shots, extras.get(bid) or {}, window_len)
+        add_text_cards(shots, extras.get(bid) or {}, window_len, timeline_events.get(bid))
         total = sum(s["share"] for s in shots)
         for s in shots:
             s["share"] = round(s["share"] / total, 5)
@@ -359,8 +410,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         candidates[bid] = sorted({i.code for i in pool + near})
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
-              "agent_directed_beats": agent_used, "assets_used": len(used),
-              "reuse": {k: v for k, v in used.items() if v > 1}}
+              "agent_directed_beats": agent_used, "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
+              "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
                                   ensure_ascii=False)
     target.status = "planned"

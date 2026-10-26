@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 from app.db.models import MvpCandidate, MvpRequirement, VisualAsset, VisualPlan
+from app.documentary.visuals.usage import UsageTracker, asset_facts
 
 PICTURE_KINDS = {"image", "video", "map", "document", "timeline", "detective_board"}
 STRUCTURE_KINDS = {"chapter", "title", "intro", "host", "status", "label"}
@@ -46,13 +47,12 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
     long_stills = [{"asset": s.get("asset_id"), "start": s["start"], "seconds": round(s["end"] - s["start"], 2)}
                    for s in shots if s.get("kind") == "image"
                    and s["end"] - s["start"] > cfg.shots.max_still_seconds + 0.5]
-    appearances: dict[str, int] = {}
-    last = None
-    for s in sorted(shots, key=lambda x: x["start"]):
-        code = s.get("asset_id")
-        if code and s.get("kind") in PICTURE_KINDS and code != last:
-            appearances[code] = appearances.get(code, 0) + 1
-        last = code if s.get("kind") in PICTURE_KINDS else None
+    asset_rows = {a.asset_code: a for a in db.query(VisualAsset).filter(
+        VisualAsset.case_id == plan.case_id, VisualAsset.asset_code.in_(
+            {s["asset_id"] for s in shots if s.get("asset_id")} or {""})).all()}
+    tracker = UsageTracker.from_shots(shots, {c: asset_facts(a) for c, a in asset_rows.items()})
+    over_reused = {c: tracker.appearances(c) for c in tracker.facts
+                   if tracker.appearances(c) > tracker.limit(c)}
     approved = {c.visual_asset_id for c in db.query(MvpCandidate).join(
         MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id).filter(
         MvpRequirement.visual_plan_id == plan.id, MvpCandidate.final_status == "approved")}
@@ -74,7 +74,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         "temporal_coverage": round(covered / duration, 4) if duration else 0.0,
         "black_seconds": round(sum(b - a for a, b in black_runs), 2),
         "longest_black": round(longest_black, 2), "long_stills": long_stills,
-        "over_reused": {c: n for c, n in appearances.items() if n > cfg.shots.max_asset_reuse},
+        "over_reused": over_reused,
         "unapproved_assets": unapproved, "weak_sentences": weak[:50], "weak_sentence_count": len(weak),
         "requirements": requirement_coverage(db, plan, shots),
     }

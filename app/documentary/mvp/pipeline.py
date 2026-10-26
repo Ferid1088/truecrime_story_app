@@ -160,6 +160,19 @@ def language_plan(db: Session, needs_plan: VisualPlan, language: str) -> VisualP
     return row
 
 
+def timeline_events_by_beat(db: Session, bp_row: EditorialBlueprint) -> dict[str, str]:
+    """beat -> the approved chapter plan's timeline event the story first tells there (one per beat)."""
+    from app.documentary.chapters import latest_chapter_plan
+
+    if not ai_config.chapters.enabled:
+        return {}
+    row = latest_chapter_plan(db, bp_row.id)
+    out: dict[str, str] = {}
+    for event in (json.loads(row.plan_json or "{}").get("events") or []) if row else []:
+        out.setdefault(event["first_beat"], event["id"])
+    return out
+
+
 async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: EditorialBlueprint,
                        manifest: dict, language: str, use_agent: bool = True) -> tuple[VisualPlan, dict]:
     target = language_plan(db, needs_plan, language)
@@ -173,8 +186,9 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         return await DR.model_director(case_, beat, slots, pool, db)
 
     requirements = requirements_of(needs_plan)
+    events = timeline_events_by_beat(db, bp_row)
     report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                  director if use_agent else None, target)
+                                  director if use_agent else None, target, events)
     for _ in range(ai_config.mvp().topup.passes):
         if not report["gaps"]:
             break
@@ -183,7 +197,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             break
         verified = await verify_pending(db, case, needs_plan, requirements)
         report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                      director if use_agent else None, target)
+                                      director if use_agent else None, target, events)
         report["topup"] = {**made, "judged": verified["judged"]}
     if report["gaps"] and ai_config.mvp().topup.atmosphere_max_assets:
         place = (db.get(Case, case.id).location or "").strip() or None
@@ -192,7 +206,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             requirements = requirements_of(needs_plan)
             verified = await verify_pending(db, case, needs_plan, requirements)
             report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                          director if use_agent else None, target)
+                                          director if use_agent else None, target, events)
             report["atmosphere"] = {**made, "judged": verified["judged"]}
     return target, report
 

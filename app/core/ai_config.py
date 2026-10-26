@@ -2747,7 +2747,6 @@ class MvpSearchConfig(BaseModel):
 class MvpShotsConfig(BaseModel):
     min_seconds: float = Field(gt=0.0)
     max_still_seconds: float = Field(gt=0.0)
-    max_asset_reuse: int = Field(ge=1)
     target_shots_per_minute: float = Field(gt=0.0)
 
 
