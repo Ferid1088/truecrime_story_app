@@ -187,6 +187,40 @@ def avatar_present(db, production_script_id: int | None) -> bool:
     return bool(json.loads(ps.script_json or "{}").get("avatar_used"))
 
 
+def act_end_beats(master_text: str, beats: list[dict]) -> dict[str, str]:
+    """act id -> the last beat of that act. The Host plan anchors a mid appearance to the act it follows
+    (`after_act`); the film is cut in beats. The blueprint numbers its paragraphs over the master text,
+    counting each `[[ACT:id]]` marker line as one, so an act ends at the running count of its marker plus
+    its paragraphs, and its last beat is the last one that starts inside that count."""
+    from app.agents.story import _parse_sections
+
+    out: dict[str, str] = {}
+    index = 0
+    for section in _parse_sections(master_text or ""):
+        index += 1 + len([p for p in section["text"].split("\n\n") if p.strip()])
+        inside = [b["id"] for b in beats if b.get("paragraphs") and b["paragraphs"][0] <= index]
+        if inside:
+            out[section["id"]] = inside[-1]
+    return out
+
+
+def _anchor_beats(db, version, items: list[dict]) -> None:
+    """Resolve an act anchor to a beat of the film, in place; a beat id stays as it is."""
+    from app.db.models import StoryVersion
+    from app.documentary.blueprint import latest_blueprint
+
+    row = latest_blueprint(db, version.master_version_id) if version.master_version_id else None
+    beats = (json.loads(row.blueprint_json or "{}") if row else {}).get("beats") or []
+    known = {b["id"] for b in beats}
+    if not any(i.get("beat_id") and i["beat_id"] not in known for i in items):
+        return
+    master = db.get(StoryVersion, version.master_version_id)
+    ends = act_end_beats(master.story_text if master else "", beats)
+    for item in items:
+        if item.get("beat_id") and item["beat_id"] not in known and item["beat_id"] in ends:
+            item["act_id"], item["beat_id"] = item["beat_id"], ends[item["beat_id"]]
+
+
 def host_items(db, version) -> list[dict]:
     """The version's host scenes that are ready (their avatar video is on disk
     and unchanged): what goes into the film."""
@@ -210,6 +244,7 @@ def host_items(db, version) -> list[dict]:
         items.append({"scene_id": s.id, "position": s.position, "beat_id": s.beat_id,
                       "seconds": float(s.voice_seconds), "video": s.avatar_video_path,
                       "audio": s.voice_path, "gain_db": host_gain_db(), "text": s.text})
+    _anchor_beats(db, version, items)
     return items
 
 

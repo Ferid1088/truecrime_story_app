@@ -210,3 +210,14 @@ def test_the_splice_leaves_no_narration_after_an_outro():
     host[-1]["tail"] = False
     graph = HT.splice_command(path("n.wav"), host, path("o.wav"), lambda p: p)
     assert "nend" in graph[graph.index("-filter_complex") + 1]
+
+
+def test_an_act_anchor_resolves_to_the_last_beat_of_that_act():
+    from app.documentary.production.host_timeline import act_end_beats
+
+    text = ("[[ACT:act1]]\n\nOne.\n\nTwo.\n\n[[ACT:act2]]\n\nThree.\n\nFour.\n\nFive.\n\n[[ACT:act3]]\n\nSix.")
+    # paragraphs counted with each marker as one: act1 = 1..3, act2 = 4..8, act3 = 9..10
+    beats = [{"id": "B01", "paragraphs": [1, 2]}, {"id": "B02", "paragraphs": [3, 3]},
+             {"id": "B03", "paragraphs": [4, 6]}, {"id": "B04", "paragraphs": [7, 8]},
+             {"id": "B05", "paragraphs": [9, 10]}]
+    assert act_end_beats(text, beats) == {"act1": "B02", "act2": "B04", "act3": "B05"}
