@@ -99,3 +99,94 @@ def test_a_calls_timeout_never_includes_waiting_for_a_vision_slot(db_session, mo
     monkeypatch.setattr(P, "entities_with_dossiers", lambda db, case_, reqs: [{"key": "e", "name": "E", "type": "person"}])
     out = asyncio.run(P.verify_pending(db_session, case, plan, {"entities": [], "beats": []}))
     assert out["by_status"]["transient_failure"] == 0 and out["by_status"]["rejected"] == 12
+
+
+class _Seg:
+    id = 1
+
+
+def _host_env(db_session, monkeypatch, *, ready_after):
+    """A film with two planned host scenes; `ready_after` says how many get a verified avatar once run."""
+    from types import SimpleNamespace
+
+    from app.documentary import host as host_module
+    from app.documentary import host_scenes
+    from app.documentary.production import host_timeline as HT
+
+    case = Case(canonical_title="Host proof", slug=f"hp-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    scenes = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+    state = {"ready": [], "run": []}
+
+    class FakeQuery:
+        def filter(self, *a):
+            return self
+
+        def order_by(self, *a):
+            return self
+
+        def all(self):
+            return scenes
+
+    monkeypatch.setattr(db_session, "query", lambda *a, **k: FakeQuery())
+    monkeypatch.setattr(host_module, "latest_host_segments", lambda db, vid: _Seg())
+    monkeypatch.setattr(host_module, "HostDirector", lambda: SimpleNamespace(retime_scene=None))
+    monkeypatch.setattr("app.agents.stage_director.StageDirector", lambda: SimpleNamespace(direct=None))
+
+    async def run_scene(db, scene, until, retimer=None, director=None):
+        state["run"].append((scene.id, until))
+        if len(state["run"]) <= ready_after:
+            state["ready"].append({"scene_id": scene.id, "position": "mid", "beat_id": "B02", "seconds": 20.0})
+
+    monkeypatch.setattr(host_scenes, "run_scene", run_scene)
+    monkeypatch.setattr(HT, "host_items", lambda db, version: list(state["ready"]))
+    monkeypatch.setattr(P.ai_config.host, "required_for_film", True)
+    monkeypatch.setattr(P.ai_config.host, "enabled", True)
+    monkeypatch.setattr(P.ai_config.avatar, "enabled", True)
+    return case, state
+
+
+def test_the_host_stage_produces_every_planned_scene_before_the_film_is_directed(db_session, monkeypatch):
+    case, state = _host_env(db_session, monkeypatch, ready_after=2)
+    out = asyncio.run(P.stage_host(db_session, case, type("V", (), {"id": 1})(), "en"))
+    assert state["run"] == [(1, "avatar"), (2, "avatar")] and out["scenes"] == 2 and out["host_seconds"] == 40.0
+
+
+def test_the_host_stage_fails_the_film_when_a_scene_cannot_be_produced(db_session, monkeypatch):
+    import pytest
+
+    case, state = _host_env(db_session, monkeypatch, ready_after=1)
+    with pytest.raises(RuntimeError, match="no verified avatar"):
+        asyncio.run(P.stage_host(db_session, case, type("V", (), {"id": 1})(), "en"))
+
+
+def test_the_host_stage_is_skipped_only_when_the_host_cannot_appear(db_session, monkeypatch):
+    case, state = _host_env(db_session, monkeypatch, ready_after=2)
+    monkeypatch.setattr(P.ai_config.avatar, "enabled", False)
+    assert asyncio.run(P.stage_host(db_session, case, type("V", (), {"id": 1})(), "en"))["skipped"] is True
+
+
+def test_a_film_without_the_host_avatar_or_with_missing_music_is_not_review_ready(db_session, monkeypatch):
+    monkeypatch.setattr(P.ai_config.host, "required_for_film", True)
+    monkeypatch.setattr(P.ai_config.host, "enabled", True)
+    monkeypatch.setattr(P.ai_config.avatar, "enabled", True)
+    case = Case(canonical_title="Gate proof", slug=f"gp-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    sv = StoryVersion(case_id=case.id, version=1, kind="final", language="en", story_text="t",
+                      narrative_angle="a")
+    db_session.add(sv)
+    db_session.commit()
+    bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
+    db_session.add(bp)
+    db_session.commit()
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1)
+    db_session.add(plan)
+    db_session.commit()
+    manifest = {"timeline": {"sentences": []}, "mix": {"placements": [{}, {}, {}]}}
+    script = {"duration": 10.0, "shots": [], "avatar_used": False, "music": [{}]}
+    report = P.stage_coverage(db_session, plan, script, manifest)
+    text = " ".join(report["blocking"])
+    assert "no host avatar" in text and "3 music placement(s) planned, 1 in the film" in text
+    assert report["host"]["required"] is True and report["music"] == {"planned": 3, "in_film": 1}

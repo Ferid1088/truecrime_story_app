@@ -96,6 +96,7 @@ const STAGE_LABELS: Record<string, string> = {
   mvp_needs: "Visual needs (reveal graph)",
   mvp_verify: "Candidate verification",
   mvp_research: "Bounded media research",
+  mvp_host: "Host scenes (voice and avatar)",
   mvp_direct: "Shot direction",
   performance: "Narrator performance",
   voice: "Narration & Music Mix",

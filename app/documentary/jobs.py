@@ -16,6 +16,7 @@ Stages (each idempotent — a re-run resumes and reuses what exists):
   host:<lang>        the host's dialogue, natively per language
   performance:<lang> narrator arc + ElevenLabs v4 audio tags
   voice:<lang>       narration + music mix (pilot: first N seconds)
+  mvp_host:<lang>    every host scene the Host plan placed has its voice and avatar video
   mvp_direct:<lang>  shot list against this language's real narration timing
   production:<lang>  language-specific timeline
   critique:<lang>    critics + targeted fixes
@@ -289,7 +290,7 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
         "film_length", "mvp_needs", "mvp_verify", "mvp_research"]
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
-            f"performance:{l}", f"voice:{l}", f"mvp_direct:{l}", f"zoom_maps:{l}", f"production:{l}",
+            f"performance:{l}", f"voice:{l}", f"mvp_host:{l}", f"mvp_direct:{l}", f"zoom_maps:{l}", f"production:{l}",
             f"critique:{l}", f"mvp_coverage:{l}", f"render:{l}", f"mvp_review:{l}"]
     # Shorts are real post-film stages.  They remain pending while the film
     # runs and are claimed only after the documentary job is finished.

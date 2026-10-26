@@ -164,6 +164,11 @@ class LanguageChain:
             raise LanguageFailed("Full-film production for this language requires the owner to watch and "
                                  "explicitly approve the English film first.")
 
+        async def mvp_host():
+            return await MVP.stage_host(db, case, version, lang)
+
+        await pipe._stage(f"mvp_host:{lang}", mvp_host)
+
         async def mvp_direct():
             plan, report = await MVP.stage_direct(db, case, needs_plan, state["bp"], manifest, lang)
             holder["plan"] = plan

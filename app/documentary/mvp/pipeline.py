@@ -160,6 +160,47 @@ def language_plan(db: Session, needs_plan: VisualPlan, language: str) -> VisualP
     return row
 
 
+def host_required() -> bool:
+    """The host is part of every film (host.required_for_film) whenever it can appear at all."""
+    return bool(ai_config.host.required_for_film and ai_config.host.enabled and ai_config.avatar.enabled)
+
+
+async def stage_host(db: Session, case: Case, version, language: str) -> dict:
+    """The planner's host stage: every scene the Host plan placed has its voice and its avatar video
+    BEFORE the film is directed and rendered. The Host text, position, outfit and direction stay the
+    Host system's; this stage only makes sure its planned appearances exist as media, and fails the
+    film (resumable) if one cannot be produced."""
+    from app.agents.stage_director import StageDirector
+    from app.db.models import HostScene
+    from app.documentary.host import HostDirector, latest_host_segments
+    from app.documentary.host_scenes import run_scene
+    from app.documentary.production import host_timeline as HT
+
+    if not host_required():
+        return {"skipped": True, "reason": "host or avatar disabled"}
+    seg = latest_host_segments(db, version.id)
+    if seg is None:
+        raise RuntimeError("The Host plan has no segments for this film; the host is required.")
+    scenes = db.query(HostScene).filter(HostScene.host_segments_id == seg.id).order_by(HostScene.id).all()
+    if not scenes:
+        raise RuntimeError("The Host segments have no planned scenes; the host is required.")
+    ready = {i["scene_id"] for i in HT.host_items(db, version)}
+    produced: list[int] = []
+    for scene in scenes:
+        if scene.id in ready:
+            continue
+        await run_scene(db, scene, "avatar", retimer=HostDirector().retime_scene,
+                        director=StageDirector().direct)
+        produced.append(scene.id)
+    items = HT.host_items(db, version)
+    if len(items) < len(scenes):
+        missing = sorted({s.id for s in scenes} - {i["scene_id"] for i in items})
+        raise RuntimeError(f"Host scene(s) {missing} have no verified avatar video yet.")
+    return {"scenes": len(scenes), "already_ready": len(ready), "produced": produced,
+            "positions": [f"{i['position']}@{i['beat_id'] or '-'}" for i in items],
+            "host_seconds": round(sum(i["seconds"] for i in items), 1)}
+
+
 def timeline_events_by_beat(db: Session, bp_row: EditorialBlueprint) -> dict[str, str]:
     """beat -> the approved chapter plan's timeline event the story first tells there (one per beat)."""
     from app.documentary.chapters import latest_chapter_plan
@@ -213,7 +254,18 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
 
 def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: dict) -> dict:
     report = CV.measure(script, needs_plan, db, manifest["timeline"].get("sentences") or [])
-    return {**report, **CV.verdict(report)}
+    verdict = CV.verdict(report)
+    planned_music = len((manifest.get("mix") or {}).get("placements") or [])
+    music = {"planned": planned_music, "in_film": len(script.get("music") or [])}
+    host = {"required": host_required(), "avatar_in_film": bool(script.get("avatar_used")),
+            "seconds": round(sum(h.get("seconds", 0.0) for h in (script.get("host") or [])
+                                 if isinstance(h, dict)), 1)}
+    if host["required"] and not host["avatar_in_film"]:
+        verdict["blocking"].append("the film carries no host avatar (the host is required)")
+    if music["planned"] != music["in_film"]:
+        verdict["blocking"].append(f"{music['planned']} music placement(s) planned, {music['in_film']} in the film")
+    verdict["review_ready"] = not verdict["blocking"]
+    return {**report, **verdict, "host": host, "music": music}
 
 
 def stage_review(db: Session, case: Case, language: str, production_script_id: int, render_path: Path,

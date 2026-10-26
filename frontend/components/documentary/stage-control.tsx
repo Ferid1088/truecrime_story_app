@@ -57,7 +57,7 @@ function stageLanguage(stage: string): string | null {
 const STAGE_GROUPS: { label: string; bases: string[] }[] = [
   { label: "Story", bases: ["research", "language_pipeline", "final_approval", "master_story", "master_approval", "blueprint", "chapters", "naming"] },
   { label: "Audio", bases: ["audio_plan", "spoken", "performance", "voice", "host_plan", "host", "music"] },
-  { label: "Visual", bases: ["film_length", "mvp_needs", "mvp_verify", "mvp_research", "mvp_direct", "mvp_coverage", "mvp_review", "pieces"] },
+  { label: "Visual", bases: ["film_length", "mvp_needs", "mvp_verify", "mvp_research", "mvp_host", "mvp_direct", "mvp_coverage", "mvp_review", "pieces"] },
   { label: "Render", bases: ["production", "critique", "intro", "captions", "render", "final_render"] },
   { label: "Shorts", bases: ["shorts", "short_selection", "short_script", "short_render"] },
 ];
@@ -400,7 +400,7 @@ interface StageListProps {
   unavailableStages?: DocumentaryStage[];
 }
 
-const PER_LANGUAGE_STAGES = ["spoken", "host", "performance", "voice", "mvp_direct", "production", "critique", "mvp_coverage", "render", "mvp_review"];
+const PER_LANGUAGE_STAGES = ["spoken", "host", "performance", "voice", "mvp_host", "mvp_direct", "production", "critique", "mvp_coverage", "render", "mvp_review"];
 const SHARED_STAGES = ["research", "language_pipeline", "final_approval", "master_story", "master_approval", "blueprint", "chapters", "naming", "audio_plan", "host_plan", "music", "film_length", "mvp_needs", "mvp_verify", "mvp_research"];
 const DISPLAY_ONLY_STAGES: Record<string, string> = {
   pieces: "Pieces are represented by the visual library, not a separate run stage.",
