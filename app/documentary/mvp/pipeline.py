@@ -28,7 +28,7 @@ from app.documentary.mvp import needs as ND
 from app.documentary.mvp import research as RS
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
-from app.documentary.mvp.library import build_atmosphere_candidates, build_candidates, build_gap_candidates
+from app.documentary.mvp.library import build_candidates, build_gap_candidates
 from app.longform import service as LF
 from app.services.budget import BudgetService
 
@@ -240,15 +240,9 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                       director if use_agent else None, target, events)
         report["topup"] = {**made, "judged": verified["judged"]}
-    if report["gaps"] and ai_config.mvp().topup.atmosphere_max_assets:
-        place = (db.get(Case, case.id).location or "").strip() or None
-        made = build_atmosphere_candidates(db, needs_plan, case.canonical_title, place)
-        if made["atmosphere_candidates"]:
-            requirements = requirements_of(needs_plan)
-            verified = await verify_pending(db, case, needs_plan, requirements)
-            report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                          director if use_agent else None, target, events)
-            report["atmosphere"] = {**made, "judged": verified["judged"]}
+    from app.documentary.visuals.generated import materialize
+
+    report["graphics"] = await materialize(db, case, target)
     return target, report
 
 

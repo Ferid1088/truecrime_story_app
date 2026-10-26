@@ -14,6 +14,14 @@ DIRECT LIKE AN EDITOR
 - Prefer items with shown_before = 0; reuse only when the pool is smaller than the slots.
 - A clip may only fill a slot no longer than its clip_seconds.
 - Vary: do not put two near-identical pictures next to each other.
-- A slot may stay empty (null) when nothing in the pool honestly fits; that is better than a wrong picture.
+- Read each pool item's "depicts" - what the picture really shows - and compare it with the words of
+  the slot. A picture of a house is not the house in the sentence unless "depicts" says it is that
+  house. If the words are about something no pool item shows, return null for that slot: the film then
+  shows a map, a document, a quote or a timeline card instead, which is always better than an unrelated
+  photograph.
+- Every pool item has "serves": the requirement keys it was approved for. Make sure each requirement of
+  the beat appears in one slot where its words are spoken.
+- Never fill a slot with a picture just to avoid emptiness. Repetition of a picture the viewer has just
+  seen (shown_before > 0) is worse than an empty slot.
 
 Return {"assignments": [{"slot": 0, "asset": "VIS_000123" or null, "why": "..."}]} covering every slot.

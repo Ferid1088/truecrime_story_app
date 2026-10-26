@@ -597,7 +597,7 @@ class PipelineGen:
             assert images and images[0].startswith("data:image/jpeg;base64,")
             return {
                 "depicts": "The farmhouse", "subject_type": "building",
-                "matches": [{"entity": "the_house", "relation": "exact", "reason": "the farmhouse"}],
+                "matches": [{"entity": "the_house", "relation": "exact", "signal": "caption names the farmhouse", "reason": "the farmhouse"}],
                 "overlays": {"watermark": False, "burned_text": False, "logo": False},
                 "ethics": {"concern": "ok", "graphic": False, "minor": False,
                            "victim_identifiable": False},

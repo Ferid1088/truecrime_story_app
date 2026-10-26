@@ -17,9 +17,9 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
-from app.documentary.mvp.library import ATMOSPHERE_BEAT
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
+from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.services.tracking import stamp_run, track_run
 
@@ -153,20 +153,40 @@ def reveal_blocked(db: Session, graph_id: int | None, beat_order: dict[str, int]
     return any(beat_order.get(first, 0) > beat_order[beat_id] for first in nodes.values())
 
 
+STOP = {"the", "and", "that", "was", "were", "his", "her", "had", "has", "with", "for", "from", "this",
+        "they", "them", "she", "him", "but", "not", "are", "who", "when", "then", "than", "into", "over",
+        "after", "before", "said", "would", "could", "which", "their", "there", "been", "also", "about"}
+
+
+def content_words(text: str) -> set[str]:
+    return {w for w in fold(text or "").split() if len(w) > 2 and w not in STOP}
+
+
+def related(item: "Item", sentence_text: str, names: dict[str, set[str]]) -> bool:
+    """Whether the words spoken over a slot are about what the picture shows: the entity the picture was
+    approved for is named in them, or at least two content words of its verified description are."""
+    spoken = content_words(sentence_text)
+    if item.entity and names.get(item.entity, set()) & spoken:
+        return True
+    return len(content_words(item.asset.description or "") & spoken) >= 2
+
+
 def fits(item: Item, seconds: float) -> bool:
     length = item.clip_seconds
     return length is None or length >= seconds - 0.5
 
 
 def baseline_assign(slots: list[dict], pool: list[Item], tracker: UsageTracker,
-                    extra: list[Item]) -> list[Item | None]:
-    """Fill slots in order from the beat's pool, then from related approved items; an item is taken only
-    if the film's repetition rules (category limits, minimum gap between appearances) allow it there."""
+                    extra: list[Item], about: Callable[[Item, dict], bool] | None = None) -> list[Item | None]:
+    """Fill slots in order from the beat's pool, then from related approved items. An item is taken only if
+    the words over the slot are about it (`about`) and the film's repetition rules (category limits, minimum
+    gap between appearances) allow it there; otherwise the slot stays empty for a factual graphic."""
     taken: set[str] = set()
     chosen: list[Item | None] = []
     for slot in slots:
         seconds = slot["end"] - slot["start"]
         pick = next((c for c in pool + extra if c.code not in taken and fits(c, seconds)
+                     and (about is None or about(c, slot))
                      and tracker.allows(c.code, slot["start"], slot["end"])[0]), None)
         if pick is not None:
             taken.add(pick.code)
@@ -302,6 +322,31 @@ def add_text_cards(shots: list[dict], extras: dict, window_len: float, event: st
             "transition_in": "CROSSFADE", "why": "the story tells this event here"})
 
 
+def add_graphic_cards(shots: list[dict], extras: dict, window_len: float, places: list[str],
+                      mapped: set[str]) -> None:
+    """Factual graphics for the stretches no related picture covers: a zoom map of a place the narration
+    names (each place once in the film) and the beat's verified document passage. They are turned into
+    assets afterwards (generated.materialize); a map that cannot be made drops back to the held picture."""
+    candidates = [p for p in ([extras.get("map_place")] if extras.get("map_place") else []) + places
+                  if p and fold(p) not in mapped]
+    if candidates:
+        gap = _take_gap(shots, window_len, 6.0)
+        if gap is not None:
+            share = gap["share"]
+            gap.clear()
+            gap.update({"command": "SHOW_MAP", "map_place": candidates[0], "share": share, "motion": "NONE",
+                        "speed": 1.0, "transition_in": "CROSSFADE",
+                        "why": "the narration names this place; a map shows where it is"})
+            mapped.add(fold(candidates[0]))
+    if extras.get("document"):
+        gap = _take_gap(shots, window_len, 6.0)
+        if gap is not None:
+            share = gap["share"]
+            gap.clear()
+            gap.update({"command": "SHOW_DOCUMENT", "share": share, "motion": "NONE", "speed": 1.0,
+                        "transition_in": "CROSSFADE", "why": "a verified passage from the case's own source"})
+
+
 def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str) -> dict:
     share = (slot["end"] - slot["start"]) / window_len
     if item is None:
@@ -316,11 +361,16 @@ def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
                       director: Director | None = None, target: VisualPlan | None = None,
-                      timeline_events: dict[str, str] | None = None) -> dict:
+                      timeline_events: dict[str, str] | None = None,
+                      entities: list[dict] | None = None) -> dict:
     """Build the plan: beat by beat, agent first, rules always. `plan` holds the approved requirements;
     the shot list is stored on `target` (the language's own plan row; `plan` itself when not given)."""
     target = target or plan
     timeline_events = timeline_events or {}
+    entities = entities or json.loads(plan.requirements_json or "{}").get("entities") or []
+    names = {e["key"]: content_words(" ".join([e["name"], *e.get("aliases", [])])) for e in entities}
+    place_names = {e["key"]: e["name"] for e in entities if e.get("type") in ("place", "building")}
+    mapped: set[str] = set()
     cfg = ai_config.mvp().shots
     items = approved_items(db, plan)
     tracker = UsageTracker({i.code: asset_facts(i.asset) for group in items.values() for i in group})
@@ -333,7 +383,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
         "graph": graph_id, "shots": cfg.model_dump(),
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
-        "timeline": timeline_events}, sort_keys=True).encode()).hexdigest()
+        "timeline": timeline_events, "places": sorted(place_names)}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -345,14 +395,11 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         if not slots:
             continue
         pool = [i for i in items.get(bid, []) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
-        # generic atmosphere pictures only ever fill what the beat's own pictures leave bare
-        atmosphere = [i for i in items.get(ATMOSPHERE_BEAT, [])
-                      if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
         near = [i for other, group in items.items() if abs(beat_order.get(other, 99) - beat_order.get(bid, 0)) <= 2
                 and other != bid for i in group
                 if i.entity in {p.entity for p in pool} and not reveal_blocked(
                     db, graph_id, beat_order, bid, i.asset)]
-        slots = coalesce_slots(slots, len(pool) + len(near) + len(atmosphere), cfg.max_still_seconds)
+        slots = coalesce_slots(slots, len(pool) + len(near), cfg.max_still_seconds)
         chosen: dict[int, Item] = {}
         pool_key = hashlib.sha256(json.dumps(
             [[i.code, i.role, tracker.appearances(i.code)] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
@@ -384,9 +431,12 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
             new_cache[bid] = cached
         leftover = [n for n in range(len(slots)) if n not in chosen]
         taken = {i.code for i in chosen.values()}
+        slot_text = {id(sl): " ".join(x["speech"] for x in window["sentences"][sl["from"]:sl["to"] + 1])
+                     for sl in slots}
         fill = baseline_assign([slots[n] for n in leftover],
                                requirement_first([i for i in pool if i.code not in taken]), tracker,
-                               [i for i in near + atmosphere if i.code not in taken])
+                               [i for i in near if i.code not in taken],
+                               lambda item, sl: related(item, slot_text.get(id(sl), ""), names))
         for n, item in zip(leftover, fill, strict=True):
             if item is not None:
                 chosen[n] = item
@@ -399,13 +449,18 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                 tracker.add(item.code, original["end"], slot_["end"])
         shots = [_shot(s, chosen.get(n), window_len, n, "approved item for this moment")
                  for n, s in held]
-        for n, s in held:
-            if n not in chosen:
-                gaps.append({"beat": bid, "start": round(s["start"], 2), "end": round(s["end"], 2)})
+        spoken = " ".join(x["speech"] for x in window["sentences"])
+        places = [name for key, name in place_names.items() if names.get(key, set()) & content_words(spoken)]
+        add_graphic_cards(shots, extras.get(bid) or {}, window_len, places, mapped)
         add_text_cards(shots, extras.get(bid) or {}, window_len, timeline_events.get(bid))
         total = sum(s["share"] for s in shots)
         for s in shots:
             s["share"] = round(s["share"] / total, 5)
+        at = window["start"]
+        for s in shots:
+            if s.get("gap"):
+                gaps.append({"beat": bid, "start": round(at, 2), "end": round(at + s["share"] * window_len, 2)})
+            at += s["share"] * window_len
         out_beats.append({"beat_id": bid, "shots": shots})
         candidates[bid] = sorted({i.code for i in pool + near})
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),

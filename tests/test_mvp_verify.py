@@ -52,7 +52,7 @@ def _blueprint(db, case):
 
 
 def _verdict(relation, confidence=0.95, **extra):
-    data = {"depicts": "a man", "matches": [{"entity": "caleb_flynn", "relation": relation}],
+    data = {"depicts": "a man", "matches": [{"entity": "caleb_flynn", "relation": relation, "signal": "caption names the person"}],
             "overlays": {}, "ethics": {"concern": "ok"}, "scene_fit": "good", "quality": 0.9,
             "confidence": confidence, **extra}
     return V.Verdict(True, data, "fake-model")
@@ -155,13 +155,3 @@ def test_a_first_verifier_that_says_unrelated_is_not_overruled_into_approval(db_
     run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [],
                            judge=_judge(_verdict("unrelated", 0.9)), second=_judge(_verdict("exact", 0.95))))
     assert cand.final_status == "rejected"
-
-
-def test_a_context_picture_serves_the_atmosphere_requirement_as_an_illustration(db_session, tmp_path, monkeypatch):
-    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch, entity="atmosphere",
-                                    accepted=("illustration",))
-    verdict = _verdict("context")
-    verdict.data["matches"][0]["entity"] = "atmosphere"
-    run(V.verify_candidate(db_session, case, cand, req, [{"key": "atmosphere", "type": "place",
-                                                          "name": "Atmosphere"}], [], judge=_judge(verdict)))
-    assert cand.final_status == "approved" and cand.role == "illustration"

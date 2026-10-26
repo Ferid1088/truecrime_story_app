@@ -2365,14 +2365,14 @@ class DetectiveBoardConfig(BaseModel):
     min_beats_between_cards: int = Field(default=2, ge=0, le=20)
     # the reading hold after a new card is pasted: base seconds plus this
     # many seconds per word of the title, bounded to [min,max]
-    hold_base_seconds: float = Field(default=4.0, ge=0.0, le=10.0)
-    hold_per_word_seconds: float = Field(default=0.6, ge=0.0, le=3.0)
-    hold_min_seconds: float = Field(default=5.0, ge=0.5, le=15.0)
-    hold_max_seconds: float = Field(default=8.0, ge=0.5, le=20.0)
+    hold_base_seconds: float = Field(default=12.0, ge=0.0, le=30.0)
+    hold_per_word_seconds: float = Field(default=1.8, ge=0.0, le=6.0)
+    hold_min_seconds: float = Field(default=15.0, ge=0.5, le=45.0)
+    hold_max_seconds: float = Field(default=24.0, ge=0.5, le=60.0)
     # the board never carries more than this share of the film's picture
     # time (same spirit as fill_ways/coverage caps)
     max_share: float = Field(default=0.15, ge=0.0, le=1.0)
-    min_card_seconds: float = Field(default=4.0, ge=0.5, le=10.0)
+    min_card_seconds: float = Field(default=12.0, ge=0.5, le=30.0)
     # cards per row on the cork board; the note's size as a fraction of W/H
     cards_per_row: int = Field(default=4, ge=2, le=12)
     card_width_fraction: float = Field(default=0.215, ge=0.05, le=0.4)
@@ -2384,7 +2384,7 @@ class DetectiveBoardConfig(BaseModel):
     # is really related to; several new notes follow each other
     paste_seconds: float = Field(default=1.0, ge=0.1, le=3.0)
     thread_seconds: float = Field(default=1.0, ge=0.1, le=3.0)
-    stagger_seconds: float = Field(default=1.2, ge=0.0, le=3.0)
+    stagger_seconds: float = Field(default=3.6, ge=0.0, le=10.0)
     thread_sag_fraction: float = Field(default=0.06, ge=0.0, le=0.3)
     thread_color: str = "#a3201c"
     pin_colors: list[str] = Field(default_factory=lambda: [
@@ -2783,8 +2783,6 @@ class MvpTopupConfig(BaseModel):
     max_assets: int = Field(ge=0)
     passes: int = Field(ge=0, le=3)
     min_relevance: float = Field(ge=0.0)
-    # Stored pictures judged once as generic atmosphere (never as evidence) for the beats still bare.
-    atmosphere_max_assets: int = Field(ge=0)
 
 
 class MvpReviewConfig(BaseModel):

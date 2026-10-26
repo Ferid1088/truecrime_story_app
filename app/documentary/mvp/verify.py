@@ -92,6 +92,8 @@ def interpret(verdict: dict, requirement: MvpRequirement, entity_type: str | Non
     match = next((m for m in verdict.get("matches") or []
                   if isinstance(m, dict) and m.get("entity") == requirement.entity_key), None)
     relation = match.get("relation") if match and match.get("relation") in RELATIONS else "unrelated"
+    if relation in ("exact", "context") and not str(match.get("signal") or "").strip():
+        relation = "uncertain"                 # a claimed match must name what identifies it
     confidence = _num(verdict.get("confidence"), 0.0)
     reasons: list[str] = []
     role, identity = None, "rejected"
@@ -190,9 +192,22 @@ async def model_judge(case: Case, asset: VisualAsset, entities: list[dict], fact
     return Verdict(True, data, getattr(res, "model", None))
 
 
+def remember_picture(asset: VisualAsset, verdict: Verdict) -> None:
+    """What the picture was found to show stays on the asset, so the director matches pictures to the
+    narration by what they depict, not by where they were found."""
+    if not verdict.ok:
+        return
+    depicts = str(verdict.data.get("depicts") or "").strip()
+    if depicts:
+        asset.description = depicts[:1000]
+    if verdict.data.get("subject_type"):
+        asset.subject_type = str(verdict.data["subject_type"])[:20]
+
+
 def apply_verdict(db: Session, cand: MvpCandidate, asset: VisualAsset, requirement: MvpRequirement,
                   verdict: Verdict, entity_type: str | None, verifier: str,
                   profile: str | None = None) -> MvpCandidate:
+    remember_picture(asset, verdict)
     prov, prov_reason = provenance_decision(asset)
     rights, rights_reason = rights_decision(asset, profile)
     reasons = [r for r in (prov_reason, None if rights != "blocked" else rights_reason) if r]

@@ -71,14 +71,14 @@ def test_requirement_met_in_the_first_round_stops_searching(db_session):
     assert db_session.query(MvpSearchRound).filter_by(requirement_id=req.id).count() == 2
 
 
-def test_never_more_than_one_initial_and_two_further_rounds(db_session):
+def test_never_more_than_one_initial_and_four_further_rounds(db_session):
     case, plan, req = _setup(db_session)
-    f = Fakes(db_session, [1, 1, 1, 1, 1])
+    f = Fakes(db_session, [1, 1, 1, 1, 1, 1, 1])
     report = run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
     db_session.refresh(req)
-    assert f.calls == 3 and req.rounds_used == 3 and req.status == "shortage"
+    assert f.calls == 5 and req.rounds_used == 5 and req.status == "shortage"
     shortage = json.loads(req.shortage_json)
-    assert shortage["rounds_used"] == 3 and shortage["queries"][0] == "Caleb Flynn trial"
+    assert shortage["rounds_used"] == 5 and shortage["queries"][0] == "Caleb Flynn trial"
     assert report["shortages"] == 1
 
 

@@ -14,7 +14,7 @@ def _manifest(beat_lengths, sentence_seconds=4.0):
         beats.append({"beat_id": f"B{i + 1:02d}", "start": t, "end": t + length})
         s = t
         while s + sentence_seconds <= t + length + 0.001:
-            sentences.append({"speech": f"sentence at {s:.0f}", "start": s, "end": s + sentence_seconds - 0.04})
+            sentences.append({"speech": f"Flynn house at {s:.0f}", "start": s, "end": s + sentence_seconds - 0.04})
             s += sentence_seconds
         t += length
     return {"duration_seconds": t, "timeline": {"beats": beats, "sentences": sentences}}
@@ -40,7 +40,9 @@ def _plan(db, n_assets, beats=2, approved=True, reveals=None):
     bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
     db.add(bp)
     db.commit()
-    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1)
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1,
+                      requirements_json=json.dumps({"entities": [{"key": "e", "type": "building",
+                                                                  "name": "Flynn house"}], "beats": []}))
     db.add(plan)
     db.commit()
     req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
@@ -72,7 +74,8 @@ def test_shares_sum_to_one_assets_are_unique_in_a_beat_and_gaps_are_reported(db_
     assert len(coded) == len(set(coded)) == 2
     assert all(s_["share"] * 60 <= 20.5 for s_ in shots if "asset_id" in s_)
     assert report["gaps"] and report["gap_seconds"] > 0
-    assert all(s["command"] == "BLACK_SCREEN" and s["gap"] for s in shots if "asset_id" not in s)
+    uncovered = [s for s in shots if "asset_id" not in s]
+    assert uncovered and all(s.get("gap") or s["command"] == "SHOW_MAP" for s in uncovered)
 
 
 def test_unapproved_candidates_are_never_planned(db_session):
@@ -139,7 +142,8 @@ def test_a_missing_picture_is_covered_by_holding_the_previous_one_within_the_sti
 
 def test_a_beats_date_and_verified_quote_become_overlay_shots(db_session):
     case, plan = _plan(db_session, 8)
-    plan.requirements_json = json.dumps({"beats": [{"beat_id": "B01", "date_text": "February 16, 2026",
+    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "building", "name": "Flynn house"}],
+                                         "beats": [{"beat_id": "B01", "date_text": "February 16, 2026",
                                                      "quote": {"fact_id": "F1", "text": "I heard two shots"}}]})
     db_session.commit()
     run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
@@ -177,33 +181,15 @@ def test_a_second_pass_asks_the_agent_only_about_beats_whose_pool_changed(db_ses
     assert asked == []
 
 
-def test_atmosphere_pictures_fill_only_what_a_beats_own_pictures_leave_bare(db_session):
-    case, plan = _plan(db_session, 1)
-    atmo = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="ATMOSPHERE", beat_id="ALL",
-                          function="atmosphere", entity_key="atmosphere", role_needed="illustration",
-                          priority="low", spec_json="{}")
-    db_session.add(atmo)
-    db_session.commit()
-    for i in range(6):
-        a = VisualAsset(case_id=case.id, asset_code=f"A{i}", local_path="x.jpg", asset_type="photo")
-        db_session.add(a)
-        db_session.commit()
-        db_session.add(MvpCandidate(requirement_id=atmo.id, visual_asset_id=a.id, role="illustration",
-                                    final_status="approved"))
-    db_session.commit()
-    report = run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
-    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
-    coded = [s["asset_id"] for s in shots if "asset_id" in s]
-    assert coded[0] == "V000" and all(c.startswith("A") for c in coded[1:]) and len(coded) > 1
-    assert report["gap_seconds"] == 0.0
-
-
 def test_every_requirement_gets_one_of_its_pictures_before_any_gets_a_second(db_session):
     case, plan = _plan(db_session, 0)
     second = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.2", beat_id="B01",
                             function="orientation", entity_key="e2", role_needed="context", priority="medium",
                             spec_json="{}")
     db_session.add(second)
+    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "building", "name": "Flynn house"},
+                                                       {"key": "e2", "type": "building", "name": "Flynn house"}],
+                                         "beats": []})
     db_session.commit()
     first = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id, requirement_key="B01.1").one()
     for i, req in enumerate((first, first, first, second)):
@@ -236,7 +222,8 @@ def test_a_picture_is_never_planned_where_the_films_repetition_rules_forbid_it(d
 
 def test_a_verified_quote_and_the_beats_timeline_event_become_cards_in_bare_stretches(db_session):
     case, plan = _plan(db_session, 1)
-    plan.requirements_json = json.dumps({"beats": [{"beat_id": "B01",
+    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "building", "name": "Flynn house"}],
+                                         "beats": [{"beat_id": "B01",
                                                      "quote": {"fact_id": "F1", "text": "I heard two shots"}}]})
     db_session.commit()
     run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {},
@@ -246,3 +233,26 @@ def test_a_verified_quote_and_the_beats_timeline_event_become_cards_in_bare_stre
     assert "SHOW_QUOTE" in commands and "SHOW_TIMELINE" in commands
     assert next(s for s in shots if s["command"] == "SHOW_TIMELINE")["event"] == "T003"
     assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-3
+
+
+def test_a_picture_that_is_not_about_the_words_never_fills_a_slot(db_session):
+    case, plan = _plan(db_session, 3)
+    for a in db_session.query(VisualAsset).filter_by(case_id=case.id):
+        a.description = "a tractor in a barn"
+    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "person", "name": "Judge Pratt"}],
+                                         "beats": []})
+    db_session.commit()
+    report = run(D.direct_film(db_session, case, plan, _manifest([40.0]), None, {"B01": 0}, {}))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    assert all("asset_id" not in s for s in shots) and report["gap_seconds"] > 0
+
+
+def test_a_named_place_gets_a_map_once_in_the_film_where_no_picture_covers_it(db_session):
+    case, plan = _plan(db_session, 0)
+    plan.requirements_json = json.dumps({"entities": [{"key": "e", "type": "place", "name": "Flynn house"}],
+                                         "beats": []})
+    db_session.commit()
+    run(D.direct_film(db_session, case, plan, _manifest([40.0, 40.0]), None, {"B01": 0, "B02": 1}, {}))
+    beats = json.loads(plan.plan_json)["beats"]
+    maps = [s for b in beats for s in b["shots"] if s["command"] == "SHOW_MAP"]
+    assert len(maps) == 1 and maps[0]["map_place"] == "Flynn house"

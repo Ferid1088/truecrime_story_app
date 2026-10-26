@@ -10,13 +10,18 @@ facts [{id, claim}].
 ANSWER THESE QUESTIONS SEPARATELY
 1. depicts: one plain sentence on what is actually visible.
 2. matches: for EVERY entity in entity_list that this picture could serve, give
-   {"entity": key, "relation": "exact|context|unrelated|uncertain", "reason": "..."}.
+   {"entity": key, "relation": "exact|context|unrelated|uncertain", "signal": "the identifying
+   signal for exact/context (empty otherwise)", "reason": "..."}.
    - exact: it shows that very person, place, object or document. A person is exact only when
      the picture itself supports the identity (caption naming them, a recognisable context such as
      an official photo of that named person, matching description). Looking similar is NOT enough.
-   - context: a truthful equivalent - the same town, a court building of that county, the same
-     model of car - that must be shown as context, never as the exact thing.
-   - unrelated: a different person/place/thing. uncertain: you cannot tell.
+   - context: the SAME specific place, institution or group seen from another angle or at another
+     time - the actual courthouse of that county but another room, the same street or neighbourhood,
+     the same police department. It is context only if you can say which identifying signal ties it
+     to the case (a caption naming the address or town, visible signage, the page it came from).
+   - unrelated: a different person, place or thing - and that includes ANOTHER house, garage, truck,
+     courtroom or street of the same KIND elsewhere. A house is not "context" for the Flynn house
+     just because it is a house. uncertain: you cannot tell.
    Respect each entity's not_this warning. A crowd, a stock-style scene or another real person is
    unrelated to a named person.
 3. overlays: {"watermark": bool, "burned_text": bool, "logo": bool} - anything laid over the picture.
