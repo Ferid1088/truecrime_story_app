@@ -2823,6 +2823,45 @@ class MainVisualPlannerConfig(BaseModel):
     review: MvpReviewConfig
 
 
+class GraphicsConfig(BaseModel):
+    """The code-made graphics (config/parameters/graphics.json): look, fixed labels per language and the
+    defaults the planner uses; the planner, not a graphic, decides use, place, length and cues."""
+
+    canvas: dict[str, int]
+    colors: dict[str, str]
+    type_scale: dict[str, int]
+    margin: int = Field(gt=0)
+    transition_seconds: float = Field(gt=0.0)
+    line_draw_seconds: float = Field(gt=0.0)
+    hold_seconds: dict[str, float]
+    cue_fractions: dict[str, list[float]]
+    timeline: dict
+    document_card: dict
+    conflict: dict
+    conflict_board: dict
+    recap: dict
+    floor_plan: dict
+    key_facts: dict
+    headline: dict
+    labels: dict[str, dict[str, str]]
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if set(self.labels) != {"en", "de", "fa", "ar"}:
+            raise ValueError("graphics.labels needs exactly en, de, fa and ar")
+        keys = set(self.labels["en"])
+        for language, table in self.labels.items():
+            if set(table) != keys:
+                raise ValueError(f"graphics.labels.{language} differs from en: "
+                                 f"{sorted(set(table) ^ keys)}")
+        for kind, fractions in self.cue_fractions.items():
+            if kind not in self.hold_seconds:
+                raise ValueError(f"graphics.cue_fractions.{kind} has no hold_seconds")
+            if fractions != sorted(fractions) or not all(0.0 <= f < 1.0 for f in fractions):
+                raise ValueError(f"graphics.cue_fractions.{kind} must rise within [0, 1)")
+        return self
+
+
 class ZoomMapConfig(BaseModel):
     """The cinematic zoom-in map (globe -> region -> street) built from open data, offline:
     a Protomaps/OpenStreetMap extract, open imagery and a MapLibre scene rendered frame by
@@ -3667,6 +3706,7 @@ class AIConfig(BaseModel):
     storage_budget: StorageBudgetConfig = Field(default_factory=StorageBudgetConfig)
     limits: LimitsConfig | None = None
     zoom_map: ZoomMapConfig | None = None
+    graphics: GraphicsConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
     shorts_host_led: HostLedShortsConfig = Field(default_factory=HostLedShortsConfig)
@@ -3882,6 +3922,12 @@ class AIConfig(BaseModel):
         if self.main_visual_planner is None:
             raise RuntimeError("config/parameters/main_visual_planner.json is missing")
         return self.main_visual_planner
+
+    def graphics_settings(self) -> GraphicsConfig:
+        """The code-made graphics' settings (config/parameters/graphics.json)."""
+        if self.graphics is None:
+            raise RuntimeError("config/parameters/graphics.json is missing")
+        return self.graphics
 
     def zoom(self) -> ZoomMapConfig:
         """The zoom-in map's settings (config/parameters/zoom_map.json)."""

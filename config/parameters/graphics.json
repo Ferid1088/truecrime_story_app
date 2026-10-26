@@ -1,0 +1,359 @@
+{
+  "graphics": {
+    "canvas": {
+      "width": 1920,
+      "height": 1080
+    },
+    "colors": {
+      "ground": "#0F1318",
+      "glow": "#222831",
+      "card": "#171C23",
+      "ink": "#EEE8DC",
+      "grey": "#8A9199",
+      "rule": "#2C333D",
+      "amber": "#F2B33D",
+      "blue": "#6DB4CF",
+      "red": "#E5534B",
+      "paper": "#EBE5D6",
+      "paper_ink": "#2A2723",
+      "redaction": "#141414"
+    },
+    "type_scale": {
+      "label": 30,
+      "title": 118,
+      "title_small": 92,
+      "body": 40,
+      "body_large": 52,
+      "claim": 50,
+      "mono": 28,
+      "big_number": 190,
+      "date": 84
+    },
+    "margin": 120,
+    "transition_seconds": 0.5,
+    "line_draw_seconds": 0.9,
+    "hold_seconds": {
+      "conflict": 24.0,
+      "recap": 24.0,
+      "document": 14.0,
+      "quote": 10.0,
+      "headline": 12.0,
+      "key_facts": 12.0,
+      "timeline": 16.0,
+      "conflict_board": 14.0,
+      "floor_plan": 16.0,
+      "text": 8.0
+    },
+    "cue_fractions": {
+      "conflict": [
+        0.12,
+        0.38,
+        0.72
+      ],
+      "recap": [
+        0.1,
+        0.35,
+        0.6
+      ],
+      "document": [
+        0.25
+      ],
+      "quote": [
+        0.15
+      ],
+      "headline": [
+        0.2
+      ],
+      "key_facts": [
+        0.1,
+        0.4,
+        0.7
+      ],
+      "timeline": [
+        0.08,
+        0.3,
+        0.52,
+        0.74
+      ],
+      "conflict_board": [
+        0.15
+      ],
+      "floor_plan": [
+        0.2,
+        0.4,
+        0.6,
+        0.8
+      ],
+      "text": [
+        0.1
+      ]
+    },
+    "timeline": {
+      "max_nodes_visible": 5,
+      "node_text_max_chars": 70,
+      "pan_target_range": [
+        0.4,
+        0.6
+      ]
+    },
+    "document_card": {
+      "quote_max_chars": 160,
+      "rotate_degrees": 1.0,
+      "stamp_only_if_exhibit": true
+    },
+    "conflict": {
+      "claim_max_chars": 160,
+      "title_max_chars": 70,
+      "summary_max_chars": 60,
+      "kinds": [
+        "parties",
+        "witnesses",
+        "evidence"
+      ]
+    },
+    "conflict_board": {
+      "columns": 3,
+      "max_cards_per_view": 6,
+      "show_total": false
+    },
+    "recap": {
+      "max_items": {
+        "confirmed": 3,
+        "disputed": 2,
+        "unknown": 2
+      },
+      "item_max_chars": 60
+    },
+    "floor_plan": {
+      "max_markers": 8,
+      "legend_kinds": [
+        "found",
+        "entry",
+        "witness"
+      ]
+    },
+    "key_facts": {
+      "max_per_card": 3,
+      "caption_max_chars": 90
+    },
+    "headline": {
+      "headline_max_chars": 140,
+      "max_age_days": 45,
+      "source_names": {
+        "nytimes.com": "The New York Times",
+        "washingtonpost.com": "The Washington Post",
+        "theguardian.com": "The Guardian",
+        "bbc.com": "BBC News",
+        "bbc.co.uk": "BBC News",
+        "reuters.com": "Reuters",
+        "apnews.com": "Associated Press",
+        "cnn.com": "CNN",
+        "latimes.com": "Los Angeles Times",
+        "wsj.com": "The Wall Street Journal",
+        "usatoday.com": "USA Today",
+        "chicagotribune.com": "Chicago Tribune",
+        "npr.org": "NPR",
+        "abcnews.go.com": "ABC News",
+        "nbcnews.com": "NBC News",
+        "cbsnews.com": "CBS News",
+        "spiegel.de": "Der Spiegel",
+        "zeit.de": "Die Zeit",
+        "faz.net": "Frankfurter Allgemeine Zeitung",
+        "sueddeutsche.de": "Süddeutsche Zeitung",
+        "welt.de": "Die Welt",
+        "bild.de": "Bild",
+        "lemonde.fr": "Le Monde",
+        "elpais.com": "El País",
+        "corriere.it": "Corriere della Sera",
+        "aljazeera.com": "Al Jazeera",
+        "independent.co.uk": "The Independent",
+        "telegraph.co.uk": "The Telegraph",
+        "thetimes.co.uk": "The Times",
+        "dispatch.com": "The Columbus Dispatch",
+        "cincinnati.com": "The Cincinnati Enquirer"
+      }
+    },
+    "labels": {
+      "en": {
+        "conflict": "CONFLICT",
+        "vs": "VS",
+        "one_side": "ONE SIDE",
+        "other_side": "OTHER SIDE",
+        "status_open": "STATUS: OPEN",
+        "status_decided": "STATUS: DECIDED",
+        "status_refuted": "STATUS: REFUTED",
+        "board_summary": "Board summary",
+        "source": "SOURCE",
+        "filed": "FILED",
+        "page": "PAGE",
+        "recap": "RECAP",
+        "recap_title": "WHAT WE KNOW SO FAR",
+        "confirmed": "CONFIRMED",
+        "disputed": "DISPUTED",
+        "unknown": "STILL UNKNOWN",
+        "conflict_board": "CONFLICT BOARD",
+        "conflict_board_title": "WHAT IS STILL DISPUTED",
+        "told": "told",
+        "not_yet_told": "NOT YET TOLD",
+        "document_card": "DOCUMENT CARD",
+        "document_title": "WHAT THE RECORD SAYS",
+        "document_sub": "Words from the record, shown on screen while the narrator reads them.",
+        "exhibit": "EXHIBIT",
+        "timeline": "CASE TIMELINE",
+        "map_zoom": "MAP ZOOM",
+        "now_showing": "NOW SHOWING",
+        "map_credit": "MAP",
+        "floor_plan": "FLOOR PLAN",
+        "legend": "LEGEND",
+        "found": "Where it was found",
+        "entry": "Entry point",
+        "witness": "Witness location",
+        "schematic": "SCHEMATIC · NOT TO SCALE · FROM THE REPORT",
+        "point": "POINT",
+        "key_facts": "KEY FACTS",
+        "headline": "NEWSPAPER HEADLINE",
+        "headline_title": "AS THE PRESS REPORTED IT",
+        "headline_source": "SOURCE",
+        "published": "PUBLISHED",
+        "detective_board": "DETECTIVE BOARD",
+        "quote": "ON THE RECORD",
+        "step": "STEP"
+      },
+      "de": {
+        "conflict": "WIDERSPRUCH",
+        "vs": "GEGEN",
+        "one_side": "EINE SEITE",
+        "other_side": "ANDERE SEITE",
+        "status_open": "STATUS: OFFEN",
+        "status_decided": "STATUS: ENTSCHIEDEN",
+        "status_refuted": "STATUS: WIDERLEGT",
+        "board_summary": "Zusammenfassung",
+        "source": "QUELLE",
+        "filed": "EINGEREICHT",
+        "page": "SEITE",
+        "recap": "RÜCKBLICK",
+        "recap_title": "WAS WIR BISHER WISSEN",
+        "confirmed": "BESTÄTIGT",
+        "disputed": "UMSTRITTEN",
+        "unknown": "NOCH UNKLAR",
+        "conflict_board": "WIDERSPRUCHSTAFEL",
+        "conflict_board_title": "WAS WEITERHIN UMSTRITTEN IST",
+        "told": "erzählt",
+        "not_yet_told": "NOCH NICHT ERZÄHLT",
+        "document_card": "DOKUMENT",
+        "document_title": "WAS DIE AKTE SAGT",
+        "document_sub": "Worte aus der Akte, eingeblendet, während der Sprecher sie liest.",
+        "exhibit": "BEWEISSTÜCK",
+        "timeline": "ZEITLEISTE DES FALLS",
+        "map_zoom": "KARTENZOOM",
+        "now_showing": "JETZT ZU SEHEN",
+        "map_credit": "KARTE",
+        "floor_plan": "GRUNDRISS",
+        "legend": "LEGENDE",
+        "found": "Fundort",
+        "entry": "Zugang",
+        "witness": "Standort des Zeugen",
+        "schematic": "SCHEMA · NICHT MASSSTÄBLICH · NACH DEM BERICHT",
+        "point": "PUNKT",
+        "key_facts": "WICHTIGE FAKTEN",
+        "headline": "ZEITUNGSSCHLAGZEILE",
+        "headline_title": "SO BERICHTETE DIE PRESSE",
+        "headline_source": "QUELLE",
+        "published": "ERSCHIENEN",
+        "detective_board": "DETEKTIVTAFEL",
+        "quote": "AUS DER AKTE",
+        "step": "SCHRITT"
+      },
+      "fa": {
+        "conflict": "تضاد",
+        "vs": "در برابر",
+        "one_side": "یک طرف",
+        "other_side": "طرف دیگر",
+        "status_open": "وضعیت: باز",
+        "status_decided": "وضعیت: روشن شده",
+        "status_refuted": "وضعیت: رد شده",
+        "board_summary": "خلاصه تابلو",
+        "source": "منبع",
+        "filed": "تاریخ ثبت",
+        "page": "صفحه",
+        "recap": "مرور",
+        "recap_title": "تا اینجا چه می‌دانیم",
+        "confirmed": "تأییدشده",
+        "disputed": "محل اختلاف",
+        "unknown": "هنوز نامعلوم",
+        "conflict_board": "تابلوی تضادها",
+        "conflict_board_title": "آنچه هنوز محل اختلاف است",
+        "told": "روایت‌شده",
+        "not_yet_told": "هنوز روایت نشده",
+        "document_card": "سند",
+        "document_title": "پرونده چه می‌گوید",
+        "document_sub": "عین کلمات پرونده، همزمان با خواندن گوینده روی صفحه.",
+        "exhibit": "مدرک",
+        "timeline": "خط زمانی پرونده",
+        "map_zoom": "نمای نقشه",
+        "now_showing": "اکنون",
+        "map_credit": "نقشه",
+        "floor_plan": "پلان",
+        "legend": "راهنما",
+        "found": "محل پیدا شدن",
+        "entry": "نقطه ورود",
+        "witness": "جای شاهد",
+        "schematic": "طرح تقریبی · بدون مقیاس · بر پایه گزارش",
+        "point": "نکته",
+        "key_facts": "حقایق کلیدی",
+        "headline": "تیتر روزنامه",
+        "headline_title": "رسانه‌ها چنین گزارش دادند",
+        "headline_source": "منبع",
+        "published": "تاریخ انتشار",
+        "detective_board": "تابلوی کارآگاه",
+        "quote": "از پرونده",
+        "step": "مرحله"
+      },
+      "ar": {
+        "conflict": "تعارض",
+        "vs": "مقابل",
+        "one_side": "طرف أول",
+        "other_side": "الطرف الآخر",
+        "status_open": "الحالة: مفتوحة",
+        "status_decided": "الحالة: محسومة",
+        "status_refuted": "الحالة: مدحوضة",
+        "board_summary": "ملخص اللوحة",
+        "source": "المصدر",
+        "filed": "تاريخ التقديم",
+        "page": "الصفحة",
+        "recap": "مراجعة",
+        "recap_title": "ما نعرفه حتى الآن",
+        "confirmed": "مؤكد",
+        "disputed": "محل خلاف",
+        "unknown": "لا يزال مجهولاً",
+        "conflict_board": "لوحة التعارضات",
+        "conflict_board_title": "ما يزال موضع خلاف",
+        "told": "رُوي",
+        "not_yet_told": "لم يُروَ بعد",
+        "document_card": "وثيقة",
+        "document_title": "ماذا يقول السجل",
+        "document_sub": "كلمات من السجل تظهر على الشاشة بينما يقرؤها الراوي.",
+        "exhibit": "دليل",
+        "timeline": "الخط الزمني للقضية",
+        "map_zoom": "تقريب الخريطة",
+        "now_showing": "الآن",
+        "map_credit": "الخريطة",
+        "floor_plan": "مخطط الطابق",
+        "legend": "دليل الرموز",
+        "found": "مكان العثور",
+        "entry": "نقطة الدخول",
+        "witness": "موقع الشاهد",
+        "schematic": "مخطط تقريبي · غير مقيّس · عن التقرير",
+        "point": "نقطة",
+        "key_facts": "حقائق أساسية",
+        "headline": "عنوان صحفي",
+        "headline_title": "كما نقلته الصحافة",
+        "headline_source": "المصدر",
+        "published": "تاريخ النشر",
+        "detective_board": "لوحة المحقق",
+        "quote": "من السجل",
+        "step": "خطوة"
+      }
+    }
+  }
+}
