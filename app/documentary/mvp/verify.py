@@ -96,7 +96,7 @@ def interpret(verdict: dict, requirement: MvpRequirement, entity_type: str | Non
     reasons: list[str] = []
     role, identity = None, "rejected"
     if relation == "exact":
-        role = "evidence" if "evidence" in accepted else ("context" if "context" in accepted else None)
+        role = next((r for r in ("evidence", "context", "illustration") if r in accepted), None)
         if role is None:
             reasons.append("shows the exact thing but only illustration was acceptable")
         elif confidence < _min_confidence(entity_type, "exact"):
@@ -105,8 +105,9 @@ def interpret(verdict: dict, requirement: MvpRequirement, entity_type: str | Non
         else:
             identity = "approved"
     elif relation == "context":
-        if "context" in accepted:
-            role, identity = "context", "approved" if confidence >= cfg.min_confidence_other else "needs_review"
+        if "context" in accepted or "illustration" in accepted:
+            role = "context" if "context" in accepted else "illustration"
+            identity = "approved" if confidence >= cfg.min_confidence_other else "needs_review"
         else:
             reasons.append("only a contextual equivalent; this requirement needs the exact thing")
     elif relation == "uncertain":

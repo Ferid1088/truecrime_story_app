@@ -51,7 +51,8 @@
     "topup": {
       "max_assets": 500,
       "passes": 1,
-      "min_relevance": 0.2
+      "min_relevance": 0.2,
+      "atmosphere_max_assets": 700
     }
   }
 }

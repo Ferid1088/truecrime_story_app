@@ -114,3 +114,30 @@ def test_the_top_up_attaches_unjudged_pictures_to_place_requirements_of_bare_bea
     rows = db_session.query(MvpCandidate).join(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id).all()
     assert out["created"] == 1 and rows[0].visual_asset_id == hit.id
     assert db_session.get(MvpRequirement, rows[0].requirement_id).requirement_key == "B01.1"
+
+
+def test_the_atmosphere_pool_takes_pictures_without_an_approved_use_once(db_session):
+    from app.db.models import MvpCandidate as C
+
+    case, bp, _sv = _case(db_session)
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1,
+                      requirements_json=json.dumps({"entities": [], "beats": []}))
+    db_session.add(plan)
+    db_session.commit()
+    free = _asset(db_session, case, asset_type="photo")
+    used = _asset(db_session, case, asset_type="photo")
+    rejected = _asset(db_session, case, asset_type="photo")
+    named = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
+                           function="evidence", entity_key="x")
+    db_session.add(named)
+    db_session.commit()
+    db_session.add_all([C(requirement_id=named.id, visual_asset_id=used.id, final_status="approved"),
+                        C(requirement_id=named.id, visual_asset_id=rejected.id, final_status="rejected")])
+    db_session.commit()
+    first = L.build_atmosphere_candidates(db_session, plan, "A case", "Troy, Ohio")
+    second = L.build_atmosphere_candidates(db_session, plan, "A case", "Troy, Ohio")
+    req = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id, requirement_key="ATMOSPHERE").one()
+    assert first["atmosphere_candidates"] == 2 and second["atmosphere_candidates"] == 0
+    assert {c.visual_asset_id for c in req.candidates} == {free.id, rejected.id}
+    assert req.role_needed == "illustration" and req.beat_id == L.ATMOSPHERE_BEAT
+    assert [e["key"] for e in json.loads(plan.requirements_json)["entities"]] == ["atmosphere"]

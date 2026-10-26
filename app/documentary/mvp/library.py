@@ -117,6 +117,56 @@ def build_gap_candidates(db: Session, plan: VisualPlan, requirements: dict, gap_
             "unjudged_left": max(len(scored) - cfg.topup.max_assets, 0)}
 
 
+ATMOSPHERE_KEY = "atmosphere"
+ATMOSPHERE_BEAT = "ALL"
+
+
+def atmosphere_entity(case_title: str, place: str | None) -> dict:
+    """The one pseudo-entity every stored picture can be judged against as generic atmosphere."""
+    where = f" ({place})" if place else ""
+    return {"key": ATMOSPHERE_KEY, "type": "place", "name": f"Atmosphere of {case_title}{where}",
+            "period": None, "aliases": [], "search_queries": [], "context_queries": [], "footage": False,
+            "visual_description": "A real, dignified photograph or clip that can sit under narration as "
+                                  "rhythm: the region, its streets, buildings, weather, courts or police in "
+                                  "general. It must make no claim about the case.",
+            "not_this": ["a close portrait of a person who could be taken for someone in the case",
+                         "a picture of an identifiable person shown as if they were a named subject",
+                         "a picture of a different case or place",
+                         "visible text that states a fact", "graphic or gory material"]}
+
+
+def build_atmosphere_candidates(db: Session, plan: VisualPlan, case_title: str, place: str | None) -> dict:
+    """Stored pictures with no approved use become candidates of one film-wide atmosphere requirement
+    (role illustration: rhythm only, shown labelled, never evidence). Judged once like any other candidate."""
+    cfg = ai_config.mvp()
+    requirements = json.loads(plan.requirements_json or "{}")
+    if not any(e["key"] == ATMOSPHERE_KEY for e in requirements.get("entities", [])):
+        requirements.setdefault("entities", []).append(atmosphere_entity(case_title, place))
+        plan.requirements_json = json.dumps(requirements, ensure_ascii=False)
+    req = db.query(MvpRequirement).filter_by(visual_plan_id=plan.id, requirement_key="ATMOSPHERE").first()
+    if req is None:
+        req = MvpRequirement(
+            case_id=plan.case_id, visual_plan_id=plan.id, requirement_key="ATMOSPHERE",
+            beat_id=ATMOSPHERE_BEAT, function="atmosphere", entity_key=ATMOSPHERE_KEY,
+            role_needed="illustration", priority="low", status="met",
+            spec_json=json.dumps({"acceptable_roles": ["illustration"],
+                                  "need": "generic rhythm material for bare moments"}))
+        db.add(req)
+        db.flush()
+    taken = {c.visual_asset_id for c in req.candidates}
+    approved = {c.visual_asset_id for r in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id)
+                for c in r.candidates if c.final_status == "approved"}
+    assets = [a for a in db.query(VisualAsset).filter(
+        VisualAsset.case_id == plan.case_id, VisualAsset.asset_type.in_(CANDIDATE_TYPES),
+        VisualAsset.local_path.isnot(None), VisualAsset.file_removed_at.is_(None)).all()
+        if a.id not in taken and a.id not in approved]
+    chosen = assets[:cfg.topup.atmosphere_max_assets]
+    for asset in chosen:
+        db.add(MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id))
+    db.commit()
+    return {"atmosphere_candidates": len(chosen), "atmosphere_left": max(len(assets) - len(chosen), 0)}
+
+
 def reset_case_visual_state(db: Session, case_id: int) -> dict:
     """The cutover from the old visual pipeline: its plans, audits, search log, usage records and
     production scripts are removed, and the old inspectors' verdicts on stored pictures are cleared so

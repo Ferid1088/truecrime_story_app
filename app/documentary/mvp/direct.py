@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
+from app.documentary.mvp.library import ATMOSPHERE_BEAT
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.tracking import stamp_run, track_run
@@ -122,6 +123,7 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
             Item(asset, cand.role or "context", req.entity_key, priority[req.priority] * 3
                  + ROLE_RANK.get(cand.role or "", 3)))
     return out
+
 
 
 def reveal_blocked(db: Session, graph_id: int | None, beat_order: dict[str, int], beat_id: str,
@@ -300,11 +302,14 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         if not slots:
             continue
         pool = [i for i in items.get(bid, []) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
+        # generic atmosphere pictures only ever fill what the beat's own pictures leave bare
+        atmosphere = [i for i in items.get(ATMOSPHERE_BEAT, [])
+                      if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
         near = [i for other, group in items.items() if abs(beat_order.get(other, 99) - beat_order.get(bid, 0)) <= 2
                 and other != bid for i in group
                 if i.entity in {p.entity for p in pool} and not reveal_blocked(
                     db, graph_id, beat_order, bid, i.asset)]
-        slots = coalesce_slots(slots, len(pool) + len(near), cfg.max_still_seconds)
+        slots = coalesce_slots(slots, len(pool) + len(near) + len(atmosphere), cfg.max_still_seconds)
         chosen: dict[int, Item] = {}
         pool_key = hashlib.sha256(json.dumps(
             [[i.code, i.role, used[i.code]] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
@@ -335,7 +340,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         leftover = [n for n in range(len(slots)) if n not in chosen]
         taken = {i.code for i in chosen.values()}
         fill = baseline_assign([slots[n] for n in leftover], [i for i in pool if i.code not in taken], used,
-                               cfg.max_asset_reuse, [i for i in near if i.code not in taken])
+                               cfg.max_asset_reuse, [i for i in near + atmosphere if i.code not in taken])
         for n, item in zip(leftover, fill, strict=True):
             if item is not None:
                 chosen[n] = item

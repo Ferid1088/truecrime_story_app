@@ -2784,6 +2784,8 @@ class MvpTopupConfig(BaseModel):
     max_assets: int = Field(ge=0)
     passes: int = Field(ge=0, le=3)
     min_relevance: float = Field(ge=0.0)
+    # Stored pictures judged once as generic atmosphere (never as evidence) for the beats still bare.
+    atmosphere_max_assets: int = Field(ge=0)
 
 
 class MvpReviewConfig(BaseModel):

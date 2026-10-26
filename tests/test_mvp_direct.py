@@ -175,3 +175,24 @@ def test_a_second_pass_asks_the_agent_only_about_beats_whose_pool_changed(db_ses
     asked.clear()
     run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0, "B02": 1}, beats, director))
     assert asked == []
+
+
+def test_atmosphere_pictures_fill_only_what_a_beats_own_pictures_leave_bare(db_session):
+    case, plan = _plan(db_session, 1)
+    atmo = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="ATMOSPHERE", beat_id="ALL",
+                          function="atmosphere", entity_key="atmosphere", role_needed="illustration",
+                          priority="low", spec_json="{}")
+    db_session.add(atmo)
+    db_session.commit()
+    for i in range(6):
+        a = VisualAsset(case_id=case.id, asset_code=f"A{i}", local_path="x.jpg", asset_type="photo")
+        db_session.add(a)
+        db_session.commit()
+        db_session.add(MvpCandidate(requirement_id=atmo.id, visual_asset_id=a.id, role="illustration",
+                                    final_status="approved"))
+    db_session.commit()
+    report = run(D.direct_film(db_session, case, plan, _manifest([60.0]), None, {"B01": 0}, {}))
+    shots = json.loads(plan.plan_json)["beats"][0]["shots"]
+    coded = [s["asset_id"] for s in shots if "asset_id" in s]
+    assert coded[0] == "V000" and all(c.startswith("A") for c in coded[1:]) and len(coded) > 1
+    assert report["gap_seconds"] == 0.0
