@@ -928,6 +928,12 @@ def documentary_env(tmp_path, monkeypatch):
     monkeypatch.setattr("app.providers.generation.get_generation_provider", lambda: gen)
     from tests.factories import DistinctEmbedder
     monkeypatch.setattr("app.agents.research.default_embedder", lambda: DistinctEmbedder())
+
+    async def fake_host_stage(db, case, version, language):
+        # the hermetic harness has no HeyGen avatar; the stage's own behaviour is tested in test_mvp_pipeline
+        return {"skipped": True, "reason": "no avatar provider in the hermetic harness"}
+
+    monkeypatch.setattr("app.documentary.mvp.pipeline.stage_host", fake_host_stage)
     tts = FakeTTS()
     gen.tts = tts
     # Host scenes resolve their provider dynamically, unlike the production
