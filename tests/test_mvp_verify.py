@@ -141,3 +141,17 @@ def test_sync_marks_the_library_asset_from_its_candidates(db_session, tmp_path, 
     assert V.sync_asset_status(db_session, case.id) == {"verified": 1, "rejected": 0, "needs_review": 0}
     db_session.refresh(asset)
     assert asset.verification_status == "verified" and asset.asset_role == "evidence"
+
+
+def test_a_second_verifier_settles_what_the_first_could_not_tell(db_session, tmp_path, monkeypatch):
+    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)
+    run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [],
+                           judge=_judge(_verdict("uncertain", 0.5)), second=_judge(_verdict("exact", 0.93))))
+    assert cand.final_status == "approved" and cand.role == "evidence"
+
+
+def test_a_first_verifier_that_says_unrelated_is_not_overruled_into_approval(db_session, tmp_path, monkeypatch):
+    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)
+    run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [],
+                           judge=_judge(_verdict("unrelated", 0.9)), second=_judge(_verdict("exact", 0.95))))
+    assert cand.final_status == "rejected"

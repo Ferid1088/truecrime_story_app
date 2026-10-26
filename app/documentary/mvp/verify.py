@@ -218,6 +218,14 @@ def apply_verdict(db: Session, cand: MvpCandidate, asset: VisualAsset, requireme
     return cand
 
 
+def _first_could_not_tell(verdict: dict, requirement: MvpRequirement) -> bool:
+    """The first verifier said 'uncertain' for this entity (not 'unrelated'): that is a lack of information,
+    not a disagreement, so an independent second verifier that meets the confidence bar settles it."""
+    match = next((m for m in verdict.get("matches") or []
+                  if isinstance(m, dict) and m.get("entity") == requirement.entity_key), None)
+    return bool(match) and match.get("relation") == "uncertain"
+
+
 async def verify_asset(db: Session, case: Case, asset: VisualAsset,
                        items: list[tuple[MvpCandidate, MvpRequirement]], entities: list[dict],
                        facts: list[dict], judge: Judge | None = None,
@@ -249,7 +257,8 @@ async def verify_asset(db: Session, case: Case, asset: VisualAsset,
             continue
         first_out = interpret(verdict.data, req, etype)
         second_out = interpret(other.data, req, etype)
-        if first_out["role"] == second_out["role"] and second_out["identity"] == "approved":
+        if second_out["identity"] == "approved" and (
+                first_out["role"] == second_out["role"] or _first_could_not_tell(verdict.data, req)):
             apply_verdict(db, cand, asset, req, other, etype, "mvp.verify_second")
         else:
             cand.reasons_json = json.dumps(json.loads(cand.reasons_json) + ["verifiers disagree; stored for review"])
