@@ -5,13 +5,6 @@
       "max_context_queries": 3,
       "max_aliases": 5
     },
-    "production_search": {
-      "verify_per_request": 3,
-      "min_entity_score": 0.7
-    },
-    "director": {
-      "beats_per_call": 10
-    },
     "audio": {
       "max_miss_tags": 8
     },
