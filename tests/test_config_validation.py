@@ -30,8 +30,6 @@ def test_decision_limits_are_explicit_json_keys():
         "host.words_per_minute",
         "host.max_repair_iterations",
         "host.max_writer_repairs",
-        "visual_audit.enabled",
-        "visual_audit.max_redos",
         "chapters.enabled",
         "chapters.title_card",
         "chapters.card_seconds",
@@ -67,7 +65,6 @@ def test_decision_limits_are_explicit_json_keys():
         "production_policies.retry_policy.spoken_versions",
         "production_policies.retry_policy.host_segments",
         "production_policies.retry_policy.video_pieces",
-        "production_policies.retry_policy.visual_audit_assets",
         "production_policies.retry_policy.audio_plan",
     )
     missing = [path for path in policy_keys if not _has_path(raw, path)]

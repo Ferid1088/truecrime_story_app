@@ -111,3 +111,18 @@ def test_an_asset_that_reveals_a_later_node_is_not_shown_earlier(db_session):
     run(D.direct_film(db_session, case, plan, _manifest([20.0, 20.0]), graph.id, {"B01": 0, "B02": 1}, {}))
     first_beat = json.loads(plan.plan_json)["beats"][0]
     assert all("asset_id" not in s for s in first_beat["shots"])
+
+
+def test_unchanged_inputs_reuse_the_saved_direction_without_calling_the_agent(db_session):
+    case, plan = _plan(db_session, 6)
+    calls = {"n": 0}
+
+    async def director(case, beat, slots, pool):
+        calls["n"] += 1
+        return [{"slot": 0, "asset": pool[0]["asset"]}]
+    manifest = _manifest([30.0])
+    first = run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, director))
+    second = run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, director))
+    assert calls["n"] == 1 and second["fingerprint"] == first["fingerprint"]
+    run(D.direct_film(db_session, case, plan, _manifest([40.0]), None, {"B01": 0}, {}, director))
+    assert calls["n"] == 2

@@ -35,6 +35,18 @@ class Verdict:
     model: str | None = None
 
 
+def entity_view(entity: dict) -> dict:
+    """What the verifier is told about an entity: its identity and, when the case has a dossier for it,
+    the plain description and the look-alikes it must not be confused with."""
+    view = {"key": entity["key"], "name": entity["name"], "type": entity["type"],
+            "period": entity.get("period")}
+    if entity.get("visual_description"):
+        view["description"] = entity["visual_description"]
+    if entity.get("not_this"):
+        view["not_this"] = entity["not_this"]
+    return view
+
+
 def provenance_decision(asset: VisualAsset) -> tuple[str, str | None]:
     """Source identity, a retrievable origin and readable bytes: 'passed' or 'needs_review'."""
     path = storage.resolve(asset.local_path) if asset.local_path else None
@@ -211,7 +223,7 @@ async def verify_asset(db: Session, case: Case, asset: VisualAsset,
     verifier; if the two disagree the conflict is stored and the candidate waits for review."""
     cfg = ai_config.mvp().verification
     wanted = {req.entity_key for _c, req in items}
-    shown = [e for e in entities if e["key"] in wanted][:cfg.max_requirements_per_asset]
+    shown = [entity_view(e) for e in entities if e["key"] in wanted][:cfg.max_requirements_per_asset]
     judge = judge or (lambda c, a, e, f, agent: model_judge(c, a, e, f, agent, db))
     verdict = await judge(case, asset, shown, facts, "mvp.verify")
     retries = cfg.transient_failure_retries

@@ -1,5 +1,5 @@
 """Video pieces: a video is kept whole (muted) and cut by MEANING (the
-segmenter) into named, described pieces; the video auditor checks each
+segmenter) into named, described pieces; the Main Visual Planner judges each
 cut, name, description and every frame (corrections are checked again);
 a sentence shows only its piece, overlapping pieces never both appear."""
 import asyncio
@@ -13,7 +13,6 @@ import pytest
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, VisualAsset
-from app.documentary import storage
 from app.documentary.visuals import pieces as PC
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.providers.generation.base import GenerationResult
@@ -59,7 +58,7 @@ class FakeSegmenterGen:
         self.fail, self.calls = fail, []
 
     async def generate_structured(self, role, system, user, images=None):
-        assert role == "video_segmenter" and images
+        assert role == "mvp_segment_scout" and images
         data = json.loads(user)
         self.calls.append(data)
         if self.fail:
@@ -120,40 +119,6 @@ def test_scene_changes_are_detected(env):
 
 
 @needs_ffmpeg
-def test_a_video_is_kept_whole_and_cut_into_described_pieces(db_session, env):
-    case = _case(db_session)
-    v = _three_scenes(env / "src.mp4")
-    gen = FakeSegmenterGen()
-    source, pieces = _ingest(db_session, case, v, {
-        "provider": "upload", "rights_status": "owned", "asset_role": "evidence",
-        "title": "Search at the lake", "entities": ["the_lake"], "entity_key": "the_lake",
-        "found_during": "upload"}, gen)
-    # the segmenter saw the scene changes it can cut at
-    assert any(abs(c - 6) < 0.3 for c in gen.calls[0]["scene_changes"])
-    assert source.asset_type == "video_source" and source.verification_status == "source"
-    from app.documentary.visuals.footage import probe_video, sheet_path
-
-    info = probe_video(storage.resolve(source.local_path))
-    assert info["has_video"] and not info["has_audio"] and info["duration"] == pytest.approx(42, abs=0.2)
-    # cut where the meaning changes, named and described by the segmenter
-    assert [p.title for p in pieces] == ["Red screen", "Colour bars", "Blue sky, first part",
-                                         "Blue sky, second part"]
-    assert pieces[1].description == "A test pattern."
-    assert (pieces[2].clip_start, pieces[2].clip_end) == (12.0, 30.0)
-    assert pieces[3].clip_start < pieces[2].clip_end            # a meaningful overlap
-    assert json.loads(source.spec_json)["pieces"] == [p.asset_code for p in pieces]
-    for p in pieces:
-        assert p.asset_type == "video" and p.local_path == source.local_path
-        assert p.verification_status == "unverified"
-        assert PC.piece_info(p)["parent"] == source.asset_code
-        assert storage.resolve(p.thumbnail_path).exists()
-        assert sheet_path(case.id, p.asset_code).exists()
-        assert json.loads(p.entities_json) == ["the_lake"]
-    # frames of a piece, in order, about one per second
-    frames = PC.piece_frames(pieces[0])
-    assert 5 <= len(frames) <= 7 and all(f[:2] == b"\xff\xd8" for f in frames)
-
-
 @needs_ffmpeg
 def test_a_video_the_segmenter_cannot_cut_is_kept_but_never_cut_by_the_clock(db_session, env):
     case = _case(db_session)
@@ -187,14 +152,11 @@ def test_cut_again_endpoint(client, db_session, env, monkeypatch):
         "found_during": "upload"}, FakeSegmenterGen(fail=True))
     r = client.post(f"/api/visuals/{source.id}/cut-again")
     assert r.status_code == 502 and "model down" in r.json()["detail"]
-    checked = []
-    monkeypatch.setattr("app.documentary.api._verify_later",
-                        lambda case_id, asset_id: checked.append(asset_id))
     monkeypatch.setattr("app.documentary.visuals.video_segmenter.get_generation_provider",
                         lambda: FakeSegmenterGen())
     r = client.post(f"/api/visuals/{source.id}/cut-again")
     assert r.status_code == 200, r.text
-    assert r.json()["pieces"] == 4 and checked == [source.id]   # pieces go to the auditor
+    assert r.json()["pieces"] == 4
     photo = VisualAsset(case_id=case.id, asset_code=f"PH{uuid.uuid4().hex[:6]}",
                         asset_type="photo")
     db_session.add(photo)
@@ -226,123 +188,36 @@ def test_overlapping_pieces_are_never_both_shown():
 
 
 # ---------------------------------------------------------------------------
-# the video auditor
+# the planner's library
 # ---------------------------------------------------------------------------
 
 
-class Gen:
-    def __init__(self, answer):
-        self.answer, self.seen = answer, []
+def test_a_whole_video_is_never_a_candidate(db_session):
+    import uuid
 
-    async def generate_structured(self, role, system, user, images=None):
-        self.seen.append((role, json.loads(user), len(images or [])))
-        return dict(self.answer), GenerationResult(text="{}", model="m/video", provider="fake")
+    from app.db.models import Case, EditorialBlueprint, MvpRequirement, StoryVersion, VisualPlan
+    from app.documentary.mvp.library import build_candidates
 
-
-class SeqGen:
-    """Answers the video auditor with the given answers in turn."""
-
-    def __init__(self, *answers):
-        self.answers, self.seen = list(answers), []
-
-    async def generate_structured(self, role, system, user, images=None):
-        self.seen.append((role, json.loads(user), len(images or [])))
-        a = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
-        return dict(a), GenerationResult(text="{}", model="m/video", provider="fake")
-
-
-OK = {"cut_ok": True, "description_ok": True, "name": "Colour bars",
-      "description": "A test pattern.", "subject_type": "other", "matches_claim": "yes",
-      "role": "context", "entities": ["the_lake", "unknown"], "period_ok": "yes",
-      "tone_ok": True, "text_or_logo_in_any_frame": False,
-      "graphic_or_sensitive_in_any_frame": False, "quality": 0.8, "confidence": 0.9}
-
-
-def _check(db, case, piece, gen):
-    from app.documentary.visuals.video_auditor import VideoAuditor
-
-    asyncio.run(VideoAuditor(gen=gen).describe(
-        db, case, piece, [{"key": "the_lake", "name": "the lake", "type": "place"}], []))
-
-
-@needs_ffmpeg
-def test_the_video_auditor_checks_the_cut_the_description_and_every_frame(db_session, env):
-    case = _case(db_session)
-    _, pieces = _ingest(db_session, case, _three_scenes(env / "v.mp4"), {
-        "provider": "internet_archive", "rights_status": "public_domain",
-        "asset_role": "context", "title": "lake film", "found_during": "research"})
-    red, bars, blue1, blue2 = pieces
-    # all right: the segmenter's name and description stay
-    gen = SeqGen(OK)
-    _check(db_session, case, bars, gen)
-    role, payload, n = gen.seen[0]
-    assert role == "video_auditor" and payload["proposed"]["name"] == "Colour bars"
-    assert payload["frames"][0] == "context before" and payload["frames"][-1] == "context after"
-    assert n == len(payload["frames"]) >= 7
-    assert bars.verification_status == "verified" and bars.title == "Colour bars"
-    assert "the_lake" in bars.entities_json and "unknown" not in bars.entities_json
-
-    # a wrong cut is moved to the auditor's better start/end and checked again
-    gen = SeqGen({**OK, "cut_ok": False, "suggested_start": 13.0, "suggested_end": 29.0,
-                  "reasons": ["starts on the last frame of the bars"]}, OK)
-    _check(db_session, case, blue1, gen)
-    assert len(gen.seen) == 2 and (blue1.clip_start, blue1.clip_end) == (13.0, 29.0)
-    assert json.loads(blue1.spec_json)["window"] == [13.0, 29.0]
-    assert blue1.verification_status == "verified"
-    checks = json.loads(blue1.verification_json)["checks"]
-    assert checks[0]["cut_ok"] is False and checks[1]["cut_ok"] is True
-
-    # a wrong description is replaced by what the auditor sees, checked again
-    gen = SeqGen({**OK, "description_ok": False, "name": "Plain blue screen",
-                  "description": "A plain blue frame, no sky visible."}, OK)
-    _check(db_session, case, blue2, gen)
-    assert blue2.title == "Plain blue screen" and "no sky" in blue2.description
-    assert blue2.verification_status == "verified" and len(gen.seen) == 2
-
-    # still not meaningful after the redos (or no usable fix): rejected
-    gen = SeqGen({**OK, "cut_ok": False, "suggested_start": None, "suggested_end": None})
-    _check(db_session, case, red, gen)
-    assert red.verification_status == "rejected"
-    assert json.loads(red.verification_json)["reason"] == "cut_not_meaningful"
-
-
-@needs_ffmpeg
-def test_one_bad_frame_fails_the_piece(db_session, env):
-    case = _case(db_session)
-    _, pieces = _ingest(db_session, case, _three_scenes(env / "u.mp4"), {
-        "provider": "internet_archive", "rights_status": "public_domain",
-        "asset_role": "context", "title": "lake film", "found_during": "research"})
-    _check(db_session, case, pieces[0], SeqGen({**OK, "text_or_logo_in_any_frame": True}))
-    assert pieces[0].verification_status == "rejected"
-    _check(db_session, case, pieces[1], SeqGen({**OK, "graphic_or_sensitive_in_any_frame": True}))
-    assert pieces[1].verification_status == "rejected"
-
-
-@needs_ffmpeg
-def test_placement_fails_when_a_frame_fails(db_session, env):
-    from app.documentary.visuals.auditor import VisualAuditor
-
-    case = _case(db_session)
-    _, pieces = _ingest(db_session, case, _three_scenes(env / "w.mp4"), {
-        "provider": "upload", "rights_status": "owned", "asset_role": "evidence",
-        "title": "lake", "found_during": "upload"})
-    p = pieces[0]
-    p.verification_status = "verified"
+    case = Case(canonical_title="Lake", slug=uuid.uuid4().hex, language="en")
+    db_session.add(case)
     db_session.commit()
-    gen = Gen({"verdict": "approved", "as": "evidence", "fits_words": 0.9,
-               "specific_kind_ok": True, "tone_ok": True, "person_ok": True,
-               "every_frame_ok": False, "problem_frames": [4], "reasons": ["a logo at the end"]})
-    verdict, _, reasons = asyncio.run(VisualAuditor(gen=gen).check(
-        db_session, case, p, ["Divers searched the lake for three days."]))
-    assert verdict == "rejected" and any("frame" in r for r in reasons)
-    assert gen.seen[0][0] == "video_auditor"
-
-
-def test_a_whole_video_is_never_a_candidate():
-    from app.documentary.visuals.director import rank_candidates
-
-    src = VisualAsset(asset_code="S", asset_type="video_source", asset_role="context",
-                      verification_status="source", local_path="x.mp4",
-                      rights_status="public_domain", entity_key="the_lake")
-    req = {"acceptable_roles": ["evidence", "context", "illustration"], "priority": "high"}
-    assert rank_candidates(req, {"key": "the_lake", "name": "the lake"}, [src], set()) == []
+    sv = StoryVersion(case_id=case.id, version=1, kind="final", language="en", story_text="t",
+                      narrative_angle="a")
+    db_session.add(sv)
+    db_session.commit()
+    bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
+    db_session.add(bp)
+    db_session.commit()
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1)
+    db_session.add(plan)
+    db_session.commit()
+    db_session.add_all([
+        MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
+                       function="orientation", entity_key="the_lake"),
+        VisualAsset(case_id=case.id, asset_code="S", asset_type="video_source", asset_role="context",
+                    verification_status="source", local_path="x.mp4", rights_status="public_domain",
+                    entity_key="the_lake")])
+    db_session.commit()
+    out = build_candidates(db_session, plan, {"entities": [{"key": "the_lake", "name": "the lake",
+                                                            "type": "place"}], "beats": []})
+    assert out["created"] == 0 and out["requirements_without_candidates"] == 1

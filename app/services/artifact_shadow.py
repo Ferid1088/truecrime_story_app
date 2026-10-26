@@ -50,19 +50,16 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
     "spoken": ("spoken_version",), "host_plan": ("host_plan",), "chapters": (
         "chapter_plan", "timeline_cards", "chapter_cards"),
     "naming": ("naming",), "film_length": ("film_length",),
-    "visual_needs": ("visual_needs",),
-    "visual_dossier": ("visual_needs",),
-    "visual_research": ("visual_pieces",),
-    "visual_review": ("visual_pieces",),
-    "visual_check": ("visual_pieces",),
-    "visual_plan": ("visual_asset", "visual_shots", "visual_pieces", "visual_plan"),
-    "visual_gaps": ("visual_plan",), "zoom_maps": ("visual_asset",), "host": ("host_segments",),
+    "mvp_needs": ("visual_needs",),
+    "mvp_verify": ("visual_pieces",),
+    "mvp_research": ("visual_pieces",),
+    "mvp_direct": ("visual_asset", "visual_shots", "visual_pieces", "visual_plan"),
+    "zoom_maps": ("visual_asset",), "host": ("host_segments",),
     "performance": ("voice_takes",),
     "voice": ("voice_takes", "audio_timing", "music_cues"), "production": (
         "captions", "production_script"), "critique": ("production_script",),
-    "visual_audit": ("production_script",),
-    "visual_coverage": ("production_script",),
-    "render": ("intro", "final_render"),
+    "mvp_coverage": ("production_script",),
+    "render": ("intro", "final_render"), "mvp_review": (),
     "short_selection": ("short_moment_selection",),
     "short_script": ("short_script_captions",),
     "short_render": ("short_render",),
@@ -463,7 +460,7 @@ def _stage_detail(job, stage: str, language: str | None) -> dict:
     name = f"{stage}:{language}" if language else stage
     names = {name}
     if stage == "production" and language:
-        names.update({f"critique:{language}", f"visual_audit:{language}",
+        names.update({f"critique:{language}", f"mvp_coverage:{language}",
                       f"render:{language}"})
     matches = [item for item in entries
                if isinstance(item, dict) and item.get("name") in names]
@@ -580,9 +577,9 @@ def register_stage_outputs(db, job, stage: str, language: str | None, detail: di
                                     dependencies.append(candidate.id)
                     scope_stage = {"master_approval": "master_story",
                                    "final_approval": "language_pipeline",
-                                   "visual_gaps": "visual_plan",
+                                   "mvp_direct": "mvp_direct",
                                    "critique": "production",
-                                   "visual_audit": "production"}.get(stage, stage)
+                                   "mvp_coverage": "production"}.get(stage, stage)
                     scope = {"job_id": job.id, "stage": scope_stage,
                              "language": artifact_language,
                              "type": artifact_type,

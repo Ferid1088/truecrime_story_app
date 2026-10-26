@@ -225,11 +225,16 @@ def store_requirements(db: Session, plan: VisualPlan, graph_id: int | None, requ
     return count
 
 
+def _is_needs_plan(row: VisualPlan) -> bool:
+    """The shared needs plan of a blueprint, not one of its per-language shot-list rows."""
+    mvp = json.loads(row.validation_json or "{}").get("mvp")
+    return mvp is not None and mvp.get("language") is None
+
+
 def latest_mvp_plan(db: Session, blueprint_id: int) -> VisualPlan | None:
     rows = (db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_id)
             .order_by(VisualPlan.version.desc()).all())
-    return next((r for r in rows if "mvp" in json.loads(r.validation_json or "{}")
-                 and r.status != "invalid"), None)
+    return next((r for r in rows if r.status != "invalid" and _is_needs_plan(r)), None)
 
 
 async def plan_needs(db: Session, case: Case, blueprint_row: EditorialBlueprint,

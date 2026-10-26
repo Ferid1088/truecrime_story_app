@@ -74,12 +74,30 @@ def revealed_by(a) -> set[str]:
         return set()
 
 
+def known_at(beat: dict) -> set[str]:
+    return set(beat.get("viewer_knows") or []) | set(beat.get("reveals") or [])
+
+
+def blocked_at(blueprint: dict, beat_id: str) -> set[str]:
+    """Evidence the viewer must not see yet at this beat: what later
+    reveal/contradiction/evidence/false-lead/chapter-end beats disclose
+    (an orientation detail shown early is not a spoiler)."""
+    purposes = set(ai_config.attention.firewall_purposes)
+    beats = blueprint.get("beats") or []
+    ids = [b["id"] for b in beats]
+    if beat_id not in ids:
+        return set()
+    i = ids.index(beat_id)
+    known = known_at(beats[i])
+    later = {r for b in beats[i + 1:] if b.get("purpose") in purposes
+             for r in b.get("reveals") or []}
+    return later - known
+
+
 def reveal_blocks(blueprint: dict | None) -> dict[str, list[str]]:
     """Per beat, the facts the story reveals only LATER (the claim
-    firewall of director.blocked_at) — only beats where something is
+    firewall of blocked_at) — only beats where something is
     blocked."""
-    from app.documentary.visuals.director import blocked_at
-
     out = {}
     for b in (blueprint or {}).get("beats") or []:
         ids = sorted(blocked_at(blueprint, b["id"]))
@@ -92,8 +110,6 @@ def late_reveals(blueprint: dict | None, opening_beats: int = 2) -> set[str]:
     """Evidence ids the story withholds after its first `opening_beats`
     beats — what a title or thumbnail must not give away. Same rule as
     the picture firewall (`blocked_at`)."""
-    from app.documentary.visuals.director import blocked_at
-
     beats = (blueprint or {}).get("beats") or []
     if opening_beats < 1 or len(beats) < opening_beats:
         return set()

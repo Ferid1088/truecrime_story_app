@@ -3,6 +3,7 @@ one-button documentary pipeline (end to end with scripted models, fake
 voice and sound providers, real FFmpeg/OpenCV rendering)."""
 
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -23,16 +24,8 @@ from app.documentary.blueprint import validate_blueprint
 from app.documentary.production.critics import apply_fixes, deterministic_checks
 from app.documentary.production.script import compose
 from app.documentary.visuals import rights as R
-from app.documentary.visuals.director import (
-    assign_motion,
-    blocked_at,
-    rank_candidates,
-    sentence_marks,
-    validate_visual_plan,
-)
 from app.documentary.visuals.generated import format_date
 from app.documentary.visuals.images import dhash, hamming
-from app.documentary.visuals.planner import research_queries, validate_requirements
 from app.documentary.visuals.research import page_images
 from app.providers.generation.base import GenerationResult
 
@@ -139,70 +132,6 @@ def _bp():
     return validate_blueprint(_good(), SECTIONS, PACK)[0]
 
 
-def test_requirements_keep_only_grounded_material():
-    raw = {
-        "entities": [
-            {
-                "key": "The House!",
-                "type": "building",
-                "name": "The farmhouse",
-                "search_queries": ["farmhouse Nannup"],
-            }
-        ],
-        "beats": [
-            {
-                "beat_id": "B01",
-                "requirements": [
-                    {"entity": "the_house", "purpose": "orientation", "priority": "high"},
-                    {"entity": "ghost", "purpose": "evidence"},
-                ],
-                "map_place": "Nannup, Western Australia",
-                "date_text": "16 July 2007",
-                "quote": {"fact_id": "F001", "text": "The house was left spotless and quiet."},
-                "document": {"source_id": 7, "passage": "the evidence does not establish"},
-            },
-            {
-                "beat_id": "B02",
-                "quote": {"fact_id": "F001", "text": "a mystery within a mystery"},
-                "date_text": "1980",
-                "document": {"source_id": 7, "passage": "invented words"},
-            },
-            {"beat_id": "B99"},
-        ],
-    }
-    reqs, rep = validate_requirements(
-        raw, _bp(), _pack(), [_Src(7, "Finally, the evidence does not establish death.")]
-    )
-    b1, b2 = reqs["beats"][0], reqs["beats"][1]
-    assert [r["entity"] for r in b1["requirements"]] == ["the_house"]
-    assert b1["quote"]["text"].startswith("The house") and b1["document"]["source_id"] == 7
-    assert b1["date_text"] == "16 July 2007"
-    assert b2["quote"] is None  # a fragment is not a quote
-    assert b2["date_text"] is None and b2["document"] is None
-    codes = {w["code"] for w in rep["warnings"]}
-    assert {
-        "unknown_entity",
-        "quote_dropped",
-        "date_dropped",
-        "document_dropped",
-        "unknown_beat",
-    } <= codes
-    q = research_queries(reqs)
-    assert q == [
-        {
-            "query": "farmhouse Nannup",
-            "entity": "the_house",
-            "entities": ["the_house"],
-            "entity_name": "The farmhouse",
-            "entity_type": "building",
-            "kind": "exact",
-            "footage": False,
-            "must_name": ["The farmhouse"],
-            "aliases": [], "date_window": [], "not_this": [], "negative_terms": [],
-        }
-    ]
-
-
 # ---------------------------------------------------------------------------
 # reveal firewall, matching, director validation, motion
 # ---------------------------------------------------------------------------
@@ -231,130 +160,6 @@ def _asset(code, **kw):
     )
     base.update(kw)
     return VisualAsset(**base)
-
-
-def test_reveal_firewall_blocks_only_later_reveals():
-    bp = _bp()
-    # B03 is a "reveal" beat revealing C001; before it, C001 is blocked
-    assert "C001" in blocked_at(bp, "B01") and "C001" in blocked_at(bp, "B02")
-    assert "C001" not in blocked_at(bp, "B03") and blocked_at(bp, "B05") == set()
-    # F002 is revealed by a timeline beat: not a spoiler, never blocked
-    assert "F002" not in blocked_at(bp, "B01")
-
-
-def test_candidate_ranking_filters_rights_rejection_and_spoilers():
-    req = {
-        "entity": "the_house",
-        "purpose": "orientation",
-        "priority": "high",
-        "acceptable_roles": ["evidence", "context"],
-    }
-    ent = {"key": "the_house", "name": "The farmhouse"}
-    assets = [
-        _asset("VIS_000001"),
-        _asset("VIS_000002", rights_status="unknown"),
-        _asset("VIS_000003", verification_status="rejected"),
-        _asset("VIS_000004", reveals_json='["C001"]'),
-        _asset("VIS_000005", asset_role="illustration"),
-        _asset("VIS_000006", entities_json="[]", caption="An old farmhouse at dusk"),
-        _asset("VIS_000007", verification_status="needs_review", quality_score=0.2),
-    ]
-    ranked = [a.asset_code for _, a in rank_candidates(req, ent, assets, {"C001"}, "preview")]
-    assert ranked == ["VIS_000001", "VIS_000007", "VIS_000006"]
-
-
-def test_visual_plan_validation_and_fallbacks():
-    bp = _bp()
-    reqs = {
-        "beats": [
-            {
-                "beat_id": "B01",
-                "requirements": [],
-                "map_place": "Nannup",
-                "date_text": None,
-                "quote": None,
-                "document": None,
-            },
-            {
-                "beat_id": "B02",
-                "requirements": [],
-                "map_place": None,
-                "date_text": "May 2006",
-                "quote": {"fact_id": "F001", "text": "A real quote here"},
-                "document": None,
-            },
-        ]
-    }
-    a1 = _asset("VIS_000001")
-    raw = {
-        "beats": [
-            {
-                "beat_id": "B01",
-                "shots": [
-                    {
-                        "command": "NEW_IMAGE",
-                        "asset_id": "VIS_000099",
-                        "from_sentence": 0,
-                    },  # not a candidate
-                    {"command": "SHOW_MAP", "from_sentence": 0},
-                ],
-            },
-            {
-                "beat_id": "B02",
-                "shots": [
-                    {"command": "NEW_IMAGE", "asset_id": "VIS_000001", "from_sentence": 0},
-                    {"command": "SHOW_QUOTE", "from_sentence": 1},
-                    {"command": "SHOW_DOCUMENT", "from_sentence": 1},
-                ],
-            },
-        ]
-    }
-    marks = {"B02": sentence_marks("One two three four five six. Seven eight.")}
-    # (an opening about the place may show its map first; see
-    # test_visual_direction for the other openings)
-    plan, rep = validate_visual_plan(
-        raw,
-        bp,
-        reqs,
-        {"B01": [], "B02": ["VIS_000001"]},
-        {"VIS_000001": a1},
-        marks,
-        opening="important_location",
-    )
-    b = {x["beat_id"]: x for x in plan["beats"]}
-    assert [s["command"] for s in b["B01"]["shots"]] == ["SHOW_MAP"]
-    # sentence anchors -> shares (6 of 8 words, then the quote)
-    assert [s["command"] for s in b["B02"]["shots"]] == ["NEW_IMAGE", "SHOW_QUOTE"]
-    assert [s["share"] for s in b["B02"]["shots"]] == [0.75, 0.25]
-    assert b["B03"]["shots"][0]["command"] == "KEEP_CURRENT_IMAGE"  # fallback: hold
-    codes = {w["code"] for w in rep["warnings"]}
-    assert {"asset_not_candidate", "no_document"} <= codes
-    assert rep["fallbacks"] >= 1
-
-
-def test_illustration_is_labelled_and_motion_varies():
-    bp = _bp()
-    assets = {f"VIS_00000{i}": _asset(f"VIS_00000{i}") for i in range(1, 6)}
-    assets["VIS_000005"].asset_role = "illustration"
-    raw = {
-        "beats": [
-            {
-                "beat_id": f"B0{i}",
-                "shots": [{"command": "NEW_IMAGE", "asset_id": f"VIS_00000{i}", "share": 1}],
-            }
-            for i in range(1, 6)
-        ]
-    }
-    cands = {f"B0{i}": [f"VIS_00000{i}"] for i in range(1, 6)}
-    plan, _ = validate_visual_plan(raw, bp, {"beats": []}, cands, assets)
-    assert plan["beats"][4]["shots"][0]["command"] == "ATMOSPHERIC_BROLL"
-    assert plan["beats"][4]["shots"][0]["label"] == "illustration"
-    audio = {"beats": [{"beat_id": "B02", "after": {"type": "chapter_break"}}]}
-    plan = assign_motion(plan, bp, audio, assets)
-    motions = [b["shots"][0]["motion"] for b in plan["beats"]]
-    run = ai_config.motion.max_same_motion_run
-    assert all(len(set(motions[i : i + run + 1])) > 1 for i in range(len(motions) - run))
-    assert plan["beats"][2]["shots"][0]["transition_in"] == "FADE_BLACK"
 
 
 # ---------------------------------------------------------------------------
@@ -770,92 +575,44 @@ class PipelineGen:
             data, result = _good_plan(), self._res(role)
             data["_mock_request_sha256"] = fingerprint
             return data, result
-        if role == "visual_planner":
+        if role == "mvp_needs_planner":
+            data = json.loads(user)
             beats = [
                 {
-                    "beat_id": f"B0{i}",
-                    "requirements": [
-                        {"entity": "the_house", "purpose": "orientation", "priority": "high"}
-                    ],
-                    "map_place": "Nannup, Western Australia" if i == 2 else None,
-                    "date_text": None,
-                    "quote": None,
-                    "document": None,
+                    "beat_id": b["beat_id"],
+                    "requirements": [{"entity": "the_house", "function": "orientation",
+                                      "role_needed": "evidence", "priority": "high",
+                                      "acceptable_roles": ["evidence", "context"]}],
+                    "map_place": None, "date_text": None, "quote": None, "document": None,
                 }
-                for i in range(1, 6)
+                for b in data["beats"]
             ]
             return {
-                "entities": [
-                    {
-                        "key": "the_house",
-                        "type": "building",
-                        "name": "The farmhouse",
-                        "search_queries": ["farmhouse"],
-                    }
-                ],
+                "entities": [{"key": "the_house", "type": "building", "name": "The farmhouse",
+                              "search_queries": ["farmhouse"]}],
                 "beats": beats,
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
-        if role == "visual_entity_dossier":
-            return {
-                "dossiers": [
-                    {
-                        "entity": "the_house",
-                        "canonical_name": "The farmhouse",
-                        "visual_description": "a weatherboard farmhouse",
-                        "not_this": [],
-                        "likely_sources": [],
-                        "expected_captions": [],
-                        "negative_terms": [],
-                        "supports_fact_ids": [],
-                    }
-                ],
-                "_mock_request_sha256": fingerprint,
-            }, self._res(role)
-        if role in ("visual_verifier", "visual_verifier_cheap"):
+        if role in ("mvp_candidate_verifier", "mvp_second_verifier"):
             assert images and images[0].startswith("data:image/jpeg;base64,")
             return {
-                "depicts": "The farmhouse",
-                "subject_type": "building",
-                "matches_claim": "yes",
-                "role": "evidence",
-                "period_ok": "yes",
-                "entities": ["the_house"],
-                "reveals": [],
-                "quality": 0.8,
-                "watermark": False,
-                "graphic_or_sensitive": False,
-                "confidence": 0.9,
+                "depicts": "The farmhouse", "subject_type": "building",
+                "matches": [{"entity": "the_house", "relation": "exact", "reason": "the farmhouse"}],
+                "overlays": {"watermark": False, "burned_text": False, "logo": False},
+                "ethics": {"concern": "ok", "graphic": False, "minor": False,
+                           "victim_identifiable": False},
+                "scene_fit": "good", "quality": 0.8, "reveals": [], "confidence": 0.9,
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
-        if role == "visual_director":
+        if role == "mvp_query_planner":
+            return {"queries": [], "stop_reason": "nothing new to try",
+                    "_mock_request_sha256": fingerprint}, self._res(role)
+        if role == "mvp_scene_director":
             data = json.loads(user)
-            out = []
-            for b in data["beats"]:
-                shots = []
-                if b["candidates"]:
-                    shots.append(
-                        {
-                            "command": "NEW_IMAGE",
-                            "from_sentence": 0,
-                            "asset_id": b["candidates"][0]["asset_id"],
-                        }
-                    )
-                if b["map_place"]:
-                    shots.append(
-                        {
-                            "command": "SHOW_MAP",
-                            "from_sentence": len(b["narration"]) - 1 if shots else 0,
-                        }
-                    )
-                out.append(
-                    {
-                        "beat_id": b["beat_id"],
-                        "attention": {"listen": 0.8},
-                        "shots": shots or [{"command": "KEEP_CURRENT_IMAGE"}],
-                    }
-                )
-            return {"beats": out, "_mock_request_sha256": fingerprint}, self._res(role)
+            pool = [i["asset"] for i in data["pool"]]
+            return {"assignments": [{"slot": s["slot"], "asset": pool[s["slot"]] if s["slot"] < len(pool) else None,
+                                     "why": "scripted"} for s in data["slots"]],
+                    "_mock_request_sha256": fingerprint}, self._res(role)
         if role == "voice_performance_director":
             if "INPUT:\n" not in user:
                 data = json.loads(user)
@@ -929,21 +686,6 @@ class PipelineGen:
                 "score": 80,
                 "problems": [],
                 "summary": "fine",
-                "_mock_request_sha256": fingerprint,
-            }, self._res(role)
-        if role == "visual_auditor":
-            data = json.loads(user)
-            assert images and data["narration_while_on_screen"]
-            self.audited = getattr(self, "audited", 0) + 1
-            return {
-                "verdict": "approved",
-                "as": "evidence",
-                "fits_words": 0.9,
-                "specific_kind_ok": True,
-                "tone_ok": True,
-                "person_ok": True,
-                "depicts": "the farmhouse",
-                "reasons": [],
                 "_mock_request_sha256": fingerprint,
             }, self._res(role)
         raise AssertionError(f"unexpected role {role}")
@@ -1171,15 +913,15 @@ def documentary_env(tmp_path, monkeypatch):
         "app.agents.research",
         "app.agents.audio_plan",
         "app.agents.spoken",
-        "app.agents.visual_planner",
-        "app.agents.visual_verification",
-        "app.agents.visual_director",
+        "app.documentary.mvp.needs",
+        "app.documentary.mvp.verify",
+        "app.documentary.mvp.research",
+        "app.documentary.mvp.direct",
         "app.documentary.visuals.generated",
         "app.agents.critics",
         "app.agents.voice_performance",
         "app.documentary.pronunciation",
         "app.agents.host",
-        "app.agents.visual_auditor",
         "app.agents.chapters",
     ):
         monkeypatch.setattr(f"{mod}.get_generation_provider", lambda: gen, raising=False)
@@ -1243,6 +985,8 @@ def documentary_env(tmp_path, monkeypatch):
                     width=800,
                     height=500,
                     entities_json='["the_house"]',
+                    source_url=f"https://example.test/farmhouse-{i}.jpg",
+                    sha256=hashlib.sha256(p.read_bytes()).hexdigest(),
                 )
             )
             db.commit()
@@ -1281,13 +1025,9 @@ def documentary_env(tmp_path, monkeypatch):
         _jpg(Path(out), (W // 4, H // 4), (30, 40, 50))
         return {"path": str(out), "marker": [W // 8, H // 8], "request_hash": fingerprint}
 
-    async def fake_identifiers(self, name):
-        return None, None
-
     monkeypatch.setattr("app.agents.visual_research.VisualResearchAgent.run", fake_research)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.geocode", fake_geocode)
     monkeypatch.setattr("app.documentary.visuals.generated.MAPS.render_map", fake_map)
-    monkeypatch.setattr("app.agents.visual_dossier.VisualDossierAgent._identifiers", fake_identifiers)
     return gen
 
 
@@ -1322,15 +1062,16 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     assert "errors" not in json.loads(job.result_json), json.loads(job.result_json)
     assert job.progress == 1.0
     assert all(
-        s["status"] in ("done", "skipped") or name.startswith("short_") or name == "visual_check"
+        s["status"] in ("done", "skipped") or name.startswith(("short_", "mvp_"))
         for name, s in stages.items()
     )
-    # the offline fake finds two pictures; the shortage against the larger target is reported
-    assert stages["visual_check"]["status"] in ("done", "degraded")
-    assert stages["visual_check"]["detail"]["supply"]["shortage"] > 0
+    # the offline fake finds two pictures and the planner approves both for the farmhouse
+    assert stages["mvp_research"]["status"] in ("done", "degraded")
+    assert stages["mvp_research"]["detail"]["rounds"][0]["new_assets"] == 2
+    assert db_session.query(VisualAsset).filter_by(
+        case_id=case.id, verification_status="verified").count() == 2
     film = stages["film_length"]["detail"]
     assert film["warning"] and set(film["estimated_minutes"]) == {"en"}
-    assert stages["visual_check"]["detail"]["verified"] == 2
     result = json.loads(job.result_json)
     for lang in ("en",):
         r = result["renders"][lang]
@@ -1338,18 +1079,15 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
         ps = db_session.get(ProductionScript, r["production_script_id"])
         script = json.loads(ps.script_json)
         assert script["language"] == lang and ps.status == "rendered"
-        assert {s["kind"] for s in script["shots"]} >= {"map", "image"}
-        place = next(o for o in script["overlays"] if o["kind"] == "place")
-        assert place["text"] == ("Nannup" if lang == "en" else "Nannup (de)")
+        assert {s["kind"] for s in script["shots"]} >= {"image"}
         assert json.loads(ps.critique_json)["score"] == 80
-        audit = json.loads(ps.audit_json)
-        assert audit["status"] == "approved" and audit["approved"] >= 1
-        assert all(
-            sh["audit"]["verdict"] == "approved"
-            for sh in script["shots"]
-            if sh.get("kind") == "image"
-        )
-        assert stages[f"visual_audit:{lang}"]["status"] == "done"
+        coverage = json.loads(ps.audit_json)
+        assert coverage["unapproved_assets"] == [] and "review_ready" in coverage
+        assert stages[f"mvp_coverage:{lang}"]["status"] in ("done", "degraded")
+        from app.documentary.mvp import review as RV
+
+        review = RV.current(db_session, case.id, lang)
+        assert review.state in ("AWAITING_OWNER_REVIEW", "PRODUCING") and review.render_sha256
         # after the cold open: the film's title, then chapter 1 — at the end
         # of the chapter break, the new chapter's picture before its first word
         cards = [x for x in script["shots"] if x["kind"] in ("title", "chapter")]
@@ -1361,7 +1099,7 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
         b02 = next(b for b in script["beats"] if b["beat_id"] == "B02")
         assert abs(cards[1]["end"] - (b02["start"] - ai_config.chapters.lead_out_seconds)) < 0.01
         after = script["shots"][script["shots"].index(cards[1]) + 1]
-        assert after["beat_id"] == "B02" and after["start"] == cards[1]["end"]
+        assert after["start"] == cards[1]["end"]
         # every render is remembered as a Video with status + YouTube title
         from app.db.models import Video
 
@@ -1373,8 +1111,10 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     ch = stages["chapters"]["detail"]
     assert ch["status"] == "approved" and ch["chapters"] >= 1 and ch["left_out"] == []
     assert "film_title" in documentary_env.cards_audited
-    vp = db_session.query(VisualPlan).filter_by(case_id=case.id).one()
-    assert vp.status == "planned" and set(json.loads(vp.plan_json)["texts"]) == {"en"}
+    plans = db_session.query(VisualPlan).filter_by(case_id=case.id).all()
+    assert {json.loads(p.validation_json)["mvp"].get("language") for p in plans} == {None, "en"}
+    vp = next(p for p in plans if json.loads(p.validation_json)["mvp"].get("language") == "en")
+    assert vp.status == "planned" and json.loads(vp.plan_json)["mvp"] is True
     # the narrator's performance (v3 audio tags) reached the voice
     assert stages["performance:en"]["detail"]["incident_beat"] == "B02"
     assert stages["voice:en"]["detail"]["audio_tags"] is True

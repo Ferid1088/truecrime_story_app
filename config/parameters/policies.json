@@ -44,7 +44,6 @@
       "spoken_versions": "OMIT",
       "host_segments": "OMIT",
       "video_pieces": "OMIT",
-      "visual_audit_assets": "OMIT",
       "audio_plan": "DEGRADE"
     },
     "incremental": {

@@ -46,7 +46,7 @@ def test_every_planned_stage_has_shadow_coverage(monkeypatch):
     stages = plan_stages(["en", "de"])
     covered = set(STAGE_ARTIFACT_TYPES)
     assert {entry["name"].split(":", 1)[0] for entry in stages} <= covered
-    assert set(STAGE_ARTIFACT_TYPES["visual_plan"]) >= {"visual_shots", "visual_plan"}
+    assert set(STAGE_ARTIFACT_TYPES["mvp_direct"]) >= {"visual_shots", "visual_plan"}
     assert set(STAGE_ARTIFACT_TYPES["voice"]) >= {"voice_takes", "audio_timing", "music_cues"}
 
 
@@ -76,9 +76,9 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
                       plan_json=json.dumps({"shots": [{"asset_id": a.asset_code}]}))
     db_session.add(plan)
     db_session.commit()
-    register_stage_outputs(db_session, job, "visual_plan", None,
+    register_stage_outputs(db_session, job, "mvp_direct", None,
                            {"visual_plan_id": plan.id}, {})
-    job.stages_json = json.dumps([{"name": "visual_plan", "detail": {
+    job.stages_json = json.dumps([{"name": "mvp_direct", "detail": {
         "visual_plan_id": plan.id}}])
     db_session.commit()
     rows = db_session.query(Artifact).filter_by(stage_job_id=job.id,
@@ -95,6 +95,6 @@ def test_shadow_registers_each_visual_asset_and_only_used_assets_are_dependencie
     db_session.commit()
     drift = ArtifactRegistry(db_session).reconcile(case.id, stage_job_id=job.id, repair=True)
     assert drift and registry_consistency(db_session, job.id) == []
-    register_stage_outputs(db_session, job, "visual_plan", None,
+    register_stage_outputs(db_session, job, "mvp_direct", None,
                            {"visual_plan_id": plan.id}, {})
     assert registry_consistency(db_session, job.id) == []

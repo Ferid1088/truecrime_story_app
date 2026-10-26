@@ -273,19 +273,6 @@ def test_limits_per_film_per_act_and_gap_and_returns():
     assert m2.reason_against("a", "A3", 2.0, told | {"a"}) == "place_already_mapped"
 
 
-def test_the_director_drops_a_zoom_map_of_a_place_not_told_yet(monkeypatch):
-    from tests.test_visual_direction import _map_case
-
-    monkeypatch.setattr(AC.ai_config.zoom_map, "enabled", True)
-    monkeypatch.setitem(AC.ai_config.zoom_map.limits, "min_gap_seconds", 0.0)
-    plan, rep = _map_case("important_location")
-    codes = [(w["code"], w.get("place")) for w in rep["warnings"]]
-    assert ("map_place_not_told", "Nannup, Western Australia") in codes     # B01 map: the story has not named Nannup yet
-    b = {x["beat_id"]: x for x in plan["beats"]}
-    assert all(s["command"] != "SHOW_MAP" for s in b["B01"]["shots"])
-    assert any(s["command"] == "SHOW_MAP" and s["map_return"] == 0 for s in b["B02"]["shots"])
-
-
 class Recorder(SRV.Fetcher):
     """Stands in for the network: records every URL, answers imagery with a small picture."""
 

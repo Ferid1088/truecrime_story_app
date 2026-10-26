@@ -30,9 +30,9 @@ the language; “shared” means it carries no language.
 | spoken_version | per-language | `story_versions` | row ID/language | master story/language | `app/documentary/jobs.py:308` | voice/captions | row text hash | latest branch row |
 | voice_takes | per-language | performance/voice rows/files | voice/block IDs | spoken text/voice settings | `app/documentary/pipeline/language.py:66` | timing/script | file metadata | stage resume |
 | audio_timing | per-language | voice manifest JSON | manifest/block IDs | take durations/timestamps | `app/documentary/pipeline/language.py:105` | visuals/cards/music/captions | no skip hash | stage resume |
-| visual_needs | shared | visual requirements JSON | requirement IDs | beats | `app/agents/visual_planner.py:35` | research/plan | no skip hash | latest plan |
+| visual_needs | shared | visual requirements JSON | requirement IDs | beats | `app/documentary/mvp/needs.py:235` | research/plan | no skip hash | latest plan |
 | visual_asset | shared | `visual_assets` rows/files | asset row/code | source media/verification | `app/documentary/jobs.py:480` | shots/pieces | file/verification data | audited rows |
-| visual_shots | shared | visual plan JSON | shot IDs | needs/assets | `app/agents/visual_director.py:96` | pieces/plan | no skip hash | latest plan |
+| visual_shots | shared | visual plan JSON | shot IDs | needs/assets | `app/documentary/mvp/direct.py:210` | pieces/plan | no skip hash | latest plan |
 | visual_pieces | shared | asset/piece rows/files | piece IDs | assets/shot cuts | `app/documentary/visuals/pieces.py:265` | plan/audit | source metadata | audited rows |
 | visual_plan | shared | `visual_plans.plan_json` | plan member IDs | needs/shots/pieces/story order | `app/documentary/jobs.py:497` | production | no skip hash | unless refresh |
 | chapter_plan | shared | chapter plan row/JSON | row/card IDs | master/beats | `app/agents/chapters.py:207` | cards | no skip hash | latest valid |
@@ -215,7 +215,7 @@ and never derived from text. Existing semantic IDs such as `B01` remain unchange
 
 The real producers call the helper for blueprints, audio plans, visual plans, chapters,
 and production scripts (`app/agents/blueprint.py:52`, `app/agents/audio_plan.py:49`,
-`app/agents/visual_planner.py:35`, `app/agents/visual_director.py:96`,
+`app/documentary/mvp/needs.py:235`, `app/documentary/mvp/direct.py:210`,
 `app/agents/chapters.py:207`, `app/documentary/production/script.py:1354`). A legacy
 member without an ID gets deterministic UUID5 from parent/type/original position and
 `legacy_id: true` in memory; it is not rewritten until the producer saves

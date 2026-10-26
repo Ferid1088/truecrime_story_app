@@ -429,7 +429,7 @@ class AutopilotRunner:
         """The non-base film jobs wait until the base language's job has run its case-level
         visual searches: the search ledger dedups only queries already recorded, so two jobs
         whose gap filling overlaps would pay for the same search twice. The gate opens when the
-        English job's visual_gaps stage settled, when the job itself settled (a broken English
+        English job's mvp_research stage settled, when the job itself settled (a broken English
         film never blocks the others), or when English's text failed for good."""
         if english not in languages:
             return True
@@ -439,7 +439,7 @@ class AutopilotRunner:
             if job is None or job.status not in ("queued", "running"):
                 return True
             stage = next((s for s in json.loads(job.stages_json or "[]")
-                          if s["name"] == "visual_gaps"), None)
+                          if s["name"] == "mvp_research"), None)
             return stage is not None and stage["status"] in (
                 "done", "skipped", "degraded", "failed")
         if approved_final(db, run.case_id, english) is not None:

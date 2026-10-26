@@ -9,7 +9,6 @@ from app.documentary.visuals.case_search import (
     has_stored_candidates,
     search_case_visuals,
 )
-from app.documentary.visuals.planner import research_queries
 from app.services.research_jobs import _search_case_visuals
 
 
@@ -65,22 +64,6 @@ def test_the_research_job_search_never_fails_the_research(db_session, monkeypatc
 
     monkeypatch.setattr("app.documentary.visuals.case_search.search_case_visuals", broken)
     assert "picture search failed: brave down" in asyncio.run(_search_case_visuals(db_session, case))
-
-
-def test_every_beat_that_needs_a_picture_gets_a_query_even_when_the_cap_cuts(db_session):
-    """Entity A is needed in 12 beats and has 12 queries; the cap used to spend all
-    of them on A and leave the beats of B, C and D without any search."""
-    entities = [{"key": "a", "type": "person", "search_queries": [f"A query {i}" for i in range(12)]},
-                {"key": "b", "type": "place", "search_queries": ["B query"]},
-                {"key": "c", "type": "object", "search_queries": ["C query"]},
-                {"key": "d", "type": "document", "search_queries": ["D query"]}]
-    beats = [{"beat_id": f"a{i}", "requirements": [{"entity": "a", "priority": "high"}]} for i in range(12)]
-    beats += [{"beat_id": "b1", "requirements": [{"entity": "b", "priority": "low"}]},
-              {"beat_id": "c1", "requirements": [{"entity": "c", "priority": "low"}]},
-              {"beat_id": "d1", "requirements": [{"entity": "d", "priority": "low"}]}]
-    out = research_queries({"entities": entities, "beats": beats}, max_queries=4)
-    assert {"B query", "C query", "D query"} <= {q["query"] for q in out}
-    assert len(out) == 4
 
 
 def test_a_providers_date_range_fits_the_assets_date_columns():

@@ -1,9 +1,5 @@
 """Story order for pictures and video pieces: nothing on screen may give
-away what the story tells only later — the director is told where the
-film reveals what, compose and every fill keep the claim firewall, and
-the auditors judge each picture/piece at its point in the story (a pause
-too). A cut of a video is shown once in a film, never again."""
-import asyncio
+away what the story tells only later — compose and every fill keep the claim firewall. A cut of a video is shown once in a film, never again."""
 import json
 import uuid
 
@@ -11,7 +7,6 @@ from test_visual_production import _asset
 
 from app.db.models import Case, EditorialBlueprint, ProductionScript, VisualPlan
 from app.documentary.production.script import compose
-from app.documentary.visuals import auditor as AU
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.usage import UsageTracker
 from app.providers.generation.base import GenerationResult
@@ -152,46 +147,3 @@ def _db_asset(db, case, code, reveals="[]"):
     db.add(a)
     db.commit()
     return a
-
-
-def test_the_auditor_judges_each_picture_at_its_point_in_the_story(db_session, monkeypatch):
-    monkeypatch.setattr(AU, "_picture", lambda a: b"jpg")
-    monkeypatch.setattr("app.documentary.visuals.images.data_url", lambda b: "data:image/jpeg;base64,eA==")
-    case = _case(db_session)
-    arrest = _db_asset(db_session, case, "ARREST")
-    tagged = _db_asset(db_session, case, "TAGGED", reveals='["F002"]')
-    sentences = [{"beat_id": "B01", "n": 0, "start": 0.0, "end": 9.0},
-                 {"beat_id": "B03", "n": 0, "start": 20.0, "end": 29.0}]
-    shots = [{"beat_id": "B01", "start": 0.0, "end": 9.0, "kind": "image",
-              "command": "NEW_IMAGE", "asset_id": arrest.asset_code, "path": "x.jpg"},
-             {"beat_id": "B02", "start": 9.0, "end": 20.0, "kind": "image",
-              "command": "NEW_IMAGE", "asset_id": tagged.asset_code, "path": "x.jpg"},
-             {"beat_id": "B03", "start": 20.0, "end": 29.0, "kind": "image",
-              "command": "NEW_IMAGE", "asset_id": arrest.asset_code, "path": "x.jpg"}]
-    row = _row(db_session, case, shots, sentences)
-    gen = StoryGen()
-    report = asyncio.run(AU.audit_script(db_session, row, AU.VisualAuditor(gen=gen)))
-    out = json.loads(row.script_json)["shots"]
-    # B01: the arrest picture would give the reveal away -> never shown
-    assert all(not (s.get("asset_id") == arrest.asset_code and s["start"] < 20) for s in out)
-    assert any("before the story tells it" in w or "later" in w
-               for x in report["left_out"] for w in x["why"])
-    # B02: a picture whose check found the later-revealed fact is stopped
-    # deterministically — the model never even sees it
-    assert not any(c[0] == "TAGGED" for c in gen.calls)
-    # B03: the same arrest picture is fine once the story has told it
-    assert any(s.get("asset_id") == arrest.asset_code and s["start"] >= 20 for s in out)
-    assert ("ARREST", (SENT["B03"],), ()) in gen.calls
-    # at B01 the auditor was told what is still to come
-    assert ("ARREST", (SENT["B01"],), ("Police arrest the neighbour.",)) in gen.calls
-
-
-def test_audit_verdicts_are_per_point_in_the_story():
-    a = _asset("VIS_000044")
-    k1 = AU.audit_key(a, ["x"], {"told_later": ["Police arrest the neighbour."]})
-    k2 = AU.audit_key(a, ["x"], {"told_later": []})
-    assert k1 != k2
-    v = {"verdict": "approved", "as": "context", "fits_words": 0.9, "specific_kind_ok": True,
-         "tone_ok": True, "person_ok": True, "spoiler_free": False}
-    verdict, _as, reasons = AU.decide(v)
-    assert verdict == "rejected" and "gives away what the story tells only later" in reasons

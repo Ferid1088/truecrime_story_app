@@ -1104,7 +1104,7 @@ def test_job_stages_include_the_host(monkeypatch):
 
     monkeypatch.setattr(ai_config.avatar, "enabled", True)
     names = [s["name"] for s in plan_stages(["en", "fa"])]
-    assert names.index("spoken:fa") < names.index("host_plan") < names.index("visual_needs")
+    assert names.index("spoken:fa") < names.index("host_plan") < names.index("mvp_needs")
     assert names.index("host:fa") < names.index("performance:fa")
     monkeypatch.setattr(ai_config.host, "enabled", False)
     assert not any(n.startswith("host") for n in (s["name"] for s in plan_stages(["en"])))

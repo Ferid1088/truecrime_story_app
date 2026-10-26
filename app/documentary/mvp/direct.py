@@ -4,6 +4,7 @@ and fill what it leaves). The result is the declarative visual plan the producti
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -218,6 +219,14 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     used: Counter = Counter()
     out_beats, candidates, gaps, agent_used = [], {}, [], 0
     windows = beat_windows(manifest)
+    fingerprint = hashlib.sha256(json.dumps({
+        "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"])]
+                    for w in windows],
+        "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
+        "graph": graph_id, "shots": cfg.model_dump()}, sort_keys=True).encode()).hexdigest()
+    previous = json.loads(target.validation_json or "{}").get("plan") or {}
+    if target.status == "planned" and previous.get("fingerprint") == fingerprint:
+        return previous
     for window in windows:
         bid = window["beat_id"]
         slots = make_slots(window)
@@ -260,7 +269,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
             s["share"] = round(s["share"] / total, 5)
         out_beats.append({"beat_id": bid, "shots": shots})
         candidates[bid] = sorted({i.code for i in pool + near})
-    report = {"beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
+    report = {"fingerprint": fingerprint, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "assets_used": len(used),
               "reuse": {k: v for k, v in used.items() if v > 1}}

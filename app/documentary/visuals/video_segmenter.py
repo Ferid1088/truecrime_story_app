@@ -136,7 +136,7 @@ class VideoSegmenter:
                            input_summary=f"{source.asset_code} {a:.0f}-{b:.0f}s") as run:
                 data, res = await run_agent("mvp.segment", self.gen, json.dumps(payload, ensure_ascii=False), system=system, images=["data:image/jpeg;base64," + base64.b64encode(f).decode()
                             for _, f in kept])
-                stamp_run(run, res, "video_segmenter")
+                stamp_run(run, res, "mvp_segment_scout")
             raw = (data or {}).get("pieces") if isinstance(data, dict) else None
             found += check_proposals(raw or [], a, b, cuts, duration)
         if len(found) > cfg.max_pieces_per_source:

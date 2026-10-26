@@ -626,7 +626,7 @@ def test_a_short_is_cut_from_the_stretch_of_the_film_its_beats_are_in_with_the_f
 
 
 def test_cards_inside_a_shorts_stretch_are_measured():
-    from app.documentary.visuals.coverage_fill import window_cards
+    from app.documentary.mvp.coverage import window_cards
 
     script = {"shots": [{"kind": "image", "start": 0, "end": 10}, {"kind": "black", "start": 10, "end": 30},
                         {"kind": "title", "start": 30, "end": 34}, {"kind": "image", "start": 34, "end": 60}]}

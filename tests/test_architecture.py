@@ -156,7 +156,7 @@ def test_config_layers_are_disjoint_and_complete():
 def test_agents_endpoint(client):
     rows = client.get("/api/agents").json()
     ready = {r["name"] for r in rows}
-    assert {"case_naming_agent", "language.inspect.en", "visuals.audit", "documentary.blueprint"} <= ready
+    assert {"case_naming_agent", "language.inspect.en", "mvp.verify", "documentary.blueprint"} <= ready
     assert all(r["model_alias"] for r in rows)
 
 

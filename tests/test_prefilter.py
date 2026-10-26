@@ -101,7 +101,7 @@ def test_an_exact_query_candidate_naming_the_case_instead_of_the_entity_still_pa
 
 def test_a_context_query_item_carries_no_must_name():
     # a context query deliberately looks for a stand-in, never the exact thing's own name
-    from app.documentary.visuals.planner import query_item
+    from app.documentary.mvp.research import query_item
 
     entity = {"key": "forest", "name": "Specific Forest", "type": "place"}
     assert query_item(entity, "pine forest region", "context")["must_name"] == []

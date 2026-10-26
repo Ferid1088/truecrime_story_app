@@ -1,7 +1,6 @@
 import pytest
 
 from app.db.models import Case, VisualAsset
-from app.documentary.visuals.director import rank_candidates
 from app.shortform.assets import UnverifiedVisualAssetsError, require_verified_case_assets
 from app.shortform.director import ShortFormDirectorAgent
 from scripts.live_pilot_case6 import _candidate_asset_pool, _export, _select_pilot_candidates
@@ -38,7 +37,6 @@ def test_rejected_visual_is_excluded_from_all_shortform_selection_paths(db_sessi
         "acceptable_roles": ["evidence"],
     }
     entity = {"key": "karmelo_anthony", "name": "Karmelo Anthony"}
-    assert rank_candidates(req, entity, [rejected], set(), "preview") == []
     assert _candidate_asset_pool([rejected]) == []
     require_verified_case_assets(db_session, rejected.case_id)
 

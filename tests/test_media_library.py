@@ -122,7 +122,7 @@ class OneMomentSegmenter:
     async def generate_structured(self, role, system, user, images=None):
         from app.providers.generation.base import GenerationResult
 
-        assert role == "video_segmenter" and images
+        assert role == "mvp_segment_scout" and images
         a, b = json.loads(user)["stretch"]
         return ({"pieces": [{"start": a, "end": min(b, a + 20.0), "name": "Test pattern",
                              "description": "Coloured test bars, static camera."}]},
@@ -573,50 +573,6 @@ def test_footage_respects_the_clip_cap_and_dedupes_by_keyframe(db_session, media
 
 
 @needs_ffmpeg
-def test_video_assets_are_verified_frame_by_frame(db_session, media_env, monkeypatch,
-                                                          tmp_path):
-    from app.documentary.visuals.verification import VisualVerificationAgent
-    from app.providers.generation.base import GenerationResult
-
-    seen = {}
-
-    class Gen:
-        async def generate_structured(self, role, system, user, images=None):
-            seen["payload"], seen["images"], seen["role"] = json.loads(user), images, role
-            return ({"depicts": "Crowd at the church", "subject_type": "event",
-                     "matches_claim": "yes", "role": "evidence", "period_ok": "yes",
-                     "entities": [], "reveals": [], "quality": 0.7, "watermark": False,
-                     "graphic_or_sensitive": False, "confidence": 0.9},
-                    GenerationResult(text="{}", model="m/vision", provider="fake"))
-
-    monkeypatch.setattr("app.agents.visual_verification.get_generation_provider", Gen)
-    case = _case(db_session)
-    clip = _video(tmp_path / "clip.mp4", audio=False)
-    tier = T.provisional_tier("internet_archive", "context", "event", "exact")
-    a = VisualAsset(case_id=case.id, asset_code="VIS_CLIP01", asset_type="video",
-                    provider="internet_archive", asset_role="context", entity_type="event",
-                    local_path=str(clip), thumbnail_path=None, duration_seconds=4.0,
-                    clip_start=0.0, clip_end=4.0, relevance_tier=tier,
-                    case_relevance=T.tier_label(tier), rights_status="public_domain")
-    db_session.add(a)
-    db_session.commit()
-    asyncio.run(VisualVerificationAgent().verify(db_session, case, a, [], []))
-    # judged as VIDEO by the video auditor: its frames in order (about one
-    # per second of the 4 s clip), not a single still
-    assert seen["role"] == "video_auditor"
-    assert len(seen["images"]) >= 3
-    assert all(u.startswith("data:image/jpeg;base64,") for u in seen["images"])
-    # every image is labelled with its time in the clip, in order
-    labels = seen["payload"]["frames"]
-    assert len(labels) == len(seen["images"]) and all(s.endswith("s") for s in labels)
-    assert [float(s[:-1]) for s in labels] == sorted(float(s[:-1]) for s in labels)
-    assert Path(a.thumbnail_path).suffix == ".jpg"
-    assert a.verification_status == "verified"
-    assert (a.relevance_tier, a.case_relevance) == (1, "exact_case")
-    v = json.loads(a.verification_json)
-    assert v["provisional_tier"] == 2 and v["tier"] == 1 and v["tier_reason"]
-
-
 # ---------------------------------------------------------------------------
 # render: clip shots
 # ---------------------------------------------------------------------------
@@ -893,36 +849,3 @@ def test_long_commons_queries_fall_back_to_their_core_words():
     assert core_query("the refrigerator in the garage") is None  # 2 content words
 
 
-def test_case_region_is_town_and_state():
-    from types import SimpleNamespace
-
-    from app.documentary.visuals.gaps import case_region
-
-    assert case_region(SimpleNamespace(location="Tipp City, Ohio, United States"), {}) == \
-        "Tipp City Ohio"
-    req = {"beats": [{"beat_id": "B01", "map_place": "Stendal, Saxony-Anhalt, Germany"}]}
-    assert case_region(SimpleNamespace(location=None), req) == "Stendal Saxony-Anhalt"
-    assert case_region(SimpleNamespace(location=None), {}) is None
-    tipp = {"beats": [{"beat_id": "B01", "map_place": "Tipp City, Ohio, United States"}]}
-    assert case_region(SimpleNamespace(location="Ohio, United States"), tipp) == \
-        "Tipp City Ohio"
-
-
-def test_a_context_picture_is_verified_as_background_never_a_face():
-    from types import SimpleNamespace
-
-    from app.documentary.visuals.tiers import verified_why
-    from app.documentary.visuals.verification import decide
-
-    dog = {"matches_claim": "context", "subject_type": "object", "role": "context",
-           "confidence": 0.9}
-    assert decide(dog) == ("verified", 0.9, "context")
-    face = {**dog, "subject_type": "person"}
-    assert decide(face)[0] == "rejected" and decide(face)[2] == "context_person"
-    assert decide({**dog, "confidence": 0.1})[0] == "rejected"
-    asset = SimpleNamespace(provider="wikimedia", asset_role="context", entity_type="object",
-                            relevance_tier=2)
-    assert verified_why(asset, dog, 2)[0] == 4
-    assert verified_why(asset, {**dog, "role": "context"}, 2)[0] == 4
-    # an exact claim that does not match stays rejected
-    assert decide({"matches_claim": "no", "confidence": 0.9})[0] == "rejected"

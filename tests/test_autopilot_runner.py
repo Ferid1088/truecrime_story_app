@@ -104,7 +104,7 @@ def open_visual_gate(db_session, run, lang="en"):
     job = db_session.get(DocumentaryJob, S.film_job_ids(run)[lang])
     stages = json.loads(job.stages_json or "[]")
     for stage in stages:
-        if stage["name"] == "visual_gaps":
+        if stage["name"] == "mvp_research":
             stage["status"] = "done"
     job.stages_json = json.dumps(stages)
     db_session.commit()

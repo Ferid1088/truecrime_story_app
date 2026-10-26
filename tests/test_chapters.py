@@ -24,7 +24,6 @@ from app.documentary.production.script import (
     insert_chapter_cards,
     timeline_card,
 )
-from app.documentary.visuals.director import _fallback_shot
 from app.providers.generation.base import GenerationResult
 
 BP = {"beats": [
@@ -323,10 +322,7 @@ def test_compose_puts_a_timeline_card_where_the_director_asked():
     assert [x["kind"] for x in s2["shots"]].count("timeline") == 1
 
 
-def test_director_fallback_and_critics_respect_cards():
-    assert _fallback_shot({"timeline_event": {"id": "T002"}, "date_text": "1998"},
-                          True)["command"] == "SHOW_TIMELINE"
-    assert _fallback_shot({"date_text": "1998"}, True)["command"] == "SHOW_DATE"
+def test_critics_respect_cards():
     shots = [_shot(0, 10, "B01"), {"index": 1, "beat_id": "B02", "start": 10, "end": 14,
                                    "kind": "chapter", "command": "CHAPTER_CARD",
                                    "card": {"label": "Chapter 2", "title": "The search"}},

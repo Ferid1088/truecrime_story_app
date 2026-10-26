@@ -219,7 +219,6 @@ class RetryPolicyConfig(BaseModel):
     spoken_versions: Literal["STOP", "OMIT", "DEGRADE"]
     host_segments: Literal["STOP", "OMIT", "DEGRADE"]
     video_pieces: Literal["STOP", "OMIT", "DEGRADE"]
-    visual_audit_assets: Literal["STOP", "OMIT", "DEGRADE"]
     audio_plan: Literal["STOP", "OMIT", "DEGRADE"]
 
 

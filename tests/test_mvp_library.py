@@ -74,3 +74,16 @@ def test_reset_clears_old_decisions_but_keeps_files_and_mvp_plans(db_session):
     assert asset.sha256 == "a" * 64 and asset.local_path == "x.jpg"
     assert removed["production_scripts"] == 1
     assert [p.version for p in db_session.query(VisualPlan).filter_by(case_id=case.id)] == [2]
+
+
+def test_a_languages_shot_list_row_is_never_taken_for_the_shared_needs_plan(db_session):
+    from app.documentary.mvp.needs import latest_mvp_plan
+
+    case, bp, _sv = _case(db_session)
+    needs = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1,
+                       validation_json=json.dumps({"mvp": {"reveal_graph_id": 1}, "requirements": {}}))
+    shots = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=2,
+                       validation_json=json.dumps({"mvp": {"language": "en", "needs_plan_id": 1}}))
+    db_session.add_all([needs, shots])
+    db_session.commit()
+    assert latest_mvp_plan(db_session, bp.id).id == needs.id
