@@ -59,7 +59,7 @@ STAGE_ARTIFACT_TYPES: dict[str, tuple[str, ...]] = {
     "performance": ("voice_takes",),
     "voice": ("voice_takes", "audio_timing", "music_cues"), "production": (
         "captions", "production_script"), "critique": ("production_script",),
-    "mvp_coverage": ("production_script",),
+    "mvp_coverage": ("production_script",), "mvp_complete": (),
     "render": ("intro", "final_render"), "mvp_review": (),
     "short_selection": ("short_moment_selection",),
     "short_script": ("short_script_captions",),
