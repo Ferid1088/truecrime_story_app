@@ -2357,6 +2357,8 @@ export interface MvpCandidate {
 
 /** One picture as the owner reviews it: judged for several requirements, decided once (all its candidates). */
 export interface MvpCandidateGroup extends MvpCandidate {
+  rights_blocked: boolean;
+  rights_reason: string | null;
   candidate_ids: number[];
   requirements: { requirement: string; beat_id: string; function: string; role_needed: string; need: string | null }[];
 }

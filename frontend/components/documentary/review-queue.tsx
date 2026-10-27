@@ -22,9 +22,23 @@ const DECISION_LABEL: Record<(typeof DECISIONS)[number], string> = {
 const SHOWN = [
   { key: "needs_review", label: "Not sure" },
   { key: "rejected", label: "Rejected" },
+  { key: "approved", label: "Approved" },
+  { key: "all", label: "All" },
 ] as const;
 
+const SHOWN_TEXT: Record<(typeof SHOWN)[number]["key"], string> = {
+  needs_review: "pictures the verifiers could not settle",
+  rejected: "pictures the planner rejected",
+  approved: "pictures that are approved",
+  all: "every picture, whatever the agents decided",
+};
+
 type Verdict = "approved" | "rejected";
+
+function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): Verdict | undefined {
+  if (decided[group.id]) return decided[group.id];
+  return group.status === "approved" || group.status === "rejected" ? group.status : undefined;
+}
 
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [shown, setShown] = useState<(typeof SHOWN)[number]["key"]>("needs_review");
@@ -39,7 +53,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const queue: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
   const safeIndex = queue.length === 0 ? 0 : Math.min(index, queue.length - 1);
   const item = queue[safeIndex];
-  const left = queue.filter((g) => !decided[g.id]).length;
+  const left = queue.filter((g) => !verdictOf(g, decided)).length;
 
   const go = useCallback(
     (to: number) => setIndex(Math.max(0, Math.min(to, queue.length - 1))),
@@ -48,7 +62,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
 
   const nextOpen = useCallback(
     (from: number) => {
-      const after = queue.findIndex((g, i) => i > from && !decided[g.id]);
+      const after = queue.findIndex((g, i) => i > from && !verdictOf(g, decided));
       return after >= 0 ? after : Math.min(from + 1, queue.length - 1);
     },
     [queue, decided],
@@ -57,9 +71,13 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const decide = useCallback(
     async (decision: "approve" | "reject") => {
       if (!item || busy) return;
+      const blocked = decision === "approve" && item.rights_blocked;
+      if (blocked && !window.confirm(
+        `The rights check blocked this picture (${item.rights_reason ?? "no licence"}). ` +
+        "Approve it anyway on your own decision? It stays marked as needing a licence before publication.")) return;
       setBusy(true);
       try {
-        const done = await mvpApi.decideGroup(caseId, item.candidate_ids, decision);
+        const done = await mvpApi.decideGroup(caseId, item.candidate_ids, decision, blocked);
         setDecided((d) => ({ ...d, [item.id]: decision === "approve" ? "approved" : "rejected" }));
         const where = item.requirements.length > 1 ? `${item.requirements.length} requirements` : item.requirement;
         setMessage(`${decision === "approve" ? "Approved" : "Rejected"} ${item.asset_code} for ${where}.` +
@@ -98,7 +116,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   if (loading && !data) return <Skeleton className="h-[620px]" />;
   if (error && !data) return <p className="p-8 text-sm text-rose-700">{error}</p>;
 
-  const verdict = item ? decided[item.id] : undefined;
+  const verdict = item ? verdictOf(item, decided) : undefined;
   return (
     <main className="mx-auto max-w-5xl px-6 py-8" data-testid="review-queue-page">
       <div className="mb-6">
@@ -111,7 +129,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
         <h1 className="text-2xl font-semibold tracking-tight">Picture review</h1>
         <p className="mt-1 text-sm text-muted-foreground" data-testid="review-queue-counter">
           {queue.length > 0 && <span className="font-medium text-foreground">{safeIndex + 1} / {queue.length} · </span>}
-          {left} left to review: {shown === "rejected" ? "pictures the planner rejected" : "pictures the verifiers could not settle"}
+          {left} left to review: {SHOWN_TEXT[shown]}
           {queue.length - left > 0 && ` · ${queue.length - left} decided`}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -220,10 +238,16 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
               <p className="mt-1 text-xs text-muted-foreground">
                 {item.source ?? "unknown source"} · rights {item.rights}
               </p>
+              {item.rights_blocked && (
+                <p className="mt-1 text-xs text-amber-700" data-testid="review-queue-rights-note">
+                  The rights check blocked this picture{item.rights_reason ? `: ${item.rights_reason}` : ""}. You can
+                  still approve it; you will be asked to confirm.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <Button type="button" onClick={() => void decide("approve")} disabled={busy}>
-                Approve <span className="ml-1 text-xs opacity-70">(A)</span>
+                {item.rights_blocked ? "Approve anyway" : "Approve"} <span className="ml-1 text-xs opacity-70">(A)</span>
               </Button>
               <Button type="button" variant="outline" onClick={() => void decide("reject")} disabled={busy}>
                 Reject <span className="ml-1 text-xs opacity-70">(R)</span>

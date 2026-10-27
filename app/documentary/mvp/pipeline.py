@@ -269,6 +269,13 @@ def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: 
     host = {"required": host_required(), "avatar_in_film": bool(script.get("avatar_used")),
             "seconds": round(sum(h.get("seconds", 0.0) for h in (script.get("host") or [])
                                  if isinstance(h, dict)), 1)}
+    overridden = sorted({sh["asset_id"] for sh in script.get("shots") or [] if sh.get("asset_id")} & {
+        a.asset_code for a in db.query(VisualAsset).filter(
+            VisualAsset.case_id == needs_plan.case_id,
+            VisualAsset.rights_reason.like(f"{VF.OVERRIDE_PREFIX}%")).all()})
+    if overridden:
+        verdict["publication_blockers"].append(
+            f"{len(overridden)} picture(s) are used on the owner's rights decision and need a licence before publication")
     if host["required"] and not host["avatar_in_film"]:
         verdict["blocking"].append("the film carries no host avatar (the host is required)")
     if music["planned"] != music["in_film"]:

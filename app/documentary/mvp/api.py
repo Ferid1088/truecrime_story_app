@@ -62,6 +62,7 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "status": cand.final_status, "provenance": cand.provenance_status,
             "identity": cand.identity_status, "rights_decision": cand.rights_status,
             "ethics": cand.ethics_status, "scene": cand.scene_status,
+            "rights_blocked": cand.rights_status == "blocked", "rights_reason": asset.rights_reason,
             "reasons": json.loads(cand.reasons_json or "[]"),
             "verifiers": json.loads(cand.verifiers_json or "[]")}
 
@@ -91,6 +92,9 @@ def mvp_plan(case_id: int, db: Session = Depends(get_db)):
             "shortages": sum(1 for r in reqs if r.status == "shortage")}
 
 
+STATUSES = ("needs_review", "rejected", "approved", "pending", "transient_failure")
+
+
 def grouped(db: Session, rows: list[tuple[MvpCandidate, MvpRequirement]]) -> list[dict]:
     """One entry per picture and entity: the same picture is judged once for every requirement it was offered for,
     but the owner decides it once (all its candidates get the decision). `candidate_ids` are those candidates."""
@@ -100,6 +104,7 @@ def grouped(db: Session, rows: list[tuple[MvpCandidate, MvpRequirement]]) -> lis
         if key not in groups:
             groups[key] = {**candidate_dict(db, cand, req), "candidate_ids": [], "requirements": []}
         groups[key]["candidate_ids"].append(cand.id)
+        groups[key]["rights_blocked"] = groups[key]["rights_blocked"] or cand.rights_status == "blocked"
         groups[key]["requirements"].append({"requirement": req.requirement_key, "beat_id": req.beat_id,
                                             "function": req.function, "role_needed": req.role_needed,
                                             "need": json.loads(req.spec_json or "{}").get("need")})
@@ -111,27 +116,35 @@ def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None 
                    group: bool = False, db: Session = Depends(get_db)):
     """The pictures the planner was unsure about (needs_review) or rejected, optionally of one beat only. With
     `group` each picture appears once (for each entity it was judged for), however many requirements offered it."""
-    wanted = [s for s in status.split(",") if s in ("needs_review", "rejected", "approved")]
+    wanted = list(STATUSES) if status == "all" else [s for s in status.split(",") if s in STATUSES]
     query = (db.query(MvpCandidate, MvpRequirement)
              .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
              .filter(MvpRequirement.case_id == case_id, MvpCandidate.final_status.in_(wanted or ["needs_review"])))
     if beat:
         query = query.filter(MvpRequirement.beat_id == beat)
-    rows = query.order_by(MvpCandidate.final_status.desc(), MvpCandidate.id).all()
+    rows = query.order_by(MvpCandidate.final_status, MvpCandidate.id).all()
     if group:
         return grouped(db, rows)[:min(max(limit, 1), 5000)]
     return [candidate_dict(db, c, r) for c, r in rows[:min(max(limit, 1), 500)]]
 
 
-def apply_decision(db: Session, cand: MvpCandidate, decision: str, note: str | None) -> MvpRequirement:
+def apply_decision(db: Session, cand: MvpCandidate, decision: str, note: str | None,
+                   override_rights: bool = False) -> MvpRequirement:
     req = db.get(MvpRequirement, cand.requirement_id)
     if decision == "approve":
         cand.identity_status = cand.ethics_status = cand.scene_status = "approved"
         cand.role = cand.role or req.role_needed
+        if override_rights and cand.rights_status == "blocked":
+            asset = db.get(VisualAsset, cand.visual_asset_id)
+            VF.owner_rights_override(asset)
+            cand.rights_status = VF.rights_decision(asset)[0]
+            if cand.rights_status == "blocked":       # (blocked by what the picture shows, not by its licence)
+                cand.rights_status = "preview_only"
     else:
         cand.identity_status = "rejected"
     cand.verifiers_json = json.dumps(json.loads(cand.verifiers_json or "[]")
-                                     + [{"verifier": "owner", "decision": decision, "note": note}])
+                                     + [{"verifier": "owner", "decision": decision, "note": note,
+                                         **({"rights_override": True} if override_rights else {})}])
     cand.final_status = VF.final_status(cand)
     return req
 
@@ -157,6 +170,7 @@ class GroupDecision(BaseModel):
     candidate_ids: list[int]
     decision: str
     note: str | None = None
+    override_rights: bool = False       # approve although the rights check blocked it: the owner's own decision
 
 
 @router.post("/api/cases/{case_id}/mvp/candidates/decision")
@@ -169,12 +183,13 @@ def decide_group(case_id: int, payload: GroupDecision, db: Session = Depends(get
              .filter(MvpCandidate.id.in_(payload.candidate_ids), MvpRequirement.case_id == case_id).all())
     if not cands:
         raise HTTPException(404, "No such candidates in this case")
-    skipped = [c.id for c in cands if payload.decision == "approve" and c.rights_status == "blocked"]
+    skipped = [c.id for c in cands if payload.decision == "approve" and c.rights_status == "blocked"
+               and not payload.override_rights]
     if len(skipped) == len(cands):
-        raise HTTPException(409, "Rights block this picture; approve its rights first")
+        raise HTTPException(409, "Rights block this picture; confirm to approve it on your own decision")
     for cand in cands:
         if cand.id not in skipped:
-            apply_decision(db, cand, payload.decision, payload.note)
+            apply_decision(db, cand, payload.decision, payload.note, payload.override_rights)
     db.commit()
     VF.sync_asset_status(db, case_id)
     return {"decided": len(cands) - len(skipped), "skipped": skipped, "decision": payload.decision}

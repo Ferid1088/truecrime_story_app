@@ -109,3 +109,22 @@ def test_a_picture_the_rights_block_is_not_approved_by_a_group_decision(db_sessi
     other = client.post(f"/api/cases/{case.id + 999}/mvp/candidates/decision",
                         json={"candidate_ids": [cand.id], "decision": "reject"})
     assert other.status_code == 404                       # never another case's candidates
+
+
+def test_the_owner_can_approve_a_rights_blocked_picture_on_their_own_decision(db_session):
+    case, plan, cand = _seed(db_session, rights="all_rights_reserved")
+    cand.rights_status = "blocked"
+    db_session.commit()
+    client = TestClient(app)
+    answer = client.post(f"/api/cases/{case.id}/mvp/candidates/decision",
+                         json={"candidate_ids": [cand.id], "decision": "approve", "override_rights": True})
+    assert answer.status_code == 200
+    db_session.expire_all()
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    assert asset.rights_status == "editorial_review_required"
+    assert asset.rights_reason.startswith("owner override of all_rights_reserved")
+    assert asset.editorial_approved_at is not None
+    assert db_session.get(MvpCandidate, cand.id).rights_status == "preview_only"   # usable in the review film only
+    assert db_session.get(MvpCandidate, cand.id).final_status == "approved"
+    listed = client.get(f"/api/cases/{case.id}/mvp/candidates?status=all&group=true").json()
+    assert len(listed) == 1

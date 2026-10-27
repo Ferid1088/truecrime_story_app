@@ -9,6 +9,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -60,10 +61,28 @@ def provenance_decision(asset: VisualAsset) -> tuple[str, str | None]:
     return "passed", None
 
 
+OVERRIDE_PREFIX = "owner override of "
+
+
+def owner_rights_override(asset: VisualAsset, who: str = "owner") -> None:
+    """The owner decided to use a picture the rights check blocked. It becomes a news-style picture with the owner's
+    approval recorded (what the review film needs) and keeps what it was in its reason; the app never treats it as
+    cleared for publication."""
+    if (asset.rights_reason or "").startswith(OVERRIDE_PREFIX):
+        return
+    was = f"{asset.rights_status}: {asset.rights_reason or 'no reason stored'}"
+    asset.rights_status = "editorial_review_required"
+    asset.rights_reason = f"{OVERRIDE_PREFIX}{was}"[:300]
+    asset.editorial_approved_by = who
+    asset.editorial_approved_at = datetime.now().astimezone()
+
+
 def rights_decision(asset: VisualAsset, profile: str | None = None) -> tuple[str, str]:
     """cleared = publishable; preview_only = fine for an internal review film, blocked publication;
     blocked = not usable at all. Provider labels are evidence, not permission."""
     profile = profile or ai_config.mvp().verification.rights_profile
+    if (asset.rights_reason or "").startswith(OVERRIDE_PREFIX):
+        return "preview_only", "the owner decided to use it; publication needs a licence"
     lists = ai_config.rights.allowed_for_render
     status = asset.rights_status
     if status in lists.get("publish", []):
