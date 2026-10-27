@@ -26,7 +26,7 @@ class InterrogationAnalysis(kit.Engine):
         if not 1 <= len(turns) <= cfg["max_turns"]:
             return f"an interview shows 1 to {cfg['max_turns']} turns"
         for n, t in enumerate(turns, 1):
-            problem = kit.item_problem({"basis": "witness", **t}, f"turn {n}", 140)
+            problem = kit.item_problem({"basis": "witness", **t}, f"turn {n}")
             if problem or t.get("role") not in ("question", "answer") or t.get("mode") not in MODES or not t.get("who"):
                 return problem or f"turn {n}: role, speaker and verbatim/paraphrase are required"
         compare = data.get("compare")
@@ -51,7 +51,7 @@ def _interview(data_json: str, language: str, step: int) -> Image.Image:
     turns = data["turns"]
     page = Page(language)
     m, inner = page.margin, page.width_inside()
-    kit.heading(page, "interrogation", data.get("title"), 96)
+    kit.heading(page, "interrogation", data.get("title"), 64)
     comparing = data.get("compare") and step > len(turns)
     if comparing:
         compare = data["compare"]

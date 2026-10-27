@@ -837,7 +837,7 @@
       "max_stages": 5,
       "max_events": 6,
       "max_turns": 6,
-      "visible_dialogue": 3,
+      "visible_dialogue": 2,
       "max_charges": 4,
       "gap_min_days": 14,
       "dim_alpha": 150,

@@ -32,7 +32,7 @@ judge or jury decided.
    "result": statement, "limits": statement or omit}. Only when the facts document the examination and its reported
    result. Never invent a result, a match or a measurement.
 5. interrogation - {"title": optional short, "turns": [{"role": question|answer, "who", "mode": verbatim|paraphrase,
-   "text", "fact_id"}] (1-6), "compare": {"earlier": {text, basis, fact_id, "when", "mode"}, "later": {...},
+   "text", "fact_id"}] (1-6; each text at most 90 characters, a short plain sentence), "compare": {"earlier": {text, basis, fact_id, "when", "mode"}, "later": {...},
    "record": statement} optional}. mode verbatim only when the words stand exactly in a fact's text; otherwise paraphrase.
    Never infer lying, guilt or feelings from wording.
 6. sentencing - {"charges": [{"charge", "outcome", "fact_id", "basis"}] (1-4), "aggravating": [statements] optional,
