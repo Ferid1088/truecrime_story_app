@@ -348,7 +348,7 @@ def look_for_avatar(db: Session, scene: HostScene):
     from app.db.models import HostLook
     from app.documentary import outfits as OF
 
-    outfit = OF.selected_outfit(db, scene.case_id, scene.language)
+    outfit = OF.scene_outfit(db, scene)
     if outfit is None:
         from app.documentary.pipeline.errors import AwaitingOutfit
 
@@ -639,7 +639,7 @@ def scene_dict(s: HostScene) -> dict:
         "framing_preset": s.framing_preset, "host_position": _loads(s.host_position_json, {}),
         "host_scale": s.host_scale, "background_mode": s.background_mode,
         "planned_start": s.planned_start, "planned_duration": s.planned_duration,
-        "host_outfit_id": s.host_outfit_id, "look_id": s.look_id,
+        "host_outfit_id": s.host_outfit_id, "chosen_outfit_id": s.chosen_outfit_id, "look_id": s.look_id,
         "look_choice": _loads(s.look_choice_json, {}),
         "voice_id": s.voice_id, "voice_ready": bool(s.voice_path),
         "voice_checks": {k: v for k, v in _loads(s.voice_checks_json, {}).items() if k != "key"},

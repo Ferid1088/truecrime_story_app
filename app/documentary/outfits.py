@@ -91,6 +91,16 @@ def retire_outfit(db: Session, outfit: HostOutfit) -> HostOutfit:
     return outfit
 
 
+def scene_outfit(db: Session, scene) -> HostOutfit | None:
+    """The outfit a host scene wears: the one the owner chose for this scene alone, else the video's selected outfit of
+    its language."""
+    chosen = db.get(HostOutfit, scene.chosen_outfit_id) if scene.chosen_outfit_id else None
+    if chosen is not None and chosen.case_id == scene.case_id and chosen.language == scene.language \
+            and chosen.status != "retired":
+        return chosen
+    return selected_outfit(db, scene.case_id, scene.language)
+
+
 def selected_outfit(db: Session, case_id: int, language: str) -> HostOutfit | None:
     return (db.query(HostOutfit)
             .filter(HostOutfit.case_id == case_id, HostOutfit.language == language,
@@ -455,9 +465,10 @@ def resolve_choice(db: Session, case_id: int, language: str, key: str) -> tuple[
 
 
 def apply_choice(db: Session, case_id: int, language: str, key: str, item_ids: list[int],
-                 approved_by: str) -> dict:
-    """Use this outfit and these library photos for the video: the outfit is made when the case has none yet and
-    selected, the photos become its looks, and the owner's choice approves them (no image model is called)."""
+                 approved_by: str, select: bool = True) -> dict:
+    """Use this outfit and these library photos: the outfit is made when the case has none yet and (with `select`)
+    becomes the video's outfit of the language, the photos become its looks, and the owner's choice approves them (no
+    image model is called). Without `select` the outfit is only made ready for a scene that is given it."""
     outfit, ref = resolve_choice(db, case_id, language, key)
     library_ref = outfit.outfit_ref if outfit is not None else ref
     if library_ref and not item_ids:
@@ -472,7 +483,8 @@ def apply_choice(db: Session, case_id: int, language: str, key: str, item_ids: l
             raise OutfitError("one or more selected photos are not a sitting or standing pose: choose another")
     if outfit is None:
         outfit = create_outfit(db, case_id, language, OutfitRegistry().resolve(ref).label, outfit_ref=ref)
-    select_outfit(db, outfit)
+    if select:
+        select_outfit(db, outfit)
     done = {"attached": [], "skipped": []}
     if outfit.outfit_ref:
         done = reuse_library_photos(db, outfit, selected_item_ids=item_ids)

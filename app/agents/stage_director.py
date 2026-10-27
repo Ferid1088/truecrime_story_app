@@ -60,7 +60,7 @@ class StageDirector:
         if not scene.voice_seconds:
             raise StageDirectionError([{"code": "no_real_voice_yet"}])
         profile = ST.channel_profile(scene.language)["studio_profile_id"]
-        outfit = OF.selected_outfit(db, scene.case_id, scene.language)
+        outfit = OF.scene_outfit(db, scene)
         if outfit is None:
             raise StageDirectionError([{"code": "no_outfit_selected", "case": scene.case_id,
                                         "language": scene.language}])

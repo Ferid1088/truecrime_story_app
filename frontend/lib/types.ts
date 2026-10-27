@@ -3031,6 +3031,17 @@ export interface HostOutfitResult {
   kept: { scene_id: number; why: string }[];
 }
 
+/** The outfit one host scene wears and the ones it can wear instead. */
+export interface HostSceneOutfit {
+  language: string;
+  selected: string | null;
+  options: HostOutfitOption[];
+  outfit: { id: number; name: string; pinned: boolean } | null;
+  video_made: boolean;
+  running: boolean;
+  avatar_enabled: boolean;
+}
+
 export interface HostScene {
   direction: Record<string, unknown> | null;
   direction_sha256: string | null;
@@ -3062,6 +3073,7 @@ export interface HostScene {
   voice_seconds: number | null;
   voice_sha256: string | null;
   host_outfit_id: number | null;
+  chosen_outfit_id: number | null;
   look_id: number | null;
   look_choice: {
     look_id?: number;

@@ -628,6 +628,86 @@ async def choose_host_outfit(case_id: int, payload: HostOutfitChoice, db: Sessio
             "started": started, "kept": kept}
 
 
+class SceneOutfitChoice(BaseModel):
+    option_key: str | None = None            # None: back to the video's outfit of the language
+    item_id: int | None = None
+    create_host: bool = False
+
+
+def _scene(db: Session, scene_id: int) -> HostScene:
+    scene = db.get(HostScene, scene_id)
+    if scene is None:
+        raise HTTPException(status_code=404, detail="Host scene not found")
+    return scene
+
+
+def _scene_running(scene_id: int) -> bool:
+    task = _tasks.get(scene_id)
+    return task is not None and not task.done()
+
+
+@router.get("/api/host-scenes/{scene_id}/outfit")
+def host_scene_outfit(scene_id: int, db: Session = Depends(get_db)):
+    """The outfit this scene wears and the ones it can wear instead (the case's and the library's, with their photos)."""
+    from app.core.ai_config import ai_config
+    from app.documentary import outfits as OF
+
+    scene = _scene(db, scene_id)
+    wearing = OF.scene_outfit(db, scene)
+    options = OF.choice_options(db, scene.case_id, scene.language)
+    for option in options["options"]:
+        option["selected"] = wearing is not None and option["ref"] == wearing.outfit_ref
+    return {**options, "selected": next((o["key"] for o in options["options"] if o["selected"]), None),
+            "outfit": None if wearing is None else {"id": wearing.id, "name": wearing.name,
+                                                    "pinned": scene.chosen_outfit_id == wearing.id},
+            "video_made": bool(scene.avatar_video_path), "running": _scene_running(scene.id),
+            "avatar_enabled": ai_config.avatar.enabled}
+
+
+@router.post("/api/host-scenes/{scene_id}/outfit")
+async def choose_scene_outfit(scene_id: int, payload: SceneOutfitChoice, db: Session = Depends(get_db)):
+    """The owner's outfit for this scene alone (an outfit of the library and one of its photos, approved as before), or
+    back to the video's outfit of the language. The scene's look and direction are made again with it; with
+    `create_host` the scene's host video is made again now (HeyGen credits)."""
+    from app.core.ai_config import ai_config
+    from app.documentary import outfits as OF
+    from app.documentary.host_scenes import _log, redo_video
+    from app.services.budget import BudgetService
+
+    scene = _scene(db, scene_id)
+    if _scene_running(scene.id):
+        raise HTTPException(status_code=409, detail="This scene is running.")
+    if payload.create_host:
+        if not ai_config.avatar.enabled:
+            raise HTTPException(status_code=409, detail="Avatar generation is disabled (config avatar.enabled).")
+        snap = BudgetService(db).snapshot(scene.case_id)
+        if snap.spent_eur >= snap.cap_eur:
+            raise HTTPException(status_code=409, detail="The case's budget cap is reached: no host video is started.")
+    if payload.option_key is None:
+        outfit = None
+    else:
+        if payload.item_id is None:
+            raise HTTPException(status_code=422, detail="Choose one photo of the outfit.")
+        outfit = _outfit_call(lambda: OF.apply_choice(
+            db, scene.case_id, scene.language, payload.option_key, [payload.item_id], "owner_host_window",
+            select=False))["outfit"]
+    scene.chosen_outfit_id = outfit.id if outfit is not None else None
+    if payload.create_host or not scene.avatar_video_path:     # a video already made keeps its look until it is redone
+        scene.look_id = scene.avatar_id = scene.direction_json = scene.direction_sha256 = None
+        scene.look_choice_json = "{}"
+    _log(scene, "outfit", "chosen", {"outfit_id": scene.chosen_outfit_id,
+                                     "outfit": outfit.name if outfit is not None else "the video's outfit"})
+    db.commit()
+    started = False
+    if payload.create_host:
+        if scene.voice_path and scene.status not in ("planned", "voice_ready"):
+            _outfit_call(lambda: redo_video(db, scene, "the owner chose another outfit for this scene"))
+        _tasks[scene.id] = asyncio.create_task(_run_task(scene.id, "avatar"))
+        started = True
+    return {"scene": scene_dict(scene), "started": started,
+            "outfit": None if outfit is None else {"id": outfit.id, "name": outfit.name}}
+
+
 class LookOverride(BaseModel):
     look_id: int
 
@@ -706,7 +786,7 @@ def outfit_panel_same_picture(case_id: int, payload: PanelSamePicture,
 
 @router.post("/api/host-scenes/{scene_id}/look")
 def override_scene_look(scene_id: int, payload: LookOverride, db: Session = Depends(get_db)):
-    """The owner picks a look for a scene: only an approved look of the scene's own outfit."""
+    """The owner picks a look for a scene: only an approved look of the outfit the scene wears."""
     from app.db.models import HostLook
     from app.documentary import look_selection as LS
     from app.documentary import outfits as OF
@@ -715,7 +795,7 @@ def override_scene_look(scene_id: int, payload: LookOverride, db: Session = Depe
     s = db.get(HostScene, scene_id)
     if s is None:
         raise HTTPException(status_code=404, detail="Host scene not found")
-    outfit = OF.selected_outfit(db, s.case_id, s.language)
+    outfit = OF.scene_outfit(db, s)
     look = db.get(HostLook, payload.look_id)
     if outfit is None or look is None or look.id not in {x.id for x in LS.approved_looks(db, outfit)}:
         raise HTTPException(status_code=409, detail=(

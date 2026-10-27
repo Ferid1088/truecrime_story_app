@@ -3,7 +3,7 @@
 import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
 import { HostMemoryPanel } from "./host-memory";
-import { HostOutfitPanel } from "./host-outfit";
+import { HostOutfitPanel, SceneOutfit } from "./host-outfit";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
@@ -158,6 +158,8 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
         {err && <InlineAlert tone="error">{err}</InlineAlert>}
 
         {scene.voice_ready && <VoiceChecks scene={scene} />}
+
+        <SceneOutfit scene={scene} onChanged={onChanged} />
 
         <LookChoice scene={scene} />
 

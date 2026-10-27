@@ -166,3 +166,108 @@ def test_a_photo_whose_pose_is_not_sitting_or_standing_is_refused_and_nothing_is
         "language": "en", "option_key": "registry:en/blazerJeans", "item_id": front.id})
     assert bad.status_code == 409 and "not a sitting or standing pose" in bad.json()["detail"]
     assert db_session.query(HostOutfit).filter_by(case_id=case.id).count() == 0
+
+
+# -- one outfit for one scene ----------------------------------------------------------------------------------------
+
+
+def _language_outfit(db, case, library, slug="blazerJeans", situation="sitHands"):
+    return OF.apply_choice(db, case.id, "en", f"registry:en/{slug}", [library[(slug, situation)].id],
+                           "owner_host_window")["outfit"]
+
+
+def test_a_scene_wears_the_outfit_chosen_for_it_and_every_other_scene_keeps_the_videos_outfit(db_session, library):
+    from app.documentary.host_scenes import look_for_avatar
+
+    case = _case(db_session)
+    video_outfit = _language_outfit(db_session, case, library)
+    s1, s2 = _scene(db_session, case, "voice_ready", video=None), _scene(db_session, case, "voice_ready", video=None)
+    out = client.post(f"/api/host-scenes/{s2.id}/outfit", json={
+        "option_key": "registry:en/brownSweater", "item_id": library[("brownSweater", "sitHands")].id}).json()
+    assert out["outfit"]["name"] == "brown Sweater" and out["started"] is False
+    db_session.refresh(s1)
+    db_session.refresh(s2)
+    assert OF.scene_outfit(db_session, s1).id == video_outfit.id                    # untouched
+    assert OF.scene_outfit(db_session, s2).outfit_ref == "en/brownSweater"
+    assert OF.selected_outfit(db_session, case.id, "en").id == video_outfit.id      # the language's outfit did not move
+    assert look_for_avatar(db_session, s1).host_outfit_id == video_outfit.id
+    assert look_for_avatar(db_session, s2).host_outfit_id == s2.chosen_outfit_id
+
+
+def test_each_of_four_scenes_can_have_its_own_outfit(db_session, library):
+    case = _case(db_session)
+    _language_outfit(db_session, case, library)
+    scenes = [_scene(db_session, case, "voice_ready", video=None) for _ in range(4)]
+    for scene, slug in zip(scenes[1:3], ("brownSweater", "blazerJeans"), strict=True):
+        assert client.post(f"/api/host-scenes/{scene.id}/outfit", json={
+            "option_key": f"registry:en/{slug}", "item_id": library[(slug, "sitHands")].id}).status_code == 200
+    for scene in scenes:
+        db_session.refresh(scene)
+    refs = [OF.scene_outfit(db_session, s).outfit_ref for s in scenes]
+    assert refs == ["en/blazerJeans", "en/brownSweater", "en/blazerJeans", "en/blazerJeans"]
+    assert [s.chosen_outfit_id is not None for s in scenes] == [False, True, True, False]
+
+
+def test_a_scene_whose_video_is_made_keeps_its_look_until_the_owner_has_it_made_again(db_session, library):
+    case = _case(db_session)
+    _language_outfit(db_session, case, library)
+    made = _scene(db_session, case, "composited")
+    made.look_id, made.direction_json = 7, "{}"
+    db_session.commit()
+    client.post(f"/api/host-scenes/{made.id}/outfit", json={
+        "option_key": "registry:en/brownSweater", "item_id": library[("brownSweater", "sitHands")].id})
+    db_session.refresh(made)
+    assert made.chosen_outfit_id is not None and made.look_id == 7 and made.direction_json == "{}"
+    assert made.avatar_video_path == "x.mp4"
+    body = client.get(f"/api/host-scenes/{made.id}/outfit").json()
+    assert body["outfit"]["pinned"] and body["video_made"] and body["outfit"]["name"] == "brown Sweater"
+    assert next(o for o in body["options"] if o["selected"])["ref"] == "en/brownSweater"
+
+
+def test_creating_the_host_of_one_scene_makes_only_that_video_again(db_session, library, monkeypatch):
+    case = _case(db_session)
+    _language_outfit(db_session, case, library)
+    one, other = _scene(db_session, case, "composited"), _scene(db_session, case, "composited")
+    started = []
+
+    async def fake_run(scene_id, until):
+        started.append((scene_id, until))
+
+    monkeypatch.setattr(studio_api, "_run_task", fake_run)
+    monkeypatch.setattr(studio_api, "_tasks", {})
+
+    async def go():
+        return await studio_api.choose_scene_outfit(one.id, studio_api.SceneOutfitChoice(
+            option_key="registry:en/brownSweater", item_id=library[("brownSweater", "sitHands")].id,
+            create_host=True), db_session)
+
+    out = asyncio.run(go())
+    assert out["started"] is True and list(studio_api._tasks) == [one.id]
+    db_session.refresh(one)
+    db_session.refresh(other)
+    assert one.status == "voice_ready" and one.avatar_video_path is None and one.look_id is None
+    assert other.status == "composited" and other.chosen_outfit_id is None            # the other video is not touched
+
+
+def test_a_scene_can_go_back_to_the_videos_outfit(db_session, library):
+    case = _case(db_session)
+    video_outfit = _language_outfit(db_session, case, library)
+    scene = _scene(db_session, case, "voice_ready", video=None)
+    client.post(f"/api/host-scenes/{scene.id}/outfit", json={
+        "option_key": "registry:en/brownSweater", "item_id": library[("brownSweater", "sitHands")].id})
+    client.post(f"/api/host-scenes/{scene.id}/outfit", json={"option_key": None})
+    db_session.refresh(scene)
+    assert scene.chosen_outfit_id is None and OF.scene_outfit(db_session, scene).id == video_outfit.id
+
+
+def test_a_retired_scene_outfit_falls_back_to_the_videos_outfit_and_a_photo_is_required(db_session, library):
+    case = _case(db_session)
+    video_outfit = _language_outfit(db_session, case, library)
+    scene = _scene(db_session, case, "voice_ready", video=None)
+    client.post(f"/api/host-scenes/{scene.id}/outfit", json={
+        "option_key": "registry:en/brownSweater", "item_id": library[("brownSweater", "sitHands")].id})
+    db_session.refresh(scene)
+    OF.retire_outfit(db_session, db_session.get(HostOutfit, scene.chosen_outfit_id))
+    assert OF.scene_outfit(db_session, scene).id == video_outfit.id
+    missing = client.post(f"/api/host-scenes/{scene.id}/outfit", json={"option_key": "registry:en/brownSweater"})
+    assert missing.status_code == 422

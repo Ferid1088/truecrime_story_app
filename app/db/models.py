@@ -2186,6 +2186,8 @@ class HostScene(Base):
     # The outfit of this video and the look the director's plan was mapped to (with why, and the
     # looks that were considered); the outfit is the same in every scene of the video.
     host_outfit_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # the outfit the owner chose for this scene alone (None: the video's outfit of its language)
+    chosen_outfit_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     look_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     look_choice_json: Mapped[str] = mapped_column(Text, default="{}")
     # avatar steps
