@@ -1120,13 +1120,17 @@ def test_every_language_has_its_channel_and_studio():
     from app.documentary.host import writer_system_prompt
 
     names = {l: c.name for l, c in ai_config.channels.items()}
-    assert names == {"en": "ClueVera", "de": "Fallspur", "fa": "رد خاموش", "ar": "أثر خفي"}
+    assert names == {"en": "ClueVera", "de": "Fallspur", "fa": "رد خاموش", "ar": "أثر خفي",
+                     "es": "Tras la Pista", "tr": "Gizli İzler"}
     assert set(ai_config.documentary.languages) <= set(names)
     from app.documentary.studio import load_registry
 
     root = Path(__file__).resolve().parents[1]
     reg = load_registry()
     for lang, c in ai_config.channels.items():
+        if c.studio_dir is None:  # es and tr have a logo and an intro, no studio yet
+            assert lang in ("es", "tr")
+            continue
         assert c.studio_dir == f"data/studio/{lang}"  # one spelling, lowercase
         shots = sorted(p.name for p in (root / c.studio_dir).glob("*.png"))
         # the studio folder holds exactly the registered pictures: one master
