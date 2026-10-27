@@ -2856,6 +2856,22 @@ class GraphicsConfig(BaseModel):
         return self
 
 
+class MonitoringConfig(BaseModel):
+    """What the Monitoring tab watches (config/parameters/monitoring.json): when something counts as stuck or
+    unhealthy and which workspace tab belongs to each pipeline stage."""
+
+    refresh_seconds: float = Field(gt=0.0)
+    stuck_stage_minutes: float = Field(gt=0.0)
+    queued_wait_seconds: float = Field(gt=0.0)
+    budget_warn_fraction: float = Field(gt=0.0, le=1.0)
+    provider_window_minutes: float = Field(gt=0.0)
+    provider_min_calls: int = Field(gt=0)
+    provider_error_rate: float = Field(gt=0.0, le=1.0)
+    recent_jobs: int = Field(gt=0)
+    recent_provider_errors: int = Field(gt=0)
+    stage_tabs: dict[str, str]
+
+
 class ZoomMapConfig(BaseModel):
     """The cinematic zoom-in map (globe -> region -> street) built from open data, offline:
     a Protomaps/OpenStreetMap extract, open imagery and a MapLibre scene rendered frame by
@@ -3704,6 +3720,7 @@ class AIConfig(BaseModel):
     limits: LimitsConfig | None = None
     zoom_map: ZoomMapConfig | None = None
     graphics: GraphicsConfig | None = None
+    monitoring: MonitoringConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
     shorts_host_led: HostLedShortsConfig = Field(default_factory=HostLedShortsConfig)
@@ -3919,6 +3936,12 @@ class AIConfig(BaseModel):
         if self.main_visual_planner is None:
             raise RuntimeError("config/parameters/main_visual_planner.json is missing")
         return self.main_visual_planner
+
+    def monitoring_settings(self) -> MonitoringConfig:
+        """What the Monitoring tab watches (config/parameters/monitoring.json)."""
+        if self.monitoring is None:
+            raise RuntimeError("config/parameters/monitoring.json is missing")
+        return self.monitoring
 
     def graphics_settings(self) -> GraphicsConfig:
         """The code-made graphics' settings (config/parameters/graphics.json)."""

@@ -1,0 +1,39 @@
+{
+  "monitoring": {
+    "refresh_seconds": 5,
+    "stuck_stage_minutes": 20,
+    "queued_wait_seconds": 90,
+    "budget_warn_fraction": 0.8,
+    "provider_window_minutes": 15,
+    "provider_min_calls": 5,
+    "provider_error_rate": 0.3,
+    "recent_jobs": 5,
+    "recent_provider_errors": 8,
+    "stage_tabs": {
+      "final_approval": "Run",
+      "blueprint": "Blueprint",
+      "audio_plan": "Music & Sound",
+      "spoken": "Language Versions",
+      "host_plan": "Host",
+      "chapters": "Blueprint",
+      "naming": "Run",
+      "film_length": "Run",
+      "mvp_needs": "Visual Planner",
+      "mvp_verify": "Visual Planner",
+      "mvp_research": "Visual Planner",
+      "host": "Host",
+      "performance": "Voice Performance",
+      "voice": "Voice",
+      "mvp_host": "Host",
+      "mvp_direct": "Visual Planner",
+      "mvp_complete": "Visual Planner",
+      "zoom_maps": "Visual Library",
+      "production": "Production Script",
+      "critique": "Critique",
+      "mvp_coverage": "Production Script",
+      "render": "Render",
+      "mvp_review": "Render",
+      "board_plan": "Visual Planner"
+    }
+  }
+}

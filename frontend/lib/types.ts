@@ -3450,3 +3450,72 @@ export interface PipelineEstimate {
   total_tokens_in: number;
   total_tokens_out: number;
 }
+
+/** The Monitoring tab: one snapshot of what runs, what waits, what stopped and what the owner has to do. */
+export interface MonitoringAction {
+  label: string;
+  kind: "tab" | "href" | "resume" | "cancel";
+  target: string;
+}
+
+export interface MonitoringIssue {
+  severity: "problem" | "attention" | "info";
+  area: string;
+  title: string;
+  detail: string;
+  actions: MonitoringAction[];
+}
+
+export interface MonitoringStage {
+  name: string;
+  status: string;
+  attempts: number;
+  seconds: number | null;
+  error: string | null;
+  tab: string;
+}
+
+export interface MonitoringJob {
+  id: number;
+  case_id: number;
+  case_title: string | null;
+  status: string;
+  stage: string | null;
+  progress: number;
+  languages: string[];
+  error: string | null;
+  next_action: string | null;
+  worker_id: string | null;
+  heartbeat_age_s: number | null;
+  age_s: number | null;
+  idle_s: number | null;
+  stages: MonitoringStage[];
+  stage_counts: Record<string, number>;
+  current_call: { stage: string; provider: string; call_number: number; elapsed_seconds?: number } | null;
+  warnings: { stage: string | null; message: string | null }[];
+}
+
+export interface MonitoringService {
+  name: string;
+  state: "ok" | "idle" | "problem";
+  detail: string;
+}
+
+export interface MonitoringSnapshot {
+  generated_at: string;
+  refresh_seconds: number;
+  state: "problem" | "attention" | "running" | "idle";
+  case: { id: number; title: string };
+  issues: MonitoringIssue[];
+  running: MonitoringJob[];
+  queued: MonitoringJob[];
+  latest_job: MonitoringJob | null;
+  recent_jobs: { id: number; status: string; stage: string | null; progress: number; created_at: string }[];
+  services: MonitoringService[];
+  budget: { cap_eur: number; spent_eur: number; remaining_eur: number; used_fraction: number; status: string };
+  providers: {
+    window_minutes: number;
+    hosts: { host: string; calls: number; errors: number; error_rate: number; avg_ms: number }[];
+    recent_errors: { at: string; host: string; path: string; status: number | null }[];
+  };
+}

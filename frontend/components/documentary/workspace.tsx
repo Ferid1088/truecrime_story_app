@@ -17,6 +17,7 @@ import { ProductionTypeBadge } from "@/components/lifecycle/shared";
 import { useJobPoller } from "./hooks";
 import { InlineAlert, isJobActive, jobActivity, productionLanguages } from "./shared";
 import { RunTab } from "./tabs/run";
+import { MonitoringTab } from "./tabs/monitoring";
 import { BlueprintTab } from "./tabs/blueprint";
 import { LanguagesTab } from "./tabs/languages";
 import { VoiceTab } from "./tabs/voice";
@@ -32,6 +33,7 @@ import { RenderTab } from "./tabs/render";
 
 const TABS = [
   "Run",
+  "Monitoring",
   "Blueprint",
   "Language Versions",
   "Voice Performance",
@@ -179,6 +181,9 @@ export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
             onJobChange={track}
             onRefresh={refresh}
           />
+        )}
+        {tab === "Monitoring" && (
+          <MonitoringTab caseId={caseId} onOpenTab={(t) => setTab(TABS.find((known) => known === t) ?? "Run")} onChanged={refresh} />
         )}
         {tab === "Blueprint" && <BlueprintTab {...common} />}
         {tab === "Language Versions" && <LanguagesTab {...common} />}

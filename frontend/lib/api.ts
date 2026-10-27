@@ -47,6 +47,7 @@ import type {
   CaseDossier,
   CaseListItem,
   MvpCandidate,
+  MonitoringSnapshot,
   MvpCandidateGroup,
   MvpGaps,
   MvpFilmReview,
@@ -1029,6 +1030,10 @@ export type YouTubeClipsOverview = {
 export const youtubeClipsApi = {
   overview: () => request<YouTubeClipsOverview>("/api/documentary/visuals/youtube-clips"),
   setEnabled: (enabled: boolean) => put<{ enabled: boolean }>("/api/documentary/visuals/youtube-clips", { enabled }),
+};
+
+export const monitoringApi = {
+  snapshot: (caseId: number) => request<MonitoringSnapshot>(`/api/cases/${caseId}/monitoring`),
 };
 
 export const mvpApi = {
