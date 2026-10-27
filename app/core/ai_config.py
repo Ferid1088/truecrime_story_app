@@ -2868,6 +2868,7 @@ class MonitoringConfig(BaseModel):
     provider_min_calls: int = Field(gt=0)
     provider_error_rate: float = Field(gt=0.0, le=1.0)
     recent_jobs: int = Field(gt=0)
+    recent_days: float = Field(gt=0.0)
     recent_provider_errors: int = Field(gt=0)
     stage_tabs: dict[str, str]
 

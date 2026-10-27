@@ -1,4 +1,11 @@
-# Monitoring tab
+# Monitoring
+
+Two views of the same data: the **Monitoring** page in the left sidebar (the whole app, `GET /api/monitoring`) and the
+**Monitoring** tab of one case (`GET /api/cases/{id}/monitoring`). On the page, buttons that open a workspace tab go to
+`/documentary/{case}?tab=<tab>`; it lists every active job and every case whose newest job stopped in the last
+`recent_days`.
+
+## The case tab
 
 `Documentary > <case> > Monitoring` shows what the app is doing now and what needs the owner. It refreshes every
 `monitoring.refresh_seconds` (config/parameters/monitoring.json) and can be paused.

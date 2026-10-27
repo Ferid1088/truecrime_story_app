@@ -24,8 +24,8 @@ def _search_key(monkeypatch):
     monkeypatch.setattr("app.documentary.monitoring.env_value", lambda name, default=None: "key")
 
 
-def _case(db):
-    case = Case(canonical_title="Monitor proof", slug=f"mon-{uuid4().hex[:8]}", language="en")
+def _case(db, title="Monitor proof"):
+    case = Case(canonical_title=title, slug=f"mon-{uuid4().hex[:8]}", language="en")
     db.add(case)
     db.commit()
     return case
@@ -140,3 +140,20 @@ def test_a_missing_search_key_is_a_problem_with_a_settings_link(db_session, monk
     snap = _snapshot(_case(db_session))
     assert snap["state"] == "problem"
     assert any(a["target"] == "/settings" for i in snap["issues"] for a in i["actions"])
+
+
+def test_the_app_wide_view_lists_a_stopped_case_with_buttons_that_open_it(db_session):
+    title = f"Stopped case {uuid4().hex[:6]}"
+    case = _case(db_session, title)
+    job = _job(db_session, case, "failed", "voice:en", [{"name": "voice:en", "status": "failed", "attempts": 1,
+                                                          "error": "provider down"}],
+               error="RuntimeError: provider down",
+               result_json=json.dumps({"failure": failure_details("provider down")}))
+    snap = TestClient(app).get("/api/monitoring").json()
+    assert snap["state"] == "problem"
+    mine = [i for i in snap["issues"] if i["title"].startswith(title)]
+    assert mine and any(a["kind"] == "href" and a["target"] == f"/documentary/{case.id}?tab=Voice"
+                        for a in mine[0]["actions"])
+    assert any(a["kind"] == "resume" and a["target"] == str(job.id) for a in mine[0]["actions"])
+    assert any(c["id"] == case.id for c in snap["cases"])
+    assert {s["name"] for s in snap["services"]} == {"API", "Database", "Worker", "Brave Search"}

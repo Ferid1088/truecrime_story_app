@@ -47,6 +47,7 @@ import type {
   CaseDossier,
   CaseListItem,
   MvpCandidate,
+  MonitoringAppSnapshot,
   MonitoringSnapshot,
   MvpCandidateGroup,
   MvpGaps,
@@ -1034,6 +1035,7 @@ export const youtubeClipsApi = {
 
 export const monitoringApi = {
   snapshot: (caseId: number) => request<MonitoringSnapshot>(`/api/cases/${caseId}/monitoring`),
+  app: () => request<MonitoringAppSnapshot>("/api/monitoring"),
 };
 
 export const mvpApi = {

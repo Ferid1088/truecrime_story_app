@@ -3519,3 +3519,17 @@ export interface MonitoringSnapshot {
     recent_errors: { at: string; host: string; path: string; status: number | null }[];
   };
 }
+
+/** The Monitoring page: the whole app, not one case. */
+export interface MonitoringAppSnapshot {
+  generated_at: string;
+  refresh_seconds: number;
+  state: MonitoringSnapshot["state"];
+  issues: MonitoringIssue[];
+  running: MonitoringJob[];
+  queued: MonitoringJob[];
+  cases: { id: number; title: string; job: MonitoringJob | null }[];
+  services: MonitoringService[];
+  budgets: (MonitoringSnapshot["budget"] & { case_id: number; title: string })[];
+  providers: MonitoringSnapshot["providers"];
+}

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FolderOpen, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
@@ -54,7 +54,8 @@ const ID_PREFIX = "documentary";
 
 export function DocumentaryWorkspace({ caseId }: { caseId: number }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("Run");
+  const requested = useSearchParams().get("tab");
+  const [tab, setTab] = useState<Tab>(TABS.find((known) => known === requested) ?? "Run");
   const [tick, setTick] = useState(0);
   const [finalChoice, setFinalChoice] = useState<number | null>(null);
   const [languageChoice, setLanguageChoice] = useState<string | null>(null);

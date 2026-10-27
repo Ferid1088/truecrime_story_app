@@ -8,6 +8,7 @@
     "provider_min_calls": 5,
     "provider_error_rate": 0.3,
     "recent_jobs": 5,
+    "recent_days": 7,
     "recent_provider_errors": 8,
     "stage_tabs": {
       "final_approval": "Run",
