@@ -85,7 +85,7 @@ class Monitor:
                 begin = ensure_utc(_parse(started))
                 end = ensure_utc(_parse(finished)) if finished else utc_now()
                 seconds = round(max((end - begin).total_seconds(), 0.0), 1)
-            out.append({"name": s["name"], "status": s["status"], "attempts": s.get("attempts", 0),
+            out.append({"name": s["name"], "status": s.get("status", "pending"), "attempts": s.get("attempts", 0),
                         "seconds": seconds, "error": s.get("error"), "tab": self.tab_for(s["name"])})
         return out
 
