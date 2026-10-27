@@ -82,3 +82,53 @@ class RequirementPass:
         return mine is None or not any(
             self._serves(mine, r) and not any(self._serves(i, r) and i.code in others for i in pool)
             for r in self.required.get(beat["beat_id"], []))
+
+
+class ScriptRequirementPass:
+    """The same last pass over the compiled film: the production script replaces pictures that its own spoiler and
+    repetition rules do not allow, and can leave a requirement without its approved picture. A still of the beat
+    that serves no requirement of its own gives way to an approved picture that the film's rules allow there."""
+
+    def __init__(self, shots: list[dict], required: dict[str, list[dict]], assets: dict, tracker: UsageTracker,
+                 blocked: Callable[[str, object], bool], usable: Callable[[object], bool],
+                 asset_info: Callable[[object], dict]):
+        self.shots, self.required, self.assets, self.tracker = shots, required, assets, tracker
+        self.blocked, self.usable, self.asset_info = blocked, usable, asset_info
+        self.placed: list[dict] = []
+
+    def run(self) -> list[dict]:
+        for beat in sorted({s["beat_id"] for s in self.shots if s.get("beat_id")}):
+            mine = [s for s in self.shots if s.get("beat_id") == beat]
+            shown = {s["asset_id"] for s in mine if s.get("asset_id")}
+            for req in sorted((r for r in self.required.get(beat, []) if not r["approved"] & shown),
+                              key=lambda r: PRIORITY.get(r["priority"], 1)):
+                if self._place(beat, mine, req):
+                    shown = {s["asset_id"] for s in mine if s.get("asset_id")}
+        return self.placed
+
+    def _place(self, beat: str, mine: list[dict], req: dict) -> bool:
+        options = sorted((self.assets[c] for c in req["approved"] if c in self.assets
+                          and self.assets[c].asset_type == "photo" and self.usable(self.assets[c])
+                          and not self.blocked(beat, self.assets[c])),
+                         key=lambda a: self.tracker.appearances(a.asset_code))
+        for shot in mine:
+            if shot.get("kind") != "image" or not shot.get("asset_id") or not self._expendable(beat, mine, shot):
+                continue
+            for asset in options:
+                self.tracker.discard(shot["asset_id"], shot["start"], shot["end"])
+                if self.tracker.allows(asset.asset_code, shot["start"], shot["end"])[0]:
+                    self.tracker.add(asset.asset_code, shot["start"], shot["end"])
+                    self.placed.append({"beat": beat, "requirement": req["key"], "asset": asset.asset_code,
+                                        "replaced": shot["asset_id"], "start": shot["start"]})
+                    for key in ("repeat", "repeat_justified", "repeat_reason", "fill_reason", "held"):
+                        shot.pop(key, None)
+                    shot.update(self.asset_info(asset))
+                    shot["fill_reason"] = f"the approved picture for requirement {req['key']}"
+                    return True
+                self.tracker.add(shot["asset_id"], shot["start"], shot["end"])
+        return False
+
+    def _expendable(self, beat: str, mine: list[dict], shot: dict) -> bool:
+        others = {s["asset_id"] for s in mine if s is not shot and s.get("asset_id")}
+        return not any(shot["asset_id"] in r["approved"] and not r["approved"] & others
+                       for r in self.required.get(beat, []))

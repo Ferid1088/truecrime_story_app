@@ -241,6 +241,15 @@ def test_offers_fill_the_longest_bare_stretch_first_and_each_is_shown_once():
     assert all(s["command"] == "BLACK_SCREEN" for s in again)
 
 
+def test_no_graphic_reaches_into_the_silence_where_a_chapter_card_may_be_laid():
+    shots, length = gap_beat(60.0, (60.0,))
+    AL.fill_beat(shots, length, 0, [quote_offer("F1", seconds=60.0)], AL.State(), tail=12.0)
+    graphic = next(s for s in shots if s["command"] == "SHOW_GRAPHIC")
+    bare = [s for s in shots if s.get("gap")]
+    assert round(graphic["share"] * length, 3) == 48.0 and round(sum(s["share"] for s in bare) * length, 3) == 12.0
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+
+
 def test_an_offer_is_never_placed_before_its_beat_or_far_after_it():
     state, offers = AL.State(), [quote_offer("F1", best=5, drift=2)]
     for idx, expect in ((3, False), (4, False), (5, True)):

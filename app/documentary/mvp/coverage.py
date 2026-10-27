@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
 from app.db.models import MvpCandidate, MvpRequirement, VisualAsset, VisualPlan
+from app.documentary.visuals.spoilers import Firewall
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 
 PICTURE_KINDS = {"image", "video", "map", "document", "timeline", "detective_board", "graphic"}
@@ -78,7 +79,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         "longest_black": round(longest_black, 2), "long_stills": long_stills,
         "over_reused": over_reused,
         "unapproved_assets": unapproved, "weak_sentences": weak[:50], "weak_sentence_count": len(weak),
-        "requirements": requirement_coverage(db, plan, shots, tracker),
+        "requirements": requirement_coverage(db, plan, shots, tracker, Firewall.from_json(script.get("firewall"))),
         "graphics": graphic_checks(script),
     }
 
@@ -130,24 +131,34 @@ def accepted_roles(req: MvpRequirement) -> set[str] | None:
 
 
 def counted_requirements(db: Session, plan: VisualPlan) -> dict[str, list[dict]]:
-    """The requirements the review counts, per beat, with the roles of picture that satisfy each."""
+    """The requirements the review counts, per beat: the roles of picture that satisfy each and the codes of the
+    approved pictures that do."""
     out: dict[str, list[dict]] = {}
     for req in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id):
         roles = accepted_roles(req)
-        if roles is not None:
-            out.setdefault(req.beat_id, []).append({"key": req.requirement_key, "roles": roles,
-                                                    "priority": req.priority, "status": req.status})
+        if roles is None:
+            continue
+        approved = {a.asset_code for a in (db.get(VisualAsset, c.visual_asset_id) for c in req.candidates
+                                           if c.final_status == "approved" and c.role in roles) if a is not None}
+        out.setdefault(req.beat_id, []).append({"key": req.requirement_key, "roles": roles,
+                                                "priority": req.priority, "status": req.status,
+                                                "approved": approved})
     return out
 
 
-def requirement_coverage(db: Session, plan: VisualPlan, shots: list[dict], tracker: UsageTracker) -> dict:
+def requirement_coverage(db: Session, plan: VisualPlan, shots: list[dict], tracker: UsageTracker,
+                         firewall: Firewall) -> dict:
     """Semantic coverage per requirement: an approved asset of the right role really on screen in its beat. A
-    requirement whose approved pictures are all shown as often as the film's repetition rules allow is a shortage
-    of pictures (recorded, not blocking the review), not a picture the planner left off."""
+    requirement whose approved pictures the film's rules do not allow in its beat (shown as often as allowed or too
+    recently, or an investigation or custody picture before the story reaches it) is a shortage of pictures (recorded, not blocking the review), not a picture the planner left off."""
     on_screen: dict[str, set[str]] = {}
+    windows: dict[str, list[float]] = {}
     for s in shots:
         if s.get("asset_id") and s.get("beat_id"):
             on_screen.setdefault(s["beat_id"], set()).add(s["asset_id"])
+        if s.get("beat_id") and s.get("start") is not None:
+            span = windows.setdefault(s["beat_id"], [s["start"], s["end"]])
+            span[0], span[1] = min(span[0], s["start"]), max(span[1], s["end"])
     out = {"covered": 0, "shortage": 0, "uncovered": 0, "uncovered_ids": [], "shortage_ids": [], "used_up_ids": []}
     for req in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id):
         roles = accepted_roles(req)
@@ -160,8 +171,9 @@ def requirement_coverage(db: Session, plan: VisualPlan, shots: list[dict], track
             continue
         for a in approved:
             tracker.facts.setdefault(a.asset_code, asset_facts(a))
-        used_up = bool(approved) and all(
-            tracker.appearances(a.asset_code) >= tracker.limit(a.asset_code) for a in approved)
+        a0, a1 = windows.get(req.beat_id, (0.0, 0.0))
+        used_up = bool(approved) and not any(
+            tracker.allows(a.asset_code, a0, a1)[0] and not firewall.blocks(req.beat_id, a) for a in approved)
         if req.status == "shortage" or used_up:
             out["shortage"] += 1
             out["shortage_ids"].append(req.requirement_key)

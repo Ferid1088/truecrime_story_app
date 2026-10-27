@@ -357,11 +357,15 @@ def graphic_shot(o: Offer, seconds: float, window_len: float, why: str) -> dict:
     return shot
 
 
-def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer], state: State) -> None:
-    """Put offers into the beat's bare stretches (longest first); what no offer fits stays bare for the next step."""
+def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer], state: State,
+              tail: float = 0.0) -> None:
+    """Put offers into the beat's bare stretches (longest first); what no offer fits stays bare for the next step.
+    `tail` is the silence at the end of the beat where a chapter or title card may be laid: no graphic reaches into
+    it (a graphic cut back by a card would no longer fit its cues)."""
     minimum_run = T.config().planner["min_run_seconds"]
     for first, last, seconds in sorted(gap_runs(shots, window_len), key=lambda r: -r[2]):
-        remaining, taken = seconds, []
+        reserve = tail if last == len(shots) - 1 else 0.0
+        remaining, taken = seconds - reserve, []
         said = " ".join(s.get("said", "") for s in shots[first:last + 1]).strip()
         while remaining >= minimum_run:
             options = sorted((o for o in offers if usable(o, idx, remaining, state)), key=lambda o: priority(o, idx, state))
@@ -388,8 +392,8 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
             continue
         replacement = [graphic_shot(o, length, window_len, f"{o.kind} from stored evidence ({', '.join(sorted(o.items))[:60]})")
                        for o, length in taken]
-        if remaining > 1e-6:
-            replacement.append({"command": "BLACK_SCREEN", "share": remaining / window_len, "motion": "NONE",
+        if remaining + reserve > 1e-6:
+            replacement.append({"command": "BLACK_SCREEN", "share": (remaining + reserve) / window_len, "motion": "NONE",
                                 "speed": 1.0, "transition_in": "CROSSFADE", "gap": True, "said": said,
                                 "why": "no approved visual for this moment"})
         shots[first:last + 1] = replacement

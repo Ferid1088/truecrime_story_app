@@ -59,6 +59,13 @@ class Item:
         return float(hi) - lo if hi is not None else None
 
 
+def card_tail(window: dict) -> float:
+    """The silence at the end of a beat's slot that is long enough for a chapter or title card to be laid in it."""
+    spoken_to = max((s["end"] for s in window["sentences"]), default=window["start"])
+    silence = window["end"] - spoken_to
+    return silence if silence >= ai_config.chapters.min_card_seconds else 0.0
+
+
 def beat_windows(manifest: dict) -> list[dict]:
     """Each beat's slot of the timeline, exactly as the production script cuts it: from its own start
     (the first from 0) to the next beat's start (the last to the end), with its timed sentences."""
@@ -562,7 +569,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     windows = beat_windows(manifest)
     extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
     fingerprint = hashlib.sha256(json.dumps({
-        "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"])]
+        "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"]), card_tail(w)]
                     for w in windows],
         "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
         "graph": graph_id, "shots": cfg.model_dump(),
@@ -638,7 +645,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         add_map_cards(shots, extras.get(bid) or {}, window_len, places, mapped, region)
         add_date_overlay(shots, extras.get(bid) or {})
         idx = beat_order.get(bid, 0)
-        AL.fill_beat(shots, window_len, idx, offers, state)
+        AL.fill_beat(shots, window_len, idx, offers, state, card_tail(window))
         board = AL.board_offer(state, idx + 1) if AL.board_due(offers, state, idx) else None
         if board is not None:
             offers.append(board)

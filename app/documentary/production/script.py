@@ -1346,6 +1346,20 @@ def link_music_usage(db: Session, film_key: str, language: str, production_scrip
     return n
 
 
+def satisfy_requirements(db: Session, plan_row: VisualPlan, script: dict, assets: dict[str, VisualAsset]) -> list[dict]:
+    """A requirement that the compiled film left without its approved picture gets one (mvp/satisfy.py)."""
+    from app.documentary.mvp.coverage import counted_requirements
+    from app.documentary.mvp.satisfy import ScriptRequirementPass
+
+    needs = db.get(VisualPlan, json.loads(plan_row.validation_json or "{}").get("mvp", {}).get("needs_plan_id") or 0)
+    if needs is None:
+        return []
+    firewall = SP.Firewall.from_json(script.get("firewall"))
+    tracker = UsageTracker.from_shots(script["shots"], _facts(assets))
+    return ScriptRequirementPass(script["shots"], counted_requirements(db, needs), assets, tracker,
+                                 firewall.blocks, _still_usable, _asset_info).run()
+
+
 async def build_production_script(db: Session, version: StoryVersion, plan_row: VisualPlan,
                                   manifest: dict, mode: str = "pilot",
                                   production_type: str = "original") -> ProductionScript:
@@ -1392,6 +1406,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
                      production_type=production_type or "original", opening_strategy=opening)
     script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")
                        or manifest["files"].get("narration_wav")}
+    script["requirements_placed"] = satisfy_requirements(db, plan_row, script, assets)
     if host:
         # Part 8a: the host's opening (then the logo) and mid appearances, shot and sound
         script = HT.insert_host(script, host, logo_seconds if after_host else None)
