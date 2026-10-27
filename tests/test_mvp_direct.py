@@ -3,8 +3,17 @@ import json
 from uuid import uuid4
 
 from app.core.ai_config import ai_config
-from app.db.models import (Case, EditorialBlueprint, MvpCandidate, MvpRequirement, RevealGraph, RevealNode,
-                           StoryVersion, VisualAsset, VisualPlan)
+from app.db.models import (
+    Case,
+    EditorialBlueprint,
+    MvpCandidate,
+    MvpRequirement,
+    RevealGraph,
+    RevealNode,
+    StoryVersion,
+    VisualAsset,
+    VisualPlan,
+)
 from app.documentary.mvp import direct as D
 
 
@@ -263,3 +272,51 @@ def test_a_bare_stretch_next_to_a_picture_is_absorbed_before_it_is_left_black(db
            {"command": "BLACK_SCREEN", "gap": True, "share": 0.1, "motion": "NONE"}]
     D.absorb_gaps(far, 100.0)               # 25 s would pass max_still_seconds: the stretch stays bare
     assert len(far) == 2
+
+
+def _repeat_film(description, said="the victim Caleb walked home alone"):
+    """One 1000 s beat: picture A for its first 20 s, then a bare stretch of 380 s, then a closing picture."""
+    from app.documentary.visuals.usage import UsageTracker, asset_facts
+
+    assets = [VisualAsset(case_id=1, asset_code=code, asset_type="image", description=description,
+                          relevance_tier=2, asset_role="evidence")
+              for code in ("A", "Z")]
+    items = [D.Item(asset=a, role="evidence", entity=None, rank=n) for n, a in enumerate(assets)]
+    tracker = UsageTracker({i.code: asset_facts(i.asset) for i in items})
+    tracker.add("A", 0.0, 20.0)
+    tracker.add("Z", 400.0, 1000.0)
+    beat = {"beat_id": "B01", "shots": [
+        {"command": "NEW_IMAGE", "share": 0.02, "asset_id": "A"},
+        {"command": "BLACK_SCREEN", "share": 0.38, "gap": True, "said": said},
+        {"command": "NEW_IMAGE", "share": 0.6, "asset_id": "Z"}]}
+    names = {}
+    D.repeat_for_gaps([beat], {"B01": {"beat_id": "B01", "start": 0.0, "end": 1000.0}}, {"B01": items}, tracker,
+                      names, lambda bid, item: False)
+    return beat["shots"], tracker
+
+
+def test_a_picture_is_shown_again_only_when_about_the_words_and_twice_at_most():
+    shots, tracker = _repeat_film("the victim Caleb on a street")
+    repeats = [s["asset_id"] for s in shots if s.get("repeat")]
+    assert repeats and len(repeats) == len(set(repeats))          # each picture comes back once, not more
+    assert tracker.appearances("A") == 2 and tracker.appearances("Z") == 2
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+    assert all(s["share"] * 1000.0 <= ai_config.mvp().shots.max_still_seconds + 1e-6 for s in shots if s.get("repeat"))
+    assert any(s.get("gap") for s in shots)                       # nothing else may fill the rest of the stretch
+
+
+def test_a_picture_that_is_not_about_the_words_is_never_repeated_to_fill_a_bare_moment():
+    shots, tracker = _repeat_film("a tractor in a barn")
+    assert not any(s.get("repeat") for s in shots)
+    assert any(s.get("gap") for s in shots)
+    assert tracker.appearances("A") == 1
+
+
+def test_two_showings_are_never_less_than_the_minimum_gap_apart():
+    shots, tracker = _repeat_film("the victim Caleb on a street")
+    need = ai_config.visual_direction.min_repeat_gap_seconds
+    assert need >= 300.0
+    for code in ("A", "Z"):
+        spans = tracker.spans[code]
+        for (_, end), (start, _) in zip(spans, spans[1:], strict=False):
+            assert start - end >= need - 1e-6

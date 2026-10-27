@@ -59,6 +59,14 @@ longest stretch first, an offer that belongs to the beat before one that may dri
 seconds, every evidence id once. Conflict pages and recaps are held 24 s (config `hold_seconds`, three times the old
 8 s card). Only what is still bare after that is held as a picture (never past `max_still_seconds`) or reported as a gap.
 
+**Repeating a picture is the very last resort.** Every picture is first placed once. Only after pictures, maps and
+alternative graphics are all placed, a moment that is still bare may show a picture again, and only if (1) nothing else
+fills it, (2) the words spoken over it are about that picture (`related`), (3) the picture has been shown once so far and
+the two showings are at least `visual_direction.min_repeat_gap_seconds` (300 s) apart, and (4) it is held no longer than
+`max_still_seconds`; a long bare stretch is cut into pieces, each its own picture, never the neighbouring picture
+held longer. A picture is shown twice at most (`visual_direction.max_*_appearances` = 2; a map only once per place).
+`mvp/direct.py::repeat_for_gaps`; what stays bare is the gap the owner is asked about.
+
 Config: `config/parameters/graphics.json` (`planner.chain`, `planner.min_seconds`, `hold_seconds`, `cue_fractions`,
 `drift_beats`, per-graphic limits) and `config/parameters/main_visual_planner.json` (`coverage`).
 

@@ -397,11 +397,11 @@
       "4": 0.55,
       "5": 0.3
     },
-    "max_generic_appearances": 1,
-    "max_context_appearances": 1,
+    "max_generic_appearances": 2,
+    "max_context_appearances": 2,
     "max_person_appearances": 2,
     "max_evidence_appearances": 2,
-    "min_repeat_gap_seconds": 240.0,
+    "min_repeat_gap_seconds": 300.0,
     "min_beat_coverage": 0.5,
     "cut_pattern": [
       7.0,

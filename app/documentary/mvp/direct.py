@@ -179,14 +179,15 @@ def fits(item: Item, seconds: float) -> bool:
 
 def baseline_assign(slots: list[dict], pool: list[Item], tracker: UsageTracker,
                     extra: list[Item], about: Callable[[Item, dict], bool] | None = None) -> list[Item | None]:
-    """Fill slots in order from the beat's pool, then from related approved items. An item is taken only if
-    the words over the slot are about it (`about`) and the film's repetition rules (category limits, minimum
-    gap between appearances) allow it there; otherwise the slot stays empty for a factual graphic."""
+    """Fill slots in order from the beat's pool, then from related approved items. An item is taken only if it
+    has not been shown yet and the words over the slot are about it (`about`); otherwise the slot stays empty for
+    a factual graphic. A picture is shown again only as the last resort (`repeat_for_gaps`)."""
     taken: set[str] = set()
     chosen: list[Item | None] = []
     for slot in slots:
         seconds = slot["end"] - slot["start"]
         pick = next((c for c in pool + extra if c.code not in taken and fits(c, seconds)
+                     and tracker.appearances(c.code) == 0
                      and (about is None or about(c, slot))
                      and tracker.allows(c.code, slot["start"], slot["end"])[0]), None)
         if pick is not None:
@@ -324,6 +325,62 @@ def absorb_gaps(shots: list[dict], window_len: float) -> None:
     shots[:] = [s for s in shots if s["share"] > 1e-9]
 
 
+def repeat_for_gaps(out_beats: list[dict], window_of: dict[str, dict], items: dict[str, list[Item]],
+                    tracker: UsageTracker, names: dict[str, set[str]],
+                    blocked: Callable[[str, Item], bool]) -> None:
+    """The last resort, after every picture, map and alternative graphic has been placed: a moment that is still
+    bare may show a picture again when the words over it are about that picture, the film's repetition rules allow
+    it (shown at most twice, at least `min_repeat_gap_seconds` between the two) and it is held no longer than
+    `max_still_seconds`. A long bare stretch is cut into pieces, each its own picture."""
+    limit = ai_config.mvp().shots.max_still_seconds
+    everything = [i for group in items.values() for i in group]
+    for beat in out_beats:
+        window = window_of[beat["beat_id"]]
+        window_len = window["end"] - window["start"]
+        at, shots = window["start"], []
+        original = beat["shots"]
+        for k, shot in enumerate(original):
+            seconds = shot["share"] * window_len
+            if shot.get("gap"):
+                beside = {original[j].get("asset_id") for j in (k - 1, k + 1) if 0 <= j < len(original)}
+                shots.extend(_repeat_pieces(shot, at, seconds, window_len, limit, everything, tracker, names,
+                                            lambda item, bid=beat["beat_id"]: blocked(bid, item), beside))
+            else:
+                shots.append(shot)
+            at += seconds
+        beat["shots"] = shots
+
+
+def _repeat_pieces(shot: dict, start: float, seconds: float, window_len: float, limit: float, everything: list[Item],
+                   tracker: UsageTracker, names: dict[str, set[str]], blocked: Callable[[Item], bool],
+                   beside: set[str | None]) -> list[dict]:
+    """The pieces of one bare stretch. The picture next to the stretch, or in the piece before, would only be held
+    longer (a continuation, not a repeat), so it is never taken there."""
+    pieces = max(1, math.ceil(seconds / limit - 1e-9))
+    length = seconds / pieces
+    out: list[dict] = []
+    previous: str | None = None
+    for n in range(pieces):
+        a, b = start + n * length, start + (n + 1) * length
+        edge = beside if n in (0, pieces - 1) else set()
+        pick = next((c for c in sorted(everything, key=lambda i: (tracker.last_shown(i.code) or 0.0, i.rank))
+                     if tracker.appearances(c.code) >= 1 and c.code != previous and c.code not in edge and fits(c, length)
+                     and not blocked(c)
+                     and related(c, shot.get("said", ""), names) and tracker.allows(c.code, a, b)[0]), None)
+        previous = pick.code if pick else None
+        if pick is None:
+            if out and out[-1].get("gap"):
+                out[-1]["share"] += length / window_len
+            else:
+                out.append({**shot, "share": length / window_len})
+            continue
+        tracker.add(pick.code, a, b)
+        out.append({**_shot({"start": a, "end": b}, pick, window_len, n,
+                            "the same picture again, the last resort for a moment with nothing else: the words are about it"),
+                    "repeat": True, "said": shot.get("said", "")})
+    return out
+
+
 def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str, said: str = "") -> dict:
     share = (slot["end"] - slot["start"]) / window_len
     if item is None:
@@ -334,6 +391,22 @@ def _shot(slot: dict, item: Item | None, window_len: float, index: int, why: str
     return {"command": "SHOW_CLIP" if video else "NEW_IMAGE", "share": share, "asset_id": item.code,
             "motion": "NONE" if video else PHOTO_MOTIONS[index % len(PHOTO_MOTIONS)], "speed": 1.0,
             "transition_in": "CROSSFADE", "role": item.role, "why": why}
+
+
+def bare_stretches(out_beats: list[dict], window_of: dict[str, dict]) -> list[dict]:
+    """Every moment of the film that still has nothing to show, with the words spoken over it."""
+    gaps = []
+    for beat in out_beats:
+        window = window_of[beat["beat_id"]]
+        window_len = window["end"] - window["start"]
+        at = window["start"]
+        for shot in beat["shots"]:
+            seconds = shot["share"] * window_len
+            if shot.get("gap"):
+                gaps.append({"beat": beat["beat_id"], "start": round(at, 2), "end": round(at + seconds, 2),
+                             "said": (shot.get("said") or "")[:240]})
+            at += seconds
+    return gaps
 
 
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
@@ -355,7 +428,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     cfg = ai_config.mvp().shots
     items = approved_items(db, plan)
     tracker = UsageTracker({i.code: asset_facts(i.asset) for group in items.values() for i in group})
-    out_beats, candidates, gaps, agent_used = [], {}, [], 0
+    out_beats, candidates, window_of, agent_used = [], {}, {}, 0
     windows = beat_windows(manifest)
     extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
     fingerprint = hashlib.sha256(json.dumps({
@@ -365,7 +438,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "graph": graph_id, "shots": cfg.model_dump(),
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
         "places": sorted(place_names), "region": region,
-        "offers": [[o.key, o.first, o.last, o.seconds] for o in offers]}, sort_keys=True).encode()).hexdigest()
+        "offers": [[o.key, o.first, o.last, o.seconds] for o in offers],
+        "repeat": ai_config.visual_direction.model_dump()}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -403,7 +477,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                                                           slots_view, pool_view), slots, pool)
             if proposal:
                 for n, item in sorted(proposal.items()):
-                    if tracker.allows(item.code, slots[n]["start"], slots[n]["end"])[0]:
+                    if tracker.appearances(item.code) == 0 and tracker.allows(
+                            item.code, slots[n]["start"], slots[n]["end"])[0]:
                         tracker.add(item.code, slots[n]["start"], slots[n]["end"])
                         chosen[n] = item
                 agent_used += 1 if chosen else 0
@@ -438,14 +513,12 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         total = sum(s["share"] for s in shots)
         for s in shots:
             s["share"] = round(s["share"] / total, 5)
-        at = window["start"]
-        for s in shots:
-            if s.get("gap"):
-                gaps.append({"beat": bid, "start": round(at, 2), "end": round(at + s["share"] * window_len, 2),
-                             "said": (s.get("said") or "")[:240]})
-            at += s["share"] * window_len
         out_beats.append({"beat_id": bid, "shots": shots})
+        window_of[bid] = window
         candidates[bid] = sorted({i.code for i in pool + near})
+    repeat_for_gaps(out_beats, window_of, items, tracker, names,
+                    lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
+    gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "alternatives": AL.seconds_report(state),
