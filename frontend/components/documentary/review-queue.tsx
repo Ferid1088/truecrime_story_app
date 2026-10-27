@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { ApiError, apiFileUrl, mvpApi } from "@/lib/api";
@@ -66,24 +66,35 @@ const NOTE_SAVE_DELAY_MS = 800;
 
 /** The owner's note on one picture or clip: the planner takes it as true and places the picture by it. It is saved
  *  by itself: shortly after typing stops, when the box loses focus and when the picture is left (a decision or Next). */
-function OwnerNote({ caseId, item }: { caseId: number; item: MvpCandidateGroup }) {
+function OwnerNote({ caseId, item, flushRef }: {
+  caseId: number;
+  item: MvpCandidateGroup;
+  flushRef: MutableRefObject<(() => Promise<boolean>) | null>;
+}) {
   const [draft, setDraft] = useState(item.owner_note ?? "");
   const [status, setStatus] = useState("");
   const savedRef = useRef((item.owner_note ?? "").trim());
   const draftRef = useRef(draft);
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
     const text = draftRef.current.trim();
-    if (text === savedRef.current) return;
+    if (text === savedRef.current) return true;
     setStatus("Saving...");
     try {
       const out = await mvpApi.saveNote(caseId, item.asset_id, text);
       savedRef.current = out.owner_note ?? "";
       setStatus("Saved. The planner uses it the next time the film is directed.");
+      return true;
     } catch (e) {
       setStatus(e instanceof ApiError ? e.message : "Could not save the note.");
+      return false;
     }
   }, [caseId, item.asset_id]);
+
+  useEffect(() => {
+    flushRef.current = save;
+    return () => { flushRef.current = null; };
+  }, [flushRef, save]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void save(), NOTE_SAVE_DELAY_MS);
@@ -128,6 +139,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [decided, setDecided] = useState<Record<number, Verdict>>({});
   const [message, setMessage] = useState("");
   const activeRef = useRef<HTMLButtonElement | null>(null);
+  const flushNote = useRef<(() => Promise<boolean>) | null>(null);
   const [busy, setBusy] = useState(false);
   // the list is fixed while you work: a decision never reshuffles it or brings a picture back
   const loaded: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
@@ -166,6 +178,10 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
         "Approve it anyway on your own decision? It stays marked as needing a licence before publication.")) return;
       setBusy(true);
       try {
+        if (flushNote.current && !(await flushNote.current())) {
+          setMessage("Your note could not be saved, so nothing was decided. Try again.");
+          return;
+        }
         const done = await mvpApi.decideGroup(caseId, item.candidate_ids, decision, blocked);
         setDecided((d) => ({ ...d, [item.id]: decision === "approve" ? "approved" : "rejected" }));
         const where = item.requirements.length > 1 ? `${item.requirements.length} requirements` : item.requirement;
@@ -404,7 +420,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 )}
               </p>
             </div>
-            <OwnerNote key={item.asset_id} caseId={caseId} item={item} />
+            <OwnerNote key={item.asset_id} caseId={caseId} item={item} flushRef={flushNote} />
             <div className="flex flex-wrap gap-2" data-testid="review-queue-decisions">
               {DECISIONS.map((key) => (
                 <Badge key={key} variant="outline">
