@@ -732,3 +732,16 @@ def test_a_statement_card_fills_a_bare_moment_whose_words_are_about_the_fact_and
     shots[0]["said"] = "Caleb Flynn was convicted of murder after two hours."
     AL.fill_beat(shots, length, 2, [offer], AL.State())
     assert shots[0]["command"] == "SHOW_GRAPHIC" and shots[0]["graphic"]["type"] == "fact_card"
+
+
+def test_the_statement_card_is_only_chosen_when_no_other_alternative_fits_the_stretch():
+    rich = text_offer("F1", "Kayla Keyt read the victim statement.", best=2, drift=3, seconds=30.0)
+    card = text_offer("F2", "Kayla Keyt read the victim statement.", best=3, drift=3, seconds=15.0, kind="fact_card")
+    shots, length = gap_beat(30.0, (30.0,))
+    shots[0]["said"] = "Kayla Keyt spoke next."
+    AL.fill_beat(shots, length, 3, [card, rich], AL.State())     # the card belongs to this beat, the other one drifted here
+    assert rich.placed and not card.placed
+    again, length = gap_beat(30.0, (30.0,))
+    again[0]["said"] = "Kayla Keyt spoke next."
+    AL.fill_beat(again, length, 3, [card], AL.State())
+    assert card.placed                                           # nothing else: the card fills it

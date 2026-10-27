@@ -829,6 +829,7 @@
       "min_run_seconds": 6.0,
       "relevance": {"min_shared_words": 1, "exempt": ["recap", "conflict_board"]},
       "borrow": {"min_shot_seconds": 6.0},
+      "last_resort": ["fact_card"],
       "escalation": [
         {"min_beats_between_same_engine": 2, "max_per_film": 20, "extra_drift": 2, "borrow_seconds": 3.0},
         {"min_beats_between_same_engine": 1, "max_per_film": 28, "extra_drift": 4, "borrow_seconds": 6.0},

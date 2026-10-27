@@ -384,9 +384,12 @@ def usable(o: Offer, idx: int, remaining: float, state: State, said: str = "") -
 
 
 def priority(o: Offer, idx: int, state: State | None = None) -> tuple:
-    chain = T.config().planner["chain"]
+    planner = T.config().planner
+    chain = planner["chain"]
     again = 1 if state is not None and o.kind == state.engine_kind else 0       # another engine than the last one
-    return (0 if o.best == idx else 1, again, chain.index(o.kind) if o.kind in chain else len(chain), o.best)
+    last_resort = 1 if o.kind in planner["last_resort"] else 0                  # only when no other alternative fits
+    return (last_resort, 0 if o.best == idx else 1, again, chain.index(o.kind) if o.kind in chain else len(chain),
+            o.best)
 
 
 def gap_runs(shots: list[dict], window_len: float) -> list[tuple[int, int, float]]:
