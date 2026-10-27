@@ -71,16 +71,24 @@ def _bug(path: str, height: int, black_below: int, plate: float) -> tuple[np.nda
     return rgb * (alpha / np.maximum(total, 1e-6))[..., None], total
 
 
+def ease(u: float) -> float:
+    """Slow out of the corner, slow back into it."""
+    return u * u * (3.0 - 2.0 * u)
+
+
 class LogoBug:
-    """Composites the language's logo into frames inside the script's windows (fading in and out)."""
+    """Composites the language's logo into frames inside the script's windows (fading in and out), and once every
+    `lap.every_seconds` of the film for the whole of a lap around the screen (`lap.seconds`)."""
 
     def __init__(self, script: dict, W: int, H: int):
         cfg = ai_config.branding_settings().logo
         self.cfg = cfg
         self.windows = [tuple(w) for w in (script.get("logo") or {}).get("windows") or []]
+        self.duration = float(script.get("duration") or 0.0)
         path = logo_path(script.get("language", ""))
         self.box = self.rgb = self.alpha = None
-        if not (cfg.enabled and self.windows and path is not None):
+        self.route: list[tuple[float, float]] = []
+        if not (cfg.enabled and path is not None):
             self.windows = []
             return
         rgb, alpha = _bug(str(path), max(8, round(H * cfg.height_fraction)), cfg.black_key_below, cfg.plate_alpha)
@@ -89,15 +97,53 @@ class LogoBug:
         x = margin if script["language"] in RTL else W - margin - w
         self.box = (x, margin, x + w, margin + h)
         self.rgb, self.alpha = rgb, alpha[..., None]
+        low = round(H * (1.0 - cfg.lap.bottom_clear_fraction)) - h
+        corners = [(margin, margin), (W - margin - w, margin), (W - margin - w, low), (margin, low)]    # clockwise
+        first = corners.index((x, margin))
+        self.route = corners[first:] + corners[:first] + [corners[first]]
 
-    def apply(self, frame: np.ndarray, t: float) -> np.ndarray:
+    def position(self, u: float) -> tuple[float, float]:
+        """Where the logo is `u` (0..1) of the way round its lap: constant speed along the route, eased at both ends."""
+        legs = [abs(b[0] - a[0]) + abs(b[1] - a[1]) for a, b in zip(self.route, self.route[1:], strict=False)]
+        at = ease(min(max(u, 0.0), 1.0)) * sum(legs)
+        for (a, b), leg in zip(zip(self.route, self.route[1:], strict=False), legs, strict=True):
+            if at <= leg or (a, b) == (self.route[-2], self.route[-1]):
+                k = min(at / leg, 1.0) if leg else 1.0
+                return a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k
+            at -= leg
+        return self.route[-1]
+
+    def lap_at(self, t: float) -> tuple[float, float, float] | None:
+        """(x, y, fade) while a lap is under way: it starts at every multiple of `every_seconds` (not at 0) and only
+        when it ends before the film does. It fades in and out only where the logo is not already on screen."""
+        lap = self.cfg.lap
+        k = int(t // lap.every_seconds)
+        start = k * lap.every_seconds
+        if k < 1 or t - start >= lap.seconds or start + lap.seconds > self.duration:
+            return None
+        x, y = self.position((t - start) / lap.seconds)
+        return x, y, min(1.0, (t - start) / self.cfg.fade_seconds, (start + lap.seconds - t) / self.cfg.fade_seconds)
+
+    def window_fade(self, t: float) -> float:
         for start, end in self.windows:
             if start <= t < end:
-                fade = min(1.0, (t - start) / self.cfg.fade_seconds, (end - t) / self.cfg.fade_seconds)
-                x0, y0, x1, y1 = self.box
-                a = self.alpha * self.cfg.opacity * fade
-                out = frame.copy()
-                region = out[y0:y1, x0:x1].astype(np.float32)
-                out[y0:y1, x0:x1] = (region * (1 - a) + self.rgb * a).astype(np.uint8)
-                return out
-        return frame
+                return min(1.0, (t - start) / self.cfg.fade_seconds, (end - t) / self.cfg.fade_seconds)
+        return 0.0
+
+    def apply(self, frame: np.ndarray, t: float) -> np.ndarray:
+        if self.box is None:
+            return frame
+        fade, (x, y) = self.window_fade(t), self.box[:2]
+        lap = self.lap_at(t)
+        if lap is not None:
+            x, y, lap_fade = lap
+            fade = max(fade, lap_fade)
+        if fade <= 0.0:
+            return frame
+        h, w = self.alpha.shape[:2]
+        x, y = round(x), round(y)
+        a = self.alpha * self.cfg.opacity * fade
+        out = frame.copy()
+        region = out[y:y + h, x:x + w].astype(np.float32)
+        out[y:y + h, x:x + w] = (region * (1 - a) + self.rgb * a).astype(np.uint8)
+        return out

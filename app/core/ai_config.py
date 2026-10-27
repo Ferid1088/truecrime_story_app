@@ -2904,6 +2904,17 @@ class MvpOwnerNoteConfig(BaseModel):
     max_chars: int = Field(ge=40)
 
 
+class LogoLapConfig(BaseModel):
+    """Every `every_seconds` of the film the logo leaves its corner, goes once around the screen and returns, taking
+    `seconds` (it eases out of and into its place); it is on screen for the whole lap, over any kind of shot. The
+    route runs along the screen's edges inset by the logo's margin, its lower edge `bottom_clear_fraction` of the
+    height above the bottom (the subtitles and the safe zone stay free; 0 = the full perimeter)."""
+
+    every_seconds: float = Field(gt=0.0)
+    seconds: float = Field(gt=0.0)
+    bottom_clear_fraction: float = Field(ge=0.0, lt=0.5)
+
+
 class LogoConfig(BaseModel):
     """The channel logo shown in a corner of the film (config/parameters/branding.json): on pictures and clips, not on
     graphics, maps, host scenes, chapter or title cards (they have their own layouts, or the logo already plays)."""
@@ -2919,6 +2930,7 @@ class LogoConfig(BaseModel):
     black_key_below: int = Field(ge=0, le=255)
     # a faint dark plate under the logo keeps it readable on a bright picture
     plate_alpha: float = Field(ge=0.0, le=1.0)
+    lap: LogoLapConfig
 
 
 class BrandingConfig(BaseModel):

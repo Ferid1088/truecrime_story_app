@@ -12,7 +12,12 @@
       "fade_seconds": 0.6,
       "min_window_seconds": 4.0,
       "black_key_below": 40,
-      "plate_alpha": 0.4
+      "plate_alpha": 0.4,
+      "lap": {
+        "every_seconds": 600,
+        "seconds": 15,
+        "bottom_clear_fraction": 0.2
+      }
     }
   }
 }
