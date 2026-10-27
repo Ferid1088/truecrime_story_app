@@ -212,6 +212,7 @@ def case_region(case: Case) -> str | None:
 async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: EditorialBlueprint,
                        manifest: dict, language: str, use_agent: bool = True) -> tuple[VisualPlan, dict]:
     target = language_plan(db, needs_plan, language)
+    RV.supersede(db, case.id, language)
     blueprint = json.loads(bp_row.blueprint_json or "{}")
     beats = {b["id"]: {"beat_id": b["id"], "purpose": b.get("purpose"), "summary": b.get("summary"),
                        "human_focus": b.get("human_focus")} for b in blueprint.get("beats") or []}

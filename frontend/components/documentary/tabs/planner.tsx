@@ -13,6 +13,54 @@ import type { DocumentaryTabProps } from "../shared";
 
 const REVIEW_STEPS = ["IMPLEMENTING", "PRODUCING", "VALIDATING", "AWAITING_OWNER_REVIEW"] as const;
 
+const KIND_LABEL: Record<string, string> = {
+  conflict: "conflict pages",
+  conflict_board: "conflict board",
+  document: "document cards",
+  floor_plan: "floor plans",
+  headline: "newspaper headlines",
+  key_facts: "key facts",
+  quote: "quotes",
+  recap: "recaps",
+  timeline: "timelines",
+};
+
+/** What direction left empty after every picture, video and graphic, and which graphics filled the rest. */
+function DirectionCard({ caseId, refreshKey }: { caseId: number; refreshKey: number }) {
+  const gaps = useApi(() => mvpApi.gaps(caseId), [caseId, refreshKey], { keepPrevious: true });
+  if (!gaps.data) return null;
+  const { gap_count, gap_seconds, alternatives } = gaps.data;
+  const used = Object.entries(alternatives).sort((a, b) => b[1] - a[1]);
+  return (
+    <Card data-testid="direction-card">
+      <CardHeader>
+        <CardTitle className="text-sm">Direction · {gaps.data.language.toUpperCase()}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p>
+          {gap_count === 0
+            ? "Every moment of the film has a picture, a video or a graphic."
+            : `${gap_count} moment(s), ${gap_seconds} s of the film, still have no picture, video or graphic. The film is not made until they do.`}
+        </p>
+        {used.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-xs" data-testid="direction-alternatives">
+            {used.map(([kind, seconds]) => (
+              <Badge key={kind} variant="outline">
+                {KIND_LABEL[kind] ?? kind}: {Math.round(seconds)} s
+              </Badge>
+            ))}
+          </div>
+        )}
+        {gap_count > 0 && (
+          <Link className="inline-block text-sm underline" href={`/documentary/${caseId}/review`}>
+            Review pictures
+          </Link>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PlannerTab({ caseId, refreshKey }: DocumentaryTabProps) {
   const plan = useApi(() => mvpApi.plan(caseId), [caseId, refreshKey], { keepPrevious: true });
   const reviews = useApi(() => mvpApi.reviews(caseId), [caseId, refreshKey], { keepPrevious: true });
@@ -23,6 +71,7 @@ export function PlannerTab({ caseId, refreshKey }: DocumentaryTabProps) {
         research for what is missing, five separate checks on every candidate picture, then the shot list
         and the film itself. A rendered film stays a review candidate until you approve its exact file.
       </p>
+      <DirectionCard caseId={caseId} refreshKey={refreshKey} />
       {(reviews.data ?? []).map((review) => (
         <FilmReviewCard key={review.id} review={review} onChange={reviews.refetch} />
       ))}

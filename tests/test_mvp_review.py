@@ -78,3 +78,22 @@ def test_decision_endpoint_conflicts_outside_the_review_state(db_session):
     client = TestClient(app)
     r = client.post(f"/api/mvp/reviews/{review.id}/decision", json={"decision": "APPROVED"})
     assert r.status_code == 409
+
+
+def test_a_new_run_starts_the_review_over_but_never_touches_a_decision(db_session, tmp_path):
+    case = _case(db_session)
+    review, film = _to_validating(db_session, case, tmp_path)
+    RV.submit_for_review(db_session, review, production_script_id=None, render_path=film,
+                         validation={"review_ready": False, "blocking": ["a black stretch of 77.25s"]})
+    assert review.state == "PRODUCING" and review.render_sha256 and "77.25" in review.validation_json
+    RV.supersede(db_session, case.id, "en")                # a new run directs the film again
+    db_session.refresh(review)
+    assert review.state == "IMPLEMENTING" and review.render_sha256 is None and review.validation_json == "{}"
+    RV.advance(db_session, review, "PRODUCING")
+    RV.advance(db_session, review, "VALIDATING")
+    RV.submit_for_review(db_session, review, production_script_id=None, render_path=film,
+                         validation={"review_ready": True, "blocking": []})
+    RV.decide(db_session, review, "APPROVED", render_sha256=review.render_sha256)
+    RV.supersede(db_session, case.id, "en")                # the owner's decision stays
+    db_session.refresh(review)
+    assert review.state == "APPROVED" and review.render_sha256

@@ -526,6 +526,7 @@ function JobPanel({
   onCancel: () => void;
   onResume: () => void;
 }) {
+  const router = useRouter();
   const percent = Math.round(job.progress * 100);
   const canCancel = job.status === "queued" || job.status === "running";
   const canResume =
@@ -637,6 +638,11 @@ function JobPanel({
           <p className="rounded-md border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs">
             <span className="font-medium">Next:</span> {job.next_action}
           </p>
+        )}
+        {job.error?.includes("Awaiting picture review") && (
+          <Button size="sm" onClick={() => router.push(`/documentary/${job.case_id}/review`)} data-testid="job-review-pictures">
+            Review pictures
+          </Button>
         )}
         {approvalStage?.status === "done" && approvedBy && (
           <div className="rounded-md border border-border px-3 py-2 text-xs leading-5" data-testid="final-approval">

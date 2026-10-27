@@ -61,6 +61,17 @@ def open_review(db: Session, case_id: int, language: str) -> MvpFilmReview:
     return row
 
 
+def supersede(db: Session, case_id: int, language: str) -> None:
+    """A new run starts directing the film: a film still waiting for its checks or for the owner belongs to an older
+    run (its file may not even match today's narration), so its review starts over instead of showing old findings.
+    A decided review (approved, rejected, revision required) is never touched."""
+    row = current(db, case_id, language)
+    if row is not None and row.state in ("PRODUCING", "VALIDATING", "AWAITING_OWNER_REVIEW"):
+        row.state, row.production_script_id, row.render_path, row.render_sha256 = "IMPLEMENTING", None, None, None
+        row.validation_json = "{}"
+        db.commit()
+
+
 def advance(db: Session, review: MvpFilmReview, new_state: str) -> MvpFilmReview:
     if new_state in OWNER_DECISIONS:
         raise ReviewError(f"{new_state} is the owner's decision; use decide()")
