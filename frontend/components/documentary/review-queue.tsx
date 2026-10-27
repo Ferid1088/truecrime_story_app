@@ -237,7 +237,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
           Nothing to show here right now. Try the other kind or another status tab.
         </p>
       ) : item ? (
-        <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)_340px] xl:grid-cols-[300px_minmax(0,1fr)_400px]">
+        <div className="grid gap-4 lg:grid-cols-[clamp(240px,15vw,640px)_minmax(0,1fr)_clamp(340px,25vw,900px)]">
           <ol className={`max-h-80 space-y-1 overflow-y-auto pr-1 lg:max-h-none ${height}`} aria-label="Pictures to review" data-testid="review-queue-list">
             {queue.map((g, n) => {
               const v = verdictOf(g, decided);
