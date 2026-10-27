@@ -2604,6 +2604,9 @@ class HostLedShortsConfig(BaseModel):
     identity_line: dict[str, str] = {}
     # Shorts closing: the outro sentence then the identity line, or the reverse.
     closing_order: Literal["cta_then_identity", "identity_then_cta"] = "cta_then_identity"
+    # How fast each channel's voice speaks the closing sentences (words a minute, measured on those sentences): the
+    # estimate of a closing clip's length, before any paid call, is made from it.
+    closing_words_per_minute: dict[str, int] = {}
     closing_library: ClosingLibraryConfig = Field(default_factory=ClosingLibraryConfig)
 
 

@@ -40,7 +40,7 @@ class HeyGenClosingRenderer:
         pricing = load_pricing()
         characters = sum(len(s) for s in sentences)
         words = sum(len(s.split()) for s in sentences)
-        seconds = round(words / ai_config.host.wpm(language) * 60, 1)
+        seconds = round(words / ai_config.shorts_host_led.closing_words_per_minute[language] * 60, 1)
         voice = characters * float(pricing["tts"]["eleven_v4"]["eur_per_1m_characters"]) / 1e6
         avatar = seconds / 60 * float(pricing["heygen"]["eur_per_minute"])
         return CostEstimate(characters=characters, voice_eur=round(voice, 4), seconds=seconds,

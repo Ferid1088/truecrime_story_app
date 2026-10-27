@@ -113,6 +113,14 @@
       "seed": null,
       "default_use_stored": true,
       "default_create_new": true
+    },
+    "closing_words_per_minute": {
+      "en": 162,
+      "de": 151,
+      "fa": 146,
+      "ar": 140,
+      "es": 137,
+      "tr": 130
     }
   }
 }

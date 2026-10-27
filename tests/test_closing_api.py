@@ -12,6 +12,7 @@ def isolate(db_session, monkeypatch, tmp_path):
     cfg = ai_config.shorts_host_led
     monkeypatch.setitem(cfg.outro_sentence, LANG, "Follow us.")
     monkeypatch.setitem(cfg.identity_line, LANG, "I'm Fereidoun.")
+    monkeypatch.setitem(cfg.closing_words_per_minute, LANG, 150)
     monkeypatch.setitem(ai_config.voice.languages, LANG, ai_config.voice.languages["en"])
     monkeypatch.setitem(ai_config.channels, LANG, ai_config.channels["en"])
     monkeypatch.setattr(CL, "ROOT", tmp_path)
@@ -132,6 +133,7 @@ def _without_setup(monkeypatch, language="es"):
     monkeypatch.delitem(ai_config.voice.languages, language)
     monkeypatch.delitem(ai_config.shorts_host_led.identity_line, language)
     monkeypatch.delitem(ai_config.shorts_host_led.outro_sentence, language)
+    monkeypatch.delitem(ai_config.shorts_host_led.closing_words_per_minute, language)
 
 
 def test_a_channel_without_voice_or_spoken_wording_is_listed_as_not_configured_instead_of_breaking_the_page(
@@ -140,7 +142,7 @@ def test_a_channel_without_voice_or_spoken_wording_is_listed_as_not_configured_i
     body = client.get("/api/closing-clips")
     assert body.status_code == 200
     rows = body.json()["languages"]
-    assert rows["es"]["not_configured"] == ["voice", "identity line", "outro sentence"]
+    assert rows["es"]["not_configured"] == ["voice", "identity line", "outro sentence", "speaking rate"]
     assert rows["es"]["variants"] == 0 and rows["es"]["estimate_per_variant"]["total_eur"] == 0
     assert "not_configured" not in rows[LANG] and "not_configured" not in rows["tr"]
 
@@ -155,3 +157,14 @@ def test_spanish_and_turkish_have_their_voice_and_closing_wording(client):
     rows = client.get("/api/closing-clips").json()["languages"]
     for language in ("es", "tr"):
         assert "not_configured" not in rows[language] and len(rows[language]["sentences"]) == 2
+
+
+def test_every_channel_has_the_speaking_rate_the_closing_estimate_is_made_from_and_the_real_renderer_estimates(db_session):
+    from app.core.ai_config import ai_config
+    from app.shortform import closing_render as CR
+
+    renderer = CR.HeyGenClosingRenderer()
+    for language in ai_config.channels:
+        assert ai_config.shorts_host_led.closing_words_per_minute[language] > 100, language
+        sentences = CL.closing_sentences(language, CL.KIND_SHORTS)
+        assert renderer.estimate(language, sentences).seconds > 0, language

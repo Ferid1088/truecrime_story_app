@@ -100,7 +100,8 @@ def missing_setup(language: str) -> list[str]:
     cfg = ai_config.shorts_host_led
     return [name for name, ok in (("voice", language in ai_config.voice.languages),
                                   ("identity line", language in cfg.identity_line),
-                                  ("outro sentence", language in cfg.outro_sentence)) if not ok]
+                                  ("outro sentence", language in cfg.outro_sentence),
+                                  ("speaking rate", language in cfg.closing_words_per_minute)) if not ok]
 
 
 def _voice_id(language: str) -> str:
