@@ -169,7 +169,7 @@ def test_a_clip_from_youtube_is_cut_to_its_own_length_and_share_of_the_film(monk
     monkeypatch.setattr(ai_config.footage, "max_third_party_share", 1.0)
     assets = {"Y1": SimpleNamespace(asset_code="Y1", provider="youtube_clip"),
               "Y2": SimpleNamespace(asset_code="Y2", provider="youtube_clip"),
-              "P1": SimpleNamespace(asset_code="P1", provider="upload")}
+              "P1": SimpleNamespace(asset_code="P1", provider="upload", asset_type="photo")}
     shots = [{"kind": "video", "asset_id": "Y1", "clip_start": 0.0, "clip_end": 30.0, "start": 0.0, "end": 30.0,
               "beat_id": "B1"},
              {"kind": "video", "asset_id": "Y2", "clip_start": 0.0, "clip_end": 30.0, "start": 30.0, "end": 100.0,

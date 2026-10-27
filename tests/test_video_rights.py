@@ -125,7 +125,7 @@ def test_third_party_footage_is_capped_per_clip_and_in_total(monkeypatch):
     monkeypatch.setattr(ai_config.footage, "max_third_party_share", 0.10)
     assets = {"V1": SimpleNamespace(asset_code="V1", provider="internet_archive"),
               "V2": SimpleNamespace(asset_code="V2", provider="internet_archive"),
-              "P1": SimpleNamespace(asset_code="P1", provider="upload")}
+              "P1": SimpleNamespace(asset_code="P1", provider="upload", asset_type="photo")}
     shots = [{"kind": "video", "asset_id": "V1", "clip_start": 0.0, "clip_end": 30.0,
               "start": 0.0, "end": 30.0, "beat_id": "B1"},
              {"kind": "video", "asset_id": "V2", "clip_start": 0.0, "clip_end": 30.0,

@@ -641,7 +641,8 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
         near = [x for x in sentence_starts if sh["start"] + hold <= x <= cut and cut - x <= 3.0]
         if near:
             cut = round(max(near), 3)
-        pool = [a.asset_code for a in _earned_pool(sh["beat_id"], out, plan, assets, order, fw)]
+        pool = [a.asset_code for a in _earned_pool(sh["beat_id"], out, plan, assets, order, fw)
+                if a.asset_type == "photo"]
         choice = tracker.pick(pool, cut, sh["end"], named_between(sentences, cut, sh["end"]),
                               avoid={sh.get("asset_id")})
         if choice is None:
