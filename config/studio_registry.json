@@ -226,6 +226,118 @@
           "height": 0.08
         }
       }
+    },
+    {
+      "id": "STUDIO_ES_01_OVERVIEW_WIDE",
+      "language": "es",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "8cef2f4b5e0e24a875454b7ae882c895ce180f80dc016246bf336caf706182ff",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "arched Spanish study at night, Barcelona skyline in the windows, leather armchair left of centre, case wall with the Tras la Pista sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": {
+          "x": 0.2,
+          "y": 0.35,
+          "width": 0.25,
+          "height": 0.52
+        },
+        "head": {
+          "x": 0.28,
+          "y": 0.36,
+          "width": 0.09,
+          "height": 0.11
+        },
+        "logo": {
+          "x": 0.4,
+          "y": 0.25,
+          "width": 0.23,
+          "height": 0.12
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        },
+        "host_standing": {
+          "x": 0.55,
+          "y": 0.09,
+          "width": 0.18,
+          "height": 0.78
+        },
+        "head_standing": {
+          "x": 0.59,
+          "y": 0.11,
+          "width": 0.09,
+          "height": 0.12
+        }
+      }
+    },
+    {
+      "id": "STUDIO_TR_01_OVERVIEW_WIDE",
+      "language": "tr",
+      "file": "01_overview_wide.png",
+      "camera": 1,
+      "shot": "overview_wide",
+      "asset_type": "background",
+      "camera_angle": "front_wide",
+      "shot_size": "wide",
+      "width": 1672,
+      "height": 941,
+      "sha256": "0e6fd1d5439daf0a94542365847a08eb4686cc2221a2844471cba6803e17c6b4",
+      "approved_for_host": true,
+      "approved_for_avatar": true,
+      "lighting_style": "warm tungsten practicals at night, low-key",
+      "studio_style": "Istanbul study at night, Galata Tower in the window, leather armchair left of centre, case wall with the Gizli Izler sign",
+      "notes": "master: the armchair for seated scenes, the free floor for standing scenes; medium and close are cuts of this picture",
+      "safe_zones": {
+        "host": {
+          "x": 0.22,
+          "y": 0.33,
+          "width": 0.25,
+          "height": 0.53
+        },
+        "head": {
+          "x": 0.3,
+          "y": 0.34,
+          "width": 0.09,
+          "height": 0.11
+        },
+        "logo": {
+          "x": 0.42,
+          "y": 0.25,
+          "width": 0.2,
+          "height": 0.11
+        },
+        "lower_third": {
+          "x": 0.05,
+          "y": 0.86,
+          "width": 0.4,
+          "height": 0.1
+        },
+        "host_standing": {
+          "x": 0.56,
+          "y": 0.09,
+          "width": 0.18,
+          "height": 0.78
+        },
+        "head_standing": {
+          "x": 0.6,
+          "y": 0.11,
+          "width": 0.09,
+          "height": 0.12
+        }
+      }
     }
   ],
   "profiles": {
@@ -554,6 +666,170 @@
       "background_mode": "provider_composited",
       "review": {
         "by": "visual review of the masters (Claude, 2026-10-09)",
+        "confirmed": false
+      }
+    },
+    "es": {
+      "id": "STUDIO_ES",
+      "language": "es",
+      "primary_background": "STUDIO_ES_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_ES_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.5,
+          "host_center_x": 0.325,
+          "host_bottom": 0.87,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_ES_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.015,
+            "y": 0.28,
+            "width": 0.62,
+            "height": 0.62
+          },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.823,
+          "host_center_x": 0.5,
+          "host_bottom": 0.952,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_ES_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.075,
+            "y": 0.19,
+            "width": 0.5,
+            "height": 0.5
+          },
+          "background_blur": 0.2,
+          "host_height_ratio": 1.02,
+          "host_center_x": 0.5,
+          "host_bottom": 1.2,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "provider_composited",
+      "review": {
+        "by": "visual review of the masters (Claude, 2026-10-27); measured against the armchair and the free floor",
+        "confirmed": false
+      }
+    },
+    "tr": {
+      "id": "STUDIO_TR",
+      "language": "tr",
+      "primary_background": "STUDIO_TR_01_OVERVIEW_WIDE",
+      "presets": {
+        "HOST_WIDE": {
+          "asset_id": "STUDIO_TR_01_OVERVIEW_WIDE",
+          "background_blur": 0.0,
+          "host_height_ratio": 0.51,
+          "host_center_x": 0.345,
+          "host_bottom": 0.86,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_MEDIUM": {
+          "asset_id": "STUDIO_TR_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.035,
+            "y": 0.27,
+            "width": 0.62,
+            "height": 0.62
+          },
+          "background_blur": 0.0,
+          "host_height_ratio": 0.823,
+          "host_center_x": 0.5,
+          "host_bottom": 0.952,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        },
+        "HOST_CLOSE": {
+          "asset_id": "STUDIO_TR_01_OVERVIEW_WIDE",
+          "crop": {
+            "x": 0.095,
+            "y": 0.18,
+            "width": 0.5,
+            "height": 0.5
+          },
+          "background_blur": 0.2,
+          "host_height_ratio": 1.02,
+          "host_center_x": 0.5,
+          "host_bottom": 1.2,
+          "camera_safe": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.9,
+            "height": 0.9
+          },
+          "subtitle_safe": {
+            "x": 0.1,
+            "y": 0.82,
+            "width": 0.8,
+            "height": 0.13
+          }
+        }
+      },
+      "alternate_angles": [],
+      "background_mode": "provider_composited",
+      "review": {
+        "by": "visual review of the masters (Claude, 2026-10-27); measured against the armchair and the free floor",
         "confirmed": false
       }
     }
