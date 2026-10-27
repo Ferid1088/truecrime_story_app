@@ -562,3 +562,26 @@ def test_a_map_is_only_placed_where_its_whole_zoom_and_the_hold_on_the_place_fit
         assert (shots[0]["command"] == "SHOW_MAP") is expected
         if expected:
             assert shots[0]["share"] * 60.0 == pytest.approx(need)
+
+
+def test_a_bare_moment_is_filled_with_alternatives_of_widening_reach_but_never_before_their_beat(monkeypatch):
+    monkeypatch.setitem(GS.T.config().planner, "escalation", [{"extra_drift": 3}, {"extra_drift": 6}])
+    late = quote_offer("F1", best=2, drift=2, seconds=30.0)
+    early = quote_offer("F2", best=9, drift=2, seconds=30.0)
+    shots, length = gap_beat(30.0, (30.0,))
+    beats, window = [{"beat_id": "B8", "shots": shots}], {"B8": {"start": 0.0, "end": length}}
+    AL.fill_beat(shots, length, 7, [late, early], AL.State())
+    assert shots[0]["command"] == "BLACK_SCREEN"                         # F1 drifted out of reach, F2 is not yet due
+    rounds = AL.escalate(beats, window, {"B8": 7}, [late, early], AL.State(), lambda w: 0.0)
+    graphics = [s for s in shots if s["command"] == "SHOW_GRAPHIC"]
+    assert [r["placed"] for r in rounds] == [1]                          # the first round covers it, the second is not needed
+    assert [s["graphic"]["data"]["fact_id"] for s in graphics] == ["F1"] and not early.placed
+    assert not any(s.get("gap") for s in shots)
+
+
+def test_escalation_stops_when_nothing_in_reach_is_left_and_the_moment_stays_for_the_picture_repeat(monkeypatch):
+    monkeypatch.setitem(GS.T.config().planner, "escalation", [{"extra_drift": 3}])
+    shots, length = gap_beat(30.0, (30.0,))
+    beats, window = [{"beat_id": "B1", "shots": shots}], {"B1": {"start": 0.0, "end": length}}
+    rounds = AL.escalate(beats, window, {"B1": 0}, [quote_offer("F9", best=9, drift=2)], AL.State(), lambda w: 0.0)
+    assert rounds == [{"round": 1, "placed": 0, "extra_drift": 3}] and shots[0].get("gap")

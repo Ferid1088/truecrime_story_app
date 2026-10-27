@@ -304,6 +304,7 @@ class State:
     pages: list[dict] = field(default_factory=list)
     seconds: dict[str, float] = field(default_factory=dict)
     placed: int = 0
+    relax: dict = field(default_factory=dict)          # the limits of the current escalation round (none in the first pass)
 
 
 def offer_text(o: Offer) -> str:
@@ -314,7 +315,7 @@ def repeats_engine(o: Offer, idx: int, state: State) -> bool:
     """An engine is not shown again too soon, nor with the same story as one already shown."""
     if o.kind not in GS.ENGINE_KINDS:
         return False
-    cfg = T.config().engines["selection"]
+    cfg = {**T.config().engines["selection"], **state.relax}
     if (idx - state.engine_last.get(o.kind, -10**6) < cfg["min_beats_between_same_engine"]
             or state.engine_count >= cfg["max_per_film"]):
         return True
@@ -323,7 +324,7 @@ def repeats_engine(o: Offer, idx: int, state: State) -> bool:
 
 
 def usable(o: Offer, idx: int, remaining: float, state: State) -> bool:
-    return (not o.placed and o.key not in state.used_keys and o.first <= idx <= o.last
+    return (not o.placed and o.key not in state.used_keys and o.first <= idx <= o.last + state.relax.get("extra_drift", 0)
             and o.min_seconds <= remaining + 1e-6 and not (o.items & state.used_items)
             and not repeats_engine(o, idx, state))
 
@@ -396,6 +397,31 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
                                 "speed": 1.0, "transition_in": "CROSSFADE", "gap": True, "said": said,
                                 "why": "no approved visual for this moment"})
         shots[first:last + 1] = replacement
+
+
+def escalation_steps() -> list[dict]:
+    return T.config().planner["escalation"]
+
+
+def escalate(out_beats: list[dict], window_of: dict[str, dict], beat_index: dict[str, int], offers: list[Offer],
+             state: State, tail_of) -> list[dict]:
+    """The rule for a moment that is still bare once the owner's approved pictures are placed: the planner fills it
+    with more and more different alternatives. Each round of `planner.escalation` lets the offers drift further from
+    their beat, sit closer to the last graphic of their kind and exceed the film's cap, until no bare stretch is left or
+    the rounds are used up. What an offer shows is never relaxed: it still appears once, after the story told it."""
+    rounds = []
+    for n, step in enumerate(escalation_steps(), 1):
+        bare = [b for b in out_beats if any(s.get("gap") for s in b["shots"])]
+        if not bare:
+            break
+        state.relax, before = step, state.placed
+        for beat in bare:
+            window = window_of[beat["beat_id"]]
+            fill_beat(beat["shots"], window["end"] - window["start"], beat_index.get(beat["beat_id"], 0), offers, state,
+                      tail_of(window))
+        rounds.append({"round": n, "placed": state.placed - before, **step})
+    state.relax = {}
+    return rounds
 
 
 def board_due(offers: list[Offer], state: State, idx: int) -> bool:

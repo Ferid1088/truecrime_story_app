@@ -581,7 +581,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "places": sorted(place_names), "region": region,
         "offers": [[o.key, o.first, o.last, o.seconds, sorted(o.items)] for o in offers],
         "requirements": {b: sorted(r["key"] for r in rs) for b, rs in sorted(counted_requirements(db, plan).items())},
-        "repeat": ai_config.visual_direction.model_dump(), "neighbour_cover": cover_approved(plan),
+        "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "neighbour_cover": cover_approved(plan),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
@@ -663,6 +663,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
     topical_in = place_topical(out_beats, window_of, items, topical or {}, tracker,
                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
+    escalation = AL.escalate(out_beats, window_of, beat_order, offers, state, card_tail)
     repeat_for_gaps(out_beats, window_of, items, tracker, names,
                     lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     covered = NC.NeighbourCover(out_beats, window_of, items, tracker, names, beat_order,
@@ -676,7 +677,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "neighbour_cover": covered, "requirements_placed": satisfied, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": AL.seconds_report(state),
-              "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
+              "escalation": escalation, "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
                                   ensure_ascii=False)
