@@ -190,3 +190,49 @@ def test_a_film_without_the_host_avatar_or_with_missing_music_is_not_review_read
     text = " ".join(report["blocking"])
     assert "no host avatar" in text and "3 music placement(s) planned, 1 in the film" in text
     assert report["host"]["required"] is True and report["music"] == {"planned": 3, "in_film": 1}
+
+
+def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place_in_the_story(monkeypatch):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+
+    from app.documentary.mvp import direct as DR
+    from app.documentary.mvp import evidence as EV
+    from app.documentary.mvp import pipeline as PL
+
+    calls = []
+
+    async def scan(db, case, plan):
+        calls.append("overlays")
+        return {}
+
+    async def label(db, case, plan, bp):
+        calls.append("timing")
+        return {}
+
+    async def direct_film(*args, **kw):
+        calls.append("direct")
+        return {"gaps": []}
+
+    async def offers(*args, **kw):
+        return [], None
+
+    async def nothing(*args, **kw):
+        return {}
+
+    target = SimpleNamespace(plan_json="{}", validation_json="{}")
+    monkeypatch.setattr(PL, "scan_overlays", scan)
+    monkeypatch.setattr(PL, "label_timing", label)
+    monkeypatch.setattr(PL, "language_plan", lambda *a: target)
+    monkeypatch.setattr(PL, "requirements_of", lambda plan: [])
+    monkeypatch.setattr(PL, "case_region", lambda case: None)
+    monkeypatch.setattr(PL.RV, "supersede", lambda *a: None)
+    monkeypatch.setattr(DR, "direct_film", direct_film)
+    monkeypatch.setattr(EV, "build_offers", offers)
+    monkeypatch.setattr(EV, "localize_graphics", nothing)
+    monkeypatch.setattr("app.documentary.visuals.generated.materialize", nothing)
+    needs = SimpleNamespace(validation_json=json.dumps({"mvp": {"reveal_graph_id": 1}}))
+    bp = SimpleNamespace(blueprint_json="{}")
+    asyncio.run(PL.stage_direct(SimpleNamespace(commit=lambda: None), SimpleNamespace(id=1), needs, bp, {}, "en"))
+    assert calls == ["overlays", "timing", "direct"]

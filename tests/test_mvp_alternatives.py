@@ -564,24 +564,68 @@ def test_a_map_is_only_placed_where_its_whole_zoom_and_the_hold_on_the_place_fit
             assert shots[0]["share"] * 60.0 == pytest.approx(need)
 
 
-def test_a_bare_moment_is_filled_with_alternatives_of_widening_reach_but_never_before_their_beat(monkeypatch):
-    monkeypatch.setitem(GS.T.config().planner, "escalation", [{"extra_drift": 3}, {"extra_drift": 6}])
-    late = quote_offer("F1", best=2, drift=2, seconds=30.0)
-    early = quote_offer("F2", best=9, drift=2, seconds=30.0)
-    shots, length = gap_beat(30.0, (30.0,))
-    beats, window = [{"beat_id": "B8", "shots": shots}], {"B8": {"start": 0.0, "end": length}}
-    AL.fill_beat(shots, length, 7, [late, early], AL.State())
-    assert shots[0]["command"] == "BLACK_SCREEN"                         # F1 drifted out of reach, F2 is not yet due
-    rounds = AL.escalate(beats, window, {"B8": 7}, [late, early], AL.State(), lambda w: 0.0)
-    graphics = [s for s in shots if s["command"] == "SHOW_GRAPHIC"]
-    assert [r["placed"] for r in rounds] == [1]                          # the first round covers it, the second is not needed
-    assert [s["graphic"]["data"]["fact_id"] for s in graphics] == ["F1"] and not early.placed
-    assert not any(s.get("gap") for s in shots)
+def text_offer(key, text, best, drift=3, seconds=30.0, kind="quote"):
+    return AL.Offer(kind, f"{kind}|{key}", best, best + drift, best, {"text": text, "fact_id": key}, seconds, 6.0,
+                    frozenset({key}))
 
 
-def test_escalation_stops_when_nothing_in_reach_is_left_and_the_moment_stays_for_the_picture_repeat(monkeypatch):
-    monkeypatch.setitem(GS.T.config().planner, "escalation", [{"extra_drift": 3}])
+def test_an_alternative_away_from_its_own_beat_needs_the_words_spoken_to_be_about_it():
+    offer = text_offer("F1", "Kayla Keyt read the victim statement.", best=2)
     shots, length = gap_beat(30.0, (30.0,))
-    beats, window = [{"beat_id": "B1", "shots": shots}], {"B1": {"start": 0.0, "end": length}}
-    rounds = AL.escalate(beats, window, {"B1": 0}, [quote_offer("F9", best=9, drift=2)], AL.State(), lambda w: 0.0)
-    assert rounds == [{"round": 1, "placed": 0, "extra_drift": 3}] and shots[0].get("gap")
+    shots[0]["said"] = "The jury returned after two hours."
+    AL.fill_beat(shots, length, 3, [offer], AL.State())
+    assert shots[0]["command"] == "BLACK_SCREEN" and not offer.placed         # nothing here is about Kayla
+    shots[0]["said"] = "Next, Kayla Keyt stood to speak."
+    AL.fill_beat(shots, length, 3, [offer], AL.State())
+    assert shots[0]["command"] == "SHOW_GRAPHIC" and offer.placed
+    at_home, length = gap_beat(30.0, (30.0,))
+    other = text_offer("F2", "Kayla Keyt read the victim statement.", best=3)
+    AL.fill_beat(at_home, length, 3, [other], AL.State())                      # its own beat: always logical
+    assert at_home[0]["command"] == "SHOW_GRAPHIC"
+
+
+def test_the_recap_and_the_board_sum_up_the_film_and_need_no_shared_words():
+    recap = text_offer("R1", "What is confirmed.", best=0, kind="recap")
+    shots, length = gap_beat(30.0, (30.0,))
+    AL.fill_beat(shots, length, 2, [recap], AL.State())
+    assert shots[0]["command"] == "SHOW_GRAPHIC"
+
+
+def test_a_wider_round_reaches_further_but_only_to_what_the_words_are_about():
+    offer = text_offer("F1", "Kayla Keyt read the victim statement.", best=0, drift=0)
+    shots, length = gap_beat(30.0, (30.0,))
+    shots[0]["said"] = "Kayla Keyt spoke."
+    AL.fill_beat(shots, length, 3, [offer], AL.State())
+    assert shots[0]["command"] == "BLACK_SCREEN"                                # too far from its beat
+    AL.fill_beat(shots, length, 3, [offer], AL.State(relax={"extra_drift": 3}))
+    assert shots[0]["command"] == "SHOW_GRAPHIC"
+
+
+def _two_beats(db_session, monkeypatch, offers):
+    from test_mvp_direct import _manifest, _plan
+
+    from app.documentary.mvp import direct as D
+
+    monkeypatch.setitem(GS.T.config().planner, "escalation", [{"extra_drift": 1}, {"extra_drift": 4}])
+    case, plan = _plan(db_session, 0)
+    report = asyncio.run(D.direct_film(db_session, case, plan, _manifest([60.0, 60.0]), None, {"B01": 0, "B02": 1}, {},
+                                       offers=offers))
+    return report, json.loads(plan.plan_json)["beats"]
+
+
+def test_bare_moments_make_the_planner_plan_the_whole_film_again_with_wider_limits(db_session, monkeypatch):
+    first = text_offer("F1", "Flynn house at night.", best=0, drift=0, seconds=60.0)
+    second = text_offer("F2", "The Flynn house burned.", best=0, drift=0, seconds=60.0)
+    report, beats = _two_beats(db_session, monkeypatch, [first, second])
+    assert report["gaps"] == [] and [r["gap_seconds"] for r in report["rounds"]] == [60.0, 0.0]
+    assert not any(s.get("gap") for b in beats for s in b["shots"])
+    assert [s["command"] for s in beats[1]["shots"]] == ["SHOW_GRAPHIC"]
+    assert first.placed and second.placed
+
+
+def test_the_round_with_the_fewest_bare_seconds_is_kept_when_no_round_covers_everything(db_session, monkeypatch):
+    first = text_offer("F1", "Flynn house at night.", best=0, drift=0, seconds=60.0)
+    unrelated = text_offer("F2", "Verdict of the jury.", best=0, drift=0, seconds=60.0)
+    report, beats = _two_beats(db_session, monkeypatch, [first, unrelated])
+    assert [r["gap_seconds"] for r in report["rounds"]] == [60.0, 60.0, 60.0] and report["gap_seconds"] == 60.0
+    assert beats[1]["shots"][0].get("gap") and not unrelated.placed

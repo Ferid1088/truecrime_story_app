@@ -370,3 +370,15 @@ def test_a_slot_whose_words_match_the_owner_note_is_about_the_picture():
     assert not DR.related(item, "The jury returned after two hours.", {})
     asset.owner_note = None
     assert not DR.related(item, "Kayla Keyt read a statement to the court.", {})
+
+
+def test_a_picture_is_only_placed_where_the_words_are_about_it_and_the_slot_otherwise_stays_bare():
+    from types import SimpleNamespace
+
+    from app.documentary.visuals.usage import UsageTracker
+
+    item = SimpleNamespace(code="V1", clip_seconds=None, asset=SimpleNamespace(), entity="e")
+    slots = [{"start": 0.0, "end": 6.0, "text": "The jury returned."}, {"start": 6.0, "end": 12.0, "text": "Flynn house."}]
+    tracker = UsageTracker({"V1": set()})
+    out = D.baseline_assign(slots, [item], tracker, [], lambda i, slot: "Flynn" in slot["text"])
+    assert out == [None, item]

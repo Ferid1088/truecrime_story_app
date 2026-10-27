@@ -555,13 +555,46 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       entities: list[dict] | None = None, region: str | None = None,
                       offers: list[AL.Offer] | None = None,
                       topical: dict[str, list[tuple[str, float, str]]] | None = None) -> dict:
-    """Build the plan: beat by beat, agent first, rules always. `plan` holds the approved requirements;
-    the shot list is stored on `target` (the language's own plan row; `plan` itself when not given)."""
+    """Plan the film. When moments are still bare after the approved pictures, the alternatives and every other fill,
+    the whole film is planned again from its first beat with wider limits for the alternatives (`planner.escalation`),
+    round after round, never by patching the previous round's plan; the round with the fewest bare seconds is kept.
+    Pictures are not asked for again: the director's choices are cached per beat."""
     target = target or plan
-    offers = offers or []
+    args = (db, case, plan, manifest, graph_id, beat_order, beats, director, target, entities, region, offers, topical)
+    report = await _direct_pass(*args)
+    if report["gaps"] and "rounds" not in report:
+        rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0}]
+        kept = (report, target.plan_json, target.validation_json)
+        for n, step in enumerate(AL.escalation_steps(), 1):
+            again = await _direct_pass(*args, relax=step, force=True)
+            rounds.append({"round": n, "gap_seconds": again["gap_seconds"], "placed": sum(
+                1 for o in offers or [] if o.placed), **step})
+            if again["gap_seconds"] < kept[0]["gap_seconds"]:
+                kept = (again, target.plan_json, target.validation_json)
+            if not again["gaps"]:
+                break
+        report, target.plan_json, target.validation_json = kept
+        report["rounds"] = rounds
+        validation = json.loads(target.validation_json)
+        validation["plan"]["rounds"] = rounds
+        target.validation_json = json.dumps(validation, ensure_ascii=False)
+        db.commit()
+    return report
+
+
+async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict,
+                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
+                       director: Director | None, target: VisualPlan, entities: list[dict] | None,
+                       region: str | None, offers: list[AL.Offer] | None,
+                       topical: dict[str, list[tuple[str, float, str]]] | None,
+                       relax: dict | None = None, force: bool = False) -> dict:
+    """One planning round: beat by beat, agent first, rules always. `plan` holds the approved requirements; the shot
+    list is stored on `target` (the language's own plan row). `relax` widens the limits of the alternatives."""
+    offers = offers if offers is not None else []
+    offers[:] = [o for o in offers if o.kind != "conflict_board"]      # the board is made again from this round's pages
     for o in offers:
         o.placed = False
-    state = AL.State()
+    state = AL.State(relax=relax or {})
     entities = entities or json.loads(plan.requirements_json or "{}").get("entities") or []
     names = {e["key"]: content_words(" ".join([e["name"], *e.get("aliases", [])])) for e in entities}
     place_names = {e["key"]: e["name"] for e in entities if e.get("type") in ("place", "building")}
@@ -588,7 +621,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
-    if target.status == "planned" and previous.get("fingerprint") == fingerprint:
+    if not force and target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
     beat_cache: dict = previous.get("beat_cache") or {}
     new_cache: dict = {}
@@ -666,7 +699,6 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
     topical_in = place_topical(out_beats, window_of, items, topical or {}, tracker,
                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
-    escalation = AL.escalate(out_beats, window_of, beat_order, offers, state, card_tail)
     repeat_for_gaps(out_beats, window_of, items, tracker, names,
                     lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     covered = NC.NeighbourCover(out_beats, window_of, items, tracker, names, beat_order,
@@ -680,7 +712,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "neighbour_cover": covered, "requirements_placed": satisfied, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": AL.seconds_report(state),
-              "escalation": escalation, "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
+              "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
                                   ensure_ascii=False)

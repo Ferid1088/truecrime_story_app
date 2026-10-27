@@ -323,10 +323,34 @@ def repeats_engine(o: Offer, idx: int, state: State) -> bool:
     return any(similar(text, other) for other in state.engine_texts)
 
 
-def usable(o: Offer, idx: int, remaining: float, state: State) -> bool:
+NOT_SHOWN = {"fact_id", "id", "source_ids", "basis", "status", "kind", "new_card", "number", "cue_fractions"}
+
+
+def strings_of(value) -> str:
+    """Every text a graphic's data shows (names of ids and statuses left out)."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return " ".join(strings_of(v) for k, v in value.items() if k not in NOT_SHOWN)
+    if isinstance(value, list):
+        return " ".join(strings_of(v) for v in value)
+    return ""
+
+
+def relevant(o: Offer, idx: int, said: str) -> bool:
+    """An alternative is only as logical as a picture: it belongs to the beat it was made for, or - anywhere else - the
+    words spoken over the bare stretch are about what it shows (at least `relevance.min_shared_words` words in common).
+    The recap and the conflict board sum up the film and need no such words."""
+    cfg = T.config().planner["relevance"]
+    if o.best == idx or o.kind in cfg["exempt"]:
+        return True
+    return len(words(strings_of(o.data)) & words(said)) >= cfg["min_shared_words"]
+
+
+def usable(o: Offer, idx: int, remaining: float, state: State, said: str = "") -> bool:
     return (not o.placed and o.key not in state.used_keys and o.first <= idx <= o.last + state.relax.get("extra_drift", 0)
             and o.min_seconds <= remaining + 1e-6 and not (o.items & state.used_items)
-            and not repeats_engine(o, idx, state))
+            and not repeats_engine(o, idx, state) and relevant(o, idx, said))
 
 
 def priority(o: Offer, idx: int, state: State | None = None) -> tuple:
@@ -368,7 +392,7 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
         remaining, taken = seconds - reserve, []
         said = " ".join(s.get("said", "") for s in shots[first:last + 1]).strip()
         while remaining >= minimum_run:
-            options = sorted((o for o in offers if usable(o, idx, remaining, state)), key=lambda o: priority(o, idx, state))
+            options = sorted((o for o in offers if usable(o, idx, remaining, state, said)), key=lambda o: priority(o, idx, state))
             if not options:
                 break
             chosen = options[0]
@@ -401,27 +425,6 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
 
 def escalation_steps() -> list[dict]:
     return T.config().planner["escalation"]
-
-
-def escalate(out_beats: list[dict], window_of: dict[str, dict], beat_index: dict[str, int], offers: list[Offer],
-             state: State, tail_of) -> list[dict]:
-    """The rule for a moment that is still bare once the owner's approved pictures are placed: the planner fills it
-    with more and more different alternatives. Each round of `planner.escalation` lets the offers drift further from
-    their beat, sit closer to the last graphic of their kind and exceed the film's cap, until no bare stretch is left or
-    the rounds are used up. What an offer shows is never relaxed: it still appears once, after the story told it."""
-    rounds = []
-    for n, step in enumerate(escalation_steps(), 1):
-        bare = [b for b in out_beats if any(s.get("gap") for s in b["shots"])]
-        if not bare:
-            break
-        state.relax, before = step, state.placed
-        for beat in bare:
-            window = window_of[beat["beat_id"]]
-            fill_beat(beat["shots"], window["end"] - window["start"], beat_index.get(beat["beat_id"], 0), offers, state,
-                      tail_of(window))
-        rounds.append({"round": n, "placed": state.placed - before, **step})
-    state.relax = {}
-    return rounds
 
 
 def board_due(offers: list[Offer], state: State, idx: int) -> bool:

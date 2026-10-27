@@ -263,8 +263,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         return await DR.model_director(case_, beat, slots, pool, db)
 
     requirements = requirements_of(needs_plan)
-    timing = await label_timing(db, case, needs_plan, bp_row)
-    overlays = await scan_overlays(db, case, needs_plan)
+    overlays = await scan_overlays(db, case, needs_plan)      # first the marks: cut away, or the picture is out
+    timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
     offers, _evidence = await EV.build_offers(db, case, bp_row, needs_plan, manifest)
     region = case_region(case)
     report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
@@ -284,8 +284,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
                 for s in b["shots"] if s.get("asset_id")}
         moments = await MC.MomentCutter(db, case, needs_plan.id, language).run(report["gaps"], used)
         if moments["approved"]:
-            timing = await label_timing(db, case, needs_plan, bp_row)
             overlays = await scan_overlays(db, case, needs_plan)
+            timing = await label_timing(db, case, needs_plan, bp_row)
             report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                           director if use_agent else None, target, None, region, offers)
         report["moments"] = moments
