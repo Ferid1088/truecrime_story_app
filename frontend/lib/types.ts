@@ -2355,6 +2355,12 @@ export interface MvpCandidate {
   verifiers: { verifier: string; model?: string | null; confidence?: number | null; decision?: string }[];
 }
 
+/** One picture as the owner reviews it: judged for several requirements, decided once (all its candidates). */
+export interface MvpCandidateGroup extends MvpCandidate {
+  candidate_ids: number[];
+  requirements: { requirement: string; beat_id: string; function: string; role_needed: string; need: string | null }[];
+}
+
 /** Moments of the film that have no picture, video or graphic after every alternative. */
 export interface MvpGaps {
   language: string;

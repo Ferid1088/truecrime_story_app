@@ -91,19 +91,93 @@ def mvp_plan(case_id: int, db: Session = Depends(get_db)):
             "shortages": sum(1 for r in reqs if r.status == "shortage")}
 
 
+def grouped(db: Session, rows: list[tuple[MvpCandidate, MvpRequirement]]) -> list[dict]:
+    """One entry per picture and entity: the same picture is judged once for every requirement it was offered for,
+    but the owner decides it once (all its candidates get the decision). `candidate_ids` are those candidates."""
+    groups: dict[tuple[int, str | None], dict] = {}
+    for cand, req in rows:
+        key = (cand.visual_asset_id, req.entity_key)
+        if key not in groups:
+            groups[key] = {**candidate_dict(db, cand, req), "candidate_ids": [], "requirements": []}
+        groups[key]["candidate_ids"].append(cand.id)
+        groups[key]["requirements"].append({"requirement": req.requirement_key, "beat_id": req.beat_id,
+                                            "function": req.function, "role_needed": req.role_needed,
+                                            "need": json.loads(req.spec_json or "{}").get("need")})
+    return sorted(groups.values(), key=lambda g: (-len(g["requirements"]), g["id"]))
+
+
 @router.get("/api/cases/{case_id}/mvp/candidates")
 def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None = None, limit: int = 100,
-                   db: Session = Depends(get_db)):
-    """The pictures the planner was unsure about (needs_review) or rejected, optionally of one beat only; the
-    asset of each candidate is judged once, so a picture appears once per requirement it was judged for."""
+                   group: bool = False, db: Session = Depends(get_db)):
+    """The pictures the planner was unsure about (needs_review) or rejected, optionally of one beat only. With
+    `group` each picture appears once (for each entity it was judged for), however many requirements offered it."""
     wanted = [s for s in status.split(",") if s in ("needs_review", "rejected", "approved")]
     query = (db.query(MvpCandidate, MvpRequirement)
              .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
              .filter(MvpRequirement.case_id == case_id, MvpCandidate.final_status.in_(wanted or ["needs_review"])))
     if beat:
         query = query.filter(MvpRequirement.beat_id == beat)
-    rows = query.order_by(MvpCandidate.final_status.desc(), MvpCandidate.id).limit(min(max(limit, 1), 500)).all()
-    return [candidate_dict(db, c, r) for c, r in rows]
+    rows = query.order_by(MvpCandidate.final_status.desc(), MvpCandidate.id).all()
+    if group:
+        return grouped(db, rows)[:min(max(limit, 1), 5000)]
+    return [candidate_dict(db, c, r) for c, r in rows[:min(max(limit, 1), 500)]]
+
+
+def apply_decision(db: Session, cand: MvpCandidate, decision: str, note: str | None) -> MvpRequirement:
+    req = db.get(MvpRequirement, cand.requirement_id)
+    if decision == "approve":
+        cand.identity_status = cand.ethics_status = cand.scene_status = "approved"
+        cand.role = cand.role or req.role_needed
+    else:
+        cand.identity_status = "rejected"
+    cand.verifiers_json = json.dumps(json.loads(cand.verifiers_json or "[]")
+                                     + [{"verifier": "owner", "decision": decision, "note": note}])
+    cand.final_status = VF.final_status(cand)
+    return req
+
+
+@router.post("/api/mvp/candidates/{candidate_id}/decision")
+def decide_candidate(candidate_id: int, payload: CandidateDecision, db: Session = Depends(get_db)):
+    """The owner settles a candidate the verifiers left open (or overrides one). The decision is stored as
+    its own verifier entry; rights are not overridden here (use the editorial approval for that)."""
+    cand = db.get(MvpCandidate, candidate_id)
+    if cand is None:
+        raise HTTPException(404, "Candidate not found")
+    if payload.decision not in ("approve", "reject"):
+        raise HTTPException(422, "decision must be approve or reject")
+    if payload.decision == "approve" and cand.rights_status == "blocked":
+        raise HTTPException(409, "Rights block this picture; approve its rights first")
+    req = apply_decision(db, cand, payload.decision, payload.note)
+    db.commit()
+    VF.sync_asset_status(db, req.case_id)
+    return candidate_dict(db, cand, req)
+
+
+class GroupDecision(BaseModel):
+    candidate_ids: list[int]
+    decision: str
+    note: str | None = None
+
+
+@router.post("/api/cases/{case_id}/mvp/candidates/decision")
+def decide_group(case_id: int, payload: GroupDecision, db: Session = Depends(get_db)):
+    """One decision for every candidate of a picture (the ids a grouped listing gives). Candidates whose rights block
+    the picture are skipped on approval and named in the answer; nothing outside this case is touched."""
+    if payload.decision not in ("approve", "reject"):
+        raise HTTPException(422, "decision must be approve or reject")
+    cands = (db.query(MvpCandidate).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+             .filter(MvpCandidate.id.in_(payload.candidate_ids), MvpRequirement.case_id == case_id).all())
+    if not cands:
+        raise HTTPException(404, "No such candidates in this case")
+    skipped = [c.id for c in cands if payload.decision == "approve" and c.rights_status == "blocked"]
+    if len(skipped) == len(cands):
+        raise HTTPException(409, "Rights block this picture; approve its rights first")
+    for cand in cands:
+        if cand.id not in skipped:
+            apply_decision(db, cand, payload.decision, payload.note)
+    db.commit()
+    VF.sync_asset_status(db, case_id)
+    return {"decided": len(cands) - len(skipped), "skipped": skipped, "decision": payload.decision}
 
 
 @router.get("/api/cases/{case_id}/mvp/gaps")
@@ -129,29 +203,3 @@ def mvp_gaps(case_id: int, language: str = "en", db: Session = Depends(get_db)):
             "alternatives": report.get("alternatives", {}),
             "beats": [{"beat_id": b, **open_by_beat.get(b, {"needs_review": 0, "rejected": 0})}
                       for b in sorted({g["beat"] for g in gaps})]}
-
-
-@router.post("/api/mvp/candidates/{candidate_id}/decision")
-def decide_candidate(candidate_id: int, payload: CandidateDecision, db: Session = Depends(get_db)):
-    """The owner settles a candidate the verifiers left open (or overrides one). The decision is stored as
-    its own verifier entry; rights are not overridden here (use the editorial approval for that)."""
-    cand = db.get(MvpCandidate, candidate_id)
-    if cand is None:
-        raise HTTPException(404, "Candidate not found")
-    if payload.decision not in ("approve", "reject"):
-        raise HTTPException(422, "decision must be approve or reject")
-    req = db.get(MvpRequirement, cand.requirement_id)
-    if payload.decision == "approve":
-        if cand.rights_status == "blocked":
-            raise HTTPException(409, "Rights block this picture; approve its rights first")
-        cand.identity_status = cand.ethics_status = cand.scene_status = "approved"
-        cand.role = cand.role or req.role_needed
-    else:
-        cand.identity_status = "rejected"
-    cand.verifiers_json = json.dumps(json.loads(cand.verifiers_json or "[]")
-                                     + [{"verifier": "owner", "decision": payload.decision,
-                                         "note": payload.note}])
-    cand.final_status = VF.final_status(cand)
-    db.commit()
-    VF.sync_asset_status(db, req.case_id)
-    return candidate_dict(db, cand, req)

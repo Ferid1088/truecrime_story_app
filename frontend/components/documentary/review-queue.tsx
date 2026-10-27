@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { ApiError, apiFileUrl, mvpApi } from "@/lib/api";
@@ -8,6 +8,7 @@ import { useApi } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { MvpCandidateGroup } from "@/lib/types";
 
 const DECISIONS = ["provenance", "identity", "rights_decision", "ethics", "scene"] as const;
 const DECISION_LABEL: Record<(typeof DECISIONS)[number], string> = {
@@ -23,33 +24,55 @@ const SHOWN = [
   { key: "rejected", label: "Rejected" },
 ] as const;
 
+type Verdict = "approved" | "rejected";
+
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [shown, setShown] = useState<(typeof SHOWN)[number]["key"]>("needs_review");
   const [beat, setBeat] = useState<string | undefined>(undefined);
   const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, shown, beat), [caseId, shown, beat]);
-  const { data: gaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
+  const { data: gaps, refetch: refetchGaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
   const [index, setIndex] = useState(0);
+  const [decided, setDecided] = useState<Record<number, Verdict>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const queue = data ?? [];
+  // the list is fixed while you work: a decision never reshuffles it or brings a picture back
+  const queue: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
   const safeIndex = queue.length === 0 ? 0 : Math.min(index, queue.length - 1);
   const item = queue[safeIndex];
+  const left = queue.filter((g) => !decided[g.id]).length;
+
+  const go = useCallback(
+    (to: number) => setIndex(Math.max(0, Math.min(to, queue.length - 1))),
+    [queue.length],
+  );
+
+  const nextOpen = useCallback(
+    (from: number) => {
+      const after = queue.findIndex((g, i) => i > from && !decided[g.id]);
+      return after >= 0 ? after : Math.min(from + 1, queue.length - 1);
+    },
+    [queue, decided],
+  );
 
   const decide = useCallback(
     async (decision: "approve" | "reject") => {
       if (!item || busy) return;
       setBusy(true);
       try {
-        await mvpApi.decideCandidate(item.id, decision);
-        setMessage(`${decision === "approve" ? "Approved" : "Rejected"} ${item.asset_code} for ${item.requirement}.`);
-        await refetch();
+        const done = await mvpApi.decideGroup(caseId, item.candidate_ids, decision);
+        setDecided((d) => ({ ...d, [item.id]: decision === "approve" ? "approved" : "rejected" }));
+        const where = item.requirements.length > 1 ? `${item.requirements.length} requirements` : item.requirement;
+        setMessage(`${decision === "approve" ? "Approved" : "Rejected"} ${item.asset_code} for ${where}.` +
+          (done.skipped.length ? ` ${done.skipped.length} blocked by rights were left out.` : ""));
+        setIndex(nextOpen(safeIndex));
+        void refetchGaps();
       } catch (e) {
         setMessage(e instanceof ApiError ? e.message : "Could not save the decision.");
       } finally {
         setBusy(false);
       }
     },
-    [item, busy, refetch],
+    [item, busy, caseId, nextOpen, safeIndex, refetchGaps],
   );
 
   useEffect(() => {
@@ -57,15 +80,25 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
       if (e.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
       if (e.key === "a" || e.key === "A") void decide("approve");
       else if (e.key === "r" || e.key === "R") void decide("reject");
-      else if (e.key === "n" || e.key === "N") setIndex((i) => Math.min(i + 1, queue.length - 1));
+      else if (e.key === "n" || e.key === "N") go(safeIndex + 1);
+      else if (e.key === "p" || e.key === "P") go(safeIndex - 1);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [decide, queue.length]);
+  }, [decide, go, safeIndex]);
+
+  function switchTo(next: (typeof SHOWN)[number]["key"], toBeat?: string) {
+    setShown(next);
+    setBeat(toBeat);
+    setIndex(0);
+    setDecided({});
+    setMessage("");
+  }
 
   if (loading && !data) return <Skeleton className="h-[620px]" />;
   if (error && !data) return <p className="p-8 text-sm text-rose-700">{error}</p>;
 
+  const verdict = item ? decided[item.id] : undefined;
   return (
     <main className="mx-auto max-w-5xl px-6 py-8" data-testid="review-queue-page">
       <div className="mb-6">
@@ -77,7 +110,12 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Picture review</h1>
         <p className="mt-1 text-sm text-muted-foreground" data-testid="review-queue-counter">
-          {queue.length} left to review: {shown === "rejected" ? "pictures the planner rejected" : "pictures the verifiers could not settle"}
+          {queue.length > 0 && <span className="font-medium text-foreground">{safeIndex + 1} / {queue.length} · </span>}
+          {left} left to review: {shown === "rejected" ? "pictures the planner rejected" : "pictures the verifiers could not settle"}
+          {queue.length - left > 0 && ` · ${queue.length - left} decided`}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Each picture is shown once, however many requirements it was offered for; your decision applies to all of them.
         </p>
         {message && (
           <p role="status" className="mt-2 text-sm text-emerald-700">
@@ -91,16 +129,16 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
               type="button"
               size="sm"
               variant={shown === option.key ? "default" : "outline"}
-              onClick={() => {
-                setShown(option.key);
-                setIndex(0);
-              }}
+              onClick={() => switchTo(option.key)}
             >
               {option.label}
             </Button>
           ))}
+          <Button type="button" size="sm" variant="ghost" onClick={() => { setDecided({}); void refetch(); }}>
+            Reload list
+          </Button>
           {beat && (
-            <Button type="button" size="sm" variant="ghost" onClick={() => setBeat(undefined)}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => switchTo(shown)}>
               All beats (now {beat})
             </Button>
           )}
@@ -118,10 +156,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                   type="button"
                   size="sm"
                   variant={beat === b.beat_id ? "default" : "outline"}
-                  onClick={() => {
-                    setBeat(b.beat_id);
-                    setIndex(0);
-                  }}
+                  onClick={() => switchTo(shown, b.beat_id)}
                 >
                   {b.beat_id} · {b.needs_review} not sure · {b.rejected} rejected
                 </Button>
@@ -147,11 +182,24 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
           </section>
           <section className="space-y-5">
             <div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Should show</div>
+              <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                Should show
+                {verdict && (
+                  <Badge variant={verdict === "approved" ? "success" : "danger"} data-testid="review-queue-verdict">
+                    {verdict === "approved" ? "Approved" : "Rejected"} - you can change it
+                  </Badge>
+                )}
+              </div>
               <div className="text-lg font-medium">{item.entity ?? item.requirement}</div>
               {item.need && <p className="text-sm text-muted-foreground">{item.need}</p>}
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="review-queue-requirements">
                 <span className="font-mono">{item.beat_id}</span> · needs {item.role_needed} · {item.function.replace("_", " ")}
+                {item.requirements.length > 1 && (
+                  <>
+                    {" "}· also offered for {item.requirements.length - 1} more requirement(s) in{" "}
+                    {[...new Set(item.requirements.map((r) => r.beat_id))].join(", ")}
+                  </>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap gap-2" data-testid="review-queue-decisions">
@@ -180,16 +228,14 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
               <Button type="button" variant="outline" onClick={() => void decide("reject")} disabled={busy}>
                 Reject <span className="ml-1 text-xs opacity-70">(R)</span>
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setIndex((i) => Math.min(i + 1, queue.length - 1))}
-                disabled={safeIndex >= queue.length - 1}
-              >
+              <Button type="button" variant="ghost" onClick={() => go(safeIndex - 1)} disabled={safeIndex <= 0}>
+                Previous <span className="ml-1 text-xs opacity-70">(P)</span>
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => go(safeIndex + 1)} disabled={safeIndex >= queue.length - 1}>
                 Next <span className="ml-1 text-xs opacity-70">(N)</span>
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">Keyboard: A = Approve, R = Reject, N = Next.</p>
+            <p className="text-xs text-muted-foreground">Keyboard: A = Approve, R = Reject, N = Next, P = Previous.</p>
           </section>
         </div>
       ) : null}

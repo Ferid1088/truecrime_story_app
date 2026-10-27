@@ -543,18 +543,17 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     thumb_url: `/api/visuals/${id + 100}/file?thumb=1`, role: "evidence", status: "needs_review",
     provenance: "passed", identity: "needs_review", rights_decision: "preview_only", ethics: "approved",
     scene: "approved", reasons: [reason], verifiers: [],
+    candidate_ids: [id, id + 50],
+    requirements: [
+      { requirement: `B0${id}.1`, beat_id: `B0${id}`, function: "human_connection", role_needed: "evidence", need },
+      { requirement: `B0${id + 3}.2`, beat_id: `B0${id + 3}`, function: "human_connection", role_needed: "evidence", need },
+    ],
   });
   const reviewQueueItems = [
     candidate(1, "VIS_101", "Bryan Kohberger", "his face at the arrest", "identity from the page caption only"),
     candidate(2, "VIS_205", "Ka-Bar sheath", "the sheath on the evidence table", "verifiers disagree; stored for review"),
   ];
-  const reviewQueueState = {
-    list: () => reviewQueueItems,
-    resolve: (id: number) => {
-      const i = reviewQueueItems.findIndex((item) => item.id === id);
-      if (i >= 0) reviewQueueItems.splice(i, 1);
-    },
-  };
+  const reviewQueueState = { list: () => reviewQueueItems };
 
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
@@ -661,13 +660,11 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/cases/1/thumbnails" && method === "GET") return json(route, [thumbnailFixture]);
     if (path === "/api/thumbnails/1/image") return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
     if (path === "/api/cases/1/mvp/candidates" && method === "GET") return json(route, reviewQueueState.list());
-    if (path.match(/^\/api\/mvp\/candidates\/\d+\/decision$/) && method === "POST") {
-      const id = Number(path.split("/")[4]);
-      const body = route.request().postDataJSON() as { decision: string };
-      const row = reviewQueueItems.find((item) => item.id === id);
-      reviewQueueState.resolve(id);
-      return json(route, { ...row, status: body.decision === "approve" ? "approved" : "rejected" });
+    if (path === "/api/cases/1/mvp/candidates/decision" && method === "POST") {
+      const body = route.request().postDataJSON() as { candidate_ids: number[]; decision: string };
+      return json(route, { decided: body.candidate_ids.length, skipped: [], decision: body.decision });
     }
+    if (path === "/api/cases/1/mvp/gaps") return json(route, { detail: "No en direction for this case yet" }, 404);
     if (path === "/api/cases/1/mvp/plan") return json(route, { detail: "No Main Visual Planner plan for this case yet" }, 404);
     if (path === "/api/cases/1/mvp/reviews") return json(route, []);
     if (path.startsWith("/api/visuals/")) return route.fulfill({ status: 200, contentType: "image/png", body: PIXEL });
