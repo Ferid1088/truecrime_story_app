@@ -283,6 +283,7 @@ class OverlayScanner:
             if scan.status == UNUSABLE:
                 reject(self.db, asset, scan)
                 out["rejected_codes"].append(asset.asset_code)
+        self.errors.sort()                 # scans finish in any order; the report is the same every time
         VF.sync_asset_status(self.db, self.case.id)
         return out
 

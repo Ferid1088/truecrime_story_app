@@ -264,3 +264,20 @@ def test_a_stored_scan_is_judged_again_by_todays_rules_without_asking_the_model(
     out = asyncio.run(scanner(db_session, case, {"unexpected": True}).run([asset]))
     assert out["cropped"] == 1 and out["failed"] == 0 and OV.crop_of(asset)["w"] > 0.5
     assert json.loads(asset.spec_json)["overlays"]["status"] == "cropped"
+
+
+def test_the_errors_of_concurrent_scans_are_reported_in_the_same_order_whichever_scan_ends_first(db_session):
+    case = _case(db_session)
+    first, second = _asset(db_session, case, "A1", sha="s1"), _asset(db_session, case, "A2", sha="s2")
+
+    started = []
+
+    async def asker(payload, images):
+        started.append(1)
+        await asyncio.sleep(0.2 if len(started) == 1 else 0.0)          # the scan that starts first ends last
+        return {"unexpected": True}
+
+    scan = OV.OverlayScanner(db_session, case, asker=asker, frames=lambda asset: [jpeg()])
+    out = asyncio.run(scan.run([first, second]))
+    assert out["failed"] == 2
+    assert scan.errors == sorted(scan.errors) and [e.split(":")[0] for e in scan.errors] == ["A1", "A2"]
