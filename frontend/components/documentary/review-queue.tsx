@@ -62,28 +62,38 @@ function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): 
 }
 
 const NOTE_MAX = 400;
+const NOTE_SAVE_DELAY_MS = 800;
 
-/** The owner's note on one picture or clip: the planner takes it as true and places the picture by it. */
+/** The owner's note on one picture or clip: the planner takes it as true and places the picture by it. It is saved
+ *  by itself: shortly after typing stops, when the box loses focus and when the picture is left (a decision or Next). */
 function OwnerNote({ caseId, item }: { caseId: number; item: MvpCandidateGroup }) {
-  const [saved, setSaved] = useState(item.owner_note ?? "");
   const [draft, setDraft] = useState(item.owner_note ?? "");
   const [status, setStatus] = useState("");
-  const [busy, setBusy] = useState(false);
-  const changed = draft.trim() !== saved.trim();
+  const savedRef = useRef((item.owner_note ?? "").trim());
+  const draftRef = useRef(draft);
 
-  async function save() {
-    setBusy(true);
+  const save = useCallback(async () => {
+    const text = draftRef.current.trim();
+    if (text === savedRef.current) return;
+    setStatus("Saving...");
     try {
-      const out = await mvpApi.saveNote(caseId, item.asset_id, draft);
-      setSaved(out.owner_note ?? "");
-      setDraft(out.owner_note ?? "");
+      const out = await mvpApi.saveNote(caseId, item.asset_id, text);
+      savedRef.current = out.owner_note ?? "";
       setStatus("Saved. The planner uses it the next time the film is directed.");
     } catch (e) {
       setStatus(e instanceof ApiError ? e.message : "Could not save the note.");
-    } finally {
-      setBusy(false);
     }
-  }
+  }, [caseId, item.asset_id]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void save(), NOTE_SAVE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [draft, save]);
+
+  useEffect(() => () => {
+    const text = draftRef.current.trim();
+    if (text !== savedRef.current) void mvpApi.saveNote(caseId, item.asset_id, text).catch(() => undefined);
+  }, [caseId, item.asset_id]);
 
   return (
     <div data-testid="review-queue-note">
@@ -96,13 +106,11 @@ function OwnerNote({ caseId, item }: { caseId: number; item: MvpCandidateGroup }
         maxLength={NOTE_MAX}
         rows={3}
         placeholder="Who or what this shows, e.g. Ashley's sister, Kayla Keyt - the planner places the picture by it"
-        onChange={(e) => { setDraft(e.target.value); setStatus(""); }}
+        onChange={(e) => { draftRef.current = e.target.value; setDraft(e.target.value); setStatus(""); }}
+        onBlur={() => void save()}
         className="mt-1"
       />
       <div className="mt-1 flex items-center gap-3">
-        <Button type="button" size="sm" variant="outline" onClick={() => void save()} disabled={busy || !changed}>
-          Save note
-        </Button>
         <span className="text-xs text-muted-foreground">{draft.length}/{NOTE_MAX}</span>
         {status && <span role="status" className="text-xs text-emerald-700">{status}</span>}
       </div>
