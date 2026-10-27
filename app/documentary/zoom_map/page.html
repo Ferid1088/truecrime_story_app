@@ -12,12 +12,31 @@ maplibregl.addProtocol('pmtiles', PROTOCOL.tile);
 // Persian and Arabic labels need the shaping of connected letters and right-to-left runs
 maplibregl.setRTLTextPlugin('http://maps.local/lib/rtl-text.js', false);
 
-function labelled(layer, textField) {
+function scaled(size, k) {
+  // a label size is a number or a zoom curve: scale the values, keep the curve (zoom may only drive a top-level curve)
+  if (typeof size === 'number') return size * k;
+  if (Array.isArray(size) && size[0] === 'interpolate')
+    return size.map((x, i) => (i >= 4 && i % 2 === 0 && typeof x === 'number') ? x * k : x);
+  if (Array.isArray(size) && size[0] === 'step')
+    return size.map((x, i) => ((i === 2 || (i >= 4 && i % 2 === 0)) && typeof x === 'number') ? x * k : x);
+  return size;
+}
+
+function labelled(layer, cfg) {
   // one name per label, from the language chain: never two scripts in one label
   if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']
       && JSON.stringify(layer.layout['text-field']).includes('"name"')) {
-    layer.layout['text-field'] = textField;
+    layer.layout['text-field'] = cfg.textField;
     layer.layout['text-font'] = ['Noto Sans Regular'];
+  }
+  // every name reads over the photographs: light letters with a dark outline, a little larger than the style's
+  if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+    layer.paint = layer.paint || {};
+    layer.paint['text-color'] = cfg.labelColor;
+    layer.paint['text-halo-color'] = cfg.labelHalo;
+    layer.paint['text-halo-width'] = cfg.labelHaloWidth;
+    layer.paint['text-halo-blur'] = 0.4;
+    if (layer.layout['text-size'] !== undefined) layer.layout['text-size'] = scaled(layer.layout['text-size'], cfg.labelScale);
   }
   return layer;
 }
@@ -33,8 +52,9 @@ function fade(min, max, fadeLevels) {
 window.start = (cfg) => new Promise((resolve, reject) => {
   const flavor = basemaps.namedFlavor(cfg.flavor);
   flavor.background = cfg.background;
+  flavor.buildings = cfg.buildingColor;
   const base = basemaps.layers('protomaps', flavor, {lang: cfg.lang})
-    .map(l => labelled(l, cfg.textField));
+    .map(l => labelled(l, cfg));
   const layers = base.slice();
   const imageryLayer = e => ({
     id: 'img_' + e.id, type: 'raster', source: 'img_' + e.id,
@@ -64,7 +84,7 @@ window.start = (cfg) => new Promise((resolve, reject) => {
      paint: {'circle-radius': 0, 'circle-color': cfg.markerColor, 'circle-opacity': 0,
              'circle-pitch-alignment': 'map'}, filter: ['==', ['get', 'role'], 'target']},
     {id: 'dots', type: 'circle', source: 'marker',
-     paint: {'circle-radius': 6, 'circle-color': cfg.markerColor, 'circle-stroke-width': 2,
+     paint: {'circle-radius': 11, 'circle-color': cfg.markerColor, 'circle-stroke-width': 3,
              'circle-stroke-color': '#0b0f14', 'circle-pitch-alignment': 'map'}});
   const sources = {
     protomaps: {type: 'vector', url: 'pmtiles://http://maps.local/region.pmtiles', attribution: ''},
