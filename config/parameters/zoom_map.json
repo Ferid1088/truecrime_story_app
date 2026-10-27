@@ -174,10 +174,12 @@
       "marker_color": "#e8c35a",
       "building_color": "#b8c0d0",
       "building_opacity": 0.3,
-      "label_color": "#f6f1e4",
-      "label_halo": "#0b0f14",
-      "label_halo_width": 2.4,
-      "label_scale": 1.3
+      "label_color": "#ffffff",
+      "label_halo": "#000000",
+      "label_halo_width": 3.2,
+      "label_scale": 1.55,
+      "road_color": "#ffffff",
+      "road_opacity": 0.3
     },
     "labels": {
       "chains": {

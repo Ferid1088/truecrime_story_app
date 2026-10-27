@@ -55,6 +55,7 @@ def page_config(cfg: ZoomMapConfig, plan: CAM.ZoomPlan, language: str, entries: 
         "buildingOpacity": style["building_opacity"], "buildingColor": style["building_color"],
         "labelColor": style["label_color"], "labelHalo": style["label_halo"],
         "labelHaloWidth": style["label_halo_width"], "labelScale": style["label_scale"],
+        "roadColor": style["road_color"], "roadOpacity": style["road_opacity"],
         "routeColor": style["route_color"], "markerColor": style["marker_color"],
         "extrude": bool(cfg.variants[plan.variant].extrude),
         "imagery": [{
