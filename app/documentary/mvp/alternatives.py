@@ -226,6 +226,29 @@ def key_fact_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
     return out
 
 
+def fact_card_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
+    """One statement card for each confirmed fact that has a short line: the fact in large text with its source, offered
+    at the beat that tells it (the quote card's look for what the record shows without a quotation). They are the supply
+    for moments that no other alternative fits; the placement still needs the words spoken to be about the fact."""
+    confirmed = T.config().planner["confirmed_strengths"]
+    out = []
+    for fid, fact in ev.facts.items():
+        if fact.get("disputed") or fact.get("uncertain") or fact.get("evidence_strength") not in confirmed:
+            continue
+        beat, line = reveal_index(ev, fid), lines.get(fid)
+        if beat is None or not line:
+            continue
+        data = {"text": line, "fact_id": fid}
+        source = next((ev.sources[s]["publisher"] for s in fact.get("source_ids") or []
+                       if (ev.sources.get(s) or {}).get("publisher")), None)
+        if source:
+            data["source"] = source
+        made = offer("fact_card", f"fact_card|{fid}", data, beat, items=(fid,))
+        if made:
+            out.append(made)
+    return out
+
+
 def headline_offers(ev: Evidence, placed: dict[str, dict]) -> list[Offer]:
     """`placed`: headline key -> {"earliest": beat id, "best": beat id} from the placement agent."""
     out = []

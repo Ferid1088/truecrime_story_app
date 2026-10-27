@@ -21,6 +21,7 @@ const KIND_LABEL: Record<string, string> = {
   floor_plan: "floor plans",
   headline: "newspaper headlines",
   key_facts: "key facts",
+  fact_card: "statement",
   quote: "quotes",
   recap: "recaps",
   timeline: "timelines",

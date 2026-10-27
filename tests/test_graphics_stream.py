@@ -28,8 +28,10 @@ def rendered(kind: str, language: str, slack: float = 2.0):
     return graphic(kind).render(data, duration, list(schedule.cues), language), schedule, duration
 
 
-def test_the_seventeen_alternatives_are_all_covered():
-    assert len(ALL) == 17 and set(ALL) == set(GS.T.config().hold_seconds) - {"conflict_board"} | {"conflict_board"}
+def test_the_eighteen_alternatives_are_all_covered():
+    from app.documentary.graphics.registry import GRAPHICS
+
+    assert len(ALL) == 18 and set(ALL) == set(GRAPHICS)
 
 
 @pytest.mark.parametrize("language", LANGUAGES)

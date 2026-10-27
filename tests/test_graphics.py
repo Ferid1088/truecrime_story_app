@@ -27,12 +27,13 @@ def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
     data = {"conflict": S.conflict(language), "conflict_board": S.board(language), "recap": S.recap(language),
             "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
             "headline": S.headline(), "floor_plan": S.floor_plan(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
-                                                "fact_id": "F1"}}[kind]
+                                                "fact_id": "F1"},
+            "fact_card": {"text": S.TEXT[language]["fact"], "source": S.TEXT[language]["as"], "fact_id": "F12"}}[kind]
     schedule = GS.schedule_of(kind, data, language)
     return data, schedule.total + 2.0, list(schedule.cues)
 
 
-KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote", "floor_plan")
+KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote", "floor_plan", "fact_card")
 
 
 def thumb(image: Image.Image) -> np.ndarray:

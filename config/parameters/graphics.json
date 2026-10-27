@@ -57,6 +57,7 @@
       "quote": 15.0,
       "headline": 18.0,
       "key_facts": 18.0,
+      "fact_card": 15.0,
       "timeline": 24.0,
       "conflict_board": 21.0,
       "floor_plan": 24.0,
@@ -93,6 +94,9 @@
         0.1,
         0.4,
         0.7
+      ],
+      "fact_card": [
+        0.15
       ],
       "timeline": [
         0.08,
@@ -274,6 +278,7 @@
         "schematic": "SCHEMATIC · NOT TO SCALE · FROM THE REPORT",
         "point": "POINT",
         "key_facts": "KEY FACTS",
+        "fact_card": "THE RECORD SHOWS",
         "headline": "NEWSPAPER HEADLINE",
         "headline_title": "AS THE PRESS REPORTED IT",
         "headline_source": "SOURCE",
@@ -401,6 +406,7 @@
         "schematic": "SCHEMA · NICHT MASSSTÄBLICH · NACH DEM BERICHT",
         "point": "PUNKT",
         "key_facts": "WICHTIGE FAKTEN",
+        "fact_card": "DIE AKTE ZEIGT",
         "headline": "ZEITUNGSSCHLAGZEILE",
         "headline_title": "SO BERICHTETE DIE PRESSE",
         "headline_source": "QUELLE",
@@ -528,6 +534,7 @@
         "schematic": "طرح تقریبی · بدون مقیاس · بر پایه گزارش",
         "point": "نکته",
         "key_facts": "حقایق کلیدی",
+        "fact_card": "پرونده نشان می‌دهد",
         "headline": "تیتر روزنامه",
         "headline_title": "رسانه‌ها چنین گزارش دادند",
         "headline_source": "منبع",
@@ -655,6 +662,7 @@
         "schematic": "مخطط تقريبي · غير مقيّس · عن التقرير",
         "point": "نقطة",
         "key_facts": "حقائق أساسية",
+        "fact_card": "السجل يُظهر",
         "headline": "عنوان صحفي",
         "headline_title": "كما نقلته الصحافة",
         "headline_source": "المصدر",
@@ -759,6 +767,7 @@
         "unknowns",
         "investigation_clock",
         "headline",
+        "fact_card",
         "key_facts",
         "timeline",
         "recap",
@@ -773,6 +782,7 @@
         "quote": 9.0,
         "headline": 12.0,
         "key_facts": 12.0,
+      "fact_card": 9.0,
         "timeline": 15.0,
         "conflict_board": 12.0,
         "floor_plan": 15.0,
@@ -827,6 +837,7 @@
       "drift_beats": {
         "quote": 2,
         "key_facts": 2,
+        "fact_card": 4,
         "timeline": 4,
         "recap": 2,
         "conflict": 3,

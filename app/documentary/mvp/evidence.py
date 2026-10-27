@@ -105,8 +105,8 @@ async def build_offers(db: Session, case: Case, bp_row: EditorialBlueprint, need
     shown = {i for o in quotes + facts for i in o.items}
     headlines = AL.headline_offers(ev, placed)[:T.config().planner["headline"]["max_per_film"]]
     engines = await EN.build_engine_offers(db, case, needs_plan, ev)
-    offers = (engines + conflicts + quotes + facts + AL.timeline_offers(ev, lines) + headlines
-              + AL.recap_offers(ev, lines, best, shown))
+    offers = (engines + conflicts + quotes + facts + AL.fact_card_offers(ev, lines) + AL.timeline_offers(ev, lines)
+              + headlines + AL.recap_offers(ev, lines, best, shown))
     return offers, ev
 
 
@@ -118,6 +118,7 @@ TEXT_FIELDS = {
     "timeline": [("events", "label")],
     "key_facts": [("facts", "caption")],
     "quote": [("", "text")],
+    "fact_card": [("", "text")],
 }
 
 

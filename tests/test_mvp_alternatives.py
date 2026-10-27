@@ -690,3 +690,45 @@ def test_every_stretch_of_a_beat_is_filled_even_when_filling_one_changes_the_lis
     shots = [_stretch(10), _picture("A", 10), _stretch(20), _picture("B", 10), _stretch(10)]
     AL.fill_beat(shots, 60.0, 0, offers, AL.State())
     assert not any(s.get("gap") for s in shots) and sum(1 for o in offers if o.placed) == 4
+
+
+# -- the statement card ------------------------------------------------------------------------------------------------
+
+
+def _facts_evidence():
+    facts = {"F1": {"claim": "Caleb Flynn was convicted of murder", "evidence_strength": "strong_secondary",
+                    "source_ids": [7, 8]},
+             "F2": {"claim": "A disputed claim", "evidence_strength": "strong_secondary", "disputed": True,
+                    "source_ids": [7]},
+             "F3": {"claim": "Weak claim", "evidence_strength": "weak", "source_ids": [7]},
+             "F4": {"claim": "No short line", "evidence_strength": "strong_secondary", "source_ids": [7]},
+             "F5": {"claim": "Ashley Flynn lived in Tipp City", "evidence_strength": "strong_secondary", "source_ids": [9]},
+             "F6": {"claim": "Only reported once", "evidence_strength": "secondary", "source_ids": [7]}}
+    ev = evidence(facts=facts, sources={7: {"publisher": "AP"}, 8: {"publisher": "BBC"}, 9: {"publisher": ""}})
+    for n, fid in enumerate(facts):
+        ev.beats[n]["reveals"] = [fid]
+    return ev
+
+
+def test_a_statement_card_is_offered_for_each_confirmed_fact_with_a_short_line_at_the_beat_that_tells_it():
+    ev = _facts_evidence()
+    lines = {"F1": "Caleb Flynn convicted of murder", "F2": "Disputed", "F3": "Weak", "F5": "Ashley lived in Tipp City",
+             "F6": "Reported once"}
+    offers = AL.fact_card_offers(ev, lines)
+    assert [o.key for o in offers] == ["fact_card|F1", "fact_card|F5"]       # not disputed, weak or only secondary; a line is needed
+    first = offers[0]
+    assert first.kind == "fact_card" and first.best == 0 and first.first == 0 and first.items == {"F1"}
+    assert first.data == {"text": "Caleb Flynn convicted of murder", "fact_id": "F1", "source": "AP"}
+    assert "source" not in offers[1].data                                      # a source without a name is not shown
+    assert first.seconds >= GS.planned_seconds("fact_card", first.data) - 1e-6 and first.min_seconds >= 9.0
+
+
+def test_a_statement_card_fills_a_bare_moment_whose_words_are_about_the_fact_and_no_other():
+    offer = AL.fact_card_offers(_facts_evidence(), {"F1": "Caleb Flynn convicted of murder"})[0]
+    shots, length = gap_beat(30.0, (30.0,))
+    shots[0]["said"] = "The jury found the weather cold that morning."
+    AL.fill_beat(shots, length, 2, [offer], AL.State())
+    assert shots[0]["command"] == "BLACK_SCREEN"
+    shots[0]["said"] = "Caleb Flynn was convicted of murder after two hours."
+    AL.fill_beat(shots, length, 2, [offer], AL.State())
+    assert shots[0]["command"] == "SHOW_GRAPHIC" and shots[0]["graphic"]["type"] == "fact_card"

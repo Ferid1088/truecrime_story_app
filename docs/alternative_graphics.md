@@ -41,6 +41,7 @@ with every source credited on the page. Imagery brightness `zoom_map.imagery_dim
 | `recap` | confirmed / disputed / still unknown + progress bar | one per section | facts told by then (`viewer_knows`), told conflicts, open questions (`opened_in`..`resolved_in`) |
 | `timeline` | dated events on a line that grows node by node | one per event | the chapter plan's events (dates exactly as the fact states them) |
 | `key_facts` | up to 3 figures (numbers, times) as large text | one per fact | stated facts with a figure; caption = agent `mvp.copy` line that keeps every figure |
+| `fact_card` | one confirmed fact (a short line) in large text with its source | one per fact | confirmed facts that have a short line; the quote card's look for what the record shows without a quotation; placed where the words spoken are about the fact |
 | `quote` | a verified quotation with who said it | the quote | approved quotes; only complete quotations |
 | `headline` | a real newspaper headline with newspaper and date | the headline | case sources that are listed newspapers (`headline.source_names`); earliest beat by agent `mvp.headline` |
 | `document` | verbatim words of a court record with its type, issuer and date | highlight wipe | a verified quotation that stands word for word in an official stored source (`verify_verbatim`); otherwise the quote card |

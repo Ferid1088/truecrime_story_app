@@ -16,6 +16,7 @@ from app.documentary.graphics.engines.trial import (
     EvidenceCheck,
     SentencingExplanation,
 )
+from app.documentary.graphics.factcard import FactCard
 from app.documentary.graphics.floorplan import FloorPlan
 from app.documentary.graphics.headline import HeadlineCard
 from app.documentary.graphics.keyfacts import KeyFacts
@@ -26,7 +27,7 @@ from app.documentary.graphics.timeline import Timeline
 GRAPHICS: dict[str, Graphic] = {g.kind: g for g in (
     DocumentCard(), ConflictPage(), ConflictBoard(), Timeline(), RecapBoard(), FloorPlan(), KeyFacts(),
     HeadlineCard(), QuoteCard(), CourtroomReasoning(), ChainOfCustody(), MapOfUnknowns(), ForensicExamination(),
-    InterrogationAnalysis(), SentencingExplanation(), InvestigationClock(), EvidenceCheck())}
+    InterrogationAnalysis(), SentencingExplanation(), InvestigationClock(), EvidenceCheck(), FactCard())}
 
 
 def graphic(kind: str) -> Graphic:
