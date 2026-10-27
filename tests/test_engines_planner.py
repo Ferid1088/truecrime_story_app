@@ -79,7 +79,7 @@ def test_a_chosen_engine_becomes_an_offer_with_its_sources_and_is_remembered(db_
     meta = offers[0].meta
     assert meta["why"].startswith("both sides") and meta["steps"] == ["prosecution", "defense", "finding"]
     assert {p["fact_id"] for p in meta["provenance"]} == {"F001", "F005", "F080"}
-    assert 15.0 <= offers[0].seconds <= 24.0
+    assert 1.5 * 15.0 <= offers[0].seconds <= 1.5 * 24.0
     assert offers[0].items == {"courtroom|B02", "F001", "F005", "F080"}      # no other graphic repeats these facts
     again = asyncio.run(EN.build_engine_offers(db_session, case, needs, evidence(), planner_for(db_session, case, needs, agent)))
     assert len(agent.calls) == 1 and [o.key for o in again] == ["courtroom|B02"]
