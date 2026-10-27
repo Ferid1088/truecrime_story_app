@@ -12,7 +12,15 @@ import numpy as np
 from PIL import Image
 
 from app.documentary.graphics import theme as T
-from app.documentary.graphics.page import DoesNotFit
+from app.documentary.graphics.page import DoesNotFit, ground
+
+
+def lowest_content_row(img: Image.Image, tolerance: int) -> int:
+    """The lowest pixel row of the page that differs from the page ground (-1 when the page is empty)."""
+    page = np.asarray(img.convert("RGB"), dtype=np.int16)
+    base = np.asarray(ground(img.width, img.height).convert("RGB"), dtype=np.int16)
+    rows = np.where((np.abs(page - base).max(axis=2) > tolerance).any(axis=1))[0]
+    return int(rows.max()) if len(rows) else -1
 
 
 class GraphicUnavailable(ValueError):
@@ -74,9 +82,12 @@ class Graphic(ABC):
         rendered = Rendered(self, data, language, float(duration_s), used, skipped)
         try:
             for step in range(len(used) + 1):          # every page is drawn now: a text that cannot fit fails here
-                rendered.state(step)
+                rendered.raw(step)
         except DoesNotFit as e:
             raise GraphicUnavailable(f"{self.kind}: {e}") from e
+        if rendered.scale() < T.config().safe_zone["min_scale"]:
+            raise GraphicUnavailable(f"{self.kind}: its content reaches too far into the subtitle zone at the "
+                                     f"bottom of the page")
         return rendered
 
 
@@ -88,16 +99,42 @@ class Rendered:
         self.graphic, self.data, self.language = graphic, data, language
         self.duration_s, self.cues, self.skipped = duration_s, cues, skipped
         self.steps = len(cues)
-        self._states: dict[int, Image.Image] = {}
+        self._raw: dict[int, Image.Image] = {}
+        self._scale: float | None = None
 
     def key(self) -> str:
         return hashlib.sha256(json.dumps([self.graphic.kind, self.data, self.language, self.cues],
                                          sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
+    def raw(self, step: int) -> Image.Image:
+        """The page as the graphic draws it, before it is fitted above the subtitle zone."""
+        if step not in self._raw:
+            self._raw[step] = self.graphic.draw_state(self.data, self.language, step)
+        return self._raw[step]
+
+    def scale(self) -> float:
+        """The one factor all pages of this graphic are shrunk by so that nothing reaches into the strip at the bottom
+        that the subtitles use (1.0 when nothing does). It comes from the lowest content of any page, so the pages
+        of one graphic never move against each other."""
+        if self._scale is None:
+            zone = T.config().safe_zone
+            lowest = max(lowest_content_row(self.raw(step), zone["tolerance"]) for step in range(self.steps + 1))
+            limit = self.raw(0).height - zone["bottom"]
+            self._scale = 1.0 if lowest < 0 or lowest + 1 <= limit else limit / (lowest + 1)
+        return self._scale
+
+    def fitted(self, img: Image.Image) -> Image.Image:
+        """The page shrunk by `scale()`, centred at the top over the page ground."""
+        factor = self.scale()
+        if factor >= 1.0:
+            return img
+        size = (round(img.width * factor), round(img.height * factor))
+        canvas = ground(img.width, img.height).copy()
+        canvas.paste(img.resize(size, Image.LANCZOS), ((img.width - size[0]) // 2, 0))
+        return canvas
+
     def state(self, step: int) -> Image.Image:
-        if step not in self._states:
-            self._states[step] = self.graphic.draw_state(self.data, self.language, step)
-        return self._states[step]
+        return self.fitted(self.raw(step))
 
     def position(self, since: float) -> tuple[int, float]:
         """(step, progress of its reveal): step k is on screen once cue k-1 has passed."""
@@ -110,8 +147,8 @@ class Rendered:
         step, progress = self.position(since)
         if step == 0 or progress >= 1.0:
             return self.state(step)
-        return self.graphic.draw_between(self.data, self.language, step, progress, self.state(step - 1),
-                                         self.state(step))
+        return self.fitted(self.graphic.draw_between(self.data, self.language, step, progress, self.raw(step - 1),
+                                                     self.raw(step)))
 
     def frame_at(self, since: float) -> np.ndarray:
         return np.asarray(self.image_at(since))

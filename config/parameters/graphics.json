@@ -30,6 +30,11 @@
       "date": 84
     },
     "margin": 120,
+    "safe_zone": {
+      "bottom": 200,
+      "min_scale": 0.84,
+      "tolerance": 12
+    },
     "transition_seconds": 0.5,
     "line_draw_seconds": 0.9,
     "hold_seconds": {
@@ -149,7 +154,8 @@
         "disputed": 2,
         "unknown": 2
       },
-      "item_max_chars": 60
+      "item_max_chars": 38,
+      "title_px": 76
     },
     "floor_plan": {
       "max_markers": 8,
@@ -782,9 +788,9 @@
         "min_confidence": 0.7
       },
       "copy": {
-        "fact_line_chars": 60,
+        "fact_line_chars": 38,
         "caption_chars": 90,
-        "event_label_chars": 70
+        "event_label_chars": 44
       },
       "headline": {
         "max_per_film": 12
@@ -825,7 +831,7 @@
       },
       "seconds_per_step": 3.6,
       "base_seconds": 10.0,
-      "text_max_chars": 150,
+      "text_max_chars": 90,
       "label_max_chars": 48,
       "items_per_group": 2,
       "max_stages": 5,

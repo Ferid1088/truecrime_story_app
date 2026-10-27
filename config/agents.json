@@ -504,6 +504,20 @@
       "description": "Moment cutting: an independent check of a finished cut against the words it will run under.",
       "used_by": "app/documentary/mvp/moments.py"
     },
+    "mvp.timing": {
+      "role": "mvp_timing_classifier",
+      "prompt": "documentary/mvp/timing_system",
+      "output": "json",
+      "description": "Story timing: what each approved picture or clip shows and the first beat in which the story has told of it.",
+      "used_by": "app/documentary/mvp/timing.py"
+    },
+    "mvp.overlay_scan": {
+      "role": "mvp_overlay_scanner",
+      "prompt": "documentary/mvp/overlay_scan_system",
+      "output": "json",
+      "description": "Picture and footage check: where other people's logos, watermarks and caption strips are laid over a picture or clip.",
+      "used_by": "app/documentary/mvp/overlays.py"
+    },
     "mvp.topic_match": {
       "role": "mvp_topic_matcher",
       "prompt": "documentary/mvp/topic_match_system",

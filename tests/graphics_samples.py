@@ -41,10 +41,16 @@ def board(language: str) -> dict:
     return {"cards": cards, "new_card": "C3"}
 
 
+KEY_WORDS = {"en": ("Four found dead", "Two accounts, one door", "Door opened by whom?"),
+             "de": ("Vier Tote gefunden", "Zwei Darstellungen, eine Tür", "Wer öffnete das Tor?"),
+             "fa": ("چهار نفر مرده یافت شدند", "دو روایت از یک در", "چه کسی در را باز کرد؟"),
+             "ar": ("العثور على أربعة موتى", "روايتان عن باب واحد", "من فتح الباب؟")}
+
+
 def recap(language: str) -> dict:
-    t = TEXT[language]
-    return {"confirmed": [{"text": t["fact"], "fact_id": "F1"}], "disputed": [{"text": t["sum"], "fact_id": "F4"}],
-            "unknown": [{"text": t["open"], "fact_id": "Q1"}], "progress": {"elapsed_s": 600, "total_s": 3600}}
+    fact, disputed, unknown = KEY_WORDS[language]
+    return {"confirmed": [{"text": fact, "fact_id": "F1"}], "disputed": [{"text": disputed, "fact_id": "F4"}],
+            "unknown": [{"text": unknown, "fact_id": "Q1"}]}
 
 
 def timeline(language: str) -> dict:

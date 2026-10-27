@@ -1,5 +1,5 @@
-"""Recap board ("what we know so far"): what is confirmed, what is disputed, what is still unknown, and where the
-film stands. Only sections that have items are drawn; each is revealed on its own cue."""
+"""Recap board ("what we know so far"): what is confirmed, what is disputed and what is still unknown, each as a few
+key words. Only sections that have items are drawn; each is revealed on its own cue."""
 
 from __future__ import annotations
 
@@ -11,21 +11,16 @@ from PIL import Image
 from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import DoesNotFit, Page
 
 SECTIONS = ("confirmed", "disputed", "unknown")
 RULE_COLOR = {"confirmed": "amber", "disputed": "blue", "unknown": "red"}
-TOP, HEIGHT, WIDTH, GAP = 312, 540, 520, 60
-BAR_LEFT, BAR_RIGHT, BAR_Y = 244, 1678, 951
+TOP, HEIGHT, WIDTH, GAP = 260, 540, 520, 60
+PAD = 52
 
 
 def sections_with_items(data: dict) -> list[str]:
     return [s for s in SECTIONS if data.get(s)]
-
-
-def clock(seconds: float) -> str:
-    seconds = int(seconds)
-    return f"{seconds // 60}:{seconds % 60:02d}"
 
 
 class RecapBoard(Graphic):
@@ -45,9 +40,6 @@ class RecapBoard(Graphic):
                     return f"{section} item {n}: the text must be 1-{cfg['item_max_chars']} characters"
                 if not item.get("fact_id"):
                     return f"{section} item {n}: no fact id (an item without one is not shown)"
-        progress = data.get("progress") or {}
-        if not 0 <= progress.get("elapsed_s", -1) <= progress.get("total_s", 0):
-            return "progress needs elapsed_s within total_s"
         return None
 
     def required_cues(self, data: dict) -> int:
@@ -62,7 +54,7 @@ def _recap(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     page = Page(language)
     m = page.margin
-    parts.header(page, T.label(language, "recap"), T.rgb("amber"), T.label(language, "recap_title"), 112, lines_max=1)
+    parts.header(page, "", T.rgb("amber"), T.label(language, "recap_title"), T.config().recap["title_px"], lines_max=1)
     for n, name in enumerate(sections_with_items(data)):
         left = m + n * (WIDTH + GAP)
         shown = step >= n + 1
@@ -74,14 +66,8 @@ def _recap(data_json: str, language: str, step: int) -> Image.Image:
                   min_px=40, spacing=1.0, upper=True)
         y = TOP + 150
         for item in data[name]:
-            y = page.text(left + 52, y, WIDTH - 104, item["text"], "body", 40, T.rgb("ink"), lines_max=3,
-                          min_px=28, spacing=1.35) + 26
-    progress = data["progress"]
-    page.text(m, BAR_Y - 20, 120, clock(progress["elapsed_s"]), "mono", 28, T.rgb("grey"), lines_max=1)
-    page.text(page.W - m - 120, BAR_Y - 20, 120, clock(progress["total_s"]), "mono", 28, T.rgb("grey"), align="end",
-              lines_max=1)
-    page.rect(BAR_LEFT, BAR_Y, BAR_RIGHT - BAR_LEFT, 6, fill=T.rgb("rule"))
-    reach = int((BAR_RIGHT - BAR_LEFT) * progress["elapsed_s"] / max(progress["total_s"], 1))
-    page.rect(BAR_LEFT, BAR_Y, reach, 6, fill=T.rgb("amber"))
-    page.disc(BAR_LEFT + reach, BAR_Y + 3, 14, T.rgb("amber"))
+            y = page.text(left + PAD, y, WIDTH - 2 * PAD, item["text"], "body", 40, T.rgb("ink"), lines_max=2,
+                          min_px=30, spacing=1.35) + 26
+        if y - 26 > TOP + HEIGHT - PAD // 2:
+            raise DoesNotFit(f"the {name} items do not fit their card")
     return page.done()

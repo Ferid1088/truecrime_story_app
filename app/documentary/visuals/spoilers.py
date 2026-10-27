@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 
 from app.core.ai_config import ai_config
+from app.documentary.mvp import timing as TM
 
 
 def _seen(a, with_title: bool) -> str:
@@ -142,10 +143,11 @@ class Firewall:
     the story reveals only later (`reveals`: beat -> fact ids)."""
 
     def __init__(self, investigation: set[str] | None = None, custody: set[str] | None = None,
-                 reveals: dict[str, list[str] | set[str]] | None = None):
+                 reveals: dict[str, list[str] | set[str]] | None = None, order: list[str] | None = None):
         self.investigation = set(investigation or ())
         self.custody = set(custody or ())
         self.reveals = {b: set(v) for b, v in (reveals or {}).items() if v}
+        self.order = list(order or ())          # the film's beats in order (for the story-timing label)
 
     def blocks(self, beat: str | None, a) -> bool:
         return self.why(beat, a) is not None
@@ -157,6 +159,8 @@ class Firewall:
             return "shows the investigation before the incident"
         if beat in self.custody and shows_custody(a):
             return "shows custody/court before the story reaches the arrest"
+        if self.order and TM.blocks(a, self.order, beat):
+            return f"shows what the story tells only later ({TM.stored(a).phase}, from {TM.stored(a).not_before})"
         early = self.reveals.get(beat, set()) & revealed_by(a)
         if early:
             return f"shows what the story reveals only later ({', '.join(sorted(early))})"
@@ -164,10 +168,10 @@ class Firewall:
 
     def as_json(self) -> dict:
         return {"investigation": sorted(self.investigation), "custody": sorted(self.custody),
-                "reveals": {b: sorted(v) for b, v in sorted(self.reveals.items())}}
+                "reveals": {b: sorted(v) for b, v in sorted(self.reveals.items())}, "order": self.order}
 
     @classmethod
     def from_json(cls, data: dict | None) -> Firewall:
         data = data or {}
         return cls(set(data.get("investigation") or ()), set(data.get("custody") or ()),
-                   data.get("reveals") or {})
+                   data.get("reveals") or {}, data.get("order") or [])

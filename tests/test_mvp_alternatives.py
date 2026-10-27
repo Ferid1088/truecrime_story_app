@@ -214,7 +214,7 @@ def test_a_recap_holds_only_what_the_story_told_by_then_and_each_item_once():
     shown = [x["fact_id"] for s in ("confirmed", "disputed", "unknown") for x in offers[0].data[s]]
     assert "F1" not in shown and "F6" not in shown and len(shown) == len(set(shown))   # F6 is told later
     assert offers[0].data["unknown"] == [{"text": "Who did it?", "fact_id": "Q1"}]
-    assert offers[0].data["progress"] == {"elapsed_s": 700, "total_s": 3600}
+    assert "progress" not in offers[0].data
 
 
 def test_a_conflict_is_offered_at_the_beat_that_tells_it_and_only_if_one_does():
@@ -403,8 +403,7 @@ def test_a_graphic_that_no_longer_fits_is_dropped_and_reported_not_stretched():
               "graphic": {"type": "recap", "cue_fractions": [0.1, 0.4, 0.7],
                           "data": {"confirmed": [{"text": "A fact.", "fact_id": "F1"}],
                                    "disputed": [{"text": "A claim.", "fact_id": "F2"}],
-                                   "unknown": [{"text": "A question?", "fact_id": "F3"}],
-                                   "progress": {"elapsed_s": 10, "total_s": 100}}}}]
+                                   "unknown": [{"text": "A question?", "fact_id": "F3"}]}}}]
     dropped = GS.finalize(shots, "en")
     assert [s["kind"] for s in shots] == ["image"] and shots[0]["end"] == 12.0
     assert dropped[0]["type"] == "recap" and "too short" in dropped[0]["why"]
@@ -529,8 +528,8 @@ def test_a_recap_does_not_list_two_facts_that_say_the_same():
     ev = evidence(facts=facts)
     ev.beats[7]["viewer_knows"] = ["F1", "F2", "F3"]
     ev.starts = {b["id"]: 10.0 * i for i, b in enumerate(ev.beats)}
-    lines = {"F1": "Ashley was born to Todd and Jill Smith in Tipp City", "F2": "Todd and Jill Smith are Ashley's parents",
-             "F3": "A refrigerator blocked the garage entry"}
+    lines = {"F1": "Ashley born to Todd and Jill Smith", "F2": "Todd and Jill Smith: Ashley's parents",
+             "F3": "Refrigerator blocked garage entry"}
     recap = AL.recap_offers(ev, lines, {}, set())[0]
     assert [x["fact_id"] for x in recap.data["confirmed"]] == ["F1", "F3"]
 

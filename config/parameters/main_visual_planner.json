@@ -80,6 +80,27 @@
     },
     "neighbour_cover": {
       "min_piece_seconds": 3.0
+    },
+    "timing": {
+      "enabled": true,
+      "version": 1,
+      "assets_per_call": 16,
+      "summary_chars": 170,
+      "phases": ["scene", "investigation", "interview", "arrest_charge", "court_filing", "trial", "verdict",
+                 "sentencing", "aftermath", "background"],
+      "always_ok": ["background"]
+    },
+    "overlays": {
+      "enabled": true,
+      "version": 2,
+      "frames_per_video": 3,
+      "video_frame_width": 960,
+      "photo_width": 1280,
+      "min_keep_area": 0.5,
+      "margin": 0.012,
+      "max_marks": 12,
+      "pictures_per_call": 1,
+      "kinds": ["logo", "watermark", "caption", "channel_name", "ticker", "bar", "credit_line", "other"]
     }
   }
 }

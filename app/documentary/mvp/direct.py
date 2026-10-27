@@ -21,6 +21,7 @@ from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import neighbours as NC
 from app.documentary.mvp import satisfy as SA
+from app.documentary.mvp import timing as TM
 from app.documentary.mvp.coverage import counted_requirements
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
@@ -156,7 +157,10 @@ def requirement_first(pool: list[Item]) -> list[Item]:
 
 def reveal_blocked(db: Session, graph_id: int | None, beat_order: dict[str, int], beat_id: str,
                    asset: VisualAsset) -> bool:
-    """True when the asset would reveal a graph node before the beat that first reveals it."""
+    """True when the asset would show something the story has not told yet at this beat: a label of its story timing
+    (mvp/timing.py), or a graph node that a later beat first reveals."""
+    if TM.blocks(asset, beat_order, beat_id):
+        return True
     if graph_id is None:
         return False
     facts = json.loads(asset.reveals_json or "[]")

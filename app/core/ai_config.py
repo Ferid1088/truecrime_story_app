@@ -124,6 +124,10 @@ REQUIRED_ROLES = {
     "mvp_topic_matcher",
     # Cinematic engines: whether a beat is clearer with one of the eight engines, and its structured data.
     "mvp_engine_planner",
+    # Other people's logos, watermarks and caption strips in a picture or footage: where they are (vision).
+    "mvp_overlay_scanner",
+    # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
+    "mvp_timing_classifier",
     "mvp_scene_director",
     # The alternative graphics: a disputed point structured into two sourced sides, stored facts
     # shortened faithfully, and the earliest beat a real newspaper headline may be shown.
@@ -163,7 +167,7 @@ REQUIRED_ROLES = {
 
 # Roles that send images and need a vision-capable model.
 VISION_ROLES = {"mvp_candidate_verifier", "mvp_second_verifier", "mvp_segment_scout", "mvp_moment_cutter",
-                "mvp_moment_checker", "thumbnail_critic"}
+                "mvp_moment_checker", "mvp_overlay_scanner", "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — Brave Search + fetcher + index), not an LLM
@@ -2851,6 +2855,41 @@ class MvpNeighbourCoverConfig(BaseModel):
     min_piece_seconds: float = Field(gt=0.0)
 
 
+class MvpOverlaysConfig(BaseModel):
+    """Other channels' and agencies' marks in the pictures and footage the film uses (a logo, a watermark, a caption
+    strip, a channel name, a bar with a logo in it). Each approved picture and clip is scanned; the film shows the
+    largest 16:9 part of it that holds none of them (at least `min_keep_area` of the picture), and a picture or clip
+    that cannot be cut free of them is not used."""
+
+    enabled: bool
+    # sampled frames of a clip and their width; a photo is scanned at `photo_width`
+    frames_per_video: int = Field(ge=1)
+    video_frame_width: int = Field(ge=256)
+    photo_width: int = Field(ge=256)
+    # the least share of the picture's area that the cut must keep
+    min_keep_area: float = Field(gt=0.0, le=1.0)
+    # every mark is widened by this share of the picture's width and height before the cut avoids it
+    margin: float = Field(ge=0.0, lt=0.2)
+    kinds: list[str] = Field(min_length=1)
+    max_marks: int = Field(ge=1)
+    pictures_per_call: int = Field(ge=1)
+    version: int = Field(ge=1)
+
+
+class MvpTimingConfig(BaseModel):
+    """Story timing of the pictures and clips: each approved picture or clip is labelled with what it shows (its
+    phase of the story) and the first beat in which the story has told of that; the film shows it from that beat
+    on and never before (a criminal complaint is not shown while the officers still search the garage)."""
+
+    enabled: bool
+    version: int = Field(ge=1)
+    assets_per_call: int = Field(ge=1)
+    summary_chars: int = Field(ge=40)
+    # phases that always belong to a later part of the story: never labelled "any beat"
+    phases: list[str] = Field(min_length=3)
+    always_ok: list[str] = Field(min_length=1)
+
+
 class LogoConfig(BaseModel):
     """The channel logo shown in a corner of the film (config/parameters/branding.json): on pictures and clips, not on
     graphics, maps, host scenes, chapter or title cards (they have their own layouts, or the logo already plays)."""
@@ -2895,6 +2934,8 @@ class MainVisualPlannerConfig(BaseModel):
     moments: MvpMomentsConfig
     topical: MvpTopicalConfig
     neighbour_cover: MvpNeighbourCoverConfig
+    overlays: MvpOverlaysConfig
+    timing: MvpTimingConfig
     review: MvpReviewConfig
 
 
@@ -2906,6 +2947,8 @@ class GraphicsConfig(BaseModel):
     colors: dict[str, str]
     type_scale: dict[str, int]
     margin: int = Field(gt=0)
+    # the strip at the bottom of every page that stays empty for the subtitles: content is shrunk to end above it
+    safe_zone: dict[str, float]
     transition_seconds: float = Field(gt=0.0)
     line_draw_seconds: float = Field(gt=0.0)
     hold_seconds: dict[str, float]

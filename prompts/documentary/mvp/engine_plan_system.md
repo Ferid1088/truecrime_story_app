@@ -47,7 +47,8 @@ judge or jury decided.
 
 HARD RULES
 - Every text must be supported by the fact it cites: same figures (no new numbers, dates or names), same meaning. Shorten, do
-  not embellish. Keep texts short (most under 90 characters) and in plain English.
+  not embellish. Write KEY WORDS, not sentences: a short phrase (at most 60 characters where possible, never more than
+  90), such as "Casings from one 9mm firearm" or "Handgun never found". A verbatim quote keeps its words.
 - Do not choose an engine unless it clearly makes the beat easier to understand than a picture would. Most beats get "none".
 - Never pick an engine whose required evidence is not in the facts. Say what is missing instead.
 - Never use facts that are not listed for that beat. Never put the beat's conclusion before the narrator reaches it.

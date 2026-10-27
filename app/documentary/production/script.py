@@ -42,6 +42,7 @@ from app.db.models import (
 )
 from app.documentary import storage
 from app.documentary.graphics.shots import finalize as finalize_graphics
+from app.documentary.mvp.overlays import crop_of
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.documentary.visuals.generated import LABELS, localize_texts
@@ -121,7 +122,7 @@ def _asset_info(a: VisualAsset) -> dict:
     focus = _focus(a.local_path) if a.asset_type == "photo" else None
     facts = asset_facts(a)
     return {
-        "focus": focus,
+        "focus": focus, "crop": crop_of(a),
         "asset_id": a.asset_code, "path": a.local_path, "type": a.asset_type,
         "role": a.asset_role, "width": a.width, "height": a.height,
         "highlight": spec.get("highlight"), "marker": spec.get("marker"),
@@ -1011,7 +1012,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     # what the director's own pictures may not show (incident, arrest)
     # (and the claim firewall: no picture showing a fact the story reveals
     # only later — reveal_blocks: beat -> fact ids)
-    planfw = SP.Firewall(before_incident, SP.beats_before(order, arrest_beat), reveal_blocks)
+    planfw = SP.Firewall(before_incident, SP.beats_before(order, arrest_beat), reveal_blocks, order)
 
     for i, span in enumerate(spans):
         w_start = 0.0 if i == 0 else span["start"]
@@ -1228,7 +1229,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     # investigation before the incident — nor during the incident beat,
     # where the story is still before the moment it happens
     guard = SP.Firewall(before_incident | ({incident_beat} if incident_beat in order else set()),
-                        planfw.custody, reveal_blocks)
+                        planfw.custody, reveal_blocks, order)
     # the whole film at once: a fill never takes a picture shown later
     tracker = UsageTracker.from_shots(shots, facts)
     _hold_zoom_maps(shots)

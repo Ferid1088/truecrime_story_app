@@ -62,13 +62,25 @@ def _ease(p: float) -> float:
     return p * p * (3 - 2 * p)
 
 
+def crop_box(crop: dict | None, width: int, height: int) -> tuple[int, int, int, int] | None:
+    """The part of a picture of this size that the film shows (pixels: left, top, right, bottom): the cut that keeps
+    other people's logos and captions out of it."""
+    if not crop:
+        return None
+    x, y = round(crop["x"] * width), round(crop["y"] * height)
+    return x, y, min(width, x + max(1, round(crop["w"] * width))), min(height, y + max(1, round(crop["h"] * height)))
+
+
 @lru_cache(maxsize=24)
-def _canvas(path: str, W: int, H: int, kind: str) -> np.ndarray:
+def _canvas(path: str, W: int, H: int, kind: str, crop: tuple | None = None) -> np.ndarray:
     """Graded RGB canvas of size (W*MARGIN, H*MARGIN) for one asset."""
     src = storage.resolve(path)
     if src is None or not Path(src).exists():
         raise RenderError(f"missing visual file {path}")
     img = Image.open(src).convert("RGB")
+    box = crop_box(dict(zip("xywh", crop, strict=True)) if crop else None, img.width, img.height)
+    if box:
+        img = img.crop(box)
     cw, ch = int(W * MARGIN), int(H * MARGIN)
     ar, frame_ar = img.width / img.height, cw / ch
     if kind in ("image",) and abs(ar - frame_ar) / frame_ar > 0.22:
@@ -145,8 +157,9 @@ class ClipReader:
     frame held past the end. A missing or unreadable file yields None
     (the caller shows black) — never an exception mid-render."""
 
-    def __init__(self, path: str, W: int, H: int, shot_end: float, raw: bool = False):
+    def __init__(self, path: str, W: int, H: int, shot_end: float, raw: bool = False, crop: dict | None = None):
         self.W, self.H, self.shot_end = W, H, shot_end
+        self.crop = crop
         self.ungraded = raw  # (the channel intro is shown exactly as made)
         src = storage.resolve(path)
         self.cap = cv2.VideoCapture(str(src)) if src is not None and Path(src).exists() else None
@@ -203,6 +216,9 @@ class ClipReader:
     def _fill(self, bgr: np.ndarray) -> np.ndarray:
         """Crop the centre to the frame's aspect, scale to the frame
         (16:9 fill; still BGR)."""
+        box = crop_box(self.crop, bgr.shape[1], bgr.shape[0])
+        if box:
+            bgr = bgr[box[1]:box[3], box[0]:box[2]]
         h, w = bgr.shape[:2]
         s = max(self.W / w, self.H / h)
         cw, ch = min(w, round(self.W / s)), min(h, round(self.H / s))
@@ -229,6 +245,9 @@ def _src_point(shot: dict, key: str, cw: int, ch: int) -> tuple[float, float] | 
         x, y = (val[0] + val[2]) / 2, (val[1] + val[3]) / 2
     else:
         x, y = val[0], val[1]
+    box = crop_box(shot.get("crop"), w, h)
+    if box:                     # the picture is shown cut: the point is measured inside the cut
+        x, y, w, h = x - box[0], y - box[1], box[2] - box[0], box[3] - box[1]
     s = max(cw / w, ch / h)
     return (x * s - (w * s - cw) / 2, y * s - (h * s - ch) / 2)
 
@@ -316,7 +335,8 @@ class FrameMaker:
                 nxt = self._map_frame(paths[seg + 1], 0.0, shot)
                 frame = cv2.addWeighted(frame, 1 - a, nxt, a, 0)
             return frame
-        canvas = _canvas(shot["path"], W, H, "image")
+        cut = shot.get("crop")
+        canvas = _canvas(shot["path"], W, H, "image", tuple(cut[k] for k in "xywh") if cut else None)
         ch, cw = canvas.shape[:2]
         z, vx, vy = _view(shot, p, cw, ch, W, H)
         frame = _warp(canvas, z, vx, vy, W, H)
@@ -355,7 +375,7 @@ class FrameMaker:
         reader = self._clips.get(key)
         if reader is None:
             reader = self._clips[key] = ClipReader(shot["path"], PANEL.map_width(self.W) if panel else self.W, self.H,
-                                                   float(shot.get("end") or shot["start"]))
+                                                   float(shot.get("end") or shot["start"]), crop=shot.get("crop"))
         start = float(shot.get("clip_start") or 0.0)
         at = start + max(t - float(shot["start"]), 0.0)
         end = shot.get("clip_end")

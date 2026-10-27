@@ -27,8 +27,10 @@ from app.documentary.mvp import direct as DR
 from app.documentary.mvp import evidence as EV
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import needs as ND
+from app.documentary.mvp import overlays as OV
 from app.documentary.mvp import research as RS
 from app.documentary.mvp import review as RV
+from app.documentary.mvp import timing as TM
 from app.documentary.mvp import topical as TP
 from app.documentary.mvp import verify as VF
 from app.documentary.mvp.library import build_candidates, build_gap_candidates
@@ -211,6 +213,42 @@ def case_region(case: Case) -> str | None:
     return ", ".join(parts[-2:]) if len(parts) >= 2 else None
 
 
+async def scan_overlays(db: Session, case: Case, needs_plan: VisualPlan) -> dict:
+    """Every approved picture and clip of the film is scanned for other people's logos, watermarks and caption
+    strips (mvp/overlays.py): the film shows the part free of them, and what cannot be cut free is rejected."""
+    if not ai_config.mvp().overlays.enabled:
+        return {"enabled": False}
+    seen: set[int] = set()
+    assets = []
+    for group in DR.approved_items(db, needs_plan).values():
+        for item in group:
+            if item.asset.id not in seen:
+                seen.add(item.asset.id)
+                assets.append(item.asset)
+    scanner = OV.OverlayScanner(db, case)
+    out = await scanner.run(assets)
+    out.update(calls=scanner.calls, errors=scanner.errors[:10], stopped_for_budget=scanner.stopped_for_budget)
+    return out
+
+
+async def label_timing(db: Session, case: Case, needs_plan: VisualPlan, bp_row: EditorialBlueprint) -> dict:
+    """Every approved picture and clip gets the story phase it shows and the first beat that tells of it
+    (mvp/timing.py), so none is shown before the story has got there."""
+    if not ai_config.mvp().timing.enabled:
+        return {"enabled": False}
+    seen: set[int] = set()
+    assets = []
+    for group in DR.approved_items(db, needs_plan).values():
+        for item in group:
+            if item.asset.id not in seen:
+                seen.add(item.asset.id)
+                assets.append(item.asset)
+    classifier = TM.TimingClassifier(db, case, json.loads(bp_row.blueprint_json or "{}"))
+    out = await classifier.run(assets)
+    out.update(calls=classifier.calls, errors=classifier.errors[:5], stopped_for_budget=classifier.stopped_for_budget)
+    return out
+
+
 async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: EditorialBlueprint,
                        manifest: dict, language: str, use_agent: bool = True) -> tuple[VisualPlan, dict]:
     target = language_plan(db, needs_plan, language)
@@ -225,6 +263,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         return await DR.model_director(case_, beat, slots, pool, db)
 
     requirements = requirements_of(needs_plan)
+    timing = await label_timing(db, case, needs_plan, bp_row)
+    overlays = await scan_overlays(db, case, needs_plan)
     offers, _evidence = await EV.build_offers(db, case, bp_row, needs_plan, manifest)
     region = case_region(case)
     report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
@@ -244,6 +284,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
                 for s in b["shots"] if s.get("asset_id")}
         moments = await MC.MomentCutter(db, case, needs_plan.id, language).run(report["gaps"], used)
         if moments["approved"]:
+            timing = await label_timing(db, case, needs_plan, bp_row)
+            overlays = await scan_overlays(db, case, needs_plan)
             report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                           director if use_agent else None, target, None, region, offers)
         report["moments"] = moments
@@ -256,7 +298,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
                                           director if use_agent else None, target, None, region, offers, matches)
             report["moments"] = moments
         report["topical"] = {"moments_matched": len(matches), "calls": matcher.calls, "errors": matcher.errors}
-    kept = {k: report[k] for k in ("moments", "topical") if k in report}
+    report["overlays"], report["timing"] = overlays, timing
+    kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)
         validation = json.loads(target.validation_json or "{}")
         validation.setdefault("plan", {}).update(kept)

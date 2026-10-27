@@ -273,8 +273,7 @@ def recap_offers(ev: Evidence, lines: dict[str, str], conflict_best: dict[str, i
                    ][:cfg["unknown"]]
         data = {"confirmed": [{"text": lines[f], "fact_id": f} for f in confirmed],
                 "disputed": [{"text": lines[c["id"]], "fact_id": c["id"]} for c in disputed],
-                "unknown": [{"text": lines[q["id"]], "fact_id": q["id"]} for q in unknown],
-                "progress": {"elapsed_s": int(ev.starts[beat["id"]]), "total_s": int(ev.total_seconds)}}
+                "unknown": [{"text": lines[q["id"]], "fact_id": q["id"]} for q in unknown]}
         previous = anchor
         if sum(len(data[s]) for s in ("confirmed", "disputed", "unknown")) < 2:
             continue

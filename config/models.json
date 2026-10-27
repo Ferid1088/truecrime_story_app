@@ -116,6 +116,8 @@
         "mvp_moment_checker": "sol",
         "mvp_topic_matcher": "writer",
         "mvp_engine_planner": "premium",
+        "mvp_overlay_scanner": "sol",
+        "mvp_timing_classifier": "premium",
         "mvp_scene_director": "premium",
         "mvp_conflict_structurer": "writer",
         "mvp_copywriter": "writer",
@@ -382,6 +384,14 @@
     "mvp_topic_matcher": {
       "temperature": 0.1,
       "max_tokens": 8000
+    },
+    "mvp_timing_classifier": {
+      "temperature": 0.0,
+      "max_tokens": 12000
+    },
+    "mvp_overlay_scanner": {
+      "temperature": 0.0,
+      "max_tokens": 3000
     },
     "mvp_engine_planner": {
       "temperature": 0.1,

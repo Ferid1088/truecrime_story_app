@@ -9,10 +9,12 @@ import pytest
 from PIL import Image
 
 from app.core.ai_config import ai_config
+from app.documentary.graphics.base import Graphic as GraphicBase
 from app.documentary.graphics.base import GraphicUnavailable
 from app.documentary.graphics.document import normalized, verify_verbatim
 from app.documentary.graphics.headline import known_source
 from app.documentary.graphics.keyfacts import extract
+from app.documentary.graphics.page import Page, ground
 from app.documentary.graphics.registry import GRAPHICS, graphic
 
 LANGUAGES = ("en", "de", "fa", "ar")
@@ -215,3 +217,41 @@ def test_the_conflict_label_is_amber_as_in_the_design():
     label = frame[85:125, 120:420].reshape(-1, 3)
     amber = np.array([int(ai_config.graphics_settings().colors["amber"].lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)])
     assert (np.abs(label.astype(int) - amber).sum(axis=1) < 60).any()
+
+
+class LowPage(GraphicBase):
+    """A graphic whose content reaches down to `bottom` (a test double for the subtitle-zone rule)."""
+
+    kind = "recap"
+
+    def __init__(self, bottom: int):
+        self.bottom = bottom
+
+    def can_render(self, data):
+        return None
+
+    def required_cues(self, data):
+        return 1
+
+    def draw_state(self, data, language, step):
+        page = Page(language)
+        page.rect(120, 200, 1200, self.bottom - 200, fill=(200, 160, 40))
+        return page.done()
+
+
+def test_content_is_shrunk_to_end_above_the_subtitle_zone_and_all_pages_alike():
+    zone = ai_config.graphics_settings().safe_zone
+    limit = 1080 - int(zone["bottom"])
+    shown = LowPage(1000).render({}, 8.0, [1.0], "en")
+    assert 0.8 < shown.scale() < 1.0
+    for step in (0, 1):
+        page = np.asarray(shown.state(step).convert("RGB"), dtype=np.int16)
+        assert page.shape == (1080, 1920, 3)
+        assert not (np.abs(page[limit + 2:] - np.asarray(ground(1920, 1080).convert("RGB"), dtype=np.int16)[limit + 2:])
+                    .max(axis=2) > zone["tolerance"]).any()
+    assert LowPage(limit - 10).render({}, 8.0, [1.0], "en").scale() == 1.0
+
+
+def test_a_page_that_would_have_to_shrink_too_far_is_refused():
+    with pytest.raises(GraphicUnavailable, match="subtitle zone"):
+        LowPage(1075).render({}, 8.0, [1.0], "en")
