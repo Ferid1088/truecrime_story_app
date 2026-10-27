@@ -27,6 +27,16 @@
       "studio_profile": "STUDIO_AR",
       "logo": "data/logos/Logo_Arabic.png",
       "intro_concept": "sand"
+    },
+    "es": {
+      "name": "Tras la Pista",
+      "logo": "data/logos/Logo_Spanish.png",
+      "intro_concept": "lupa"
+    },
+    "tr": {
+      "name": "Gizli İzler",
+      "logo": "data/logos/Logo_Turkish.png",
+      "intro_concept": "sis"
     }
   },
   "video_identity": {
