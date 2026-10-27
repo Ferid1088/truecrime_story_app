@@ -1,0 +1,11 @@
+{
+ "concept": "lupa",
+ "seconds": 6.5,
+ "fingerprint": "6bc985d2a8729517",
+ "logo": "data/logos/Logo_Spanish.png",
+ "video": "intro_1920x1080.mp4",
+ "audio": "intro_1920x1080.wav",
+ "width": 1920,
+ "height": 1080,
+ "fps": 25
+}

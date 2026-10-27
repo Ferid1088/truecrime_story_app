@@ -1,0 +1,11 @@
+{
+ "concept": "moonrise",
+ "seconds": 6.5,
+ "fingerprint": "a2276fc44d1d7968",
+ "logo": "data/logos/Logo_Persian.png",
+ "video": "intro_320x180.mp4",
+ "audio": "intro_320x180.wav",
+ "width": 320,
+ "height": 180,
+ "fps": 25
+}

@@ -1,0 +1,11 @@
+{
+ "concept": "sand",
+ "seconds": 6.0,
+ "fingerprint": "c87691a77cc23034",
+ "logo": "data/logos/Logo_Arabic.png",
+ "video": "intro_320x180.mp4",
+ "audio": "intro_320x180.wav",
+ "width": 320,
+ "height": 180,
+ "fps": 25
+}

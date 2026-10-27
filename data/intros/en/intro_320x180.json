@@ -1,0 +1,11 @@
+{
+ "concept": "flashlight",
+ "seconds": 6.0,
+ "fingerprint": "cddcfbf4874f7322",
+ "logo": "data/logos/Logo_English.png",
+ "video": "intro_320x180.mp4",
+ "audio": "intro_320x180.wav",
+ "width": 320,
+ "height": 180,
+ "fps": 25
+}

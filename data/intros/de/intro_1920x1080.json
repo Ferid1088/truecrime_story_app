@@ -1,0 +1,11 @@
+{
+ "concept": "trail_stamp",
+ "seconds": 6.0,
+ "fingerprint": "68315731754dfe1a",
+ "logo": "data/logos/Logo_German.png",
+ "video": "intro_1920x1080.mp4",
+ "audio": "intro_1920x1080.wav",
+ "width": 1920,
+ "height": 1080,
+ "fps": 25
+}
