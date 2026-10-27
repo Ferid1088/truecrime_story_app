@@ -405,32 +405,41 @@ def place_topical(out_beats: list[dict], window_of: dict[str, dict], items: dict
 def _topical_pieces(shot: dict, start: float, seconds: float, window_len: float, limit: float,
                     ranked: list[tuple[str, float, str]], by_code: dict[str, Item], tracker: UsageTracker,
                     blocked: Callable[[Item], bool], beside: set[str | None]) -> tuple[list[dict], int]:
-    pieces = max(1, math.ceil(seconds / limit - 1e-9))
-    length = seconds / pieces
+    """Fill the stretch from its start with related pictures, one after the other: a picture is held for the rest of
+    the stretch (never past `limit`), a clip for its own length, so a short clip takes its part and the next related
+    picture takes the rest. A rest nobody is related to stays bare."""
+    minimum = ai_config.mvp().shots.min_seconds
     out: list[dict] = []
     previous: str | None = None
-    count = 0
-    for n in range(pieces):
-        a, b = start + n * length, start + (n + 1) * length
-        edge = beside if n in (0, pieces - 1) else set()
+    count, at, left = 0, start, seconds
+    while left > 0.05:
         order = sorted(ranked, key=lambda r: (tracker.appearances(r[0]) > 0, -r[1]))
-        pick = next(((by_code[c], score, why) for c, score, why in order
-                     if c in by_code and c != previous and c not in edge and fits(by_code[c], length)
-                     and not blocked(by_code[c]) and tracker.allows(c, a, b)[0]), None)
-        previous = pick[0].code if pick else None
+        pick = None
+        for code, score, why in order:
+            item = by_code.get(code)
+            if item is None or code == previous or blocked(item) or (code in beside and (at == start or left <= limit)):
+                continue
+            length = item.clip_seconds
+            use = min(left, limit if length is None else min(length, limit))
+            if left - use < minimum and left <= limit * 1.15 and (length is None or length >= left - 0.5):
+                use = left                       # a sliver is not left behind a picture that can hold it
+            if (use >= minimum - 1e-6 or use >= left - 1e-6) and tracker.allows(code, at, at + use)[0]:
+                pick = (item, score, why, use)
+                break
         if pick is None:
+            tail = {**shot, "share": left / window_len}
             if out and out[-1].get("gap"):
-                out[-1]["share"] += length / window_len
+                out[-1]["share"] += left / window_len
             else:
-                out.append({**shot, "share": length / window_len})
-            continue
-        item, score, why = pick
+                out.append(tail)
+            break
+        item, score, why, use = pick
         again = tracker.appearances(item.code) > 0
-        tracker.add(item.code, a, b)
-        out.append({**_shot({"start": a, "end": b}, item, window_len, n,
+        tracker.add(item.code, at, at + use)
+        out.append({**_shot({"start": at, "end": at + use}, item, window_len, len(out),
                             f"related to the words ({score:.2f}): {why}"),
                     "topical": True, "score": score, "repeat": again, "said": shot.get("said", "")})
-        count += 1
+        previous, count, at, left = item.code, count + 1, at + use, left - use
     return out, count
 
 

@@ -144,12 +144,32 @@ def test_a_picture_returns_only_twice_at_most_and_five_minutes_apart():
     assert D.place_topical(beats, windows, {"B05": [a]}, {KEY: [("A", 0.9, "x")]}, third, lambda b, i: False) == 0
 
 
-def test_a_clip_too_short_a_blocked_picture_and_the_neighbouring_picture_are_never_taken():
-    short, blocked, ok = _item("S", kind="video", seconds=3.0), _item("X"), _item("OK")
-    tracker = _tracker([short, blocked, ok])
-    shots, n = _place([short, blocked, ok], {KEY: [("S", 0.99, "a"), ("X", 0.95, "b"), ("OK", 0.5, "c")]}, tracker,
+def test_a_blocked_picture_is_never_taken():
+    blocked, ok = _item("X"), _item("OK")
+    tracker = _tracker([blocked, ok])
+    shots, n = _place([blocked, ok], {KEY: [("X", 0.95, "b"), ("OK", 0.5, "c")]}, tracker,
                       blocked=lambda b, i: i.code == "X")
     assert n == 1 and shots[0]["asset_id"] == "OK"
+
+
+def test_a_short_clip_takes_its_own_part_and_the_next_related_picture_takes_the_rest():
+    short, ok = _item("S", kind="video", seconds=4.0), _item("OK")
+    tracker = _tracker([short, ok])
+    shots, n = _place([short, ok], {KEY: [("S", 0.99, "a"), ("OK", 0.6, "c")]}, tracker, seconds=10.0)
+    assert n == 2 and [s["asset_id"] for s in shots] == ["S", "OK"]
+    assert abs(shots[0]["share"] - 0.4) < 1e-6 and abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+
+
+def test_a_rest_nothing_is_related_to_stays_bare_after_the_clip():
+    short = _item("S", kind="video", seconds=4.0)
+    shots, n = _place([short], {KEY: [("S", 0.99, "a")]}, _tracker([short]), seconds=10.0)
+    assert n == 1 and [s.get("gap", False) for s in shots] == [False, True]
+
+
+def test_a_clip_a_little_too_short_for_the_moment_is_not_left_with_a_sliver():
+    clip = _item("S", kind="video", seconds=9.8)
+    shots, n = _place([clip], {KEY: [("S", 0.9, "a")]}, _tracker([clip]), seconds=10.0)
+    assert n == 1 and len(shots) == 1 and abs(shots[0]["share"] - 1.0) < 1e-6
 
 
 def test_a_long_bare_stretch_is_cut_into_pieces_each_its_own_picture():
