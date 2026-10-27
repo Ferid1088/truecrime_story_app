@@ -138,6 +138,8 @@ def test_existing_library_photos_can_be_reused_without_generation(db_session, mo
     monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
     from app.documentary import looks as LK
     monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    db_session.query(OutfitItem).filter_by(studio="de", outfit_slug="brownSweater").delete()   # none from other tests
+    db_session.commit()
     db_session.add(OutfitItem(studio="de", outfit_slug="brownSweater", situation="stand",
                               file_path="data/outfits/de/brownSweater/de_brownSweater_stand.png",
                               sha256="x", status="available", stance="standing"))
