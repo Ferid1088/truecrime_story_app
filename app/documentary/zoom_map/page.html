@@ -35,7 +35,7 @@ function labelled(layer, cfg) {
     layer.paint['text-color'] = cfg.labelColor;
     layer.paint['text-halo-color'] = cfg.labelHalo;
     layer.paint['text-halo-width'] = cfg.labelHaloWidth;
-    layer.paint['text-halo-blur'] = 0.3;
+    layer.paint['text-halo-blur'] = 0;
     // bold letters (the fonts of Persian and Arabic have one weight)
     if (['en', 'de'].includes(cfg.lang)) layer.layout['text-font'] = ['Noto Sans Medium'];
     if (layer.layout['text-size'] !== undefined) layer.layout['text-size'] = scaled(layer.layout['text-size'], cfg.labelScale);
