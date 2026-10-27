@@ -14,21 +14,21 @@ FACTS = {"A": {"asset_id": "A", "type": "photo", "tier": 2, "role": "evidence", 
          "B": {"asset_id": "B", "type": "photo", "tier": 4, "role": "context", "entities": []}}
 
 
-def test_a_real_picture_may_appear_two_or_three_times_by_config():
+def test_a_real_picture_may_appear_twice_at_most_and_five_minutes_apart_by_config():
     vd = ai_config.visual_direction
-    assert vd.max_evidence_appearances == 3 and vd.max_context_appearances == 2
-    assert vd.max_generic_appearances == 2 and vd.max_person_appearances == 2
+    assert vd.max_evidence_appearances == vd.max_context_appearances == 2
+    assert vd.max_generic_appearances == vd.max_person_appearances == 2
+    assert vd.min_repeat_gap_seconds >= 300.0
 
 
 def test_the_limit_of_the_category_counts_appearances():
     tr = UsageTracker(FACTS)
     tr.add("A", 0, 10)
-    assert tr.allows("A", 100, 110)[0] is True
-    tr.add("A", 100, 110)
-    assert tr.allows("A", 200, 210)[0] is True
-    tr.add("A", 200, 210)
-    ok, why = tr.allows("A", 300, 310)
-    assert ok is False and "limit 3" in why
+    assert tr.allows("A", 100, 110)[0] is False                # not five minutes after the first showing
+    assert tr.allows("A", 400, 410)[0] is True
+    tr.add("A", 400, 410)
+    ok, why = tr.allows("A", 900, 910)
+    assert ok is False and "limit 2" in why
 
 
 def test_a_second_appearance_inside_the_minimum_gap_is_refused_for_every_category():

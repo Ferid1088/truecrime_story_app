@@ -51,6 +51,26 @@
       "max_assets": 500,
       "passes": 1,
       "min_relevance": 0.2
+    },
+    "moments": {
+      "enabled": true,
+      "min_clip_seconds": 3.0,
+      "max_clip_seconds": 20.0,
+      "margin_seconds": 1.0,
+      "max_moments": 120,
+      "regions_per_moment": 3,
+      "picks_per_call": 8,
+      "frames_per_region": 10,
+      "frame_width": 384,
+      "trusted_min_approved": 1,
+      "accept_fit": [
+        "direct",
+        "supports"
+      ],
+      "review_fit": [
+        "loose"
+      ],
+      "min_overlap": 0.5
     }
   }
 }

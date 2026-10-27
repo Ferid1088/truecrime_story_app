@@ -115,6 +115,11 @@ REQUIRED_ROLES = {
     "mvp_candidate_verifier",
     "mvp_second_verifier",
     "mvp_segment_scout",
+    # Moment cutting: picks the footage that may show what is said at a bare moment, finds the exact
+    # window in it (vision), and checks the finished cut independently (vision).
+    "mvp_moment_picker",
+    "mvp_moment_cutter",
+    "mvp_moment_checker",
     "mvp_scene_director",
     # The alternative graphics: a disputed point structured into two sourced sides, stored facts
     # shortened faithfully, and the earliest beat a real newspaper headline may be shown.
@@ -153,7 +158,8 @@ REQUIRED_ROLES = {
 }
 
 # Roles that send images and need a vision-capable model.
-VISION_ROLES = {"mvp_candidate_verifier", "mvp_second_verifier", "mvp_segment_scout", "thumbnail_critic"}
+VISION_ROLES = {"mvp_candidate_verifier", "mvp_second_verifier", "mvp_segment_scout", "mvp_moment_cutter",
+                "mvp_moment_checker", "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — Brave Search + fetcher + index), not an LLM
@@ -2793,6 +2799,36 @@ class MvpTopupConfig(BaseModel):
     min_relevance: float = Field(ge=0.0)
 
 
+class MvpMomentsConfig(BaseModel):
+    """Moment cutting: for a moment of the film that no picture, video or graphic covers, the part of a long
+    video of the case that shows what is said is found, cut by meaning, checked and offered to the planner."""
+
+    enabled: bool
+    min_clip_seconds: float = Field(gt=0.0)
+    max_clip_seconds: float = Field(gt=0.0)
+    # a clip is cut this much longer than the moment, so a shot never runs past its clip
+    margin_seconds: float = Field(ge=0.0)
+    max_moments: int = Field(ge=1)
+    regions_per_moment: int = Field(ge=1)
+    picks_per_call: int = Field(ge=1)
+    frames_per_region: int = Field(ge=3)
+    frame_width: int = Field(ge=128)
+    # a video counts as the case's own when at least this many of its pieces are approved
+    trusted_min_approved: int = Field(ge=1)
+    accept_fit: list[str] = Field(min_length=1)
+    review_fit: list[str]
+    # share of a moment's words a stored moment clip must share with a bare stretch to be placed on it
+    min_overlap: float = Field(gt=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _validate(self):
+        if self.max_clip_seconds <= self.min_clip_seconds:
+            raise ValueError("main_visual_planner.moments: max_clip_seconds must exceed min_clip_seconds")
+        if set(self.accept_fit) & set(self.review_fit):
+            raise ValueError("main_visual_planner.moments: a fit level cannot be both accepted and sent to review")
+        return self
+
+
 class MvpReviewConfig(BaseModel):
     """The persisted owner-review workflow; the film is a candidate until APPROVED."""
 
@@ -2813,6 +2849,7 @@ class MainVisualPlannerConfig(BaseModel):
     coverage: MvpCoverageConfig
     verification: MvpVerificationConfig
     topup: MvpTopupConfig
+    moments: MvpMomentsConfig
     review: MvpReviewConfig
 
 

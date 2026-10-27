@@ -84,9 +84,11 @@ class Copywriter:
         task = json.dumps(payload, ensure_ascii=False)
         try:
             with track_run(self.db, self.case.id, f"Alternative graphics: {label}", input_summary=label) as run:
-                data, res = await asyncio.wait_for(
-                    run_agent(agent, self.generation, f"{INSTRUCTION[agent]}\n\n{task}"),
-                    ai_config.mvp().call_timeout_s * 2)
+                body = f"{INSTRUCTION[agent]}\n\n{task}"
+                calls = {"mvp.conflict": lambda: run_agent("mvp.conflict", self.generation, body),
+                         "mvp.copy": lambda: run_agent("mvp.copy", self.generation, body),
+                         "mvp.headline": lambda: run_agent("mvp.headline", self.generation, body)}
+                data, res = await asyncio.wait_for(calls[agent](), ai_config.mvp().call_timeout_s * 2)
                 stamp_run(run, res, ai_config.agents[agent].role)
         except (GenerationError, TimeoutError) as e:
             log.warning("%s failed: %s", agent, e)

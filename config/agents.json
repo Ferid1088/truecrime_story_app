@@ -483,6 +483,27 @@
       "description": "Main Visual Planner step 6: cut a source video by meaning, from sparse frames.",
       "used_by": "app/documentary/visuals/video_segmenter.py"
     },
+    "mvp.moment_pick": {
+      "role": "mvp_moment_picker",
+      "prompt": "documentary/mvp/moment_pick_system",
+      "output": "json",
+      "description": "Moment cutting: from the descriptions of the case's video pieces, which parts may show what is said at each bare moment.",
+      "used_by": "app/documentary/mvp/moments.py"
+    },
+    "mvp.moment_cut": {
+      "role": "mvp_moment_cutter",
+      "prompt": "documentary/mvp/moment_cut_system",
+      "output": "json",
+      "description": "Moment cutting: from the frames of candidate footage, the exact windows that show what is said at one moment.",
+      "used_by": "app/documentary/mvp/moments.py"
+    },
+    "mvp.moment_check": {
+      "role": "mvp_moment_checker",
+      "prompt": "documentary/mvp/moment_check_system",
+      "output": "json",
+      "description": "Moment cutting: an independent check of a finished cut against the words it will run under.",
+      "used_by": "app/documentary/mvp/moments.py"
+    },
     "mvp.conflict": {
       "role": "mvp_conflict_structurer",
       "prompt": "documentary/mvp/conflict_system",

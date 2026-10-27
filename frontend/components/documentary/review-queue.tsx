@@ -41,6 +41,10 @@ const KINDS = [
 type Kind = (typeof KINDS)[number]["key"];
 type Verdict = "approved" | "rejected";
 
+/** What a picture is for: the entity it should show, or for footage cut for a bare moment, what the clip shows. */
+const labelOf = (group: MvpCandidateGroup) =>
+  group.entity ?? (group.function === "moment" ? group.title ?? group.requirement : group.requirement);
+
 const isVideo = (group: MvpCandidateGroup) => group.asset_type === "video" || group.asset_type === "video_source";
 const kindOf = (group: MvpCandidateGroup): Kind => (isVideo(group) ? "video" : "photo");
 
@@ -255,7 +259,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={apiFileUrl(g.thumb_url)} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-sm bg-muted object-cover" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{g.entity ?? g.requirement}</span>
+                      <span className="block truncate font-medium">{labelOf(g)}</span>
                       <span className="block truncate text-muted-foreground">{g.beat_id} · {n + 1}</span>
                     </span>
                     {v && (
@@ -314,7 +318,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                   </Badge>
                 )}
               </div>
-              <div className="text-lg font-medium">{item.entity ?? item.requirement}</div>
+              <div className="text-lg font-medium">{labelOf(item)}</div>
               {item.need && <p className="text-sm text-muted-foreground">{item.need}</p>}
               <p className="mt-1 text-xs text-muted-foreground" data-testid="review-queue-requirements">
                 <span className="font-mono">{item.beat_id}</span> · needs {item.role_needed} · {item.function.replace("_", " ")}

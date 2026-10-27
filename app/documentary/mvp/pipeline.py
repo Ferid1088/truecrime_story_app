@@ -25,6 +25,7 @@ from app.db.models import (
 from app.documentary.mvp import coverage as CV
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import evidence as EV
+from app.documentary.mvp import moments as MC
 from app.documentary.mvp import needs as ND
 from app.documentary.mvp import research as RS
 from app.documentary.mvp import review as RV
@@ -237,6 +238,14 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                       director if use_agent else None, target, None, region, offers)
         report["topup"] = {**made, "judged": verified["judged"]}
+    if report["gaps"] and ai_config.mvp().moments.enabled:
+        used = {s["asset_id"] for b in json.loads(target.plan_json or "{}").get("beats") or []
+                for s in b["shots"] if s.get("asset_id")}
+        moments = await MC.MomentCutter(db, case, needs_plan.id, language).run(report["gaps"], used)
+        if moments["approved"]:
+            report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
+                                          director if use_agent else None, target, None, region, offers)
+        report["moments"] = moments
     from app.documentary.visuals.generated import materialize
 
     report["graphics"] = await materialize(db, case, target)

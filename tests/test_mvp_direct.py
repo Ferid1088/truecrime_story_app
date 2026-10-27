@@ -320,3 +320,40 @@ def test_two_showings_are_never_less_than_the_minimum_gap_apart():
         spans = tracker.spans[code]
         for (_, end), (start, _) in zip(spans, spans[1:], strict=False):
             assert start - end >= need - 1e-6
+
+
+def _moment_clip(db, case, plan, gap, language="en", seconds=30.0):
+    from app.documentary.mvp import moments as MC
+
+    asset = VisualAsset(case_id=case.id, asset_code=f"M{uuid4().hex[:6]}", local_path="x.mp4", asset_type="video",
+                        duration_seconds=seconds, clip_start=0.0, clip_end=seconds, relevance_tier=2,
+                        asset_role="context", spec_json=json.dumps({"moment": {"order": 0}}))
+    db.add(asset)
+    db.commit()
+    key = MC.moment_key(gap["beat"], gap["said"])
+    req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key=MC.requirement_key(language, key),
+                         beat_id=gap["beat"], function="moment", role_needed="context", priority="low",
+                         spec_json=json.dumps({"moment": {"key": key, "language": language, "beat": gap["beat"]}}))
+    db.add(req)
+    db.commit()
+    db.add(MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id, role="context", final_status="approved"))
+    db.commit()
+    return asset
+
+
+def test_footage_cut_for_a_bare_moment_fills_that_moment_in_that_language_only(db_session):
+    case, plan = _plan(db_session, 0)
+    plan.validation_json = json.dumps({"mvp": {"language": "en"}})
+    db_session.commit()
+    first = run(D.direct_film(db_session, case, plan, _manifest([30.0]), None, {"B01": 0}, {}))
+    gap = first["gaps"][0]
+    other = _moment_clip(db_session, case, plan, gap, language="de")
+    again = run(D.direct_film(db_session, case, plan, _manifest([30.0]), None, {"B01": 0}, {}))
+    assert again["moment_clips_placed"] == 0 and again["gap_seconds"] == first["gap_seconds"]    # a German clip is not used
+    clip = _moment_clip(db_session, case, plan, gap, language="en")
+    final = run(D.direct_film(db_session, case, plan, _manifest([30.0]), None, {"B01": 0}, {}))
+    shots = [s for b in json.loads(plan.plan_json)["beats"] for s in b["shots"]]
+    assert final["moment_clips_placed"] == 1
+    assert any(s.get("asset_id") == clip.asset_code and s.get("moment_clip") for s in shots)
+    assert all(s.get("asset_id") != other.asset_code for s in shots)
+    assert final["gap_seconds"] < first["gap_seconds"]

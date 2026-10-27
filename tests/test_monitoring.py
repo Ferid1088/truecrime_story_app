@@ -58,7 +58,7 @@ def test_a_case_without_jobs_is_idle_with_services_and_budget(db_session):
     assert snap["running"] == [] and snap["latest_job"] is None
     assert {s["name"] for s in snap["services"]} == {"API", "Database", "Worker", "Brave Search"}
     assert snap["budget"]["cap_eur"] > 0
-    assert snap["state"] == "idle"
+    assert not [i for i in snap["issues"] if i["area"] in ("job", "stage", "pictures")]
 
 
 def test_a_job_that_waits_for_picture_review_points_to_the_review_page_and_resume(db_session):

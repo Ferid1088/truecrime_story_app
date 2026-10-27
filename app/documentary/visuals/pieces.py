@@ -211,7 +211,8 @@ def keep_video(db: Session, case: Case, src: Path, meta: dict, start: float = 0.
 def store_pieces(db: Session, source: VisualAsset, proposals: list[dict]) -> list[VisualAsset]:
     """One library asset per approved-to-check proposal: a window of the
     source with the segmenter's name and description. Unverified until the
-    video auditor has checked the cut, the description and the content."""
+    video auditor has checked the cut, the description and the content. A
+    proposal may say who cut it (`cut_by`) and carry extra spec fields."""
     from app.documentary.visuals.research import next_asset_code
 
     proxy = storage.resolve(source.local_path)
@@ -235,8 +236,9 @@ def store_pieces(db: Session, source: VisualAsset, proposals: list[dict]) -> lis
                 phash=IM.dhash(pimg), duration_seconds=round(b - a, 3),
                 clip_start=a, clip_end=b, verification_status="unverified",
                 spec_json=json.dumps({"parent": source.asset_code, "piece": k, "window": [a, b],
-                                      "cut_by": "segmenter", "why_here": p.get("why_here"),
-                                      "source_record": json.loads(source.spec_json or "{}").get("source_record")},
+                                      "cut_by": p.get("cut_by", "segmenter"), "why_here": p.get("why_here"),
+                                      "source_record": json.loads(source.spec_json or "{}").get("source_record"),
+                                      **(p.get("spec_extra") or {})},
                                      ensure_ascii=False))
             db.add(piece)
             db.flush()

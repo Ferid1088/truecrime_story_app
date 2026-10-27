@@ -18,6 +18,7 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
 from app.documentary.mvp import alternatives as AL
+from app.documentary.mvp import moments as MC
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.providers.generation import get_generation_provider
@@ -40,6 +41,7 @@ class Item:
     entity: str | None
     rank: int
     serves: list[str] = field(default_factory=list)      # requirement keys this item is approved for
+    moment: dict | None = None                           # a clip cut for one bare moment (mvp/moments.py)
 
     @property
     def code(self) -> str:
@@ -121,9 +123,10 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
         if existing is not None:
             existing.serves.append(req.requirement_key)
             continue
+        moment = json.loads(req.spec_json or "{}").get("moment") if req.function == "moment" else None
         out.setdefault(req.beat_id, []).append(
             Item(asset, cand.role or "context", req.entity_key, priority[req.priority] * 3
-                 + ROLE_RANK.get(cand.role or "", 3), [req.requirement_key]))
+                 + ROLE_RANK.get(cand.role or "", 3), [req.requirement_key], moment))
     return out
 
 
@@ -325,6 +328,49 @@ def absorb_gaps(shots: list[dict], window_len: float) -> None:
     shots[:] = [s for s in shots if s["share"] > 1e-9]
 
 
+TAIL_SECONDS = 0.5
+
+
+def place_moment_clips(out_beats: list[dict], window_of: dict[str, dict], clips: list[Item],
+                       tracker: UsageTracker) -> int:
+    """Footage cut for a bare moment goes onto that moment: the stretch whose beat and words are the ones the clip
+    was cut for. Clips follow each other when the moment is longer than one clip; a tail shorter than half a
+    second is the last clip's closing frame (the renderer holds it), a longer rest stays bare for the next
+    resort. Returns how many clips were placed."""
+    by_moment: dict[tuple[str, str], list[Item]] = {}
+    for item in sorted(clips, key=lambda i: json.loads(i.asset.spec_json or "{}").get("moment", {}).get("order", 0)):
+        by_moment.setdefault((item.moment["beat"], item.moment["key"]), []).append(item)
+    placed = 0
+    for beat in out_beats:
+        bid = beat["beat_id"]
+        window = window_of[bid]
+        window_len = window["end"] - window["start"]
+        at, shots = window["start"], []
+        for shot in beat["shots"]:
+            seconds = shot["share"] * window_len
+            if shot.get("gap"):
+                left, t = seconds, at
+                for item in by_moment.get((bid, MC.moment_key(bid, shot.get("said", ""))), []):
+                    if left < 1e-3 or tracker.appearances(item.code):
+                        continue
+                    length = item.clip_seconds or left
+                    use = left if (length >= left - 1e-3 or left - length < TAIL_SECONDS) else length
+                    if not tracker.allows(item.code, t, t + use)[0]:
+                        continue
+                    tracker.add(item.code, t, t + use)
+                    shots.append({**_shot({"start": t, "end": t + use}, item, window_len, len(shots),
+                                          "footage cut for this moment: it shows what is said"),
+                                  "said": shot.get("said", ""), "moment_clip": True})
+                    t, left, placed = t + use, left - use, placed + 1
+                if left > 1e-3:
+                    shots.append({**shot, "share": left / window_len})
+            else:
+                shots.append(shot)
+            at += seconds
+        beat["shots"] = shots
+    return placed
+
+
 def repeat_for_gaps(out_beats: list[dict], window_of: dict[str, dict], items: dict[str, list[Item]],
                     tracker: UsageTracker, names: dict[str, set[str]],
                     blocked: Callable[[str, Item], bool]) -> None:
@@ -426,8 +472,11 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     place_names = {e["key"]: e["name"] for e in entities if e.get("type") in ("place", "building")}
     mapped: set[str] = set()
     cfg = ai_config.mvp().shots
+    language = json.loads(target.validation_json or "{}").get("mvp", {}).get("language")
     items = approved_items(db, plan)
     tracker = UsageTracker({i.code: asset_facts(i.asset) for group in items.values() for i in group})
+    moment_clips = [i for group in items.values() for i in group if i.moment and i.moment.get("language") == language]
+    items = {b: [i for i in group if not i.moment] for b, group in items.items()}
     out_beats, candidates, window_of, agent_used = [], {}, {}, 0
     windows = beat_windows(manifest)
     extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
@@ -439,7 +488,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
         "places": sorted(place_names), "region": region,
         "offers": [[o.key, o.first, o.last, o.seconds] for o in offers],
-        "repeat": ai_config.visual_direction.model_dump()}, sort_keys=True).encode()).hexdigest()
+        "repeat": ai_config.visual_direction.model_dump(),
+        "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips)}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -516,12 +566,13 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         out_beats.append({"beat_id": bid, "shots": shots})
         window_of[bid] = window
         candidates[bid] = sorted({i.code for i in pool + near})
+    cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
     repeat_for_gaps(out_beats, window_of, items, tracker, names,
                     lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
-              "agent_directed_beats": agent_used, "alternatives": AL.seconds_report(state),
+              "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "alternatives": AL.seconds_report(state),
               "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
