@@ -20,6 +20,8 @@ from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, Visual
 from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import neighbours as NC
+from app.documentary.mvp import satisfy as SA
+from app.documentary.mvp.coverage import counted_requirements
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.providers.generation import get_generation_provider
@@ -566,7 +568,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "graph": graph_id, "shots": cfg.model_dump(),
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
         "places": sorted(place_names), "region": region,
-        "offers": [[o.key, o.first, o.last, o.seconds] for o in offers],
+        "offers": [[o.key, o.first, o.last, o.seconds, sorted(o.items)] for o in offers],
+        "requirements": {b: sorted(r["key"] for r in rs) for b, rs in sorted(counted_requirements(db, plan).items())},
         "repeat": ai_config.visual_direction.model_dump(), "neighbour_cover": cover_approved(plan),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
@@ -655,9 +658,12 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                                 lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset),
                                 related, _shot).run() \
         if cover_approved(plan) else []
+    satisfied = SA.RequirementPass(out_beats, window_of, items, counted_requirements(db, plan), tracker,
+                                   lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset),
+                                   fits, _shot).run()
     gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
-              "gaps": gaps, "neighbour_cover": covered, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
+              "gaps": gaps, "neighbour_cover": covered, "requirements_placed": satisfied, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": AL.seconds_report(state),
               "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}

@@ -45,18 +45,27 @@ def _shift(rows: list[dict], t: float, d: float, keys=("start", "end")) -> None:
 
 
 def _split_spanning(shots: list[dict], t: float) -> list[dict]:
+    """Cut the shot that spans `t` in two. A still left with only a sliver on one side (shorter than a real hold)
+    is not cut: the shot ends at `t` and the next still starts there, so no flash of a picture follows the host."""
+    short = ai_config.motion.min_hold_seconds * 0.7
     out = []
-    for s in shots:
-        if s["start"] < t - _EPS and s["end"] > t + _EPS:
-            a, b = dict(s), dict(s)
-            a["end"] = round(t, 3)
-            b["start"] = round(t, 3)
-            b["transition_in"] = "CUT"
-            if s.get("kind") == "video" and s.get("clip_start") is not None:
-                b["clip_start"] = round(float(s["clip_start"]) + (t - s["start"]), 3)
-            out += [a, b]
-        else:
+    for k, s in enumerate(shots):
+        if not (s["start"] < t - _EPS and s["end"] > t + _EPS):
             out.append(s)
+            continue
+        after = shots[k + 1] if k + 1 < len(shots) else None
+        if s.get("kind") == "image" and s["end"] - t < short and t - s["start"] >= short \
+                and after is not None and after.get("kind") == "image" and abs(after["start"] - s["end"]) < _EPS:
+            out.append({**s, "end": round(t, 3)})
+            after["start"] = round(t, 3)
+            continue
+        a, b = dict(s), dict(s)
+        a["end"] = round(t, 3)
+        b["start"] = round(t, 3)
+        b["transition_in"] = "CUT"
+        if s.get("kind") == "video" and s.get("clip_start") is not None:
+            b["clip_start"] = round(float(s["clip_start"]) + (t - s["start"]), 3)
+        out += [a, b]
     return out
 
 

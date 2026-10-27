@@ -29,6 +29,7 @@ from app.documentary.graphics.engines import kit
 from app.documentary.graphics.registry import graphic
 from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp.copy import numbers, words
+from app.documentary.mvp.coverage import fact_ids
 from app.providers.generation import get_generation_provider
 from app.services.budget import BudgetService
 from app.services.tracking import stamp_run, track_run
@@ -389,7 +390,7 @@ async def build_engine_offers(db: Session, case: Case, needs_plan: VisualPlan, e
         best = ev.order[bid]
         steps = graphic(kind).required_cues(data)
         seconds = float(timing.get(f"{kind}|{bid}", {}).get("seconds") or engine_seconds(kind, steps))
-        made = AL.offer(kind, f"{kind}|{bid}", data, best, items=(f"{kind}|{bid}",), count=steps, seconds=seconds)
+        made = AL.offer(kind, f"{kind}|{bid}", data, best, items=(f"{kind}|{bid}", *sorted(fact_ids(data))), count=steps, seconds=seconds)
         if made:
             made.meta = {"engine": kind, "version": graphic(kind).version, "beat": bid, "why": d.why,
                          "eligible": d.eligible, "steps": steps_of(kind, data), "provenance": d.provenance}

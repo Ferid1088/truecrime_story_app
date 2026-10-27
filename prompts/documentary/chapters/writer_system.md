@@ -41,7 +41,8 @@ a plain true title is better than a clever one that fails.
 - event labels: for each dated event of the running timeline, what
   happened on that date in at most {max_label} characters — only what
   the claim says, neutral words, no adjectives, no guesses; the date is
-  shown separately (do not repeat it).
+  shown separately (do not repeat it). A label never holds quotation marks: when the claim quotes words,
+  say that they were said or written, not the words themselves (the label is short, a cut quote would be left open).
 - Prefer concrete titles (a place, a role, a date, an object the story
   names) over abstractions; two chapters never share the same pattern.
 - No sensationalism, nothing cute or playful, respect for the victims.

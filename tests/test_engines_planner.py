@@ -80,6 +80,7 @@ def test_a_chosen_engine_becomes_an_offer_with_its_sources_and_is_remembered(db_
     assert meta["why"].startswith("both sides") and meta["steps"] == ["prosecution", "defense", "finding"]
     assert {p["fact_id"] for p in meta["provenance"]} == {"F001", "F005", "F080"}
     assert 15.0 <= offers[0].seconds <= 24.0
+    assert offers[0].items == {"courtroom|B02", "F001", "F005", "F080"}      # no other graphic repeats these facts
     again = asyncio.run(EN.build_engine_offers(db_session, case, needs, evidence(), planner_for(db_session, case, needs, agent)))
     assert len(agent.calls) == 1 and [o.key for o in again] == ["courtroom|B02"]
 
@@ -142,3 +143,4 @@ def test_the_inspector_lists_choices_previews_a_step_and_applies_the_owners_chan
     assert short.status_code == 422
     ok = client.post(f"/api/cases/{case.id}/mvp/engines/override", json={"beat": "B02", "action": "timing", "seconds": 30})
     assert next(b for b in ok.json()["beats"] if b["beat"] == "B02")["seconds"] == 30
+

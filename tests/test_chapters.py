@@ -338,3 +338,12 @@ def test_a_card_never_moves_into_speech_to_wait_for_a_zoom():
     lead = ai_config.chapters.lead_out_seconds
     assert not any(s["kind"] == "chapter" and s["end"] == round(58.0 - lead, 3) for s in shots)
     assert any("zoom" in item["why"] for item in left)
+
+
+def test_an_event_label_with_quotation_marks_is_sent_back_before_the_auditor_sees_it():
+    from app.agents.chapters import ChapterWriter
+
+    assert "quotation" in ChapterWriter.precheck("event:T009", 'Caleb texted "I choose you. I\'m free')
+    assert "quotation" in ChapterWriter.precheck("event:T014", "He said “I did not kill my wife")
+    assert ChapterWriter.precheck("event:T009", "Caleb texted that he chose Alleigha") is None
+    assert ChapterWriter.precheck("chapter:1", "The garage") is None

@@ -78,7 +78,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
         "longest_black": round(longest_black, 2), "long_stills": long_stills,
         "over_reused": over_reused,
         "unapproved_assets": unapproved, "weak_sentences": weak[:50], "weak_sentence_count": len(weak),
-        "requirements": requirement_coverage(db, plan, shots),
+        "requirements": requirement_coverage(db, plan, shots, tracker),
         "graphics": graphic_checks(script),
     }
 
@@ -120,32 +120,53 @@ def graphic_checks(script: dict) -> dict:
             "dropped": script.get("graphics_dropped") or []}
 
 
-def requirement_coverage(db: Session, plan: VisualPlan, shots: list[dict]) -> dict:
-    """Semantic coverage per requirement: an approved asset of the right role really on screen in its beat."""
+def accepted_roles(req: MvpRequirement) -> set[str] | None:
+    """The roles of picture that satisfy a requirement; None when the review does not count it (low priority, or an
+    illustration)."""
+    if req.priority == "low" or req.role_needed == "illustration":
+        return None
+    need_role = ai_config.mvp().coverage.evidence_requirements_need_evidence_roles
+    return {"evidence"} if (need_role and req.role_needed == "evidence") else {"evidence", "context"}
+
+
+def counted_requirements(db: Session, plan: VisualPlan) -> dict[str, list[dict]]:
+    """The requirements the review counts, per beat, with the roles of picture that satisfy each."""
+    out: dict[str, list[dict]] = {}
+    for req in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id):
+        roles = accepted_roles(req)
+        if roles is not None:
+            out.setdefault(req.beat_id, []).append({"key": req.requirement_key, "roles": roles,
+                                                    "priority": req.priority, "status": req.status})
+    return out
+
+
+def requirement_coverage(db: Session, plan: VisualPlan, shots: list[dict], tracker: UsageTracker) -> dict:
+    """Semantic coverage per requirement: an approved asset of the right role really on screen in its beat. A
+    requirement whose approved pictures are all shown as often as the film's repetition rules allow is a shortage
+    of pictures (recorded, not blocking the review), not a picture the planner left off."""
     on_screen: dict[str, set[str]] = {}
     for s in shots:
         if s.get("asset_id") and s.get("beat_id"):
             on_screen.setdefault(s["beat_id"], set()).add(s["asset_id"])
-    need_role = ai_config.mvp().coverage.evidence_requirements_need_evidence_roles
-    out = {"covered": 0, "shortage": 0, "uncovered": 0, "uncovered_ids": [], "shortage_ids": []}
+    out = {"covered": 0, "shortage": 0, "uncovered": 0, "uncovered_ids": [], "shortage_ids": [], "used_up_ids": []}
     for req in db.query(MvpRequirement).filter(MvpRequirement.visual_plan_id == plan.id):
-        if req.priority == "low" or req.role_needed == "illustration":
+        roles = accepted_roles(req)
+        if roles is None:
             continue
-        accepted = {"evidence"} if (need_role and req.role_needed == "evidence") else {
-            "evidence", "context"}
-        ok = False
-        for cand in req.candidates:
-            if cand.final_status != "approved" or cand.role not in accepted:
-                continue
-            asset = db.get(VisualAsset, cand.visual_asset_id)
-            if asset is not None and asset.asset_code in on_screen.get(req.beat_id, set()):
-                ok = True
-                break
-        if ok:
+        approved = [a for a in (db.get(VisualAsset, c.visual_asset_id) for c in req.candidates
+                                if c.final_status == "approved" and c.role in roles) if a is not None]
+        if any(a.asset_code in on_screen.get(req.beat_id, set()) for a in approved):
             out["covered"] += 1
-        elif req.status == "shortage":
+            continue
+        for a in approved:
+            tracker.facts.setdefault(a.asset_code, asset_facts(a))
+        used_up = bool(approved) and all(
+            tracker.appearances(a.asset_code) >= tracker.limit(a.asset_code) for a in approved)
+        if req.status == "shortage" or used_up:
             out["shortage"] += 1
             out["shortage_ids"].append(req.requirement_key)
+            if used_up:
+                out["used_up_ids"].append(req.requirement_key)
         else:
             out["uncovered"] += 1
             out["uncovered_ids"].append(req.requirement_key)

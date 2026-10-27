@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from sqlalchemy.orm import Session
 
@@ -107,6 +108,8 @@ class ChapterWriter:
             return "missing"
         if len(text) > limit:
             return f"longer than {limit} characters"
+        if key.startswith("event:") and re.search(r"[\"\u201c\u201d\u201e\u00ab\u00bb]", text):
+            return "an event label has no quotation marks: say what was said or written, not the words"
         return None
 
     async def _write(self, db: Session, case: Case, ctx: dict, language: str,

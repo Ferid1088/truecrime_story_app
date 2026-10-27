@@ -221,3 +221,12 @@ def test_an_act_anchor_resolves_to_the_last_beat_of_that_act():
              {"id": "B03", "paragraphs": [4, 6]}, {"id": "B04", "paragraphs": [7, 8]},
              {"id": "B05", "paragraphs": [9, 10]}]
     assert act_end_beats(text, beats) == {"act1": "B02", "act2": "B04", "act3": "B05"}
+
+
+def test_a_still_that_would_flash_for_a_moment_after_the_host_is_not_split():
+    script = _script()
+    script["shots"] = [{"index": 0, "kind": "image", "start": 0.0, "end": 20.2, "asset_id": "A1"},
+                       {"index": 1, "kind": "image", "start": 20.2, "end": 60.0, "asset_id": "A2"}]
+    out = HT.insert_host(script, [_item(2, "mid", "B1", 8.0)])
+    images = [(s["asset_id"], s["start"], s["end"]) for s in out["shots"] if s["kind"] == "image"]
+    assert images == [("A1", 0.0, 20.0), ("A2", 28.0, 68.0)]
