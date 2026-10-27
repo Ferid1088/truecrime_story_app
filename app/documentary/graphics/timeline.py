@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import json
 import math
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import dates, parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic, clamp01
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 LINE_Y = 601
 LINE_LEFT, LINE_WIDTH = 144, 1632
@@ -84,7 +83,7 @@ def block_height(page: Page, event: dict, language: str) -> int:
     return int(DATE_PX * 1.0) + (int(YEAR_PX * 1.4) if year else 0) + 10 + int(len(lines) * px * 1.3)
 
 
-@lru_cache(maxsize=64)
+@mode_cache(maxsize=64)
 def _frame(data_json: str, language: str, shown: float) -> Image.Image:
     """The page when `shown` reveals have happened (a fraction is a reveal in progress)."""
     data = json.loads(data_json)

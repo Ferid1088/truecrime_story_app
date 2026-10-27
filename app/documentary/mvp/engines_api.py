@@ -58,7 +58,7 @@ def view(db: Session, case_id: int, language: str) -> dict:
                      "forced": (overrides.get("forced") or {}).get(bid),
                      "edited": bool(key and key in (overrides.get("edits") or {})),
                      "seconds": (overrides.get("timing") or {}).get(key, {}).get("seconds") if key else None,
-                     "default_seconds": EN.engine_seconds(d["engine"], len(steps)) if steps else None,
+                     "default_seconds": EN.engine_seconds(d["engine"], data) if steps else None,
                      "on_screen": bid in placed and placed[bid] == d.get("engine")})
     return {"language": language, "engines": [{"kind": s.kind, "name": s.name, "intents": list(s.intents),
                                                "requires": s.requires, "version": graphic(s.kind).version}
@@ -86,10 +86,10 @@ def engines_preview(case_id: int, beat: str, step: int | None = None, language: 
     data = patch or data
     g = graphic(kind)
     n = g.required_cues(data)
-    seconds = EN.engine_seconds(kind, n)
-    cues = [round(f * seconds, 3) for f in GS.cue_fractions(kind, n)]
     try:
-        rendered = g.render(data, seconds, cues, language)
+        seconds = EN.engine_seconds(kind, data)
+        rendered = g.render(data, seconds, GS.cues_for({"type": kind, "data": data, "cue_fractions": []}, seconds, language),
+                            language)
     except Exception as e:  # noqa: BLE001 - the inspector shows why a page cannot be drawn
         raise HTTPException(422, str(e)) from e
     buf = io.BytesIO()

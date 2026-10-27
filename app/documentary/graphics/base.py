@@ -13,6 +13,7 @@ from PIL import Image
 
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.page import DoesNotFit, ground
+from app.documentary.graphics.streaming import Stream, StreamError
 
 
 def lowest_content_row(img: Image.Image, tolerance: int) -> int:
@@ -40,6 +41,8 @@ class Graphic(ABC):
     kind: str
     #: seconds the last cue keeps on screen before the graphic ends (after the cross-fade)
     minimum_rest_seconds = 1.5
+    #: whether the text of the graphic is revealed word by word (streaming.py)
+    streamable = True
 
     @abstractmethod
     def can_render(self, data: dict) -> str | None:
@@ -88,6 +91,7 @@ class Graphic(ABC):
         if rendered.scale() < T.config().safe_zone["min_scale"]:
             raise GraphicUnavailable(f"{self.kind}: its content reaches too far into the subtitle zone at the "
                                      f"bottom of the page")
+        rendered.stream()                              # the pages with and without text are drawn now as well
         return rendered
 
 
@@ -101,6 +105,8 @@ class Rendered:
         self.steps = len(cues)
         self._raw: dict[int, Image.Image] = {}
         self._scale: float | None = None
+        self._stream: Stream | None = None
+        self._stream_failed = False
 
     def key(self) -> str:
         return hashlib.sha256(json.dumps([self.graphic.kind, self.data, self.language, self.cues],
@@ -143,7 +149,23 @@ class Rendered:
             return 0, 1.0
         return step, clamp01((since - self.cues[step - 1]) / T.config().transition_seconds)
 
+    def stream(self) -> Stream | None:
+        """The word-by-word reveal of this graphic (None when it is switched off or the page cannot be streamed)."""
+        if not (T.config().stream.enabled and self.graphic.streamable) or self._stream_failed:
+            return None
+        if self._stream is None:
+            try:
+                self._stream = Stream(self.graphic, self.data, self.language, self.cues, self.duration_s,
+                                      self.graphic.minimum_rest_seconds)
+            except StreamError:
+                self._stream_failed = True
+                return None
+        return self._stream
+
     def image_at(self, since: float) -> Image.Image:
+        stream = self.stream()
+        if stream is not None:
+            return self.fitted(stream.image(since))
         step, progress = self.position(since)
         if step == 0 or progress >= 1.0:
             return self.state(step)

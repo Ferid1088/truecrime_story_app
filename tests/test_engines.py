@@ -92,9 +92,10 @@ def test_steps_are_spread_over_the_shot(kind):
     assert cues == sorted(cues) and cues[0] < 0.2 and cues[-1] > 0.6
 
 
-def test_engine_shots_are_held_one_and_a_half_times_as_long_as_the_detective_board():
-    for steps in range(2, 8):
-        assert 1.5 * 15.0 <= EN.engine_seconds("courtroom", steps) <= 1.5 * 24.0
+def test_an_engine_is_held_as_long_as_its_text_needs_to_stream_and_be_taken_in():
+    for kind, data in SAMPLES.items():
+        schedule = GS.schedule_of(kind, data)
+        assert EN.engine_seconds(kind, data) >= schedule.total and schedule.total >= 6.0 + schedule.cues[-1]
 
 
 def test_a_statement_without_its_fact_is_refused():

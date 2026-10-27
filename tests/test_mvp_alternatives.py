@@ -171,7 +171,7 @@ def test_timeline_offers_group_events_in_story_order_and_never_before_they_are_t
     assert offers[1].items == {"T6", "T7"} and AL.graphic("timeline").required_cues(offers[1].data) == 2
     first = offers[0]
     assert first.best == ev.order["B07"] and first.first == first.best      # not before its last event is told
-    assert first.seconds == pytest.approx(1.5 * (4.0 + 3.4 * 5)) and first.items == {"T1", "T2", "T3", "T4", "T5"}
+    assert first.seconds == pytest.approx(GS.planned_seconds("timeline", first.data)) and first.items == {"T1", "T2", "T3", "T4", "T5"}
 
 
 def test_quotes_are_complete_the_fullest_wording_and_once_per_fact():
@@ -395,7 +395,7 @@ def test_a_planned_graphic_becomes_a_still_shot_with_its_cues_in_seconds():
     shot = next(s for s in script["shots"] if s.get("kind") == "graphic")
     assert shot["motion"] == "NONE" and shot["graphic"]["language"] == "en"
     seconds = shot["end"] - shot["start"]
-    assert shot["graphic"]["cues"] == [round(shot["graphic"]["cue_fractions"][0] * seconds, 3)]
+    assert shot["graphic"]["cues"] == GS.cues_for(shot["graphic"], seconds, "en")
     assert script["graphics_dropped"] == []
 
 
@@ -411,7 +411,7 @@ def test_a_graphic_that_no_longer_fits_is_dropped_and_reported_not_stretched():
     assert dropped[0]["type"] == "recap" and "too short" in dropped[0]["why"]
 
 
-def test_the_renderer_plays_a_graphic_as_a_page_that_only_changes_on_its_cues():
+def test_the_renderer_plays_a_graphic_as_a_page_whose_text_streams_and_that_then_stays_still():
     import numpy as np
 
     from app.documentary.render.engine import FrameMaker
@@ -420,7 +420,7 @@ def test_the_renderer_plays_a_graphic_as_a_page_that_only_changes_on_its_cues():
             "graphic": {"type": "quote", "data": {"text": "A quote.", "fact_id": "F1"}, "cues": [2.0],
                         "cue_fractions": [0.15], "language": "en"}}
     maker = FrameMaker({"language": "en", "shots": []}, 960, 540)
-    before, settled, later = (maker.shot_frame(shot, t) for t in (11.0, 13.0, 22.0))
+    before, settled, later = (maker.shot_frame(shot, t) for t in (11.0, 20.0, 23.0))
     assert settled.shape == (540, 960, 3) and not np.array_equal(before, settled)
     assert np.array_equal(settled, later)                             # no zoom, no drift
 

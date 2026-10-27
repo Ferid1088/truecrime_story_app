@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from functools import lru_cache
 
 from PIL import Image, ImageDraw, ImageFilter
 
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic, ease
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache, rotated_words
 from app.documentary.visuals.shaping import RTL
 
 PAPER_W, PAPER_H = 1000, 860
@@ -27,7 +26,7 @@ def verify_verbatim(document_text: str, quote: str) -> bool:
     return bool(quote) and normalized(quote) in normalized(document_text)
 
 
-@lru_cache(maxsize=16)
+@mode_cache(maxsize=16)
 def _built(data_json: str, language: str, highlighted: bool) -> tuple[Image.Image, tuple[int, int, int, int]]:
     """(page, absolute box of the quote band) - the same layout serves a state and the wipe between two."""
     return DocumentCard().build(json.loads(data_json), language, highlighted)
@@ -107,6 +106,7 @@ class DocumentCard(Graphic):
         page.img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(28)))
         page.img.alpha_composite(rotated, (x, top))
         page.d = ImageDraw.Draw(page.img)
+        page.words.extend(rotated_words(paper.words, paper.size, -T.config().document_card["rotate_degrees"], (x, top)))
         return x, top
 
     def _paper(self, data: dict, language: str, highlighted: bool) -> tuple[Image.Image, tuple[int, int, int, int]]:
@@ -139,7 +139,9 @@ class DocumentCard(Graphic):
             y = self._context(sheet, pad, y, inner, line, data.get("redactions", []), grey)
         if doc.get("exhibit"):
             self._stamp(sheet, T.label(language, "exhibit"))
-        return sheet.done().convert("RGBA"), (band[0], band[1], band[2], band[3])
+        out = sheet.done().convert("RGBA")
+        out.words = sheet.words
+        return out, (band[0], band[1], band[2], band[3])
 
     def _context(self, sheet: Page, pad: int, y: int, inner: int, text: str, redactions: list[str],
                  color) -> int:
@@ -164,10 +166,10 @@ class DocumentCard(Graphic):
                 sheet.rect(x, y + 2, width, px + 2, fill=T.rgb("redaction"))
                 tail = sheet.measure(shown, "mono", px) if shown else 0
                 if shown:
-                    sheet.d.text((sheet.x(x + width, tail), y), shown, font=font, fill=color)
+                    sheet.put(sheet.x(x + width, tail), y, shown, font, color, tail)
                 width += tail
             else:
-                sheet.d.text((sheet.x(x, width), y), word, font=font, fill=color)
+                sheet.put(sheet.x(x, width), y, word, font, color, width)
             x += width + space
         return y + int(px * 2.1)
 

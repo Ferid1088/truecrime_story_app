@@ -36,6 +36,19 @@
       "tolerance": 12
     },
     "transition_seconds": 0.5,
+    "stream": {
+      "enabled": true,
+      "words_per_second": 2.0,
+      "word_fade_seconds": 0.45,
+      "start_seconds": 1.5,
+      "appear_seconds": 0.9,
+      "lead_seconds": 0.5,
+      "pause_seconds": 1.2,
+      "end_hold_seconds": 6.0,
+      "min_speed_scale": 0.8,
+      "plan_margin": 1.15,
+      "continued": ["timeline", "conflict_board", "document"]
+    },
     "line_draw_seconds": 0.9,
     "hold_seconds": {
       "conflict": 36.0,

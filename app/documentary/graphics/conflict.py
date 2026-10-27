@@ -4,14 +4,13 @@ conflict board (every conflict told so far, one card each)."""
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 STATUSES = ("open", "decided", "refuted")
 STATUS_COLOR = {"open": "amber", "decided": "blue", "refuted": "grey"}
@@ -53,7 +52,7 @@ class ConflictPage(Graphic):
         return _conflict_page(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step)
 
 
-@lru_cache(maxsize=24)
+@mode_cache(maxsize=24)
 def _conflict_page(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     conflict, sides = data["conflict"], data["sides"]
@@ -118,7 +117,7 @@ class ConflictBoard(Graphic):
         return _board(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step)
 
 
-@lru_cache(maxsize=24)
+@mode_cache(maxsize=24)
 def _board(data_json: str, language: str, step: int) -> Image.Image:
     """The conflicts told so far, one card each. Nothing of what is still to come: no empty slots, no total."""
     data = json.loads(data_json)

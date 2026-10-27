@@ -4,13 +4,12 @@ courtroom reasoning, sentencing explanation, evidence check."""
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.engines import kit
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 CLAIM = ("allegation", "fact", "witness", "expert", "disputed")
 TOP = 300
@@ -35,7 +34,7 @@ class CourtroomReasoning(kit.Engine):
         return _courtroom(data_json, language, step)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _courtroom(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     names = CourtroomReasoning().steps(data)
@@ -103,7 +102,7 @@ class SentencingExplanation(kit.Engine):
         return _sentencing(data_json, language, step)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _sentencing(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     names = SentencingExplanation().steps(data)
@@ -173,7 +172,7 @@ class EvidenceCheck(kit.Engine):
         return _check(data_json, language, step)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _check(data_json: str, language: str, step: int) -> Image.Image:
     """The item stays on the left; the right side shows what the current step says (the newest block only, so
     nothing crowds), ending with the documented assessment."""

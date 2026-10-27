@@ -5,11 +5,15 @@ changes on its cues."""
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import GraphicUnavailable, Rendered
+from app.documentary.graphics.page import DoesNotFit
 from app.documentary.graphics.registry import graphic
+from app.documentary.graphics.streaming import Schedule, StreamError, schedule
 
 ENGINE_KINDS = frozenset({"courtroom", "custody", "unknowns", "forensic", "interrogation", "sentencing",
                           "investigation_clock", "evidence_check"})
@@ -39,13 +43,42 @@ def hold_seconds(kind: str) -> float:
     return T.config().hold_seconds[kind]
 
 
-def cues_for(spec: dict, seconds: float) -> list[float]:
+def schedule_of(kind: str, data: dict, language: str = "en") -> Schedule:
+    """When the steps of the graphic start and how long it needs at the streaming pace, in this language."""
+    try:
+        return schedule(kind, json.dumps(data, sort_keys=True, ensure_ascii=False), language)
+    except (DoesNotFit, StreamError) as e:
+        raise GraphicUnavailable(f"{kind}: {e}") from e
+
+
+def planned_seconds(kind: str, data: dict, language: str = "en") -> float:
+    """How long the planner holds the graphic: its streaming schedule with a margin (other languages need more words),
+    never less than the kind's configured hold."""
+    cfg = T.config().stream
+    if not cfg.enabled:
+        return hold_seconds(kind)
+    return max(hold_seconds(kind), round(schedule_of(kind, data, language).total * cfg.plan_margin, 1))
+
+
+def cues_for(spec: dict, seconds: float, language: str = "en") -> list[float]:
+    """The cue times of the shot. A shot shorter than the schedule streams faster, down to `stream.min_speed_scale`."""
     need = graphic(spec["type"]).required_cues(spec["data"])
-    return [round(f * seconds, 3) for f in spec["cue_fractions"][:need]]
+    cfg = T.config().stream
+    if not cfg.enabled:
+        return [round(f * seconds, 3) for f in spec["cue_fractions"][:need]]
+    sched = schedule_of(spec["type"], spec["data"], language)
+    cues = list(sched.cues)[:need]
+    if seconds >= sched.total:
+        return cues
+    scale = seconds / sched.total
+    if scale < cfg.min_speed_scale:
+        raise GraphicUnavailable(f"{spec['type']}: {seconds:.1f}s is too short to stream its text (it needs "
+                                 f"{sched.total * cfg.min_speed_scale:.1f}s at the fastest)")
+    return [round(c * scale, 3) for c in cues]
 
 
 def render_for(spec: dict, seconds: float, language: str) -> Rendered:
-    return graphic(spec["type"]).render(spec["data"], seconds, cues_for(spec, seconds), language)
+    return graphic(spec["type"]).render(spec["data"], seconds, cues_for(spec, seconds, language), language)
 
 
 def finalize(shots: list[dict], language: str) -> list[dict]:
@@ -64,7 +97,7 @@ def finalize(shots: list[dict], language: str) -> list[dict]:
             if shots and shots[-1]["end"] <= shot["start"] + 1e-6:
                 shots[-1]["end"] = shot["end"]
             continue
-        spec["cues"] = cues_for(spec, shot["end"] - shot["start"])
+        spec["cues"] = cues_for(spec, shot["end"] - shot["start"], language)
         spec["language"] = language
     return dropped
 

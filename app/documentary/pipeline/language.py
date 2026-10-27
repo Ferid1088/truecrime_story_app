@@ -192,6 +192,7 @@ class LanguageChain:
             except AwaitingPictureReview:
                 # the owner's review changes what direction can use: direction runs again on resume
                 pipe._entry(f"mvp_direct:{lang}").update({"status": "pending", "detail": None})
+                MVP.request_review(db, needs_plan)
                 raise
 
         await pipe._stage(f"mvp_complete:{lang}", mvp_complete)

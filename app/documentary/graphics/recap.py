@@ -4,14 +4,13 @@ key words. Only sections that have items are drawn; each is revealed on its own 
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.page import DoesNotFit, Page
+from app.documentary.graphics.page import DoesNotFit, Page, mode_cache
 
 SECTIONS = ("confirmed", "disputed", "unknown")
 RULE_COLOR = {"confirmed": "amber", "disputed": "blue", "unknown": "red"}
@@ -49,7 +48,7 @@ class RecapBoard(Graphic):
         return _recap(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step)
 
 
-@lru_cache(maxsize=24)
+@mode_cache(maxsize=24)
 def _recap(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     page = Page(language)

@@ -80,8 +80,13 @@ def offer(kind: str, key: str, data: dict, best: int, first: int | None = None, 
           count: int = 0, credit: str | None = None, seconds: float | None = None) -> Offer | None:
     """An offer if the graphic accepts its data (with the cues the planner would give it at its normal length)."""
     default, minimum = seconds_for(kind, count)
-    seconds = seconds or default
     try:                                   # drawn once at its full length: a page that cannot be set is never offered
+        stream = T.config().stream
+        if stream.enabled:                 # long enough for its text to be streamed word by word, and to be understood
+            schedule = GS.schedule_of(kind, data, "en")
+            seconds = seconds or max(default, GS.planned_seconds(kind, data, "en"))
+            minimum = max(minimum, round(schedule.total * stream.min_speed_scale, 1))
+        seconds = seconds or default
         GS.render_for({"type": kind, "data": data, "cue_fractions": GS.cue_fractions(kind, graphic(kind).required_cues(data))},
                       seconds, "en")
     except GraphicUnavailable:

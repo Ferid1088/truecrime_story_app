@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 import re
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 VALUE = re.compile(r"""(
     \b\d{1,2}[:.]\d{2}\s?(?:a\.?m\.?|p\.?m\.?)?     # a time of day
@@ -57,7 +56,7 @@ class KeyFacts(Graphic):
         return _facts(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step)
 
 
-@lru_cache(maxsize=24)
+@mode_cache(maxsize=24)
 def _facts(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     facts = data["facts"]

@@ -545,8 +545,11 @@ def bare_stretches(out_beats: list[dict], window_of: dict[str, dict]) -> list[di
 
 
 def cover_approved(plan: VisualPlan) -> bool:
-    """The owner has approved covering the moments that stay bare from their neighbours (the last resort)."""
-    return bool(json.loads(plan.validation_json or "{}").get("mvp", {}).get("neighbour_cover", {}).get("approved"))
+    """The owner has approved covering the moments that stay bare from their neighbours (the last resort): by saying
+    so, or by resuming the film after the picture review it was stopped for (unless the owner withdrew it)."""
+    mvp = json.loads(plan.validation_json or "{}").get("mvp", {})
+    approved = (mvp.get("neighbour_cover") or {}).get("approved")
+    return approved is True or (bool(mvp.get("review_requested")) and approved is not False)
 
 
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
@@ -563,12 +566,15 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     args = (db, case, plan, manifest, graph_id, beat_order, beats, director, target, entities, region, offers, topical)
     report = await _direct_pass(*args)
     if report["gaps"] and "rounds" not in report:
-        rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0}]
+        rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0, "neighbour_cover": False}]
         kept = (report, target.plan_json, target.validation_json)
-        for n, step in enumerate(AL.escalation_steps(), 1):
-            again = await _direct_pass(*args, relax=step, force=True)
+        steps = [(step, False) for step in AL.escalation_steps()]
+        if cover_approved(plan):             # only after the owner's review: the last round covers from the neighbours
+            steps.append((AL.escalation_steps()[-1] if steps else {}, True))
+        for n, (step, cover) in enumerate(steps, 1):
+            again = await _direct_pass(*args, relax=step, force=True, cover=cover)
             rounds.append({"round": n, "gap_seconds": again["gap_seconds"], "placed": sum(
-                1 for o in offers or [] if o.placed), **step})
+                1 for o in offers or [] if o.placed), "neighbour_cover": cover, **step})
             if again["gap_seconds"] < kept[0]["gap_seconds"]:
                 kept = (again, target.plan_json, target.validation_json)
             if not again["gaps"]:
@@ -587,9 +593,10 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                        director: Director | None, target: VisualPlan, entities: list[dict] | None,
                        region: str | None, offers: list[AL.Offer] | None,
                        topical: dict[str, list[tuple[str, float, str]]] | None,
-                       relax: dict | None = None, force: bool = False) -> dict:
+                       relax: dict | None = None, force: bool = False, cover: bool = False) -> dict:
     """One planning round: beat by beat, agent first, rules always. `plan` holds the approved requirements; the shot
-    list is stored on `target` (the language's own plan row). `relax` widens the limits of the alternatives."""
+    list is stored on `target` (the language's own plan row). `relax` widens the limits of the alternatives; `cover` lets
+    the moments that stay bare be covered from their neighbours (the last round, after the owner's review)."""
     offers = offers if offers is not None else []
     offers[:] = [o for o in offers if o.kind != "conflict_board"]      # the board is made again from this round's pages
     for o in offers:
@@ -704,7 +711,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     covered = NC.NeighbourCover(out_beats, window_of, items, tracker, names, beat_order,
                                 lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset),
                                 related, _shot).run() \
-        if cover_approved(plan) else []
+        if cover else []
     satisfied = SA.RequirementPass(out_beats, window_of, items, counted_requirements(db, plan), tracker,
                                    lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset),
                                    fits, _shot).run()

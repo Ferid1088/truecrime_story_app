@@ -4,14 +4,13 @@
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import parts
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 PLAN_LEFT, PLAN_TOP, PLAN_W, PLAN_H = 120, 280, 1120, 680
 SIDE_LEFT, SIDE_W = 1340, 460
@@ -56,7 +55,7 @@ class FloorPlan(Graphic):
         return _plan(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step)
 
 
-@lru_cache(maxsize=24)
+@mode_cache(maxsize=24)
 def _plan(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     page = Page(language)

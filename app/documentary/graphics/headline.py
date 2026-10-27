@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json
-from functools import lru_cache
 
 from PIL import Image, ImageDraw, ImageFilter
 
 from app.documentary.graphics import dates
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import Graphic
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache, rotated_words
 
 SHEET_W, SHEET_H = 790, 720
 
@@ -57,7 +56,7 @@ def date_line(published: dict, language: str) -> str:
     return f"{big} {year}".strip()
 
 
-@lru_cache(maxsize=24)
+@mode_cache(maxsize=24)
 def _headline(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     page = Page(language)
@@ -78,6 +77,7 @@ def _headline(data_json: str, language: str, step: int) -> Image.Image:
     page.img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(28)))
     rotated = sheet.rotate(0.8, expand=True, resample=Image.BICUBIC)
     page.img.alpha_composite(rotated, (x, 150))
+    page.words.extend(rotated_words(sheet.words, sheet.size, 0.8, (x, 150)))
     return page.done()
 
 
@@ -100,4 +100,6 @@ def _sheet(data: dict, language: str, with_headline: bool) -> Image.Image:
                    min_px=36, spacing=1.12)
     sheet.hline(pad, SHEET_H - 90, inner, ink, 2)
     sheet.text(pad, SHEET_H - 72, inner, domain_of(data["url"]), "mono", 22, (96, 90, 82), lines_max=1)
-    return sheet.done().convert("RGBA")
+    out = sheet.done().convert("RGBA")
+    out.words = sheet.words
+    return out

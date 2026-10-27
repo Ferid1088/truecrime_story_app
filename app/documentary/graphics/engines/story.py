@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import dates
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.engines import kit
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 TOP = 340
 MODES = ("verbatim", "paraphrase")
@@ -45,7 +44,7 @@ class InterrogationAnalysis(kit.Engine):
         return _interview(data_json, language, step)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _interview(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     turns = data["turns"]
@@ -157,7 +156,7 @@ def _slots(events: list[dict]) -> list[dict]:
     return out
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _clock(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     slots = _slots(data["events"])

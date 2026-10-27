@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import math
-from functools import lru_cache
 
 from PIL import Image
 
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.engines import kit
-from app.documentary.graphics.page import Page
+from app.documentary.graphics.page import Page, mode_cache
 
 STAGES = ("discovery", "collection", "documentation", "transfer", "storage", "analysis", "court")
 EXAMS = ("dna", "fingerprint", "toxicology", "trace", "fiber_hair", "digital", "ballistics", "bloodstain")
@@ -45,7 +44,7 @@ class ChainOfCustody(kit.Engine):
         return _custody(data_json, language, step)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _custody(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     stages = data["stages"]
@@ -109,7 +108,7 @@ class MapOfUnknowns(kit.Engine):
         return _unknowns(data_json, language, step)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _unknowns(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     names = MapOfUnknowns().steps(data)
@@ -204,7 +203,7 @@ def icon(page: Page, exam: str, cx: float, cy: float, size: int, color) -> None:
             d.ellipse((cx + dx * r - k, cy + dy * r - k, cx + dx * r + k, cy + dy * r + k), outline=color, width=w)
 
 
-@lru_cache(maxsize=32)
+@mode_cache(maxsize=32)
 def _forensic(data_json: str, language: str, step: int) -> Image.Image:
     data = json.loads(data_json)
     names = ForensicExamination().steps(data)

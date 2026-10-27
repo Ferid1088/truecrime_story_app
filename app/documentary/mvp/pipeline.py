@@ -312,6 +312,18 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     return target, report
 
 
+NEIGHBOUR_NOTE = " On resume the last round covers what is still bare from neighbours (withdraw it in the review)."
+
+
+def request_review(db: Session, needs_plan: VisualPlan) -> None:
+    """The run stops for the owner's picture review: when it is resumed, the last planning round may cover what is still
+    bare from the neighbouring pictures (the owner can withdraw that in the review)."""
+    validation = json.loads(needs_plan.validation_json or "{}")
+    validation.setdefault("mvp", {})["review_requested"] = True
+    needs_plan.validation_json = json.dumps(validation, ensure_ascii=False)
+    db.commit()
+
+
 def stage_complete(plan_row: VisualPlan, language: str) -> dict:
     """The gate before anything is made from the plan: every moment has a picture, a video or a graphic. Moments
     that are still empty after all alternatives stop the run for the owner's picture review."""
@@ -326,7 +338,7 @@ def stage_complete(plan_row: VisualPlan, language: str) -> dict:
     raise AwaitingPictureReview(
         f"Awaiting picture review: {len(gaps)} moment(s) ({seconds}s) of the {language} film have no picture, "
         f"video or graphic, in beats {', '.join(beats[:12])}{'...' if len(beats) > 12 else ''}. Review the pictures "
-        "the planner rejected or was unsure about (Review pictures), then resume.")
+        "the planner rejected or was unsure about (Review pictures), then resume." + NEIGHBOUR_NOTE)
 
 
 def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: dict) -> dict:

@@ -2966,6 +2966,31 @@ class MainVisualPlannerConfig(BaseModel):
     review: MvpReviewConfig
 
 
+class StreamConfig(BaseModel):
+    """How the text of a graphic is revealed: word by word, at a pace slower than reading, in silence. An alternative
+    with its own page (a conflict, a quote, a recap) first shows its empty page and then streams the text in the order
+    it is read; a board that continues (the timeline, the board of conflicts, a document whose quote is
+    highlighted at its cue) keeps what it shows, lets the new card in and streams only the new text. At the end the whole page stays on screen for `end_hold_seconds`."""
+
+    enabled: bool
+    words_per_second: float = Field(gt=0.0)
+    # one word fades in over this long
+    word_fade_seconds: float = Field(gt=0.0)
+    # the empty page (or the first page of a board) is shown this long before the first word
+    start_seconds: float = Field(ge=0.0)
+    # a new card of a continuing board fades in this long before its words; a page of its own waits this long
+    appear_seconds: float = Field(ge=0.0)
+    lead_seconds: float = Field(ge=0.0)
+    # after the words of a step, before the next step
+    pause_seconds: float = Field(ge=0.0)
+    end_hold_seconds: float = Field(ge=0.0)
+    # in a shorter shot than its schedule the words go faster, but not beyond this share of the schedule
+    min_speed_scale: float = Field(gt=0.0, le=1.0)
+    # the planner holds a graphic this much longer than its English schedule (other languages need more words)
+    plan_margin: float = Field(ge=1.0)
+    continued: list[str]
+
+
 class GraphicsConfig(BaseModel):
     """The code-made graphics (config/parameters/graphics.json): look, fixed labels per language and the
     defaults the planner uses; the planner, not a graphic, decides use, place, length and cues."""
@@ -2978,6 +3003,7 @@ class GraphicsConfig(BaseModel):
     safe_zone: dict[str, float]
     transition_seconds: float = Field(gt=0.0)
     line_draw_seconds: float = Field(gt=0.0)
+    stream: StreamConfig
     hold_seconds: dict[str, float]
     cue_fractions: dict[str, list[float]]
     timeline: dict

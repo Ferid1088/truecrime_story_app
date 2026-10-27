@@ -9,6 +9,7 @@ import pytest
 from PIL import Image
 
 from app.core.ai_config import ai_config
+from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import Graphic as GraphicBase
 from app.documentary.graphics.base import GraphicUnavailable
 from app.documentary.graphics.document import normalized, verify_verbatim
@@ -22,14 +23,13 @@ GOLDEN = Path(__file__).parent / "golden" / "graphics"
 
 
 def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
+    """The design sample of a kind with the cues and the length its streaming schedule gives it."""
     data = {"conflict": S.conflict(language), "conflict_board": S.board(language), "recap": S.recap(language),
             "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
             "headline": S.headline(), "floor_plan": S.floor_plan(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
                                                 "fact_id": "F1"}}[kind]
-    cues = {"conflict": [2, 6, 10], "conflict_board": [2], "recap": [2, 6, 10], "timeline": [2, 5, 8],
-            "key_facts": [2, 5], "document": [2], "headline": [2], "quote": [2],
-            "floor_plan": [2, 5, 8]}[kind]
-    return data, 16.0, [float(c) for c in cues]
+    schedule = GS.schedule_of(kind, data, language)
+    return data, schedule.total + 2.0, list(schedule.cues)
 
 
 KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote", "floor_plan")
@@ -63,32 +63,32 @@ def test_same_data_cues_and_language_give_the_same_frames(kind):
 
 
 @pytest.mark.parametrize("kind", KINDS)
-def test_nothing_is_drawn_before_its_cue_and_a_cue_changes_the_page(kind):
+def test_a_page_shows_its_empty_frames_first_then_its_text_comes_in_and_it_ends_as_the_finished_page(kind):
     data, duration, cues = sample(kind, "en")
     r = graphic(kind).render(data, duration, cues, "en")
-    before = r.frame_at(cues[0] - 0.01)
-    assert np.array_equal(before, r.frame_at(0.0))          # the page before the first cue is the opening page
-    assert not np.array_equal(before, r.frame_at(cues[0] + ai_config.graphics_settings().transition_seconds + 0.1))
-    for earlier, later in zip(cues, cues[1:], strict=False):
-        assert not np.array_equal(r.frame_at(earlier + 1.0), r.frame_at(later + 1.0))
+    opening = r.frame_at(0.0)
+    assert np.array_equal(opening, r.frame_at(0.5))                        # nothing moves before the first word
+    middle = r.frame_at(cues[-1] + 0.3)                                    # the last step has only just begun
+    assert not np.array_equal(opening, middle)                             # words have come in
+    end = r.frame_at(duration - 0.1)
+    assert not np.array_equal(middle, end)
+    assert np.array_equal(end, np.asarray(r.state(len(cues))))             # the finished page, pixel for pixel
 
 
 @pytest.mark.parametrize("kind", KINDS)
-def test_a_page_between_cues_does_not_move(kind):
-    """Text pages never zoom, pan or drift: after its reveal a page is the same image until the next cue."""
+def test_the_finished_page_stays_still_for_the_end_hold(kind):
+    """Text pages never zoom, pan or drift: once the text has come in, the page is the same image until the end."""
     data, duration, cues = sample(kind, "en")
     r = graphic(kind).render(data, duration, cues, "en")
-    settled = cues[0] + ai_config.graphics_settings().transition_seconds + 0.05
-    end = (cues[1] if len(cues) > 1 else duration) - 0.05
-    assert np.array_equal(r.frame_at(settled), r.frame_at((settled + end) / 2))
-    assert np.array_equal(r.frame_at(settled), r.frame_at(end))
+    hold = ai_config.graphics_settings().stream.end_hold_seconds
+    assert np.array_equal(r.frame_at(duration - hold + 0.5), r.frame_at(duration - 0.1))
 
 
 def test_the_timeline_shows_no_event_before_its_cue():
     data, duration, cues = sample("timeline", "en")
     r = graphic("timeline").render(data, duration, cues, "en")
     for k, cue in enumerate(cues):
-        assert np.array_equal(r.frame_at(cue - 0.02), np.asarray(r.state(k)))
+        assert np.array_equal(r.frame_at(cue - 0.02), np.asarray(r.state(k)))      # the card before is complete
 
 
 def test_persian_and_arabic_pages_are_mirrored():
@@ -106,10 +106,10 @@ def test_persian_and_arabic_pages_are_mirrored():
 def test_too_short_a_duration_or_too_few_cues_is_refused_not_stretched():
     data, _, cues = sample("conflict", "en")
     with pytest.raises(GraphicUnavailable, match="too short"):
-        graphic("conflict").render(data, 11.0, cues, "en")
+        graphic("conflict").render(data, cues[-1] + 1.0, cues, "en")
     with pytest.raises(GraphicUnavailable, match="needs 2 cue"):
         graphic("conflict").render(data, 20.0, [1.0], "en")
-    r = graphic("conflict").render(data, 20.0, [1.0, 4.0], "en")      # status cue left out: reported, not invented
+    r = graphic("conflict").render(data, 60.0, cues[:2], "en")        # status cue left out: reported, not invented
     assert r.skipped == ["step 3"]
     with pytest.raises(GraphicUnavailable, match="rise"):
         graphic("conflict").render(data, 20.0, [4.0, 1.0, 9.0], "en")

@@ -353,10 +353,9 @@ def steps_of(kind: str, data: dict) -> list[str]:
     return graphic(kind).steps(data)
 
 
-def engine_seconds(kind: str, steps: int) -> float:
-    cfg = T.config().engines
-    return min(max(cfg["base_seconds"] + cfg["seconds_per_step"] * steps, cfg["hold_min_seconds"]),
-               cfg["hold_max_seconds"])
+def engine_seconds(kind: str, data: dict) -> float:
+    """How long the engine is held: its text streams word by word and the page stays for the viewer to take in."""
+    return GS.planned_seconds(kind, data)
 
 
 def apply_overrides(decisions: dict[str, Decision], overrides: dict, refs: dict[str, Fact]) -> dict[str, Decision]:
@@ -389,7 +388,11 @@ async def build_engine_offers(db: Session, case: Case, needs_plan: VisualPlan, e
         data, kind = d.data, d.engine
         best = ev.order[bid]
         steps = graphic(kind).required_cues(data)
-        seconds = float(timing.get(f"{kind}|{bid}", {}).get("seconds") or engine_seconds(kind, steps))
+        try:
+            seconds = float(timing.get(f"{kind}|{bid}", {}).get("seconds") or engine_seconds(kind, data))
+        except GraphicUnavailable as e:
+            log.warning("engine %s for %s cannot be drawn: %s", kind, bid, e)
+            continue
         made = AL.offer(kind, f"{kind}|{bid}", data, best, items=(f"{kind}|{bid}", *sorted(fact_ids(data))), count=steps, seconds=seconds)
         if made:
             made.meta = {"engine": kind, "version": graphic(kind).version, "beat": bid, "why": d.why,
