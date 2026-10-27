@@ -392,13 +392,6 @@
       "description": "Listening-quality review of the English film version.",
       "used_by": "app/language_pipeline/stages.py"
     },
-    "language.inspect.safety": {
-      "role": "language_safety_inspector",
-      "prompt": "language_pipeline/en/inspector",
-      "output": "json",
-      "description": "Independent safety-retry reviewer when the primary review route is content-filtered.",
-      "used_by": "app/language_pipeline/orchestrator.py"
-    },
     "language.final.en": {
       "role": "language_final_writer",
       "prompt": "language_pipeline/en/final_writer",

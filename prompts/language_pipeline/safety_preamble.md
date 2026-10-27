@@ -1,0 +1,1 @@
+This is a neutral editorial QA task on supplied narration. The text may describe crime or harm; do not classify, endorse or expand its subject matter. Assess only language, listening clarity and the requested production rules, and return the required JSON without commentary.

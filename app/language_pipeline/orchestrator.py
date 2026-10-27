@@ -85,25 +85,6 @@ log = logging.getLogger(__name__)
 Progress = Callable[[dict], None]
 
 
-class _RoleMappedGeneration:
-    """Use an independent configured model for one safety retry without changing global routing."""
-
-    def __init__(self, provider, source_role: str, target_role: str):
-        self.provider = provider
-        self.source_role = source_role
-        self.target_role = target_role
-
-    def _role(self, role: str) -> str:
-        return self.target_role if role == self.source_role else role
-
-    async def generate_text(self, role, system, user, images=None, *, prefix=None, cache_key=None):
-        return await self.provider.generate_text(self._role(role), system, user, images,
-                                                 prefix=prefix, cache_key=cache_key)
-
-    async def generate_structured(self, role, system, user, images=None, *, prefix=None, cache_key=None):
-        return await self.provider.generate_structured(self._role(role), system, user, images,
-                                                       prefix=prefix, cache_key=cache_key)
-
 @dataclass
 class LanguageOutcome:
     language: str
@@ -709,10 +690,7 @@ class LanguagePipeline:
                     raise
                 log.warning("%s review hit the provider content filter; retrying with neutral QA prompt",
                             language)
-                safe_stages = LanguageStages(
-                    _RoleMappedGeneration(self.stages.gen, "language_inspector",
-                                          "language_safety_inspector"))
-                output = await safe_stages.inspect(
+                output = await self.stages.inspect(
                     db, case, material, final.story_text, language, span,
                     stage=REVIEW_STAGE, safety_mode=True)
             critique = output.data

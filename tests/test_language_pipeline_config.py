@@ -117,3 +117,32 @@ def test_luna_is_declared_priced_and_has_no_fallback():
     assert model_cost_eur("gpt-5.6-luna", 0, 1_000_000) == round(1.2 * rate, 8)
     assert model_cost_eur("gpt-5.6-luna", 1_000_000, 0, cached_tokens=1_000_000) == round(0.02 * rate, 8)
 
+
+
+def test_the_safety_retry_of_the_review_uses_its_own_model_route_and_the_neutral_preamble(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.core.prompts import prompt
+    from app.language_pipeline import stages as ST
+
+    seen = {}
+
+    async def fake_run_agent(name, gen, task, **kw):
+        seen.update(name=name, **kw)
+        return {}, SimpleNamespace()
+
+    async def fake_native(self, db, case, material, text, language, run, agent, stage=None, safety_mode=False):
+        await run()
+        return "output"
+
+    monkeypatch.setattr(ST, "run_agent", fake_run_agent)
+    monkeypatch.setattr(ST.LanguageStages, "_native_inspect", fake_native)
+    material = SimpleNamespace(inspector_plan_view=lambda: {}, cache_key=lambda: "k")
+    span = SimpleNamespace(words_min=1, words_max=2)
+    stages = ST.LanguageStages(gen=object())
+    for safety in (False, True):
+        seen.clear()
+        asyncio.run(stages._inspect_en(None, None, material, "A text.", "en", span, "language_review", safety))
+        assert seen["role"] == ("language_safety_inspector" if safety else None)
+        assert seen["system"].startswith(prompt("language_pipeline/safety_preamble").strip()[:40]) is safety

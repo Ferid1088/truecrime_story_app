@@ -317,6 +317,11 @@ class LanguageStages:
         return await self._runner(self._inspectors, agent)(
             db, case, material, text, language, span, stage, safety_mode)
 
+    @staticmethod
+    def _inspector_role(safety_mode: bool) -> str | None:
+        """The independent model route of the safety retry (None: the agent's own route)."""
+        return "language_safety_inspector" if safety_mode else None
+
     def _native_inspect_request(self, agent: str, material, text, language, span,
                                 safety_mode: bool = False) -> tuple[str, str]:
         """Stage 3 of a native film language: the text, the plan and the counts; never the master,
@@ -327,12 +332,7 @@ class LanguageStages:
                              "story": text})
         system = self._prompt_of(agent, style_guide=style_guide(language))
         if safety_mode:
-            system = (
-                "This is a neutral editorial QA task on supplied narration. The text may describe "
-                "crime or harm; do not classify, endorse or expand its subject matter. Assess only "
-                "language, listening clarity and the requested production rules, and return the "
-                "required JSON without commentary.\n\n" + system
-            )
+            system = prompt("language_pipeline/safety_preamble") + "\n\n" + system
         return task, system
 
     async def _native_inspect(self, db, case, material, text, language, run, agent: str,
@@ -356,7 +356,8 @@ class LanguageStages:
                                                     safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-            "language.inspect.en", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.en", self.gen, task, system=system, role=self._inspector_role(safety_mode),
+            cache_key=material.cache_key()),
             "language.inspect.en", stage, safety_mode)
 
     async def _inspect_fa(self, db, case, material, text, language, span, stage, safety_mode=False):
@@ -364,7 +365,8 @@ class LanguageStages:
                                                     safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-            "language.inspect.fa", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.fa", self.gen, task, system=system, role=self._inspector_role(safety_mode),
+            cache_key=material.cache_key()),
             "language.inspect.fa", stage, safety_mode)
 
     async def _inspect_de(self, db, case, material, text, language, span, stage, safety_mode=False):
@@ -372,7 +374,8 @@ class LanguageStages:
                                                     safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-            "language.inspect.de", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.de", self.gen, task, system=system, role=self._inspector_role(safety_mode),
+            cache_key=material.cache_key()),
             "language.inspect.de", stage, safety_mode)
 
     async def _inspect_ar(self, db, case, material, text, language, span, stage, safety_mode=False):
@@ -380,7 +383,8 @@ class LanguageStages:
                                                     safety_mode)
         return await self._native_inspect(
             db, case, material, text, language, lambda: run_agent(
-            "language.inspect.ar", self.gen, task, system=system, cache_key=material.cache_key()),
+            "language.inspect.ar", self.gen, task, system=system, role=self._inspector_role(safety_mode),
+            cache_key=material.cache_key()),
             "language.inspect.ar", stage, safety_mode)
 
     @staticmethod
