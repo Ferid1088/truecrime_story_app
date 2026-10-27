@@ -23,7 +23,9 @@
       "fa": "می‌خوای داستان‌های واقعیِ جنایی رو بر اساس واقعیت بشنوی؟ به کانال ما سر بزن و فالو کن.",
       "en": "Want to hear true crime stories based on real facts? Visit our channel and follow.",
       "de": "Willst du wahre Kriminalfälle hören, die auf Tatsachen beruhen? Schau auf unserem Kanal vorbei und folge uns.",
-      "ar": "هل تريد أن تسمع قصص جرائم حقيقية مبنية على الوقائع؟ زر قناتنا وتابعنا."
+      "ar": "هل تريد أن تسمع قصص جرائم حقيقية مبنية على الوقائع؟ زر قناتنا وتابعنا.",
+      "es": "¿Quieres escuchar historias reales de crímenes basadas en hechos? Visita nuestro canal y síguenos.",
+      "tr": "Gerçek olaylara dayanan gerçek suç hikâyelerini dinlemek ister misin? Kanalımızı ziyaret et ve bizi takip et."
     },
     "channel_name": {
       "en": "ClueVera",
@@ -100,7 +102,9 @@
       "fa": "من فریدونم و اینجا داستان‌های جنایی واقعی رو واست تعریف می‌کنم.",
       "en": "I'm Fereidoun, and here I tell you real true crime stories.",
       "de": "Ich bin Fereidoun, und hier erzähle ich dir wahre Kriminalfälle.",
-      "ar": "أنا فريدون، وهنا أروي لك قصص الجرائم الحقيقية."
+      "ar": "أنا فريدون، وهنا أروي لك قصص الجرائم الحقيقية.",
+      "es": "Soy Fereidoun, y aquí te cuento historias reales de crímenes.",
+      "tr": "Ben Fereidoun, ve burada sana gerçek suç hikâyelerini anlatıyorum."
     },
     "closing_order": "cta_then_identity",
     "closing_library": {

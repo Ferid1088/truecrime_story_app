@@ -47,6 +47,16 @@
         "voice_id": "EFlRMcr2Nd9ah6iW85Z4",
         "model_id": "eleven_v4",
         "language_code": "ar"
+      },
+      "es": {
+        "voice_id": "YdM4xLoFzBS8MnZ4g6h8",
+        "model_id": "eleven_v4",
+        "language_code": "es"
+      },
+      "tr": {
+        "voice_id": "PghkGpDIcnh5M555fvw9",
+        "model_id": "eleven_v4",
+        "language_code": "tr"
       }
     },
     "default_style": "neutral_documentary",
@@ -158,6 +168,12 @@
         "mode": "warn"
       },
       "de": {
+        "mode": "warn"
+      },
+      "es": {
+        "mode": "warn"
+      },
+      "tr": {
         "mode": "warn"
       }
     }
@@ -535,7 +551,9 @@
       "fa": {
         "threshold_offset_delta_db": 0.5,
         "deesser_threshold_offset_delta_db": 0.5
-      }
+      },
+      "es": {},
+      "tr": {}
     },
     "baseline_floor_db": -20.0,
     "threshold_ceiling_db": 10.0
