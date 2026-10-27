@@ -2890,6 +2890,12 @@ class MvpTimingConfig(BaseModel):
     always_ok: list[str] = Field(min_length=1)
 
 
+class MvpOwnerNoteConfig(BaseModel):
+    """The owner's note beside a picture or clip in the review (who or what it shows, how it belongs to the story)."""
+
+    max_chars: int = Field(ge=40)
+
+
 class LogoConfig(BaseModel):
     """The channel logo shown in a corner of the film (config/parameters/branding.json): on pictures and clips, not on
     graphics, maps, host scenes, chapter or title cards (they have their own layouts, or the logo already plays)."""
@@ -2936,6 +2942,7 @@ class MainVisualPlannerConfig(BaseModel):
     neighbour_cover: MvpNeighbourCoverConfig
     overlays: MvpOverlaysConfig
     timing: MvpTimingConfig
+    owner_note: MvpOwnerNoteConfig
     review: MvpReviewConfig
 
 

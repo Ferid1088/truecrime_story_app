@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.db.base import get_db
 from app.db.models import MvpCandidate, MvpFilmReview, MvpRequirement, VisualAsset, VisualPlan
 from app.documentary.mvp import direct as DR
@@ -63,6 +64,7 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "title": asset.title, "source": asset.source_name, "rights": asset.rights_status,
             "clip_start": asset.clip_start, "clip_end": asset.clip_end,
             "duration_seconds": asset.duration_seconds,
+            "owner_note": asset.owner_note,
             "thumb_url": f"/api/visuals/{asset.id}/file?thumb=1", "role": cand.role,
             "status": cand.final_status, "provenance": cand.provenance_status,
             "identity": cand.identity_status, "rights_decision": cand.rights_status,
@@ -169,6 +171,30 @@ def decide_candidate(candidate_id: int, payload: CandidateDecision, db: Session 
     db.commit()
     VF.sync_asset_status(db, req.case_id)
     return candidate_dict(db, cand, req)
+
+
+class OwnerNote(BaseModel):
+    note: str | None = None
+
+
+@router.put("/api/cases/{case_id}/mvp/assets/{asset_id}/note")
+def set_owner_note(case_id: int, asset_id: int, payload: OwnerNote, db: Session = Depends(get_db)):
+    """The owner's note on a picture or clip. The planner takes it as true: the director sees it beside the picture
+    and a slot whose words match it counts as being about the picture. An empty note removes it. The story-timing
+    label of the picture is dropped so that it is judged again with the note."""
+    asset = db.get(VisualAsset, asset_id)
+    if asset is None or asset.case_id != case_id:
+        raise HTTPException(404, "No such picture in this case")
+    note = " ".join((payload.note or "").split())
+    limit = ai_config.mvp().owner_note.max_chars
+    if len(note) > limit:
+        raise HTTPException(422, f"The note may have at most {limit} characters")
+    asset.owner_note = note or None
+    spec = json.loads(asset.spec_json or "{}")
+    if spec.pop("timing", None) is not None:
+        asset.spec_json = json.dumps(spec, ensure_ascii=False)
+    db.commit()
+    return {"asset_id": asset.id, "owner_note": asset.owner_note}
 
 
 class GroupDecision(BaseModel):

@@ -1246,6 +1246,9 @@ class VisualAsset(Base):
     # Footage: the usable window of the (muted) clip, seconds.
     clip_start: Mapped[float | None] = mapped_column(Float, nullable=True)
     clip_end: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # What the owner wrote about this picture or clip (who or what it shows and how it belongs to the story): the
+    # planner takes it as true and places the picture accordingly.
+    owner_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_media_segments = relationship(
         "OriginalMediaSegment", back_populates="asset", cascade="all, delete-orphan"
     )

@@ -8,8 +8,8 @@ WHAT YOU RECEIVE
 A JSON object with
 - beats: the story's beats in order [{"id", "summary"}] - what the narrator tells in each.
 - phases: the allowed phases.
-- assets: [{"asset", "title", "description", "source", "type"}] - what each picture or clip shows (descriptions
-  were written by someone who looked at it).
+- assets: [{"asset", "title", "description", "source", "type", "owner_note"?}] - what each picture or clip shows
+  (descriptions were written by someone who looked at it; an owner_note is the owner's own word on it: take it as true).
 
 FOR EACH ASSET decide
 - phase, one of: scene (the place or the people at the time of the crime and the first response), investigation

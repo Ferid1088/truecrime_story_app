@@ -137,3 +137,21 @@ def test_a_listed_video_carries_the_window_the_planner_would_use(db_session):
     db_session.commit()
     listed = TestClient(app).get(f"/api/cases/{case.id}/mvp/candidates?status=all&group=true").json()
     assert (listed[0]["asset_type"], listed[0]["clip_start"], listed[0]["clip_end"]) == ("video", 12.5, 30.0)
+
+
+def test_the_owner_note_is_stored_listed_and_limited(db_session):
+    case, plan, cand = _seed(db_session)
+    client = TestClient(app)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    asset.spec_json = json.dumps({"timing": {"phase": "trial"}, "keep": 1})
+    db_session.commit()
+    url = f"/api/cases/{case.id}/mvp/assets/{asset.id}/note"
+    out = client.put(url, json={"note": "  Ashley's  sister,\nKayla Keyt "}).json()
+    assert out == {"asset_id": asset.id, "owner_note": "Ashley's sister, Kayla Keyt"}
+    [row] = client.get(f"/api/cases/{case.id}/mvp/candidates").json()
+    assert row["owner_note"] == "Ashley's sister, Kayla Keyt"
+    db_session.refresh(asset)
+    assert json.loads(asset.spec_json) == {"keep": 1}                   # judged again for its timing, with the note
+    assert client.put(url, json={"note": "x" * 401}).status_code == 422
+    assert client.put(url, json={"note": "  "}).json()["owner_note"] is None
+    assert client.put(f"/api/cases/{case.id + 999}/mvp/assets/{asset.id}/note", json={"note": "a"}).status_code == 404

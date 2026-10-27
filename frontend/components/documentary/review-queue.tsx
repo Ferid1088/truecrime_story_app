@@ -7,6 +7,7 @@ import { ApiError, apiFileUrl, mvpApi } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { MvpCandidateGroup } from "@/lib/types";
 
@@ -58,6 +59,55 @@ function clipUrl(group: MvpCandidateGroup): string {
 function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): Verdict | undefined {
   if (decided[group.id]) return decided[group.id];
   return group.status === "approved" || group.status === "rejected" ? group.status : undefined;
+}
+
+const NOTE_MAX = 400;
+
+/** The owner's note on one picture or clip: the planner takes it as true and places the picture by it. */
+function OwnerNote({ caseId, item }: { caseId: number; item: MvpCandidateGroup }) {
+  const [saved, setSaved] = useState(item.owner_note ?? "");
+  const [draft, setDraft] = useState(item.owner_note ?? "");
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  const changed = draft.trim() !== saved.trim();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const out = await mvpApi.saveNote(caseId, item.asset_id, draft);
+      setSaved(out.owner_note ?? "");
+      setDraft(out.owner_note ?? "");
+      setStatus("Saved. The planner uses it the next time the film is directed.");
+    } catch (e) {
+      setStatus(e instanceof ApiError ? e.message : "Could not save the note.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div data-testid="review-queue-note">
+      <label htmlFor={`owner-note-${item.asset_id}`} className="text-xs uppercase tracking-wide text-muted-foreground">
+        Your note for the planner
+      </label>
+      <Textarea
+        id={`owner-note-${item.asset_id}`}
+        value={draft}
+        maxLength={NOTE_MAX}
+        rows={3}
+        placeholder="Who or what this shows, e.g. Ashley's sister, Kayla Keyt - the planner places the picture by it"
+        onChange={(e) => { setDraft(e.target.value); setStatus(""); }}
+        className="mt-1"
+      />
+      <div className="mt-1 flex items-center gap-3">
+        <Button type="button" size="sm" variant="outline" onClick={() => void save()} disabled={busy || !changed}>
+          Save note
+        </Button>
+        <span className="text-xs text-muted-foreground">{draft.length}/{NOTE_MAX}</span>
+        {status && <span role="status" className="text-xs text-emerald-700">{status}</span>}
+      </div>
+    </div>
+  );
 }
 
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
@@ -346,6 +396,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 )}
               </p>
             </div>
+            <OwnerNote key={item.asset_id} caseId={caseId} item={item} />
             <div className="flex flex-wrap gap-2" data-testid="review-queue-decisions">
               {DECISIONS.map((key) => (
                 <Badge key={key} variant="outline">

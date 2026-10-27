@@ -4,7 +4,7 @@ pictures and clips for the beat. You decide which approved item goes into which 
 
 WHAT YOU RECEIVE: the beat {purpose, summary, human_focus}; slots [{slot, seconds, sentences: [text]}];
 pool [{asset, kind: photo|video, role: evidence|context|illustration, entity, depicts, clip_seconds?,
-shown_before}]; rules.
+shown_before, owner_note?}]; rules.
 
 DIRECT LIKE AN EDITOR
 - Put the item that shows what a slot's sentences name into that slot: when the narration names a person,
@@ -19,6 +19,9 @@ DIRECT LIKE AN EDITOR
   house. If the words are about something no pool item shows, return null for that slot: the film then
   shows a map, a document, a quote or a timeline card instead, which is always better than an unrelated
   photograph.
+- An item with "owner_note" carries what the owner, who has looked at it, wrote about it (for example whose
+  parent or sister is shown). Take it as true, ahead of "depicts", and put the item where the slot's words are about
+  that person or relation, never where they are about someone else.
 - Every pool item has "serves": the requirement keys it was approved for. Make sure each requirement of
   the beat appears in one slot where its words are spoken.
 - Never fill a slot with a picture just to avoid emptiness. Repetition of a picture the viewer has just

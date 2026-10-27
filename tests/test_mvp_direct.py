@@ -357,3 +357,16 @@ def test_footage_cut_for_a_bare_moment_fills_that_moment_in_that_language_only(d
     assert any(s.get("asset_id") == clip.asset_code and s.get("moment_clip") for s in shots)
     assert all(s.get("asset_id") != other.asset_code for s in shots)
     assert final["gap_seconds"] < first["gap_seconds"]
+
+
+def test_a_slot_whose_words_match_the_owner_note_is_about_the_picture():
+    from types import SimpleNamespace
+
+    from app.documentary.mvp import direct as DR
+
+    asset = SimpleNamespace(description="Woman at a podium", owner_note="Ashley's sister Kayla Keyt")
+    item = SimpleNamespace(asset=asset, entity=None)
+    assert DR.related(item, "Kayla Keyt read a statement to the court.", {})
+    assert not DR.related(item, "The jury returned after two hours.", {})
+    asset.owner_note = None
+    assert not DR.related(item, "Kayla Keyt read a statement to the court.", {})

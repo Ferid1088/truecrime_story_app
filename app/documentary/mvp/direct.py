@@ -186,6 +186,9 @@ def related(item: Item, sentence_text: str, names: dict[str, set[str]]) -> bool:
     spoken = content_words(sentence_text)
     if item.entity and names.get(item.entity, set()) & spoken:
         return True
+    noted = content_words(item.asset.owner_note or "")
+    if noted and len(noted & spoken) >= min(2, len(noted)):          # what the owner wrote about it
+        return True
     return len(content_words(item.asset.description or "") & spoken) >= 2
 
 
@@ -575,7 +578,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     fingerprint = hashlib.sha256(json.dumps({
         "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"]), card_tail(w)]
                     for w in windows],
-        "items": {b: [[i.code, i.role, i.asset.sha256] for i in group] for b, group in items.items()},
+        "items": {b: [[i.code, i.role, i.asset.sha256, i.asset.owner_note] for i in group] for b, group in items.items()},
         "graph": graph_id, "shots": cfg.model_dump(),
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
         "places": sorted(place_names), "region": region,
@@ -602,7 +605,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         slots = coalesce_slots(slots, len(pool) + len(near), cfg.max_still_seconds)
         chosen: dict[int, Item] = {}
         pool_key = hashlib.sha256(json.dumps(
-            [[i.code, i.role, tracker.appearances(i.code)] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
+            [[i.code, i.role, tracker.appearances(i.code), i.asset.owner_note] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
             sort_keys=True).encode()).hexdigest()
         cached = beat_cache.get(bid)
         if cached and cached["key"] == pool_key:
@@ -615,7 +618,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                            "sentences": [x["speech"] for x in window["sentences"][s["from"]:s["to"] + 1]]}
                           for n, s in enumerate(slots)]
             pool_view = [{"asset": i.code, "kind": i.asset.asset_type, "role": i.role, "entity": i.entity,
-                          "depicts": (i.asset.description or i.asset.title or "")[:160],
+                          "depicts": (i.asset.description or i.asset.title or "")[:160], "owner_note": i.asset.owner_note,
                           "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves} for i in pool]
             proposal = validate_assignment(await director(case, beats.get(bid, {"beat_id": bid}),
                                                           slots_view, pool_view), slots, pool)

@@ -1045,6 +1045,8 @@ export const mvpApi = {
     request<MvpCandidateGroup[]>(
       `/api/cases/${caseId}/mvp/candidates?status=${status}&group=true&limit=5000${beat ? `&beat=${encodeURIComponent(beat)}` : ""}`,
     ),
+  saveNote: (caseId: number, assetId: number, note: string) =>
+    put<{ asset_id: number; owner_note: string | null }>(`/api/cases/${caseId}/mvp/assets/${assetId}/note`, { note }),
   decideGroup: (caseId: number, candidateIds: number[], decision: "approve" | "reject", overrideRights = false,
     note?: string) =>
     post<{ decided: number; skipped: number[]; decision: string }>(`/api/cases/${caseId}/mvp/candidates/decision`, {

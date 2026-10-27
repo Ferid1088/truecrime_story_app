@@ -81,6 +81,9 @@
     "neighbour_cover": {
       "min_piece_seconds": 3.0
     },
+    "owner_note": {
+      "max_chars": 400
+    },
     "timing": {
       "enabled": true,
       "version": 1,

@@ -74,7 +74,8 @@ def describe(asset: VisualAsset) -> dict:
     ver = json.loads(asset.verification_json or "{}") if asset.verification_json else {}
     return {"asset": asset.asset_code, "type": asset.asset_type,
             "title": (asset.title or "")[:160], "source": (asset.source_name or "")[:80],
-            "description": " ".join(str(x) for x in (asset.description, ver.get("depicts")) if x)[:DESCRIPTION_CHARS]}
+            "description": " ".join(str(x) for x in (asset.description, ver.get("depicts")) if x)[:DESCRIPTION_CHARS],
+            **({"owner_note": asset.owner_note} if asset.owner_note else {})}
 
 
 class TimingClassifier:
