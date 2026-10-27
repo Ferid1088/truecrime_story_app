@@ -4,13 +4,10 @@ import { useState } from "react";
 import { Shirt } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { langLabel } from "@/lib/format";
 import type { HostOutfitOption, HostScene } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { InlineAlert } from "../shared";
 
 const POSES = ["sitting", "standing"];
@@ -157,66 +154,6 @@ function OutfitChooser({ subject, options, avatarEnabled, videos, videoNoun, onS
   );
 }
 
-/** The host's outfit for the whole language: the scenes that have no outfit of their own wear it. */
-export function HostOutfitPanel({ caseId, language, onChanged }: { caseId: number; language: string; onChanged: () => void }) {
-  const { data, loading, error, refetch } = useApi(() => api.hostOutfitOptions(caseId, language), [caseId, language]);
-  const [open, setOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const current = data?.options.find((o) => o.selected);
-  const videos = (data?.scenes ?? []).length;
-
-  const save = async (optionKey: string, itemId: number, createHost: boolean) => {
-    const done = await api.chooseHostOutfit(caseId, { language, option_key: optionKey, item_id: itemId, create_host: createHost });
-    const made = done.started.length;
-    const text = `Saved: ${done.outfit.name} is the ${langLabel(language)} host's outfit (scenes with an outfit of their own keep it).` +
-      (made ? ` ${made} host video${made === 1 ? " is" : "s are"} being made with it.` : "");
-    setMessage(text);
-    refetch();
-    onChanged();
-    return text;
-  };
-
-  return (
-    <Card data-testid="host-outfit-panel">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shirt className="size-4" /> Host outfit · {langLabel(language)} · all scenes
-        </CardTitle>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          {loading && !data ? <Skeleton className="h-5 w-40" /> : current ? (
-            <>
-              <Badge variant="success">{current.name}</Badge>
-              {current.photos.filter((p) => p.selected).map((p) => <Badge key={p.id} variant="outline">{p.situation}</Badge>)}
-            </>
-          ) : <Badge variant="warning">no outfit chosen yet</Badge>}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error && !data && <InlineAlert tone="error">{error}</InlineAlert>}
-        {message && <p role="status" className="text-xs text-emerald-700">{message}</p>}
-        <p className="text-xs text-muted-foreground">
-          This is the outfit of every scene that has none of its own. Each scene below can wear a different outfit.
-        </p>
-        {open && data ? (
-          <OutfitChooser
-            subject={`the ${langLabel(language)} host`}
-            options={data.options}
-            avatarEnabled={data.avatar_enabled}
-            videos={videos}
-            videoNoun="host video"
-            onSave={save}
-            onClose={() => setOpen(false)}
-          />
-        ) : (
-          <Button size="sm" variant="secondary" onClick={() => { setMessage(null); setOpen(true); }} disabled={!data}>
-            {current ? "Change outfit for all scenes" : "Choose outfit"}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 /** The outfit of one host scene, chosen for it alone. */
 export function SceneOutfit({ scene, onChanged }: { scene: HostScene; onChanged: () => void }) {
   const { data, refetch } = useApi(() => api.hostSceneOutfit(scene.id), [scene.id, scene.status, scene.chosen_outfit_id]);
@@ -250,24 +187,26 @@ export function SceneOutfit({ scene, onChanged }: { scene: HostScene; onChanged:
 
   const locked = scene.running || !!data?.running;
   return (
-    <div className="space-y-2 text-xs" data-testid={`scene-outfit-${scene.id}`}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-medium">Outfit</span>
+    <section className="space-y-2 rounded border border-border bg-muted/30 p-3 text-xs"
+             aria-label={`Outfit for ${scene.host_segment_id}`} data-testid={`scene-outfit-${scene.id}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Shirt className="size-4" />
+        <span className="text-sm font-medium">Outfit for {scene.host_segment_id}</span>
         {data?.outfit ? (
           <>
-            <Badge variant="outline">{data.outfit.name}</Badge>
+            <Badge variant="success">{data.outfit.name}</Badge>
             <Badge variant={data.outfit.pinned ? "info" : "default"}>
-              {data.outfit.pinned ? "chosen for this scene" : "the video's outfit"}
+              {data.outfit.pinned ? "chosen for this scene" : "not chosen for this scene yet"}
             </Badge>
           </>
-        ) : <span className="text-muted-foreground">no outfit chosen yet</span>}
+        ) : <Badge variant="warning">no outfit chosen yet</Badge>}
         {!open && (
-          <Button size="sm" variant="outline" disabled={!data || locked} onClick={() => { setMessage(null); setOpen(true); }}>
-            Change outfit for {scene.host_segment_id}
+          <Button size="sm" variant="secondary" disabled={!data || locked} onClick={() => { setMessage(null); setOpen(true); }}>
+            Choose outfit and photo for {scene.host_segment_id}
           </Button>
         )}
         {data?.outfit?.pinned && !open && (
-          <Button size="sm" variant="ghost" disabled={busy || locked} onClick={back}>Use the video&apos;s outfit</Button>
+          <Button size="sm" variant="ghost" disabled={busy || locked} onClick={back}>Remove my choice</Button>
         )}
       </div>
       {message && <p role="status" className="text-emerald-700">{message}</p>}
@@ -282,6 +221,6 @@ export function SceneOutfit({ scene, onChanged }: { scene: HostScene; onChanged:
           onClose={() => setOpen(false)}
         />
       )}
-    </div>
+    </section>
   );
 }

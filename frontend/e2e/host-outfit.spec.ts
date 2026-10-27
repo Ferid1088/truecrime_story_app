@@ -68,91 +68,10 @@ async function mockPage(page: Page) {
     r.fulfill({ status: 200, contentType: "image/png", body: PNG }));
 }
 
-test.describe("host window: choose the host's outfit and one of its photos", () => {
-  test("pick an outfit, pick a photo, the app asks, and only a yes saves it and creates the host", async ({ page }) => {
-    await mockPage(page);
-    await page.route("**/api/cases/1/host-outfit?**", (r: Route) => r.fulfill(ok(OPTIONS)));
-    const saved: unknown[] = [];
-    await page.route("**/api/cases/1/host-outfit", (r: Route) => {
-      if (r.request().method() !== "POST") return r.fallback();
-      saved.push(r.request().postDataJSON());
-      return r.fulfill(ok({ outfit: { id: 9, name: "navy Cord Blazer Vest", status: "selected" },
-        attached: [{ look_id: 1, photo: "x", stance: "SEATED" }], skipped: [], started: [181, 182], kept: [] }));
-    });
-    await page.goto("/documentary/1");
-    await page.getByRole("tab", { name: "Host" }).click();
-    const panel = page.getByTestId("host-outfit-panel");
-    await expect(panel).toContainText("blazer Jeans");
-    await panel.getByRole("button", { name: "Change outfit for all scenes" }).click();
-    await panel.getByRole("radio", { name: "navy Cord Blazer Vest" }).click();
-    await expect(panel.getByRole("radio", { name: "front" })).toBeDisabled();            // no recognised pose
-    await expect(panel.getByRole("button", { name: "Use this outfit and photo" })).toBeDisabled();
-    await panel.getByRole("radio", { name: "sitHands" }).click();
-    await panel.getByRole("button", { name: "Use this outfit and photo" }).click();
-
-    const dialog = page.getByRole("dialog", { name: "Are you sure?" });
-    await expect(dialog).toContainText("navy Cord Blazer Vest");
-    await expect(dialog).toContainText("2 host videos");
-    expect(saved).toHaveLength(0);                                                       // nothing is saved yet
-    await dialog.getByRole("button", { name: "No, go back" }).click();
-    expect(saved).toHaveLength(0);
-
-    await panel.getByRole("button", { name: "Use this outfit and photo" }).click();
-    await page.getByRole("dialog", { name: "Are you sure?" }).getByTestId("host-outfit-confirm").click();
-    await expect.poll(() => saved[0]).toEqual({
-      language: "en", option_key: "registry:en/navyCordBlazerVest", item_id: 145, create_host: true });
-    await expect(panel).toContainText("Saved: navy Cord Blazer Vest");
-    await expect(panel).toContainText("2 host videos are being made");
-  });
-
-  test("the owner can save the choice without creating the host", async ({ page }) => {
-    await mockPage(page);
-    await page.route("**/api/cases/1/host-outfit?**", (r: Route) => r.fulfill(ok(OPTIONS)));
-    const saved: Record<string, unknown>[] = [];
-    await page.route("**/api/cases/1/host-outfit", (r: Route) => {
-      if (r.request().method() !== "POST") return r.fallback();
-      saved.push(r.request().postDataJSON());
-      return r.fulfill(ok({ outfit: { id: 9, name: "blazer Jeans", status: "selected" },
-        attached: [], skipped: [], started: [], kept: [] }));
-    });
-    await page.goto("/documentary/1");
-    await page.getByRole("tab", { name: "Host" }).click();
-    const panel = page.getByTestId("host-outfit-panel");
-    await panel.getByRole("button", { name: "Change outfit for all scenes" }).click();
-    await panel.getByRole("radio", { name: "blazer Jeans (now)" }).click();
-    await panel.getByRole("radio", { name: "standHand" }).click();
-    await panel.getByRole("button", { name: "Use this outfit and photo" }).click();
-    const dialog = page.getByRole("dialog", { name: "Are you sure?" });
-    await dialog.getByRole("checkbox").uncheck();
-    await dialog.getByTestId("host-outfit-confirm").click();
-    await expect.poll(() => saved[0]?.create_host).toBe(false);
-  });
-
-  test("a refused choice shows the reason and keeps the dialog's work", async ({ page }) => {
-    await mockPage(page);
-    await page.route("**/api/cases/1/host-outfit?**", (r: Route) => r.fulfill(ok(OPTIONS)));
-    await page.route("**/api/cases/1/host-outfit", (r: Route) => {
-      if (r.request().method() !== "POST") return r.fallback();
-      return r.fulfill({ status: 409, contentType: "application/json",
-        body: JSON.stringify({ detail: "one or more selected photos do not belong to this outfit" }) });
-    });
-    await page.goto("/documentary/1");
-    await page.getByRole("tab", { name: "Host" }).click();
-    const panel = page.getByTestId("host-outfit-panel");
-    await panel.getByRole("button", { name: "Change outfit for all scenes" }).click();
-    await panel.getByRole("radio", { name: "navy Cord Blazer Vest" }).click();
-    await panel.getByRole("radio", { name: "sitCrossed" }).click();
-    await panel.getByRole("button", { name: "Use this outfit and photo" }).click();
-    await page.getByTestId("host-outfit-confirm").click();
-    await expect(panel.getByRole("alert")).toContainText("do not belong to this outfit");
-  });
-});
-
 test.describe("each host scene can wear its own outfit", () => {
-  test("S1 to S4 each have their own control and changing one posts only for that scene", async ({ page }) => {
+  test("S1 to S4 each have their own outfit and photo choice and changing one posts only for that scene", async ({ page }) => {
     await mockPage(page);
     const pinned: Record<number, string> = {};
-    await page.route("**/api/cases/1/host-outfit?**", (r: Route) => r.fulfill(ok(OPTIONS)));
     const posted: { id: number; body: Record<string, unknown> }[] = [];
     await page.route("**/api/host-scenes/*/outfit", (r: Route) => {
       if (r.request().method() === "GET") return sceneOutfit(pinned)(r);
@@ -165,10 +84,10 @@ test.describe("each host scene can wear its own outfit", () => {
     await page.goto("/documentary/1");
     await page.getByRole("tab", { name: "Host" }).click();
     for (const id of [181, 182, 183, 184]) {
-      await expect(page.getByTestId(`scene-outfit-${id}`)).toContainText("the video's outfit");
+      await expect(page.getByTestId(`scene-outfit-${id}`)).toContainText("not chosen for this scene yet");
     }
     const s2 = page.getByTestId("scene-outfit-182");
-    await s2.getByRole("button", { name: "Change outfit for S2" }).click();
+    await s2.getByRole("button", { name: "Choose outfit and photo for S2" }).click();
     await s2.getByRole("radio", { name: "navy Cord Blazer Vest" }).click();
     await s2.getByRole("radio", { name: "sitHands" }).click();
     await s2.getByRole("button", { name: "Use this outfit and photo" }).click();
@@ -180,13 +99,12 @@ test.describe("each host scene can wear its own outfit", () => {
     await expect.poll(() => posted).toEqual([{ id: 182, body: { option_key: "registry:en/navyCordBlazerVest", item_id: 145, create_host: false } }]);
     await expect(s2).toContainText("chosen for this scene");
     for (const id of [181, 183, 184]) {
-      await expect(page.getByTestId(`scene-outfit-${id}`)).toContainText("the video's outfit");
+      await expect(page.getByTestId(`scene-outfit-${id}`)).toContainText("not chosen for this scene yet");
     }
   });
 
-  test("a scene can go back to the video's outfit", async ({ page }) => {
+  test("a scene's own choice can be removed again", async ({ page }) => {
     await mockPage(page);
-    await page.route("**/api/cases/1/host-outfit?**", (r: Route) => r.fulfill(ok(OPTIONS)));
     const pinned: Record<number, string> = { 183: "navy Cord Blazer Vest" };
     const posted: Record<string, unknown>[] = [];
     await page.route("**/api/host-scenes/*/outfit", (r: Route) => {
@@ -199,8 +117,8 @@ test.describe("each host scene can wear its own outfit", () => {
     await page.getByRole("tab", { name: "Host" }).click();
     const s3 = page.getByTestId("scene-outfit-183");
     await expect(s3).toContainText("chosen for this scene");
-    await s3.getByRole("button", { name: "Use the video's outfit" }).click();
+    await s3.getByRole("button", { name: "Remove my choice" }).click();
     await expect.poll(() => posted).toEqual([{ option_key: null, create_host: false }]);
-    await expect(s3).toContainText("the video's outfit");
+    await expect(s3).toContainText("not chosen for this scene yet");
   });
 });

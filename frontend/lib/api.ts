@@ -78,9 +78,7 @@ import type {
   DocumentaryOverview,
   DocumentaryScheduler,
   DocumentarySettings,
-  HostOutfitOptions,
   HostSceneOutfit,
-  HostOutfitResult,
   HostScene,
   ChapterPlanRecord,
   StudioPatch,
@@ -552,10 +550,6 @@ export const api = {
     ),
   hostScenes: (params: { case_id?: number; language?: string } = {}) =>
     request<HostScene[]>(`/api/host-scenes${query(params)}`),
-  hostOutfitOptions: (caseId: number, language: string) =>
-    request<HostOutfitOptions>(`/api/cases/${caseId}/host-outfit${query({ language })}`),
-  chooseHostOutfit: (caseId: number, body: { language: string; option_key: string; item_id: number; create_host: boolean }) =>
-    post<HostOutfitResult>(`/api/cases/${caseId}/host-outfit`, body),
   hostSceneOutfit: (sceneId: number) => request<HostSceneOutfit>(`/api/host-scenes/${sceneId}/outfit`),
   chooseSceneOutfit: (sceneId: number, body: { option_key: string | null; item_id?: number; create_host: boolean }) =>
     post<{ scene: HostScene; started: boolean; outfit: { id: number; name: string } | null }>(

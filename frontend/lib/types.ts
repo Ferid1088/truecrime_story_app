@@ -3015,22 +3015,6 @@ export interface HostOutfitOption {
   photos: { id: number; situation: string; stance: string; status: string; selected: boolean }[];
 }
 
-export interface HostOutfitOptions {
-  language: string;
-  selected: string | null;
-  options: HostOutfitOption[];
-  scenes: { id: number; status: string; has_video: boolean; running: boolean }[];
-  avatar_enabled: boolean;
-}
-
-export interface HostOutfitResult {
-  outfit: { id: number; name: string; status: string };
-  attached: { look_id: number; photo: string; stance: string }[];
-  skipped: { label: string; why: string }[];
-  started: number[];
-  kept: { scene_id: number; why: string }[];
-}
-
 /** The outfit one host scene wears and the ones it can wear instead. */
 export interface HostSceneOutfit {
   language: string;

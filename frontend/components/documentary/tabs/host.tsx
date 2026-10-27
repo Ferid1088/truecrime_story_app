@@ -3,7 +3,7 @@
 import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
 import { HostMemoryPanel } from "./host-memory";
-import { HostOutfitPanel, SceneOutfit } from "./host-outfit";
+import { SceneOutfit } from "./host-outfit";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
@@ -62,7 +62,6 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
       <HostMemoryPanel caseId={caseId} />
       <HostPlanPanel caseId={caseId} scenes={data ?? []} />
       <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />
-      <HostOutfitPanel caseId={caseId} language={language} onChanged={() => setTick((n) => n + 1)} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}
       {data && data.length === 0 && (
@@ -120,6 +119,7 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <SceneOutfit scene={scene} onChanged={onChanged} />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[14rem_1fr]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -158,8 +158,6 @@ function SceneCard({ scene, avatarOn, onChanged }: { scene: HostScene; avatarOn:
         {err && <InlineAlert tone="error">{err}</InlineAlert>}
 
         {scene.voice_ready && <VoiceChecks scene={scene} />}
-
-        <SceneOutfit scene={scene} onChanged={onChanged} />
 
         <LookChoice scene={scene} />
 
