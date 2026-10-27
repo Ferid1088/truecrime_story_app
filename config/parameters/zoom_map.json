@@ -284,6 +284,7 @@
     },
     "panel": {
       "map_share": 0.65,
+      "footer_lines_max": 4,
       "step_zooms": [
         -100.0,
         4.5,

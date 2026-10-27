@@ -59,3 +59,12 @@ def test_a_zoom_shot_carries_the_places_the_camera_really_reaches(monkeypatch):
     times = ZS.step_times(plan, info, 1248, ai_config.render)
     reached = [t for t in times if t is not None]
     assert reached == sorted(reached) and times[0] == 0.0 and len(reached) >= 3
+
+
+def test_a_long_credit_with_all_imagery_providers_still_fits_the_footer_in_every_language():
+    attribution = ["© OpenStreetMap contributors", "Imagery: NASA Blue Marble / EOSDIS GIBS",
+                   "Imagery: NASA Landsat WELD (2000 composite) / EOSDIS GIBS", "Imagery: U.S. Geological Survey"]
+    panel = {"names": ["United States", "Ohio", "Tipp City", "Cunningham Court"], "target": [39.96, -84.18], "camera": []}
+    for language in ("en", "de", "fa", "ar"):
+        page = PANEL.MapPanel(language, panel, "Cunningham Court, Ohio", attribution).step(3)
+        assert page.size[1] == 1080

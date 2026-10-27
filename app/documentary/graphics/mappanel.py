@@ -10,6 +10,7 @@ import math
 import numpy as np
 from PIL import Image, ImageDraw
 
+from app.core.ai_config import ai_config
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.page import Page
 from app.documentary.visuals import shaping
@@ -23,8 +24,6 @@ def current_step(step_times: list[float], since: float) -> int:
 
 
 def map_width(frame_width: int) -> int:
-    from app.core.ai_config import ai_config
-
     return int(round(frame_width * float(ai_config.zoom().panel["map_share"]) / 2) * 2)
 
 
@@ -107,7 +106,10 @@ class MapPanel:
             page.text(line_x + 46, cy + 4, inner - 60, name, "body_bold" if lit else "body", 40,
                       T.rgb("ink") if lit or passed else T.rgb("grey"), lines_max=1, min_px=24)
         footer = " · ".join([T.label(self.language, "map_source"), *self.attribution])
-        page.text(pad, canvas["height"] - 84, inner, footer, "mono", 20, T.rgb("grey"), lines_max=2, min_px=14)
+        lines_max = int(ai_config.zoom().panel["footer_lines_max"])
+        lines, used = page.lines(footer, "mono", 20, inner, lines_max, 14)
+        page.text(pad, canvas["height"] - 44 - len(lines) * int(used * 1.18 * (1.22 if page.rtl else 1.0)), inner, footer,
+                  "mono", 20, T.rgb("grey"), lines_max=lines_max, min_px=14)
         return page.done()
 
     # -- on the map -------------------------------------------------------------
