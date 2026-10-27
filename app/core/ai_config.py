@@ -2858,7 +2858,7 @@ class MvpNeighbourCoverConfig(BaseModel):
 class MvpOverlaysConfig(BaseModel):
     """Other channels' and agencies' marks in the pictures and footage the film uses (a logo, a watermark, a caption
     strip, a channel name, a bar with a logo in it). Each approved picture and clip is scanned; the film shows the
-    largest 16:9 part of it that holds none of them (at least `min_keep_area` of the picture), and a picture or clip
+    largest part of it that holds none of them (at least `min_keep_area` of the picture), and a picture or clip
     that cannot be cut free of them is not used."""
 
     enabled: bool
@@ -2866,8 +2866,16 @@ class MvpOverlaysConfig(BaseModel):
     frames_per_video: int = Field(ge=1)
     video_frame_width: int = Field(ge=256)
     photo_width: int = Field(ge=256)
-    # the least share of the picture's area that the cut must keep
+    # the least share of the picture's own area (its bars left out) that the cut must keep
     min_keep_area: float = Field(gt=0.0, le=1.0)
+    # the cut's width/height stays between these; a 16:9 cut is taken when it keeps at least `frame_preference` of
+    # the area the largest clean cut keeps (a cut of another shape is shown on a blurred fill of itself)
+    min_aspect: float = Field(gt=0.0, le=1.0)
+    max_aspect: float = Field(ge=16 / 9)
+    frame_preference: float = Field(ge=0.5, le=1.0)
+    # the cut must hold the centre of the picture: a mark that can only be avoided off-centre (a divider through the
+    # middle of a split picture, a caption over the subject) leaves the picture unusable
+    must_hold_centre: bool
     # every mark is widened by this share of the picture's width and height before the cut avoids it
     margin: float = Field(ge=0.0, lt=0.2)
     kinds: list[str] = Field(min_length=1)

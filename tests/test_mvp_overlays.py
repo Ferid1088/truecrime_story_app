@@ -189,3 +189,78 @@ def test_only_approved_candidates_are_rejected_for_a_mark_that_cannot_be_cut_awa
     for cand in cands:
         db_session.refresh(cand)
     assert [c.final_status for c in cands] == ["rejected", "needs_review"]
+
+
+# -- the cut ---------------------------------------------------------------------------------------------------------
+
+
+def clean_of(scan, marks, width, height):
+    assert scan.status == OV.CROPPED
+    assert not any(overlaps(scan.crop, m, width, height) for m in marks)
+    return scan.crop
+
+
+def test_a_corner_logo_in_a_wide_video_is_cut_to_a_full_screen_window():
+    logo = [OV.Mark("logo", "channel", (0.88, 0.80, 0.99, 0.97))]
+    x, y, w, h = clean_of(OV.judge(logo, 1920, 1080), logo, 1920, 1080)
+    assert abs((w * 1920) / (h * 1080) - 16 / 9) < 0.01 and w * h > 0.7
+
+
+def test_a_split_picture_is_unusable_because_either_half_could_be_the_wrong_person():
+    divider = [OV.Mark("other", "divider", (0.498, 0.0, 0.502, 1.0))]
+    assert OV.judge(divider, 1500, 1000).status == OV.UNUSABLE
+
+
+def test_a_mark_off_the_centre_is_cut_away_and_the_centre_is_kept():
+    side = [OV.Mark("caption", "sidebar", (0.0, 0.0, 0.2, 1.0))]
+    x, y, w, h = clean_of(OV.judge(side, 1500, 1000), side, 1500, 1000)
+    assert x <= 0.5 <= x + w and w * h > 0.7
+
+
+def test_a_portrait_with_a_caption_strip_loses_only_the_strip():
+    strip = [OV.Mark("caption", "credit", (0.0, 0.93, 1.0, 1.0))]
+    x, y, w, h = clean_of(OV.judge(strip, 1600, 2000), strip, 1600, 2000)
+    assert w == 1.0 and h > 0.9
+
+
+def test_the_cut_of_another_shape_is_taken_when_a_full_screen_one_would_lose_much_more():
+    left_column = [OV.Mark("caption", "sidebar", (0.0, 0.0, 0.4, 1.0))]
+    x, y, w, h = clean_of(OV.judge(left_column, 1920, 1080), left_column, 1920, 1080)
+    assert abs((w * 1920) / (h * 1080) - 16 / 9) > 0.1 and w * h > 0.45
+
+
+def test_a_mark_through_the_middle_or_one_that_leaves_too_little_makes_the_picture_unusable():
+    assert OV.judge([OV.Mark("logo", "big", (0.2, 0.2, 0.8, 0.8))], 1920, 1080).status == OV.UNUSABLE
+    across = [OV.Mark("watermark", "x", (0.0, 0.3, 1.0, 0.7))]
+    assert OV.judge(across, 1920, 1080).status == OV.UNUSABLE            # both remaining strips are under 40 percent
+
+
+def test_the_bars_of_a_pillarboxed_clip_are_cut_away_and_do_not_count_as_lost_picture():
+    bars = [OV.Mark("bar", "left", (0.0, 0.0, 0.2, 1.0)), OV.Mark("bar", "right", (0.8, 0.0, 1.0, 1.0))]
+    x, y, w, h = clean_of(OV.judge(bars, 1920, 1080), bars, 1920, 1080)
+    assert w * h >= 0.57 and x >= 0.2 and x + w <= 0.8
+    with_logo = bars + [OV.Mark("logo", "channel", (0.62, 0.8, 0.78, 0.97))]
+    clean_of(OV.judge(with_logo, 1920, 1080), with_logo, 1920, 1080)
+
+
+def test_twelve_marks_are_judged_quickly():
+    import time
+
+    marks = [OV.Mark("logo", str(n), (0.07 * n, 0.02 + 0.07 * (n % 5), 0.07 * n + 0.04, 0.06 + 0.07 * (n % 5)))
+             for n in range(12)]
+    start = time.perf_counter()
+    OV.judge(marks, 1920, 1080)
+    assert time.perf_counter() - start < 3.0
+
+
+def test_a_stored_scan_is_judged_again_by_todays_rules_without_asking_the_model(db_session):
+    case = _case(db_session)
+    asset = _asset(db_session, case)
+    asset.width, asset.height = 1500, 1000
+    asset.spec_json = json.dumps({"overlays": {
+        "version": 2, "status": "unusable", "crop": None, "sha256": asset.sha256,
+        "marks": [{"kind": "logo", "what": "channel", "box": [0.8, 0.0, 1.0, 0.25]}]}})
+    db_session.commit()
+    out = asyncio.run(scanner(db_session, case, {"unexpected": True}).run([asset]))
+    assert out["cropped"] == 1 and out["failed"] == 0 and OV.crop_of(asset)["w"] > 0.5
+    assert json.loads(asset.spec_json)["overlays"]["status"] == "cropped"
