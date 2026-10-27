@@ -20,11 +20,13 @@ chosen by the producer from previews:
                (maqam Hijaz), a low hit.
   lupa         Tras la Pista (es, Mexican) — a magnifying lens searches the dark,
                marigold petals drift, golden footprints walk to the logo;
-               a conch shell, a clay ocarina, a nylon-string guitar in A
-               phrygian and a low huehuetl (skin drum) heartbeat.
+               a Mexican nylon-string guitar (trio romántico arpeggios in A
+               minor, the cadence Am G F E) over a low huehuetl (skin drum)
+               heartbeat.
   sis          Gizli İzler (tr) — fog in an old alley; a warm light opens at the
-               keyhole and spreads over the logo; a ney (reed flute) and a saz
-               (long-necked lute) in makam Uşşak over a drone, a low davul hit.
+               keyhole and spreads over the logo; a bağlama (long-necked lute,
+               paired strings, tremolo) in makam Uşşak over a drone, a low
+               davul hit.
   (keyhole and arch: the other two previews, kept as alternatives.)
 
 Pictures are drawn with numpy/OpenCV, the sound is synthesized (no samples,
@@ -243,7 +245,7 @@ class Sound:
             out[i:i + m] += y[:m] * g * gain
         return out
 
-    def classical(self, at, freq, length=4.0, gain=0.35) -> np.ndarray:
+    def classical(self, at, freq, length=4.0, gain=0.35, hi=1300) -> np.ndarray:
         """A deep nylon-string (classical) guitar note: a warm, soft
         Karplus–Strong string with the guitar body's low resonance and no
         bright edge — returned for a reverb bus."""
@@ -257,7 +259,7 @@ class Sound:
             j = k % N
             y[k] = buf[j]
             buf[j] = 0.9975 * 0.5 * (buf[j] + buf[(k + 1) % N])
-        y = self.band(self.band(y, lo=50, hi=1300), hi=1300)  # bass strings: deep, no edge
+        y = self.band(self.band(y, lo=50, hi=hi), hi=hi)  # bass strings: deep, no edge
         # body: the low resonance of the guitar's box
         t = np.arange(n) / self.sr
         body = self.band(y, lo=90, hi=260) * 0.6
@@ -268,36 +270,27 @@ class Sound:
         out[i:i + m] += y[:m] * gain
         return out
 
-    def flute(self, at, freq, length=2.5, gain=0.3, breath=0.25, vibrato=5.0, depth=0.006,
-              attack=0.12) -> np.ndarray:
-        """A blown flute note: a near-pure tone with a few harmonics, vibrato and
-        band-passed breath noise (ney: much breath; clay ocarina: little) —
-        returned for a reverb bus."""
-        t = self.t(length)
-        f = freq * (1 + depth * np.sin(2 * math.pi * vibrato * t) * np.minimum(1.0, t / 0.6))
-        ph = 2 * math.pi * np.cumsum(f) / self.sr
-        x = np.sin(ph) + 0.28 * np.sin(2 * ph) + 0.08 * np.sin(3 * ph)
-        x += breath * self.band(self.rng.normal(0, 1, len(t)), freq * 1.5, freq * 6)
-        env = np.minimum(1.0, t / attack) * np.exp(-np.maximum(0, t - length * 0.55) * 2.2)
+    def baglama(self, at, freq, length=1.0, gain=0.3, tremolo=False) -> np.ndarray:
+        """A bağlama (saz) note: a course of two slightly detuned steel strings,
+        bright and a little nasal; with `tremolo` the course is plucked again
+        and again (the bağlama's sustained note) — returned for a reverb bus."""
         out = np.zeros(self.n)
-        i = int(at * self.sr)
-        m = max(0, min(len(t), self.n - i))
-        out[i:i + m] += (x * env)[:m] * gain
-        return out
-
-    def conch(self, at, freq=196.0, length=3.0, gain=0.3) -> np.ndarray:
-        """A conch shell (caracol) call: a low, hollow, slowly swelling tone with
-        a rough edge — returned for a reverb bus."""
-        t = self.t(length)
-        f = freq * (1 + 0.012 * np.sin(2 * math.pi * 4.2 * t))
-        ph = 2 * math.pi * np.cumsum(f) / self.sr
-        x = np.sin(ph) + 0.5 * np.sin(2 * ph) + 0.25 * np.sin(3 * ph)
-        x += 0.18 * self.band(self.rng.normal(0, 1, len(t)), freq, freq * 5)
-        env = np.sin(np.clip(t / length, 0, 1) * math.pi) ** 1.4
-        out = np.zeros(self.n)
-        i = int(at * self.sr)
-        m = max(0, min(len(t), self.n - i))
-        out[i:i + m] += (self.band(x, lo=90, hi=1800) * env)[:m] * gain
+        starts = np.arange(0.0, length, 0.075) if tremolo else [0.0]
+        for off in starts:
+            n = int(0.9 * self.sr) if tremolo else int(max(length, 0.9) * 2 * self.sr)
+            for cents, g in ((0.0, 1.0), (7.0, 0.8)):
+                N = max(2, int(self.sr / (freq * 2 ** (cents / 1200))))
+                buf = self.rng.uniform(-1, 1, N)
+                buf = buf - buf.mean()
+                y = np.empty(n)
+                for k in range(n):
+                    j = k % N
+                    y[k] = buf[j]
+                    buf[j] = 0.9965 * 0.5 * (buf[j] + buf[(k + 1) % N])
+                y = self.band(y, lo=140, hi=6500) * np.exp(-np.linspace(0, 4.0 if tremolo else 2.6, n))
+                i = int((at + off) * self.sr)
+                m = max(0, min(n, self.n - i))
+                out[i:i + m] += y[:m] * g * gain * (0.6 if tremolo else 1.0)
         return out
 
     def skin_drum(self, at, f0=96, f1=52, length=1.2, gain=0.8) -> None:
@@ -741,18 +734,24 @@ class IntroMaker:
             return self.fade(out, t, dur, 0.1, 0.6)
 
         snd = Sound(dur, self.sr)
-        snd.drone((55.0, 82.4), (0.2, 0.7), 0.2)
+        snd.drone((55.0, 82.4), (0.2, 0.7), 0.18)
         for i in range(2):  # the huehuetl heartbeat, slow and low
-            snd.skin_drum(0.3 + 0.62 * i + 0.0, 84, 48, 1.3, 0.6 - 0.12 * i)
-        bus = snd.conch(0.5, 196.0, 2.8, 0.34)
-        snd.add(snd.reverb(bus, 2.6, 0.4), 0, 1.0)
-        # a clay ocarina, A phrygian (A Bb C D E), slow and sorrowful
-        o = [(1.4, 440.0, 0.8), (2.15, 466.16, 0.5), (2.7, 392.0, 0.5), (3.2, 329.63, 1.2)]
-        bus = sum(snd.flute(at, f, ln + 0.9, 0.2, 0.08, 4.6, 0.005, 0.07) for at, f, ln in o)
-        snd.add(snd.reverb(bus, 2.8, 0.45), 0, 1.0)
-        # a nylon-string guitar tremolo on E under the lens opening
-        g = sum(snd.classical(0.8 + 0.18 * i, 164.81 if i % 2 else 220.0, 1.6, 0.17) for i in range(14))
-        snd.add(snd.reverb(g, 2.2, 0.3), 0, 1.0)
+            snd.skin_drum(0.3 + 0.62 * i, 84, 48, 1.3, 0.6 - 0.12 * i)
+        # a Mexican nylon-string guitar: trio romántico arpeggios, the Andalusian
+        # cadence Am G F E (A minor); the bass note of each chord rings longest
+        chords = [(0.3, (110.0, 164.81, 220.0, 261.63, 329.63)),    # Am
+                  (1.2, (98.0, 146.83, 196.0, 246.94, 392.0)),      # G
+                  (2.0, (87.31, 130.81, 174.61, 220.0, 349.23))]    # F
+        notes = [(at + 0.2 * i, f, 2.4 if i == 0 else 1.6, 0.34 if i == 0 else 0.26)
+                 for at, fs in chords for i, f in enumerate(fs)]
+
+        def strum(at, fs, g):
+            return [(at + 0.035 * i, f, 3.2, g) for i, f in enumerate(fs)]
+
+        notes += strum(3.0, (82.41, 164.81, 207.65, 246.94, 329.63), 0.38)   # E: the lens opens
+        notes += strum(4.7, (110.0, 164.81, 220.0, 261.63, 329.63), 0.34)    # Am: home
+        bus = sum(snd.classical(at, f, ln, g, hi=3400) for at, f, ln, g in notes)
+        snd.add(snd.reverb(bus, 2.6, 0.32), 0, 1.0)
         snd.skin_drum(3.0, 80, 44, 2.0, 0.95)
         snd.click(3.0, 0.3, 700)
         snd.whoosh(3.0, 1.4, 600, 4000, 0.07)
@@ -791,21 +790,19 @@ class IntroMaker:
 
         snd = Sound(dur, self.sr)
         snd.wind(0.1)
-        snd.drone((55.0, 82.5), (0.2, 0.85), 0.22)
-        a3 = 220.0
+        snd.drone((55.0, 82.5), (0.2, 0.85), 0.2)
 
         def usak(cents):  # makam Uşşak on A: A, B koma-flat (150 c), C, D, E
-            return a3 * 2 ** (cents / 1200)
+            return 220.0 * 2 ** (cents / 1200)
 
-        # the saz: tremolo on the long-necked lute, a falling phrase to the tonic
-        for at, c, g in [(0.7, 700, 0.3), (1.1, 500, 0.3), (1.5, 300, 0.3), (1.95, 150, 0.3),
-                         (2.6, 0, 0.36), (2.65, -1200, 0.3)]:
-            snd.pluck(at, usak(c), 2.0, g, 0.996, 0.45)
-            snd.pluck(at + 0.06, usak(c), 1.6, g * 0.55, 0.996, 0.45)
-        # the ney: slow, breathy, with its sigh in the middle register
-        ney = [(0.9, 700, 1.4), (1.9, 300, 1.2), (2.9, 150, 1.0), (3.4, 0, 2.2)]
-        bus = sum(snd.flute(at, usak(c), ln + 1.0, 0.24, 0.42, 5.2, 0.008, 0.18) for at, c, ln in ney)
-        snd.add(snd.reverb(bus, 2.8, 0.45), 0, 1.0)
+        # a bağlama taksim: a falling phrase to the tonic, a short answer, the tonic
+        # held in tremolo; the low open string (A) answers beneath
+        phrase = [(0.7, 700, 0.5, False), (1.2, 500, 0.5, False), (1.7, 300, 0.5, False),
+                  (2.2, 150, 0.45, False), (2.65, 0, 1.1, True), (3.9, 150, 0.4, False),
+                  (4.3, 300, 0.4, False), (4.7, 150, 0.4, False), (5.1, 0, 1.2, True)]
+        bus = sum(snd.baglama(at, usak(c), ln, 0.34, tremolo) for at, c, ln, tremolo in phrase)
+        bus += snd.baglama(0.3, 110.0, 1.0, 0.3) + snd.baglama(2.65, 110.0, 1.0, 0.34)
+        snd.add(snd.reverb(bus, 2.4, 0.3), 0, 1.0)
         snd.skin_drum(2.6, 104, 56, 2.0, 0.95)  # the davul
         snd.click(2.6, 0.25, 800)
         snd.whoosh(2.6, 1.6, 300, 2600, 0.1)
