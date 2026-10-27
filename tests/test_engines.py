@@ -92,9 +92,9 @@ def test_steps_are_spread_over_the_shot(kind):
     assert cues == sorted(cues) and cues[0] < 0.2 and cues[-1] > 0.6
 
 
-def test_engine_shots_are_held_as_long_as_the_detective_board():
+def test_engine_shots_are_held_one_and_a_half_times_as_long_as_the_detective_board():
     for steps in range(2, 8):
-        assert 15.0 <= EN.engine_seconds("courtroom", steps) <= 24.0
+        assert 1.5 * 15.0 <= EN.engine_seconds("courtroom", steps) <= 1.5 * 24.0
 
 
 def test_a_statement_without_its_fact_is_refused():

@@ -169,7 +169,7 @@ def test_timeline_offers_group_events_in_story_order_and_never_before_they_are_t
     assert [len(o.data["events"]) for o in offers] == [5, 2]
     first = offers[0]
     assert first.best == ev.order["B07"] and first.first == first.best      # not before its last event is told
-    assert first.seconds == pytest.approx(4.0 + 3.4 * 5) and first.items == {"T1", "T2", "T3", "T4", "T5"}
+    assert first.seconds == pytest.approx(1.5 * (4.0 + 3.4 * 5)) and first.items == {"T1", "T2", "T3", "T4", "T5"}
 
 
 def test_quotes_are_complete_the_fullest_wording_and_once_per_fact():
@@ -297,7 +297,7 @@ def test_conflict_pages_and_recaps_are_held_three_times_longer_than_the_old_card
     page = AL.offer("conflict", "conflict|C1", data, 0, items=("C1",))
     shots, length = gap_beat(60.0, (60.0,))
     AL.fill_beat(shots, length, 0, [page], AL.State())
-    assert shots[0]["share"] * length == pytest.approx(24.0)
+    assert shots[0]["share"] * length == pytest.approx(1.5 * 24.0)
 
 
 def test_the_board_comes_after_two_or_more_conflict_pages_and_lists_only_those_shown():
