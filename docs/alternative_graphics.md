@@ -12,6 +12,13 @@ the conflict board shows a "N told" counter and the cards told so far, never emp
 "SAMPLE ..." footers of the pictures are design notes and never appear in a film; the route chip of the map picture
 ("[TIME] · LAST SEEN") needs a timed fact and is not drawn.
 
+## The map source
+
+Not Google Maps or Google Earth (their terms do not allow automated capture, and Earth Studio's FAQ offers no commercial
+licence). The zoom uses open data that looks the same way: NASA Blue Marble and Landsat for the globe and the country,
+USGS aerial imagery (public domain) down to the street, OpenStreetMap vector data (ODbL) for roads, names and labels,
+with every source credited on the page. Imagery brightness `zoom_map.imagery_dim`, marker `zoom_map.marker.radius_px`.
+
 ## Rules
 
 - Made by code from stored evidence; never a generated picture, never placeholder text. If the data is incomplete

@@ -166,7 +166,7 @@
       "planet"
     ],
     "imagery_fade_levels": 1.5,
-    "imagery_dim": 0.62,
+    "imagery_dim": 0.9,
     "style": {
       "flavor": "dark",
       "background": "#0b0f14",
@@ -247,7 +247,7 @@
     },
     "marker": {
       "pulse_seconds": 1.6,
-      "radius_px": 16.0
+      "radius_px": 24.0
     },
     "limits": {
       "max_per_film": 4,
