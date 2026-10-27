@@ -58,6 +58,8 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "need": json.loads(req.spec_json or "{}").get("need"),
             "asset_id": asset.id, "asset_code": asset.asset_code, "asset_type": asset.asset_type,
             "title": asset.title, "source": asset.source_name, "rights": asset.rights_status,
+            "clip_start": asset.clip_start, "clip_end": asset.clip_end,
+            "duration_seconds": asset.duration_seconds,
             "thumb_url": f"/api/visuals/{asset.id}/file?thumb=1", "role": cand.role,
             "status": cand.final_status, "provenance": cand.provenance_status,
             "identity": cand.identity_status, "rights_decision": cand.rights_status,

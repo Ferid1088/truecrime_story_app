@@ -33,7 +33,23 @@ const SHOWN_TEXT: Record<(typeof SHOWN)[number]["key"], string> = {
   all: "every picture, whatever the agents decided",
 };
 
+const KINDS = [
+  { key: "photo", label: "Pictures" },
+  { key: "video", label: "Videos" },
+] as const;
+
+type Kind = (typeof KINDS)[number]["key"];
 type Verdict = "approved" | "rejected";
+
+const isVideo = (group: MvpCandidateGroup) => group.asset_type === "video" || group.asset_type === "video_source";
+const kindOf = (group: MvpCandidateGroup): Kind => (isVideo(group) ? "video" : "photo");
+
+/** The part of the video the planner would use: the media fragment plays only that window. */
+function clipUrl(group: MvpCandidateGroup): string {
+  const base = apiFileUrl(`/api/visuals/${group.asset_id}/file`);
+  if (group.clip_start == null && group.clip_end == null) return base;
+  return `${base}#t=${group.clip_start ?? 0}${group.clip_end != null ? `,${group.clip_end}` : ""}`;
+}
 
 function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): Verdict | undefined {
   if (decided[group.id]) return decided[group.id];
@@ -42,6 +58,7 @@ function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): 
 
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [shown, setShown] = useState<(typeof SHOWN)[number]["key"]>("needs_review");
+  const [kind, setKind] = useState<Kind>("photo");
   const [beat, setBeat] = useState<string | undefined>(undefined);
   const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, shown, beat), [caseId, shown, beat]);
   const { data: gaps, refetch: refetchGaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
@@ -50,10 +67,12 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   // the list is fixed while you work: a decision never reshuffles it or brings a picture back
-  const queue: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
+  const everything: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
+  const queue = useMemo(() => everything.filter((g) => kindOf(g) === kind), [everything, kind]);
+  const kindCount = (k: Kind) => everything.filter((g) => kindOf(g) === k).length;
   const safeIndex = queue.length === 0 ? 0 : Math.min(index, queue.length - 1);
   const item = queue[safeIndex];
-  const left = queue.filter((g) => !verdictOf(g, decided)).length;
+  const left = queue.filter((g) => !decided[g.id]).length;
 
   const go = useCallback(
     (to: number) => setIndex(Math.max(0, Math.min(to, queue.length - 1))),
@@ -62,7 +81,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
 
   const nextOpen = useCallback(
     (from: number) => {
-      const after = queue.findIndex((g, i) => i > from && !verdictOf(g, decided));
+      const after = queue.findIndex((g, i) => i > from && !decided[g.id]);
       return after >= 0 ? after : Math.min(from + 1, queue.length - 1);
     },
     [queue, decided],
@@ -105,8 +124,9 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [decide, go, safeIndex]);
 
-  function switchTo(next: (typeof SHOWN)[number]["key"], toBeat?: string) {
+  function switchTo(next: (typeof SHOWN)[number]["key"], toBeat?: string, toKind: Kind = kind) {
     setShown(next);
+    setKind(toKind);
     setBeat(toBeat);
     setIndex(0);
     setDecided({});
@@ -140,7 +160,20 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
             {message}
           </p>
         )}
-        <div className="mt-4 flex flex-wrap gap-2" data-testid="review-queue-shown">
+        <div className="mt-4 flex flex-wrap gap-2" data-testid="review-queue-kind">
+          {KINDS.map((option) => (
+            <Button
+              key={option.key}
+              type="button"
+              size="sm"
+              variant={kind === option.key ? "default" : "outline"}
+              onClick={() => switchTo(shown, beat, option.key)}
+            >
+              {option.label} ({kindCount(option.key)})
+            </Button>
+          ))}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2" data-testid="review-queue-shown">
           {SHOWN.map((option) => (
             <Button
               key={option.key}
@@ -186,17 +219,29 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
 
       {queue.length === 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="review-queue-empty">
-          Nothing to show here right now.
+          Nothing to show here right now. Try the other kind or another status tab.
         </p>
       ) : item ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(280px,440px)_1fr]">
           <section className="flex min-h-[420px] items-center justify-center bg-muted/40 p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={apiFileUrl(item.thumb_url)}
-              alt={item.title ?? item.asset_code}
-              className="max-h-[480px] max-w-full object-contain"
-            />
+            {isVideo(item) ? (
+              <video
+                key={item.asset_id}
+                src={clipUrl(item)}
+                poster={apiFileUrl(item.thumb_url)}
+                controls
+                preload="metadata"
+                className="max-h-[480px] max-w-full"
+                data-testid="review-queue-video"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={apiFileUrl(item.thumb_url)}
+                alt={item.title ?? item.asset_code}
+                className="max-h-[480px] max-w-full object-contain"
+              />
+            )}
           </section>
           <section className="space-y-5">
             <div>

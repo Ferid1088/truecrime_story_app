@@ -128,3 +128,12 @@ def test_the_owner_can_approve_a_rights_blocked_picture_on_their_own_decision(db
     assert db_session.get(MvpCandidate, cand.id).final_status == "approved"
     listed = client.get(f"/api/cases/{case.id}/mvp/candidates?status=all&group=true").json()
     assert len(listed) == 1
+
+
+def test_a_listed_video_carries_the_window_the_planner_would_use(db_session):
+    case, plan, cand = _seed(db_session)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    asset.asset_type, asset.clip_start, asset.clip_end, asset.duration_seconds = "video", 12.5, 30.0, 418.4
+    db_session.commit()
+    listed = TestClient(app).get(f"/api/cases/{case.id}/mvp/candidates?status=all&group=true").json()
+    assert (listed[0]["asset_type"], listed[0]["clip_start"], listed[0]["clip_end"]) == ("video", 12.5, 30.0)

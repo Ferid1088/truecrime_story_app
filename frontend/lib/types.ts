@@ -2330,6 +2330,9 @@ export interface VisualUpdate {
 
 /** The Main Visual Planner: one candidate picture judged for one requirement (five separate decisions). */
 export interface MvpCandidate {
+  clip_start: number | null;
+  clip_end: number | null;
+  duration_seconds: number | null;
   id: number;
   requirement: string;
   beat_id: string;
