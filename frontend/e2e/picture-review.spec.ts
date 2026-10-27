@@ -7,7 +7,8 @@ test.describe("Main Visual Planner picture review", () => {
     await page.goto("/documentary/1/review");
     await expect(page.getByTestId("review-queue-page")).toBeVisible();
     await expect(page.getByTestId("review-queue-counter")).toHaveText(/1 \/ 2 · 2 left to review/);
-    await expect(page.getByText("Bryan Kohberger")).toBeVisible();
+    await expect(page.getByText("Bryan Kohberger").last()).toBeVisible();
+    await expect(page.getByTestId("review-queue-list")).toContainText("Bryan Kohberger");
     await expect(page.getByTestId("review-queue-requirements")).toContainText("also offered for 1 more requirement");
     await expect(page.getByTestId("review-queue-decisions")).toContainText("Identity / context: needs_review");
     await expect(page.getByTestId("review-queue-reason")).toContainText("identity from the page caption only");
@@ -19,7 +20,7 @@ test.describe("Main Visual Planner picture review", () => {
     await page.getByRole("button", { name: /^Approve \(A\)/ }).click();
     await expect(page.getByText(/Approved VIS_101 for 2 requirements/)).toBeVisible();
     await expect(page.getByTestId("review-queue-counter")).toHaveText(/2 \/ 2 · 1 left to review.*1 decided/);
-    await expect(page.getByText("Ka-Bar sheath")).toBeVisible();
+    await expect(page.getByText("Ka-Bar sheath").last()).toBeVisible();
   });
 
   test("Reject records the decision and a decided picture can be decided again", async ({ page }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { ApiError, apiFileUrl, mvpApi } from "@/lib/api";
@@ -57,19 +57,27 @@ function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): 
 }
 
 export function ReviewQueuePage({ caseId }: { caseId: number }) {
-  const [shown, setShown] = useState<(typeof SHOWN)[number]["key"]>("needs_review");
-  const [kind, setKind] = useState<Kind>("photo");
+  const [chosenShown, setShown] = useState<(typeof SHOWN)[number]["key"] | null>(null);
+  const [chosenKind, setKind] = useState<Kind | null>(null);
   const [beat, setBeat] = useState<string | undefined>(undefined);
-  const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, shown, beat), [caseId, shown, beat]);
+  const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, "all", beat), [caseId, beat]);
   const { data: gaps, refetch: refetchGaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
   const [index, setIndex] = useState(0);
   const [decided, setDecided] = useState<Record<number, Verdict>>({});
   const [message, setMessage] = useState("");
+  const activeRef = useRef<HTMLButtonElement | null>(null);
   const [busy, setBusy] = useState(false);
   // the list is fixed while you work: a decision never reshuffles it or brings a picture back
-  const everything: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
-  const queue = useMemo(() => everything.filter((g) => kindOf(g) === kind), [everything, kind]);
+  const loaded: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
+  // open on something to look at: "Not sure" if anything is, else "Rejected"; the kind that has items
+  const shown = chosenShown ?? (loaded.some((g) => g.status === "needs_review") ? "needs_review" : "rejected");
+  const everything = useMemo(
+    () => (shown === "all" ? loaded : loaded.filter((g) => g.status === shown)),
+    [loaded, shown],
+  );
   const kindCount = (k: Kind) => everything.filter((g) => kindOf(g) === k).length;
+  const kind = chosenKind ?? (kindCount("photo") === 0 && kindCount("video") > 0 ? "video" : "photo");
+  const queue = useMemo(() => everything.filter((g) => kindOf(g) === kind), [everything, kind]);
   const safeIndex = queue.length === 0 ? 0 : Math.min(index, queue.length - 1);
   const item = queue[safeIndex];
   const left = queue.filter((g) => !decided[g.id]).length;
@@ -124,7 +132,11 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [decide, go, safeIndex]);
 
-  function switchTo(next: (typeof SHOWN)[number]["key"], toBeat?: string, toKind: Kind = kind) {
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [safeIndex, kind, shown]);
+
+  function switchTo(next: (typeof SHOWN)[number]["key"], toBeat?: string, toKind: Kind | null = null) {
     setShown(next);
     setKind(toKind);
     setBeat(toBeat);
@@ -137,54 +149,56 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   if (error && !data) return <p className="p-8 text-sm text-rose-700">{error}</p>;
 
   const verdict = item ? verdictOf(item, decided) : undefined;
+  const height = "lg:h-[calc(100vh-17rem)]";
   return (
-    <main className="mx-auto max-w-5xl px-6 py-8" data-testid="review-queue-page">
-      <div className="mb-6">
-        <Link
-          href={`/documentary/${caseId}`}
-          className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="h-4 w-4" /> Documentary
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Picture review</h1>
-        <p className="mt-1 text-sm text-muted-foreground" data-testid="review-queue-counter">
-          {queue.length > 0 && <span className="font-medium text-foreground">{safeIndex + 1} / {queue.length} · </span>}
-          {left} left to review: {SHOWN_TEXT[shown]}
-          {queue.length - left > 0 && ` · ${queue.length - left} decided`}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Each picture is shown once, however many requirements it was offered for; your decision applies to all of them.
-        </p>
-        {message && (
-          <p role="status" className="mt-2 text-sm text-emerald-700">
-            {message}
+    <main className="w-full px-6 py-5" data-testid="review-queue-page">
+      <header className="mb-3 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+        <div className="min-w-0">
+          <Link
+            href={`/documentary/${caseId}`}
+            className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" /> Documentary
+          </Link>
+          <h1 className="text-xl font-semibold tracking-tight">Picture review</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground" data-testid="review-queue-counter">
+            {queue.length > 0 && <span className="font-medium text-foreground">{safeIndex + 1} / {queue.length} · </span>}
+            {left} left to review: {SHOWN_TEXT[shown]}
+            {queue.length - left > 0 && ` · ${queue.length - left} decided`}
           </p>
-        )}
-        <div className="mt-4 flex flex-wrap gap-2" data-testid="review-queue-kind">
-          {KINDS.map((option) => (
-            <Button
-              key={option.key}
-              type="button"
-              size="sm"
-              variant={kind === option.key ? "default" : "outline"}
-              onClick={() => switchTo(shown, beat, option.key)}
-            >
-              {option.label} ({kindCount(option.key)})
-            </Button>
-          ))}
+          <p className="text-xs text-muted-foreground">
+            Each picture is shown once, however many requirements it was offered for; your decision applies to all of them.
+          </p>
+          {message && <p role="status" className="mt-1 text-sm text-emerald-700">{message}</p>}
         </div>
-        <div className="mt-2 flex flex-wrap gap-2" data-testid="review-queue-shown">
-          {SHOWN.map((option) => (
-            <Button
-              key={option.key}
-              type="button"
-              size="sm"
-              variant={shown === option.key ? "default" : "outline"}
-              onClick={() => switchTo(option.key)}
-            >
-              {option.label}
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-2" data-testid="review-queue-kind">
+            {KINDS.map((option) => (
+              <Button
+                key={option.key}
+                type="button"
+                size="sm"
+                variant={kind === option.key ? "default" : "outline"}
+                onClick={() => switchTo(shown, beat, option.key)}
+              >
+                {option.label} ({kindCount(option.key)})
+              </Button>
+            ))}
+          </div>
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <div className="flex flex-wrap gap-2" data-testid="review-queue-shown">
+            {SHOWN.map((option) => (
+              <Button
+                key={option.key}
+                type="button"
+                size="sm"
+                variant={shown === option.key ? "default" : "outline"}
+                onClick={() => switchTo(option.key)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
           <Button type="button" size="sm" variant="ghost" onClick={() => { setDecided({}); void refetch(); }}>
             Reload list
           </Button>
@@ -194,36 +208,67 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
             </Button>
           )}
         </div>
-        {gaps && gaps.gap_count > 0 && (
-          <section className="mt-4 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-foreground" data-testid="review-queue-gaps">
-            <p className="font-medium">
-              {gaps.gap_count} moment(s), {gaps.gap_seconds} s of the film, still have no picture, video or graphic. The
-              film is not made until they do: approve pictures for these beats, or leave them and resume to be asked again.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {gaps.beats.map((b) => (
-                <Button
-                  key={b.beat_id}
-                  type="button"
-                  size="sm"
-                  variant={beat === b.beat_id ? "default" : "outline"}
-                  onClick={() => switchTo(shown, b.beat_id)}
-                >
-                  {b.beat_id} · {b.needs_review} not sure · {b.rejected} rejected
-                </Button>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
+      </header>
+
+      {gaps && gaps.gap_count > 0 && (
+        <details className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-foreground" data-testid="review-queue-gaps">
+          <summary className="cursor-pointer font-medium">
+            {gaps.gap_count} moment(s), {gaps.gap_seconds} s of the film, still have no picture, video or graphic. The film is
+            not made until they do - pick a beat to review its pictures.
+          </summary>
+          <div className="mt-2 flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+            {gaps.beats.map((b) => (
+              <Button
+                key={b.beat_id}
+                type="button"
+                size="sm"
+                variant={beat === b.beat_id ? "default" : "outline"}
+                onClick={() => switchTo(shown, b.beat_id)}
+              >
+                {b.beat_id} · {b.needs_review} not sure · {b.rejected} rejected
+              </Button>
+            ))}
+          </div>
+        </details>
+      )}
 
       {queue.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-testid="review-queue-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground" data-testid="review-queue-empty">
           Nothing to show here right now. Try the other kind or another status tab.
         </p>
       ) : item ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(280px,440px)_1fr]">
-          <section className="flex min-h-[420px] items-center justify-center bg-muted/40 p-4">
+        <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)_340px] xl:grid-cols-[300px_minmax(0,1fr)_400px]">
+          <ol className={`max-h-80 space-y-1 overflow-y-auto pr-1 lg:max-h-none ${height}`} aria-label="Pictures to review" data-testid="review-queue-list">
+            {queue.map((g, n) => {
+              const v = verdictOf(g, decided);
+              return (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    ref={n === safeIndex ? activeRef : undefined}
+                    onClick={() => go(n)}
+                    aria-current={n === safeIndex}
+                    className={`flex w-full cursor-pointer items-center gap-2 rounded border p-1.5 text-left text-xs ${
+                      n === safeIndex ? "border-primary bg-muted" : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={apiFileUrl(g.thumb_url)} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-sm bg-muted object-cover" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{g.entity ?? g.requirement}</span>
+                      <span className="block truncate text-muted-foreground">{g.beat_id} · {n + 1}</span>
+                    </span>
+                    {v && (
+                      <span className={`size-2 shrink-0 rounded-full ${v === "approved" ? "bg-emerald-500" : "bg-rose-500"}`}
+                            title={v} aria-label={v} />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <section className={`flex h-[60vh] min-h-[320px] items-center justify-center rounded bg-muted/40 p-3 lg:h-[calc(100vh-17rem)]`}>
             {isVideo(item) ? (
               <video
                 key={item.asset_id}
@@ -231,19 +276,35 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 poster={apiFileUrl(item.thumb_url)}
                 controls
                 preload="metadata"
-                className="max-h-[480px] max-w-full"
+                className="h-full w-full object-contain"
                 data-testid="review-queue-video"
               />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={apiFileUrl(item.thumb_url)}
+                src={apiFileUrl(`/api/visuals/${item.asset_id}/file`)}
                 alt={item.title ?? item.asset_code}
-                className="max-h-[480px] max-w-full object-contain"
+                className="h-full w-full object-contain"
               />
             )}
           </section>
-          <section className="space-y-5">
+
+          <section className={`space-y-4 overflow-y-auto pr-1 ${height}`}>
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" onClick={() => void decide("approve")} disabled={busy}>
+                {item.rights_blocked ? "Approve anyway" : "Approve"} <span className="ml-1 text-xs opacity-70">(A)</span>
+              </Button>
+              <Button type="button" variant="outline" onClick={() => void decide("reject")} disabled={busy}>
+                Reject <span className="ml-1 text-xs opacity-70">(R)</span>
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => go(safeIndex - 1)} disabled={safeIndex <= 0}>
+                Previous <span className="ml-1 text-xs opacity-70">(P)</span>
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => go(safeIndex + 1)} disabled={safeIndex >= queue.length - 1}>
+                Next <span className="ml-1 text-xs opacity-70">(N)</span>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Keyboard: A = Approve, R = Reject, N = Next, P = Previous.</p>
             <div>
               <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
                 Should show
@@ -290,21 +351,6 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={() => void decide("approve")} disabled={busy}>
-                {item.rights_blocked ? "Approve anyway" : "Approve"} <span className="ml-1 text-xs opacity-70">(A)</span>
-              </Button>
-              <Button type="button" variant="outline" onClick={() => void decide("reject")} disabled={busy}>
-                Reject <span className="ml-1 text-xs opacity-70">(R)</span>
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => go(safeIndex - 1)} disabled={safeIndex <= 0}>
-                Previous <span className="ml-1 text-xs opacity-70">(P)</span>
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => go(safeIndex + 1)} disabled={safeIndex >= queue.length - 1}>
-                Next <span className="ml-1 text-xs opacity-70">(N)</span>
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Keyboard: A = Approve, R = Reject, N = Next, P = Previous.</p>
           </section>
         </div>
       ) : null}

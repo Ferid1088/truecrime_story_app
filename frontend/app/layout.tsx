@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Vazirmatn } from "next/font/google";
 import "./globals.css";
+import { PageFrame } from "@/components/page-frame";
 import { Providers } from "@/components/providers";
 import { Sidebar } from "@/components/sidebar";
 
@@ -35,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Providers>
           <Sidebar />
           <main className="min-h-screen md:ml-56">
-            <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">{children}</div>
+            <PageFrame>{children}</PageFrame>
           </main>
         </Providers>
       </body>
