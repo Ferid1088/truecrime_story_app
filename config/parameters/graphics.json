@@ -109,8 +109,7 @@
     },
     "conflict_board": {
       "columns": 3,
-      "max_cards_per_view": 6,
-      "show_total": false
+      "max_cards_per_view": 6
     },
     "recap": {
       "max_items": {
@@ -208,7 +207,6 @@
         "conflict_board": "CONFLICT BOARD",
         "conflict_board_title": "WHAT IS STILL DISPUTED",
         "told": "told",
-        "not_yet_told": "NOT YET TOLD",
         "document_card": "DOCUMENT CARD",
         "document_title": "WHAT THE RECORD SAYS",
         "document_sub": "Words from the record, shown on screen while the narrator reads them.",
@@ -233,14 +231,14 @@
         "quote": "ON THE RECORD",
         "step": "STEP",
         "map_title": "WHERE IT HAPPENED",
-        "told_of": "{n} of {total} told",
         "level_country": "COUNTRY LEVEL",
         "level_region": "REGION LEVEL",
         "level_town": "TOWN LEVEL",
         "level_place": "STREET LEVEL",
         "the_town": "the town",
         "marker_place": "THE PLACE",
-        "map_source": "MAP: OPEN DATA"
+        "map_source": "MAP: OPEN DATA",
+        "told_n": "{n} told"
       },
       "de": {
         "conflict": "WIDERSPRUCH",
@@ -262,7 +260,6 @@
         "conflict_board": "WIDERSPRUCHSTAFEL",
         "conflict_board_title": "WAS WEITERHIN UMSTRITTEN IST",
         "told": "erzählt",
-        "not_yet_told": "NOCH NICHT ERZÄHLT",
         "document_card": "DOKUMENT",
         "document_title": "WAS DIE AKTE SAGT",
         "document_sub": "Worte aus der Akte, eingeblendet, während der Sprecher sie liest.",
@@ -287,14 +284,14 @@
         "quote": "AUS DER AKTE",
         "step": "SCHRITT",
         "map_title": "WO ES GESCHAH",
-        "told_of": "{n} von {total} erzählt",
         "level_country": "LÄNDEREBENE",
         "level_region": "REGIONSEBENE",
         "level_town": "STADTEBENE",
         "level_place": "STRASSENEBENE",
         "the_town": "die Stadt",
         "marker_place": "DER ORT",
-        "map_source": "KARTE: OFFENE DATEN"
+        "map_source": "KARTE: OFFENE DATEN",
+        "told_n": "{n} erzählt"
       },
       "fa": {
         "conflict": "تضاد",
@@ -316,7 +313,6 @@
         "conflict_board": "تابلوی تضادها",
         "conflict_board_title": "آنچه هنوز محل اختلاف است",
         "told": "روایت‌شده",
-        "not_yet_told": "هنوز روایت نشده",
         "document_card": "سند",
         "document_title": "پرونده چه می‌گوید",
         "document_sub": "عین کلمات پرونده، همزمان با خواندن گوینده روی صفحه.",
@@ -341,14 +337,14 @@
         "quote": "از پرونده",
         "step": "مرحله",
         "map_title": "جایی که رخ داد",
-        "told_of": "{n} از {total} روایت‌شده",
         "level_country": "سطح کشور",
         "level_region": "سطح منطقه",
         "level_town": "سطح شهر",
         "level_place": "سطح خیابان",
         "the_town": "شهر",
         "marker_place": "محل",
-        "map_source": "نقشه: داده‌های باز"
+        "map_source": "نقشه: داده‌های باز",
+        "told_n": "{n} روایت‌شده"
       },
       "ar": {
         "conflict": "تعارض",
@@ -370,7 +366,6 @@
         "conflict_board": "لوحة التعارضات",
         "conflict_board_title": "ما يزال موضع خلاف",
         "told": "رُوي",
-        "not_yet_told": "لم يُروَ بعد",
         "document_card": "وثيقة",
         "document_title": "ماذا يقول السجل",
         "document_sub": "كلمات من السجل تظهر على الشاشة بينما يقرؤها الراوي.",
@@ -395,14 +390,14 @@
         "quote": "من السجل",
         "step": "خطوة",
         "map_title": "أين حدث ذلك",
-        "told_of": "{n} من {total} رُوي",
         "level_country": "مستوى الدولة",
         "level_region": "مستوى المنطقة",
         "level_town": "مستوى المدينة",
         "level_place": "مستوى الشارع",
         "the_town": "المدينة",
         "marker_place": "المكان",
-        "map_source": "الخريطة: بيانات مفتوحة"
+        "map_source": "الخريطة: بيانات مفتوحة",
+        "told_n": "{n} رُوي"
       }
     },
     "planner": {

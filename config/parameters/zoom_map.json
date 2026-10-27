@@ -229,17 +229,20 @@
     "variants": {
       "zoom_in": {
         "seconds": 16.0,
-        "pitch_end": 0.0
+        "pitch_end": 0.0,
+        "hold_seconds": 8.0
       },
       "route": {
         "seconds": 18.0,
         "pitch_end": 20.0,
-        "line_share": 0.7
+        "line_share": 0.7,
+        "hold_seconds": 8.0
       },
       "pitched_3d": {
         "seconds": 18.0,
         "pitch_end": 62.0,
-        "extrude": true
+        "extrude": true,
+        "hold_seconds": 8.0
       }
     },
     "marker": {

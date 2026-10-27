@@ -539,3 +539,18 @@ def test_a_quotation_found_word_for_word_in_a_court_record_is_shown_as_that_docu
     assert page.kind == "document" and page.data["document"]["id"] == 7 and page.data["quote"]["verified"] is True
     assert page.data["document"]["date"].startswith("OCT 5") and page.data["context_before"] == []
     assert offers["quote|F2"].kind == "quote"                         # not in any record: an ordinary quote card
+
+
+def test_a_map_is_only_placed_where_its_whole_zoom_and_the_hold_on_the_place_fit():
+    from app.documentary.mvp import direct as D
+
+    need = D.map_seconds()
+    assert need == pytest.approx(24.0) and need >= 16.0 + 8.0          # the camera move, then a hold on the place
+    for stretch, expected in ((need, True), (10.0, False)):
+        shots = [{"command": "BLACK_SCREEN", "share": stretch / 60.0, "gap": True, "said": "He drove to Tipp City.",
+                  "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE"},
+                 {"command": "NEW_IMAGE", "share": 1.0 - stretch / 60.0, "asset_id": "A", "motion": "NONE"}]
+        D.add_map_cards(shots, {}, 60.0, ["Tipp City"], set(), None)
+        assert (shots[0]["command"] == "SHOW_MAP") is expected
+        if expected:
+            assert shots[0]["share"] * 60.0 == pytest.approx(need)

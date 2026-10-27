@@ -270,24 +270,39 @@ def _take_gap(shots: list[dict], window_len: float, minimum: float) -> dict | No
     return max(gaps, key=lambda s: s["share"]) if gaps else None
 
 
+def map_seconds() -> float:
+    """What a first-mention zoom map needs on screen: the camera move and the hold on the place."""
+    variant = ai_config.zoom().variants[ai_config.zoom().variant_rules["first"]]
+    return variant.seconds + variant.hold_seconds
+
+
 def add_map_cards(shots: list[dict], extras: dict, window_len: float, places: list[str],
                   mapped: set[str], region: str | None) -> None:
     """A map only where the narration names its place (the bare stretch whose words say it), each place once in
-    the film, geocoded with the case's region so a common name resolves near the case."""
+    the film, geocoded with the case's region so a common name resolves near the case. The map gets the time its zoom
+    needs (the move and the hold on the place) so the viewer sees where it is; a stretch that cannot give it stays bare."""
     wanted = ([extras["map_place"]] if extras.get("map_place") else []) + places
     for place in wanted:
         if not place or fold(place) in mapped:
             continue
         words = content_words(place)
-        gap = next((s for s in shots if s.get("gap") and s["share"] * window_len >= 6.0
-                    and words and words <= content_words(s.get("said", ""))), None)
-        if gap is None:
+        need = map_seconds()
+        run = next((r for r in AL.gap_runs(shots, window_len) if r[2] >= 0.8 * need and words
+                    and words <= content_words(" ".join(s.get("said", "") for s in shots[r[0]:r[1] + 1]))), None)
+        if run is None:
             continue
-        share, said = gap["share"], gap.get("said", "")
-        gap.clear()
-        gap.update({"command": "SHOW_MAP", "map_place": f"{place}, {region}" if region and "," not in place
-                    else place, "share": share, "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE",
-                    "said": said, "why": "the narration names this place; a map shows where it is"})
+        first, last, seconds = run
+        said = " ".join(s.get("said", "") for s in shots[first:last + 1]).strip()
+        length = min(need, seconds)
+        replacement = [{"command": "SHOW_MAP", "map_place": f"{place}, {region}" if region and "," not in place
+                        else place, "share": length / window_len, "motion": "NONE", "speed": 1.0,
+                        "transition_in": "CROSSFADE", "said": said,
+                        "why": "the narration names this place; a map shows where it is"}]
+        if seconds - length > 1e-6:
+            replacement.append({"command": "BLACK_SCREEN", "share": (seconds - length) / window_len, "motion": "NONE",
+                                "speed": 1.0, "transition_in": "CROSSFADE", "gap": True, "said": said,
+                                "why": "no approved visual for this moment"})
+        shots[first:last + 1] = replacement
         mapped.add(fold(place))
 
 

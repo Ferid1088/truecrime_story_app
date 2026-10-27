@@ -196,3 +196,22 @@ def test_every_graphic_type_has_labels_in_the_four_languages_and_is_registered()
     labels = ai_config.graphics_settings().labels
     assert all(set(labels[lang]) == set(labels["en"]) for lang in LANGUAGES)
     assert labels["de"]["detective_board"] == "DETEKTIVTAFEL" and labels["en"]["detective_board"] == "DETECTIVE BOARD"
+
+
+def test_the_conflict_board_shows_only_what_has_been_told_never_what_is_still_to_come():
+    data, duration, cues = sample("conflict_board", "en")
+    plain = graphic("conflict_board").render(data, duration, cues, "en")
+    with_total = graphic("conflict_board").render({**data, "total": 6}, duration, cues, "en")
+    assert np.array_equal(plain.frame_at(1.0), with_total.frame_at(1.0))        # a total in the data changes nothing
+    assert np.array_equal(plain.frame_at(duration - 1), with_total.frame_at(duration - 1))
+    before, after = plain.frame_at(1.0), plain.frame_at(duration - 1)
+    assert before.shape == after.shape and not np.array_equal(before, after)       # the new card appears on its cue
+    assert not ai_config.graphics_settings().labels["en"].get("not_yet_told")
+
+
+def test_the_conflict_label_is_amber_as_in_the_design():
+    data, duration, cues = sample("conflict", "en")
+    frame = graphic("conflict").render(data, duration, cues, "en").frame_at(duration - 1)
+    label = frame[85:125, 120:420].reshape(-1, 3)
+    amber = np.array([int(ai_config.graphics_settings().colors["amber"].lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)])
+    assert (np.abs(label.astype(int) - amber).sum(axis=1) < 60).any()

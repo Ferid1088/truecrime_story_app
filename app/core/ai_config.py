@@ -2730,7 +2730,8 @@ class ZoomImagery(BaseModel):
 
 
 class ZoomVariant(BaseModel):
-    seconds: float = Field(gt=0)
+    seconds: float = Field(gt=0)              # the camera move; the shot then holds on the place for hold_seconds
+    hold_seconds: float = Field(default=0.0, ge=0.0)
     pitch_end: float = Field(default=0.0, ge=0.0, le=85.0)
     line_share: float = Field(default=0.7, gt=0.0, le=1.0)
     extrude: bool = False

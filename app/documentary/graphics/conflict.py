@@ -59,9 +59,9 @@ def _conflict_page(data_json: str, language: str, step: int) -> Image.Image:
     conflict, sides = data["conflict"], data["sides"]
     page = Page(language)
     m = page.margin
-    number = f"{T.label(language, 'conflict')} {int(conflict.get('number', 0)):02d}:" if conflict.get("number") \
-        else f"{T.label(language, 'conflict')}:"
-    card_top = max(300, parts.header(page, number, T.rgb("red"), conflict["title"], 100) + 36)
+    number = f"{T.label(language, 'conflict')} {int(conflict.get('number', 0)):02d}" if conflict.get("number") \
+        else T.label(language, "conflict")
+    card_top = max(300, parts.header(page, number, T.rgb("amber"), conflict["title"], 100) + 36)
     colors = (T.rgb("blue"), T.rgb("red"))
     left_edges = (m, page.W - m - CARD_W)
     for n, side in enumerate(sides):
@@ -101,7 +101,6 @@ class ConflictBoard(Graphic):
     kind = "conflict_board"
 
     def can_render(self, data: dict) -> str | None:
-        cfg = T.config().conflict_board
         cards = data.get("cards") or []
         if not 1 <= len(cards) <= 12:
             return "the board shows 1 to 12 conflicts"
@@ -110,8 +109,6 @@ class ConflictBoard(Graphic):
                 return f"card {n}: title, both sides and a status are required"
         if data.get("new_card") not in {c["id"] for c in cards}:
             return "new_card must name a card on the board"
-        if cfg["show_total"] and not data.get("total"):
-            return "show_total is on but the plan gave no total"
         return None
 
     def required_cues(self, data: dict) -> int:
@@ -123,6 +120,7 @@ class ConflictBoard(Graphic):
 
 @lru_cache(maxsize=24)
 def _board(data_json: str, language: str, step: int) -> Image.Image:
+    """The conflicts told so far, one card each. Nothing of what is still to come: no empty slots, no total."""
     data = json.loads(data_json)
     cfg = T.config().conflict_board
     cards = data["cards"]
@@ -131,25 +129,14 @@ def _board(data_json: str, language: str, step: int) -> Image.Image:
     m = page.margin
     parts.header(page, T.label(language, "conflict_board"), T.rgb("amber"),
                  T.label(language, "conflict_board_title"), 108, lines_max=1)
-    total = data.get("total") if cfg["show_total"] else None
-    if total:
-        page.text(m, 150, page.W - 2 * m, T.label(language, "told_of").format(n=len(shown), total=total), "title", 50,
+    if shown:
+        page.text(m, 150, page.W - 2 * m, T.label(language, "told_n").format(n=len(shown)), "title", 54,
                   T.rgb("amber"), align="end", lines_max=1, upper=True)
     columns, gap, height, top = cfg["columns"], 60, 300, 320
     width = (page.W - 2 * m - gap * (columns - 1)) // columns
-    slots = [*cards[:cfg["max_cards_per_view"]]]
-    if total:
-        slots += [None] * (min(total, cfg["max_cards_per_view"]) - len(slots))
-    for n, c in enumerate(slots):
+    for n, c in enumerate(shown[:cfg["max_cards_per_view"]]):
         col, row = n % columns, n // columns
         left, y = m + col * (width + gap), top + row * (height + gap)
-        if c is None or c not in shown:
-            if total:
-                page.dashed_rect(left, y, width, height, T.rgb("rule"))
-                page.text(left, y + height // 2 - 16, width,
-                          f"{n + 1:02d} \u00b7 {T.label(language, 'not_yet_told')}", "mono", 28, T.rgb("grey"),
-                          align="center", lines_max=1, min_px=18)
-            continue
         color = T.rgb(STATUS_COLOR[c["status"]])
         parts.card(page, left, y, width, height, color, rule=6)
         page.tracked(left + 36, y + 42, f"{T.label(language, 'conflict')} {int(c['number']):02d}", "mono", 24,

@@ -6,10 +6,9 @@ plan and requirement list: `docs/ALTERNATIVE_GRAPHICS_PLAN.md`.
 ## Design reference
 
 The looks follow the owner's six design pictures (timeline, map zoom, floor plan, document card, recap board, conflict
-page, conflict board). Deliberate differences: the conflict label is red with a colon (owner instruction of 2026-10-26;
-the picture has it amber); a timeline node that has not been told is not drawn (spoiler rule; the picture greys it);
-the "not yet told" slots and the "N of M told" counter of the conflict board are off unless `conflict_board.show_total`
-(they reveal how many conflicts the film has); the recap draws only the sections that have items; the
+page, conflict board). Deliberate differences: a timeline node that has not been told is not drawn (spoiler rule; the picture greys it);
+the conflict board shows a "N told" counter and the cards told so far, never empty slots or a total
+(they would reveal how many conflicts are still to come); the recap draws only the sections that have items; the
 "SAMPLE ..." footers of the pictures are design notes and never appear in a film; the route chip of the map picture
 ("[TIME] · LAST SEEN") needs a timed fact and is not drawn.
 
