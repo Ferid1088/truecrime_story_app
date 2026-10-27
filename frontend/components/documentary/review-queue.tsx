@@ -106,7 +106,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
           )}
         </div>
         {gaps && gaps.gap_count > 0 && (
-          <section className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm" data-testid="review-queue-gaps">
+          <section className="mt-4 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-foreground" data-testid="review-queue-gaps">
             <p className="font-medium">
               {gaps.gap_count} moment(s), {gaps.gap_seconds} s of the film, still have no picture, video or graphic. The
               film is not made until they do: approve pictures for these beats, or leave them and resume to be asked again.
