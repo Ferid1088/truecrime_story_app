@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,8 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_db
 from app.db.models import MvpCandidate, MvpFilmReview, MvpRequirement, VisualAsset, VisualPlan
+from app.documentary.mvp import direct as DR
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
+from app.documentary.mvp.engines_api import needs_plan_of
 
 router = APIRouter(tags=["main-visual-planner"])
 
@@ -207,6 +210,7 @@ def mvp_gaps(case_id: int, language: str = "en", db: Session = Depends(get_db)):
     if plan is None:
         raise HTTPException(404, f"No {language} direction for this case yet")
     report = json.loads(plan.validation_json)["plan"]
+    needs = db.get(VisualPlan, json.loads(plan.validation_json)["mvp"].get("needs_plan_id") or 0)
     gaps = report.get("gaps") or []
     open_by_beat: dict[str, dict[str, int]] = {}
     for cand, req in (db.query(MvpCandidate, MvpRequirement)
@@ -218,5 +222,25 @@ def mvp_gaps(case_id: int, language: str = "en", db: Session = Depends(get_db)):
     return {"language": language, "gap_count": len(gaps),
             "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1), "gaps": gaps,
             "alternatives": report.get("alternatives", {}),
+            "neighbour_cover": {"approved": bool(needs) and DR.cover_approved(needs),
+                                "covered": report.get("neighbour_cover") or []},
             "beats": [{"beat_id": b, **open_by_beat.get(b, {"needs_review": 0, "rejected": 0})}
                       for b in sorted({g["beat"] for g in gaps})]}
+
+
+class NeighbourCoverDecision(BaseModel):
+    approved: bool
+
+
+@router.post("/api/cases/{case_id}/mvp/neighbour-cover")
+def decide_neighbour_cover(case_id: int, payload: NeighbourCoverDecision, db: Session = Depends(get_db)):
+    """The owner's decision on the last resort for moments that stay bare after every alternative: cover each from
+    its neighbours (the picture before and after, half each, or a photo that spoils nothing when a neighbour is not a
+    still). It applies the next time the film is directed (Resume)."""
+    needs = needs_plan_of(db, case_id)
+    validation = json.loads(needs.validation_json or "{}")
+    validation.setdefault("mvp", {})["neighbour_cover"] = {
+        "approved": payload.approved, "decided_at": datetime.now().astimezone().isoformat()}
+    needs.validation_json = json.dumps(validation, ensure_ascii=False)
+    db.commit()
+    return validation["mvp"]["neighbour_cover"]

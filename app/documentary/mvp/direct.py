@@ -19,6 +19,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
 from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp import moments as MC
+from app.documentary.mvp import neighbours as NC
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.providers.generation import get_generation_provider
@@ -527,6 +528,11 @@ def bare_stretches(out_beats: list[dict], window_of: dict[str, dict]) -> list[di
     return gaps
 
 
+def cover_approved(plan: VisualPlan) -> bool:
+    """The owner has approved covering the moments that stay bare from their neighbours (the last resort)."""
+    return bool(json.loads(plan.validation_json or "{}").get("mvp", {}).get("neighbour_cover", {}).get("approved"))
+
+
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
                       director: Director | None = None, target: VisualPlan | None = None,
@@ -561,7 +567,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
         "places": sorted(place_names), "region": region,
         "offers": [[o.key, o.first, o.last, o.seconds] for o in offers],
-        "repeat": ai_config.visual_direction.model_dump(),
+        "repeat": ai_config.visual_direction.model_dump(), "neighbour_cover": cover_approved(plan),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
@@ -645,9 +651,13 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     repeat_for_gaps(out_beats, window_of, items, tracker, names,
                     lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
+    covered = NC.NeighbourCover(out_beats, window_of, items, tracker, names, beat_order,
+                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset),
+                                related, _shot).run() \
+        if cover_approved(plan) else []
     gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
-              "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
+              "gaps": gaps, "neighbour_cover": covered, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
               "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": AL.seconds_report(state),
               "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}

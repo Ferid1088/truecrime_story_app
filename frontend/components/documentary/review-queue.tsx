@@ -233,6 +233,22 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
               </Button>
             ))}
           </div>
+          <div className="mt-3 border-t border-amber-500/40 pt-2" data-testid="review-queue-cover">
+            <p className="text-xs">
+              Last resort, after every alternative: cover each remaining moment from its neighbours. Half of it goes to the
+              picture before (held longer) and half to the picture after. A neighbour that is a video, map or graphic is not
+              stretched; a photo that spoils nothing covers its half instead. It applies when you resume.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              className="mt-2"
+              variant={gaps.neighbour_cover.approved ? "default" : "outline"}
+              onClick={async () => { await mvpApi.decideNeighbourCover(caseId, !gaps.neighbour_cover.approved); refetchGaps(); }}
+            >
+              {gaps.neighbour_cover.approved ? "Approved: cover from neighbours (click to withdraw)" : "Approve: cover the remaining moments from neighbours"}
+            </Button>
+          </div>
         </details>
       )}
 

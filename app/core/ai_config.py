@@ -2843,6 +2843,14 @@ class MvpTopicalConfig(BaseModel):
     moments_per_call: int = Field(ge=1)
 
 
+class MvpNeighbourCoverConfig(BaseModel):
+    """The owner-approved last resort for moments that are still bare: each half is covered by the neighbouring
+    picture held longer, or by a photo of its own when the neighbour is not a still picture or is already held as
+    long as `shots.max_still_seconds` allows. No piece of a photo is shorter than `min_piece_seconds`."""
+
+    min_piece_seconds: float = Field(gt=0.0)
+
+
 class LogoConfig(BaseModel):
     """The channel logo shown in a corner of the film (config/parameters/branding.json): on pictures and clips, not on
     graphics, maps, host scenes, chapter or title cards (they have their own layouts, or the logo already plays)."""
@@ -2886,6 +2894,7 @@ class MainVisualPlannerConfig(BaseModel):
     topup: MvpTopupConfig
     moments: MvpMomentsConfig
     topical: MvpTopicalConfig
+    neighbour_cover: MvpNeighbourCoverConfig
     review: MvpReviewConfig
 
 

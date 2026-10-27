@@ -2373,6 +2373,7 @@ export interface MvpGaps {
   gap_seconds: number;
   gaps: { beat: string; start: number; end: number; said: string }[];
   alternatives: Record<string, number>;
+  neighbour_cover: { approved: boolean; covered: { beat: string; start: number; end: number; before: string; after: string; bare_seconds: number }[] };
   beats: { beat_id: string; needs_review: number; rejected: number }[];
 }
 

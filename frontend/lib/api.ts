@@ -1052,6 +1052,8 @@ export const mvpApi = {
     }),
   gaps: (caseId: number, language = "en") =>
     request<MvpGaps>(`/api/cases/${caseId}/mvp/gaps?language=${language}`),
+  decideNeighbourCover: (caseId: number, approved: boolean) =>
+    post<{ approved: boolean }>(`/api/cases/${caseId}/mvp/neighbour-cover`, { approved }),
   engines: (caseId: number, language = "en") =>
     request<MvpEngines>(`/api/cases/${caseId}/mvp/engines?language=${language}`),
   enginePreview: (caseId: number, beat: string, step: number, language = "en") =>
