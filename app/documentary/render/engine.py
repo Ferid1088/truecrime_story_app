@@ -39,6 +39,7 @@ from app.documentary.render.cards import (
     chapter_image,
     title_image,
 )
+from app.documentary.render.logo import LogoBug
 from app.documentary.visuals.typography import overlay as text_layer
 
 MARGIN = 1.16          # canvas headroom for camera moves
@@ -571,6 +572,7 @@ class VideoRenderer:
             "-t", f"{duration + pre:.3f}", "-movflags", "+faststart", str(part),
         ]
         overlays = Overlays(script, W, H, cfg.burn_subtitles)
+        logo = LogoBug(script, W, H)
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         total = int(math.ceil((duration + pre) * fps))
         idx = 0
@@ -600,7 +602,7 @@ class VideoRenderer:
                     frame = (frame.astype(np.float32) * _ease(since / 1.2)).astype(np.uint8)
                 if duration - t < 1.5:  # fade out at the very end
                     frame = (frame.astype(np.float32) * _ease((duration - t) / 1.5)).astype(np.uint8)
-                frame = overlays.apply(frame, t)
+                frame = overlays.apply(logo.apply(frame, t), t)
                 proc.stdin.write(np.ascontiguousarray(frame).tobytes())
                 maker.release_clips(t)
                 if progress and f % (fps * 5) == 0:

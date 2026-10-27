@@ -29,6 +29,7 @@ from app.documentary.mvp import moments as MC
 from app.documentary.mvp import needs as ND
 from app.documentary.mvp import research as RS
 from app.documentary.mvp import review as RV
+from app.documentary.mvp import topical as TP
 from app.documentary.mvp import verify as VF
 from app.documentary.mvp.library import build_candidates, build_gap_candidates
 from app.longform import service as LF
@@ -246,6 +247,21 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                           director if use_agent else None, target, None, region, offers)
         report["moments"] = moments
+    if report["gaps"] and ai_config.mvp().topical.enabled:
+        matcher = TP.TopicMatcher(db, case, needs_plan)
+        matches = await matcher.run(report["gaps"], TP.catalog_of(DR.approved_items(db, needs_plan)))
+        if matches:
+            moments = report.get("moments")
+            report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
+                                          director if use_agent else None, target, None, region, offers, matches)
+            report["moments"] = moments
+        report["topical"] = {"moments_matched": len(matches), "calls": matcher.calls, "errors": matcher.errors}
+    kept = {k: report[k] for k in ("moments", "topical") if k in report}
+    if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)
+        validation = json.loads(target.validation_json or "{}")
+        validation.setdefault("plan", {}).update(kept)
+        target.validation_json = json.dumps(validation, ensure_ascii=False)
+        db.commit()
     from app.documentary.visuals.generated import materialize
 
     report["graphics"] = await materialize(db, case, target)

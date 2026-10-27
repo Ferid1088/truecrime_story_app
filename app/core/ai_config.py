@@ -120,6 +120,8 @@ REQUIRED_ROLES = {
     "mvp_moment_picker",
     "mvp_moment_cutter",
     "mvp_moment_checker",
+    # Topical fill: which approved pictures and videos are related to what is said at a bare moment.
+    "mvp_topic_matcher",
     "mvp_scene_director",
     # The alternative graphics: a disputed point structured into two sourced sides, stored facts
     # shortened faithfully, and the earliest beat a real newspaper headline may be shown.
@@ -2829,6 +2831,37 @@ class MvpMomentsConfig(BaseModel):
         return self
 
 
+class MvpTopicalConfig(BaseModel):
+    """Topical fill: a moment still bare after every picture, clip and graphic may show an approved picture or video
+    that is related to what is said by at least `min_score` (0-1, judged against the owner's examples)."""
+
+    enabled: bool
+    min_score: float = Field(gt=0.0, le=1.0)
+    max_per_moment: int = Field(ge=1)
+    moments_per_call: int = Field(ge=1)
+
+
+class LogoConfig(BaseModel):
+    """The channel logo shown in a corner of the film (config/parameters/branding.json): on pictures and clips, not on
+    graphics, maps, host scenes, chapter or title cards (they have their own layouts, or the logo already plays)."""
+
+    enabled: bool
+    shot_kinds: list[str] = Field(min_length=1)
+    height_fraction: float = Field(gt=0.0, le=0.3)
+    margin_fraction: float = Field(ge=0.0, le=0.2)
+    opacity: float = Field(gt=0.0, le=1.0)
+    fade_seconds: float = Field(gt=0.0)
+    min_window_seconds: float = Field(gt=0.0)
+    # a logo file without transparency has a black background: below this brightness it becomes see-through
+    black_key_below: int = Field(ge=0, le=255)
+    # a faint dark plate under the logo keeps it readable on a bright picture
+    plate_alpha: float = Field(ge=0.0, le=1.0)
+
+
+class BrandingConfig(BaseModel):
+    logo: LogoConfig
+
+
 class MvpReviewConfig(BaseModel):
     """The persisted owner-review workflow; the film is a candidate until APPROVED."""
 
@@ -2850,6 +2883,7 @@ class MainVisualPlannerConfig(BaseModel):
     verification: MvpVerificationConfig
     topup: MvpTopupConfig
     moments: MvpMomentsConfig
+    topical: MvpTopicalConfig
     review: MvpReviewConfig
 
 
@@ -3758,6 +3792,7 @@ class AIConfig(BaseModel):
     limits: LimitsConfig | None = None
     zoom_map: ZoomMapConfig | None = None
     graphics: GraphicsConfig | None = None
+    branding: BrandingConfig | None = None
     monitoring: MonitoringConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
@@ -3974,6 +4009,12 @@ class AIConfig(BaseModel):
         if self.main_visual_planner is None:
             raise RuntimeError("config/parameters/main_visual_planner.json is missing")
         return self.main_visual_planner
+
+    def branding_settings(self) -> BrandingConfig:
+        """The channel logo's settings (config/parameters/branding.json)."""
+        if self.branding is None:
+            raise RuntimeError("config/parameters/branding.json is missing")
+        return self.branding
 
     def monitoring_settings(self) -> MonitoringConfig:
         """What the Monitoring tab watches (config/parameters/monitoring.json)."""

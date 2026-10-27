@@ -71,7 +71,7 @@ def test_an_intro_is_made_once_and_reused(channel, tmp_path):
 
 @needs_ffmpeg
 def test_every_chosen_concept_renders(channel):
-    for concept in ("trail_stamp", "moonrise", "sand"):
+    for concept in ("trail_stamp", "moonrise", "sand", "lupa", "sis"):
         channel["concept"] = concept
         got = IN.ensure_intro(concept, 128, 72, 6)
         assert got["concept"] == concept and Path(got["video"]).exists()

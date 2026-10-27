@@ -371,6 +371,69 @@ def place_moment_clips(out_beats: list[dict], window_of: dict[str, dict], clips:
     return placed
 
 
+def place_topical(out_beats: list[dict], window_of: dict[str, dict], items: dict[str, list[Item]],
+                  matches: dict[str, list[tuple[str, float, str]]], tracker: UsageTracker,
+                  blocked: Callable[[str, Item], bool]) -> int:
+    """A bare moment shows an approved picture or video that is related to the words (`topical.py` judged it at least
+    half related). A picture not yet shown comes before one that returns; a picture that returns follows the film's
+    repetition rules (twice at most, five minutes apart), is held no longer than `max_still_seconds`, and a long
+    stretch is cut into pieces, each its own picture. Returns how many pictures were placed."""
+    by_code = {i.code: i for group in items.values() for i in group}
+    limit = ai_config.mvp().shots.max_still_seconds
+    placed = 0
+    for beat in out_beats:
+        bid = beat["beat_id"]
+        window = window_of[bid]
+        window_len = window["end"] - window["start"]
+        original, at, shots = beat["shots"], window["start"], []
+        for k, shot in enumerate(original):
+            seconds = shot["share"] * window_len
+            ranked = matches.get(MC.moment_key(bid, shot.get("said", "")), []) if shot.get("gap") else []
+            if not ranked:
+                shots.append(shot)
+            else:
+                beside = {original[j].get("asset_id") for j in (k - 1, k + 1) if 0 <= j < len(original)}
+                new, count = _topical_pieces(shot, at, seconds, window_len, limit, ranked, by_code, tracker,
+                                             lambda item, b=bid: blocked(b, item), beside)
+                shots.extend(new)
+                placed += count
+            at += seconds
+        beat["shots"] = shots
+    return placed
+
+
+def _topical_pieces(shot: dict, start: float, seconds: float, window_len: float, limit: float,
+                    ranked: list[tuple[str, float, str]], by_code: dict[str, Item], tracker: UsageTracker,
+                    blocked: Callable[[Item], bool], beside: set[str | None]) -> tuple[list[dict], int]:
+    pieces = max(1, math.ceil(seconds / limit - 1e-9))
+    length = seconds / pieces
+    out: list[dict] = []
+    previous: str | None = None
+    count = 0
+    for n in range(pieces):
+        a, b = start + n * length, start + (n + 1) * length
+        edge = beside if n in (0, pieces - 1) else set()
+        order = sorted(ranked, key=lambda r: (tracker.appearances(r[0]) > 0, -r[1]))
+        pick = next(((by_code[c], score, why) for c, score, why in order
+                     if c in by_code and c != previous and c not in edge and fits(by_code[c], length)
+                     and not blocked(by_code[c]) and tracker.allows(c, a, b)[0]), None)
+        previous = pick[0].code if pick else None
+        if pick is None:
+            if out and out[-1].get("gap"):
+                out[-1]["share"] += length / window_len
+            else:
+                out.append({**shot, "share": length / window_len})
+            continue
+        item, score, why = pick
+        again = tracker.appearances(item.code) > 0
+        tracker.add(item.code, a, b)
+        out.append({**_shot({"start": a, "end": b}, item, window_len, n,
+                            f"related to the words ({score:.2f}): {why}"),
+                    "topical": True, "score": score, "repeat": again, "said": shot.get("said", "")})
+        count += 1
+    return out, count
+
+
 def repeat_for_gaps(out_beats: list[dict], window_of: dict[str, dict], items: dict[str, list[Item]],
                     tracker: UsageTracker, names: dict[str, set[str]],
                     blocked: Callable[[str, Item], bool]) -> None:
@@ -459,7 +522,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
                       director: Director | None = None, target: VisualPlan | None = None,
                       entities: list[dict] | None = None, region: str | None = None,
-                      offers: list[AL.Offer] | None = None) -> dict:
+                      offers: list[AL.Offer] | None = None,
+                      topical: dict[str, list[tuple[str, float, str]]] | None = None) -> dict:
     """Build the plan: beat by beat, agent first, rules always. `plan` holds the approved requirements;
     the shot list is stored on `target` (the language's own plan row; `plan` itself when not given)."""
     target = target or plan
@@ -489,7 +553,8 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         "places": sorted(place_names), "region": region,
         "offers": [[o.key, o.first, o.last, o.seconds] for o in offers],
         "repeat": ai_config.visual_direction.model_dump(),
-        "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips)}, sort_keys=True).encode()).hexdigest()
+        "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
+        "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
     if target.status == "planned" and previous.get("fingerprint") == fingerprint:
         return previous
@@ -567,12 +632,14 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
         window_of[bid] = window
         candidates[bid] = sorted({i.code for i in pool + near})
     cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
+    topical_in = place_topical(out_beats, window_of, items, topical or {}, tracker,
+                               lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     repeat_for_gaps(out_beats, window_of, items, tracker, names,
                     lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
-              "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "alternatives": AL.seconds_report(state),
+              "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": AL.seconds_report(state),
               "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},

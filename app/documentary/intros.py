@@ -18,6 +18,13 @@ chosen by the producer from previews:
   sand         أثر خفي (ar) — fine sand covers the logo and blows away right
                to left, the red trace glows last; wind, oud-like notes
                (maqam Hijaz), a low hit.
+  lupa         Tras la Pista (es, Mexican) — a magnifying lens searches the dark,
+               marigold petals drift, golden footprints walk to the logo;
+               a conch shell, a clay ocarina, a nylon-string guitar in A
+               phrygian and a low huehuetl (skin drum) heartbeat.
+  sis          Gizli İzler (tr) — fog in an old alley; a warm light opens at the
+               keyhole and spreads over the logo; a ney (reed flute) and a saz
+               (long-necked lute) in makam Uşşak over a drone, a low davul hit.
   (keyhole and arch: the other two previews, kept as alternatives.)
 
 Pictures are drawn with numpy/OpenCV, the sound is synthesized (no samples,
@@ -64,6 +71,8 @@ CONCEPTS = {
     "moonrise": Concept("moonrise", 6.5, 620),
     "arch": Concept("arch", 6.0, 620),
     "sand": Concept("sand", 6.0, 620),
+    "lupa": Concept("lupa", 6.5, 620),
+    "sis": Concept("sis", 6.5, 620),
 }
 _LOCK = threading.Lock()
 
@@ -259,6 +268,47 @@ class Sound:
         out[i:i + m] += y[:m] * gain
         return out
 
+    def flute(self, at, freq, length=2.5, gain=0.3, breath=0.25, vibrato=5.0, depth=0.006,
+              attack=0.12) -> np.ndarray:
+        """A blown flute note: a near-pure tone with a few harmonics, vibrato and
+        band-passed breath noise (ney: much breath; clay ocarina: little) —
+        returned for a reverb bus."""
+        t = self.t(length)
+        f = freq * (1 + depth * np.sin(2 * math.pi * vibrato * t) * np.minimum(1.0, t / 0.6))
+        ph = 2 * math.pi * np.cumsum(f) / self.sr
+        x = np.sin(ph) + 0.28 * np.sin(2 * ph) + 0.08 * np.sin(3 * ph)
+        x += breath * self.band(self.rng.normal(0, 1, len(t)), freq * 1.5, freq * 6)
+        env = np.minimum(1.0, t / attack) * np.exp(-np.maximum(0, t - length * 0.55) * 2.2)
+        out = np.zeros(self.n)
+        i = int(at * self.sr)
+        m = max(0, min(len(t), self.n - i))
+        out[i:i + m] += (x * env)[:m] * gain
+        return out
+
+    def conch(self, at, freq=196.0, length=3.0, gain=0.3) -> np.ndarray:
+        """A conch shell (caracol) call: a low, hollow, slowly swelling tone with
+        a rough edge — returned for a reverb bus."""
+        t = self.t(length)
+        f = freq * (1 + 0.012 * np.sin(2 * math.pi * 4.2 * t))
+        ph = 2 * math.pi * np.cumsum(f) / self.sr
+        x = np.sin(ph) + 0.5 * np.sin(2 * ph) + 0.25 * np.sin(3 * ph)
+        x += 0.18 * self.band(self.rng.normal(0, 1, len(t)), freq, freq * 5)
+        env = np.sin(np.clip(t / length, 0, 1) * math.pi) ** 1.4
+        out = np.zeros(self.n)
+        i = int(at * self.sr)
+        m = max(0, min(len(t), self.n - i))
+        out[i:i + m] += (self.band(x, lo=90, hi=1800) * env)[:m] * gain
+        return out
+
+    def skin_drum(self, at, f0=96, f1=52, length=1.2, gain=0.8) -> None:
+        """A deep hand-struck skin drum (huehuetl, davul): a short pitch drop,
+        a dull slap of the skin and a long, soft body."""
+        t = self.t(length)
+        f = f1 + (f0 - f1) * np.exp(-t * 14)
+        x = np.sin(2 * math.pi * np.cumsum(f) / self.sr) * np.exp(-t * 3.4)
+        x += self.band(self.rng.normal(0, 1, len(t)), 200, 1400) * np.exp(-t * 38) * 0.45
+        self.add(x, at, gain)
+
     def reverb(self, x: np.ndarray, seconds=2.6, wet=0.45) -> np.ndarray:
         """A long, dark plate-like reverb (FFT convolution with a decaying
         noise impulse)."""
@@ -338,6 +388,11 @@ class IntroMaker:
             amp *= 0.5
         out /= tot
         return (out - out.min()) / (out.max() - out.min() + 1e-9)
+
+    def slide(self, layer, dx):
+        """A layer moved sideways, its edge mirrored (no seam)."""
+        return cv2.warpAffine(layer, np.float32([[1, 0, dx], [0, 1, 0]]), (self.W, self.H),
+                              flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
 
     def keyhole_mask(self, cx, cy, size, soft=6.0):
         m = np.zeros((self.H, self.W), np.float32)
@@ -637,6 +692,123 @@ class IntroMaker:
                          (2.3, d * 2 ** (1 / 12), 0.3), (3.4, d, 0.34)]:
             snd.pluck(at, f, 2.2, g, 0.995, 0.4)
         snd.boom(3.4, f0=90, f1=40, gain=0.6)
+        return dur, fr, snd
+
+    def lupa(self):
+        dur = CONCEPTS["lupa"].seconds
+        rgb, a = self.load_logo(CONCEPTS["lupa"].logo_height)
+        k = self.k
+        W, H = self.W, self.H
+        P = self.particles(70, 9)
+        # a lens drifting over the dark, then opening over the whole logo
+        path = [(-0.30, 0.22), (0.22, -0.16), (-0.10, 0.10), (0.0, 0.0)]
+        steps = np.linspace(0.06, 0.94, 9)  # golden footprints, left to right, low to centre
+        feet = [(W * (0.1 + 0.8 * s), H * (0.84 - 0.34 * s) + (14 if i % 2 else -14) * k)
+                for i, s in enumerate(steps)]
+
+        def lens(t):
+            p = float(np.clip((t - 0.3) / 2.7, 0, 1)) * (len(path) - 1)
+            i = min(int(p), len(path) - 2)
+            f = float(ease(p - i))
+            return (W / 2 + (path[i][0] + (path[i + 1][0] - path[i][0]) * f) * W,
+                    H / 2 + (path[i][1] + (path[i + 1][1] - path[i][1]) * f) * H)
+
+        def fr(t):
+            base = self.ground((15, 11, 9))
+            cx, cy = lens(t)
+            rad = (170 + 1000 * float(ease((t - 3.0) / 1.3))) * k
+            d = np.sqrt((self.xx - cx) ** 2 + (self.yy - cy) ** 2)
+            inside = np.clip((rad - d) / (6 * k), 0, 1) * (t > 0.3)
+            r, al = self.place(rgb, a, 1.0 + 0.04 * float(ease(t / dur)))
+            out = self.comp(base, r, al * np.clip(inside + 0.02, 0, 1))
+            ring = np.exp(-(((d - rad) / (3.2 * k)) ** 2)) * (t > 0.3) * (1 - float(ease((t - 3.9) / 0.7)))
+            out += ring[..., None] * np.array([232, 178, 82], np.float32) * 0.9
+            hl = np.exp(-(((self.xx - (cx - 0.45 * rad)) ** 2 + (self.yy - (cy - 0.5 * rad)) ** 2)
+                          / (2 * (0.16 * rad) ** 2))) * inside
+            out += hl[..., None] * 22
+            walk = int(np.clip((t - 1.0) / 2.2 * len(feet), 0, len(feet)))
+            layer = np.zeros((H, W), np.float32)
+            for j, (fx, fy) in enumerate(feet[:walk]):
+                cv2.ellipse(layer, (int(fx), int(fy)), (int(11 * k), int(17 * k)),
+                            -20 if j % 2 else 20, 0, 360, 1.0, -1, cv2.LINE_AA)
+            vis = 1 - float(ease((t - 3.0) / 0.9))
+            out += cv2.GaussianBlur(layer, (0, 0), 1.4 * k)[..., None] \
+                * np.array([230, 180, 90], np.float32) * 0.8 * vis
+            sp = (t - 4.2) / 1.1
+            if 0 <= sp <= 1:
+                out += self.sheen(al, sp, 0.35, 0.06, 0.5) * np.array([255, 215, 150], np.float32)
+            out = self.draw_particles(out, P, t, color=(255, 140, 30))  # marigold petals
+            return self.fade(out, t, dur, 0.1, 0.6)
+
+        snd = Sound(dur, self.sr)
+        snd.drone((55.0, 82.4), (0.2, 0.7), 0.2)
+        for i in range(2):  # the huehuetl heartbeat, slow and low
+            snd.skin_drum(0.3 + 0.62 * i + 0.0, 84, 48, 1.3, 0.6 - 0.12 * i)
+        bus = snd.conch(0.5, 196.0, 2.8, 0.34)
+        snd.add(snd.reverb(bus, 2.6, 0.4), 0, 1.0)
+        # a clay ocarina, A phrygian (A Bb C D E), slow and sorrowful
+        o = [(1.4, 440.0, 0.8), (2.15, 466.16, 0.5), (2.7, 392.0, 0.5), (3.2, 329.63, 1.2)]
+        bus = sum(snd.flute(at, f, ln + 0.9, 0.2, 0.08, 4.6, 0.005, 0.07) for at, f, ln in o)
+        snd.add(snd.reverb(bus, 2.8, 0.45), 0, 1.0)
+        # a nylon-string guitar tremolo on E under the lens opening
+        g = sum(snd.classical(0.8 + 0.18 * i, 164.81 if i % 2 else 220.0, 1.6, 0.17) for i in range(14))
+        snd.add(snd.reverb(g, 2.2, 0.3), 0, 1.0)
+        snd.skin_drum(3.0, 80, 44, 2.0, 0.95)
+        snd.click(3.0, 0.3, 700)
+        snd.whoosh(3.0, 1.4, 600, 4000, 0.07)
+        return dur, fr, snd
+
+    def sis(self):
+        dur = CONCEPTS["sis"].seconds
+        rgb, a = self.load_logo(CONCEPTS["sis"].logo_height)
+        k = self.k
+        W, H = self.W, self.H
+        fog = [self.noise(5, 61 + i, 4) for i in range(2)]
+        # the keyhole's own light sits at about (0.50, 0.30) of the logo image
+        KX, KY = 0.0 * k, -(0.5 - 0.30) * 620 * k
+        P = self.particles(60, 4)
+
+        def fr(t):
+            base = self.ground((12, 10, 10))
+            op = float(ease((t - 0.6) / 3.0))
+            rad = (30 + 1200 * op) * k
+            d = np.sqrt((self.xx - (W / 2 + KX)) ** 2 + (self.yy - (H / 2 + KY)) ** 2)
+            light = np.clip((rad - d) / (90 * k), 0, 1)
+            r, al = self.place(rgb, a, 1.0 + 0.04 * float(ease(t / dur)))
+            out = self.comp(base, r, al * light)
+            out += np.exp(-((d / (rad * 0.7 + 40 * k)) ** 2))[..., None] \
+                * np.array([60, 38, 16], np.float32) * float(ease((t - 0.4) / 0.8)) * (1 - op ** 2)
+            drift = 0.5 * (self.slide(fog[0], t * 40 * k) + self.slide(fog[1], -t * 24 * k))
+            veil = np.clip(drift * 1.5 - 0.3, 0, 1) * (1 - float(ease((t - 2.2) / 2.2))) \
+                * (0.35 + 0.65 * (1 - light))
+            out += veil[..., None] * np.array([78, 66, 58], np.float32)
+            sp = (t - 4.3) / 1.1
+            if 0 <= sp <= 1:
+                out += self.sheen(al, sp, 0.3, 0.06, 0.5) * np.array([255, 205, 140], np.float32)
+            out = self.draw_particles(out, P, t, light=np.clip(light + 0.1, 0, 1),
+                                      color=(255, 220, 170))
+            return self.fade(out, t, dur, 0.15, 0.6)
+
+        snd = Sound(dur, self.sr)
+        snd.wind(0.1)
+        snd.drone((55.0, 82.5), (0.2, 0.85), 0.22)
+        a3 = 220.0
+
+        def usak(cents):  # makam Uşşak on A: A, B koma-flat (150 c), C, D, E
+            return a3 * 2 ** (cents / 1200)
+
+        # the saz: tremolo on the long-necked lute, a falling phrase to the tonic
+        for at, c, g in [(0.7, 700, 0.3), (1.1, 500, 0.3), (1.5, 300, 0.3), (1.95, 150, 0.3),
+                         (2.6, 0, 0.36), (2.65, -1200, 0.3)]:
+            snd.pluck(at, usak(c), 2.0, g, 0.996, 0.45)
+            snd.pluck(at + 0.06, usak(c), 1.6, g * 0.55, 0.996, 0.45)
+        # the ney: slow, breathy, with its sigh in the middle register
+        ney = [(0.9, 700, 1.4), (1.9, 300, 1.2), (2.9, 150, 1.0), (3.4, 0, 2.2)]
+        bus = sum(snd.flute(at, usak(c), ln + 1.0, 0.24, 0.42, 5.2, 0.008, 0.18) for at, c, ln in ney)
+        snd.add(snd.reverb(bus, 2.8, 0.45), 0, 1.0)
+        snd.skin_drum(2.6, 104, 56, 2.0, 0.95)  # the davul
+        snd.click(2.6, 0.25, 800)
+        snd.whoosh(2.6, 1.6, 300, 2600, 0.1)
         return dur, fr, snd
 
     # -- output -------------------------------------------------------------

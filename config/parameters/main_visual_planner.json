@@ -71,6 +71,12 @@
         "loose"
       ],
       "min_overlap": 0.5
+    },
+    "topical": {
+      "enabled": true,
+      "min_score": 0.5,
+      "max_per_moment": 5,
+      "moments_per_call": 10
     }
   }
 }

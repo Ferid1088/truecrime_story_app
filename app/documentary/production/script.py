@@ -1403,6 +1403,9 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
             storage.resolve)
         script["audio"] = {"path": storage.rel(spliced), "with_host": True}
     script["avatar_used"] = bool(host)      # A2/A3: the one flag "draft, no avatar" is read from
+    from app.documentary.render.logo import windows_of
+
+    script["logo"] = windows_of(script)     # when the channel logo is in its corner (picture and clip shots only)
     script = ensure_pipeline_member_ids(f"production-script:{version.id}:{language}", script)
     film_key = film_key_of(plan_row, manifest)
     script["film_key"] = film_key

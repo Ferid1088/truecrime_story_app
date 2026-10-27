@@ -114,6 +114,7 @@
         "mvp_moment_picker": "writer",
         "mvp_moment_cutter": "premium",
         "mvp_moment_checker": "sol",
+        "mvp_topic_matcher": "writer",
         "mvp_scene_director": "premium",
         "mvp_conflict_structurer": "writer",
         "mvp_copywriter": "writer",
@@ -376,6 +377,10 @@
     "mvp_moment_checker": {
       "temperature": 0.0,
       "max_tokens": 3000
+    },
+    "mvp_topic_matcher": {
+      "temperature": 0.1,
+      "max_tokens": 8000
     },
     "mvp_scene_director": {
       "temperature": 0.4,

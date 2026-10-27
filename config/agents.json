@@ -504,6 +504,13 @@
       "description": "Moment cutting: an independent check of a finished cut against the words it will run under.",
       "used_by": "app/documentary/mvp/moments.py"
     },
+    "mvp.topic_match": {
+      "role": "mvp_topic_matcher",
+      "prompt": "documentary/mvp/topic_match_system",
+      "output": "json",
+      "description": "Topical fill: how related each approved picture or video is to what is said at a bare moment.",
+      "used_by": "app/documentary/mvp/topical.py"
+    },
     "mvp.conflict": {
       "role": "mvp_conflict_structurer",
       "prompt": "documentary/mvp/conflict_system",

@@ -1,0 +1,18 @@
+{
+  "branding": {
+    "logo": {
+      "enabled": true,
+      "shot_kinds": [
+        "image",
+        "video"
+      ],
+      "height_fraction": 0.13,
+      "margin_fraction": 0.035,
+      "opacity": 0.92,
+      "fade_seconds": 0.6,
+      "min_window_seconds": 4.0,
+      "black_key_below": 40,
+      "plate_alpha": 0.4
+    }
+  }
+}
