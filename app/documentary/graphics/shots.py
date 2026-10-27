@@ -11,7 +11,6 @@ from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import GraphicUnavailable, Rendered
 from app.documentary.graphics.registry import graphic
 
-
 ENGINE_KINDS = frozenset({"courtroom", "custody", "unknowns", "forensic", "interrogation", "sentencing",
                           "investigation_clock", "evidence_check"})
 
