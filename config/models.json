@@ -115,6 +115,8 @@
         "mvp_moment_cutter": "premium",
         "mvp_moment_checker": "sol",
         "mvp_topic_matcher": "writer",
+        "mvp_general_planner": "writer",
+        "mvp_general_checker": "sol",
         "mvp_engine_planner": "premium",
         "mvp_overlay_scanner": "sol",
         "mvp_timing_classifier": "premium",
@@ -384,6 +386,14 @@
     "mvp_topic_matcher": {
       "temperature": 0.1,
       "max_tokens": 8000
+    },
+    "mvp_general_planner": {
+      "temperature": 0.3,
+      "max_tokens": 6000
+    },
+    "mvp_general_checker": {
+      "temperature": 0.0,
+      "max_tokens": 2000
     },
     "mvp_timing_classifier": {
       "temperature": 0.0,

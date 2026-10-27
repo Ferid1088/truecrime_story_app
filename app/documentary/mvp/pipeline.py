@@ -25,6 +25,7 @@ from app.db.models import (
 from app.documentary.mvp import coverage as CV
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import evidence as EV
+from app.documentary.mvp import general as GI
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import needs as ND
 from app.documentary.mvp import overlays as OV
@@ -289,17 +290,23 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                           director if use_agent else None, target, None, region, offers)
         report["moments"] = moments
+    if report["gaps"] and ai_config.mvp().general.enabled:
+        general = await GI.GeneralImagery(db, case, needs_plan.id, language).run(report["gaps"])
+        if general["approved"]:
+            overlays = await scan_overlays(db, case, needs_plan)
+            timing = await label_timing(db, case, needs_plan, bp_row)
+        report["general"] = general
     if report["gaps"] and ai_config.mvp().topical.enabled:
         matcher = TP.TopicMatcher(db, case, needs_plan)
         matches = await matcher.run(report["gaps"], TP.catalog_of(DR.approved_items(db, needs_plan)))
         if matches:
-            moments = report.get("moments")
+            kept_before = {k: report[k] for k in ("moments", "general") if k in report}
             report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                           director if use_agent else None, target, None, region, offers, matches)
-            report["moments"] = moments
+            report.update(kept_before)
         report["topical"] = {"moments_matched": len(matches), "calls": matcher.calls, "errors": matcher.errors}
     report["overlays"], report["timing"] = overlays, timing
-    kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing") if k in report}
+    kept = {k: report[k] for k in ("moments", "general", "topical", "overlays", "timing") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)
         validation = json.loads(target.validation_json or "{}")
         validation.setdefault("plan", {}).update(kept)

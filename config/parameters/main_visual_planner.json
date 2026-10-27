@@ -78,6 +78,16 @@
       "max_per_moment": 5,
       "moments_per_call": 10
     },
+    "general": {
+      "enabled": true,
+      "max_moments": 40,
+      "moments_per_call": 10,
+      "queries_per_moment": 2,
+      "max_query_chars": 80,
+      "photo_width": 640,
+      "accept_fit": ["direct", "supports"],
+      "review_fit": ["loose"]
+    },
     "neighbour_cover": {
       "min_piece_seconds": 3.0,
       "max_hold_seconds": 30.0
