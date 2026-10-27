@@ -108,7 +108,9 @@ def timeline_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
     size = p["timeline"]["max_events_per_card"]
     for start in range(0, len(events), size):
         group = events[start:start + size]
-        data = {"events": [{k: v for k, v in e.items() if k != "beat"} for e in group]}
+        # every card continues the road: the points shown so far stay on the line, only this group is revealed
+        data = {"events": [{k: v for k, v in e.items() if k != "beat"} for e in events[:start + len(group)]],
+                "shown": start}
         best = max(e["beat"] for e in group)
         made = offer("timeline", f"timeline|{group[0]['fact_id']}", data, best,
                      items=tuple(e["fact_id"] for e in group), count=len(group))

@@ -255,3 +255,38 @@ def test_content_is_shrunk_to_end_above_the_subtitle_zone_and_all_pages_alike():
 def test_a_page_that_would_have_to_shrink_too_far_is_refused():
     with pytest.raises(GraphicUnavailable, match="subtitle zone"):
         LowPage(1075).render({}, 8.0, [1.0], "en")
+
+
+def _road(count: int, shown: int = 0) -> dict:
+    events = [{"date": {"year": 2026, "month": 2 + n // 3, "day": 10 + n}, "label": f"Event {n}", "fact_id": f"F{n}"}
+              for n in range(count)]
+    return {"events": events, "shown": shown}
+
+
+def test_a_timeline_card_continues_the_road_of_the_card_before_it():
+    from app.documentary.graphics import timeline as TL
+
+    card = TL.Timeline()
+    first, second = _road(5), _road(8, shown=5)
+    assert card.can_render(second) is None and card.required_cues(second) == 3 and card.required_cues(first) == 5
+    assert card.can_render(_road(5, shown=5)) is not None                         # nothing new to reveal
+    before_end = card.draw_state(first, "en", 5)
+    after_start = card.draw_state(second, "en", 0)
+    assert list(before_end.getdata()) == list(after_start.getdata())            # the next card opens where this one ended
+
+
+def test_every_point_of_the_road_stays_on_the_line_when_it_has_panned_away():
+    import math
+
+    from app.documentary.graphics import timeline as TL
+
+    data = _road(9, shown=6)
+    frame = TL.Timeline().draw_state(data, "en", 3).convert("RGB")
+    offset, history = TL.layout(8)
+    away = math.ceil(offset - TL.SLOT_FIRST / TL.SLOT_STEP)
+    assert away >= 4
+    ground = frame.getpixel((TL.LINE_LEFT + 4, TL.LINE_Y - 40))
+    for j in range(away):
+        x = round(TL.LINE_LEFT + TL.HISTORY_LEFT + history / away * j)
+        assert frame.getpixel((x, TL.LINE_Y - 6)) != ground                       # a mark above the line at every point
+        assert frame.getpixel((x, TL.LINE_Y - 6))[0] > 150                         # amber, not background

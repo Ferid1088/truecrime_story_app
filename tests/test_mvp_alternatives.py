@@ -166,7 +166,9 @@ def test_timeline_offers_group_events_in_story_order_and_never_before_they_are_t
               for n in range(1, 8)]
     ev = evidence(events=events)
     offers = AL.timeline_offers(ev, {})
-    assert [len(o.data["events"]) for o in offers] == [5, 2]
+    assert [len(o.data["events"]) for o in offers] == [5, 7] and [o.data["shown"] for o in offers] == [0, 5]
+    assert [e["fact_id"] for e in offers[1].data["events"]] == [f"T{n}" for n in range(1, 8)]   # the road goes on
+    assert offers[1].items == {"T6", "T7"} and AL.graphic("timeline").required_cues(offers[1].data) == 2
     first = offers[0]
     assert first.best == ev.order["B07"] and first.first == first.best      # not before its last event is told
     assert first.seconds == pytest.approx(1.5 * (4.0 + 3.4 * 5)) and first.items == {"T1", "T2", "T3", "T4", "T5"}

@@ -1,9 +1,12 @@
 """Timeline: dated events drawn as a line that grows from node to node; the current node has a halo, nothing
-that has not been revealed is drawn, and the line pans once the current node would pass the middle of the page."""
+that has not been revealed is drawn, and the line pans once the current node would pass the middle of the page. The
+points that have panned away stay on the line as small marks with their dates (the road of the whole film). A card
+may continue an earlier one: `shown` events are already on the line when it opens and only the others are revealed."""
 
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 
 from PIL import Image
@@ -17,6 +20,9 @@ LINE_Y = 601
 LINE_LEFT, LINE_WIDTH = 144, 1632
 SLOT_FIRST, SLOT_STEP = 0.048, 0.2696   # node positions as a share of the line (four nodes fill it, as designed)
 NODE_W = 420
+HISTORY_STEP, HISTORY_MAX = 64, 560        # the marks of the points that have panned away: spacing and the strip's width
+HISTORY_LEFT, HISTORY_DATES_MAX = 12, 14    # their start inside the line; more marks than this are dots without dates
+HISTORY_DATE_PX = 22
 DATE_PX, YEAR_PX, LABEL_PX = 90, 26, 36
 
 
@@ -40,24 +46,36 @@ class Timeline(Graphic):
                 return f"event {n}: the text must be 1-{cfg['node_text_max_chars']} characters"
             if not e.get("fact_id"):
                 return f"event {n}: no fact id"
+        if not 0 <= int(data.get("shown") or 0) < len(events):
+            return "shown: the card needs at least one event that is not on the line yet"
         return None
 
     def required_cues(self, data: dict) -> int:
-        return len(data["events"])
+        return len(data["events"]) - int(data.get("shown") or 0)
 
     def draw_state(self, data: dict, language: str, step: int) -> Image.Image:
-        return _frame(json.dumps(data, sort_keys=True, ensure_ascii=False), language, float(step))
+        return _frame(json.dumps(data, sort_keys=True, ensure_ascii=False), language,
+                      float(int(data.get("shown") or 0) + step))
 
     def draw_between(self, data, language, step, progress, before, after):
-        return _frame(json.dumps(data, sort_keys=True, ensure_ascii=False), language, step - 1 + progress)
+        return _frame(json.dumps(data, sort_keys=True, ensure_ascii=False), language,
+                      int(data.get("shown") or 0) + step - 1 + progress)
+
+
+def layout(newest: float) -> tuple[float, float]:
+    """The line's pan (in nodes) and the width of the strip at its left that holds the marks of the points that have
+    panned away, when the newest revealed node is at `newest`: the line pans so the newest node stays at or before the
+    page's middle, and the strip grows with the panning."""
+    high = T.config().timeline["pan_target_range"][1]
+    offset = max(0.0, newest - (high - SLOT_FIRST) / SLOT_STEP)
+    return offset, min(HISTORY_MAX, HISTORY_STEP * max(0.0, offset - SLOT_FIRST / SLOT_STEP))
 
 
 def x_of(index: float, newest: float) -> float:
     """Where node `index` sits on the page when the newest revealed node is at `newest` (both counted from 0):
-    evenly spaced, the line panning so the newest node stays at or before the page's middle."""
-    high = T.config().timeline["pan_target_range"][1]
-    offset = max(0.0, newest - (high - SLOT_FIRST) / SLOT_STEP)
-    return LINE_LEFT + LINE_WIDTH * (SLOT_FIRST + SLOT_STEP * (index - offset))
+    evenly spaced to the right of the history strip."""
+    offset, history = layout(newest)
+    return LINE_LEFT + history + (LINE_WIDTH - history) * (SLOT_FIRST + SLOT_STEP * (index - offset))
 
 
 def block_height(page: Page, event: dict, language: str) -> int:
@@ -82,14 +100,19 @@ def _frame(data_json: str, language: str, shown: float) -> Image.Image:
     if newest >= 0:                       # the filled part of the line, growing while a node is revealed
         start = max(x_of(0, newest), LINE_LEFT)
         page.rect(start, LINE_Y - 2, max(x_of(newest, newest) - start, 0), 5, fill=amber)
+    offset, history = layout(newest)
+    away = max(0, math.ceil(offset - SLOT_FIRST / SLOT_STEP - 1e-9))     # the points that have panned away
+    _history(page, events[:away], language, history, grey, amber)
     for i, event in enumerate(events):
         revealing = i == done and partial > 0 and done < len(events)
         if i >= done and not revealing:
             break
+        if i < away:
+            continue                      # drawn as a mark in the history strip
         k = 1.0 if i < done else clamp01((partial - 0.45) / 0.55)
         cx = x_of(i, newest)
-        if cx < LINE_LEFT - 30 or cx > LINE_LEFT + LINE_WIDTH + 30:
-            continue                      # panned off the page
+        if cx > LINE_LEFT + LINE_WIDTH + 30:
+            continue
         current = (i == done - 1 and partial == 0) or revealing
         if revealing and partial < 0.45:  # the node arrives as an empty ring, then fills
             page.ring(cx, LINE_Y, 20, grey, 4)
@@ -103,6 +126,22 @@ def _frame(data_json: str, language: str, shown: float) -> Image.Image:
         page.text(LINE_LEFT, 990, LINE_WIDTH, source if page.rtl else source.upper(), "mono", 24, grey, align="end",
                   lines_max=1)
     return page.done()
+
+
+def _history(page: Page, events: list[dict], language: str, width: float, color, mark) -> None:
+    """The points that have panned away stay on the line: a small mark each, evenly spread over the strip, with a small
+    date above and below in turn (dots only when there are too many to read)."""
+    if not events:
+        return
+    gap = width / len(events)
+    for j, event in enumerate(events):
+        cx = LINE_LEFT + HISTORY_LEFT + gap * j
+        page.disc(cx, LINE_Y, 7, mark)
+        if len(events) > HISTORY_DATES_MAX or gap < 40:
+            continue
+        big, _year = dates.display(event["date"], language)
+        y = LINE_Y - 44 - HISTORY_DATE_PX if j % 2 == 0 else LINE_Y + 40
+        page.text(cx - 18, y, 150, big, "mono", HISTORY_DATE_PX, color, lines_max=1, spacing=1.2)
 
 
 def _node(page: Page, event: dict, language: str, cx: float, above: bool, date_color, year_color, label_color,
