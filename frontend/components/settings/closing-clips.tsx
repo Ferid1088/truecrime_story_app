@@ -152,7 +152,11 @@ export function ClosingClipsCard() {
                     className="mt-1 max-w-xs text-muted-foreground"
                     data-testid={`closing-text-${lang}`}
                   >
-                    {row.sentences.join(" ")}
+                    {row.not_configured?.length ? (
+                      <span role="status" className="text-amber-600">
+                        Not set up yet: needs {row.not_configured.join(", ")}.
+                      </span>
+                    ) : row.sentences.join(" ")}
                   </div>
                 </td>
                 <td className="pr-2">

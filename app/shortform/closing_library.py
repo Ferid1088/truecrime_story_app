@@ -95,6 +95,14 @@ def closing_sentences(language: str, kind: str) -> list[str]:
     return [cta, identity] if cfg.closing_order == "cta_then_identity" else [identity, cta]
 
 
+def missing_setup(language: str) -> list[str]:
+    """What a language still lacks before a closing clip can be made for it: its voice and the two spoken sentences."""
+    cfg = ai_config.shorts_host_led
+    return [name for name, ok in (("voice", language in ai_config.voice.languages),
+                                  ("identity line", language in cfg.identity_line),
+                                  ("outro sentence", language in cfg.outro_sentence)) if not ok]
+
+
 def _voice_id(language: str) -> str:
     return str(ai_config.voice.languages[language].voice_id)
 

@@ -994,6 +994,8 @@ export type ClosingLanguage = {
   missing: number;
   sentences: string[];
   estimate_per_variant: ClosingEstimate;
+  /** What a channel still lacks (voice, spoken wording) before a closing clip can be made for it. */
+  not_configured?: string[];
   clips: ClosingClipRow[];
 };
 

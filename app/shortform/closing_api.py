@@ -43,9 +43,15 @@ def _estimate_dict(e: CL.CostEstimate) -> dict:
 
 @router.get("/api/closing-clips")
 def closing_overview(db: Session = Depends(get_db)):
-    languages = list(ai_config.channels)
+    languages = [lang for lang in ai_config.channels if not CL.missing_setup(lang)]
     table = CL.library_table(db, languages)
     renderer = get_renderer()
+    for language in ai_config.channels:                 # a channel without voice or spoken wording is listed, not drawn
+        if language not in table:
+            table[language] = {"target": ai_config.shorts_host_led.closing_library.target_variants, "variants": 0,
+                               "clips": [], "approved_looks": 0, "missing": 0, "sentences": [],
+                               "estimate_per_variant": _estimate_dict(CL.CostEstimate(0, 0.0, 0.0, 0.0)),
+                               "not_configured": CL.missing_setup(language)}
     for language in languages:
         looks = CL.approved_looks(db, language)
         table[language].update({
@@ -67,6 +73,9 @@ def set_closing_settings(body: SettingsBody, db: Session = Depends(get_db)):
 async def create_missing(body: CreateMissingBody, db: Session = Depends(get_db)):
     if body.language not in ai_config.channels:
         raise HTTPException(status_code=422, detail=f"no channel for language {body.language!r}")
+    if CL.missing_setup(body.language):
+        raise HTTPException(status_code=409, detail=f"{body.language} still lacks: "
+                                                    + ", ".join(CL.missing_setup(body.language)))
     if db.get(Case, body.case_id) is None:
         raise HTTPException(status_code=404, detail="case not found")
     if not CL.ClosingSettings(db).create_new:

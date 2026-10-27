@@ -11,7 +11,8 @@ import pytest
 from app.core.ai_config import AIConfig, ai_config
 from app.documentary import studio as ST
 
-CHANNELS = {"en": "ClueVera", "de": "Fallspur", "ar": "أثر خفي", "fa": "رد خاموش"}
+CHANNELS = {"en": "ClueVera", "de": "Fallspur", "ar": "أثر خفي", "fa": "رد خاموش", "es": "Tras la Pista",
+            "tr": "Gizli İzler"}
 REG = ST.load_registry()
 
 
@@ -90,8 +91,10 @@ def test_framing_presets_reference_valid_approved_assets_of_the_channel():
 
 def test_the_real_registry_validates_with_warnings_only():
     checks = ST.validate_all(REG, check_files=_images_present())
+    no_voice = ["no ElevenLabs voice configured (voice.languages)"]
     for lang in CHANNELS:
-        assert checks[lang]["ok"], checks[lang]
+        # the only thing a studio can still lack is the channel's voice (Spanish and Turkish have none configured yet)
+        assert checks[lang]["errors"] == ([] if lang in ai_config.voice.languages else no_voice), checks[lang]
         assert any("not yet confirmed" in w for w in checks[lang]["warnings"]) or \
             REG.profile_for(lang).review.get("confirmed")
 
@@ -248,9 +251,10 @@ def test_studio_profile_edit_persists_and_is_validated(client, tmp_path, monkeyp
 
 
 def _segments(db, lang="de"):
+    import uuid
+
     from app.db.models import Case, HostSegments, StoryVersion
     from app.utils import slugify
-    import uuid
 
     t = f"Scene {uuid.uuid4().hex[:6]}"
     case = Case(canonical_title=t, slug=slugify(t), language=lang)
@@ -265,7 +269,7 @@ def _segments(db, lang="de"):
             {"segment_id": "S2", "position": "mid", "beat_id": "B03",
              "avatar_dialogue": "Und hier wird es seltsam.", "estimated_seconds": 2.5},
             {"segment_id": "S3", "position": "final", "beat_id": None, "avatar_dialogue": ""}]
-    from tests.factories import make_host_plan, make_blueprint
+    from tests.factories import make_blueprint, make_host_plan
     plan = make_host_plan(db, case, make_blueprint(db, case, story_version=v))
     row = HostSegments(case_id=case.id, story_version_id=v.id, host_plan_id=plan.id, language=lang,
                        segments_json=json.dumps(segs, ensure_ascii=False), status="valid")

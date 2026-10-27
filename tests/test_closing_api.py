@@ -124,3 +124,18 @@ def test_the_persian_and_arabic_wording_is_served_in_its_own_script_in_the_confi
     assert languages["fa"]["sentences"][-1] == "من فریدونم و اینجا داستان‌های جنایی واقعی رو واست تعریف می‌کنم."
     assert languages["ar"]["sentences"][-1] == "أنا فريدون، وهنا أروي لك قصص الجرائم الحقيقية."
     assert languages["fa"]["sentences"][0] == ai_config.shorts_host_led.outro_sentence["fa"]
+
+
+def test_a_channel_without_voice_or_spoken_wording_is_listed_as_not_configured_instead_of_breaking_the_page(client):
+    body = client.get("/api/closing-clips")
+    assert body.status_code == 200
+    rows = body.json()["languages"]
+    for language in ("es", "tr"):
+        assert rows[language]["not_configured"] == ["voice", "identity line", "outro sentence"]
+        assert rows[language]["variants"] == 0 and rows[language]["estimate_per_variant"]["total_eur"] == 0
+    assert "not_configured" not in rows[LANG]
+
+
+def test_no_closing_clip_is_made_for_a_channel_that_lacks_its_voice_or_wording(client, case_id):
+    got = client.post("/api/closing-clips/create-missing", json={"language": "es", "case_id": case_id, "confirm": True})
+    assert got.status_code == 409 and "voice" in got.json()["detail"]

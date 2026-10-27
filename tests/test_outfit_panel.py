@@ -52,7 +52,7 @@ def test_same_outfit_reports_when_no_other_language_has_the_name(db_session):
     en = _outfit(db_session, case, "en", name="Only here")
     _outfit(db_session, case, "de", name="Grey", select=False)
     out = OF.apply_same_outfit(db_session, case.id, en.id)
-    assert out["applied"] == [] and set(out["skipped"]) == {"de", "fa", "ar"}
+    assert out["applied"] == [] and set(out["skipped"]) == {"de", "fa", "ar", "es", "tr"}
     assert out["reason"] == "no other language has an outfit with this name"
 
 

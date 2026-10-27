@@ -70,4 +70,4 @@ def test_the_real_outfit_folder_is_readable():
     real = OutfitRegistry(Path(registry.__file__).resolve().parents[2] / "data" / "outfits")
     if not real.root.is_dir():
         pytest.skip("data/outfits is private and not in this checkout")
-    assert {o.language for o in real.all()} <= {"en", "de", "fa", "ar"}
+    assert {o.language for o in real.all()} <= {"en", "de", "fa", "ar", "es", "tr"}
