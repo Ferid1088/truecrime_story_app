@@ -568,6 +568,66 @@ def reuse_library_photos(outfit_id: int, payload: ReuseLibraryPhotosRequest | No
     return {**done, "outfit": _outfit_view(db, outfit)}
 
 
+class HostOutfitChoice(BaseModel):
+    language: str
+    option_key: str
+    item_id: int
+    create_host: bool = False
+
+
+def _language_scenes(db: Session, case_id: int, language: str) -> list[HostScene]:
+    return (db.query(HostScene).filter(HostScene.case_id == case_id, HostScene.language == language)
+            .order_by(HostScene.id).all())
+
+
+@router.get("/api/cases/{case_id}/host-outfit")
+def host_outfit_options(case_id: int, language: str, db: Session = Depends(get_db)):
+    """What the host window offers for a language: the outfits (the case's and the library's), each with its photos,
+    and the host scenes a new choice would change."""
+    from app.core.ai_config import ai_config
+    from app.documentary import outfits as OF
+
+    if language not in ai_config.channels:
+        raise HTTPException(status_code=422, detail=f"no channel for language {language!r}")
+    scenes = _language_scenes(db, case_id, language)
+    return {**OF.choice_options(db, case_id, language),
+            "scenes": [{"id": s.id, "status": s.status, "has_video": bool(s.avatar_video_path),
+                        "running": bool(_tasks.get(s.id) and not _tasks[s.id].done())} for s in scenes],
+            "avatar_enabled": ai_config.avatar.enabled}
+
+
+@router.post("/api/cases/{case_id}/host-outfit")
+async def choose_host_outfit(case_id: int, payload: HostOutfitChoice, db: Session = Depends(get_db)):
+    """The owner's choice of the host's outfit and one of its photos for a language of this film: saved and approved as
+    the host's look; with `create_host` the host videos of the language are made again with it (HeyGen credits)."""
+    from app.core.ai_config import ai_config
+    from app.documentary import outfits as OF
+    from app.documentary.host_scenes import redo_video
+    from app.services.budget import BudgetService
+
+    if payload.create_host:
+        if not ai_config.avatar.enabled:
+            raise HTTPException(status_code=409, detail="Avatar generation is disabled (config avatar.enabled).")
+        snap = BudgetService(db).snapshot(case_id)
+        if snap.spent_eur >= snap.cap_eur:
+            raise HTTPException(status_code=409, detail="The case's budget cap is reached: no host video is started.")
+    done = _outfit_call(lambda: OF.apply_choice(db, case_id, payload.language, payload.option_key, [payload.item_id],
+                                                "owner_host_window"))
+    started, kept = [], []
+    if payload.create_host:
+        for scene in _language_scenes(db, case_id, payload.language):
+            running = _tasks.get(scene.id)
+            if running is not None and not running.done():
+                kept.append({"scene_id": scene.id, "why": "already running"})
+                continue
+            if scene.voice_path and scene.status not in ("planned", "voice_ready"):
+                _outfit_call(lambda s=scene: redo_video(db, s, "the owner chose another outfit"))
+            _tasks[scene.id] = asyncio.create_task(_run_task(scene.id, "avatar"))
+            started.append(scene.id)
+    return {"outfit": _outfit_view(db, done["outfit"]), "attached": done["attached"], "skipped": done["skipped"],
+            "started": started, "kept": kept}
+
+
 class LookOverride(BaseModel):
     look_id: int
 

@@ -16,8 +16,6 @@ from app.db.models import (
     DiscoveryCandidate,
     DocumentaryJob,
     HostOutfit,
-    HostLook,
-    OutfitItem,
     PublishRequest,
 )
 from app.documentary import jobs as documentary_jobs
@@ -27,7 +25,6 @@ from app.services.budget import BudgetService
 from app.services.cost_model import documentary_estimate
 from app.utils import utc_now
 from app.documentary import outfits as documentary_outfits
-from app.outfits.registry import OutfitRegistry
 
 BLOCKED_STATES = ("archived", "deleted", "ignored", "duplicate", "filtered")
 ACTIVE_RUN = ("running", "waiting_owner")
@@ -68,19 +65,6 @@ def _outfit_option_key(outfit: HostOutfit) -> str:
     return f"existing:{outfit.id}"
 
 
-def _library_photos(db: Session, outfit_ref: str | None,
-                    selected_ids: list[int] | None = None) -> list[dict]:
-    if not outfit_ref or "/" not in outfit_ref:
-        return []
-    studio, slug = outfit_ref.split("/", 1)
-    selected = set(selected_ids or [])
-    return [{"id": item.id, "situation": item.situation, "stance": item.stance,
-             "status": item.status, "selected": item.id in selected}
-            for item in (db.query(OutfitItem)
-                         .filter(OutfitItem.studio == studio, OutfitItem.outfit_slug == slug)
-                         .order_by(OutfitItem.id).all())]
-
-
 def outfit_options_for_candidate(db: Session, cand: DiscoveryCandidate,
                                  languages: list[str]) -> dict:
     """List the outfit choices shown before an Autopilot run starts.
@@ -91,34 +75,9 @@ def outfit_options_for_candidate(db: Session, cand: DiscoveryCandidate,
     """
     langs = _check_languages(languages)
     case = db.get(Case, cand.case_id) if cand.case_id else None
-    registry = OutfitRegistry()
     result = []
     for lang in langs:
-        options = []
-        existing = [] if case is None else (db.query(HostOutfit)
-            .filter(HostOutfit.case_id == case.id, HostOutfit.language == lang,
-                    HostOutfit.status != "retired")
-            .order_by(HostOutfit.id).all())
-        for outfit in existing:
-            options.append({
-                "key": _outfit_option_key(outfit), "name": outfit.name,
-                "ref": outfit.outfit_ref, "source": "case", "status": outfit.status,
-                "selected": outfit.status == "selected",
-                "photos": _library_photos(
-                    db, outfit.outfit_ref, documentary_outfits.selected_library_item_ids(db, outfit)),
-            })
-        existing_refs = {o.outfit_ref for o in existing if o.outfit_ref}
-        for outfit in registry.all(lang):
-            if outfit.outfit_id in existing_refs:
-                continue
-            options.append({
-                "key": f"registry:{outfit.outfit_id}", "name": outfit.label,
-                "ref": outfit.outfit_id, "source": "library", "status": "available",
-                "selected": False,
-                "photos": _library_photos(db, outfit.outfit_id),
-            })
-        selected = next((o["key"] for o in options if o["selected"]), None)
-        result.append({"language": lang, "selected": selected, "options": options})
+        result.append(documentary_outfits.choice_options(db, case.id if case else None, lang))
     return {"candidate_id": cand.id, "case_id": case.id if case else None,
             "languages": result}
 
@@ -137,59 +96,21 @@ def _apply_outfit_choices(db: Session, case: Case, languages: list[str],
     if extra_photos:
         raise StartError("Photo choices contain languages not in this run: " + ", ".join(extra_photos))
 
-    registry = OutfitRegistry()
-    resolved: list[tuple[str, HostOutfit | None, str | None, list[int]]] = []
+    resolved: list[tuple[str, str, list[int]]] = []
     for lang in languages:
-        key = choices[lang]
-        if key.startswith("existing:"):
-            try:
-                outfit_id = int(key.removeprefix("existing:"))
-            except ValueError as exc:
-                raise StartError(f"Invalid outfit choice for {lang}.") from exc
-            outfit = db.get(HostOutfit, outfit_id)
-            if outfit is None or outfit.case_id != case.id or outfit.language != lang \
-                    or outfit.status == "retired":
-                raise StartError(f"That outfit choice is not available for {lang}.")
-            resolved.append((lang, outfit, None, list(photo_choices.get(lang, []))))
-            continue
-        if not key.startswith("registry:"):
-            raise StartError(f"Invalid outfit choice for {lang}.")
-        ref = key.removeprefix("registry:")
         try:
-            registered = registry.resolve(ref)
-        except KeyError as exc:
-            raise StartError(f"That outfit is no longer available for {lang}.") from exc
-        if registered.language != lang:
-            raise StartError(f"That outfit belongs to another language, not {lang}.")
-        outfit = (db.query(HostOutfit)
-                  .filter(HostOutfit.case_id == case.id, HostOutfit.language == lang,
-                          HostOutfit.outfit_ref == ref, HostOutfit.status != "retired")
-                  .order_by(HostOutfit.id).first())
-        resolved.append((lang, outfit, ref, list(photo_choices.get(lang, []))))
+            outfit, ref = documentary_outfits.resolve_choice(db, case.id, lang, choices[lang])
+        except documentary_outfits.OutfitError as exc:
+            raise StartError(str(exc)) from exc
+        resolved.append((lang, choices[lang], list(photo_choices.get(lang, []))))
+        if ((outfit is not None and outfit.outfit_ref) or ref) and not resolved[-1][2]:
+            raise StartError(f"Choose at least one existing outfit photo for: {lang}")
 
-    missing_photos = [lang for lang, outfit, ref, item_ids in resolved
-                      if ((outfit is not None and outfit.outfit_ref) or ref) and not item_ids]
-    if missing_photos:
-        raise StartError("Choose at least one existing outfit photo for: " + ", ".join(missing_photos))
-
-    for lang, outfit, ref, item_ids in resolved:
-        if outfit is None:
-            registered = registry.resolve(ref)  # ref is set for registry choices
-            outfit = documentary_outfits.create_outfit(
-                db, case.id, lang, registered.label, outfit_ref=ref)
-        documentary_outfits.select_outfit(db, outfit)
-        if outfit.outfit_ref:
-            result = documentary_outfits.reuse_library_photos(
-                db, outfit, selected_item_ids=item_ids)
-            for attached in result["attached"]:
-                look = db.get(HostLook, attached["look_id"])
-                if look is not None:
-                    # Checking a library photo is the owner's approval for this film;
-                    # no image model call is made here.
-                    look.status = "approved"
-                    look.approved_by = "autopilot_start"
-                    look.approved_at = utc_now()
-            db.commit()
+    for lang, key, item_ids in resolved:
+        try:
+            documentary_outfits.apply_choice(db, case.id, lang, key, item_ids, "autopilot_start")
+        except documentary_outfits.OutfitError as exc:
+            raise StartError(str(exc)) from exc
 
 
 def start_run(db: Session, candidate_id: int, languages: list[str],

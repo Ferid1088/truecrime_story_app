@@ -383,6 +383,107 @@ def reuse_library_photos(db: Session, outfit: HostOutfit,
             "selected_item_ids": selected_library_item_ids(db, outfit)}
 
 
+# ---------------------------------------------------------------------------
+# the choice of an outfit and its photos for a video (the Autopilot start and the host window)
+# ---------------------------------------------------------------------------
+
+
+def library_photos(db: Session, outfit_ref: str | None, selected_ids: list[int] | None = None) -> list[dict]:
+    """The photos of a library outfit (`<studio>/<outfit>`), with those already used marked."""
+    if not outfit_ref or "/" not in outfit_ref:
+        return []
+    studio, slug = outfit_ref.split("/", 1)
+    selected = set(selected_ids or [])
+    return [{"id": item.id, "situation": item.situation, "stance": item.stance,
+             "status": item.status, "selected": item.id in selected}
+            for item in (db.query(OutfitItem)
+                         .filter(OutfitItem.studio == studio, OutfitItem.outfit_slug == slug)
+                         .order_by(OutfitItem.id).all())]
+
+
+def choice_options(db: Session, case_id: int | None, language: str) -> dict:
+    """The outfits that can be chosen for a language: those the case already has, then the library's others, each with
+    its photos. `selected` is the key of the outfit the video uses now."""
+    options = []
+    existing = [] if case_id is None else _language_outfits(db, case_id, language)
+    newest: dict[str, HostOutfit] = {}
+    for outfit in existing:          # one entry per library outfit: the selected one, else the newest
+        slot = outfit.outfit_ref or f"own:{outfit.id}"
+        kept = newest.get(slot)
+        if kept is None or outfit.status == "selected" or (kept.status != "selected" and outfit.id > kept.id):
+            newest[slot] = outfit
+    for outfit in sorted(newest.values(), key=lambda o: o.id):
+        options.append({"key": f"existing:{outfit.id}", "name": outfit.name, "ref": outfit.outfit_ref,
+                        "source": "case", "status": outfit.status, "selected": outfit.status == "selected",
+                        "photos": library_photos(db, outfit.outfit_ref, selected_library_item_ids(db, outfit))})
+    taken = {o.outfit_ref for o in existing if o.outfit_ref}
+    for registered in OutfitRegistry().all(language):
+        if registered.outfit_id not in taken:
+            options.append({"key": f"registry:{registered.outfit_id}", "name": registered.label,
+                            "ref": registered.outfit_id, "source": "library", "status": "available",
+                            "selected": False, "photos": library_photos(db, registered.outfit_id)})
+    return {"language": language, "selected": next((o["key"] for o in options if o["selected"]), None),
+            "options": options}
+
+
+def resolve_choice(db: Session, case_id: int, language: str, key: str) -> tuple[HostOutfit | None, str | None]:
+    """(the case's outfit, None) for `existing:<id>`; (the case's outfit of that library outfit or None, its ref) for
+    `registry:<ref>`."""
+    if key.startswith("existing:"):
+        try:
+            outfit_id = int(key.removeprefix("existing:"))
+        except ValueError as exc:
+            raise OutfitError(f"Invalid outfit choice for {language}.") from exc
+        outfit = db.get(HostOutfit, outfit_id)
+        if outfit is None or outfit.case_id != case_id or outfit.language != language or outfit.status == "retired":
+            raise OutfitError(f"That outfit choice is not available for {language}.")
+        return outfit, None
+    if not key.startswith("registry:"):
+        raise OutfitError(f"Invalid outfit choice for {language}.")
+    ref = key.removeprefix("registry:")
+    try:
+        registered = OutfitRegistry().resolve(ref)
+    except KeyError as exc:
+        raise OutfitError(f"That outfit is no longer available for {language}.") from exc
+    if registered.language != language:
+        raise OutfitError(f"That outfit belongs to another language, not {language}.")
+    outfit = (db.query(HostOutfit)
+              .filter(HostOutfit.case_id == case_id, HostOutfit.language == language,
+                      HostOutfit.outfit_ref == ref, HostOutfit.status != "retired")
+              .order_by(HostOutfit.id).first())
+    return outfit, ref
+
+
+def apply_choice(db: Session, case_id: int, language: str, key: str, item_ids: list[int],
+                 approved_by: str) -> dict:
+    """Use this outfit and these library photos for the video: the outfit is made when the case has none yet and
+    selected, the photos become its looks, and the owner's choice approves them (no image model is called)."""
+    outfit, ref = resolve_choice(db, case_id, language, key)
+    library_ref = outfit.outfit_ref if outfit is not None else ref
+    if library_ref and not item_ids:
+        raise OutfitError(f"Choose at least one existing outfit photo for: {language}")
+    if library_ref:                   # nothing is saved for a photo that is not this outfit's
+        photos = library_photos(db, library_ref)
+        available = {p["id"] for p in photos if p["status"] == "available"}
+        if set(item_ids) - available:
+            raise OutfitError("one or more selected photos do not belong to this outfit")
+        usable = {p["id"] for p in photos if p["stance"] in ("sitting", "standing")}
+        if set(item_ids) - usable:
+            raise OutfitError("one or more selected photos are not a sitting or standing pose: choose another")
+    if outfit is None:
+        outfit = create_outfit(db, case_id, language, OutfitRegistry().resolve(ref).label, outfit_ref=ref)
+    select_outfit(db, outfit)
+    done = {"attached": [], "skipped": []}
+    if outfit.outfit_ref:
+        done = reuse_library_photos(db, outfit, selected_item_ids=item_ids)
+        for attached in done["attached"]:
+            look = db.get(HostLook, attached["look_id"])
+            if look is not None:
+                look.status, look.approved_by, look.approved_at = "approved", approved_by, utc_now()
+        db.commit()
+    return {"outfit": outfit, "attached": done["attached"], "skipped": done["skipped"]}
+
+
 def reference_png(outfit: HostOutfit, stance: str) -> bytes:
     """The outfit's picture a look is generated from: the registry picture that fits the stance
     (sitting or standing), else any picture of it, or the outfit's own reference picture."""

@@ -3004,6 +3004,33 @@ export interface HostMemoryItem {
   used_by: { plan_id: number; case_id: number; segment_id: string }[];
 }
 
+/** One outfit the host window offers for a language, with the photos of the outfit. */
+export interface HostOutfitOption {
+  key: string;
+  name: string;
+  ref: string | null;
+  source: "case" | "library";
+  status: string;
+  selected: boolean;
+  photos: { id: number; situation: string; stance: string; status: string; selected: boolean }[];
+}
+
+export interface HostOutfitOptions {
+  language: string;
+  selected: string | null;
+  options: HostOutfitOption[];
+  scenes: { id: number; status: string; has_video: boolean; running: boolean }[];
+  avatar_enabled: boolean;
+}
+
+export interface HostOutfitResult {
+  outfit: { id: number; name: string; status: string };
+  attached: { look_id: number; photo: string; stance: string }[];
+  skipped: { label: string; why: string }[];
+  started: number[];
+  kept: { scene_id: number; why: string }[];
+}
+
 export interface HostScene {
   direction: Record<string, unknown> | null;
   direction_sha256: string | null;

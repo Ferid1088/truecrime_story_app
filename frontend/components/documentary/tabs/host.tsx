@@ -3,6 +3,7 @@
 import { CoveragePanel } from "./visual-library";
 import { HostPlanPanel } from "./host-plan";
 import { HostMemoryPanel } from "./host-memory";
+import { HostOutfitPanel } from "./host-outfit";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Clapperboard, Mic } from "lucide-react";
 import { api, apiFileUrl } from "@/lib/api";
@@ -61,12 +62,7 @@ export function HostTab({ caseId, settings, refreshKey, language, onLanguageChan
       <HostMemoryPanel caseId={caseId} />
       <HostPlanPanel caseId={caseId} scenes={data ?? []} />
       <CoveragePanel caseId={caseId} languages={[language]} refreshKey={refreshKey} />
-      <Card>
-        <CardContent className="p-3 text-xs text-muted-foreground">
-          Outfit and host-photo selection is completed once per language in the Autopilot start dialog.
-          There are no separate outfit or photo creation controls here.
-        </CardContent>
-      </Card>
+      <HostOutfitPanel caseId={caseId} language={language} onChanged={() => setTick((n) => n + 1)} />
       {loading && !data && <Skeleton className="h-40" />}
       {error && !data && <ErrorState message={error} onRetry={refetch} />}
       {data && data.length === 0 && (
