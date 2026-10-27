@@ -65,11 +65,25 @@ def test_two_photos_each_take_half_of_the_bare_moment():
     assert round(sum(s["share"] for s in shots), 5) == 1.0
 
 
-def test_a_still_is_never_held_longer_than_the_limit_and_a_photo_takes_the_rest():
-    beats = [{"beat_id": "B01", "shots": [_photo("A", 18), _gap(12), _photo("B", 10)]}]
-    cover(beats, [_item("A"), _item("B"), _item("P")])
+def test_the_shorter_neighbour_takes_more_of_the_bare_moment_until_both_are_as_long_as_it_allows():
+    beats = [{"beat_id": "B01", "shots": [_photo("A", 4), _gap(26), _photo("B", 10)]}]
+    cover(beats, [_item("A"), _item("B")])
     shots = beats[0]["shots"]
-    assert max(seconds(s) for s in shots) <= 20.0 + 1e-6 and not any(s.get("gap") for s in shots)
+    assert [(s["asset_id"], seconds(s)) for s in shots] == [("A", 20.0), ("B", 20.0)]     # not 13 and 13 plus 4 left over
+    assert not any(s.get("gap") for s in shots)
+    short_first = [{"beat_id": "B01", "shots": [_photo("A", 18), _gap(12), _photo("B", 10)]}]
+    cover(short_first, [_item("A"), _item("B")])
+    assert [seconds(s) for s in short_first[0]["shots"]] == [20.0, 20.0]                   # B takes 10, A only 2
+
+
+def test_a_still_is_never_held_longer_than_the_hold_limit_and_a_photo_takes_the_rest(monkeypatch):
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.mvp().neighbour_cover, "max_hold_seconds", 12.0)
+    beats = [{"beat_id": "B01", "shots": [_photo("A", 10), _gap(10), _photo("B", 10), _photo("C", 10)]}]
+    cover(beats, [_item("A"), _item("B"), _item("C"), _item("P")])
+    shots = beats[0]["shots"]
+    assert max(seconds(s) for s in shots) <= 12.0 + 1e-6 and not any(s.get("gap") for s in shots)
     assert any(s.get("neighbour_cover") and s["asset_id"] == "P" for s in shots)
 
 
@@ -99,13 +113,13 @@ def test_without_any_photo_the_moment_stays_bare_and_is_reported():
     assert any(s.get("gap") for s in beats[0]["shots"]) and report[0]["bare_seconds"] == 10.0
 
 
-def test_a_neighbour_in_another_beat_is_continued_by_a_shot_of_its_own():
+def test_a_neighbour_in_another_beat_is_continued_by_a_shot_of_its_own_and_the_shorter_one_takes_more():
     beats = [{"beat_id": "B01", "shots": [_photo("A", 30), _photo("Z", 10)]},
              {"beat_id": "B02", "shots": [_gap(10), _photo("B", 30)]}]
     cover(beats, {"B01": [_item("A"), _item("Z"), _item("P")], "B02": [_item("B")]})
     first = beats[1]["shots"][0]
-    assert first["asset_id"] == "Z" and first["continuation"] and seconds(first) == 5.0
-    assert [s["asset_id"] for s in beats[1]["shots"]] == ["Z", "P", "B"] and seconds(beats[1]["shots"][1]) == 5.0
+    assert first["asset_id"] == "Z" and first["continuation"] and seconds(first) == 10.0   # Z (10 s) is shorter than B (30 s)
+    assert [s["asset_id"] for s in beats[1]["shots"]] == ["Z", "B"]
 
 
 def _needs_plan(db):

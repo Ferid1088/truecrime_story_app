@@ -631,3 +631,62 @@ def test_the_round_with_the_fewest_bare_seconds_is_kept_when_no_round_covers_eve
     report, beats = _two_beats(db_session, monkeypatch, [first, unrelated])
     assert [r["gap_seconds"] for r in report["rounds"]] == [60.0, 60.0, 60.0] and report["gap_seconds"] == 60.0
     assert beats[1]["shots"][0].get("gap") and not unrelated.placed
+
+
+# -- borrowing time from the neighbouring pictures ----------------------------------------------------------------------
+
+
+def _picture(code, seconds, total=60.0, command="NEW_IMAGE"):
+    return {"command": command, "asset_id": code, "share": seconds / total, "motion": "SLOW_PUSH", "speed": 1.0,
+            "transition_in": "CROSSFADE"}
+
+
+def _stretch(seconds, total=60.0):
+    return {"command": "BLACK_SCREEN", "share": seconds / total, "gap": True, "said": "Kayla Keyt spoke next.",
+            "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE"}
+
+
+def _seconds(shot, total=60.0):
+    return round(shot["share"] * total, 2)
+
+
+def test_an_alternative_too_long_for_its_stretch_borrows_the_seconds_it_lacks_from_the_longer_neighbour_first():
+    offer = text_offer("F1", "Kayla Keyt read the victim statement.", best=0, drift=0, seconds=30.0)
+    offer.min_seconds = 24.0
+    shots = [_picture("A", 14), _stretch(15), _picture("B", 31)]
+    AL.fill_beat(shots, 60.0, 0, [offer], AL.State())
+    assert shots[1]["command"] == "BLACK_SCREEN"                                 # nothing is borrowed in the first pass
+    state = AL.State(relax={"borrow_seconds": 10.0})
+    AL.fill_beat(shots, 60.0, 0, [offer], state)
+    graphic = next(s for s in shots if s["command"] == "SHOW_GRAPHIC")
+    assert offer.placed and _seconds(graphic) == 30.0 and shots[0]["command"] == "NEW_IMAGE"      # it gets its full length
+    assert _seconds(shots[-1]) == 21.0 and _seconds(shots[0]) == 9.0     # the longer picture gave its 10 s first, the other 5
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+
+
+def test_neither_neighbour_is_cut_below_the_floor_nor_by_more_than_the_round_allows():
+    offer = text_offer("F1", "Kayla Keyt read the victim statement.", best=0, drift=0, seconds=30.0)
+    offer.min_seconds = 30.0
+    shots = [_picture("A", 8), _stretch(15), _picture("B", 14)]
+    AL.fill_beat(shots, 60.0, 0, [offer], AL.State(relax={"borrow_seconds": 10.0}))
+    assert not offer.placed                                      # A can give 2 s, B 8 s: 25 s are not 30
+    assert _seconds(shots[0]) == 8.0 and _seconds(shots[2]) == 14.0 and shots[1].get("gap")
+    shots = [_picture("A", 20), _stretch(15), _picture("B", 20)]
+    AL.fill_beat(shots, 60.0, 0, [offer], AL.State(relax={"borrow_seconds": 3.0}))
+    assert not offer.placed and _seconds(shots[0]) == 20.0       # 3 s from each is 21 s
+
+
+def test_only_pictures_are_borrowed_from_never_a_graphic_or_a_map():
+    offer = text_offer("F1", "Kayla Keyt read the victim statement.", best=0, drift=0, seconds=30.0)
+    offer.min_seconds = 24.0
+    graphic = {**_picture("G", 30), "command": "SHOW_GRAPHIC"}
+    shots = [graphic, _stretch(15), {**_picture("M", 15), "command": "SHOW_MAP"}]
+    AL.fill_beat(shots, 60.0, 0, [offer], AL.State(relax={"borrow_seconds": 10.0}))
+    assert not offer.placed and _seconds(shots[0]) == 30.0 and _seconds(shots[2]) == 15.0
+
+
+def test_every_stretch_of_a_beat_is_filled_even_when_filling_one_changes_the_list():
+    offers = [text_offer(f"F{n}", f"Kayla Keyt statement number {n}.", best=0, drift=0, seconds=10.0) for n in range(4)]
+    shots = [_stretch(10), _picture("A", 10), _stretch(20), _picture("B", 10), _stretch(10)]
+    AL.fill_beat(shots, 60.0, 0, offers, AL.State())
+    assert not any(s.get("gap") for s in shots) and sum(1 for o in offers if o.placed) == 4

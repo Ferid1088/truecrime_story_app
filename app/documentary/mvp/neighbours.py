@@ -36,6 +36,7 @@ class NeighbourCover:
         self.shot_of = shot_of
         self.limit = ai_config.mvp().shots.max_still_seconds
         self.min_piece = ai_config.mvp().neighbour_cover.min_piece_seconds
+        self.hold = ai_config.mvp().neighbour_cover.max_hold_seconds
         self.covered: list[dict] = []
 
     def run(self) -> list[dict]:
@@ -57,9 +58,12 @@ class NeighbourCover:
                 seconds = sum(s["share"] for s in shots[k:last + 1]) * length
                 before = out[-1] if out else self._edge(n - 1, -1)
                 after = shots[last + 1] if last + 1 < len(shots) else self._edge(n + 1, 0)
+                before_s = out[-1]["share"] * length if out else self._edge_seconds(n - 1, -1)
+                after_s = shots[last + 1]["share"] * length if last + 1 < len(shots) else self._edge_seconds(n + 1, 0)
                 said = " ".join(s.get("said", "") for s in shots[k:last + 1]).strip()
                 pieces = self._cover(beat["beat_id"], at, seconds, length, before, after,
-                                     out[-1] if out else None, shots[last + 1] if last + 1 < len(shots) else None, said)
+                                     out[-1] if out else None, shots[last + 1] if last + 1 < len(shots) else None, said,
+                                     (before_s, after_s))
                 out.extend(pieces)
                 at += seconds
                 k = last + 1
@@ -73,15 +77,38 @@ class NeighbourCover:
         shots = [s for s in self.beats[n]["shots"] if not s.get("gap")]
         return shots[index] if shots else None
 
+    def _edge_seconds(self, n: int, index: int) -> float:
+        """How long the first or last shot of a neighbouring beat that is not bare is shown in its own beat."""
+        shot = self._edge(n, index)
+        if shot is None:
+            return 0.0
+        window = self.window_of[self.beats[n]["beat_id"]]
+        return shot["share"] * (window["end"] - window["start"])
+
+    @staticmethod
+    def _grows(shot: dict | None) -> bool:
+        return bool(shot) and shot.get("command") == "NEW_IMAGE" and bool(shot.get("asset_id"))
+
+    def _split(self, seconds: float, before: dict | None, after: dict | None, lengths: tuple[float, float]) -> float:
+        """The seconds of the stretch the picture before it takes. Two pictures that can be held longer share it so that
+        the shorter takes more, until both are as long as the stretch allows; otherwise it is halved."""
+        if before is None or after is None:
+            return seconds if after is None else 0.0
+        if not (self._grows(before) and self._grows(after)):
+            return seconds / 2
+        return min(max((lengths[1] - lengths[0] + seconds) / 2, 0.0), seconds)
+
     def _cover(self, bid: str, start: float, seconds: float, length: float, before: dict | None, after: dict | None,
-               grow_before: dict | None, grow_after: dict | None, said: str) -> list[dict]:
+               grow_before: dict | None, grow_after: dict | None, said: str,
+               lengths: tuple[float, float] = (0.0, 0.0)) -> list[dict]:
         """The shots that replace one bare stretch. `grow_before` / `grow_after` are the neighbours inside this beat
-        (held longer in place); a neighbour in another beat is continued by a shot of its own."""
+        (held longer in place); a neighbour in another beat is continued by a shot of its own. `lengths` are how long the
+        two neighbours are shown now."""
         end = start + seconds
-        left = seconds / 2 if before is not None and after is not None else (seconds if after is None else 0.0)
+        left = self._split(seconds, before, after, lengths)
         right = seconds - left
-        take_left, rest_left = self._share(before, left, length)
-        take_right, rest_right = self._share(after, right, length)
+        take_left, rest_left = self._share(before, left, grow_before["share"] * length if grow_before else 0.0)
+        take_right, rest_right = self._share(after, right, grow_after["share"] * length if grow_after else 0.0)
         beside = {self._code(before), self._code(after)}
         out: list[dict] = []
         if take_left:
@@ -114,13 +141,14 @@ class NeighbourCover:
     def _code(shot: dict | None) -> str | None:
         return shot.get("asset_id") if shot else None
 
-    def _share(self, neighbour: dict | None, wanted: float, length: float) -> tuple[float, float]:
-        """(seconds the neighbouring still takes, seconds left for photos of their own)."""
+    def _share(self, neighbour: dict | None, wanted: float, held: float) -> tuple[float, float]:
+        """(seconds the neighbouring still takes, seconds left for photos of their own). `held` is how long the picture
+        is already shown in this beat (a neighbour of another beat is continued by a shot of its own: 0)."""
         if wanted <= 1e-9:
             return 0.0, 0.0
-        if neighbour is None or neighbour.get("command") != "NEW_IMAGE" or not neighbour.get("asset_id"):
+        if not self._grows(neighbour):
             return 0.0, wanted
-        room = max(0.0, self.limit - neighbour["share"] * length)
+        room = max(0.0, self.hold - held)
         take = min(wanted, room)
         rest = wanted - take
         if 0 < rest < self.min_piece:

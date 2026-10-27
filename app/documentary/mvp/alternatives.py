@@ -388,21 +388,68 @@ def graphic_shot(o: Offer, seconds: float, window_len: float, why: str) -> dict:
     return shot
 
 
+DONOR_COMMANDS = ("NEW_IMAGE", "SHOW_CLIP")
+
+
+def donors(shots: list[dict], first: int, last: int, window_len: float, allowance: float) -> list[list]:
+    """The pictures next to a bare run that can give it seconds: [index, seconds it can give]. A picture gives at most
+    `allowance` and is never cut shorter than `planner.borrow.min_shot_seconds`."""
+    floor = T.config().planner["borrow"]["min_shot_seconds"]
+    out = []
+    for i in (first - 1, last + 1):
+        if 0 <= i < len(shots) and shots[i].get("command") in DONOR_COMMANDS and not shots[i].get("gap"):
+            give = min(allowance, shots[i]["share"] * window_len - floor)
+            if give > 1e-6:
+                out.append([i, give])
+    return out
+
+
+def borrow(shots: list[dict], donated: list[list], run_first: int, need: float, window_len: float) -> float:
+    """Take `need` seconds for the bare run from its neighbouring pictures, the longer picture first; returns what was
+    taken (the run's first shot grows by it)."""
+    taken = 0.0
+    for entry in sorted(donated, key=lambda e: -shots[e[0]]["share"]):
+        part = min(need - taken, entry[1])
+        if part <= 1e-9:
+            continue
+        shots[entry[0]]["share"] -= part / window_len
+        entry[1] -= part
+        taken += part
+    shots[run_first]["share"] += taken / window_len
+    return taken
+
+
 def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer], state: State,
               tail: float = 0.0) -> None:
     """Put offers into the beat's bare stretches (longest first); what no offer fits stays bare for the next step.
-    `tail` is the silence at the end of the beat where a chapter or title card may be laid: no graphic reaches into
-    it (a graphic cut back by a card would no longer fit its cues)."""
+    In a round that allows it (`borrow_seconds`), an alternative that is too long for its stretch takes the seconds it
+    lacks from the pictures next to it. `tail` is the silence at the end of the beat where a chapter or title card may
+    be laid: no graphic reaches into it (a graphic cut back by a card would no longer fit its cues)."""
     minimum_run = T.config().planner["min_run_seconds"]
-    for first, last, seconds in sorted(gap_runs(shots, window_len), key=lambda r: -r[2]):
+    allowance = state.relax.get("borrow_seconds", 0.0)
+    tried: set[int] = set()
+    while True:                        # the stretches are looked at again after each one: the list changes as it is filled
+        runs = [r for r in gap_runs(shots, window_len) if id(shots[r[0]]) not in tried]
+        if not runs:
+            break
+        first, last, seconds = max(runs, key=lambda r: r[2])
+        tried.add(id(shots[first]))
         reserve = tail if last == len(shots) - 1 else 0.0
         remaining, taken = seconds - reserve, []
         said = " ".join(s.get("said", "") for s in shots[first:last + 1]).strip()
-        while remaining >= minimum_run:
-            options = sorted((o for o in offers if usable(o, idx, remaining, state, said)), key=lambda o: priority(o, idx, state))
+        give = donors(shots, first, last, window_len, allowance) if allowance else []
+        while remaining + sum(g for _, g in give) >= minimum_run:
+            options = sorted((o for o in offers if usable(o, idx, remaining, state, said)),
+                             key=lambda o: priority(o, idx, state))
+            reach = remaining + sum(g for _, g in give)
+            if not options and give:
+                options = sorted((o for o in offers if usable(o, idx, reach, state, said)),
+                                 key=lambda o: priority(o, idx, state))
             if not options:
                 break
             chosen = options[0]
+            if chosen.min_seconds > remaining + 1e-6:                  # it does not fit: it borrows what it lacks
+                remaining += borrow(shots, give, first, min(chosen.seconds, reach) - remaining, window_len)
             length = min(chosen.seconds, remaining)
             taken.append((chosen, length))
             chosen.placed = True

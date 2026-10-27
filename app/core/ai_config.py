@@ -2851,11 +2851,13 @@ class MvpTopicalConfig(BaseModel):
 
 
 class MvpNeighbourCoverConfig(BaseModel):
-    """The owner-approved last resort for moments that are still bare: each half is covered by the neighbouring
-    picture held longer, or by a photo of its own when the neighbour is not a still picture or is already held as
-    long as `shots.max_still_seconds` allows. No piece of a photo is shorter than `min_piece_seconds`."""
+    """The owner-approved last resort for moments that are still bare. The neighbouring pictures are held longer: the
+    shorter of the two takes more of the moment, so that both end up as equal as it allows. A picture is held at most
+    `max_hold_seconds`; the rest is covered by a photo of its own (also when a neighbour is not a still picture). No piece
+    of a photo is shorter than `min_piece_seconds`."""
 
     min_piece_seconds: float = Field(gt=0.0)
+    max_hold_seconds: float = Field(gt=0.0)
 
 
 class MvpOverlaysConfig(BaseModel):

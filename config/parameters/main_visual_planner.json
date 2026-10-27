@@ -79,7 +79,8 @@
       "moments_per_call": 10
     },
     "neighbour_cover": {
-      "min_piece_seconds": 3.0
+      "min_piece_seconds": 3.0,
+      "max_hold_seconds": 30.0
     },
     "owner_note": {
       "max_chars": 400
