@@ -11,9 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Case, Contradiction, EditorialBlueprint, VisualPlan
 from app.documentary.chapters import latest_chapter_plan
+from app.documentary.graphics import shots as GS
 from app.documentary.graphics import theme as T
+from app.documentary.graphics.engines import kit
 from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp import copy as CP
+from app.documentary.mvp import engines as EN
 from app.documentary.mvp import headlines as HL
 from app.documentary.mvp.direct import beat_windows
 from app.documentary.mvp.needs import build_pack
@@ -61,7 +64,7 @@ def gather(db: Session, case: Case, bp_row: EditorialBlueprint, needs_plan: Visu
         facts=facts, contradictions=contradictions, sources=sources, events=events, quotes=quotes,
         narration={bid: " ".join(s["speech"] for s in w["sentences"]) for bid, w in windows.items()},
         starts={bid: w["start"] for bid, w in windows.items()},
-        total_seconds=float(manifest.get("duration_seconds") or 0.0))
+        total_seconds=float(manifest.get("duration_seconds") or 0.0), timeline=pack.get("timeline") or [])
 
 
 def beats_for_headlines(ev: AL.Evidence) -> list[dict]:
@@ -101,7 +104,8 @@ async def build_offers(db: Session, case: Case, bp_row: EditorialBlueprint, need
     facts = AL.key_fact_offers(ev, lines)
     shown = {i for o in quotes + facts for i in o.items}
     headlines = AL.headline_offers(ev, placed)[:T.config().planner["headline"]["max_per_film"]]
-    offers = (conflicts + quotes + facts + AL.timeline_offers(ev, lines) + headlines
+    engines = await EN.build_engine_offers(db, case, needs_plan, ev)
+    offers = (engines + conflicts + quotes + facts + AL.timeline_offers(ev, lines) + headlines
               + AL.recap_offers(ev, lines, best, shown))
     return offers, ev
 
@@ -120,6 +124,8 @@ TEXT_FIELDS = {
 def collect_texts(data: dict, kind: str) -> list[tuple[dict, str]]:
     """(holder, key) of every text of a graphic's data that has to be in the film's language."""
     out = []
+    if kind in GS.ENGINE_KINDS:
+        return kit.texts_of(data)
     for group, key in TEXT_FIELDS.get(kind, []):
         for holder in ([data] if not group else (data[group] if isinstance(data.get(group), list) else [data[group]])):
             if holder.get(key):

@@ -103,6 +103,7 @@ from app.autopilot.api import router as autopilot_router  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.monitoring import router as monitoring_router  # noqa: E402
 from app.documentary.mvp.api import router as mvp_router  # noqa: E402
+from app.documentary.mvp.engines_api import router as mvp_engines_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
 from app.longform.api import router as longform_router  # noqa: E402
@@ -118,7 +119,8 @@ for _router in (
     documentary_router,
     monitoring_router,
     mvp_router,
-        lifecycle_router,
+    mvp_engines_router,
+    lifecycle_router,
         longform_router,
         naming_router,
     thumbnail_router,

@@ -12,10 +12,18 @@ from app.documentary.graphics.base import GraphicUnavailable, Rendered
 from app.documentary.graphics.registry import graphic
 
 
+ENGINE_KINDS = frozenset({"courtroom", "custody", "unknowns", "forensic", "interrogation", "sentencing",
+                          "investigation_clock", "evidence_check"})
+
+
 def cue_fractions(kind: str, steps: int) -> list[float]:
     """Where the reveals fall in the shot (fractions of its length): the configured spacing, spread evenly when a
     card has more steps than the configured list (a timeline of five events)."""
     configured = T.config().cue_fractions[kind]
+    span = T.config().engines["cue_span"]
+    if kind in ENGINE_KINDS:                 # the engines spread their steps over the whole shot
+        first, last = span["first"], span["last"]
+        return [round(first + (last - first) * n / max(steps - 1, 1), 3) for n in range(steps)]
     if len(configured) >= steps:
         return list(configured[:steps])
     last = configured[-1] if configured else 0.7

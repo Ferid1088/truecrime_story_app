@@ -511,6 +511,13 @@
       "description": "Topical fill: how related each approved picture or video is to what is said at a bare moment.",
       "used_by": "app/documentary/mvp/topical.py"
     },
+  "mvp.engine_plan": {
+      "role": "mvp_engine_planner",
+      "prompt": "documentary/mvp/engine_plan_system",
+      "output": "json",
+      "description": "Cinematic engines: whether a beat is clearer with one of the eight engines, and the engine's data from stored facts only.",
+      "used_by": "app/documentary/mvp/engines.py"
+    },
     "mvp.conflict": {
       "role": "mvp_conflict_structurer",
       "prompt": "documentary/mvp/conflict_system",

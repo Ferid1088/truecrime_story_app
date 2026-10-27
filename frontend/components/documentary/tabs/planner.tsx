@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DocumentaryTabProps } from "../shared";
+import { EnginesPanel } from "../engines-panel";
 
 const REVIEW_STEPS = ["IMPLEMENTING", "PRODUCING", "VALIDATING", "AWAITING_OWNER_REVIEW"] as const;
 
@@ -23,6 +24,14 @@ const KIND_LABEL: Record<string, string> = {
   quote: "quotes",
   recap: "recaps",
   timeline: "timelines",
+  courtroom: "courtroom reasoning",
+  custody: "chain of custody",
+  unknowns: "map of unknowns",
+  forensic: "forensic examination",
+  interrogation: "interview analysis",
+  sentencing: "sentencing",
+  investigation_clock: "investigation clock",
+  evidence_check: "evidence check",
 };
 
 /** What direction left empty after every picture, video and graphic, and which graphics filled the rest. */
@@ -72,6 +81,7 @@ export function PlannerTab({ caseId, refreshKey }: DocumentaryTabProps) {
         and the film itself. A rendered film stays a review candidate until you approve its exact file.
       </p>
       <DirectionCard caseId={caseId} refreshKey={refreshKey} />
+      <EnginesPanel caseId={caseId} refreshKey={refreshKey} />
       {(reviews.data ?? []).map((review) => (
         <FilmReviewCard key={review.id} review={review} onChange={reviews.refetch} />
       ))}

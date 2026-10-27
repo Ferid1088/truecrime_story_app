@@ -15,6 +15,7 @@ from app.documentary.graphics import shots as GS
 from app.documentary.graphics import theme as T
 from app.documentary.graphics.base import GraphicUnavailable
 from app.documentary.graphics.document import verify_verbatim
+from app.documentary.graphics.engines import kit
 from app.documentary.graphics.keyfacts import extract
 from app.documentary.graphics.registry import graphic
 from app.documentary.mvp import headlines as HL
@@ -34,6 +35,7 @@ class Offer:
     items: frozenset[str] = frozenset()
     credit: str | None = None
     placed: bool = False
+    meta: dict = field(default_factory=dict)      # what the planner's inspector shows (engines)
 
 
 @dataclass
@@ -53,6 +55,7 @@ class Evidence:
     total_seconds: float
     official: dict[int, dict] = field(default_factory=dict)   # source id -> official source with its stored text
     notes: list[str] = field(default_factory=list)
+    timeline: list[dict] = field(default_factory=list)       # dated timeline entries of the case (id, event_date, claim)
 
 
 def seconds_for(kind: str, count: int = 0) -> tuple[float, float]:
@@ -74,9 +77,10 @@ def reveal_index(ev: Evidence, fact_id: str) -> int | None:
 
 
 def offer(kind: str, key: str, data: dict, best: int, first: int | None = None, items: tuple[str, ...] = (),
-          count: int = 0, credit: str | None = None) -> Offer | None:
+          count: int = 0, credit: str | None = None, seconds: float | None = None) -> Offer | None:
     """An offer if the graphic accepts its data (with the cues the planner would give it at its normal length)."""
-    seconds, minimum = seconds_for(kind, count)
+    default, minimum = seconds_for(kind, count)
+    seconds = seconds or default
     try:                                   # drawn once at its full length: a page that cannot be set is never offered
         GS.render_for({"type": kind, "data": data, "cue_fractions": GS.cue_fractions(kind, graphic(kind).required_cues(data))},
                       seconds, "en")
@@ -292,6 +296,10 @@ def recap_offers(ev: Evidence, lines: dict[str, str], conflict_best: dict[str, i
 class State:
     """What has been shown so far in the film."""
 
+    engine_last: dict[str, int] = field(default_factory=dict)      # engine kind -> beat index of its last showing
+    engine_kind: str | None = None                                 # the engine shown last
+    engine_texts: list[str] = field(default_factory=list)
+    engine_count: int = 0
     used_keys: set[str] = field(default_factory=set)
     used_items: set[str] = field(default_factory=set)
     pages: list[dict] = field(default_factory=list)
@@ -299,14 +307,32 @@ class State:
     placed: int = 0
 
 
+def offer_text(o: Offer) -> str:
+    return " ".join(h[k] for h, k in kit.texts_of(o.data))
+
+
+def repeats_engine(o: Offer, idx: int, state: State) -> bool:
+    """An engine is not shown again too soon, nor with the same story as one already shown."""
+    if o.kind not in GS.ENGINE_KINDS:
+        return False
+    cfg = T.config().engines["selection"]
+    if (idx - state.engine_last.get(o.kind, -10**6) < cfg["min_beats_between_same_engine"]
+            or state.engine_count >= cfg["max_per_film"]):
+        return True
+    text = offer_text(o)
+    return any(similar(text, other) for other in state.engine_texts)
+
+
 def usable(o: Offer, idx: int, remaining: float, state: State) -> bool:
     return (not o.placed and o.key not in state.used_keys and o.first <= idx <= o.last
-            and o.min_seconds <= remaining + 1e-6 and not (o.items & state.used_items))
+            and o.min_seconds <= remaining + 1e-6 and not (o.items & state.used_items)
+            and not repeats_engine(o, idx, state))
 
 
-def priority(o: Offer, idx: int) -> tuple:
+def priority(o: Offer, idx: int, state: State | None = None) -> tuple:
     chain = T.config().planner["chain"]
-    return (0 if o.best == idx else 1, chain.index(o.kind) if o.kind in chain else len(chain), o.best)
+    again = 1 if state is not None and o.kind == state.engine_kind else 0       # another engine than the last one
+    return (0 if o.best == idx else 1, again, chain.index(o.kind) if o.kind in chain else len(chain), o.best)
 
 
 def gap_runs(shots: list[dict], window_len: float) -> list[tuple[int, int, float]]:
@@ -326,6 +352,8 @@ def graphic_shot(o: Offer, seconds: float, window_len: float, why: str) -> dict:
             "transition_in": "CROSSFADE", "why": why, **GS.plan_fields(o.kind, o.data)}
     if o.credit:
         shot["credit"] = o.credit
+    if o.meta:
+        shot["engine"] = o.meta
     return shot
 
 
@@ -336,7 +364,7 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
         remaining, taken = seconds, []
         said = " ".join(s.get("said", "") for s in shots[first:last + 1]).strip()
         while remaining >= minimum_run:
-            options = sorted((o for o in offers if usable(o, idx, remaining, state)), key=lambda o: priority(o, idx))
+            options = sorted((o for o in offers if usable(o, idx, remaining, state)), key=lambda o: priority(o, idx, state))
             if not options:
                 break
             chosen = options[0]
@@ -347,6 +375,11 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
             state.used_items |= chosen.items
             state.seconds[chosen.kind] = state.seconds.get(chosen.kind, 0.0) + length
             state.placed += 1
+            if chosen.kind in GS.ENGINE_KINDS:
+                state.engine_last[chosen.kind] = idx
+                state.engine_kind = chosen.kind
+                state.engine_count += 1
+                state.engine_texts.append(offer_text(chosen))
             if chosen.kind == "conflict":
                 state.pages.append({"order": state.placed, **chosen.data["conflict"], "a": chosen.data["sides"][0]["who"],
                                     "b": chosen.data["sides"][1]["who"]})

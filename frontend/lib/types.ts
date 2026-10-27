@@ -2376,6 +2376,48 @@ export interface MvpGaps {
   beats: { beat_id: string; needs_review: number; rejected: number }[];
 }
 
+export interface EngineProvenance {
+  fact_id: string;
+  text: string;
+  source_ids: number[];
+  disputed: boolean;
+}
+
+export interface EngineBeat {
+  beat: string;
+  key: string | null;
+  engine: string | null;
+  why: string;
+  eligible: string[];
+  missing: string;
+  problems: string[];
+  provenance: EngineProvenance[];
+  data: Record<string, unknown> | null;
+  steps: string[];
+  disabled: boolean;
+  forced: string | null;
+  edited: boolean;
+  seconds: number | null;
+  default_seconds: number | null;
+  on_screen: boolean;
+}
+
+export interface EngineSpec {
+  kind: string;
+  name: string;
+  intents: string[];
+  requires: string;
+  version: number;
+}
+
+export interface MvpEngines {
+  language: string;
+  engines: EngineSpec[];
+  beats: EngineBeat[];
+  chosen: number;
+  on_screen: number;
+}
+
 export interface MvpSearchRound {
   round: number;
   provider: string;

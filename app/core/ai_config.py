@@ -122,6 +122,8 @@ REQUIRED_ROLES = {
     "mvp_moment_checker",
     # Topical fill: which approved pictures and videos are related to what is said at a bare moment.
     "mvp_topic_matcher",
+    # Cinematic engines: whether a beat is clearer with one of the eight engines, and its structured data.
+    "mvp_engine_planner",
     "mvp_scene_director",
     # The alternative graphics: a disputed point structured into two sourced sides, stored facts
     # shortened faithfully, and the earliest beat a real newspaper headline may be shown.
@@ -2908,6 +2910,7 @@ class GraphicsConfig(BaseModel):
     key_facts: dict
     headline: dict
     planner: dict
+    engines: dict
     labels: dict[str, dict[str, str]]
 
     @model_validator(mode="after")
