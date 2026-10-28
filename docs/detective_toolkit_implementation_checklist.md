@@ -33,10 +33,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] C1 | Complete prompt, input wrapper, schema, model config, and real call path connected. | NOT_STARTED |
-| [ ] C2 | Every consequential selection follows an investigative aim with recorded expected benefit. | NOT_STARTED |
-| [ ] C3 | Question payoffs, connections, human interest, breathing room follow the text. | NOT_STARTED |
-| [ ] C4 | Future knowledge does not leak; no unsupported certainty/conclusions. | NOT_STARTED |
+| [x] C1 | Complete prompt, input wrapper, schema, model config, and real call path connected. | VERIFIED — live map_film + direct_scenes calls, see `docs/detective_toolkit_section_c_design.md` |
+| [x] C2 | Every consequential selection follows an investigative aim with recorded expected benefit. | VERIFIED — live scenes carry aim/why_selected/expected_audience_gain |
+| [ ] C3 | Question payoffs, connections, human interest, breathing room follow the text. | IN_PROGRESS — needs a longer passage than this section's 3-sentence fixture |
+| [x] C4 | Future knowledge does not leak; no unsupported certainty/conclusions. | VERIFIED — premature-release rejection test, nothing persisted on violation |
 
 ## D. Twenty tools as executable detective tools
 

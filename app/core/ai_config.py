@@ -111,6 +111,9 @@ REQUIRED_ROLES = {
     # verification (vision) with an independent second verifier, video segment scouting
     # (vision) and shot direction. Rights and coverage are deterministic.
     "mvp_needs_planner",
+    # Detective toolkit (Section C): the investigative aim, scene direction and tool
+    # choice behind every visual, map/direct/repair modes over app/documentary/memory.py.
+    "detective_director",
     "mvp_query_planner",
     "mvp_candidate_verifier",
     "mvp_second_verifier",

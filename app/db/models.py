@@ -1194,6 +1194,70 @@ class DetectiveKnowledgeEvent(Base):
     anchor = relationship("ReleaseAnchor")
 
 
+class DetectiveScene(Base):
+    """One Detective Director scene decision (Section C): the investigative aim for a span of
+    narration, the audience-knowledge change it delivers, and why the chosen tool sequence was
+    selected over the alternatives considered. Its ordered `DetectiveToolAction` rows are the
+    actual renderer instructions."""
+
+    __tablename__ = "detective_scenes"
+    __table_args__ = (UniqueConstraint("graph_id", "scene_key", name="uq_detective_scene_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    scene_key: Mapped[str] = mapped_column(String(80))
+    scene_order: Mapped[int] = mapped_column(Integer)
+    agent_run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True)
+    mode: Mapped[str] = mapped_column(String(20))
+    covered_unit_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    aim: Mapped[str] = mapped_column(Text)
+    active_question_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    active_entity_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    state_before_order_seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    state_after_order_seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    change_in_understanding: Mapped[str] = mapped_column(Text)
+    alternatives_considered_json: Mapped[str] = mapped_column(Text, default="[]")
+    why_selected: Mapped[str] = mapped_column(Text)
+    expected_audience_gain: Mapped[str] = mapped_column(Text)
+    audio_clarity_findings_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    graph = relationship("RevealGraph")
+    agent_run = relationship("AgentRun")
+    actions = relationship(
+        "DetectiveToolAction", back_populates="scene", cascade="all, delete-orphan",
+        order_by="DetectiveToolAction.order_index",
+    )
+
+
+class DetectiveToolAction(Base):
+    """One ordered tool instruction within a `DetectiveScene`: which tool, what it shows, which
+    claims/spans justify every visible statement, and how it relates to its neighbours. This is
+    deliberately generic over the tool catalog — Section D gives each `tool_id` its real adapter;
+    this table only records what the Detective Director decided to do with it."""
+
+    __tablename__ = "detective_tool_actions"
+    __table_args__ = (UniqueConstraint("scene_id", "action_key", name="uq_detective_action_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scene_id: Mapped[int] = mapped_column(ForeignKey("detective_scenes.id"), index=True)
+    action_key: Mapped[str] = mapped_column(String(80))
+    order_index: Mapped[int] = mapped_column(Integer)
+    tool_id: Mapped[str] = mapped_column(String(60), index=True)
+    purpose: Mapped[str] = mapped_column(Text)
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    content_bindings_json: Mapped[str] = mapped_column(Text, default="[]")
+    continuity_refs_json: Mapped[str] = mapped_column(Text, default="[]")
+    board_operations_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reading_requirements_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relationship_to_neighbors: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fallback_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reuse_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    scene = relationship("DetectiveScene", back_populates="actions")
+
+
 class EpistemicContractSet(Base):
     """A versioned, reviewable claim ledger for one long-form script."""
 

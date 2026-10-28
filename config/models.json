@@ -107,6 +107,7 @@
         "english_evidence_auditor": "sol",
         "host_meaning_checker": "writer",
         "mvp_needs_planner": "writer",
+        "detective_director": "writer",
         "mvp_query_planner": "research_intelligence",
         "mvp_candidate_verifier": "premium",
         "mvp_second_verifier": "sol",
@@ -351,6 +352,10 @@
     },
     "mvp_needs_planner": {
       "temperature": 0.3,
+      "max_tokens": 32000
+    },
+    "detective_director": {
+      "temperature": 0.4,
       "max_tokens": 32000
     },
     "mvp_query_planner": {

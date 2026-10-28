@@ -539,7 +539,7 @@
       "description": "Topical fill: how related each approved picture or video is to what is said at a bare moment.",
       "used_by": "app/documentary/mvp/topical.py"
     },
-  "mvp.engine_plan": {
+    "mvp.engine_plan": {
       "role": "mvp_engine_planner",
       "prompt": "documentary/mvp/engine_plan_system",
       "output": "json",
@@ -566,6 +566,13 @@
       "output": "json",
       "description": "Alternative graphics: the earliest beat a real newspaper headline may be shown without telling the viewer anything early.",
       "used_by": "app/documentary/mvp/headlines.py"
+    },
+    "detective.director": {
+      "role": "detective_director",
+      "prompt": "documentary/detective/director_system",
+      "output": "json",
+      "description": "Detective Director (Section C): investigation memory and scene direction (map_film/direct_scenes/repair modes).",
+      "used_by": "app/documentary/detective/director.py"
     }
   }
 }

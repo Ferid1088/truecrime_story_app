@@ -88,6 +88,33 @@ def _require_entity(db: Session, graph_id: int, node_key: str) -> RevealNode:
     return node
 
 
+def ensure_entity(
+    db: Session, graph_id: int, node_key: str, label: str, category: str,
+    beat_id: str, order: int, aliases: list[str] | None = None,
+) -> RevealNode:
+    """Get-or-create one `RevealNode` for an entity the Detective Director (Section C) introduces
+    that the reveal graph (Section A/2) did not already register. An existing node's identity
+    (label/category/first-reveal position) is never overwritten here — only `aliases_json` may
+    grow, since adding an alias cannot change what has already been revealed."""
+    node = db.query(RevealNode).filter_by(graph_id=graph_id, node_key=node_key).first()
+    if node is not None:
+        if aliases:
+            existing_aliases = set(json.loads(node.aliases_json))
+            merged = sorted(existing_aliases | set(aliases))
+            if merged != sorted(existing_aliases):
+                node.aliases_json = json.dumps(merged)
+                db.flush()
+        return node
+    node = RevealNode(
+        graph_id=graph_id, node_key=node_key, label=label, category=category,
+        first_revealed_beat_id=beat_id, first_revealed_order=order,
+        aliases_json=json.dumps(aliases or []),
+    )
+    db.add(node)
+    db.flush()
+    return node
+
+
 def add_claim(
     db: Session, graph_id: int, claim_key: str, entity_node_key: str, attribute: str,
     text: str, basis: str, attribution: str | None = None,
