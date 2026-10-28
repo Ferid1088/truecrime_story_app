@@ -18,8 +18,10 @@ import os
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
+from app.core.prompts import prompt
 from app.db.models import DetectiveScene, DetectiveToolAction, ReleaseAnchor, RevealGraph
 from app.documentary import memory as MEM
+from app.documentary.memory import MemoryValidationError
 from app.documentary.detective.persist import persist_director_output
 from app.documentary.detective.schema import NarrationIndex, validate_director_output
 from app.documentary.detective.tool_catalog import build_tool_catalog
@@ -61,6 +63,18 @@ def _all_anchors(db: Session, graph_id: int) -> list[dict]:
             "char_start": a.char_start, "char_end": a.char_end,
         })
     return out
+
+
+def _already_introduced(db: Session, graph_id: int) -> list[str]:
+    """`subject_id`s that already have an 'introduce' knowledge event for this graph — a real live
+    call (Section K) showed `direct_scenes` re-proposing 'introduce' for something `map_film` had
+    already introduced, even though `existing_state` already lists it; a prose instruction alone
+    was not reliable, so this list and the rule below are stated explicitly (same reasoning as the
+    other `schema_hints` entries)."""
+    from app.db.models import DetectiveKnowledgeEvent
+    rows = (db.query(DetectiveKnowledgeEvent.subject_key)
+           .filter_by(graph_id=graph_id, operation="introduce").all())
+    return sorted({r[0] for r in rows})
 
 
 def _existing_state(db: Session, graph_id: int) -> dict:
@@ -116,6 +130,8 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
                               "fallback", "reuse_reason"],
             "content_bindings_format": "a flat JSON list of claim/question/relation stable ID strings "
                                         "(the exact `id` values used above) — not objects, not nested.",
+            "already_introduced_subject_keys": _already_introduced(db, graph_id),
+            "already_introduced_rule": prompt("documentary/detective/already_introduced_rule"),
         },
     }
     if repair_target is not None:
@@ -146,7 +162,19 @@ async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
     if violations:
         raise DirectorValidationFailed(violations)
 
-    counts = persist_director_output(db, graph_id, run_id, mode, raw)
+    # Section B's memory functions enforce invariants schema.py cannot see without a DB round
+    # trip (e.g. first-introduction uniqueness against *already-persisted* events, not just this
+    # payload). A real live call (Section K) surfaced one: `direct_scenes` re-introduced an entity
+    # `map_film` had already introduced. Without this savepoint, the claims/questions/relations/
+    # scenes already written earlier in this same call stayed committed while the run crashed -
+    # a partially-persisted, semantically broken plan, violating this module's own documented
+    # "nothing was persisted" guarantee. A failure here must roll back exactly as cleanly as a
+    # schema.py violation does.
+    try:
+        with db.begin_nested():
+            counts = persist_director_output(db, graph_id, run_id, mode, raw)
+    except MemoryValidationError as e:
+        raise DirectorValidationFailed([str(e)]) from e
     return {"agent_run_id": run_id, "output": raw, "counts": counts}
 
 

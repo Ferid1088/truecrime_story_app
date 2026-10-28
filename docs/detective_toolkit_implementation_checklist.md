@@ -109,10 +109,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] K1 | The same real passage is compared before/after, showing purposeful tool use and continuing boards. | NOT_STARTED |
-| [ ] K2 | Final encoded output is checked in the stated viewing/listening modes; fixture proof is distinguished. | NOT_STARTED |
-| [ ] K3 | All prompts, schemas/configuration, proofs, test results, and review outcomes are supplied. | NOT_STARTED |
-| [ ] K4 | Every required atomic entry is verified against current versions; any failed/stale entry has re-entered the repair loop. | NOT_STARTED |
+| [x] K1 | The same real passage is compared before/after, showing purposeful tool use and continuing boards. | VERIFIED — docs/detective_toolkit_section_k_handover.md#before--after-comparison-same-real-beats |
+| [ ] K2 | Final encoded output is checked in the stated viewing/listening modes; fixture proof is distinguished. | IN_PROGRESS — docs/detective_toolkit_section_k_handover.md#film-experience-reviewer-evidence-closes-j3 |
+| [x] K3 | All prompts, schemas/configuration, proofs, test results, and review outcomes are supplied. | VERIFIED — docs/detective_toolkit_section_k_handover.md#handover-index |
+| [x] K4 | Every required atomic entry is verified against current versions; any failed/stale entry has re-entered the repair loop. | VERIFIED — tests/test_detective_director.py (11/11) |
 
 ## Individual toolkit (T01-T20)
 

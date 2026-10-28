@@ -24,7 +24,7 @@ from app.db.models import (
 from app.documentary.detective import director
 from app.documentary.detective.persist import persist_director_output
 from app.documentary.detective.schema import DirectorOutputError, NarrationIndex, validate_director_output
-from app.documentary.memory import MemoryValidationError, add_narration_unit
+from app.documentary.memory import MemoryValidationError, add_narration_unit, record_knowledge_event
 from app.providers.generation.base import GenerationResult
 
 
@@ -190,6 +190,70 @@ def test_persist_rejects_duplicate_first_reveal(db_session):
     }
     with pytest.raises(MemoryValidationError):
         persist_director_output(db_session, graph.id, None, "map_film", payload)
+
+
+def test_already_introduced_hint_lists_subjects_with_an_introduce_event(db_session):
+    """The schema_hints fix for the Section K live finding: a subject already in the knowledge
+    log must be named explicitly, not left to prose alone."""
+    graph = _graph(db_session, beats=[{"id": "B01"}])
+    record_knowledge_event(db_session, graph.id, subject_type="entity", subject_key="gun",
+                           operation="introduce", new_state={})
+    record_knowledge_event(db_session, graph.id, subject_type="claim", subject_key="c-origin",
+                           operation="introduce", new_state={})
+    record_knowledge_event(db_session, graph.id, subject_type="entity", subject_key="gun",
+                           operation="reference", new_state={})
+    assert director._already_introduced(db_session, graph.id) == ["c-origin", "gun"]
+
+
+def test_a_mid_persist_memory_violation_rolls_back_everything_from_that_call(db_session, monkeypatch):
+    """Section K live proof (real excerpt, 2026-10-28): a real `direct_scenes` call re-introduced
+    an entity `map_film` had already introduced. `persist_director_output` had already written
+    this call's claims/scenes before reaching that knowledge event and crashing — leaving a
+    partially-persisted, semantically broken plan despite this module's documented "nothing was
+    persisted" guarantee. `_call`'s savepoint must roll back the whole failed call, same as a
+    schema.py violation does."""
+    graph = _graph(db_session, beats=[{"id": "B01"}])
+    _entity(db_session, graph, "gun", "9mm handgun", "B01", 1)
+    add_narration_unit(db_session, graph.id, "B01-1", "B01", 1, "en",
+                        "Detectives found a 9mm handgun inside the house.")
+    db_session.commit()
+    record_knowledge_event(db_session, graph.id, subject_type="entity", subject_key="gun",
+                           operation="introduce", new_state={})
+    db_session.commit()
+
+    bad_payload = {
+        "schema_version": "1.0", "run_id": "run-2", "film_id": f"case-{graph.case_id}",
+        "language": "en", "text_version": 1, "mode": "direct_scenes",
+        "entities": [], "questions": [], "relations": [],
+        "claims": [{"id": "c-should-not-persist", "entity_ids": ["gun"], "attribute": "origin",
+                    "text": "found inside the house", "basis": "established_in_text",
+                    "supporting_span_ids": ["B01-1"]}],
+        "knowledge_events": [
+            {"subject_type": "entity", "subject_id": "gun", "operation": "introduce", "new_state": {}},
+        ],
+        "scenes": [{
+            "id": "s-should-not-persist", "covered_span_ids": ["B01-1"], "aim": "x",
+            "active_question_ids": [], "active_thread_ids": ["gun"],
+            "change_in_understanding": "x", "alternatives_considered": [], "why_selected": "x",
+            "expected_audience_gain": "x", "audio_clarity_findings": [],
+            "actions": [{"id": "a1", "tool_id": "fact_card", "purpose": "x",
+                         "payload": {"sentences": ["x"]}, "content_bindings": ["c-should-not-persist"]}],
+        }],
+        "requests": [], "affected_scene_ids": [], "checks": {},
+    }
+    fake = FakeDirectorGen(bad_payload)
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+
+    import asyncio
+    with pytest.raises(director.DirectorValidationFailed):
+        asyncio.run(director.direct_scenes(db_session, graph.id, scene_unit_keys=["B01-1"],
+                                           language="en", text_version=1))
+
+    assert db_session.query(DetectiveScene).filter_by(graph_id=graph.id,
+                                                       scene_key="s-should-not-persist").first() is None
+    from app.db.models import DetectiveClaim
+    assert db_session.query(DetectiveClaim).filter_by(graph_id=graph.id,
+                                                       claim_key="c-should-not-persist").first() is None
 
 
 def test_map_film_calls_agent_validates_and_persists(db_session, monkeypatch):
