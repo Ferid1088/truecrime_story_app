@@ -338,6 +338,22 @@ def request_review(db: Session, needs_plan: VisualPlan) -> None:
     db.commit()
 
 
+def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) -> None:
+    """The gate before direction: pictures the verifiers could not settle (needs_review) are the owner's to decide, so
+    the run stops until they have been reviewed. Approving or rejecting a picture takes it out of needs_review."""
+    from app.documentary.pipeline.errors import AwaitingPictureReview
+
+    pictures = {asset_id for (asset_id,) in (
+        db.query(MvpCandidate.visual_asset_id)
+        .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+        .filter(MvpRequirement.visual_plan_id == needs_plan.id, MvpCandidate.final_status == "needs_review"))}
+    if not pictures:
+        return
+    raise AwaitingPictureReview(
+        f"Awaiting picture review: {len(pictures)} picture(s) need your attention before the {language} film is "
+        "directed. Open Review pictures, approve or reject each one marked Not sure, then resume.")
+
+
 def stage_complete(plan_row: VisualPlan, language: str) -> dict:
     """The gate before anything is made from the plan: every moment has a picture, a video or a graphic. Moments
     that are still empty after all alternatives stop the run for the owner's picture review."""

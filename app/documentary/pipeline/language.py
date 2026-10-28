@@ -174,6 +174,7 @@ class LanguageChain:
         await pipe._stage(f"mvp_host:{lang}", mvp_host)
 
         async def mvp_direct():
+            MVP.stage_owner_attention(db, needs_plan, lang)
             plan, report = await MVP.stage_direct(db, case, needs_plan, state["bp"], manifest, lang)
             holder["plan"] = plan
             out = {"visual_plan_id": plan.id, **{k: report[k] for k in (

@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.db.models import (Case, EditorialBlueprint, MvpCandidate, MvpRequirement, StoryVersion,
@@ -155,3 +156,17 @@ def test_the_owner_note_is_stored_listed_and_limited(db_session):
     assert client.put(url, json={"note": "x" * 401}).status_code == 422
     assert client.put(url, json={"note": "  "}).json()["owner_note"] is None
     assert client.put(f"/api/cases/{case.id + 999}/mvp/assets/{asset.id}/note", json={"note": "a"}).status_code == 404
+
+
+def test_the_run_stops_while_a_picture_needs_the_owner_and_goes_on_once_it_is_decided(db_session):
+    from app.documentary.mvp.pipeline import stage_owner_attention
+    from app.documentary.pipeline.errors import AwaitingPictureReview
+
+    case, plan, cand = _seed(db_session)
+    with pytest.raises(AwaitingPictureReview, match=r"Awaiting picture review: 1 picture\(s\) need your attention"):
+        stage_owner_attention(db_session, plan, "en")
+    response = TestClient(app).post(f"/api/cases/{case.id}/mvp/candidates/decision",
+                                    json={"candidate_ids": [cand.id], "decision": "reject"})
+    assert response.status_code == 200
+    db_session.expire_all()
+    assert stage_owner_attention(db_session, plan, "en") is None
