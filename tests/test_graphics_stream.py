@@ -136,3 +136,18 @@ def test_a_shot_shorter_than_its_schedule_streams_faster_but_not_below_the_floor
 def test_other_languages_get_their_own_schedule_from_their_own_words():
     data = data_of("conflict", "en")
     assert GS.schedule_of("conflict", data_of("conflict", "fa"), "fa").counts != GS.schedule_of("conflict", data, "en").counts
+
+
+def _road(points, shown):
+    events = [{"date": {"year": 2019 + i}, "label": "The suspect told detectives he never left the house", "fact_id": f"T{i}"}
+              for i in range(points)]
+    return {"events": events, "shown": shown}
+
+
+def test_a_card_that_continues_the_road_does_not_stream_the_points_the_viewer_has_already_seen():
+    first, later = GS.schedule_of("timeline", _road(3, 0), "en"), GS.schedule_of("timeline", _road(6, 3), "en")
+    assert first.counts[0] > 0 and later.counts[0] == 0                      # the earlier points are simply there
+    assert later.total < first.total + 1.0                                    # as long as a first card, not longer
+    graph = graphic("timeline")
+    stream = ST.Stream(graph, _road(6, 3), "en", list(later.cues), later.total, 6.0)
+    assert stream.words_shown(0.0) == len(stream.layers[0].words)            # on screen at the first frame

@@ -166,12 +166,12 @@ def test_timeline_offers_group_events_in_story_order_and_never_before_they_are_t
               for n in range(1, 8)]
     ev = evidence(events=events)
     offers = AL.timeline_offers(ev, {})
-    assert [len(o.data["events"]) for o in offers] == [5, 7] and [o.data["shown"] for o in offers] == [0, 5]
-    assert [e["fact_id"] for e in offers[1].data["events"]] == [f"T{n}" for n in range(1, 8)]   # the road goes on
-    assert offers[1].items == {"T6", "T7"} and AL.graphic("timeline").required_cues(offers[1].data) == 2
+    assert [len(o.data["events"]) for o in offers] == [3, 6, 7] and [o.data["shown"] for o in offers] == [0, 3, 6]
+    assert [e["fact_id"] for e in offers[1].data["events"]] == [f"T{n}" for n in range(1, 7)]   # the road goes on
+    assert offers[1].items == {"T4", "T5", "T6"} and AL.graphic("timeline").required_cues(offers[1].data) == 3
     first = offers[0]
-    assert first.best == ev.order["B07"] and first.first == first.best      # not before its last event is told
-    assert first.seconds == pytest.approx(GS.planned_seconds("timeline", first.data)) and first.items == {"T1", "T2", "T3", "T4", "T5"}
+    assert first.best == ev.order["B05"] and first.first == first.best      # not before its last event is told
+    assert first.seconds == pytest.approx(GS.planned_seconds("timeline", first.data)) and first.items == {"T1", "T2", "T3"}
 
 
 def test_quotes_are_complete_the_fullest_wording_and_once_per_fact():
@@ -745,3 +745,84 @@ def test_the_statement_card_is_only_chosen_when_no_other_alternative_fits_the_st
     again[0]["said"] = "Kayla Keyt spoke next."
     AL.fill_beat(again, length, 3, [card], AL.State())
     assert card.placed                                           # nothing else: the card fills it
+
+
+# -- the road of the case timeline ----------------------------------------------------------------------------------------
+
+
+def _road_card(n, best, seconds=24.0):
+    events = [{"date": {"year": 2019 + i}, "label": f"Event {i}", "fact_id": f"T{i}"} for i in range(n + 1)]
+    return AL.Offer("timeline", f"timeline|T{n}", best, best + 3, best, {"events": events, "shown": n}, seconds, 12.0,
+                    frozenset({f"T{n}"}))
+
+
+def test_the_next_card_of_the_road_takes_its_seconds_from_the_longest_still_picture_of_its_beat():
+    first, second = _road_card(0, best=0), _road_card(1, best=0)
+    shots = [_picture("A", 20), _picture("B", 40)]
+    AL.extend_road(shots, 60.0, 0, [first, second], AL.State())
+    assert first.placed and not second.placed                         # the road starts with its first card, one per beat
+    assert [s.get("asset_id") or s["command"] for s in shots] == ["A", "SHOW_GRAPHIC", "B"]    # before the last picture
+    assert _seconds(shots[0]) == 20.0 and _seconds(shots[1]) == 24.0 and _seconds(shots[2]) == 16.0
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+
+
+def test_a_card_waits_for_the_earlier_cards_and_for_its_beat_and_never_cuts_a_picture_below_the_floor():
+    first, second = _road_card(0, best=0), _road_card(1, best=2)
+    shots = [_picture("A", 20), _picture("B", 40)]
+    AL.extend_road(shots, 60.0, 0, [first, second], AL.State())
+    AL.extend_road(shots, 60.0, 1, [first, second], AL.State())
+    assert first.placed and not second.placed                         # beat 1 is before the second card's beat
+    short = [_picture("A", 15, 30.0), _picture("B", 15, 30.0)]
+    long_card = _road_card(1, best=2)
+    long_card.min_seconds = 24.0
+    AL.extend_road(short, 30.0, 2, [long_card], AL.State())
+    assert [s["command"] for s in short] == ["NEW_IMAGE", "NEW_IMAGE"]  # 18 s are free, the card needs 24
+
+
+def test_a_long_card_takes_from_several_stills_the_longest_first_and_none_is_cut_below_the_floor():
+    card = _road_card(0, best=0, seconds=40.0)
+    card.min_seconds = 30.0
+    shots = [_picture("A", 20), _picture("B", 25), _picture("C", 15)]
+    AL.extend_road(shots, 60.0, 0, [card], AL.State())
+    assert card.placed and [s.get("asset_id") or "card" for s in shots] == ["A", "B", "card", "C"]
+    assert [_seconds(s) for s in shots] == [6.0, 6.0, 40.0, 8.0]      # B gave 19, A 14, C 7
+    assert abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+
+
+def test_only_still_pictures_give_time_to_the_road():
+    card = _road_card(0, best=0)
+    shots = [{**_picture("V", 30), "command": "SHOW_CLIP"}, {**_picture("M", 30), "command": "SHOW_MAP"}]
+    AL.extend_road(shots, 60.0, 0, [card], AL.State())
+    assert not card.placed and [s["command"] for s in shots] == ["SHOW_CLIP", "SHOW_MAP"]
+
+
+def test_a_statement_card_gives_way_to_the_next_card_of_the_road_and_is_offered_again():
+    stand_in = AL.Offer("fact_card", "fact_card|F9", 0, 3, 0, {"text": "A fact", "fact_id": "F9"}, 15.0, 9.0,
+                        frozenset({"F9"}))
+    state = AL.State()
+    AL.commit(stand_in, 15.0, 0, state)
+    card = _road_card(0, best=0, seconds=24.0)
+    shots = [_picture("A", 10), AL.graphic_shot(stand_in, 15.0, 60.0, "stand-in"), _picture("B", 35)]
+    AL.extend_road(shots, 60.0, 0, [stand_in, card], state)
+    assert card.placed and not stand_in.placed and "fact_card|F9" not in state.used_keys
+    assert [s.get("asset_id") or s["graphic"]["type"] for s in shots] == ["A", "timeline", "B"]
+    assert _seconds(shots[1]) == 24.0 and _seconds(shots[2]) == 26.0       # 15 s from the stand-in, 9 s from B
+    assert state.seconds["fact_card"] == 0.0 and abs(sum(s["share"] for s in shots) - 1.0) < 1e-6
+
+
+def test_a_card_of_a_road_is_never_placed_before_the_card_it_continues():
+    first, second = _road_card(0, best=0), _road_card(1, best=0)
+    second.after = first
+    shots, length = gap_beat(60.0, (60.0,))
+    AL.fill_beat(shots, length, 0, [second], AL.State())
+    assert not second.placed and shots[0]["command"] == "BLACK_SCREEN"
+    AL.fill_beat(shots, length, 0, [first, second], AL.State())
+    assert first.placed and second.placed                      # once its predecessor is on screen it follows it
+
+
+def test_a_change_of_the_planner_rules_makes_the_film_plan_again(db_session, monkeypatch):
+    first = text_offer("F1", "Flynn house at night.", best=0, drift=0, seconds=60.0)
+    report, _ = _two_beats(db_session, monkeypatch, [first])
+    monkeypatch.setitem(GS.T.config().planner, "min_run_seconds", 7.5)
+    again, _ = _two_beats(db_session, monkeypatch, [text_offer("F1", "Flynn house at night.", best=0, drift=0, seconds=60.0)])
+    assert report["fingerprint"] != again["fingerprint"]

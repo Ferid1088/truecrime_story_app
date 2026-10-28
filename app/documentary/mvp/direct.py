@@ -624,7 +624,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         "places": sorted(place_names), "region": region,
         "offers": [[o.key, o.first, o.last, o.seconds, sorted(o.items)] for o in offers],
         "requirements": {b: sorted(r["key"] for r in rs) for b, rs in sorted(counted_requirements(db, plan).items())},
-        "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "neighbour_cover": cover_approved(plan),
+        "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "rules": AL.T.config().planner, "neighbour_cover": cover_approved(plan),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
@@ -693,6 +693,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         add_date_overlay(shots, extras.get(bid) or {})
         idx = beat_order.get(bid, 0)
         AL.fill_beat(shots, window_len, idx, offers, state, card_tail(window))
+        AL.extend_road(shots, window_len, idx, offers, state, card_tail(window))
         board = AL.board_offer(state, idx + 1) if AL.board_due(offers, state, idx) else None
         if board is not None:
             offers.append(board)

@@ -91,12 +91,18 @@ class Layer:
         return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8), "RGB")
 
 
-def new_words(layers: list[Layer], continued: bool) -> list[list[int]]:
+def carried_over(data: dict) -> bool:
+    """True for a card that continues an earlier one (`shown` points are already on the line): what its first page holds
+    was seen on the earlier card, so it is on screen from the start and is not streamed again."""
+    return int(data.get("shown") or 0) > 0
+
+
+def new_words(layers: list[Layer], continued: bool, carried: bool = False) -> list[list[int]]:
     """For each step the indices of the words that appear then: of the page shown at that step (a continuing board) or of
     the last page (a page of its own, whose words come in step by step). A word belongs to the first step whose page
     holds it."""
     if continued:
-        out = [list(range(len(layers[0].words)))]
+        out = [[] if carried else list(range(len(layers[0].words)))]
         for before, after in zip(layers, layers[1:], strict=False):
             matched = set()
             for block in SequenceMatcher(None, before.texts, after.texts, autojunk=False).get_matching_blocks():
@@ -137,7 +143,7 @@ def schedule(kind: str, data_json: str, language: str) -> Schedule:
 
     g, data = graphic(kind), json.loads(data_json)
     layers = [Layer(g, data, language, step) for step in range(g.required_cues(data) + 1)]
-    counts = tuple(len(ix) for ix in new_words(layers, is_continued(kind)))
+    counts = tuple(len(ix) for ix in new_words(layers, is_continued(kind), carried_over(data)))
     cfg = T.config().stream
     pace = 1.0 / cfg.words_per_second
     t = cfg.start_seconds + counts[0] * pace
@@ -157,7 +163,7 @@ class Stream:
         self.continued = is_continued(graphic.kind)
         self.cfg = T.config().stream
         self.layers = [Layer(graphic, data, language, step) for step in range(len(self.cues) + 1)]
-        self.new = new_words(self.layers, self.continued)
+        self.new = new_words(self.layers, self.continued, carried_over(data))
         self.limit_end = duration - rest
         self._times = self._word_times()
 

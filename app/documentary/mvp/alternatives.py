@@ -36,6 +36,7 @@ class Offer:
     credit: str | None = None
     placed: bool = False
     meta: dict = field(default_factory=dict)      # what the planner's inspector shows (engines)
+    after: "Offer | None" = None                  # the card of the same road that must be on screen before this one
 
 
 @dataclass
@@ -120,6 +121,7 @@ def timeline_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
         made = offer("timeline", f"timeline|{group[0]['fact_id']}", data, best,
                      items=tuple(e["fact_id"] for e in group), count=len(group))
         if made:
+            made.after = out[-1] if out else None
             out.append(made)
     return out
 
@@ -378,7 +380,7 @@ def relevant(o: Offer, idx: int, said: str) -> bool:
 
 
 def usable(o: Offer, idx: int, remaining: float, state: State, said: str = "") -> bool:
-    return (not o.placed and o.key not in state.used_keys and o.first <= idx <= o.last + state.relax.get("extra_drift", 0)
+    return (not o.placed and (o.after is None or o.after.placed) and o.key not in state.used_keys and o.first <= idx <= o.last + state.relax.get("extra_drift", 0)
             and o.min_seconds <= remaining + 1e-6 and not (o.items & state.used_items)
             and not repeats_engine(o, idx, state) and relevant(o, idx, said))
 
@@ -445,6 +447,86 @@ def borrow(shots: list[dict], donated: list[list], run_first: int, need: float, 
     return taken
 
 
+def commit(chosen: Offer, length: float, idx: int, state: State) -> None:
+    """The film's bookkeeping for an alternative that has just been put on screen for `length` seconds."""
+    chosen.placed = True
+    state.used_keys.add(chosen.key)
+    state.used_items |= chosen.items
+    state.seconds[chosen.kind] = state.seconds.get(chosen.kind, 0.0) + length
+    state.placed += 1
+    if chosen.kind in GS.ENGINE_KINDS:
+        state.engine_last[chosen.kind] = idx
+        state.engine_kind = chosen.kind
+        state.engine_count += 1
+        state.engine_texts.append(offer_text(chosen))
+    if chosen.kind == "conflict":
+        state.pages.append({"order": state.placed, **chosen.data["conflict"], "a": chosen.data["sides"][0]["who"],
+                            "b": chosen.data["sides"][1]["who"]})
+
+
+def release(offer: Offer, length: float, state: State) -> None:
+    """The reverse of `commit`: an alternative that was put on screen is taken off again and can be placed elsewhere."""
+    offer.placed = False
+    state.used_keys.discard(offer.key)
+    state.used_items -= offer.items
+    state.seconds[offer.kind] = state.seconds.get(offer.kind, 0.0) - length
+    state.placed -= 1
+
+
+def extend_road(shots: list[dict], window_len: float, idx: int, offers: list[Offer], state: State,
+                tail: float = 0.0) -> None:
+    """A card that continues a road (the case timeline) is shown at its beat even where no stretch is bare, so the road
+    reaches its end. The next card of the road takes its seconds first from the stand-in cards of the beat
+    (`planner.road.replace`: a statement card is worth less and is offered again elsewhere), then from the still
+    pictures, the longest first (none is cut below `planner.borrow.min_shot_seconds`; a clip, a map or another graphic
+    never gives any). It is laid where the first stand-in was, or after the longest still. Cards come in order, one per
+    beat, and only once every earlier card of the road is on screen."""
+    cfg = T.config().planner["road"]
+    floor = T.config().planner["borrow"]["min_shot_seconds"]
+    for kind in cfg["kinds"]:
+        due = next((o for o in sorted(offers, key=lambda o: o.best) if o.kind == kind and not o.placed), None)
+        if due is None or not usable(due, idx, due.seconds, state) or idx > due.last:
+            continue
+        stand_ins = sorted((i for i, s in enumerate(shots) if s.get("command") == "SHOW_GRAPHIC"
+                            and (s.get("graphic") or {}).get("type") in cfg["replace"]),
+                           key=lambda i: -shots[i]["share"])
+        swallowed, got = [], 0.0
+        for i in stand_ins:
+            if got >= due.seconds:
+                break
+            swallowed.append(i)
+            got += shots[i]["share"] * window_len
+        stills = [i for i, s in enumerate(shots) if s.get("command") == "NEW_IMAGE" and not s.get("gap")]
+        reserve = tail if shots and stills and stills[-1] == len(shots) - 1 else 0.0
+        give = {i: max(shots[i]["share"] * window_len - floor - (reserve if i == len(shots) - 1 else 0.0), 0.0)
+                for i in stills}
+        if got + sum(give.values()) < due.min_seconds - 1e-6:
+            continue
+        need = max(due.seconds - got, 0.0)
+        length, donor = got + min(need, sum(give.values())), max(give, key=give.get, default=None)
+        for i in sorted(give, key=lambda i: -give[i]):
+            part = min(need, give[i])
+            shots[i]["share"] -= part / window_len
+            need -= part
+        card = graphic_shot(due, length, window_len,
+                            f"{due.kind} continues the road ({', '.join(sorted(due.items))[:60]})")
+        if swallowed:
+            for i in swallowed:
+                standing = shots[i]["graphic"]
+                owner = next((o for o in offers if o.placed and o.kind == standing["type"] and o.data == standing["data"]),
+                             None)
+                if owner is not None:
+                    release(owner, shots[i]["share"] * window_len, state)
+            first = min(swallowed)
+            shots[first] = card
+            for i in sorted(swallowed, reverse=True):
+                if i != first:
+                    del shots[i]
+        else:
+            shots.insert(donor if donor == len(shots) - 1 else donor + 1, card)
+        commit(due, length, idx, state)
+
+
 def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer], state: State,
               tail: float = 0.0) -> None:
     """Put offers into the beat's bare stretches (longest first); what no offer fits stays bare for the next step.
@@ -478,19 +560,7 @@ def fill_beat(shots: list[dict], window_len: float, idx: int, offers: list[Offer
                 remaining += borrow(shots, give, first, min(chosen.seconds, reach) - remaining, window_len)
             length = min(chosen.seconds, remaining)
             taken.append((chosen, length))
-            chosen.placed = True
-            state.used_keys.add(chosen.key)
-            state.used_items |= chosen.items
-            state.seconds[chosen.kind] = state.seconds.get(chosen.kind, 0.0) + length
-            state.placed += 1
-            if chosen.kind in GS.ENGINE_KINDS:
-                state.engine_last[chosen.kind] = idx
-                state.engine_kind = chosen.kind
-                state.engine_count += 1
-                state.engine_texts.append(offer_text(chosen))
-            if chosen.kind == "conflict":
-                state.pages.append({"order": state.placed, **chosen.data["conflict"], "a": chosen.data["sides"][0]["who"],
-                                    "b": chosen.data["sides"][1]["who"]})
+            commit(chosen, length, idx, state)
             remaining -= length
         if not taken:
             continue
