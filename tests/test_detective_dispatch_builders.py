@@ -250,3 +250,166 @@ def test_sentencing_builder_renders_T20(db_session):
     data = D._sentencing_data(db_session, action)
     assert SentencingExplanation().can_render(data) is None
     SentencingExplanation().draw(json.dumps(data), "en", 1)
+
+
+def _sourced_claim(db_session, graph, case, claim_text, source, basis="attributed"):
+    """A detective claim linked, through a stored Fact, to a real Source row."""
+    from app.db.models import DetectiveClaim, Source
+
+    db_session.add(source)
+    db_session.flush()
+    fact = Fact(case_id=case.id, claim=claim_text, source_ids_json=json.dumps([source.id]))
+    db_session.add(fact)
+    db_session.flush()
+    MEM.ensure_entity(db_session, graph.id, "ent", "Entity", "event", "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "ent", "statement", claim_text, basis, attribution="Court")
+    db_session.query(DetectiveClaim).filter_by(claim_key="c1").update(
+        {"evidence_fact_ids_json": json.dumps([fact.id])})
+    db_session.flush()
+
+
+def test_document_builder_renders_T11(db_session):
+    from app.db.models import Source
+    from app.documentary.graphics.document import DocumentCard
+
+    graph, _, case = _graph(db_session, beats=[{"id": "B01"}])
+    quote = "The defendant fired two shots into the victim while she lay in bed."
+    _sourced_claim(db_session, graph, case, quote, Source(
+        case_id=case.id, title="Sentencing Opinion", url="https://courts.example.gov/op.pdf",
+        source_type="official", publisher="Delaware County Court", language="en",
+        raw_text=f"Findings of fact. {quote} The court so finds.", published_at="2026-10-05"))
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "document")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    data = D._document_data(db_session, action)
+    assert DocumentCard().can_render(data) is None
+    DocumentCard().draw_state(data, "en", 1)
+
+
+def test_document_builder_refuses_a_quote_not_in_the_official_source(db_session):
+    from app.db.models import Source
+
+    graph, _, case = _graph(db_session, beats=[{"id": "B01"}])
+    _sourced_claim(db_session, graph, case, "A sentence the court never wrote.", Source(
+        case_id=case.id, title="Opinion", url="https://courts.example.gov/op.pdf", source_type="official",
+        publisher="Delaware County Court", language="en", raw_text="Entirely different text."))
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "document")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    assert D._document_data(db_session, action) is None
+
+
+def test_headline_builder_renders_T13(db_session):
+    from app.db.models import Source
+    from app.documentary.graphics.headline import HeadlineCard
+
+    graph, _, case = _graph(db_session, beats=[{"id": "B01"}])
+    _sourced_claim(db_session, graph, case, "Husband charged in wife's shooting death.", Source(
+        case_id=case.id, title="Husband charged in wife's shooting death in Ohio",
+        url="https://www.theguardian.com/us-news/2026/feb/16/ohio-shooting", source_type="news",
+        publisher="The Guardian", language="en", published_at="2026-02-16"))
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "headline")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    data = D._headline_data(db_session, action)
+    assert HeadlineCard().can_render(data) is None
+    HeadlineCard().draw_state(data, "en", 1)
+
+
+def test_headline_builder_refuses_an_unlisted_outlet(db_session):
+    from app.db.models import Source
+
+    graph, _, case = _graph(db_session, beats=[{"id": "B01"}])
+    _sourced_claim(db_session, graph, case, "Husband charged.", Source(
+        case_id=case.id, title="Husband charged in wife's shooting death in Ohio",
+        url="https://random-blog.example.com/post", source_type="news", publisher="A blog",
+        language="en", published_at="2026-02-16"))
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "headline")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    assert D._headline_data(db_session, action) is None
+
+
+def _map_fixture(db_session, category="place"):
+    graph, _, case = _graph(db_session, beats=[{"id": "B01"}])
+    MEM.ensure_entity(db_session, graph.id, "court", "Cunningham Court", category, "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "court", "location", "The house stood on Cunningham Court.",
+                 "established_in_text")
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "map")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    return graph, case, action
+
+
+def test_map_place_comes_only_from_a_stored_place_entity(db_session):
+    _, _, action = _map_fixture(db_session, category="place")
+    assert D._map_place_of(db_session, action) == "Cunningham Court"
+    _, _, person = _map_fixture(db_session, category="person")
+    assert D._map_place_of(db_session, person) is None      # never a map of a person or invented geography
+
+
+def test_map_action_reaches_needs_as_the_beats_map_place_and_is_not_dispatched_as_a_graphic(db_session):
+    graph, _, action = _map_fixture(db_session)
+    raw = D.detective_raw_needs(db_session, graph)
+    assert [b["map_place"] for b in raw["beats"]] == ["Cunningham Court"]
+    skipped = D.resolve_dispatchable_actions(db_session, graph.id)[0]
+    assert skipped["skip"] == "routed_via_needs_map_place" and skipped["map_place"] == "Cunningham Court"
+
+
+def test_map_renders_through_the_real_direction_and_map_panel_path_T01(db_session):
+    import numpy as np
+
+    from app.core.ai_config import ai_config
+    from app.documentary.graphics import mappanel as PANEL
+    from app.documentary.mvp import direct as DR
+    from app.documentary.mvp.pipeline import case_region
+
+    graph, case, action = _map_fixture(db_session)
+    case.location = "Tipp City, Ohio, United States"
+    place = D.detective_raw_needs(db_session, graph)["beats"][0]["map_place"]
+    # the real direction step: a bare stretch whose words name the place becomes a SHOW_MAP shot
+    window = 30.0
+    shots = [{"gap": True, "share": 1.0, "said": "The call came from Cunningham Court in Tipp City."}]
+    DR.add_map_cards(shots, {"map_place": place}, window, [], set(), case_region(case))
+    maps = [s for s in shots if s.get("command") == "SHOW_MAP"]
+    assert maps and maps[0]["map_place"] == "Cunningham Court, Ohio, United States"
+    # the real panel renderer for that place (synthetic map frame, as tests/test_map_panel.py does)
+    width = PANEL.map_width(1920)
+    panel = {"names": ["United States", "Ohio", "Tipp City", "Cunningham Court"], "target": [39.96, -84.18],
+             "camera": [{"t": t, "zoom": z, "lon": -84.18, "lat": 39.96, "pitch": 0.0, "bearing": 0.0}
+                        for t, z in ((0.0, 2.0), (3.0, 6.0), (6.0, 10.0), (9.0, 15.0))]}
+    frame = PANEL.MapPanel("en", panel, maps[0]["map_place"], ["© OpenStreetMap contributors"]).compose(
+        np.full((1080, width, 3), 90, np.uint8), 9.5, [0.0, 3.0, 6.0, 9.0], 1920)
+    assert frame.shape == (1080, 1920, 3) and not (frame[:600, :width] == 90).all()
+
+
+def _beat_with_a_plentiful_photo(db_session, tool_id):
+    """One beat, an approved photo already filling all of it, and one detective action for it."""
+    graph, _, _ = _graph(db_session, beats=[{"id": "B01"}])
+    MEM.ensure_entity(db_session, graph.id, "gun", "The 9mm", "object", "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "gun", "origin", "The gun came from the house.", "established_in_text")
+    _, action = _scene_with_action(db_session, graph, "B01", 0, tool_id)
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    photo = {"kind": "photo", "beat_id": "B01", "start": 0.0, "end": 20.0, "asset_id": "A1"}
+    return graph, [photo], [{"beat_id": "B01", "start": 0.0, "end": 20.0}]
+
+
+def test_with_a_photo_available_the_narrated_aim_decides_whether_a_graphic_or_the_photo_is_shown(db_session):
+    """D2's competitive choice: the same beat with a plentiful photo ends up with a graphic when the
+    detective's aim is a consequential fact, and keeps the photo untouched when its aim is the
+    person/object itself - and the two aims reach the old requirement vocabulary differently."""
+    # aim: emphasize a fact -> the fact card gets its own carved moment even though a photo covers the beat
+    graph, shots, spans = _beat_with_a_plentiful_photo(db_session, "fact_card")
+    D.place_detective_graphics(shots, spans, "en", D.resolve_dispatchable_actions(db_session, graph.id))
+    assert [s["kind"] for s in shots].count("graphic") == 1 and any(s["kind"] == "photo" for s in shots)
+    fact_need = D.detective_raw_needs(db_session, graph)["beats"][0]["requirements"][0]
+    assert fact_need["function"] == "evidence" and fact_need["alternatives"] == []
+
+    # aim: show the real object -> a photo action dispatches no graphic and leaves the photo as it was
+    graph, shots, spans = _beat_with_a_plentiful_photo(db_session, "photo")
+    before = [dict(s) for s in shots]
+    records = D.place_detective_graphics(shots, spans, "en", D.resolve_dispatchable_actions(db_session, graph.id))
+    assert shots == before and records[0]["skip"] == "not_dispatched_in_this_pass"
+    photo_need = D.detective_raw_needs(db_session, graph)["beats"][0]["requirements"][0]
+    assert photo_need["function"] == "human_connection" and photo_need["alternatives"] == ["photo"]

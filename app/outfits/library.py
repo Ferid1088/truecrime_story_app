@@ -233,6 +233,46 @@ def scan_library(db: Session, trigger: str = "manual",
     return {"scan_id": scan.id, **stats, "problems": problems}
 
 
+class AddPhotoError(ValueError):
+    pass
+
+
+_NAME = re.compile(r"[A-Za-z0-9]+")
+
+
+def outfit_slug(name: str) -> str:
+    """The folder name of an outfit from its display name: words joined in camelCase ("Navy blazer" -> "navyBlazer")."""
+    words = _NAME.findall(name)
+    if not words:
+        raise AddPhotoError("an outfit needs a name made of letters or digits")
+    return words[0][:1].lower() + words[0][1:] + "".join(w[:1].upper() + w[1:] for w in words[1:])
+
+
+def add_photo(db: Session, studio: str, outfit_name: str, situation: str, data: bytes,
+              root: Path | None = None) -> OutfitItem:
+    """Add one photo of an outfit (a new outfit when its folder does not exist yet) to the library of a language:
+    written to ``<studio>/<outfit>/<studio>_<outfit>_<situation>.png`` and mirrored by a scan. A photo that is not a
+    PNG, a situation that is not a sitting or standing pose, or a name that is already taken is refused; nothing is
+    overwritten."""
+    outfit_root = root or OUTFIT_ROOT
+    if studio not in studio_ids():
+        raise AddPhotoError(f"{studio!r} is not a studio in the registry")
+    slug = outfit_slug(outfit_name)
+    if not _NAME.fullmatch(situation or ""):
+        raise AddPhotoError("the pose name must be letters and digits only, for example sitHands or stand")
+    if classify_pose(situation)["stance"] == "unknown":
+        raise AddPhotoError("the pose name must say sitting or standing (it starts with sit or stand)")
+    if data[:8] != _PNG_MAGIC:
+        raise AddPhotoError("the photo must be a PNG")
+    path = outfit_root / studio / slug / f"{studio}_{slug}_{situation}.png"
+    if path.exists():
+        raise AddPhotoError(f"{slug}/{situation} already exists for {studio}: choose another pose name")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    scan_library(db, trigger="upload", root=outfit_root)
+    return db.query(OutfitItem).filter_by(studio=studio, outfit_slug=slug, situation=situation).one()
+
+
 def library_view(db: Session) -> dict:
     """What the UI renders: per studio the outfits with their photos, plus the last
     scan time and counts. New situation names show their raw name as the label."""

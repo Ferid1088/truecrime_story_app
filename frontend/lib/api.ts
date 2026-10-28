@@ -1196,6 +1196,17 @@ export const autopilotApi = {
     post<AutopilotRunView>("/api/autopilot/runs", {
       candidate_id: candidateId, languages, outfits, outfit_photos: outfitPhotos,
     }),
+  /** Add a photo to an outfit of a language (a new outfit when the name is new). */
+  addOutfitPhoto: (language: string, outfit: string, situation: string, photo: File) => {
+    const form = new FormData();
+    form.set("outfit", outfit);
+    form.set("situation", situation);
+    form.set("photo", photo);
+    return request<{ id: number; ref: string; situation: string; stance: string; issues: string[] }>(
+      `/api/outfit-library/${language}/photos`,
+      { method: "POST", body: form, headers: {} },
+    );
+  },
   outfitOptions: (candidateId: number, languages: string[]) =>
     request<AutopilotOutfitOptions>(`/api/autopilot/outfit-options${query({ candidate_id: candidateId, languages: languages.join(",") })}`),
   runs: () => request<{ runs: AutopilotRunView[] }>("/api/autopilot/runs"),

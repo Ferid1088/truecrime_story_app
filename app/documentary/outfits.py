@@ -9,12 +9,13 @@ the studio of the outfit's own language."""
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import HostLook, HostOutfit, OutfitItem
+from app.db.models import HostLook, HostOutfit, OutfitDefault, OutfitItem
 from app.documentary import storage
 from app.documentary import studio as ST
 from app.outfits.registry import OutfitRegistry
@@ -411,6 +412,29 @@ def library_photos(db: Session, outfit_ref: str | None, selected_ids: list[int] 
                          .order_by(OutfitItem.id).all())]
 
 
+def remember_choice(db: Session, language: str, outfit_ref: str, item_ids: list[int]) -> None:
+    """Keep the outfit and photos chosen for a language: the next film starts with them until they are changed."""
+    row = db.get(OutfitDefault, language)
+    if row is None:
+        row = OutfitDefault(language=language)
+        db.add(row)
+    row.outfit_ref, row.item_ids_json, row.updated_at = outfit_ref, json.dumps(sorted(set(item_ids))), utc_now()
+
+
+def _apply_remembered(db: Session, language: str, options: list[dict]) -> str | None:
+    """Mark the remembered outfit and its photos as chosen, when it and its photos are still in the library. Returns
+    the key of the option it chose, else None."""
+    row = db.get(OutfitDefault, language)
+    option = next((o for o in options if row is not None and o["ref"] == row.outfit_ref), None)
+    if option is None:
+        return None
+    remembered = set(json.loads(row.item_ids_json or "[]"))
+    for photo in option["photos"]:
+        photo["selected"] = photo["id"] in remembered and photo["status"] == "available"
+    option["selected"] = True
+    return option["key"]
+
+
 def choice_options(db: Session, case_id: int | None, language: str) -> dict:
     """The outfits that can be chosen for a language: those the case already has, then the library's others, each with
     its photos. `selected` is the key of the outfit the video uses now."""
@@ -432,8 +456,8 @@ def choice_options(db: Session, case_id: int | None, language: str) -> dict:
             options.append({"key": f"registry:{registered.outfit_id}", "name": registered.label,
                             "ref": registered.outfit_id, "source": "library", "status": "available",
                             "selected": False, "photos": library_photos(db, registered.outfit_id)})
-    return {"language": language, "selected": next((o["key"] for o in options if o["selected"]), None),
-            "options": options}
+    selected = next((o["key"] for o in options if o["selected"]), None) or _apply_remembered(db, language, options)
+    return {"language": language, "selected": selected, "options": options}
 
 
 def resolve_choice(db: Session, case_id: int, language: str, key: str) -> tuple[HostOutfit | None, str | None]:
@@ -488,6 +512,8 @@ def apply_choice(db: Session, case_id: int, language: str, key: str, item_ids: l
     done = {"attached": [], "skipped": []}
     if outfit.outfit_ref:
         done = reuse_library_photos(db, outfit, selected_item_ids=item_ids)
+        if select:
+            remember_choice(db, language, outfit.outfit_ref, item_ids)
         for attached in done["attached"]:
             look = db.get(HostLook, attached["look_id"])
             if look is not None:

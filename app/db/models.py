@@ -3070,6 +3070,18 @@ class OutfitItem(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class OutfitDefault(Base):
+    """The outfit and library photos the owner chose last for one language: pre-filled for the next film until the
+    owner changes them again."""
+
+    __tablename__ = "outfit_defaults"
+
+    language: Mapped[str] = mapped_column(String(20), primary_key=True)
+    outfit_ref: Mapped[str] = mapped_column(String(200))
+    item_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class OutfitScan(Base):
     """One rescan of the outfit library and its outcome."""
 

@@ -1,8 +1,9 @@
 """The outfit library API: the folder mirror plus the manual rescan."""
 
+import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -34,3 +35,15 @@ def outfit_library_image(item_id: int, db: Session = Depends(get_db)):
     if not path.is_file() or outfit_library.OUTFIT_ROOT not in path.resolve().parents:
         raise HTTPException(status_code=404, detail="photo missing on disk")
     return FileResponse(path)
+
+
+@router.post("/api/outfit-library/{studio}/photos")
+async def add_outfit_photo(studio: str, outfit: str = Form(...), situation: str = Form(...),
+                           photo: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Add a photo to an outfit of a language (a new outfit when the name is new)."""
+    try:
+        row = outfit_library.add_photo(db, studio, outfit, situation, await photo.read())
+    except outfit_library.AddPhotoError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"id": row.id, "ref": f"{row.studio}/{row.outfit_slug}", "situation": row.situation, "stance": row.stance,
+            "issues": json.loads(row.issues_json or "[]")}

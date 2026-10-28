@@ -9,6 +9,7 @@ import { LANGUAGES } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
+import { AddOutfitPhoto } from "./add-outfit-photo";
 
 const FILM_LANGUAGES = ["en", "de", "fa", "ar"];
 const eur = (n: number) => `€${n.toFixed(2)}`;
@@ -103,7 +104,8 @@ export function StartDialog({
         <fieldset className="space-y-2">
           <legend className="text-xs font-medium text-muted-foreground">Host outfit per language</legend>
           <p className="text-xs text-muted-foreground">
-            Choose this before starting. The avatar stage will use only approved looks belonging to this outfit.
+            Choose this before starting. The avatar stage will use only approved looks belonging to this outfit. Your
+            choice is kept for the next films until you change it.
           </p>
           {outfitOptions.loading && <p className="text-xs text-muted-foreground">Loading outfit choices…</p>}
           {outfitOptions.error && <p className="text-xs text-rose-600">{outfitOptions.error}</p>}
@@ -130,6 +132,8 @@ export function StartDialog({
               {row.options.length === 0 && (
                 <span className="mt-1 block text-xs text-rose-600">No outfit is available for this language.</span>
               )}
+              <AddOutfitPhoto language={row.language} outfitNames={row.options.map((o) => o.name)}
+                onAdded={outfitOptions.refetch} />
               {(() => {
                 const option = row.options.find((candidate) => candidate.key === chosenOutfits[row.language]);
                 const available = (option?.photos ?? []).filter((photo) => photo.status === "available");

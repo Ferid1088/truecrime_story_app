@@ -21,6 +21,7 @@ DISPATCHABLE_KINDS = {
     "fact_card", "floor_plan", "detective_board", "recap", "unknowns", "conflict",
     "conflict_board", "key_facts", "quote", "evidence_check", "custody",
     "investigation_clock", "forensic", "interrogation", "courtroom", "sentencing",
+    "document", "headline",
 }
 
 # Section B's claim/question basis vocabulary has no direct equivalent in the cinematic engines'
@@ -417,6 +418,55 @@ def _sentencing_data(db: Session, action: DetectiveToolAction) -> dict | None:
     return data
 
 
+def _linked_sources(db: Session, action: DetectiveToolAction) -> list[tuple]:
+    """(claim, Source) pairs for every real `Source` the bound claims reach through their optional
+    `evidence_fact_ids_json` link to a stored `Fact`'s `source_ids_json`. A claim with no linked
+    fact/source yields nothing - a document or headline is never made from narration alone."""
+    from app.db.models import Fact, Source
+
+    out = []
+    for claim in _bound_claims(db, action):
+        fact_ids = json.loads(claim.evidence_fact_ids_json or "[]")
+        for fact in (db.query(Fact).filter(Fact.id.in_(fact_ids)).all() if fact_ids else []):
+            source_ids = json.loads(fact.source_ids_json or "[]")
+            for src in (db.query(Source).filter(Source.id.in_(source_ids)).all() if source_ids else []):
+                out.append((claim, src))
+    return out
+
+
+def _document_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """The same data `alternatives.document_offer` builds: a claim's text must stand word for word
+    in the stored text of an official source it is linked to (`verify_verbatim`), else None."""
+    from app.documentary.graphics import dates
+    from app.documentary.graphics.document import verify_verbatim
+    from app.documentary.mvp import headlines as HL
+
+    for claim, src in _linked_sources(db, action):
+        if src.source_type != "official" or not (src.raw_text and src.publisher and src.title):
+            continue
+        if not verify_verbatim(src.raw_text, claim.text):
+            continue
+        parsed = HL.parse_date(src.published_at)
+        return {"document": {"id": src.id, "type": HL.clean_title(src.title, src.publisher, src.publisher),
+                             "issuer": src.publisher, "language": src.language or "en",
+                             **({"date": " ".join(dates.display(parsed, "en")).strip()} if parsed else {})},
+                "quote": {"text": claim.text, "fact_id": claim.claim_key, "verified": True},
+                "context_before": [], "context_after": [], "redactions": []}
+    return None
+
+
+def _headline_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """A listed newspaper's own headline for a source the bound claims link to, with a full date and
+    an English page - exactly `headlines.candidates`, which already refuses anything else."""
+    from app.documentary.mvp import headlines as HL
+
+    sources = {s.id: {"url": s.url, "title": s.title, "publisher": s.publisher,
+                      "published_at": s.published_at, "language": s.language}
+               for _, s in _linked_sources(db, action)}
+    found = HL.candidates(sources)
+    return found[0] if found else None
+
+
 BUILDERS = {
     "fact_card": _fact_card_data, "floor_plan": _floor_plan_data,
     "detective_board": _detective_board_data, "recap": _recap_data, "unknowns": _unknowns_data,
@@ -426,6 +476,7 @@ BUILDERS = {
     "investigation_clock": _investigation_clock_data, "forensic": _forensic_data,
     "interrogation": _interrogation_data, "courtroom": _courtroom_data,
     "sentencing": _sentencing_data,
+    "document": _document_data, "headline": _headline_data,
 }
 
 
@@ -532,6 +583,26 @@ _ENTITY_TYPE_BY_CATEGORY = {"person": "person", "place": "place", "building": "b
                            "document": "document", "organization": "organization"}
 
 
+def _map_place_of(db: Session, action: DetectiveToolAction) -> str | None:
+    """The place a `map` action points at: an explicit `payload.place`, else the label of the first
+    place/building entity among the bound claims' entities and the scene's active entities. A map is
+    never made for an entity that is not a stored place - no geography is invented from narration."""
+    from app.db.models import RevealNode
+
+    explicit = (json.loads(action.payload_json or "{}").get("place") or "").strip()
+    if explicit:
+        return explicit[:150]
+    keys = [c.entity_node_key for c in _bound_claims(db, action)]
+    keys += json.loads(action.scene.active_entity_keys_json or "[]")
+    for key in dict.fromkeys(keys):
+        node = (db.query(RevealNode)
+                .filter(RevealNode.graph_id == action.scene.graph_id, RevealNode.node_key == key,
+                        RevealNode.category.in_(("place", "building"))).first())
+        if node:
+            return node.label[:150]
+    return None
+
+
 def detective_raw_needs(db: Session, graph) -> dict:
     """The Detective Director's scenes/actions re-shaped as the SAME raw payload
     `app.documentary.mvp.needs.validate_needs` already validates agent output against - no new
@@ -542,6 +613,7 @@ def detective_raw_needs(db: Session, graph) -> dict:
                     for n in graph.nodes]
     fallback_entity = entities_raw[0]["key"] if entities_raw else None
     beats: dict[str, list[dict]] = {}
+    map_places: dict[str, str] = {}
     for scene in (db.query(DetectiveScene).filter(DetectiveScene.graph_id == graph.id)
                   .order_by(DetectiveScene.scene_order).all()):
         active = json.loads(scene.active_entity_keys_json or "[]")
@@ -553,11 +625,20 @@ def detective_raw_needs(db: Session, graph) -> dict:
             if beat_id is None:
                 continue
             function, alternatives = _FUNCTION_BY_TOOL.get(action.tool_id, ("investigation", []))
+            if action.tool_id == "map":
+                # A map is not a Graphic: it reaches the film as the beat's `map_place`, which
+                # `direct.add_map_cards` already turns into a SHOW_MAP shot (only where the narration
+                # names the place and the stretch has room) and compose resolves into the zoom.
+                place = _map_place_of(db, action)
+                if place:
+                    map_places.setdefault(beat_id, place)
             beats.setdefault(beat_id, []).append({
                 "entity": entity, "function": function, "role_needed": "context",
                 "priority": "high", "alternatives": alternatives, "need": action.purpose[:200]})
     return {"entities": entities_raw,
-           "beats": [{"beat_id": bid, "requirements": reqs[:4]} for bid, reqs in beats.items()]}
+           "beats": [{"beat_id": bid, "requirements": reqs[:4],
+                      **({"map_place": map_places[bid]} if bid in map_places else {})}
+                     for bid, reqs in beats.items()]}
 
 
 def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
@@ -575,6 +656,9 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
             # a real shot just because a renderer happens to exist for its tool_id - that would be
             # exactly the unrecorded downstream bypass this checklist row exists to prevent.
             record["skip"] = "not_accepted_by_planner"
+        elif action.tool_id == "map":
+            record["skip"] = "routed_via_needs_map_place"
+            record["map_place"] = _map_place_of(db, action)
         elif build is None:
             record["skip"] = "not_dispatched_in_this_pass"
         else:
