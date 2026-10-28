@@ -119,12 +119,14 @@ def test_a_late_qualification_delays_the_dispatched_shot_past_the_beat_start(db_
     assert resolved[0]["min_release_fraction"] is not None and resolved[0]["min_release_fraction"] > 0.5
 
     shots: list[dict] = []
-    spans = [{"beat_id": "B01", "start": 100.0, "end": 120.0}]
+    # a beat long enough that a card released late in it still has the time it needs to be read (a
+    # shorter beat is skipped with a timing request - tests/test_detective_reading_time.py)
+    spans = [{"beat_id": "B01", "start": 100.0, "end": 160.0}]
     records = D.place_detective_graphics(shots, spans, "en", resolved)
 
     assert records[0]["result"] == "placed"
     assert shots[0]["start"] > 100.0, "must not start at the beat's start when its claim is a late qualification"
-    assert shots[0]["start"] < 120.0
+    assert shots[0]["start"] < 160.0
     assert records[0]["release_fraction_applied"] == resolved[0]["min_release_fraction"]
 
 

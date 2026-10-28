@@ -1,5 +1,22 @@
 {
  "detective_toolkit": {
-  "enabled": false
+  "enabled": false,
+  "reading": {
+   "dense_card_words": 18,
+   "dense_speech_words_per_second": 2.6,
+   "related_overlap_min": 0.15
+  },
+  "pacing": {
+   "max_consecutive_dense_actions": 3,
+   "breathing_tools": [
+    "photo",
+    "map",
+    "floor_plan"
+   ]
+  },
+  "audio_only": {
+   "min_supported_fraction": 0.5
+  },
+  "max_repair_iterations": 1
  }
 }

@@ -307,20 +307,43 @@
       "required_proof": "Reviewed continuous scene sequence.",
       "status": "IN_PROGRESS",
       "implementation_location": [
-        "app/documentary/detective/director.py"
+        "app/documentary/detective/pacing.py",
+        "app/documentary/detective/director.py (bounded repair, schema_hints)",
+        "app/documentary/detective/schema.py (reuse_reason on returns)",
+        "app/documentary/memory.py:QUESTION_STATUSES",
+        "app/documentary/detective/persist.py:_state",
+        "app/documentary/detective/review.py (schema_hints, pacing findings)"
       ],
-      "validation_method": "The one live fixture (3 narration units, 2 beats) is too short to demonstrate a question payoff paying off scenes later, or sustained human-interest/breathing-room pacing across a real act structure.",
-      "actual_result": "The live call DID open a question (qst_gun_owner, explicit_unresolved) and carry it as an active_thread into scene 2, which is the right shape, but a longer real-passage exercise is needed to prove payoff/pacing over a full sequence rather than a 3-sentence fixture.",
+      "validation_method": "Live: the real Detective Director and Film Experience Reviewer (plan_audit) on beats B13-B20 of case 15's approved narration (84 sentences, read-only) copied into scratch cases 31-34 (EUR 0.8535 total; case 15 unchanged at EUR 323.0845101655945), checked by a deterministic reader of the persisted plan (pacing.py) and by the reviewer. Four runs exposed and fixed eight defects, each with a regression test.",
+      "actual_result": "Run 4 (graph 15): question payoffs hold (3 answered, 1 honestly left open by the text, 0 forgotten; run 2 had all four stuck at 'opened'), every return carries a reuse_reason (validator-enforced, repaired through the bounded repair loop), and the reviewer judged the evidence logic exceptionally clear. Breathing room does NOT hold: 9 consecutive text-dense actions with no picture, place or hold, flagged by the checker and independently by the reviewer. Human interest is not shown: no picture was offered.",
       "evidence": [
-        "docs/detective_toolkit_section_c_design.md"
+        "docs/detective_toolkit_section_f2f3c3_design.md",
+        "docs/detective_toolkit_section_f2f3c3_evidence/live_c3.py",
+        "docs/detective_toolkit_section_f2f3c3_evidence/c3_check.py",
+        "tests/test_detective_pacing.py",
+        "tests/test_detective_director_repair.py",
+        "tests/test_detective_question_state.py",
+        "tests/test_detective_bindings.py",
+        "tests/test_detective_reviewer_format.py"
       ],
       "versions": {},
       "dependencies": [
         "A",
-        "B"
+        "B",
+        "F",
+        "J"
       ],
-      "repair_history": [],
-      "remaining_issue": "Needs a longer representative or real passage (Section K's job, or a deliberately longer Section C fixture) exercising multiple question-payoff and recovery-beat scenes before this can be called VERIFIED."
+      "repair_history": [
+        "Run 1 failed on a claim listing a claim ID in entity_ids; added the bounded repair loop to director._call (max_repair_iterations).",
+        "Flat-string content_bindings (the Director's real format) never resolved in any dispatch reader; one binding_keys reader accepts both forms (also restores Section F release gating on real output).",
+        "Knowledge-event new_state arrived as a bare word and the model used 'opened'; state shaped at the persist boundary, question statuses enforced, Director told the exact words and when to record a payoff.",
+        "Returns without reuse_reason (varied run to run); enforced in schema.validate_director_output so omissions go through the repair loop.",
+        "Reviewer field names drifted and findings were stored with an empty problem; schema_hints added and observed_problem required.",
+        "Reviewer narration findings named a unit, not an anchor; now anchored so revision_items can quote the words.",
+        "Stale tool_catalog availability text (floor_plan 'dead') made the Director request a renderer capability; rewritten to current truth.",
+        "pacing.returns_without_reason listed each ID twice for flat bindings; deduplicated."
+      ],
+      "remaining_issue": "Breathing room / human interest: director._build_input still passes asset_catalog=[], and the scratch case has no approved pictures, so the Director could only choose text tools. Populate asset_catalog from the case's approved VisualAsset library (a Section D/H integration) and re-run on a case that has pictures; case 15 has them but is over its EUR 300 cap and cannot be re-run here. One passage, four runs."
     },
     {
       "id": "C4",
@@ -603,48 +626,69 @@
       "section": "F. Timing",
       "acceptance_criterion": "Reading time, motion, emphasis, pauses, and speech fit together without unrelated competing demands.",
       "required_proof": "Timed visual review with audio context.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/detective_board.py:reading_hold_seconds,appearances"
+        "app/documentary/detective/reading.py",
+        "app/documentary/detective/dispatch.py:place_detective_graphics",
+        "config/parameters/detective_toolkit.json (reading)",
+        "app/core/ai_config.py:DetectiveReadingConfig"
       ],
-      "validation_method": "Characterization test against existing code (not rebuilt).",
-      "actual_result": "The detective board already scales reading time with title length and gates appearance on available room. Not generalized to other dispatched tools against arbitrary unrelated narration density.",
+      "validation_method": "Pure placement tests through the real graphics layer (the streaming schedule gives the real per-language word counts and reading time); a dense card is compared against the old per-kind constant hold under the real finalize_graphics; competing-speech cases use constructed narration at set word rates.",
+      "actual_result": "A dispatched card is held for the time its own text needs (a 3-fact card: 26.7 s planned vs the 15 s constant that finalize would have dropped), never past its beat; a card that cannot be read in the room left is not carved and reports insufficient_reading_time, one squeezed below its planned time reports reading_time_compressed, and a dense card over dense unrelated narration reports competing_dense_speech, all as timing_requests in script['detective_graphics']. With no detective actions the timeline is untouched.",
       "evidence": [
-        "docs/detective_toolkit_section_f_design.md",
-        "tests/test_detective_section_f.py::test_board_reading_time_already_scales_with_title_length_and_gates_appearance"
+        "docs/detective_toolkit_section_f2f3c3_design.md",
+        "tests/test_detective_reading_time.py::test_a_dense_card_is_held_for_its_reading_time_not_the_kind_constant",
+        "tests/test_detective_reading_time.py::test_a_card_that_cannot_be_read_in_the_room_left_is_reported_not_stretched",
+        "tests/test_detective_reading_time.py::test_a_card_squeezed_below_its_planned_time_reports_the_compression_and_stays_in_its_beat",
+        "tests/test_detective_reading_time.py::test_a_dense_card_over_dense_unrelated_narration_is_flagged_but_still_placed",
+        "tests/test_detective_reading_time.py::test_a_placed_dense_card_survives_finalize_where_the_old_constant_hold_was_dropped",
+        "tests/test_detective_reading_time.py::test_without_detective_actions_the_timeline_is_untouched"
       ],
       "versions": {},
       "dependencies": [
         "C",
         "D",
-        "E"
+        "E",
+        "F1"
       ],
       "repair_history": [],
-      "remaining_issue": "General cross-tool, speech-density-aware scheduling does not exist yet; likely Section H scope once more tools are dispatchable."
+      "remaining_issue": "Fixture-based: no real audio was rendered, and the Director's real actions are not_accepted_by_planner until needs.py's planner decision runs, so placement was not exercised on a live plan. Narration over a card is estimated from each shot's sentence in proportion to overlap, not from per-word times."
     },
     {
       "id": "F3",
       "section": "F. Listening",
       "acceptance_criterion": "The narration remains understandable without looking; essential repairs route through the text workflow.",
       "required_proof": "Documented audio-only/text-only scope and repair examples.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/memory.py (claim/question text guarantee, Section B)"
+        "app/documentary/detective/text_revision.py",
+        "app/documentary/detective/schema.py:_text_revision_violations",
+        "app/documentary/detective/persist.py",
+        "app/documentary/detective/review.py (anchor_unit for narration findings, audio-only audit in deterministic_validation)",
+        "prompts/documentary/detective/text_revision_rule.md"
       ],
-      "validation_method": "Structural test confirming claim/question text is self-contained.",
-      "actual_result": "A claim/question never depends on a caption/graphic label for its meaning. text_revision_request (Detective Director requests field) is still never persisted anywhere, so it cannot reach the existing critique/rewrite workflow (app/agents/critics.py, app/agents/story.py).",
+      "validation_method": "Real PostgreSQL tests of the request path (validate, persist against the exact passage, idempotent, anchored by a ReleaseAnchor), of the audio-only audit (supported, unsupported, no span, orphan question premise), and of revision_items run through the real language_pipeline.review.critique_from; live: the Film Experience Reviewer's narration-workflow findings on a real 84-sentence passage of case 15 (scratch cases 32-34), transcript-only.",
+      "actual_result": "A text-revision request names the exact narration unit and words and a minimal correction, is refused if the passage is not the unit's exact words, and persists as a narration_workflow finding with an exact anchor (no new table). revision_items converts open requests into the critique-item shape the language pipeline's revision round consumes. The live reviewer found real audio-only defects in case 15's narration (B17-4 'He concluded...' with no one named; B15-3/B15-4 near-duplicate sentences) and routed them to narration_workflow.",
       "evidence": [
-        "docs/detective_toolkit_section_f_design.md",
-        "tests/test_detective_section_f.py::test_claim_and_question_text_are_self_contained_without_the_visual"
+        "docs/detective_toolkit_section_f2f3c3_design.md",
+        "tests/test_detective_text_revision.py::test_the_directors_text_revision_request_is_persisted_against_the_exact_passage",
+        "tests/test_detective_text_revision.py::test_a_request_must_point_at_the_exact_words_of_a_real_unit",
+        "tests/test_detective_text_revision.py::test_open_requests_become_the_revision_items_the_language_pipeline_consumes",
+        "tests/test_detective_text_revision.py::test_a_claim_the_narration_does_not_say_is_flagged_and_requested",
+        "tests/test_detective_text_revision.py::test_a_claim_with_no_supporting_span_is_something_only_the_screen_says",
+        "tests/test_detective_text_revision.py::test_a_reviewer_finding_about_a_narration_unit_gets_an_exact_anchor_the_writers_can_quote",
+        "docs/detective_toolkit_section_f2f3c3_evidence/live_c3.py"
       ],
       "versions": {},
       "dependencies": [
         "C",
         "D",
-        "E"
+        "E",
+        "F1",
+        "J"
       ],
       "repair_history": [],
-      "remaining_issue": "text_revision_request persistence and routing into the existing critique workflow is a real, separate, deferred integration."
+      "remaining_issue": "Transcript-only: no audio was listened to. The audit is lexical and flags abstractive claims the narration states in other words (advisory input; the reviewer adjudicates). The Director produced no text_revision request on the live passage, so that path is proven by test, not live. revision_items is a conversion: no caller triggers the language pipeline's revision round from it, and non-text request types are still not persisted."
     },
     {
       "id": "G1",

@@ -10,13 +10,20 @@ _VALID_INSPECTION_MODES = {"plan", "frames", "motion", "audio", "transcript_only
 _VALID_SEVERITIES = {"blocking", "major", "minor"}
 _VALID_REPAIR_OWNERS = {"detective_director", "visual_design_director",
                         "scheduler_renderer", "narration_workflow"}
+# the exact field names of one finding: `review.persist_findings` reads these, and the reviewer is
+# told them (review.build_input's schema_hints) - the model otherwise drifts to its own names
+# (`finding_id`, `scene_ids`), and a finding it wrote was then stored with no problem text
+FINDING_FIELDS = ("id", "scene_id", "action_id", "anchor", "severity", "observed_problem",
+                  "relevant_narration_ids", "recommended_repair", "repair_owner")
+VALID_SEVERITIES, VALID_REPAIR_OWNERS = _VALID_SEVERITIES, _VALID_REPAIR_OWNERS
+VALID_OUTCOMES = _VALID_OUTCOMES
 _REQUIRED_ENVELOPE = ("schema_version", "run_id", "film_id", "language", "text_version",
                      "mode", "outcome")
 
 # A mode can only claim the inspection types it could actually have performed. plan_audit never
 # sees rendered media at all; rendered_review without audio in its own inspected_media can't claim
 # it checked audio intelligibility.
-_MAX_MODES_FOR = {
+MAX_MODES_FOR = {
     "plan_audit": {"plan", "transcript_only"},
     "rendered_review": {"plan", "frames", "motion", "audio", "transcript_only"},
     "repair_check": {"plan", "frames", "motion", "audio", "transcript_only"},
@@ -42,7 +49,7 @@ def validate_review_output(raw: dict) -> list[str]:
     unknown = claimed_modes - _VALID_INSPECTION_MODES
     if unknown:
         violations.append(f"unknown inspection_modes {sorted(unknown)}")
-    overclaimed = claimed_modes - _MAX_MODES_FOR.get(mode, _VALID_INSPECTION_MODES)
+    overclaimed = claimed_modes - MAX_MODES_FOR.get(mode, _VALID_INSPECTION_MODES)
     if overclaimed:
         violations.append(
             f"mode {mode!r} cannot honestly claim inspection_modes {sorted(overclaimed)} "
@@ -60,6 +67,9 @@ def validate_review_output(raw: dict) -> list[str]:
             violations.append(f"finding {finding.get('id')!r} has invalid severity {severity!r}")
         if not finding.get("id"):
             violations.append("a finding is missing its stable id")
+        if not (finding.get("observed_problem") or "").strip():
+            violations.append(f"finding {finding.get('id')!r} has no observed_problem (field names: "
+                              f"{list(FINDING_FIELDS)})")
 
     if raw["outcome"] in ("pass", "needs_attention") and raw.get("findings") and raw["outcome"] == "pass":
         violations.append("outcome 'pass' with non-empty findings — a pass must have no open findings")

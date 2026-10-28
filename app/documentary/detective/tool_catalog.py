@@ -1,14 +1,8 @@
-"""The Detective Director's tool catalog (Section C input `tool_catalog`).
-
-PROVISIONAL: Section D ("Make all twenty alternatives executable detective tools") builds the
-real common tool descriptor/adapter with live availability, typed input schemas and asset
-requirements derived from the actual registry. Until that lands, this module gives the director
-the 21 detective-dispatchable tools/engines/paths that Section A's audit traced in
-`docs/detective_toolkit_capability_matrix.md` (the 20 named tools plus "photo"), with the
-investigative-job wording from Section D's own tool table in the implementation prompt.
-Availability here is static ("reachable" per Section A), not live-checked against the current
-case's assets — Section D must replace that. Host is deliberately excluded; see the comment above
-the end of TOOL_CATALOG.
+"""The Detective Director's tool catalog (the `tool_catalog` of its input): the 21 tools it may choose -
+the 20 named tools plus "photo" - with the investigative job of each from the implementation prompt's tool
+table and `dispatch.BUILDERS` as the real execution path behind them. The availability text is static: it states
+what each tool needs, not what the current case happens to hold (that is the Main Visual Planner's check at
+dispatch). Host is deliberately excluded; see the comment above the end of TOOL_CATALOG.
 """
 
 from __future__ import annotations
@@ -60,7 +54,7 @@ TOOL_CATALOG: dict[str, dict[str, str]] = {
     "fact_card": {
         "purpose": "Emphasize a consequential fact.",
         "input_contract": "1-N confirmed-fact short sentences, grouped per beat.",
-        "availability": "reachable (currently a last-resort filler; Section D must let it be chosen directly)",
+        "availability": "reachable; when you choose it, it gets its own moment in the beat",
     },
     "key_facts": {
         "purpose": "Make important figures, dates, and times easy to grasp.",
@@ -85,8 +79,9 @@ TOOL_CATALOG: dict[str, dict[str, str]] = {
     "floor_plan": {
         "purpose": "Clarify rooms, entrances, and spatial relationships from available plan data.",
         "input_contract": "rooms/entrances/legend.",
-        "availability": "dead — registered renderer, no production caller builds this offer "
-                         "(Section A finding); Section D must either wire a caller or report it unavailable",
+        "availability": "reachable only when the action's payload carries real rooms and markers from stored "
+                         "plan-document data (a plan is never invented from the narration); otherwise choose "
+                         "another tool",
     },
     "evidence_check": {
         "purpose": "Explain what an item establishes and what remains unsupported.",
@@ -121,8 +116,9 @@ TOOL_CATALOG: dict[str, dict[str, str]] = {
     "photo": {
         "purpose": "Show the real person, place, object, or moment the narration describes.",
         "input_contract": "approved VisualAsset + role/entity + clip bounds.",
-        "availability": "reachable (primary fill path today; Section D must let the director choose it "
-                         "deliberately rather than it always filling first)",
+        "availability": "reachable; choose it when a real picture of the person, place or object serves the "
+                         "aim better than a graphic, and as a pause between text-heavy cards. Only pictures "
+                         "listed in asset_catalog exist",
     },
     # Deliberately NOT a catalog entry: the Host system is its own authority, owned by the Main
     # Visual Planner, not by the detective toolkit (owner correction, 2026-10-28; see

@@ -53,7 +53,7 @@ def persist_director_output(db: Session, graph_id: int, agent_run_id: int | None
     for ev in payload.get("knowledge_events", []):
         MEM.record_knowledge_event(
             db, graph_id, subject_type=ev["subject_type"], subject_key=ev["subject_id"],
-            operation=ev["operation"], new_state=ev.get("new_state", {}),
+            operation=ev["operation"], new_state=_state(ev.get("new_state")),
             anchor_id=_anchor_row_id(db, graph_id, ev.get("anchor")),
             supporting_claim_keys=ev.get("supporting_claim_ids"),
         )
@@ -107,13 +107,39 @@ def persist_director_output(db: Session, graph_id: int, agent_run_id: int | None
             ))
             action_count += 1
 
+    revisions = 0
+    for req in payload.get("requests", []):
+        if req.get("type") != "text_revision":
+            continue
+        from app.documentary.detective.text_revision import request_revision
+
+        request_revision(db, graph_id, finding_key=f"req:{req['id']}"[:80], mode="director_request",
+                         unit_key=req["unit_key"], passage=req["passage"], problem=req["problem"],
+                         proposed_repair=req["proposed_repair"], scene_key=req.get("scene_id"),
+                         agent_run_id=agent_run_id)
+        revisions += 1
+
     db.commit()
     return {
         "entities": len(payload.get("entities", [])), "claims": len(payload.get("claims", [])),
         "questions": len(payload.get("questions", [])), "relations": len(payload.get("relations", [])),
         "knowledge_events": len(payload.get("knowledge_events", [])),
         "scenes": scene_count, "scenes_updated": updated_count, "actions": action_count,
+        "text_revision_requests": revisions,
     }
+
+
+def _state(raw) -> dict:
+    """A knowledge event's state is `{"status": ...}`. The Director often returns just the status word
+    (`"opened"`, `"established"`); the memory and board code read a dict, so it is shaped here, at the
+    boundary where agent output enters, and anything else is refused rather than stored unreadable."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        return {"status": raw}
+    raise MEM.MemoryValidationError(f"a knowledge event's new_state must be an object or a status word, got {raw!r}")
 
 
 def _anchor_row_id(db: Session, graph_id: int, anchor_key: str | None) -> int | None:

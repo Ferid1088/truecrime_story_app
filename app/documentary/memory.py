@@ -26,6 +26,7 @@ from app.db.models import (
 
 CLAIM_BASES = {"established_in_text", "attributed", "disputed", "inference", "explicit_unknown"}
 QUESTION_KINDS = {"not_yet_explained", "explicit_unresolved", "interpretive_question"}
+QUESTION_STATUSES = {"open", "partial", "answered", "explicitly_unresolved", "reframed"}
 KNOWLEDGE_SUBJECT_TYPES = {"entity", "claim", "question", "relation"}
 
 
@@ -206,6 +207,10 @@ def record_knowledge_event(
             f"unknown knowledge-event subject_type {subject_type!r}; "
             f"must be one of {sorted(KNOWLEDGE_SUBJECT_TYPES)}"
         )
+    status = new_state.get("status") if isinstance(new_state, dict) else None
+    if subject_type == "question" and status is not None and status not in QUESTION_STATUSES:
+        raise MemoryValidationError(
+            f"question {subject_key!r}: status {status!r} is not one of {sorted(QUESTION_STATUSES)}")
     if operation == "introduce":
         duplicate = db.query(DetectiveKnowledgeEvent).filter_by(
             graph_id=graph_id, subject_type=subject_type, subject_key=subject_key,

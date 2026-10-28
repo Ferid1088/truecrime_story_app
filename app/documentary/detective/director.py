@@ -18,6 +18,7 @@ import os
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
+from app.core.ai_config import ai_config
 from app.core.prompts import prompt
 from app.db.models import DetectiveScene, DetectiveToolAction, ReleaseAnchor, RevealGraph
 from app.documentary import memory as MEM
@@ -128,8 +129,14 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
             "action_fields": ["id", "tool_id", "purpose", "payload", "content_bindings", "continuity_refs",
                               "board_operations", "reading_requirements", "relationship_to_neighbors",
                               "fallback", "reuse_reason"],
+            "request_fields": ["id", "type", "scene_id", "unit_key", "passage", "problem",
+                               "proposed_repair"],
+            "text_revision_rule": prompt("documentary/detective/text_revision_rule"),
             "content_bindings_format": "a flat JSON list of claim/question/relation stable ID strings "
                                         "(the exact `id` values used above) — not objects, not nested.",
+            "reuse_reason_rule": prompt("documentary/detective/reuse_reason_rule"),
+            "question_status_values": sorted(MEM.QUESTION_STATUSES),
+            "question_state_rule": prompt("documentary/detective/question_state_rule"),
             "already_introduced_subject_keys": _already_introduced(db, graph_id),
             "already_introduced_rule": prompt("documentary/detective/already_introduced_rule"),
         },
@@ -139,10 +146,12 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
     return payload
 
 
-async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
-    case_id = _case_id_for_graph(db, graph_id)
-    with track_run(db, case_id, f"Detective Director: {mode}",
-                   input_summary=f"graph={graph_id} mode={mode}") as run:
+async def _ask(db: Session, case_id: int, graph_id: int, label: str, payload: dict) -> tuple[dict, int]:
+    """One paid agent call, tracked as its own run (a repair attempt's run records the issues it was
+    sent). Returns (raw output, agent run id)."""
+    issues = (payload.get("repair_target") or {}).get("issues")
+    summary = f"graph={graph_id} mode={payload['mode']}" + (f" issues={issues}"[:600] if issues else "")
+    with track_run(db, case_id, f"Detective Director: {label}", input_summary=summary) as run:
         raw, res = await run_agent(
             "detective.director", get_generation_provider(), json.dumps(payload, ensure_ascii=False)
         )
@@ -155,27 +164,40 @@ async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
         # call's actual shape without re-spending on a repeat call after a validation failure.
         with open(dump_path, "w") as f:
             json.dump(raw, f, indent=2)
+    return raw, run_id
 
-    narration_index = NarrationIndex.build(payload["narration"], _all_anchors(db, graph_id))
-    known_tool_ids = {t["tool_id"] for t in payload["tool_catalog"]}
-    violations = validate_director_output(raw, narration_index, known_tool_ids)
-    if violations:
-        raise DirectorValidationFailed(violations)
 
-    # Section B's memory functions enforce invariants schema.py cannot see without a DB round
-    # trip (e.g. first-introduction uniqueness against *already-persisted* events, not just this
-    # payload). A real live call (Section K) surfaced one: `direct_scenes` re-introduced an entity
-    # `map_film` had already introduced. Without this savepoint, the claims/questions/relations/
-    # scenes already written earlier in this same call stayed committed while the run crashed -
-    # a partially-persisted, semantically broken plan, violating this module's own documented
-    # "nothing was persisted" guarantee. A failure here must roll back exactly as cleanly as a
-    # schema.py violation does.
-    try:
-        with db.begin_nested():
-            counts = persist_director_output(db, graph_id, run_id, mode, raw)
-    except MemoryValidationError as e:
-        raise DirectorValidationFailed([str(e)]) from e
-    return {"agent_run_id": run_id, "output": raw, "counts": counts}
+async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
+    """Ask, validate, persist. A call whose output breaks an invariant is sent back with the exact
+    issues, in the Director's own `repair` mode, up to `detective_toolkit.max_repair_iterations`
+    times (each a paid call); only the output that finally passes is persisted, and a call that never
+    does persists nothing and raises. A real 84-sentence passage showed why: one claim listing a claim
+    ID among its entity IDs sank a whole-film map that was otherwise sound."""
+    case_id = _case_id_for_graph(db, graph_id)
+    attempts = ai_config.detective_toolkit.max_repair_iterations
+    issues: list[str] = []
+    for attempt in range(attempts + 1):
+        label = mode if attempt == 0 else f"{mode} (repair {attempt})"
+        raw, run_id = await _ask(db, case_id, graph_id, label, payload)
+
+        narration_index = NarrationIndex.build(payload["narration"], _all_anchors(db, graph_id))
+        known_tool_ids = {t["tool_id"] for t in payload["tool_catalog"]}
+        issues = validate_director_output(raw, narration_index, known_tool_ids)
+        if not issues:
+            # Section B's memory functions enforce invariants schema.py cannot see without a DB round
+            # trip (e.g. first-introduction uniqueness against *already-persisted* events, not just
+            # this payload). A real live call (Section K) surfaced one: `direct_scenes` re-introduced
+            # an entity `map_film` had already introduced. Without this savepoint, what this call had
+            # already written stayed committed while the run crashed - a partially-persisted, semantically
+            # broken plan. A failure here must roll back exactly as cleanly as a schema.py violation.
+            try:
+                with db.begin_nested():
+                    counts = persist_director_output(db, graph_id, run_id, mode, raw)
+                return {"agent_run_id": run_id, "output": raw, "counts": counts}
+            except MemoryValidationError as e:
+                issues = [str(e)]
+        payload = {**payload, "mode": "repair", "repair_target": {"previous_output": raw, "issues": issues}}
+    raise DirectorValidationFailed(issues)
 
 
 async def map_film(db: Session, graph_id: int, language: str, text_version: int,

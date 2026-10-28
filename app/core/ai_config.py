@@ -2379,6 +2379,37 @@ class AutopilotConfig(BaseModel):
     schedule: AutopilotScheduleConfig
 
 
+class DetectiveReadingConfig(BaseModel):
+    """When a detective-dispatched graphic asks too much of the viewer while unrelated narration
+    competes (Section F, "no dense board against different dense speech"): a card with at least
+    `dense_card_words` visible words is dense; narration faster than `dense_speech_words_per_second`
+    in its window is dense; narration that shares fewer than `related_overlap_min` of the card's
+    content words is unrelated to it."""
+
+    dense_card_words: int = 18
+    dense_speech_words_per_second: float = 2.6
+    related_overlap_min: float = 0.15
+
+
+class DetectivePacingConfig(BaseModel):
+    """Breathing room across a run of scenes (checklist row C3): more than
+    `max_consecutive_dense_actions` text-dense actions in a row, with no human-image, location or
+    hold scene between them, asks the viewer to read without a pause. A tool in `breathing_tools`
+    (a real picture, a place) or a scene with no action at all (a quiet hold) is such a pause; every
+    other tool asks the viewer to read."""
+
+    max_consecutive_dense_actions: int = 3
+    breathing_tools: list[str] = ["photo", "map", "floor_plan"]
+
+
+class DetectiveAudioOnlyConfig(BaseModel):
+    """The audio-only audit (Section F, F3): a claim a visual shows must be recoverable from the
+    narration alone. At least `min_supported_fraction` of the claim's content words must appear in
+    the narration spans that support it, or the claim is flagged as something only the screen says."""
+
+    min_supported_fraction: float = 0.5
+
+
 class DetectiveToolkitConfig(BaseModel):
     """The detective_toolkit call boundary (architecture rule, 2026-10-28): off by default so no
     real case's pipeline cost or behavior changes until the owner turns it on. When enabled,
@@ -2387,6 +2418,12 @@ class DetectiveToolkitConfig(BaseModel):
     band."""
 
     enabled: bool = False
+    # how many times a call whose output violates an invariant is sent back once more with the exact
+    # issues (the Director's own `repair` mode) before it fails; every attempt is a paid call
+    max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    reading: DetectiveReadingConfig = Field(default_factory=DetectiveReadingConfig)
+    pacing: DetectivePacingConfig = Field(default_factory=DetectivePacingConfig)
+    audio_only: DetectiveAudioOnlyConfig = Field(default_factory=DetectiveAudioOnlyConfig)
 
 
 class DetectiveBoardConfig(BaseModel):

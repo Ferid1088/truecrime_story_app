@@ -37,7 +37,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | --- | --- | --- |
 | [x] C1 | The complete prompt, input wrapper, schema, model/agent configuration, and real call path are connected. | VERIFIED — docs/detective_toolkit_section_c_design.md |
 | [x] C2 | Every consequential tool selection follows an investigative aim and records its expected audience benefit. | VERIFIED — docs/detective_toolkit_section_c_design.md |
-| [ ] C3 | Question payoffs, meaningful connections, human interest, and breathing room follow the text. | IN_PROGRESS — docs/detective_toolkit_section_c_design.md |
+| [ ] C3 | Question payoffs, meaningful connections, human interest, and breathing room follow the text. | IN_PROGRESS — docs/detective_toolkit_section_f2f3c3_design.md |
 | [x] C4 | Future knowledge does not leak; unsupported certainty, conclusions, or connections are not added. | VERIFIED — tests/test_detective_director.py::test_map_film_rejects_premature_release_without_persisting |
 | [x] C5 | The Detective Director runs only through the Main Visual Planner's detective-tool boundary; planner ownership of the final scene graph is preserved. | VERIFIED — docs/detective_toolkit_section_cd_architecture_remediation.md |
 
@@ -64,8 +64,8 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | Check | What must be true | Status |
 | --- | --- | --- |
 | [x] F1 | Claims, captions, links, and conclusions appear at the correct sentence/clause, including late qualifications. | VERIFIED — docs/detective_toolkit_section_f_design.md |
-| [ ] F2 | Reading time, motion, emphasis, pauses, and speech fit together without unrelated competing demands. | IN_PROGRESS — docs/detective_toolkit_section_f_design.md |
-| [ ] F3 | The narration remains understandable without looking; essential repairs route through the text workflow. | IN_PROGRESS — docs/detective_toolkit_section_f_design.md |
+| [x] F2 | Reading time, motion, emphasis, pauses, and speech fit together without unrelated competing demands. | VERIFIED — docs/detective_toolkit_section_f2f3c3_design.md |
+| [x] F3 | The narration remains understandable without looking; essential repairs route through the text workflow. | VERIFIED — docs/detective_toolkit_section_f2f3c3_design.md |
 
 ## G. Alternative Visual Design Director
 

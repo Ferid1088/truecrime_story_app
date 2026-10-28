@@ -1,0 +1,1 @@
+An action whose content_bindings include an ID that an earlier action already showed must set reuse_reason to what this new appearance adds (an answer, a comparison, an update, an orientation). An action that binds only IDs not shown before leaves reuse_reason empty. A return with no reason is rejected.

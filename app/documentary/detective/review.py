@@ -17,9 +17,14 @@ import json
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
+from app.core.prompts import prompt
 from app.db.models import DetectiveFinding, ProductionScript, RevealGraph
+from app.documentary import memory as MEM
 from app.documentary.detective import director as DIR
 from app.documentary.detective import inspector as INSP
+from app.documentary.detective import pacing as PA
+from app.documentary.detective import text_revision as TR
+from app.documentary.detective import review_schema as RS
 from app.documentary.detective.review_schema import ReviewOutputError, validate_review_output
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -53,7 +58,19 @@ def build_input(db: Session, graph: RevealGraph, *, mode: str, language: str, te
         "detective_plan": INSP.plan_summary(db, graph),
         "design_reviews": INSP.design_reviews_for(db, graph),
         "review_scope": review_scope or ["full_plan"],
-        "deterministic_validation": {"checked": "schema/anchor validation from Sections B-H"},
+        "deterministic_validation": {
+            "checked": "schema/anchor validation from Sections B-H, plus the audio-only audit and the "
+                       "question-payoff / return-reason / breathing-room checks",
+            "audio_only_findings": TR.audio_only_findings(db, graph.id),
+            "pacing_findings": PA.c3_report(db, graph.id)["findings"]},
+    }
+    payload["schema_hints"] = {
+        "finding_fields": list(RS.FINDING_FIELDS),
+        "repair_owner_values": sorted(RS.VALID_REPAIR_OWNERS),
+        "severity_values": ["blocking", "major", "minor"],
+        "outcome_values": sorted(RS.VALID_OUTCOMES),
+        "inspection_mode_values": sorted(RS.MAX_MODES_FOR[mode]),
+        "finding_format_rule": prompt("documentary/detective/finding_format_rule"),
     }
     if compiled is not None:
         payload["compiled_script"] = compiled
@@ -106,6 +123,13 @@ def persist_findings(db: Session, graph_id: int, raw: dict) -> list[DetectiveFin
         row.scene_key = f.get("scene_id")
         row.action_key = f.get("action_id")
         row.anchor_key = f.get("anchor")
+        if f["repair_owner"] == "narration_workflow" and f.get("anchor"):
+            # the reviewer names the passage by narration unit; anchoring it makes the exact words a
+            # stable pointer the writing workflow can quote (text_revision.revision_items)
+            try:
+                row.anchor_key = TR.anchor_unit(db, graph_id, f"rev:{f['id']}", f["anchor"])
+            except MEM.MemoryValidationError:
+                pass    # not a narration unit key: keep what the reviewer wrote
         row.recommended_repair = f.get("recommended_repair")
         if existing is None:
             row.status = "open"

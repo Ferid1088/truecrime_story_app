@@ -95,12 +95,30 @@ def _beat_id_of(db: Session, action: DetectiveToolAction) -> str | None:
     return unit.beat_id if unit else None
 
 
+def binding_keys(action: DetectiveToolAction, field: str) -> list[str]:
+    """The stable IDs an action's `content_bindings` hold, in binding order. The Detective Director
+    returns a flat JSON list of ID strings of every kind (claims, questions, relations - see
+    director.py's `content_bindings_format`); a string that is not a key of the kind being looked up
+    simply matches no row there. The `{"claim_key": ...}` object form is accepted as well. Every
+    reader of a binding goes through here: the object-only readers this replaces never matched the
+    Director's real output, so no real action resolved its claims."""
+    keys: list[str] = []
+    for b in json.loads(action.content_bindings_json or "[]"):
+        if isinstance(b, dict):
+            # the wrappers schema.py's `_binding_id` tolerates: {"claim_key": ..}, {"claim_id": ..}, {"id": ..}
+            key = b.get(field) or b.get(field.replace("_key", "_id")) or b.get("id")
+        else:
+            key = b
+        if isinstance(key, str) and key:
+            keys.append(key)
+    return keys
+
+
 def _fact_card_data(db: Session, action: DetectiveToolAction) -> dict | None:
     """`{"facts": [{"text", "fact_id"}, ...]}` from the claims this action is bound to."""
     from app.db.models import DetectiveClaim
 
-    bindings = json.loads(action.content_bindings_json or "[]")
-    claim_keys = [b.get("claim_key") for b in bindings if isinstance(b, dict) and b.get("claim_key")]
+    claim_keys = binding_keys(action, "claim_key")
     claim_keys = claim_keys or (json.loads(action.payload_json or "{}").get("claim_keys") or [])
     if not claim_keys:
         return None
@@ -124,8 +142,7 @@ def _bound_claims(db: Session, action: DetectiveToolAction) -> list:
     Shared by every builder below instead of repeating the lookup."""
     from app.db.models import DetectiveClaim
 
-    bindings = json.loads(action.content_bindings_json or "[]")
-    claim_keys = [b.get("claim_key") for b in bindings if isinstance(b, dict) and b.get("claim_key")]
+    claim_keys = binding_keys(action, "claim_key")
     claim_keys = claim_keys or (json.loads(action.payload_json or "{}").get("claim_keys") or [])
     if not claim_keys:
         return []
@@ -140,8 +157,7 @@ def _bound_questions(db: Session, action: DetectiveToolAction) -> list:
     """The `DetectiveQuestion` rows an action's content_bindings point to, in binding order."""
     from app.db.models import DetectiveQuestion
 
-    bindings = json.loads(action.content_bindings_json or "[]")
-    q_keys = [b.get("question_key") for b in bindings if isinstance(b, dict) and b.get("question_key")]
+    q_keys = binding_keys(action, "question_key")
     if not q_keys:
         return []
     rows = (db.query(DetectiveQuestion)
@@ -155,8 +171,7 @@ def _bound_relations(db: Session, action: DetectiveToolAction) -> list:
     """The `DetectiveRelation` rows an action's content_bindings point to, in binding order."""
     from app.db.models import DetectiveRelation
 
-    bindings = json.loads(action.content_bindings_json or "[]")
-    r_keys = [b.get("relation_key") for b in bindings if isinstance(b, dict) and b.get("relation_key")]
+    r_keys = binding_keys(action, "relation_key")
     if not r_keys:
         return []
     rows = (db.query(DetectiveRelation)
@@ -491,8 +506,7 @@ def _min_release_fraction(db: Session, action: DetectiveToolAction) -> float | N
     from app.documentary.detective.timing import anchor_fraction_within_span
     from app.db.models import DetectiveClaim, NarrationUnit, ReleaseAnchor
 
-    bindings = json.loads(action.content_bindings_json or "[]")
-    claim_keys = [b.get("claim_key") for b in bindings if isinstance(b, dict) and b.get("claim_key")]
+    claim_keys = binding_keys(action, "claim_key")
     if not claim_keys:
         return None
     rows = (db.query(DetectiveClaim, ReleaseAnchor, NarrationUnit)
@@ -679,8 +693,14 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
                              resolved: list[dict]) -> list[dict]:
     """Pure: carve each resolved action's graphic into its beat's span. Fixes Section A's
     obstacle 1 (a graphic otherwise only ever gets photo/map leftover time) for the kinds this
-    pass wires. Returns a decision record per action, placed or skipped, for live evidence."""
+    pass wires. Returns a decision record per action, placed or skipped, for live evidence.
+
+    A card is held for the time its own text needs to be read (`reading.reading_need`), never longer
+    than its beat; a card that cannot be read in the room left, or that is read over dense narration it
+    is not about, reports a `timing_requests` entry instead of failing silently (Section F, F2)."""
+    from app.documentary.detective import reading as R
     from app.documentary.graphics import shots as GS
+    from app.documentary.graphics.base import GraphicUnavailable
     from app.documentary.graphics.registry import graphic
     from app.documentary.production.script import _carve
 
@@ -708,7 +728,41 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
             record["skip"] = "insufficient_room_after_release_point"
             records.append(record)
             continue
-        hold = min(GS.hold_seconds(record["tool_id"]), remaining)
+        try:
+            need = R.reading_need(record["tool_id"], record["data"], language)
+        except GraphicUnavailable as e:
+            record["skip"] = f"unrenderable: {e}"
+            records.append(record)
+            continue
+        requests = []
+        if remaining < need.fastest:
+            # the viewer could not read it even at the fastest streaming pace, and `finalize` would drop
+            # the card; the card never stretches past its own beat into unrelated narration
+            record["skip"] = "insufficient_reading_time"
+            record["timing_requests"] = [R.timing_request(
+                record["action_key"], record["beat_id"], "insufficient_reading_time",
+                f"{need.words} words need at least {need.fastest:.1f}s to read; only {remaining:.1f}s remain "
+                "in the beat after the claim's release point",
+                need.fastest, remaining, "give the beat more time, or split the card across beats")]
+            records.append(record)
+            continue
+        hold = min(need.planned, remaining)
+        if hold < need.planned:
+            requests.append(R.timing_request(
+                record["action_key"], record["beat_id"], "reading_time_compressed",
+                f"{need.words} words are planned for {need.planned:.1f}s; the beat leaves {hold:.1f}s so the "
+                "text streams faster than the reading pace",
+                need.planned, hold, "give the beat more time, or shorten the card's text"))
+        competing = R.competing_speech(need.words, record["data"], shots, start, start + hold)
+        if competing:
+            requests.append(R.timing_request(
+                record["action_key"], record["beat_id"], "competing_dense_speech",
+                f"a {competing['card_words']}-word card is read over narration at "
+                f"{competing['speech_words_per_second']} words/s that shares only "
+                f"{competing['shared_content_fraction']:.0%} of its content words",
+                hold, hold, "move the card to a quieter stretch, or fold it into the narrated point"))
+        if requests:
+            record["timing_requests"] = requests
         shot = {"kind": "graphic", **GS.plan_fields(record["tool_id"], record["data"]),
                "beat_id": record["beat_id"], "start": round(start, 3),
                "end": round(start + max(hold, 1.0), 3), "motion": "NONE", "speed": 1.0,
