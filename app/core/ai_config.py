@@ -114,6 +114,8 @@ REQUIRED_ROLES = {
     # Detective toolkit (Section C): the investigative aim, scene direction and tool
     # choice behind every visual, map/direct/repair modes over app/documentary/memory.py.
     "detective_director",
+    # Vision-capable: judges one dispatched detective visual's actual rendered frame(s) (Section G).
+    "detective_design_director",
     "mvp_query_planner",
     "mvp_candidate_verifier",
     "mvp_second_verifier",

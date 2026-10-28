@@ -573,6 +573,13 @@
       "output": "json",
       "description": "Detective Director (Section C): investigation memory and scene direction (map_film/direct_scenes/repair modes).",
       "used_by": "app/documentary/detective/director.py"
+    },
+    "detective.design_director": {
+      "role": "detective_design_director",
+      "prompt": "documentary/detective/design_director_system",
+      "output": "json",
+      "description": "Alternative Visual Design Director (Section G): design/review/repair of one dispatched detective visual, from real rendered previews.",
+      "used_by": "app/documentary/detective/design_review.py"
     }
   }
 }

@@ -71,11 +71,11 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] G1 | The full prompt and design/review/repair modes execute with actual renderer output. | NOT_STARTED |
-| [ ] G2 | Layout, hierarchy, fonts, spacing, contrast, wrapping, and connectors are visibly improved. | NOT_STARTED |
-| [ ] G3 | First, reveal, dense, final, transition, and smaller-view conditions are inspected. | NOT_STARTED |
-| [ ] G4 | Repairs preserve exact quotations, claim meaning, uncertainty, attribution, relationships, and anchors. | NOT_STARTED |
-| [ ] G5 | A proposed repair is re-rendered and inspected before pass; missing images do not yield visual approval. | NOT_STARTED |
+| [x] G1 | The full prompt and design/review/repair modes execute with actual renderer output. | VERIFIED — docs/detective_toolkit_section_g_design.md |
+| [ ] G2 | Layout, hierarchy, fonts, spacing, contrast, wrapping, and connectors are visibly improved. | IN_PROGRESS — docs/detective_toolkit_section_g_design.md |
+| [ ] G3 | First, reveal, dense, final, transition, and smaller-view conditions are inspected. | IN_PROGRESS — docs/detective_toolkit_section_g_design.md |
+| [x] G4 | Repairs preserve exact quotations, claim meaning, uncertainty, attribution, relationships, and anchors. | VERIFIED — tests/test_detective_design_director.py::test_review_rejects_output_that_rewrites_a_bound_quote |
+| [x] G5 | A proposed repair is re-rendered and inspected before pass; missing images do not yield visual approval. | VERIFIED — docs/detective_toolkit_section_g_design.md |
 
 ## H. Production integration
 
