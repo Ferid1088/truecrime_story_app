@@ -820,38 +820,49 @@
       "section": "H. Runtime loop",
       "acceptance_criterion": "Findings route to the correct owner, produce a repair, and close only after the new output passes.",
       "required_proof": "Injected-defect end-to-end repair demonstration.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/review.py"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Film Experience Reviewer findings route to detective_director/visual_design_director/scheduler_renderer/narration_workflow via apply_repair; a repair closes only after recheck_finding confirms it, never on the repair call alone.",
+      "evidence": [
+        "tests/test_detective_film_reviewer.py::test_full_repair_loop_closes_a_verified_repair",
+        "tests/test_detective_film_reviewer.py::test_routing_covers_all_four_repair_owners"
+      ],
       "versions": {},
       "dependencies": [
-        "H",
-        "I",
-        "J"
+        "C",
+        "D",
+        "G"
       ],
       "repair_history": [],
-      "remaining_issue": "Requires the Film Experience Reviewer's repair-routing logic (Section J, which depends on H-I, not the other way around) - nothing to route findings to yet."
+      "remaining_issue": null
     },
     {
       "id": "H4",
       "section": "H. Runtime loop",
       "acceptance_criterion": "New regressions reopen checks; exhausted settings leave a resumable incomplete state rather than approval.",
       "required_proof": "Regression, timeout, budget/retry, and cancellation tests.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/review.py:repair_and_recheck_until"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Exhausted retries set status=incomplete rather than a false pass; a regression opens its own finding; an interrupted call leaves a resumable repair_in_progress state.",
+      "evidence": [
+        "tests/test_detective_film_reviewer.py::test_exhausted_retries_leave_an_incomplete_state_not_a_false_pass",
+        "tests/test_detective_film_reviewer.py::test_a_repair_that_introduces_a_regression_opens_a_new_finding_without_closing_silently",
+        "tests/test_detective_film_reviewer.py::test_an_interrupted_repair_call_leaves_a_resumable_finding_not_a_false_close"
+      ],
       "versions": {},
       "dependencies": [
-        "H",
-        "I",
-        "J"
+        "C",
+        "D",
+        "G"
       ],
       "repair_history": [],
-      "remaining_issue": "Same as H3: depends on Section J's runtime correction loop, not yet built."
+      "remaining_issue": null
     },
     {
       "id": "H5",
@@ -976,13 +987,21 @@
       "section": "J. Film Reviewer",
       "acceptance_criterion": "The complete prompt and plan/render/repair-check modes are active with structured repair routing.",
       "required_proof": "Actual review records and routed findings.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "VERIFIED",
+      "implementation_location": [
+        "prompts/documentary/detective/film_reviewer_system.md",
+        "app/documentary/detective/review.py"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Complete verbatim prompt registered (detective.film_reviewer); plan_audit/rendered_review/repair_check modes implemented with structured repair routing.",
+      "evidence": [
+        "docs/detective_toolkit_section_j_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H",
+        "I"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -991,13 +1010,20 @@
       "section": "J. Film Reviewer",
       "acceptance_criterion": "The reviewer checks achieved audience understanding, continuity, curiosity, meaningful reuse, and audio fluency.",
       "required_proof": "Scene-level observations tied to real media.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/review_schema.py"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Live plan_audit call on scratch case 26 assessed scene aims/audience gain against real persisted scenes; 0 findings on a clean fixture, outcome pass.",
+      "evidence": [
+        "docs/detective_toolkit_section_j_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H",
+        "I"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -1006,28 +1032,40 @@
       "section": "J. Film Reviewer",
       "acceptance_criterion": "Frame-only, transcript-only, excerpt, and unavailable-media limits are reported accurately.",
       "required_proof": "Scope and missing-media tests.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/detective/review_schema.py"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "plan_audit honesty (never claims motion/audio) proven live and by test. rendered_review/repair_check honest-scope behavior against real rendered media needs a real case with a real render - Section K.",
+      "evidence": [
+        "tests/test_detective_film_reviewer.py::test_schema_rejects_plan_audit_claiming_motion_or_audio"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H",
+        "I"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Needs Section K real-case rendered media to prove rendered_review scope honesty live, not just by schema test."
     },
     {
       "id": "J4",
       "section": "J. Validation",
       "acceptance_criterion": "Meaningful targeted and integrated tests pass, including repairs and stale-review invalidation.",
       "required_proof": "Commands/results linked to current code and artifact versions.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "VERIFIED",
+      "implementation_location": [],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Full suite green after this section; 16-item integration checklist mapped (12/16 existing+new coverage, 4 honestly partial) in docs/detective_toolkit_section_j_design.md.",
+      "evidence": [
+        "docs/detective_toolkit_section_j_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H",
+        "I"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },

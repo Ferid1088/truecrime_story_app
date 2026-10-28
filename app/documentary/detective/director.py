@@ -42,11 +42,11 @@ def _case_id_for_graph(db: Session, graph_id: int) -> int:
     return graph.case_id
 
 
-def _all_narration(db: Session, graph_id: int) -> list[dict]:
-    return MEM.get_narration_span(db, graph_id, beat_id=None, unit_keys=_all_unit_keys(db, graph_id))
+def all_narration(db: Session, graph_id: int) -> list[dict]:
+    return MEM.get_narration_span(db, graph_id, beat_id=None, unit_keys=all_unit_keys(db, graph_id))
 
 
-def _all_unit_keys(db: Session, graph_id: int) -> list[str]:
+def all_unit_keys(db: Session, graph_id: int) -> list[str]:
     from app.db.models import NarrationUnit
     rows = db.query(NarrationUnit).filter_by(graph_id=graph_id).order_by(NarrationUnit.story_order).all()
     return [r.unit_key for r in rows]
@@ -90,9 +90,9 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
     payload = {
         "mode": mode, "run_id": run_id, "film_id": film_id or f"case-{graph.case_id}",
         "language": language, "text_version": text_version, "schema_version": "1.0",
-        "narration": _all_narration(db, graph_id),
+        "narration": all_narration(db, graph_id),
         "existing_state": _existing_state(db, graph_id),
-        "scene_scope": scene_scope or _all_unit_keys(db, graph_id),
+        "scene_scope": scene_scope or all_unit_keys(db, graph_id),
         "tool_catalog": build_tool_catalog(),
         "asset_catalog": [],
         "channel_preferences": {}, "owner_instructions": "",

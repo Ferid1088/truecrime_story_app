@@ -116,6 +116,9 @@ REQUIRED_ROLES = {
     "detective_director",
     # Vision-capable: judges one dispatched detective visual's actual rendered frame(s) (Section G).
     "detective_design_director",
+    # Checks the detective's achieved purpose and film continuity across plan/render/repair modes,
+    # routing findings to their owning repair stage (Section J).
+    "detective_film_reviewer",
     "mvp_query_planner",
     "mvp_candidate_verifier",
     "mvp_second_verifier",

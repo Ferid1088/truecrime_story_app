@@ -580,6 +580,13 @@
       "output": "json",
       "description": "Alternative Visual Design Director (Section G): design/review/repair of one dispatched detective visual, from real rendered previews.",
       "used_by": "app/documentary/detective/design_review.py"
+    },
+    "detective.film_reviewer": {
+      "role": "detective_film_reviewer",
+      "prompt": "documentary/detective/film_reviewer_system",
+      "output": "json",
+      "description": "Film Experience Reviewer (Section J): checks achieved audience understanding, continuity, curiosity, routes findings to their repair owner (plan_audit/rendered_review/repair_check modes).",
+      "used_by": "app/documentary/detective/review.py"
     }
   }
 }

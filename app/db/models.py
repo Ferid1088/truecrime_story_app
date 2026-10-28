@@ -1280,6 +1280,49 @@ class DetectiveToolAction(Base):
     scene = relationship("DetectiveScene", back_populates="actions")
 
 
+class DetectiveFinding(Base):
+    """One Film Experience Reviewer finding (Section J): a stable, routable problem report, open
+    until a repair is applied AND rechecked. Never closed by the same call that opened it — a
+    repair's own re-review creates a new finding row (status='verified_repair', linked via
+    `repairs_finding_id`) rather than mutating history, so a regression introduced by that repair
+    opens a fresh, independently-tracked finding instead of silently erasing the old one."""
+
+    __tablename__ = "detective_findings"
+    __table_args__ = (
+        UniqueConstraint("graph_id", "finding_key", name="uq_detective_finding_key"),
+        CheckConstraint(
+            "repair_owner IN ('detective_director', 'visual_design_director', "
+            "'scheduler_renderer', 'narration_workflow')",
+            name="ck_detective_finding_repair_owner",
+        ),
+        CheckConstraint("severity IN ('blocking', 'major', 'minor')",
+                        name="ck_detective_finding_severity"),
+        CheckConstraint(
+            "status IN ('open', 'repair_in_progress', 'closed', 'incomplete')",
+            name="ck_detective_finding_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    finding_key: Mapped[str] = mapped_column(String(80))
+    agent_run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True)
+    mode: Mapped[str] = mapped_column(String(20))               # plan_audit | rendered_review | repair_check
+    severity: Mapped[str] = mapped_column(String(20))
+    repair_owner: Mapped[str] = mapped_column(String(30), index=True)
+    observed_problem: Mapped[str] = mapped_column(Text)
+    scene_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    action_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    anchor_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    recommended_repair: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    repairs_finding_id: Mapped[int | None] = mapped_column(ForeignKey("detective_findings.id"),
+                                                            nullable=True)
+    repair_result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
+
+
 class EpistemicContractSet(Base):
     """A versioned, reviewable claim ledger for one long-form script."""
 

@@ -83,8 +83,8 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | --- | --- | --- |
 | [x] H1 | Detective intent and chosen tools survive composition, coverage filling, host insertion, and final encoding. | VERIFIED — tests/test_detective_section_h.py::test_dispatched_graphic_survives_finalize_graphics_H1 |
 | [ ] H2 | All three agents and deterministic components share current versions, state, and timing. | IN_PROGRESS — tests/test_detective_section_h.py::test_no_hidden_staleness_because_nothing_is_cached_yet_H2 |
-| [ ] H3 | Findings route to the correct owner, produce a repair, and close only after the new output passes. | NOT_STARTED — Requires the Film Experience Reviewer's repair-routing logic (Section J, which depends on  |
-| [ ] H4 | New regressions reopen checks; exhausted settings leave a resumable incomplete state rather than approval. | NOT_STARTED — Same as H3: depends on Section J's runtime correction loop, not yet built. |
+| [x] H3 | Findings route to the correct owner, produce a repair, and close only after the new output passes. | VERIFIED — tests/test_detective_film_reviewer.py::test_full_repair_loop_closes_a_verified_repair |
+| [x] H4 | New regressions reopen checks; exhausted settings leave a resumable incomplete state rather than approval. | VERIFIED — tests/test_detective_film_reviewer.py::test_exhausted_retries_leave_an_incomplete_state_not_a_false_pass |
 | [x] H5 | The final production script and renderer consume the Main Visual Planner's accepted detective-tool decisions, with no bypass from toolkit or coverage helpers. | VERIFIED — tests/test_detective_section_h.py::test_unaccepted_action_is_never_dispatched_H5 |
 
 ## I. Inspection, targeted revision, reruns
@@ -100,10 +100,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] J1 | The complete prompt and plan/render/repair-check modes are active with structured repair routing. | NOT_STARTED |
-| [ ] J2 | The reviewer checks achieved audience understanding, continuity, curiosity, meaningful reuse, and audio fluency. | NOT_STARTED |
-| [ ] J3 | Frame-only, transcript-only, excerpt, and unavailable-media limits are reported accurately. | NOT_STARTED |
-| [ ] J4 | Meaningful targeted and integrated tests pass, including repairs and stale-review invalidation. | NOT_STARTED |
+| [x] J1 | The complete prompt and plan/render/repair-check modes are active with structured repair routing. | VERIFIED — docs/detective_toolkit_section_j_design.md |
+| [x] J2 | The reviewer checks achieved audience understanding, continuity, curiosity, meaningful reuse, and audio fluency. | VERIFIED — docs/detective_toolkit_section_j_design.md |
+| [ ] J3 | Frame-only, transcript-only, excerpt, and unavailable-media limits are reported accurately. | IN_PROGRESS — tests/test_detective_film_reviewer.py::test_schema_rejects_plan_audit_claiming_motion_or_audio |
+| [x] J4 | Meaningful targeted and integrated tests pass, including repairs and stale-review invalidation. | VERIFIED — docs/detective_toolkit_section_j_design.md |
 
 ## K. Real-film proof and handover
 
