@@ -105,6 +105,11 @@ def graphic_checks(script: dict) -> dict:
     seen: dict[str, int] = {}
     repeated = []
     for n, s in enumerate(shots):
+        # A shot the Detective Director placed with an explicit reuse reason (Section D, obstacle
+        # 4) is a deliberate return/comparison/update, not the redundant replay this check exists
+        # to catch.
+        if s.get("detective_reuse_reason"):
+            continue
         for fid in fact_ids(s["graphic"]["data"]):
             if fid in seen and seen[fid] != n:
                 repeated.append({"evidence": fid, "at": s["start"]})

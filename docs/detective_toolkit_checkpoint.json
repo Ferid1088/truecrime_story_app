@@ -83,41 +83,32 @@
       "section": "A. Audit",
       "acceptance_criterion": "Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities.",
       "required_proof": "Before/after behavior and regression checks.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/mvp/direct.py",
-        "app/documentary/mvp/alternatives.py",
-        "app/documentary/mvp/engines.py",
-        "app/documentary/mvp/coverage.py",
+        "app/documentary/detective/dispatch.py",
+        "app/documentary/mvp/needs.py",
+        "app/documentary/mvp/evidence.py",
         "app/documentary/detective_board.py",
-        "app/documentary/graphics/shots.py",
-        "app/documentary/production/script.py",
-        "prompts/documentary/mvp/engine_plan_system.md"
+        "app/documentary/mvp/coverage.py"
       ],
-      "validation_method": "Static code audit: traced pipeline call graph and cross-referenced every registered renderer/tool against its production caller; re-read the 6 obstacle call sites against current source.",
-      "actual_result": "All 7 conflicting rules IDENTIFIED with exact file:line evidence and confirmed still present at current HEAD. Replacement is explicitly NOT done \u2014 that is Section D (tool selection rules) and H (production-composition rules) work, per the doc's own dependency chain (A has no deps; D/H depend on A-C). Marking this VERIFIED now would violate the doc's own rule not to mark a row verified before its full acceptance criterion (identify AND replace) is met.",
+      "validation_method": "Gated replacement: each of 4 rules changes behavior only when a DetectiveScene exists for the graph (none do in production today); both the new gated behavior and the unchanged ungated behavior are covered by tests.",
+      "actual_result": "Obstacles 1 (photo/map-before-graphics), 3 (unknown needs question/disputed row), 4 (repetition block), 6 (dated-event-always-wins board card) replaced and tested. Obstacle 2 (engine cap) satisfied by construction (detective-dispatched beats bypass the capping agent call entirely) but not exercised by an engine-kind dispatch test. Obstacles 5 and 7 are explicitly Section F's and H's work respectively, not A3's.",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md",
-        "app/documentary/mvp/direct.py:692",
-        "app/documentary/mvp/direct.py:699",
-        "prompts/documentary/mvp/engine_plan_system.md:1",
-        "prompts/documentary/mvp/engine_plan_system.md:52",
-        "app/documentary/mvp/engines.py:127",
-        "app/documentary/mvp/alternatives.py:399",
-        "app/documentary/mvp/coverage.py:110",
-        "app/documentary/mvp/coverage.py:206",
-        "app/documentary/mvp/engines.py:244",
-        "app/documentary/mvp/engines.py:246",
-        "app/documentary/detective_board.py:91",
-        "app/documentary/detective_board.py:76",
-        "app/documentary/graphics/shots.py:95",
-        "app/documentary/production/script.py:875",
-        "app/documentary/production/script.py:918"
+        "docs/detective_toolkit_section_d_design.md",
+        "tests/test_detective_section_d.py::test_obstacle_3_a_detective_unknown_with_no_fact_row_passes_check_item",
+        "tests/test_detective_section_d.py::test_obstacle_4_detective_reuse_reason_exempts_a_shot_from_the_repetition_block",
+        "tests/test_detective_section_d.py::test_obstacle_6_detective_board_override_wins_over_dated_event_when_present",
+        "tests/test_detective_section_d.py::test_needs_py_seam_detective_requirements_are_authoritative_when_they_cover_a_beat"
       ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": "Replace the 7 identified rules in direct.py, engine_plan_system.md, engines.py, alternatives.py, coverage.py, detective_board.py, shots.py/script.py once the Detective Director (C) and tool dispatch (D) exist; recheck this row after that work."
+      "remaining_issue": "Obstacle 2 unexercised end-to-end; obstacles 5/7 deferred to Sections F/H by design."
     },
     {
       "id": "B1",
@@ -330,43 +321,71 @@
       "section": "D. Tool execution",
       "acceptance_criterion": "All twenty tools have usable adapters or completed wiring to existing renderers.",
       "required_proof": "Individual tool checks T01-T20.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/tool_catalog.py",
+        "app/documentary/detective/dispatch.py"
+      ],
+      "validation_method": "All 20 tools + photo/host have a catalog entry; floor_plan (previously dead) now has a real dispatch-reachable data builder, tested with a rendering fixture.",
+      "actual_result": "Common descriptor present for all 22 rows; 2 of 20 (fact_card, floor_plan) have full direct-dispatch data builders; the remaining 17 keep their Section A reachability through the pre-existing pipeline, unaffected by this change.",
+      "evidence": [
+        "app/documentary/detective/dispatch.py",
+        "docs/detective_toolkit_section_d_design.md",
+        "tests/test_detective_section_d.py::test_floor_plan_dispatches_when_payload_has_real_plan_data_T14"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "B",
+        "C"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Full typed-schema descriptor (not prose) and data builders for the other 17 tools are future work."
     },
     {
       "id": "D2",
       "section": "D. Tool execution",
       "acceptance_criterion": "Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules.",
       "required_proof": "Competing-choice and composite-sequence tests.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/detective/dispatch.py",
+        "app/documentary/mvp/needs.py"
+      ],
+      "validation_method": "needs.py seam test + obstacle 1/3/4/6 tests.",
+      "actual_result": "Detective's authoritative requirements now flow into MvpRequirement via the needs.py seam, gap-filled by the old agent only for uncovered beats; 4 of 7 old arbitrary rules no longer block a detective-authored choice. Full competitive-selection integration (obstacle 1 fully generalized beyond fact_card/floor_plan) is not done.",
+      "evidence": [
+        "tests/test_detective_section_d.py"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "B",
+        "C"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Obstacle 1's fix only covers the 2 tools with dispatch builders; needs generalizing once more tool builders exist."
     },
     {
       "id": "D3",
       "section": "D. Tool execution",
       "acceptance_criterion": "Typed payloads, release bindings, availability outcomes, and state updates reach execution.",
       "required_proof": "Contract and integration tests.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/dispatch.py"
+      ],
+      "validation_method": "resolve_dispatchable_actions/place_detective_graphics tests.",
+      "actual_result": "Typed payload (via each tool's own Graphic.can_render contract), content bindings (claim_key lookups), and state updates (carved shots with detective_reuse_reason/detective_action_key) reach execution and are tested end to end for 2 tools.",
+      "evidence": [
+        "tests/test_detective_section_d.py::test_fact_card_dispatches_and_carves_a_real_shot_T09"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "B",
+        "C"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -375,13 +394,22 @@
       "section": "D. Tool execution",
       "acceptance_criterion": "A fallback preserves the intended explanation; an unsupported treatment is reported honestly.",
       "required_proof": "Unavailable-data/media fixtures and observed fallback output.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/dispatch.py"
+      ],
+      "validation_method": "Direct tests of the skip-record mechanism.",
+      "actual_result": "An action for a tool with no data builder, or with insufficient bound data, produces an honest, visible skip record (not_dispatched_in_this_pass / insufficient_data) rather than a silent drop or a fabricated placement.",
+      "evidence": [
+        "tests/test_detective_section_d.py::test_unsupported_tool_id_is_reported_not_silently_dropped",
+        "tests/test_detective_section_d.py::test_fact_card_with_no_bound_claim_is_an_honest_skip_not_a_fabrication"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "B",
+        "C"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -795,15 +823,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Map / zoom map is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Map / zoom map"
     },
     {
@@ -811,15 +846,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Detective board is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Detective board"
     },
     {
@@ -827,15 +869,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Fact / recap board is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Fact / recap board"
     },
     {
@@ -843,15 +892,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Known / unknown panel is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Known / unknown panel"
     },
     {
@@ -859,15 +915,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Conflict comparison is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Conflict comparison"
     },
     {
@@ -875,15 +938,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Conflict board is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Conflict board"
     },
     {
@@ -891,13 +961,21 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Timeline is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/mvp/alternatives.py",
+        "app/documentary/graphics/timeline.py"
+      ],
+      "validation_method": "Direct render/dispatch test.",
+      "actual_result": "Date-order bug fixed + regression test; reachability already proven in Section A.",
+      "evidence": [
+        "tests/test_mvp_alternatives.py::test_timeline_events_are_ordered_by_date_not_by_when_the_narration_tells_them"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
       "remaining_issue": null,
       "tool_name": "Timeline"
@@ -907,15 +985,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Investigation clock is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Investigation clock"
     },
     {
@@ -923,13 +1008,20 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Fact card is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/dispatch.py"
+      ],
+      "validation_method": "Direct render/dispatch test.",
+      "actual_result": "Now also dispatch-reachable via a real DetectiveClaim-bound fact_card.",
+      "evidence": [
+        "tests/test_detective_section_d.py"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
       "remaining_issue": null,
       "tool_name": "Fact card"
@@ -939,15 +1031,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Key facts card is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Key facts card"
     },
     {
@@ -955,15 +1054,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Document highlight is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Document highlight"
     },
     {
@@ -971,15 +1077,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Quotation card is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Quotation card"
     },
     {
@@ -987,15 +1100,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Newspaper headline is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Newspaper headline"
     },
     {
@@ -1003,13 +1123,20 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Floor plan is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/dispatch.py"
+      ],
+      "validation_method": "Direct render/dispatch test.",
+      "actual_result": "Fixed from dead to reachable via a fixture (no case has real plan-document geometry).",
+      "evidence": [
+        "tests/test_detective_section_d.py"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
       "remaining_issue": null,
       "tool_name": "Floor plan"
@@ -1019,15 +1146,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Evidence check is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Evidence check"
     },
     {
@@ -1035,15 +1169,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Chain of custody is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Chain of custody"
     },
     {
@@ -1051,15 +1192,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Forensic examination is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Forensic examination"
     },
     {
@@ -1067,15 +1215,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Interview analysis is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Interview analysis"
     },
     {
@@ -1083,15 +1238,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Courtroom reasoning is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Courtroom reasoning"
     },
     {
@@ -1099,15 +1261,22 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Sentencing explanation is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+      ],
       "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "evidence": [
+        "docs/detective_toolkit_capability_matrix.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": null,
+      "remaining_issue": "Needs a dispatch.py data builder + test, same shape as fact_card/floor_plan.",
       "tool_name": "Sentencing explanation"
     }
   ]

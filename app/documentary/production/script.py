@@ -36,6 +36,7 @@ from app.db.models import (
     EditorialBlueprint,
     MusicUsage,
     ProductionScript,
+    RevealGraph,
     StoryVersion,
     VisualAsset,
     VisualPlan,
@@ -963,7 +964,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             case_status: str | None = None, production_type: str | None = "original",
             opening_strategy: str | None = None, arrest_beat: str | None = None,
             reveal_blocks: dict[str, list[str]] | None = None,
-            cards: dict | None = None, board: dict | None = None) -> dict:
+            cards: dict | None = None, board: dict | None = None,
+            detective_actions: list[dict] | None = None) -> dict:
     """Pure function: manifest (audio timeline) + visual plan + localized
     texts -> production timeline. `incident_beat`: where the story's first
     incident happens (voice performance arc) — no investigation pictures
@@ -1242,6 +1244,10 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
     cards_left_out, intro = insert_chapter_cards(final, cards, spans, overlays)
     board_appearances = insert_detective_board_cards(final, board, spans, overlays, language)
+    detective_graphics = []
+    if detective_actions:
+        from app.documentary.detective.dispatch import place_detective_graphics
+        detective_graphics = place_detective_graphics(final, spans, language, detective_actions)
     graphics_dropped = finalize_graphics(final, language)
     for n, sh in enumerate(final):
         sh["index"] = n
@@ -1291,6 +1297,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         # chapter / title cards that found no room (the gap was too short)
         "cards_left_out": cards_left_out,
         "board": board_appearances,
+        # Detective Director tool actions dispatched into real shots, and why each one was or
+        # was not placed (Section D live evidence)
+        "detective_graphics": detective_graphics,
         # graphics that no longer fitted their final length (the picture before them holds)
         "graphics_dropped": graphics_dropped,
         # the channel intro: in the cold open's break, or before the first word
@@ -1402,8 +1411,15 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     if approved and (cards.get("film_title") is not None or cards.get("cold_open")):
         cards["film_title"] = approved      # one title: the editor-approved one
     board = board_cards_for(latest_board_plan(db, plan_row.blueprint_id), language)
+    detective_actions = None
+    reveal_graph = db.query(RevealGraph).filter(RevealGraph.blueprint_id == plan_row.blueprint_id).first()
+    if reveal_graph is not None:
+        from app.documentary.detective.dispatch import has_detective_plan, resolve_dispatchable_actions
+
+        if has_detective_plan(db, reveal_graph.id):
+            detective_actions = resolve_dispatchable_actions(db, reveal_graph.id)
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
-                     cards=cards, board=board,
+                     cards=cards, board=board, detective_actions=detective_actions,
                      arrest_beat=SP.arrest_beat(blueprint),
                      reveal_blocks=SP.reveal_blocks(blueprint),
                      case_status=getattr(case, "resolution_status", None),

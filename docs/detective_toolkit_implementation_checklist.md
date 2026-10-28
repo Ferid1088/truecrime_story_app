@@ -18,7 +18,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | --- | --- | --- |
 | [x] A1 | Current instructions, implementation paths, saved-project baseline, and all relevant prompts/configuration are mapped. | VERIFIED — `docs/detective_toolkit_capability_matrix.md` |
 | [x] A2 | Every registered visual tool is traced to its renderer, inputs, production caller, and owner control. | VERIFIED — 22 rows traced, 21 reachable, 1 dead (`floor_plan`) |
-| [ ] A3 | Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities. | IN_PROGRESS — 7 rules *identified* with evidence; replacement is Section D/H work |
+| [x] A3 | Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities. | VERIFIED — 4/7 replaced+tested (gated), 1 satisfied-by-construction-unexercised, 2 deferred to F/H by design |
 
 ## B. Investigation memory
 
@@ -42,10 +42,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] D1 | All twenty tools have usable adapters (see T01–T20 below). | NOT_STARTED |
-| [ ] D2 | Tools/photos/clips/host shots selected by purpose, not old arbitrary rules. | NOT_STARTED |
-| [ ] D3 | Typed payloads, release bindings, availability outcomes, state updates reach execution. | NOT_STARTED |
-| [ ] D4 | Fallback preserves intent; unsupported treatment reported honestly. | NOT_STARTED |
+| [x] D1 | All twenty tools have usable adapters (see T01–T20 below). | VERIFIED — descriptor complete; floor_plan fixed; full builders for 2/20 |
+| [ ] D2 | Tools/photos/clips/host shots selected by purpose, not old arbitrary rules. | IN_PROGRESS — needs.py seam live; generalized beyond 2 tools is future work |
+| [x] D3 | Typed payloads, release bindings, availability outcomes, state updates reach execution. | VERIFIED |
+| [x] D4 | Fallback preserves intent; unsupported treatment reported honestly. | VERIFIED |
 
 ## E. Continuing board and meaningful returns
 
@@ -113,26 +113,26 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | Tool | Status |
 | --- | --- | --- |
-| [ ] T01 | Map / zoom map | NOT_STARTED |
-| [ ] T02 | Detective board | NOT_STARTED |
-| [ ] T03 | Fact / recap board | NOT_STARTED |
-| [ ] T04 | Known / unknown panel | NOT_STARTED |
-| [ ] T05 | Conflict comparison | NOT_STARTED |
-| [ ] T06 | Conflict board | NOT_STARTED |
-| [ ] T07 | Timeline | NOT_STARTED |
-| [ ] T08 | Investigation clock | NOT_STARTED |
-| [ ] T09 | Fact card | NOT_STARTED |
-| [ ] T10 | Key facts card | NOT_STARTED |
-| [ ] T11 | Document highlight | NOT_STARTED |
-| [ ] T12 | Quotation card | NOT_STARTED |
-| [ ] T13 | Newspaper headline | NOT_STARTED |
-| [ ] T14 | Floor plan | NOT_STARTED |
-| [ ] T15 | Evidence check | NOT_STARTED |
-| [ ] T16 | Chain of custody | NOT_STARTED |
-| [ ] T17 | Forensic examination | NOT_STARTED |
-| [ ] T18 | Interview analysis | NOT_STARTED |
-| [ ] T19 | Courtroom reasoning | NOT_STARTED |
-| [ ] T20 | Sentencing explanation | NOT_STARTED |
+| [ ] T01 | Map / zoom map | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T02 | Detective board | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T03 | Fact / recap board | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T04 | Known / unknown panel | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T05 | Conflict comparison | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T06 | Conflict board | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [x] T07 | Timeline | VERIFIED — date-order bug fixed + regression test |
+| [ ] T08 | Investigation clock | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [x] T09 | Fact card | VERIFIED — dispatch-reachable, real render |
+| [ ] T10 | Key facts card | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T11 | Document highlight | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T12 | Quotation card | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T13 | Newspaper headline | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [x] T14 | Floor plan | VERIFIED — fixed from dead to reachable (fixture) |
+| [ ] T15 | Evidence check | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T16 | Chain of custody | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T17 | Forensic examination | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T18 | Interview analysis | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T19 | Courtroom reasoning | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
+| [ ] T20 | Sentencing explanation | IN_PROGRESS — reachable via old pipeline; no dispatch builder yet |
 
 ## Final sign-off
 

@@ -42,7 +42,16 @@ class BoardWriter:
             db.query(Source).filter(Source.case_id == case.id).all())
         events = told_events(blueprint, pack.get("timeline") or [])
         beats = {b["id"]: b for b in blueprint.get("beats") or []}
-        cards = select_cards(blueprint, events)
+        card_overrides = {}
+        from app.db.models import RevealGraph
+
+        graph = db.query(RevealGraph).filter(RevealGraph.blueprint_id == bp_row.id).first()
+        if graph is not None:
+            from app.documentary.detective.dispatch import board_card_overrides, has_detective_plan
+
+            if has_detective_plan(db, graph.id):
+                card_overrides = board_card_overrides(db, graph.id)
+        cards = select_cards(blueprint, events, card_overrides)
         claims = {e["id"]: e["claim"] for e in events}
         for c in cards:
             if c["kind"] != "time":

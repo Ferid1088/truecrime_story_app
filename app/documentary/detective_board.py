@@ -70,13 +70,17 @@ def _open_questions_never_answered(blueprint: dict) -> dict[str, str]:
     return {qid: beat for qid, beat in opened.items() if qid not in closed}
 
 
-def select_cards(blueprint: dict, told_events: list[dict]) -> list[dict]:
+def select_cards(blueprint: dict, told_events: list[dict],
+                 card_overrides: dict[str, dict] | None = None) -> list[dict]:
     """The language-neutral selection: [{id, kind, source_fact, beat_id,
     status, links}], in the order the story tells them. One card per
     beat at most (a beat that both reveals a dated event and is a
     contradiction gets the dated-event card — dates are the stronger,
-    more concrete claim). Honors config min/max cards and the minimum
-    beat gap between two selected beats."""
+    more concrete claim, UNLESS `card_overrides` names a different kind
+    for that beat: Section D, obstacle 6 — the Detective Director decided
+    what that beat's card should show). Honors config min/max cards and
+    the minimum beat gap between two selected beats."""
+    card_overrides = card_overrides or {}
     cfg = ai_config.detective_board
     order = _beat_order(blueprint)
     pos = {b: i for i, b in enumerate(order)}
@@ -89,6 +93,9 @@ def select_cards(blueprint: dict, told_events: list[dict]) -> list[dict]:
 
     candidates: list[dict] = []
     for bid in order:
+        if bid in card_overrides:
+            candidates.append({**card_overrides[bid], "beat_id": bid})
+            continue
         event = by_fact_beat.get(bid)
         if event is not None:
             candidates.append({"kind": "time", "source_fact": event["id"], "beat_id": bid})

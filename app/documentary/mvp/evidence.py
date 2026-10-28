@@ -59,8 +59,19 @@ def gather(db: Session, case: Case, bp_row: EditorialBlueprint, needs_plan: Visu
     official = {s.id: {"text": s.raw_text, "type": HL.clean_title(s.title or "", s.publisher or "", s.publisher or ""),
                        "issuer": s.publisher or "", "published_at": s.published_at, "language": s.language or "en"}
                 for s in source_rows if s.source_type == "official" and s.raw_text and s.publisher and s.title}
+    questions = list(blueprint.get("questions") or [])
+    from app.db.models import RevealGraph
+
+    graph = db.query(RevealGraph).filter(RevealGraph.blueprint_id == bp_row.id).first()
+    if graph is not None:
+        from app.documentary.detective.dispatch import has_detective_plan, legacy_evidence_additions
+
+        if has_detective_plan(db, graph.id):
+            extra_facts, extra_questions = legacy_evidence_additions(db, graph.id)
+            facts.update({f["id"]: f for f in extra_facts})
+            questions.extend(extra_questions)
     return AL.Evidence(
-        official=official, order={b["id"]: i for i, b in enumerate(beats)}, beats=beats, questions=blueprint.get("questions") or [],
+        official=official, order={b["id"]: i for i, b in enumerate(beats)}, beats=beats, questions=questions,
         facts=facts, contradictions=contradictions, sources=sources, events=events, quotes=quotes,
         narration={bid: " ".join(s["speech"] for s in w["sentences"]) for bid, w in windows.items()},
         starts={bid: w["start"] for bid, w in windows.items()},

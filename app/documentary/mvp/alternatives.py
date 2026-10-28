@@ -109,8 +109,11 @@ def timeline_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
         if label and parsed and e.get("first_beat") in ev.order:
             events.append({"date": parsed, "label": label, "fact_id": e["id"], "beat": ev.order[e["first_beat"]],
                            "claim": e.get("claim") or label})
-    events.sort(key=lambda x: (x["beat"], x["date"]["year"], x["date"].get("month") or 0, x["date"].get("day") or 0,
-                               x["fact_id"]))
+    # The line must grow left to right by actual date, not by the order the narration reveals
+    # events (a documentary may narrate a 2024 affair after already showing 2026 events). `beat`
+    # is only a tiebreaker for two events dated the same day.
+    events.sort(key=lambda x: (x["date"]["year"], x["date"].get("month") or 0, x["date"].get("day") or 0,
+                               x["beat"], x["fact_id"]))
     events = same_event_once(events, p["timeline"]["same_event_share"])
     out: list[Offer] = []
     size = p["timeline"]["max_events_per_card"]

@@ -192,6 +192,19 @@ def test_timeline_offers_group_events_in_story_order_and_never_before_they_are_t
     assert first.seconds == pytest.approx(GS.planned_seconds("timeline", first.data)) and first.items == {"T1", "T2", "T3"}
 
 
+def test_timeline_events_are_ordered_by_date_not_by_when_the_narration_tells_them():
+    # Flashback: the affair (2024) is narrated AFTER the 2026 events it explains. The line must
+    # still grow left to right by date (owner-reported bug: a later-narrated-but-earlier-dated
+    # event rendered to the right of events that are chronologically after it).
+    events = [
+        {"id": "T004", "date": "2026-02-15", "first_beat": "B03", "label": {"en": "Flynn says man handed wife a flag"}},
+        {"id": "T008", "date": "2026-02-15", "first_beat": "B03", "label": {"en": "Caleb alleges a man gave Ashley a flag"}},
+        {"id": "T010", "date": "2024-03-01", "first_beat": "B04", "label": {"en": "Botner says affair with Flynn began"}}]
+    offers = AL.timeline_offers(evidence(events=events), {})
+    ordered = [e["fact_id"] for e in offers[-1].data["events"]]
+    assert ordered == ["T010", "T004", "T008"]   # 2024 first, then the two 2026 events
+
+
 def test_one_event_told_by_two_sources_is_one_point_of_the_timeline_but_two_different_events_of_a_day_are_kept():
     flag = ("Flynn told investigators that the day before the killing a man came to the home and handed his wife an "
             "American flag with a weird sales pitch for America.")

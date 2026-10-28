@@ -237,6 +237,54 @@ def latest_mvp_plan(db: Session, blueprint_id: int) -> VisualPlan | None:
     return next((r for r in rows if r.status != "invalid" and _is_needs_plan(r)), None)
 
 
+async def _needs_with_detective_handoff(db: Session, case: Case, blueprint_row: EditorialBlueprint,
+                                       graph: RevealGraph, blueprint: dict, pack: dict,
+                                       sources: list[Source], view: dict, beat_order: dict[str, int],
+                                       seconds: dict[str, float]) -> tuple[dict, dict, str | None]:
+    """Section D hand-off seam: when the Detective Director (Section C) has a plan for this
+    graph, its scenes/tool actions become the authoritative source of what each beat needs - the
+    `mvp.needs` agent call runs only to gap-fill beats the detective plan left uncovered (or is
+    skipped entirely when the detective plan already covers every beat). Absent a detective plan
+    (every real case today), this calls the agent exactly as before."""
+    from app.documentary.detective.dispatch import detective_raw_needs, has_detective_plan
+
+    detective_requirements = None
+    if has_detective_plan(db, graph.id):
+        det_raw = detective_raw_needs(db, graph)
+        detective_requirements, det_report = validate_needs(det_raw, blueprint, pack, sources, view)
+    covered = ({b["beat_id"] for b in detective_requirements["beats"] if b["requirements"]}
+              if detective_requirements else set())
+    if len(covered) < len(beat_order):
+        payload = planner_input(case, blueprint, pack, sources, view, seconds)
+        with track_run(db, case.id, "Main Visual Planner: needs",
+                       input_summary=f"blueprint={blueprint_row.id} graph={graph.id}") as run:
+            raw, res = await run_agent("mvp.needs", get_generation_provider(),
+                                       json.dumps(payload, ensure_ascii=False))
+            stamp_run(run, res, "mvp_needs_planner")
+        agent_requirements, report = validate_needs(raw, blueprint, pack, sources, view)
+        model = getattr(res, "model", None)
+    else:
+        agent_requirements, report, model = {"entities": [], "beats": []}, det_report, None
+    if detective_requirements is None:
+        return agent_requirements, report, model
+    by_beat = {b["beat_id"]: b for b in agent_requirements["beats"]}
+    by_beat.update({b["beat_id"]: b for b in detective_requirements["beats"] if b["requirements"]})
+    by_entity = {e["key"]: e for e in agent_requirements["entities"]}
+    by_entity.update({e["key"]: e for e in detective_requirements["entities"]})
+    requirements = {"entities": list(by_entity.values()),
+                    "beats": [by_beat[bid] for bid in beat_order if bid in by_beat]}
+    without = [bid for bid in beat_order if bid not in covered and bid not in
+              {b["beat_id"] for b in agent_requirements["beats"] if b["requirements"]}]
+    merged_report = {
+        "status": "invalid" if not requirements["entities"] or not requirements["beats"] else
+                 ("needs_review" if (report.get("warnings") or det_report.get("warnings")) else "valid"),
+        "errors": (report.get("errors") or []) + det_report.get("errors", []),
+        "warnings": (report.get("warnings") or []) + det_report.get("warnings", []),
+        "entities": len(requirements["entities"]),
+        "beats_with_needs": len(requirements["beats"]), "beats_without_needs": without}
+    return requirements, merged_report, model
+
+
 async def plan_needs(db: Session, case: Case, blueprint_row: EditorialBlueprint,
                      graph: RevealGraph, seconds: dict[str, float]) -> VisualPlan:
     """The needs plan for one blueprint: reused when a valid one exists for the same graph."""
@@ -249,13 +297,8 @@ async def plan_needs(db: Session, case: Case, blueprint_row: EditorialBlueprint,
     pack, sources = facts_sources
     beat_order = {b["id"]: i for i, b in enumerate(blueprint.get("beats") or [])}
     view = graph_view(graph, beat_order)
-    payload = planner_input(case, blueprint, pack, sources, view, seconds)
-    with track_run(db, case.id, "Main Visual Planner: needs",
-                   input_summary=f"blueprint={blueprint_row.id} graph={graph.id}") as run:
-        raw, res = await run_agent("mvp.needs", get_generation_provider(),
-                                   json.dumps(payload, ensure_ascii=False))
-        stamp_run(run, res, "mvp_needs_planner")
-    requirements, report = validate_needs(raw, blueprint, pack, sources, view)
+    requirements, report, model = await _needs_with_detective_handoff(
+        db, case, blueprint_row, graph, blueprint, pack, sources, view, beat_order, seconds)
     requirements = ensure_pipeline_member_ids(f"mvp-needs:{blueprint_row.id}", requirements)
     version = db.query(VisualPlan).filter(VisualPlan.blueprint_id == blueprint_row.id).count() + 1
     plan = VisualPlan(
@@ -263,9 +306,9 @@ async def plan_needs(db: Session, case: Case, blueprint_row: EditorialBlueprint,
         status="requirements" if report["status"] != "invalid" else "invalid",
         requirements_json=json.dumps(requirements, ensure_ascii=False),
         validation_json=json.dumps({"requirements": report, "mvp": {"reveal_graph_id": graph.id,
-                                                                    "model": getattr(res, "model", None)}},
+                                                                    "model": model}},
                                    ensure_ascii=False),
-        generation_model=getattr(res, "model", None))
+        generation_model=model)
     db.add(plan)
     db.commit()
     db.refresh(plan)
