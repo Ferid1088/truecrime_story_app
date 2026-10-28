@@ -769,13 +769,24 @@
       "section": "H. Production integration",
       "acceptance_criterion": "Detective intent and chosen tools survive composition, coverage filling, host insertion, and final encoding.",
       "required_proof": "Plan-to-compiled-to-rendered comparison.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/graphics/shots.py:finalize",
+        "app/documentary/detective/dispatch.py:place_detective_graphics"
+      ],
+      "validation_method": "Dispatch a real detective-chosen fact_card, then run the existing finalize_graphics cue-fraction resolution pass on it.",
+      "actual_result": "The shot's graphic type/data are unchanged by finalize, and it is not among finalize's dropped shots.",
+      "evidence": [
+        "tests/test_detective_section_h.py::test_dispatched_graphic_survives_finalize_graphics_H1"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -784,15 +795,25 @@
       "section": "H. Production integration",
       "acceptance_criterion": "All three agents and deterministic components share current versions, state, and timing.",
       "required_proof": "Full integration trace.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/detective/design_review.py:build_input"
+      ],
+      "validation_method": "Confirmed no design-review result is persisted/cached anywhere keyed by content or text_version, so no staleness bug exists today.",
+      "actual_result": "Two build_input calls with different text_version/data never interfere - but this only rules out a bug, it is not the full invalidation system the doc describes.",
+      "evidence": [
+        "tests/test_detective_section_h.py::test_no_hidden_staleness_because_nothing_is_cached_yet_H2"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Full version/cache invalidation when an earlier correction changes dependent state is Section I's explicit job (versioning and caching), not built here."
     },
     {
       "id": "H3",
@@ -805,9 +826,13 @@
       "actual_result": null,
       "evidence": [],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H",
+        "I",
+        "J"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Requires the Film Experience Reviewer's repair-routing logic (Section J, which depends on H-I, not the other way around) - nothing to route findings to yet."
     },
     {
       "id": "H4",
@@ -820,23 +845,40 @@
       "actual_result": null,
       "evidence": [],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H",
+        "I",
+        "J"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Same as H3: depends on Section J's runtime correction loop, not yet built."
     },
     {
       "id": "H5",
       "section": "H. Production integration",
       "acceptance_criterion": "The final production script and renderer consume the Main Visual Planner's accepted detective-tool decisions, with no bypass from toolkit or coverage helpers.",
       "required_proof": "End-to-end trace from toolkit result to compiled script and rendered output.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/dispatch.py:resolve_dispatchable_actions"
+      ],
+      "validation_method": "Parametrized test over all four planner_decision states (accepted/combined/rejected/deferred/None) confirming only accepted/combined ever reach a real shot.",
+      "actual_result": "Fixed a real bypass: resolve_dispatchable_actions previously ignored planner_decision entirely.",
+      "evidence": [
+        "tests/test_detective_section_h.py::test_unaccepted_action_is_never_dispatched_H5",
+        "tests/test_detective_section_h.py::test_accepted_or_combined_action_still_dispatches_H5"
+      ],
       "versions": {},
-      "dependencies": [],
-      "repair_history": [],
+      "dependencies": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G"
+      ],
+      "repair_history": [
+        "2026-10-28: fixed resolve_dispatchable_actions to check planner_decision before dispatch; updated 4 existing test fixtures that had been unknowingly relying on the bypass"
+      ],
       "remaining_issue": "Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a single callable internal service of the Main Visual Planner (one observable, persisted call boundary; planner owns accept/combine/defer/reject decisions), not code that independently writes state MVP later happens to consume. Needs a real remediation pass."
     },
     {

@@ -1418,6 +1418,16 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
 
         if has_detective_plan(db, reveal_graph.id):
             detective_actions = resolve_dispatchable_actions(db, reveal_graph.id)
+    detective_design_reviews: list[dict] = []
+    if detective_actions:
+        # Section H wiring seam: the Visual Design Director (Section G) reviews each real
+        # dispatched graphic's actual rendered frame. Gated by the same `detective_toolkit.enabled`
+        # flag as `toolkit.invoke` (default off) - informational only, does not affect `compose()`'s
+        # shot placement; acting on a `revise`/`needs_attention` finding is Section J's job.
+        from app.documentary.detective.design_review import review_resolved_actions
+
+        detective_design_reviews = await review_resolved_actions(
+            db, version.case_id, detective_actions, language, text_version=plan_row.version)
     script = compose(manifest, plan, assets, texts, language, incident_beat=incident,
                      cards=cards, board=board, detective_actions=detective_actions,
                      arrest_beat=SP.arrest_beat(blueprint),
@@ -1427,6 +1437,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     script["audio"] = {"path": (manifest.get("mix") or {}).get("files", {}).get("documentary_wav")
                        or manifest["files"].get("narration_wav")}
     script["requirements_placed"] = satisfy_requirements(db, plan_row, script, assets)
+    script["detective_design_reviews"] = detective_design_reviews
     if host:
         # Part 8a: the host's opening (then the logo) and mid appearances, shot and sound
         script = HT.insert_host(script, host, logo_seconds if after_host else None)

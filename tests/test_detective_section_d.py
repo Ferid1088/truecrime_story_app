@@ -39,7 +39,8 @@ def _graph(db_session, beats=None):
 
 
 def _scene_with_action(db_session, graph, beat_id, order, tool_id, purpose="test purpose",
-                       payload=None, reuse_reason=None, scene_key=None, active_entity=None):
+                       payload=None, reuse_reason=None, scene_key=None, active_entity=None,
+                       planner_decision="accepted"):
     unit = MEM.add_narration_unit(db_session, graph.id, unit_key=f"{beat_id}-1", beat_id=beat_id,
                                   story_order=order, text="narration text", language="en")
     scene = DetectiveScene(
@@ -53,7 +54,7 @@ def _scene_with_action(db_session, graph, beat_id, order, tool_id, purpose="test
     action = DetectiveToolAction(
         scene_id=scene.id, action_key=f"action-{beat_id}", order_index=0, tool_id=tool_id,
         purpose=purpose, payload_json=json.dumps(payload or {}), content_bindings_json="[]",
-        continuity_refs_json="[]", reuse_reason=reuse_reason)
+        continuity_refs_json="[]", reuse_reason=reuse_reason, planner_decision=planner_decision)
     db_session.add(action)
     db_session.flush()
     return scene, action

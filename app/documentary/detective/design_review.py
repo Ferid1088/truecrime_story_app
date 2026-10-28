@@ -112,3 +112,34 @@ async def review(db: Session, case_id: int, *, tool_kind: str, data: dict, langu
     if violations:
         raise DesignValidationFailed(violations)
     return raw
+
+
+async def review_resolved_actions(db: Session, case_id: int, resolved: list[dict], language: str,
+                                  *, text_version: int = 1) -> list[dict]:
+    """Section H's wiring seam: the real, gated call path from the production pipeline into the
+    Visual Design Director for every dispatched (non-skip) detective action. Off by default via
+    the same `ai_config.detective_toolkit.enabled` flag as `toolkit.invoke` - a real case's
+    pipeline makes zero extra calls or cost unless the owner turns it on. This is informational
+    (persisted via `track_run`/`stamp_run` inside `review`); it does not change shot placement -
+    acting on a `revise`/`needs_attention` outcome is Section J's repair-routing job."""
+    from app.core.ai_config import ai_config
+
+    if not ai_config.detective_toolkit.enabled:
+        return []
+    outcomes = []
+    for action in resolved:
+        if action.get("skip") or not action.get("data"):
+            continue
+        try:
+            raw = await review(
+                db, case_id, tool_kind=action["tool_id"], data=action["data"], language=language,
+                detective_intent={"purpose": action.get("purpose", "")},
+                scene_id=action.get("beat_id", "unknown"), visual_id=action["action_key"],
+                text_version=text_version,
+            )
+            outcomes.append({"action_key": action["action_key"], "outcome": raw.get("outcome"),
+                             "text_version": text_version})
+        except DesignValidationFailed as exc:
+            outcomes.append({"action_key": action["action_key"], "outcome": "invalid",
+                             "violations": exc.violations, "text_version": text_version})
+    return outcomes

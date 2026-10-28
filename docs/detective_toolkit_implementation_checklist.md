@@ -81,11 +81,11 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] H1 | Detective intent and chosen tools survive composition, coverage filling, host insertion, and final encoding. | NOT_STARTED |
-| [ ] H2 | All three agents and deterministic components share current versions, state, and timing. | NOT_STARTED |
-| [ ] H3 | Findings route to the correct owner, produce a repair, and close only after the new output passes. | NOT_STARTED |
-| [ ] H4 | New regressions reopen checks; exhausted settings leave a resumable incomplete state rather than approval. | NOT_STARTED |
-| [ ] H5 | The final production script and renderer consume the Main Visual Planner's accepted detective-tool decisions, with no bypass from toolkit or coverage helpers. | NOT_STARTED — Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a s |
+| [x] H1 | Detective intent and chosen tools survive composition, coverage filling, host insertion, and final encoding. | VERIFIED — tests/test_detective_section_h.py::test_dispatched_graphic_survives_finalize_graphics_H1 |
+| [ ] H2 | All three agents and deterministic components share current versions, state, and timing. | IN_PROGRESS — tests/test_detective_section_h.py::test_no_hidden_staleness_because_nothing_is_cached_yet_H2 |
+| [ ] H3 | Findings route to the correct owner, produce a repair, and close only after the new output passes. | NOT_STARTED — Requires the Film Experience Reviewer's repair-routing logic (Section J, which depends on  |
+| [ ] H4 | New regressions reopen checks; exhausted settings leave a resumable incomplete state rather than approval. | NOT_STARTED — Same as H3: depends on Section J's runtime correction loop, not yet built. |
+| [x] H5 | The final production script and renderer consume the Main Visual Planner's accepted detective-tool decisions, with no bypass from toolkit or coverage helpers. | VERIFIED — tests/test_detective_section_h.py::test_unaccepted_action_is_never_dispatched_H5 |
 
 ## I. Inspection, targeted revision, reruns
 

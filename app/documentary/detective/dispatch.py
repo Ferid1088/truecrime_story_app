@@ -247,8 +247,14 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
     for action in actions_for_graph(db, graph_id):
         build = BUILDERS.get(action.tool_id)
         record = {"action_key": action.action_key, "tool_id": action.tool_id, "purpose": action.purpose,
-                  "reuse_reason": action.reuse_reason}
-        if build is None:
+                  "reuse_reason": action.reuse_reason, "planner_decision": action.planner_decision}
+        if action.planner_decision not in ("accepted", "combined"):
+            # H5: the Main Visual Planner's recorded decision is authoritative. A 'rejected' or
+            # 'deferred' action, or one `needs.py` has not processed yet (None), must never reach
+            # a real shot just because a renderer happens to exist for its tool_id - that would be
+            # exactly the unrecorded downstream bypass this checklist row exists to prevent.
+            record["skip"] = "not_accepted_by_planner"
+        elif build is None:
             record["skip"] = "not_dispatched_in_this_pass"
         else:
             beat_id = _beat_id_of(db, action)
