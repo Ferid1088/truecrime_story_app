@@ -16,9 +16,9 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] A1 | Current instructions, implementation paths, saved-project baseline, and all relevant prompts/configuration are mapped. | NOT_STARTED |
-| [ ] A2 | Every registered visual tool is traced to its renderer, inputs, production caller, and owner control. | NOT_STARTED |
-| [ ] A3 | Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities. | NOT_STARTED |
+| [x] A1 | Current instructions, implementation paths, saved-project baseline, and all relevant prompts/configuration are mapped. | VERIFIED — `docs/detective_toolkit_capability_matrix.md` |
+| [x] A2 | Every registered visual tool is traced to its renderer, inputs, production caller, and owner control. | VERIFIED — 22 rows traced, 21 reachable, 1 dead (`floor_plan`) |
+| [ ] A3 | Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities. | IN_PROGRESS — 7 rules *identified* with evidence; replacement is Section D/H work |
 
 ## B. Investigation memory
 
