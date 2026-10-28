@@ -46,7 +46,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | Check | What must be true | Status |
 | --- | --- | --- |
 | [x] D1 | All twenty tools have usable adapters or completed wiring to existing renderers. | VERIFIED — app/documentary/detective/dispatch.py |
-| [ ] D2 | Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules. | IN_PROGRESS — tests/test_detective_section_d.py |
+| [ ] D2 | Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules. | IN_PROGRESS — docs/detective_toolkit_section_d2_builders_design.md |
 | [x] D3 | Typed payloads, release bindings, availability outcomes, and state updates reach execution. | VERIFIED — tests/test_detective_section_d.py::test_fact_card_dispatches_and_carves_a_real_shot_T09 |
 | [x] D4 | A fallback preserves the intended explanation; an unsupported treatment is reported honestly. | VERIFIED — tests/test_detective_section_d.py::test_unsupported_tool_id_is_reported_not_silently_dropped |
 | [x] D5 | Every tool action has a typed toolkit result that the Main Visual Planner can accept, combine, defer, reject, or route for repair without an unrecorded downstream override. | VERIFIED — docs/detective_toolkit_section_cd_architecture_remediation.md |
@@ -119,21 +119,21 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | Check | Tool | Status |
 | --- | --- | --- |
 | [ ] T01 | Map / zoom map | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T02 | Detective board | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T03 | Fact / recap board | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T04 | Known / unknown panel | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T05 | Conflict comparison | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T06 | Conflict board | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
+| [x] T02 | Detective board | VERIFIED — tests/test_detective_dispatch_builders.py::test_detective_board_builder_renders_T02 |
+| [x] T03 | Fact / recap board | VERIFIED — tests/test_detective_dispatch_builders.py::test_recap_builder_renders_T03 |
+| [x] T04 | Known / unknown panel | VERIFIED — tests/test_detective_dispatch_builders.py::test_unknowns_builder_renders_T04 |
+| [x] T05 | Conflict comparison | VERIFIED — tests/test_detective_dispatch_builders.py::test_conflict_builder_renders_T05 |
+| [x] T06 | Conflict board | VERIFIED — tests/test_detective_dispatch_builders.py::test_conflict_board_builder_renders_T06 |
 | [x] T07 | Timeline | VERIFIED — tests/test_mvp_alternatives.py::test_timeline_events_are_ordered_by_date_not_by_when_the_narration_tells_them |
 | [ ] T08 | Investigation clock | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
 | [x] T09 | Fact card | VERIFIED — tests/test_detective_section_d.py |
-| [ ] T10 | Key facts card | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
+| [x] T10 | Key facts card | VERIFIED — tests/test_detective_dispatch_builders.py::test_key_facts_builder_renders_T10 |
 | [ ] T11 | Document highlight | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T12 | Quotation card | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
+| [x] T12 | Quotation card | VERIFIED — tests/test_detective_dispatch_builders.py::test_quote_builder_renders_T12 |
 | [ ] T13 | Newspaper headline | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
 | [x] T14 | Floor plan | VERIFIED — tests/test_detective_section_d.py |
-| [ ] T15 | Evidence check | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T16 | Chain of custody | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
+| [x] T15 | Evidence check | VERIFIED — tests/test_detective_dispatch_builders.py::test_evidence_check_builder_renders_T15 |
+| [x] T16 | Chain of custody | VERIFIED — tests/test_detective_dispatch_builders.py::test_custody_builder_renders_T16 |
 | [ ] T17 | Forensic examination | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
 | [ ] T18 | Interview analysis | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
 | [ ] T19 | Courtroom reasoning | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |

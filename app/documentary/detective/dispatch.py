@@ -15,8 +15,20 @@ from app.db.models import DetectiveScene, DetectiveToolAction
 
 # Tool kinds this pass can turn into a real rendered shot. The rest keep whatever reachability
 # they already had through the pre-existing pipeline (Section A); wiring them through direct
-# dispatch is explicitly left for a later pass (see docs/detective_toolkit_section_d_design.md).
-DISPATCHABLE_KINDS = {"fact_card", "floor_plan"}
+# dispatch is explicitly left for a later pass (see docs/detective_toolkit_section_d_design.md and
+# docs/detective_toolkit_section_d2_builders_design.md for exactly which and why).
+DISPATCHABLE_KINDS = {
+    "fact_card", "floor_plan", "detective_board", "recap", "unknowns", "conflict",
+    "conflict_board", "key_facts", "quote", "evidence_check", "custody",
+}
+
+# Section B's claim/question basis vocabulary has no direct equivalent in the cinematic engines'
+# older, narrower vocabulary (fact/finding/allegation/witness/expert/unknown/disputed) - this is
+# the one honest mapping used by every engine builder below, not a per-tool guess.
+_ENGINE_BASIS = {
+    "established_in_text": "fact", "attributed": "witness", "disputed": "disputed",
+    "inference": "finding", "explicit_unknown": "unknown",
+}
 
 
 def has_detective_plan(db: Session, graph_id: int | None) -> bool:
@@ -105,7 +117,184 @@ def _floor_plan_data(db: Session, action: DetectiveToolAction) -> dict | None:
     return data if data.get("rooms") else None
 
 
-BUILDERS = {"fact_card": _fact_card_data, "floor_plan": _floor_plan_data}
+def _bound_claims(db: Session, action: DetectiveToolAction) -> list:
+    """The `DetectiveClaim` rows an action's content_bindings/payload point to, in binding order.
+    Shared by every builder below instead of repeating the lookup."""
+    from app.db.models import DetectiveClaim
+
+    bindings = json.loads(action.content_bindings_json or "[]")
+    claim_keys = [b.get("claim_key") for b in bindings if isinstance(b, dict) and b.get("claim_key")]
+    claim_keys = claim_keys or (json.loads(action.payload_json or "{}").get("claim_keys") or [])
+    if not claim_keys:
+        return []
+    rows = (db.query(DetectiveClaim)
+            .filter(DetectiveClaim.graph_id == action.scene.graph_id, DetectiveClaim.claim_key.in_(claim_keys))
+            .all())
+    by_key = {r.claim_key: r for r in rows}
+    return [by_key[k] for k in claim_keys if k in by_key]
+
+
+def _bound_questions(db: Session, action: DetectiveToolAction) -> list:
+    """The `DetectiveQuestion` rows an action's content_bindings point to, in binding order."""
+    from app.db.models import DetectiveQuestion
+
+    bindings = json.loads(action.content_bindings_json or "[]")
+    q_keys = [b.get("question_key") for b in bindings if isinstance(b, dict) and b.get("question_key")]
+    if not q_keys:
+        return []
+    rows = (db.query(DetectiveQuestion)
+            .filter(DetectiveQuestion.graph_id == action.scene.graph_id, DetectiveQuestion.question_key.in_(q_keys))
+            .all())
+    by_key = {r.question_key: r for r in rows}
+    return [by_key[k] for k in q_keys if k in by_key]
+
+
+def _bound_relations(db: Session, action: DetectiveToolAction) -> list:
+    """The `DetectiveRelation` rows an action's content_bindings point to, in binding order."""
+    from app.db.models import DetectiveRelation
+
+    bindings = json.loads(action.content_bindings_json or "[]")
+    r_keys = [b.get("relation_key") for b in bindings if isinstance(b, dict) and b.get("relation_key")]
+    if not r_keys:
+        return []
+    rows = (db.query(DetectiveRelation)
+            .filter(DetectiveRelation.graph_id == action.scene.graph_id, DetectiveRelation.relation_key.in_(r_keys))
+            .all())
+    by_key = {r.relation_key: r for r in rows}
+    return [by_key[k] for k in r_keys if k in by_key]
+
+
+def _detective_board_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """`{"cards": [{"id", "title", "fact_id"}, ...]}` - one card per bound claim/entity, the same
+    shape `board_card_overrides` already feeds into the existing board renderer."""
+    claims = _bound_claims(db, action)
+    if not claims:
+        return None
+    cards = [{"id": c.claim_key, "title": c.text[:120], "fact_id": c.claim_key} for c in claims]
+    return {"cards": cards}
+
+
+def _recap_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """RecapBoard's three sections, split by the claim's own `basis` - never invented grouping.
+    Only a claim whose text already fits the card's real 38-char budget is used; a longer one is
+    skipped rather than truncated into something it didn't say."""
+    claims = _bound_claims(db, action)
+    if not claims:
+        return None
+    caps = {"confirmed": 3, "disputed": 2, "unknown": 2}
+    sections: dict[str, list[dict]] = {"confirmed": [], "disputed": [], "unknown": []}
+    key_by_basis = {"disputed": "disputed", "explicit_unknown": "unknown", "established_in_text": "confirmed"}
+    for c in claims:
+        section = key_by_basis.get(c.basis)
+        if section is None or len(c.text) > 38 or len(sections[section]) >= caps[section]:
+            continue
+        sections[section].append({"text": c.text, "fact_id": c.claim_key})
+    return sections if any(sections.values()) else None
+
+
+def _unknowns_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """MapOfUnknowns needs at least one known and one unknown point - bound claims supply
+    "known" (basis=established_in_text/attributed), bound questions supply "unknown"."""
+    claims = _bound_claims(db, action)
+    questions = _bound_questions(db, action)
+    known = [{"text": c.text[:160], "basis": _ENGINE_BASIS.get(c.basis, "fact"), "fact_id": c.claim_key}
+             for c in claims if c.basis in ("established_in_text", "attributed")]
+    unknown = [{"text": q.text[:160], "basis": "unknown", "fact_id": q.question_key} for q in questions]
+    if not known or not unknown:
+        return None
+    return {"known": known[:3], "unknown": unknown[:3]}
+
+
+def _conflict_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """One ConflictPage from a bound `relation_type="conflict"` relation linking exactly two
+    claims - the conflict's two sides, each with its own attribution as "who"/"source"."""
+    relations = [r for r in _bound_relations(db, action) if r.relation_type == "conflict"]
+    if not relations:
+        return None
+    rel = relations[0]
+    claims = {c.entity_node_key: c for c in _bound_claims(db, action)}
+    a, b = claims.get(rel.from_node_key), claims.get(rel.to_node_key)
+    if not a or not b:
+        return None
+    sides = [{"who": c.attribution or c.entity_node_key, "claim": c.text[:160],
+              "source": c.attribution or "narration", "fact_id": c.claim_key} for c in (a, b)]
+    return {"conflict": {"id": rel.relation_key, "title": rel.label[:70], "kind": "evidence", "status": "open",
+                         "summary": rel.label[:60]},
+            "sides": sides}
+
+
+def _conflict_board_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """The board of conflicts already introduced by bound `relation_type="conflict"` relations -
+    needs at least two to be worth a board (same rule as the pre-existing `board_offer`)."""
+    relations = [r for r in _bound_relations(db, action) if r.relation_type == "conflict"]
+    if len(relations) < 2:
+        return None
+    cards = [{"id": r.relation_key, "number": n, "title": r.label[:80],
+              "a": r.from_node_key, "b": r.to_node_key, "status": "open"}
+             for n, r in enumerate(relations[:12], 1)]
+    return {"cards": cards, "new_card": cards[-1]["id"]}
+
+
+def _key_facts_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """KeyFacts needs a short (<=14 char) `value` per fact - only a claim whose text actually
+    starts with one is used; never truncated/invented to fit."""
+    claims = _bound_claims(db, action)
+    facts = []
+    for c in claims:
+        first = c.text.split(" ", 1)[0].strip(".,;:")
+        if first and len(first) <= 14:
+            facts.append({"value": first, "caption": c.text[:90], "fact_id": c.claim_key})
+    return {"facts": facts[:3]} if facts else None
+
+
+def _quote_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """A QuoteCard from one attributed claim (<=220 chars) - never a bare `established_in_text`
+    assertion, since a quote card is specifically for someone's own words."""
+    for c in _bound_claims(db, action):
+        if c.basis == "attributed" and c.attribution and len(c.text) <= 220:
+            return {"text": c.text, "fact_id": c.claim_key, "speaker": c.attribution}
+    return None
+
+
+def _evidence_check_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """EvidenceCheck: one physical/documentary item (the entity bound claims describe), what it
+    establishes (established_in_text claims about it) and what it does not (explicit_unknown /
+    disputed claims), with a closing assessment - never a percentage or score (qualitative only)."""
+    claims = _bound_claims(db, action)
+    if not claims:
+        return None
+    establishes = [{"text": c.text[:90], "basis": "fact", "fact_id": c.claim_key}
+                   for c in claims if c.basis == "established_in_text"][:2]
+    if not establishes:
+        return None
+    not_establishes = [{"text": c.text[:90], "basis": _ENGINE_BASIS.get(c.basis, "unknown"), "fact_id": c.claim_key}
+                       for c in claims if c.basis in ("disputed", "explicit_unknown")][:2]
+    assessment = next((c for c in claims if c.basis in ("inference", "established_in_text")), claims[0])
+    return {"item": {"name": claims[0].entity_node_key, "fact_id": claims[0].claim_key},
+            "establishes": establishes, "not_establishes": not_establishes,
+            "assessment": {"text": assessment.text[:110], "basis": _ENGINE_BASIS.get(assessment.basis, "finding"),
+                          "fact_id": assessment.claim_key}}
+
+
+def _custody_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """ChainOfCustody's 2-5 stages from bound claims about one entity, in binding order - the
+    entity's own node_key is the item name, each claim one documented stage."""
+    claims = _bound_claims(db, action)
+    if not 2 <= len(claims) <= 5:
+        return None
+    stages = [{"stage": s, "text": c.text[:80], "basis": _ENGINE_BASIS.get(c.basis, "fact"),
+              "fact_id": c.claim_key}
+             for s, c in zip(("discovery", "collection", "documentation", "transfer", "storage"), claims)]
+    return {"item": {"name": claims[0].entity_node_key, "fact_id": claims[0].claim_key}, "stages": stages}
+
+
+BUILDERS = {
+    "fact_card": _fact_card_data, "floor_plan": _floor_plan_data,
+    "detective_board": _detective_board_data, "recap": _recap_data, "unknowns": _unknowns_data,
+    "conflict": _conflict_data, "conflict_board": _conflict_board_data,
+    "key_facts": _key_facts_data, "quote": _quote_data,
+    "evidence_check": _evidence_check_data, "custody": _custody_data,
+}
 
 
 def _min_release_fraction(db: Session, action: DetectiveToolAction) -> float | None:
