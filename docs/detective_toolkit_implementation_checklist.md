@@ -20,7 +20,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | [x] A1 | Current instructions, implementation paths, saved-project baseline, and all relevant prompts/configuration are mapped. | VERIFIED — docs/detective_toolkit_capability_matrix.md |
 | [x] A2 | Every registered visual tool is traced to its renderer, inputs, production caller, and owner control. | VERIFIED — docs/detective_toolkit_capability_matrix.md |
 | [x] A3 | Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities. | VERIFIED — docs/detective_toolkit_section_d_design.md |
-| [ ] A4 | The detective toolkit is registered as a callable internal tool of the Main Visual Planner, with one observable, persisted call boundary and no competing top-level pipeline. | NOT_STARTED — Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a s |
+| [x] A4 | The detective toolkit is registered as a callable internal tool of the Main Visual Planner, with one observable, persisted call boundary and no competing top-level pipeline. | VERIFIED — docs/detective_toolkit_section_cd_architecture_remediation.md |
 
 ## B. Investigation memory
 
@@ -39,7 +39,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | [x] C2 | Every consequential tool selection follows an investigative aim and records its expected audience benefit. | VERIFIED — docs/detective_toolkit_section_c_design.md |
 | [ ] C3 | Question payoffs, meaningful connections, human interest, and breathing room follow the text. | IN_PROGRESS — docs/detective_toolkit_section_c_design.md |
 | [x] C4 | Future knowledge does not leak; unsupported certainty, conclusions, or connections are not added. | VERIFIED — tests/test_detective_director.py::test_map_film_rejects_premature_release_without_persisting |
-| [ ] C5 | The Detective Director runs only through the Main Visual Planner's detective-tool boundary; planner ownership of the final scene graph is preserved. | NOT_STARTED — Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a s |
+| [x] C5 | The Detective Director runs only through the Main Visual Planner's detective-tool boundary; planner ownership of the final scene graph is preserved. | VERIFIED — docs/detective_toolkit_section_cd_architecture_remediation.md |
 
 ## D. Twenty tools as executable detective tools
 
@@ -49,7 +49,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | [ ] D2 | Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules. | IN_PROGRESS — tests/test_detective_section_d.py |
 | [x] D3 | Typed payloads, release bindings, availability outcomes, and state updates reach execution. | VERIFIED — tests/test_detective_section_d.py::test_fact_card_dispatches_and_carves_a_real_shot_T09 |
 | [x] D4 | A fallback preserves the intended explanation; an unsupported treatment is reported honestly. | VERIFIED — tests/test_detective_section_d.py::test_unsupported_tool_id_is_reported_not_silently_dropped |
-| [ ] D5 | Every tool action has a typed toolkit result that the Main Visual Planner can accept, combine, defer, reject, or route for repair without an unrecorded downstream override. | NOT_STARTED — Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a s |
+| [x] D5 | Every tool action has a typed toolkit result that the Main Visual Planner can accept, combine, defer, reject, or route for repair without an unrecorded downstream override. | VERIFIED — docs/detective_toolkit_section_cd_architecture_remediation.md |
 
 ## E. Continuing board and meaningful returns
 

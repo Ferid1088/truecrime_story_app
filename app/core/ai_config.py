@@ -2374,6 +2374,16 @@ class AutopilotConfig(BaseModel):
     schedule: AutopilotScheduleConfig
 
 
+class DetectiveToolkitConfig(BaseModel):
+    """The detective_toolkit call boundary (architecture rule, 2026-10-28): off by default so no
+    real case's pipeline cost or behavior changes until the owner turns it on. When enabled,
+    `app.documentary.mvp.pipeline.stage_needs` calls `app.documentary.detective.toolkit.invoke`
+    once per blueprint/graph instead of leaving the detective plan to be pre-populated out of
+    band."""
+
+    enabled: bool = False
+
+
 class DetectiveBoardConfig(BaseModel):
     """The detective board: a growing road of short-title cards, one per
     key narrated fact, pasted onto the board as the film reaches it and
@@ -3940,6 +3950,7 @@ class AIConfig(BaseModel):
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
+    detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)
     autopilot: AutopilotConfig | None = None
     rights: RightsConfig = Field(default_factory=RightsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)

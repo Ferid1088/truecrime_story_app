@@ -245,15 +245,23 @@ async def _needs_with_detective_handoff(db: Session, case: Case, blueprint_row: 
     graph, its scenes/tool actions become the authoritative source of what each beat needs - the
     `mvp.needs` agent call runs only to gap-fill beats the detective plan left uncovered (or is
     skipped entirely when the detective plan already covers every beat). Absent a detective plan
-    (every real case today), this calls the agent exactly as before."""
+    (every real case today, and every case while `ai_config.detective_toolkit.enabled` stays
+    False), this calls the agent exactly as before. `toolkit.invoke` is the Main Visual Planner's
+    only call into the Detective Director; nothing here or downstream calls
+    `app.documentary.detective.director` directly."""
+    from app.documentary.detective import toolkit as DT
     from app.documentary.detective.dispatch import detective_raw_needs, has_detective_plan
 
+    await DT.invoke(db, case, blueprint_row, graph)
     detective_requirements = None
     if has_detective_plan(db, graph.id):
         det_raw = detective_raw_needs(db, graph)
         detective_requirements, det_report = validate_needs(det_raw, blueprint, pack, sources, view)
     covered = ({b["beat_id"] for b in detective_requirements["beats"] if b["requirements"]}
               if detective_requirements else set())
+    if detective_requirements is not None:
+        from app.documentary.detective.dispatch import record_planner_decisions
+        record_planner_decisions(db, graph.id, covered)
     if len(covered) < len(beat_order):
         payload = planner_input(case, blueprint, pack, sources, view, seconds)
         with track_run(db, case.id, "Main Visual Planner: needs",

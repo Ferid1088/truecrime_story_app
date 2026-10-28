@@ -36,6 +36,30 @@ def actions_for_graph(db: Session, graph_id: int) -> list[DetectiveToolAction]:
     return out
 
 
+def record_planner_decisions(db: Session, graph_id: int, covered_beats: set[str]) -> int:
+    """The Main Visual Planner's recorded decision on every tool action of this graph
+    (architecture rule, 2026-10-28; checklist row D5): 'deferred' when the action has no
+    resolvable narration anchor yet, 'accepted' when its beat made it into the final merged
+    requirements (`covered_beats`, computed by `app.documentary.mvp.needs` after validation),
+    'rejected' when its beat resolved but validation dropped it. Returns the number of actions
+    updated. Idempotent: safe to call again after a later pass changes `covered_beats`."""
+    updated = 0
+    for action in actions_for_graph(db, graph_id):
+        beat_id = _beat_id_of(db, action)
+        if beat_id is None:
+            decision, reason = "deferred", "no resolvable narration anchor for this action yet"
+        elif beat_id in covered_beats:
+            decision, reason = "accepted", f"beat {beat_id}'s requirement came from this action"
+        else:
+            decision, reason = "rejected", f"beat {beat_id} resolved but was dropped by requirement validation"
+        if action.planner_decision != decision or action.planner_decision_reason != reason:
+            action.planner_decision, action.planner_decision_reason = decision, reason
+            updated += 1
+    if updated:
+        db.flush()
+    return updated
+
+
 def _covered_unit(db: Session, action: DetectiveToolAction):
     """The narration unit a tool action targets, from its scene's covered narration-unit keys.
 

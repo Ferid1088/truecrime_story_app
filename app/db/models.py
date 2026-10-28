@@ -1237,7 +1237,14 @@ class DetectiveToolAction(Base):
     this table only records what the Detective Director decided to do with it."""
 
     __tablename__ = "detective_tool_actions"
-    __table_args__ = (UniqueConstraint("scene_id", "action_key", name="uq_detective_action_key"),)
+    __table_args__ = (
+        UniqueConstraint("scene_id", "action_key", name="uq_detective_action_key"),
+        CheckConstraint(
+            "planner_decision IS NULL OR planner_decision IN "
+            "('accepted', 'combined', 'deferred', 'rejected')",
+            name="ck_detective_action_planner_decision",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     scene_id: Mapped[int] = mapped_column(ForeignKey("detective_scenes.id"), index=True)
@@ -1253,6 +1260,13 @@ class DetectiveToolAction(Base):
     relationship_to_neighbors: Mapped[str | None] = mapped_column(Text, nullable=True)
     fallback_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     reuse_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The Main Visual Planner's recorded decision on this action (architecture rule, 2026-10-28):
+    # null until app.documentary.mvp.needs processes it. 'accepted' = used as the beat's
+    # requirement; 'combined' = merged with another source's requirement at the same beat;
+    # 'deferred' = no resolvable narration anchor yet, left for a later pass; 'rejected' = resolved
+    # but dropped by requirement validation.
+    planner_decision: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    planner_decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
     scene = relationship("DetectiveScene", back_populates="actions")

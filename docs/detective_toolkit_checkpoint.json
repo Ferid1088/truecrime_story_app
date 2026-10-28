@@ -115,15 +115,29 @@
       "section": "A. Audit / Architecture",
       "acceptance_criterion": "The detective toolkit is registered as a callable internal tool of the Main Visual Planner, with one observable, persisted call boundary and no competing top-level pipeline.",
       "required_proof": "Planner-to-tool trace, persisted versions, and bypass regression check.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/toolkit.py",
+        "app/documentary/mvp/needs.py:_needs_with_detective_handoff",
+        "app/core/ai_config.py:DetectiveToolkitConfig",
+        "config/parameters/detective_toolkit.json"
+      ],
+      "validation_method": "Unit tests (noop-when-disabled, no-repay-when-plan-exists, AST bypass-regression check) plus a real end-to-end live call with the flag on.",
+      "actual_result": "One callable boundary (toolkit.invoke) exists; director.py is reachable only through it from pipeline code (AST-checked); flag defaults off with zero behavior change (full suite unchanged).",
+      "evidence": [
+        "docs/detective_toolkit_section_cd_architecture_remediation.md",
+        "tests/test_detective_toolkit_boundary.py::test_toolkit_invoke_is_a_noop_when_disabled",
+        "tests/test_detective_toolkit_boundary.py::test_pipeline_and_needs_never_import_the_director_module_directly",
+        "tests/test_detective_toolkit_boundary.py::test_toolkit_invoke_maps_and_directs_when_enabled"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A",
+        "C",
+        "D"
+      ],
       "repair_history": [],
-      "remaining_issue": "Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a single callable internal service of the Main Visual Planner (one observable, persisted call boundary; planner owns accept/combine/defer/reject decisions), not code that independently writes state MVP later happens to consume. Needs a real remediation pass."
+      "remaining_issue": null
     },
     {
       "id": "B1",
@@ -336,15 +350,23 @@
       "section": "C. Detective Director",
       "acceptance_criterion": "The Detective Director runs only through the Main Visual Planner's detective-tool boundary; planner ownership of the final scene graph is preserved.",
       "required_proof": "Real map/direct/repair calls showing caller, decision, and persisted handoff.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/toolkit.py",
+        "app/documentary/mvp/needs.py"
+      ],
+      "validation_method": "Live call via the real pipeline entry point (plan_needs -> _needs_with_detective_handoff -> toolkit.invoke) on scratch case 22, never case 5.",
+      "actual_result": "map_film and direct_scenes ran for real, persisted via Section C, with the Main Visual Planner (needs.py) as the sole caller and owner of what entered the final requirements.",
+      "evidence": [
+        "docs/detective_toolkit_section_cd_architecture_remediation.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "C",
+        "A4"
+      ],
       "repair_history": [],
-      "remaining_issue": "Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a single callable internal service of the Main Visual Planner (one observable, persisted call boundary; planner owns accept/combine/defer/reject decisions), not code that independently writes state MVP later happens to consume. Needs a real remediation pass."
+      "remaining_issue": null
     },
     {
       "id": "D1",
@@ -448,15 +470,25 @@
       "section": "D. Tool execution",
       "acceptance_criterion": "Every tool action has a typed toolkit result that the Main Visual Planner can accept, combine, defer, reject, or route for repair without an unrecorded downstream override.",
       "required_proof": "Contract tests and planner decision trace.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/db/models.py:DetectiveToolAction.planner_decision",
+        "migrations/versions/0073_detective_action_planner_decision.py",
+        "app/documentary/detective/dispatch.py:record_planner_decisions"
+      ],
+      "validation_method": "Migration applied and round-tripped live against PostgreSQL; deterministic unit test covering all 3 producible branches; live call producing 2 real rejected decisions.",
+      "actual_result": "Every DetectiveToolAction gets planner_decision + reason (accepted/deferred/rejected proven; combined documented as not yet producible by todays per-beat-override merge).",
+      "evidence": [
+        "docs/detective_toolkit_section_cd_architecture_remediation.md",
+        "tests/test_detective_toolkit_boundary.py::test_record_planner_decisions_covers_deferred_accepted_and_rejected"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "D",
+        "A4"
+      ],
       "repair_history": [],
-      "remaining_issue": "Added 2026-10-28 after an owner architecture correction: the detective toolkit must be a single callable internal service of the Main Visual Planner (one observable, persisted call boundary; planner owns accept/combine/defer/reject decisions), not code that independently writes state MVP later happens to consume. Needs a real remediation pass."
+      "remaining_issue": null
     },
     {
       "id": "E1",
