@@ -125,7 +125,7 @@ def test_toolkit_invoke_never_re_pays_for_an_existing_plan(db_session, monkeypat
 
     assert first.called is True
     assert second.called is False
-    assert second.reason == "a current detective plan already exists for this graph"
+    assert second.reason == "a current detective plan already covers every beat of this graph"
     assert len(fake.calls) == calls_after_first, "no new agent call on the second invoke"
 
 

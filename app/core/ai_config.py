@@ -2418,6 +2418,9 @@ class DetectiveToolkitConfig(BaseModel):
     band."""
 
     enabled: bool = False
+    # how many consecutive beats one map/direct call owns: a whole film in one call overruns the model's
+    # output (a real 51-beat film), and each chunk's state carries into the next through the event log
+    beats_per_call: int = Field(default=6, ge=1, le=30)
     # how many times a call whose output violates an invariant is sent back once more with the exact
     # issues (the Director's own `repair` mode) before it fails; every attempt is a paid call
     max_repair_iterations: int = Field(default=1, ge=0, le=3)

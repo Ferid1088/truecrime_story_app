@@ -294,10 +294,12 @@ async def _needs_with_detective_handoff(db: Session, case: Case, blueprint_row: 
 
 
 async def plan_needs(db: Session, case: Case, blueprint_row: EditorialBlueprint,
-                     graph: RevealGraph, seconds: dict[str, float]) -> VisualPlan:
-    """The needs plan for one blueprint: reused when a valid one exists for the same graph."""
+                     graph: RevealGraph, seconds: dict[str, float], replan: bool = False) -> VisualPlan:
+    """The needs plan for one blueprint: reused when a valid one exists for the same graph, unless the
+    owner asks to plan again - then a new version is made beside it and the earlier plan, with its
+    candidates and verdicts, stays exactly as it was."""
     existing = latest_mvp_plan(db, blueprint_row.id)
-    if existing is not None and json.loads(existing.validation_json)["mvp"].get(
+    if not replan and existing is not None and json.loads(existing.validation_json)["mvp"].get(
             "reveal_graph_id") == graph.id:
         return existing
     blueprint = json.loads(blueprint_row.blueprint_json or "{}")

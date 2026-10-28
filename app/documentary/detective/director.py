@@ -201,9 +201,10 @@ async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
 
 
 async def map_film(db: Session, graph_id: int, language: str, text_version: int,
-                    run_id: str = "run-1", film_id: str | None = None) -> dict:
+                    run_id: str = "run-1", film_id: str | None = None,
+                    scene_unit_keys: list[str] | None = None) -> dict:
     payload = _build_input(db, graph_id, "map_film", language, text_version,
-                            run_id=run_id, film_id=film_id)
+                            scene_scope=scene_unit_keys, run_id=run_id, film_id=film_id)
     return await _call(db, graph_id, "map_film", payload)
 
 

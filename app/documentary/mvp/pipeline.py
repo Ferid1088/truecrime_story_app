@@ -64,10 +64,11 @@ def entities_with_dossiers(db: Session, case: Case, requirements: dict) -> list[
     return merge_into_entities(db, case, list(requirements.get("entities") or []))
 
 
-async def stage_needs(db: Session, case: Case, bp_row: EditorialBlueprint) -> tuple[VisualPlan, RevealGraph, dict]:
+async def stage_needs(db: Session, case: Case, bp_row: EditorialBlueprint,
+                      replan: bool = False) -> tuple[VisualPlan, RevealGraph, dict]:
     graph = ensure_graph(db, case, bp_row)
     blueprint = json.loads(bp_row.blueprint_json or "{}")
-    plan = await ND.plan_needs(db, case, bp_row, graph, estimated_seconds(blueprint))
+    plan = await ND.plan_needs(db, case, bp_row, graph, estimated_seconds(blueprint), replan=replan)
     if plan.status == "invalid":
         raise RuntimeError("The Main Visual Planner produced no valid visual needs; see the plan's validation.")
     report = json.loads(plan.validation_json)["requirements"]
