@@ -1071,6 +1071,9 @@ class ReleaseAnchor(Base):
     char_end: Mapped[int] = mapped_column(Integer)
     resolved_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     resolved_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # True = resolved_start/end came from a real voice take's word-level character alignment;
+    # False = a sentence/beat-level proportional fallback; None = not yet resolved.
+    timing_exact: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     graph = relationship("RevealGraph")
     narration_unit = relationship("NarrationUnit", back_populates="release_anchors")

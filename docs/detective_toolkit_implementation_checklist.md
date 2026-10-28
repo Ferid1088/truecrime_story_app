@@ -63,9 +63,9 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] F1 | Claims, captions, links, and conclusions appear at the correct sentence/clause, including late qualifications. | NOT_STARTED |
-| [ ] F2 | Reading time, motion, emphasis, pauses, and speech fit together without unrelated competing demands. | NOT_STARTED |
-| [ ] F3 | The narration remains understandable without looking; essential repairs route through the text workflow. | NOT_STARTED |
+| [x] F1 | Claims, captions, links, and conclusions appear at the correct sentence/clause, including late qualifications. | VERIFIED — docs/detective_toolkit_section_f_design.md |
+| [ ] F2 | Reading time, motion, emphasis, pauses, and speech fit together without unrelated competing demands. | IN_PROGRESS — docs/detective_toolkit_section_f_design.md |
+| [ ] F3 | The narration remains understandable without looking; essential repairs route through the text workflow. | IN_PROGRESS — docs/detective_toolkit_section_f_design.md |
 
 ## G. Alternative Visual Design Director
 

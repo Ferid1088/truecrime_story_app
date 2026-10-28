@@ -572,13 +572,27 @@
       "section": "F. Timing",
       "acceptance_criterion": "Claims, captions, links, and conclusions appear at the correct sentence/clause, including late qualifications.",
       "required_proof": "Anchor/word timing tests and rendered examples.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/timing.py",
+        "app/documentary/detective/dispatch.py:_min_release_fraction,resolve_dispatchable_actions,place_detective_graphics",
+        "migrations/versions/0074_release_anchor_timing_exact.py"
+      ],
+      "validation_method": "Unit tests on real voice_render.beat_times reuse (word-level), proportional fallback (sentence-level), and live dispatch carving with a constructed late-qualification fixture; live Postgres migration applied+round-tripped.",
+      "actual_result": "A claim bound to a release anchor whose supporting words complete late in its narration unit delays its dispatched shot past the beat start by the matching fraction; an action with no resolvable anchor is byte-for-byte unchanged from Section D.",
+      "evidence": [
+        "docs/detective_toolkit_section_f_design.md",
+        "tests/test_detective_section_f.py::test_word_level_resolution_uses_real_character_alignment",
+        "tests/test_detective_section_f.py::test_word_level_resolution_flags_proportional_fallback_when_alignment_does_not_match_text",
+        "tests/test_detective_section_f.py::test_a_late_qualification_delays_the_dispatched_shot_past_the_beat_start",
+        "tests/test_detective_section_f.py::test_an_action_with_no_resolvable_anchor_keeps_the_old_beat_start_unchanged"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "C",
+        "D",
+        "E"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -587,30 +601,48 @@
       "section": "F. Timing",
       "acceptance_criterion": "Reading time, motion, emphasis, pauses, and speech fit together without unrelated competing demands.",
       "required_proof": "Timed visual review with audio context.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/detective_board.py:reading_hold_seconds,appearances"
+      ],
+      "validation_method": "Characterization test against existing code (not rebuilt).",
+      "actual_result": "The detective board already scales reading time with title length and gates appearance on available room. Not generalized to other dispatched tools against arbitrary unrelated narration density.",
+      "evidence": [
+        "docs/detective_toolkit_section_f_design.md",
+        "tests/test_detective_section_f.py::test_board_reading_time_already_scales_with_title_length_and_gates_appearance"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "C",
+        "D",
+        "E"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "General cross-tool, speech-density-aware scheduling does not exist yet; likely Section H scope once more tools are dispatchable."
     },
     {
       "id": "F3",
       "section": "F. Listening",
       "acceptance_criterion": "The narration remains understandable without looking; essential repairs route through the text workflow.",
       "required_proof": "Documented audio-only/text-only scope and repair examples.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/memory.py (claim/question text guarantee, Section B)"
+      ],
+      "validation_method": "Structural test confirming claim/question text is self-contained.",
+      "actual_result": "A claim/question never depends on a caption/graphic label for its meaning. text_revision_request (Detective Director requests field) is still never persisted anywhere, so it cannot reach the existing critique/rewrite workflow (app/agents/critics.py, app/agents/story.py).",
+      "evidence": [
+        "docs/detective_toolkit_section_f_design.md",
+        "tests/test_detective_section_f.py::test_claim_and_question_text_are_self_contained_without_the_visual"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "C",
+        "D",
+        "E"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "text_revision_request persistence and routing into the existing critique workflow is a real, separate, deferred integration."
     },
     {
       "id": "G1",

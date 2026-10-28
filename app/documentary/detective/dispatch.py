@@ -108,6 +108,33 @@ def _floor_plan_data(db: Session, action: DetectiveToolAction) -> dict | None:
 BUILDERS = {"fact_card": _fact_card_data, "floor_plan": _floor_plan_data}
 
 
+def _min_release_fraction(db: Session, action: DetectiveToolAction) -> float | None:
+    """How far into its beat (0..1) this action's content may earliest appear, from the latest
+    `char_end` of any release anchor its bound claims carry - Section F, obstacle 5/7: a shot
+    must not reveal a claim before the words that complete its meaning are spoken, not merely be
+    somewhere in the right beat. `None` when no bound claim has a resolvable anchor (today's
+    only honest answer for an action with no content bindings, or claims made before Section B's
+    anchors existed) - callers fall back to the beat's own start, unchanged from before this
+    section."""
+    from app.documentary.detective.timing import anchor_fraction_within_span
+    from app.db.models import DetectiveClaim, NarrationUnit, ReleaseAnchor
+
+    bindings = json.loads(action.content_bindings_json or "[]")
+    claim_keys = [b.get("claim_key") for b in bindings if isinstance(b, dict) and b.get("claim_key")]
+    if not claim_keys:
+        return None
+    rows = (db.query(DetectiveClaim, ReleaseAnchor, NarrationUnit)
+            .join(ReleaseAnchor, DetectiveClaim.release_anchor_id == ReleaseAnchor.id)
+            .join(NarrationUnit, ReleaseAnchor.narration_unit_id == NarrationUnit.id)
+            .filter(DetectiveClaim.graph_id == action.scene.graph_id,
+                    DetectiveClaim.claim_key.in_(claim_keys)).all())
+    fractions = []
+    for _claim, anchor, unit in rows:
+        _start, end = anchor_fraction_within_span(anchor.char_start, anchor.char_end, len(unit.text), 0.0, 1.0)
+        fractions.append(end)
+    return max(fractions) if fractions else None
+
+
 def legacy_evidence_additions(db: Session, graph_id: int) -> tuple[list[dict], list[dict]]:
     """Detective claims/questions re-shaped as the legacy `Fact`-dict / blueprint-question
     contract `engines.py:reference_texts` and the offer builders already read - obstacle 3
@@ -232,6 +259,7 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
                 record["skip"] = "insufficient_data"
             else:
                 record["beat_id"], record["data"] = beat_id, data
+                record["min_release_fraction"] = _min_release_fraction(db, action)
         resolved.append(record)
     return resolved
 
@@ -262,13 +290,22 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
             record["skip"] = f"unrenderable: {problem}"
             records.append(record)
             continue
-        hold = min(GS.hold_seconds(record["tool_id"]), span["end"] - span["start"])
+        fraction = record.get("min_release_fraction") or 0.0
+        start = span["start"] + (span["end"] - span["start"]) * fraction
+        remaining = span["end"] - start
+        if remaining < 1.0:
+            record["skip"] = "insufficient_room_after_release_point"
+            records.append(record)
+            continue
+        hold = min(GS.hold_seconds(record["tool_id"]), remaining)
         shot = {"kind": "graphic", **GS.plan_fields(record["tool_id"], record["data"]),
-               "beat_id": record["beat_id"], "start": round(span["start"], 3),
-               "end": round(span["start"] + max(hold, 1.0), 3), "motion": "NONE", "speed": 1.0,
+               "beat_id": record["beat_id"], "start": round(start, 3),
+               "end": round(start + max(hold, 1.0), 3), "motion": "NONE", "speed": 1.0,
                "transition_in": "FADE_BLACK", "why": record["purpose"],
                "detective_action_key": record["action_key"],
                "detective_reuse_reason": record["reuse_reason"]}
+        if fraction:
+            record["release_fraction_applied"] = round(fraction, 4)
         shot["graphic"]["language"] = language
         _carve(shots, shot)
         record["result"] = "placed"
