@@ -24,10 +24,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] B1 | Final narration is the content reference; valid text spans work without research rows. | NOT_STARTED |
-| [ ] B2 | Stable entities, claims, questions, relationships, anchors, replayable knowledge events exist. | NOT_STARTED |
-| [ ] B3 | Partial knowledge / attributed / disputed / not-yet-explained / explicit-unknown stay distinct. | NOT_STARTED |
-| [ ] B4 | Details survive long passages; first introduction separate from later reference. | NOT_STARTED |
+| [x] B1 | Final narration is the content reference; valid text spans work without research rows. | VERIFIED — `tests/test_detective_memory.py::test_claim_question_relation_need_no_fact_or_contradiction_row` |
+| [x] B2 | Stable entities, claims, questions, relationships, anchors, replayable knowledge events exist. | VERIFIED — `app/documentary/memory.py`, migration `0071`, live-verified |
+| [x] B3 | Partial knowledge / attributed / disputed / not-yet-explained / explicit-unknown stay distinct. | VERIFIED — `tests/test_detective_memory.py::test_gun_example_partial_knowledge_then_later_answer` |
+| [x] B4 | Details survive long passages; first introduction separate from later reference. | VERIFIED — 2 tests, see checkpoint.json |
 
 ## C. Detective Director
 

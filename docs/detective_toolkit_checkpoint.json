@@ -124,13 +124,22 @@
       "section": "B. Investigation memory",
       "acceptance_criterion": "Final language-specific narration is the content reference; valid text spans work without research rows.",
       "required_proof": "Text-only fixture with optional metadata absent.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/memory.py:add_claim",
+        "app/documentary/memory.py:add_question",
+        "app/documentary/memory.py:add_relation"
+      ],
+      "validation_method": "tests/test_detective_memory.py::test_claim_question_relation_need_no_fact_or_contradiction_row \u2014 pytest against the real db_session fixture (live PostgreSQL, real schema/constraints). That fixture flushes within an open transaction and closes without committing (this suite's existing convention, see tests/test_longform_phase1.py) so rows do not persist past the test process; the migration's tables/columns/constraints were separately confirmed to persist permanently via  + a direct SQL query, see docs/detective_toolkit_section_b_design.md.",
+      "actual_result": "A claim, question and relation are created and persisted (within the test transaction) purely from narration text spans; zero Fact/Contradiction rows exist in the test at all.",
+      "evidence": [
+        "tests/test_detective_memory.py::test_claim_question_relation_need_no_fact_or_contradiction_row",
+        "docs/detective_toolkit_section_b_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -139,13 +148,27 @@
       "section": "B. Investigation memory",
       "acceptance_criterion": "Stable entities, claims, questions, relationships, anchors, and replayable knowledge events exist.",
       "required_proof": "Schema validation and event-replay test.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/db/models.py:NarrationUnit",
+        "app/db/models.py:ReleaseAnchor",
+        "app/db/models.py:DetectiveClaim",
+        "app/db/models.py:DetectiveQuestion",
+        "app/db/models.py:DetectiveRelation",
+        "app/db/models.py:DetectiveKnowledgeEvent",
+        "app/documentary/memory.py:replay_state",
+        "migrations/versions/0071_detective_investigation_memory.py"
+      ],
+      "validation_method": "tests/test_detective_memory.py::test_replay_hides_future_answer_before_its_event \u2014 pytest against the real db_session fixture (live PostgreSQL, real schema/constraints). That fixture flushes within an open transaction and closes without committing (this suite's existing convention, see tests/test_longform_phase1.py) so rows do not persist past the test process; the migration's tables/columns/constraints were separately confirmed to persist permanently via  + a direct SQL query, see docs/detective_toolkit_section_b_design.md.",
+      "actual_result": "Stable-keyed entities/claims/questions/relations/anchors exist as real Postgres tables (live-verified, see design doc); replay_state() reconstructs state from the ordered knowledge-event log and a later event is provably invisible when replaying an earlier order_seq cutoff.",
+      "evidence": [
+        "tests/test_detective_memory.py::test_replay_hides_future_answer_before_its_event",
+        "docs/detective_toolkit_section_b_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -154,13 +177,23 @@
       "section": "B. Investigation memory",
       "acceptance_criterion": "Partial knowledge, attributed/disputed statements, not-yet-explained details, and explicit unknowns remain distinct.",
       "required_proof": "Gun example and status/attribution fixtures.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/memory.py:CLAIM_BASES",
+        "app/documentary/memory.py:QUESTION_KINDS",
+        "app/db/models.py:DetectiveClaim",
+        "app/db/models.py:DetectiveQuestion"
+      ],
+      "validation_method": "tests/test_detective_memory.py::test_gun_example_partial_knowledge_then_later_answer \u2014 pytest against the real db_session fixture (live PostgreSQL, real schema/constraints). That fixture flushes within an open transaction and closes without committing (this suite's existing convention, see tests/test_longform_phase1.py) so rows do not persist past the test process; the migration's tables/columns/constraints were separately confirmed to persist permanently via  + a direct SQL query, see docs/detective_toolkit_section_b_design.md.",
+      "actual_result": "The gun fixture carries known type/origin (basis=established_in_text) alongside an explicit_unknown location claim and an explicit_unresolved question, all on the same entity; a later passage adds a NEW claim/event rather than mutating the old claim text, and attribution/basis values stay distinct per attribute.",
+      "evidence": [
+        "tests/test_detective_memory.py::test_gun_example_partial_knowledge_then_later_answer",
+        "docs/detective_toolkit_section_b_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -169,13 +202,22 @@
       "section": "B. Investigation memory",
       "acceptance_criterion": "Important details survive long passages and retrieval; first introduction is separate from later reference.",
       "required_proof": "Truncation regression and reference/first-reveal tests.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/memory.py:get_narration_span",
+        "app/documentary/memory.py:record_knowledge_event"
+      ],
+      "validation_method": "tests/test_detective_memory.py::test_truncated_fixture_still_returns_complete_span and tests/test_detective_memory.py::test_first_introduction_is_unique_but_reference_is_not \u2014 pytest against the real db_session fixture (live PostgreSQL, real schema/constraints). That fixture flushes within an open transaction and closes without committing (this suite's existing convention, see tests/test_longform_phase1.py) so rows do not persist past the test process; the migration's tables/columns/constraints were separately confirmed to persist permanently via  + a direct SQL query, see docs/detective_toolkit_section_b_design.md.",
+      "actual_result": "A >900-character fixture (the old engines.py:beat_view truncation point) is returned whole including its final decisive clause; a duplicate introduce event for the same entity is rejected with MemoryValidationError while a later reference event on the same entity succeeds and does not add a second introduce row.",
+      "evidence": [
+        "tests/test_detective_memory.py::test_truncated_fixture_still_returns_complete_span",
+        "tests/test_detective_memory.py::test_first_introduction_is_unique_but_reference_is_not",
+        "docs/detective_toolkit_section_b_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "A"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },

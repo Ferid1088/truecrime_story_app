@@ -944,6 +944,7 @@ class RevealNode(Base):
     first_revealed_at_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    aliases_json: Mapped[str] = mapped_column(Text, default="[]")
 
     graph = relationship("RevealGraph", back_populates="nodes")
     prerequisite_edges = relationship(
@@ -1030,6 +1031,167 @@ class RevealAssetLink(Base):
     node = relationship("RevealNode", back_populates="asset_links")
     visual_asset = relationship("VisualAsset")
     original_media_segment = relationship("OriginalMediaSegment")
+
+
+class NarrationUnit(Base):
+    """One stable, addressable narration span (typically a sentence) within a graph's text
+    version. Several claims/relations/events reference the same span by `unit_key` instead of
+    each carrying its own copy of the text."""
+
+    __tablename__ = "narration_units"
+    __table_args__ = (UniqueConstraint("graph_id", "unit_key", name="uq_narration_unit_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    unit_key: Mapped[str] = mapped_column(String(80))
+    beat_id: Mapped[str] = mapped_column(String(20), index=True)
+    story_order: Mapped[int] = mapped_column(Integer)
+    language: Mapped[str] = mapped_column(String(5))
+    text: Mapped[str] = mapped_column(Text)
+
+    graph = relationship("RevealGraph")
+    release_anchors = relationship(
+        "ReleaseAnchor", back_populates="narration_unit", cascade="all, delete-orphan"
+    )
+
+
+class ReleaseAnchor(Base):
+    """The exact words, within one narration unit, that establish a meaning. The application
+    creates these; agents only ever reference an `anchor_key`, never invent timing.
+    `resolved_start_seconds`/`resolved_end_seconds` stay null until Section F binds real audio."""
+
+    __tablename__ = "release_anchors"
+    __table_args__ = (UniqueConstraint("graph_id", "anchor_key", name="uq_release_anchor_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    anchor_key: Mapped[str] = mapped_column(String(80))
+    narration_unit_id: Mapped[int] = mapped_column(ForeignKey("narration_units.id"), index=True)
+    char_start: Mapped[int] = mapped_column(Integer)
+    char_end: Mapped[int] = mapped_column(Integer)
+    resolved_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resolved_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    graph = relationship("RevealGraph")
+    narration_unit = relationship("NarrationUnit", back_populates="release_anchors")
+
+
+class DetectiveClaim(Base):
+    """One attribute-level, text-grounded claim about an entity. Never requires a pre-existing
+    `Fact`/`Contradiction` row; `evidence_fact_ids_json` links one in only when it exists."""
+
+    __tablename__ = "detective_claims"
+    __table_args__ = (
+        UniqueConstraint("graph_id", "claim_key", name="uq_detective_claim_key"),
+        CheckConstraint(
+            "basis IN ('established_in_text', 'attributed', 'disputed', 'inference', "
+            "'explicit_unknown')",
+            name="ck_detective_claim_basis",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    claim_key: Mapped[str] = mapped_column(String(80))
+    entity_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    attribute: Mapped[str] = mapped_column(String(120))
+    text: Mapped[str] = mapped_column(Text)
+    basis: Mapped[str] = mapped_column(String(30), index=True)
+    attribution: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    supporting_unit_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    release_anchor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("release_anchors.id"), nullable=True
+    )
+    evidence_fact_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    graph = relationship("RevealGraph")
+    release_anchor = relationship("ReleaseAnchor")
+
+
+class DetectiveQuestion(Base):
+    """A question raised about one or more entities. `kind` is fixed at creation and is distinct
+    from its current *state*, which lives only in `DetectiveKnowledgeEvent` rows so "not yet
+    explained" is never collapsed into "explicitly unresolved" or vice versa."""
+
+    __tablename__ = "detective_questions"
+    __table_args__ = (
+        UniqueConstraint("graph_id", "question_key", name="uq_detective_question_key"),
+        CheckConstraint(
+            "kind IN ('not_yet_explained', 'explicit_unresolved', 'interpretive_question')",
+            name="ck_detective_question_kind",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    question_key: Mapped[str] = mapped_column(String(80))
+    entity_node_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    text: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(30), index=True)
+    opening_anchor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("release_anchors.id"), nullable=True
+    )
+    supporting_claim_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    graph = relationship("RevealGraph")
+    opening_anchor = relationship("ReleaseAnchor")
+
+
+class DetectiveRelation(Base):
+    """A typed, labeled connection between two entities (chronology, same_object,
+    attributed_statement, explicit_conflict, supporting_detail, answer_to_question, ...).
+    Distinct from `RevealEdge`, which stays a pure reveal-order dependency DAG edge."""
+
+    __tablename__ = "detective_relations"
+    __table_args__ = (UniqueConstraint("graph_id", "relation_key", name="uq_detective_relation_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    relation_key: Mapped[str] = mapped_column(String(80))
+    from_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    to_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    relation_type: Mapped[str] = mapped_column(String(40))
+    label: Mapped[str] = mapped_column(String(300))
+    supporting_unit_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    release_anchor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("release_anchors.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    graph = relationship("RevealGraph")
+    release_anchor = relationship("ReleaseAnchor")
+
+
+class DetectiveKnowledgeEvent(Base):
+    """The single, ordered event log for every state change to an entity attribute, claim,
+    question or relation. Replaying rows up to a given `order_seq` reconstructs exactly what the
+    audience knows at that point in the story, without resending an ever-growing full state."""
+
+    __tablename__ = "detective_knowledge_events"
+    __table_args__ = (
+        UniqueConstraint("graph_id", "order_seq", name="uq_detective_knowledge_event_order"),
+        CheckConstraint(
+            "subject_type IN ('entity', 'claim', 'question', 'relation')",
+            name="ck_detective_knowledge_event_subject_type",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
+    order_seq: Mapped[int] = mapped_column(Integer, index=True)
+    anchor_id: Mapped[int | None] = mapped_column(ForeignKey("release_anchors.id"), nullable=True)
+    subject_type: Mapped[str] = mapped_column(String(20), index=True)
+    subject_key: Mapped[str] = mapped_column(String(80), index=True)
+    operation: Mapped[str] = mapped_column(String(40))
+    prior_state_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_state_json: Mapped[str] = mapped_column(Text)
+    supporting_claim_keys_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+    graph = relationship("RevealGraph")
+    anchor = relationship("ReleaseAnchor")
 
 
 class EpistemicContractSet(Base):
