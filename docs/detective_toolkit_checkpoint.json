@@ -399,16 +399,17 @@
       "section": "D. Tool execution",
       "acceptance_criterion": "Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules.",
       "required_proof": "Competing-choice and composite-sequence tests.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
         "app/documentary/detective/dispatch.py",
         "app/documentary/mvp/needs.py"
       ],
       "validation_method": "needs.py seam test + obstacle 1/3/4/6 tests.",
-      "actual_result": "12 of 20 tools now have real dispatch proof (T02/T03/T04/T05/T06/T07/T09/T10/T12/T14/T15/T16); 8 remain (T01/T08/T11/T13/T17/T18/T19/T20), each with a specific stated schema gap.",
+      "actual_result": "All 20 tools reach real execution (19 via BUILDERS->place_detective_graphics, map via needs map_place->add_map_cards->MapPanel). Competitive choice proven: same beat with a plentiful photo gets its own carved graphic when the aim is a consequential fact, and the photo is left untouched when the aim is the object itself. Host shots are excluded by the owner's Host boundary (Host is the Main Visual Planner's own authority), not a gap.",
       "evidence": [
-        "docs/detective_toolkit_section_d2_builders_design.md",
-        "tests/test_detective_section_d.py"
+        "tests/test_detective_dispatch_builders.py::test_with_a_photo_available_the_narrated_aim_decides_whether_a_graphic_or_the_photo_is_shown",
+        "tests/test_detective_dispatch_builders.py::test_map_renders_through_the_real_direction_and_map_panel_path_T01",
+        "docs/detective_toolkit_section_d2_builders_design.md"
       ],
       "versions": {},
       "dependencies": [
@@ -417,7 +418,7 @@
         "C"
       ],
       "repair_history": [],
-      "remaining_issue": "Tools still without a real dispatch builder: ['T01', 'T11', 'T13']. map (T01): not a Graphic-kind renderer at all (SHOW_MAP shot mechanism, structurally different from the GraphicCard dispatch path) - needs its own carving support, not a data builder. document (T11) / headline (T13): need real verbatim-against-official-source verification (reusing alternatives.py document_offer/headline_offers style logic against Evidence.official/Source), which is more than a data-shaping builder and was not attempted this pass to avoid weakening the verification bar."
+      "remaining_issue": null
     },
     {
       "id": "D3",
@@ -1201,22 +1202,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Map / zoom map is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_map_place_of,detective_raw_needs"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer/direction path, not mocked; refusal path tested for T11/T13, place-only rule tested for T01.",
+      "actual_result": "Map is not a Graphic: a bound place/building entity (RevealNode.label) becomes the beat's map_place via detective_raw_needs -> validate_needs -> direct.add_map_cards (SHOW_MAP, region from case_region) and MapPanel renders the panel. Proven offline with a synthetic map frame; live geocoding/tiles at compose are the existing zoom_map pipeline and were not exercised.",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_map_renders_through_the_real_direction_and_map_panel_path_T01"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "map needs a real place/region feeding the zoom_map camera-curve subsystem; no structured place field on a detective entity yet",
+      "remaining_issue": null,
       "tool_name": "Map / zoom map"
     },
     {
@@ -1445,22 +1447,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Document highlight is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_document_data,_linked_sources"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer/direction path, not mocked; refusal path tested for T11/T13, place-only rule tested for T01.",
+      "actual_result": "Quote must stand verbatim (verify_verbatim) in an official Source linked through claim.evidence_fact_ids_json -> Fact.source_ids_json; real DocumentCard.can_render + draw_state. Unverified quote returns None (test_document_builder_refuses_a_quote_not_in_the_official_source).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_document_builder_renders_T11"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "document needs a verified real document id/quote against a stored official source; evidence_fact_ids_json link designed but not wired",
+      "remaining_issue": null,
       "tool_name": "Document highlight"
     },
     {
@@ -1493,22 +1496,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Newspaper headline is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_headline_data,_linked_sources"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer/direction path, not mocked; refusal path tested for T11/T13, place-only rule tested for T01.",
+      "actual_result": "Reuses headlines.candidates (listed newspaper, full date, English page) over linked Sources; real HeadlineCard.can_render + draw_state. Unlisted outlet returns None (test_headline_builder_refuses_an_unlisted_outlet).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_headline_builder_renders_T13"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "headline needs a url matching a listed newspaper; same evidence_fact_ids_json link not wired",
+      "remaining_issue": null,
       "tool_name": "Newspaper headline"
     },
     {

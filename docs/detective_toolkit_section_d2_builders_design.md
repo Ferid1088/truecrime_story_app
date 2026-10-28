@@ -148,3 +148,34 @@ rather than an unattempted gap.
 One pre-existing test, `tests/test_detective_section_d.py::test_unsupported_tool_id_is_reported_not_silently_dropped`,
 used `"courtroom"` as its example of a tool_id with no builder at all — now stale since courtroom
 has one. Updated it to use `"map"`, which genuinely still has none.
+
+## Third batch — T01 map, T11 document, T13 headline, and D2 closes
+
+- **`document` (T11)**: `_document_data` follows the claim's `evidence_fact_ids_json` to its stored
+  `Fact`, then `Fact.source_ids_json` to real `Source` rows (`_linked_sources`). Only an
+  `official` source with text/publisher/title whose stored text contains the claim word for word
+  (`verify_verbatim`, the same gate as `alternatives.document_offer`) yields data; otherwise `None`.
+- **`headline` (T13)**: `_headline_data` builds the `{id: {url,title,publisher,published_at,language}}`
+  map for the linked sources and returns the first result of the existing
+  `headlines.candidates` (listed newspaper, full date, English page) — no new verification logic, so
+  the bar is exactly the old pipeline's. An unlisted outlet yields `None` (tested).
+- **`map` (T01)**: a map is not a `Graphic`, so it is not in `BUILDERS`/`place_detective_graphics`.
+  `detective_raw_needs` puts the place on the beat as `map_place` (from `_map_place_of`: an explicit
+  `payload.place`, else a stored `place`/`building` `RevealNode.label` among the bound claims'/scene's
+  entities — never a person, never invented geography). That is the channel `validate_needs` already
+  carries into `direct.add_map_cards`, which keeps its own safeguards (the narration must name the
+  place, the stretch must have room, the region from `case_region(case)` is appended). The dispatch
+  record reports `routed_via_needs_map_place`. Proof: the real `add_map_cards` makes the `SHOW_MAP`
+  shot and the real `MapPanel.compose` renders the panel (synthetic map frame, as
+  `tests/test_map_panel.py`). **Not exercised**: live geocoding/tile fetching at compose time, which
+  is the unchanged existing zoom_map pipeline.
+- **D2's competitive choice**: `test_with_a_photo_available_the_narrated_aim_decides_...` — same beat
+  with an approved photo covering it: a `fact_card` action is carved as its own moment while a
+  `photo` action leaves the photo untouched, and the two aims reach the requirement vocabulary
+  differently (`evidence` vs `human_connection`/`["photo"]`). Host is excluded from D2 by the owner's
+  Host boundary, not left as a gap.
+
+`test_unsupported_tool_id_is_reported_not_silently_dropped` now uses a genuinely unknown tool id
+(`"not_a_real_tool"`), since all 20 named tools have a route.
+
+**Result: T01/T11/T13 → VERIFIED; all 20 T0x rows VERIFIED; D2 → VERIFIED.**
