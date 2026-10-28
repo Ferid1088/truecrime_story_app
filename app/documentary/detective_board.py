@@ -194,7 +194,13 @@ def _linked_cards(picked: list[dict], blueprint: dict) -> list[dict]:
             if previous is not None:
                 links.setdefault(previous, "same_person")
         cards.append({"id": f"card{n + 1}", "kind": c["kind"], "source_fact": c["source_fact"],
-                      "beat_id": c["beat_id"], "status": "new",
+                      "beat_id": c["beat_id"],
+                      # Section E: a card_overrides entry may already carry the fact/question's
+                      # real current status (e.g. a question replayed as "answered" as of this
+                      # beat) or a reuse_reason marking a deliberate return - previously this was
+                      # always overwritten to "new" here, so no card could ever show anything but
+                      # a fresh introduction.
+                      "status": c.get("status", "new"), "reuse_reason": c.get("reuse_reason"),
                       "links": [{"to": f"card{m + 1}", "relation": rel}
                                 for m, rel in sorted(links.items())]})
     return cards

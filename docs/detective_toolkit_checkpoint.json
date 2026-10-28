@@ -418,13 +418,21 @@
       "section": "E. Continuing boards",
       "acceptance_criterion": "Board returns preserve identities, recognizable positions, relationships, and historical state.",
       "required_proof": "Consecutive board frames and state comparison.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective_board.py:board_layout"
+      ],
+      "validation_method": "Characterization: confirmed existing deterministic per-id hashing already gives stable position/identity across appearances; no code change needed.",
+      "actual_result": "A card keeps the same position regardless of surrounding content, confirmed by reading board_layout (pure hash of card id) \u2014 no regression risk since nothing changed.",
+      "evidence": [
+        "docs/detective_toolkit_section_e_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "B",
+        "C",
+        "D"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -433,13 +441,26 @@
       "section": "E. Continuing boards",
       "acceptance_criterion": "Heard knowledge and displayed board state are separate; additions and status changes appear deliberately.",
       "required_proof": "Replay and multi-return visual proof.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/board_state.py",
+        "app/documentary/detective/dispatch.py:board_card_overrides",
+        "app/documentary/detective_board.py:_linked_cards"
+      ],
+      "validation_method": "tests/test_detective_section_e.py::test_board_card_overrides_reflects_the_question_state_at_its_own_beat_not_the_latest; tests/test_detective_section_e.py::test_linked_cards_no_longer_overwrites_status_and_reuse_reason_with_new",
+      "actual_result": "Fixed a real bug: _linked_cards hardcoded every card status to \"new\", discarding any override. A question card now shows its actual replayed state (open/answered/etc) as of its own beat, and a later answer never leaks to an earlier card (order_seq-bounded replay).",
+      "evidence": [
+        "tests/test_detective_section_e.py::test_board_card_overrides_reflects_the_question_state_at_its_own_beat_not_the_latest",
+        "tests/test_detective_section_e.py::test_linked_cards_no_longer_overwrites_status_and_reuse_reason_with_new",
+        "tests/test_detective_section_e.py::test_linked_cards_defaults_status_to_new_when_none_is_supplied",
+        "docs/detective_toolkit_section_e_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "B",
+        "C",
+        "D"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -448,13 +469,24 @@
       "section": "E. Continuing boards",
       "acceptance_criterion": "A fact can return for a new connection, comparison, or answer without duplicate-first-reveal errors.",
       "required_proof": "Meaningful reuse and redundant-replay cases.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective_board.py:select_cards",
+        "app/documentary/mvp/evidence.py (legacy_evidence_additions bridge, Section D)"
+      ],
+      "validation_method": "tests/test_detective_section_e.py::test_select_cards_allows_a_fact_to_be_deliberately_reused_at_a_later_beat; tests/test_detective_section_e.py::test_a_detective_claim_key_is_the_same_string_on_the_board_and_in_the_recap_pack",
+      "actual_result": "select_cards never tracked used facts across beats (only one-per-beat) so a deliberate reuse at a later beat already works with no duplicate-check to remove; the same claim_key is confirmed to identify a fact on both the board and the recap evidence pack.",
+      "evidence": [
+        "tests/test_detective_section_e.py::test_select_cards_allows_a_fact_to_be_deliberately_reused_at_a_later_beat",
+        "tests/test_detective_section_e.py::test_a_detective_claim_key_is_the_same_string_on_the_board_and_in_the_recap_pack",
+        "docs/detective_toolkit_section_e_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "B",
+        "C",
+        "D"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },

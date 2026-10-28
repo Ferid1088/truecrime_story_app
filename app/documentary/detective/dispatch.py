@@ -36,20 +36,24 @@ def actions_for_graph(db: Session, graph_id: int) -> list[DetectiveToolAction]:
     return out
 
 
-def _beat_id_of(db: Session, action: DetectiveToolAction) -> str | None:
-    """The one beat a tool action targets, from its scene's covered narration-unit keys.
+def _covered_unit(db: Session, action: DetectiveToolAction):
+    """The narration unit a tool action targets, from its scene's covered narration-unit keys.
 
     A scene may cover several narration units; Section F (narration/visual/attention sync) is
     where per-unit timing precision belongs. For this section, a tool action is placed at the
-    first covered unit's beat - good enough to prove real dispatch, not a timing claim."""
+    first covered unit - good enough to prove real dispatch, not a timing claim."""
     from app.db.models import NarrationUnit
 
     unit_keys = json.loads(action.scene.covered_unit_keys_json or "[]")
     if not unit_keys:
         return None
-    unit = (db.query(NarrationUnit)
+    return (db.query(NarrationUnit)
             .filter(NarrationUnit.graph_id == action.scene.graph_id, NarrationUnit.unit_key == unit_keys[0])
             .first())
+
+
+def _beat_id_of(db: Session, action: DetectiveToolAction) -> str | None:
+    unit = _covered_unit(db, action)
     return unit.beat_id if unit else None
 
 
@@ -100,18 +104,34 @@ BOARD_CARD_KINDS = {"time", "open_question", "person", "place", "object", "contr
 
 
 def board_card_overrides(db: Session, graph_id: int) -> dict[str, dict]:
-    """beat_id -> {"kind", "source_fact"} from `detective_board` tool actions (Section D,
-    obstacle 6): when the Detective Director chose this beat's card kind, honor it instead of
-    `select_cards`'s hardcoded dated-event-always-wins rule."""
+    """beat_id -> {"kind", "source_fact", ["status"], ["reuse_reason"]} from `detective_board`
+    tool actions.
+
+    Section D, obstacle 6: when the Detective Director chose this beat's card kind, honor it
+    instead of `select_cards`'s hardcoded dated-event-always-wins rule.
+
+    Section E: an `open_question` card's `status` is the question's actual current state as of
+    this beat (Section B's knowledge-event log, replayed up to here - never a later answer), not
+    a permanent "new"/"open" label. A `reuse_reason` carried on the action (the Detective
+    Director's own justification for returning to an already-used fact) is passed through so the
+    board can mark this card as a deliberate return rather than a fresh discovery."""
+    from app.documentary.detective.board_state import question_status_as_of
+
     overrides: dict[str, dict] = {}
     for action in actions_for_graph(db, graph_id):
         if action.tool_id != "detective_board":
             continue
         payload = json.loads(action.payload_json or "{}")
         kind, source_fact = payload.get("kind"), payload.get("source_fact")
-        beat_id = _beat_id_of(db, action)
-        if beat_id and kind in BOARD_CARD_KINDS and source_fact:
-            overrides[beat_id] = {"kind": kind, "source_fact": source_fact}
+        unit = _covered_unit(db, action)
+        if unit is None or kind not in BOARD_CARD_KINDS or not source_fact:
+            continue
+        override = {"kind": kind, "source_fact": source_fact}
+        if kind == "open_question":
+            override["status"] = question_status_as_of(db, graph_id, source_fact, unit.story_order)
+        if action.reuse_reason:
+            override["reuse_reason"] = action.reuse_reason
+        overrides[unit.beat_id] = override
     return overrides
 
 
