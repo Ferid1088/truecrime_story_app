@@ -46,7 +46,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | Check | What must be true | Status |
 | --- | --- | --- |
 | [x] D1 | All twenty tools have usable adapters or completed wiring to existing renderers. | VERIFIED — app/documentary/detective/dispatch.py |
-| [ ] D2 | Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules. | IN_PROGRESS — docs/detective_toolkit_section_d2_builders_design.md |
+| [ ] D2 | Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules. | IN_PROGRESS — 17/20 tools dispatchable; map/document/headline remain, see docs/detective_toolkit_section_d2_builders_design.md |
 | [x] D3 | Typed payloads, release bindings, availability outcomes, and state updates reach execution. | VERIFIED — tests/test_detective_section_d.py::test_fact_card_dispatches_and_carves_a_real_shot_T09 |
 | [x] D4 | A fallback preserves the intended explanation; an unsupported treatment is reported honestly. | VERIFIED — tests/test_detective_section_d.py::test_unsupported_tool_id_is_reported_not_silently_dropped |
 | [x] D5 | Every tool action has a typed toolkit result that the Main Visual Planner can accept, combine, defer, reject, or route for repair without an unrecorded downstream override. | VERIFIED — docs/detective_toolkit_section_cd_architecture_remediation.md |
@@ -125,7 +125,7 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | [x] T05 | Conflict comparison | VERIFIED — tests/test_detective_dispatch_builders.py::test_conflict_builder_renders_T05 |
 | [x] T06 | Conflict board | VERIFIED — tests/test_detective_dispatch_builders.py::test_conflict_board_builder_renders_T06 |
 | [x] T07 | Timeline | VERIFIED — tests/test_mvp_alternatives.py::test_timeline_events_are_ordered_by_date_not_by_when_the_narration_tells_them |
-| [ ] T08 | Investigation clock | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
+| [x] T08 | Investigation clock | VERIFIED — tests/test_detective_dispatch_builders.py::test_investigation_clock_builder_renders_T08 |
 | [x] T09 | Fact card | VERIFIED — tests/test_detective_section_d.py |
 | [x] T10 | Key facts card | VERIFIED — tests/test_detective_dispatch_builders.py::test_key_facts_builder_renders_T10 |
 | [ ] T11 | Document highlight | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
@@ -134,10 +134,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 | [x] T14 | Floor plan | VERIFIED — tests/test_detective_section_d.py |
 | [x] T15 | Evidence check | VERIFIED — tests/test_detective_dispatch_builders.py::test_evidence_check_builder_renders_T15 |
 | [x] T16 | Chain of custody | VERIFIED — tests/test_detective_dispatch_builders.py::test_custody_builder_renders_T16 |
-| [ ] T17 | Forensic examination | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T18 | Interview analysis | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T19 | Courtroom reasoning | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
-| [ ] T20 | Sentencing explanation | IN_PROGRESS — docs/detective_toolkit_capability_matrix.md |
+| [x] T17 | Forensic examination | VERIFIED — tests/test_detective_dispatch_builders.py::test_forensic_builder_renders_T17 |
+| [x] T18 | Interview analysis | VERIFIED — tests/test_detective_dispatch_builders.py::test_interrogation_builder_renders_T18 |
+| [x] T19 | Courtroom reasoning | VERIFIED — tests/test_detective_dispatch_builders.py::test_courtroom_builder_renders_T19 |
+| [x] T20 | Sentencing explanation | VERIFIED — tests/test_detective_dispatch_builders.py::test_sentencing_builder_renders_T20 |
 
 ## Final sign-off
 

@@ -27,7 +27,8 @@ def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
     data = {"conflict": S.conflict(language), "conflict_board": S.board(language), "recap": S.recap(language),
             "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
             "headline": S.headline(), "floor_plan": S.floor_plan(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
-                                                "fact_id": "F1"},
+                                                "fact_id": "F1", "source": "BBC News",
+                                                "url": "https://www.bbc.com/news/world-us-canada-1"},
             "fact_card": {"facts": [{"text": S.TEXT[language]["fact"], "fact_id": "F12"},
                                     {"text": S.TEXT[language]["ac"], "fact_id": "F13"}]}}[kind]
     schedule = GS.schedule_of(kind, data, language)
@@ -292,3 +293,13 @@ def test_every_point_of_the_road_stays_on_the_line_when_it_has_panned_away():
         x = round(TL.LINE_LEFT + TL.HISTORY_LEFT + history / away * j)
         assert frame.getpixel((x, TL.LINE_Y - 6)) != ground                       # a mark above the line at every point
         assert frame.getpixel((x, TL.LINE_Y - 6))[0] > 150                         # amber, not background
+
+
+def test_quote_card_accepts_only_a_listed_newspaper_or_tv_broadcaster():
+    card = GRAPHICS["quote"]
+    base = {"text": "A quotation.", "fact_id": "F1", "source": "BBC News", "url": "https://www.bbc.com/news/x"}
+    assert card.can_render(base) is None
+    assert card.can_render({**base, "source": "ZDF", "url": "https://www.zdf.de/nachrichten/x"}) is None
+    assert "not a listed" in card.can_render({**base, "url": "https://someblog.example.com/x"})
+    assert "not a listed" in card.can_render({k: v for k, v in base.items() if k != "url"})
+    assert "does not match" in card.can_render({**base, "source": "CNN"})

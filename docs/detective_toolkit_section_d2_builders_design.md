@@ -75,9 +75,76 @@ a dict looked plausible.
   charge/outcome structures respectively — no equivalent fields exist on a claim without further
   schema work.
 
-## Checklist impact
+## Checklist impact (first batch)
 
 T02/T03/T04/T05/T06/T10/T12/T15/T16 → `VERIFIED` (new real render evidence). T01/T08/T11/T13/T17/
 T18/T19/T20 stay `IN_PROGRESS` with the specific gap above. **D2 itself stays `IN_PROGRESS`**, per
 the doc's own "all twenty tools have usable adapters" wording — 12 of 20 now have real dispatch
 proof (T02/T03/T04/T05/T06/T07/T09/T10/T12/T14/T15/T16), 8 remain.
+
+## Second batch — closing 5 of the remaining 8
+
+Investigated each of the 8 remaining gaps against the actual renderer/schema code rather than the
+earlier assessment alone:
+
+- **`investigation_clock` (T08)**: closed. The claimed schema gap (no date on a `DetectiveClaim`)
+  is bridged via the already-designed `evidence_fact_ids_json` optional link to a real `Fact` row —
+  `Fact.event_date` supplies the date, parsed with `app.documentary.mvp.alternatives._event_date`
+  (reused, not reimplemented). No date on the linked fact → the claim is skipped, never invented.
+  The renderer's `track` field ("crime"/"investigation") has no claim-level equivalent either, so
+  `DetectiveClaim.attribute` is used as that slot name — see the vocabulary note below.
+- **`forensic` (T17)**: closed via the `attribute`-as-slot convention: a claim with
+  `attribute="exam"` whose text is a real `EXAMS` member, `attribute="sample"`/`"method"`/`"result"`
+  (all three required — an earlier draft treated "method" as optional per the renderer's `steps()`
+  default list, but `can_render` requires it unconditionally; caught by the real renderer check, not
+  assumed) and optional `attribute="limits"`. `method`'s basis is forced to `"expert"` since no
+  Section B basis term maps to the renderer's `("illustration","expert")` allowance — an examiner's
+  methodology is inherently expert-sourced content regardless of the underlying claim's basis.
+- **`interrogation` (T18)**: closed. Each bound `DetectiveQuestion` becomes a "question" turn; a
+  claim bound alongside it with `attribute="answer"` and the same `entity_node_key` becomes its
+  "answer" turn. A question with no matching answer claim is included without one (an open
+  question, not an error) rather than invented.
+- **`courtroom` (T19)**: closed via `attribute` slots `"issue"`/`"prosecution"`/`"defense"`/
+  `"finding"` (all required, matching the renderer's actual `can_render`).
+- **`sentencing` (T20)**: closed. `attribute="charge"` claims become charges (required, >=1);
+  `attribute="final"` is the closing sentence (**required** — an earlier draft treated it as
+  optional, matching only the `steps()` list; the real renderer's last line,
+  `kit.item_problem(data.get("final"), "the final sentence", ...)`, is unconditional, caught by the
+  real-renderer test). `aggravating`/`mitigating` are optional one-item lists when a matching claim
+  exists. `arrangement` (`{kind: concurrent|consecutive, fact_id}`) has a materially different shape
+  from a text item and was deliberately left out rather than approximated.
+
+**The `DetectiveClaim.attribute` vocabulary this introduces** (`exam`/`sample`/`method`/`result`/
+`limits` for forensic; `issue`/`prosecution`/`defense`/`finding` for courtroom; `charge`/`final`/
+`aggravating`/`mitigating` for sentencing; `crime`/`investigation` for the clock's track; `answer`
+for interrogation) is a real-code convention, not yet reflected in the Detective Director's own
+`schema_hints` (`director.py:_build_input`) the way the `already_introduced_subject_keys` hint
+already is. Live model-produced content for these 5 tools would need that hint added before a real
+agent call could reliably produce claims with the right `attribute` values — noted as follow-up
+work, not done in this pass (no live call was needed for dispatch-layer proof itself).
+
+**Still not closed, honestly** (now 3, not 8):
+- **`map` (T01)**: not a schema/data problem after all — `MapPanel` is not a `Graphic`-registry
+  renderer at all (confirmed: it has no `can_render`, isn't in `registry.py:GRAPHICS`; it's driven
+  by a `SHOW_MAP` shot command built by `mvp/direct.py:add_map_cards` and drawn by
+  `render/engine.py:_map_page`, a structurally different mechanism from the `GraphicCard`/
+  `place_detective_graphics` carving path every other dispatch builder here uses). Wiring it needs
+  the dispatch/carving layer itself extended to emit a `SHOW_MAP` shot, not a `_map_data` builder —
+  a real, larger `BUILDERS`-pattern limitation, not a missing data field. (The place-name/region
+  data itself IS available without new schema: `app.documentary.mvp.pipeline.case_region(case)` +
+  the bound entity's `RevealNode.label`.)
+- **`document` (T11) / `headline` (T13)**: unchanged from the first batch's assessment — real
+  verbatim-against-official-source verification, reusing `alternatives.py`'s `document_offer`/
+  `headline_offers` logic against `Evidence.official`/`Source` rows, was not attempted to avoid
+  building a shortcut that weakens the existing verification bar.
+
+## Checklist impact (second batch)
+
+T08/T17/T18/T19/T20 → `VERIFIED` (5 new real render tests in
+`tests/test_detective_dispatch_builders.py`). **D2 stays `IN_PROGRESS`**: 17 of 20 tools now have
+real dispatch proof; T01/T11/T13 remain, each with a specific, non-trivial structural reason above
+rather than an unattempted gap.
+
+One pre-existing test, `tests/test_detective_section_d.py::test_unsupported_tool_id_is_reported_not_silently_dropped`,
+used `"courtroom"` as its example of a tool_id with no builder at all — now stale since courtroom
+has one. Updated it to use `"map"`, which genuinely still has none.

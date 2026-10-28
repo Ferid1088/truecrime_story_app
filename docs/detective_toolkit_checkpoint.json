@@ -417,7 +417,7 @@
         "C"
       ],
       "repair_history": [],
-      "remaining_issue": "Build the remaining 8 tool builders once their underlying schema gaps (structured dates, verified document/headline provenance, exam-type/charge-outcome fields, interrogation turn pairing) are addressed."
+      "remaining_issue": "Tools still without a real dispatch builder: ['T01', 'T11', 'T13']. map (T01): not a Graphic-kind renderer at all (SHOW_MAP shot mechanism, structurally different from the GraphicCard dispatch path) - needs its own carving support, not a data builder. document (T11) / headline (T13): need real verbatim-against-official-source verification (reusing alternatives.py document_offer/headline_offers style logic against Evidence.official/Source), which is more than a data-shaping builder and was not attempted this pass to avoid weakening the verification bar."
     },
     {
       "id": "D3",
@@ -1373,22 +1373,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Investigation clock is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_investigation_clock_data"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer: builder output passed through the actual engine can_render() and draw(), not mocked.",
+      "actual_result": "Builder produces data the real renderer accepts and draws, using DetectiveClaim.attribute as the structured-slot discriminator (documented convention, see docs/detective_toolkit_section_d2_builders_design.md).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_investigation_clock_builder_renders_T08"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "investigation_clock needs 2+ dated events; no structured date field on a detective claim/question yet",
+      "remaining_issue": null,
       "tool_name": "Investigation clock"
     },
     {
@@ -1588,22 +1589,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Forensic examination is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_forensic_data"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer: builder output passed through the actual engine can_render() and draw(), not mocked.",
+      "actual_result": "Builder produces data the real renderer accepts and draws, using DetectiveClaim.attribute as the structured-slot discriminator (documented convention, see docs/detective_toolkit_section_d2_builders_design.md).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_forensic_builder_renders_T17"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "forensic needs a real exam type from a fixed vocabulary; no equivalent claim field",
+      "remaining_issue": null,
       "tool_name": "Forensic examination"
     },
     {
@@ -1611,22 +1613,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Interview analysis is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_interrogation_data"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer: builder output passed through the actual engine can_render() and draw(), not mocked.",
+      "actual_result": "Builder produces data the real renderer accepts and draws, using DetectiveClaim.attribute as the structured-slot discriminator (documented convention, see docs/detective_toolkit_section_d2_builders_design.md).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_interrogation_builder_renders_T18"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "interrogation needs role-tagged question/answer turns; feasible via DetectiveQuestion+claim pairing but not built this pass",
+      "remaining_issue": null,
       "tool_name": "Interview analysis"
     },
     {
@@ -1634,22 +1637,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Courtroom reasoning is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_courtroom_data"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer: builder output passed through the actual engine can_render() and draw(), not mocked.",
+      "actual_result": "Builder produces data the real renderer accepts and draws, using DetectiveClaim.attribute as the structured-slot discriminator (documented convention, see docs/detective_toolkit_section_d2_builders_design.md).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_courtroom_builder_renders_T19"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "courtroom needs issue/prosecution/defense/finding structure; no equivalent claim field",
+      "remaining_issue": null,
       "tool_name": "Courtroom reasoning"
     },
     {
@@ -1657,22 +1661,23 @@
       "section": "D. Individual toolkit",
       "acceptance_criterion": "Sentencing explanation is reachable through the detective's real execution path, its payload is derived from appropriate narration/state, its output communicates the intended purpose with readable design and correct release timing, and missing inputs are handled truthfully.",
       "required_proof": "Actual execution, rendered output, and validation evidence.",
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "implementation_location": [
-        "app/documentary/graphics/registry.py (pre-existing, Section A)"
+        "app/documentary/detective/dispatch.py:_sentencing_data"
       ],
-      "validation_method": null,
-      "actual_result": "Reachable via the pre-existing pipeline per Section A's audit; not yet proven reachable through the new Detective Director direct-dispatch mechanism (no data builder in app/documentary/detective/dispatch.py:BUILDERS yet).",
+      "validation_method": "Real renderer: builder output passed through the actual engine can_render() and draw(), not mocked.",
+      "actual_result": "Builder produces data the real renderer accepts and draws, using DetectiveClaim.attribute as the structured-slot discriminator (documented convention, see docs/detective_toolkit_section_d2_builders_design.md).",
       "evidence": [
-        "docs/detective_toolkit_capability_matrix.md"
+        "tests/test_detective_dispatch_builders.py::test_sentencing_builder_renders_T20"
       ],
       "versions": {},
       "dependencies": [
-        "A",
+        "B",
+        "C",
         "D"
       ],
       "repair_history": [],
-      "remaining_issue": "sentencing needs charge/outcome structure; no equivalent claim field",
+      "remaining_issue": null,
       "tool_name": "Sentencing explanation"
     }
   ]

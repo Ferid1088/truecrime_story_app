@@ -228,7 +228,8 @@ def test_one_event_told_by_two_sources_is_one_point_of_the_timeline_but_two_diff
 
 def test_quotes_are_complete_the_fullest_wording_and_once_per_fact():
     ev = evidence(
-        facts={"F1": {"claim": "x"}},
+        facts={"F1": {"claim": "x", "source_ids": [1]}},
+        sources={1: {"url": "https://www.bbc.com/news/world-us-canada-1"}},
         quotes=[{"text": "I was up until 4am last night crying, literally thinking of ways to", "fact_id": "F1",
                  "beat": "B03"},
                 {"text": "I was up until 4am last night crying, literally thinking of ways to kill her.",
@@ -239,6 +240,18 @@ def test_quotes_are_complete_the_fullest_wording_and_once_per_fact():
     offers = AL.quote_offers(ev)
     assert [o.key for o in offers] == ["quote|F1"] and offers[0].data["text"].endswith("kill her.")
     assert offers[0].data["speaker"] == "Caleb Flynn" and offers[0].best == 2
+    assert offers[0].data["source"] == "BBC News"
+
+
+def test_a_quote_without_a_listed_newspaper_or_tv_source_is_not_offered():
+    quote = {"text": "I was up until 4am last night crying, literally thinking of ways to kill her.",
+             "fact_id": "F1", "beat": "B03"}
+    for url in ("https://someblog.example.com/post", "https://notbbc.com/x", ""):
+        ev = evidence(facts={"F1": {"claim": "x", "source_ids": [1]}}, sources={1: {"url": url}}, quotes=[quote])
+        assert AL.quote_offers(ev) == []
+    tv = evidence(facts={"F1": {"claim": "x", "source_ids": [1]}},
+                  sources={1: {"url": "https://www.zdf.de/nachrichten/x"}}, quotes=[quote])
+    assert AL.quote_offers(tv)[0].data["source"] == "ZDF"
 
 
 def test_key_facts_show_the_figure_of_a_stated_fact_and_never_a_disputed_one():
@@ -440,7 +453,7 @@ def test_a_planned_graphic_becomes_a_still_shot_with_its_cues_in_seconds():
 
     from app.documentary.production.script import compose
 
-    data = {"text": "I did not do it.", "fact_id": "F1"}
+    data = {"text": "I did not do it.", "fact_id": "F1", "source": "BBC News", "url": "https://www.bbc.com/news/x"}
     plan = {"candidates": {}, "beats": [{"beat_id": "B02", "shots": [
         {"command": "SHOW_GRAPHIC", "share": 1.0, **GS.plan_fields("quote", data), "motion": "NONE"}]}]}
     script = compose(_manifest(), plan, {}, {}, "en")
@@ -469,7 +482,8 @@ def test_the_renderer_plays_a_graphic_as_a_page_whose_text_streams_and_that_then
     from app.documentary.render.engine import FrameMaker
 
     shot = {"kind": "graphic", "start": 10.0, "end": 24.0, "motion": "NONE",
-            "graphic": {"type": "quote", "data": {"text": "A quote.", "fact_id": "F1"}, "cues": [2.0],
+            "graphic": {"type": "quote", "data": {"text": "A quote.", "fact_id": "F1", "source": "BBC News",
+                                                        "url": "https://www.bbc.com/news/x"}, "cues": [2.0],
                         "cue_fractions": [0.15], "language": "en"}}
     maker = FrameMaker({"language": "en", "shots": []}, 960, 540)
     before, settled, later = (maker.shot_frame(shot, t) for t in (11.0, 20.0, 23.0))
@@ -590,9 +604,12 @@ def test_a_recap_does_not_list_two_facts_that_say_the_same():
 
 def test_a_quotation_found_word_for_word_in_a_court_record_is_shown_as_that_document():
     record = "The judge said: I did not kill my wife! The court then adjourned for the day."
-    ev = evidence(facts={"F1": {"claim": "x"}, "F2": {"claim": "y"}}, quotes=[
+    ev = evidence(
+        facts={"F1": {"claim": "x"}, "F2": {"claim": "y", "source_ids": [1]}, "F3": {"claim": "z"}},
+        sources={1: {"url": "https://www.bbc.com/news/x"}}, quotes=[
         {"text": "I did not kill my wife!", "fact_id": "F1", "beat": "B03", "speaker": "Caleb Flynn"},
-        {"text": "It was never my gun.", "fact_id": "F2", "beat": "B04", "speaker": "Caleb Flynn"}],
+        {"text": "It was never my gun.", "fact_id": "F2", "beat": "B04", "speaker": "Caleb Flynn"},
+        {"text": "I was not there at all.", "fact_id": "F3", "beat": "B04", "speaker": "Caleb Flynn"}],
         official={7: {"text": record, "type": "LIVE UPDATES: the sentencing hearing", "issuer": "Courtroom Insider",
                       "published_at": "2026-10-05", "language": "en"}})
     ev.beats[2]["reveals"], ev.beats[3]["reveals"] = ["F1"], ["F2"]
@@ -601,6 +618,7 @@ def test_a_quotation_found_word_for_word_in_a_court_record_is_shown_as_that_docu
     assert page.kind == "document" and page.data["document"]["id"] == 7 and page.data["quote"]["verified"] is True
     assert page.data["document"]["date"].startswith("OCT 5") and page.data["context_before"] == []
     assert offers["quote|F2"].kind == "quote"                         # not in any record: an ordinary quote card
+    assert "quote|F3" not in offers                                   # no listed newspaper or TV source: not allowed
 
 
 def test_a_map_is_only_placed_where_its_whole_zoom_and_the_hold_on_the_place_fit():

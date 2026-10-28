@@ -186,6 +186,34 @@
       "max_per_card": 3,
       "caption_max_chars": 90
     },
+    "quote": {
+      "tv_source_names": {
+        "tagesschau.de": "Tagesschau",
+        "ard.de": "ARD",
+        "ardmediathek.de": "ARD",
+        "zdf.de": "ZDF",
+        "rtl.de": "RTL",
+        "ntv.de": "n-tv",
+        "3sat.de": "3sat",
+        "arte.tv": "ARTE",
+        "dw.com": "Deutsche Welle",
+        "france24.com": "France 24",
+        "tf1info.fr": "TF1",
+        "francetvinfo.fr": "France Info",
+        "rai.it": "RAI",
+        "itv.com": "ITV News",
+        "news.sky.com": "Sky News",
+        "channel4.com": "Channel 4 News",
+        "foxnews.com": "Fox News",
+        "msnbc.com": "MSNBC",
+        "pbs.org": "PBS",
+        "cbc.ca": "CBC News",
+        "abc.net.au": "ABC Australia",
+        "dateline.nbcnews.com": "Dateline NBC",
+        "48hours.cbsnews.com": "48 Hours",
+        "investigationdiscovery.com": "Investigation Discovery"
+      }
+    },
     "headline": {
       "headline_max_chars": 140,
       "max_age_days": 45,

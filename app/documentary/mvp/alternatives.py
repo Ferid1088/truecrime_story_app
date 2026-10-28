@@ -17,6 +17,7 @@ from app.documentary.graphics.base import GraphicUnavailable
 from app.documentary.graphics.document import verify_verbatim
 from app.documentary.graphics.engines import kit
 from app.documentary.graphics.keyfacts import extract
+from app.documentary.graphics.outlets import outlet_of
 from app.documentary.graphics.registry import graphic
 from app.documentary.mvp import headlines as HL
 from app.documentary.mvp.copy import words
@@ -196,13 +197,33 @@ def quote_offers(ev: Evidence) -> list[Offer]:
         if beat is None or text.lower() in seen:
             continue
         seen.add(text.lower())
-        made = document_offer(ev, q, beat) or offer(
-            "quote", f"quote|{q['fact_id']}",
-            {"text": text, "fact_id": q["fact_id"], **({"speaker": q["speaker"]} if q.get("speaker") else {})},
-            beat, items=(q["fact_id"],))
+        made = document_offer(ev, q, beat)
+        if made is None:
+            origin = quote_origin(ev, q["fact_id"])
+            if origin is None:
+                continue                    # not published by a listed newspaper or TV broadcaster: not allowed
+            made = offer("quote", f"quote|{q['fact_id']}",
+                         {"text": text, "fact_id": q["fact_id"], **origin,
+                          **({"speaker": q["speaker"]} if q.get("speaker") else {})},
+                         beat, items=(q["fact_id"],))
         if made:
             out.append(made)
     return out
+
+
+def quote_origin(ev: Evidence, fact_id: str) -> dict | None:
+    """The first stored source of a fact (or the source itself for an "S<id>" fact) that is a listed newspaper or TV
+    broadcaster: its address and configured name. None when the quotation has no such source."""
+    if fact_id.startswith("S") and fact_id[1:].isdigit():
+        ids = [int(fact_id[1:])]
+    else:
+        ids = [int(i) for i in (ev.facts.get(fact_id) or {}).get("source_ids") or [] if str(i).isdigit()]
+    for sid in ids:
+        url = (ev.sources.get(sid) or {}).get("url") or ""
+        name = outlet_of(url)
+        if name:
+            return {"url": url, "source": name}
+    return None
 
 
 def document_offer(ev: Evidence, quote: dict, beat: int) -> Offer | None:

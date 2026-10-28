@@ -20,6 +20,7 @@ from app.db.models import DetectiveScene, DetectiveToolAction
 DISPATCHABLE_KINDS = {
     "fact_card", "floor_plan", "detective_board", "recap", "unknowns", "conflict",
     "conflict_board", "key_facts", "quote", "evidence_check", "custody",
+    "investigation_clock", "forensic", "interrogation", "courtroom", "sentencing",
 }
 
 # Section B's claim/question basis vocabulary has no direct equivalent in the cinematic engines'
@@ -247,12 +248,31 @@ def _key_facts_data(db: Session, action: DetectiveToolAction) -> dict | None:
     return {"facts": facts[:3]} if facts else None
 
 
+def _quote_origin(db: Session, claim) -> dict | None:
+    """The first stored source of the facts a claim links to that is a listed newspaper or TV broadcaster (its
+    address and configured name), else None - any other source is not allowed on a quote card."""
+    from app.db.models import Fact, Source
+    from app.documentary.graphics.outlets import outlet_of
+
+    fact_ids = [int(i) for i in json.loads(claim.evidence_fact_ids_json or "[]") if str(i).isdigit()]
+    for fact in db.query(Fact).filter(Fact.id.in_(fact_ids)).all() if fact_ids else []:
+        ids = [int(i) for i in json.loads(fact.source_ids_json or "[]") if str(i).isdigit()]
+        for source in db.query(Source).filter(Source.id.in_(ids)).all() if ids else []:
+            name = outlet_of(source.url or "")
+            if name:
+                return {"url": source.url, "source": name}
+    return None
+
+
 def _quote_data(db: Session, action: DetectiveToolAction) -> dict | None:
     """A QuoteCard from one attributed claim (<=220 chars) - never a bare `established_in_text`
-    assertion, since a quote card is specifically for someone's own words."""
+    assertion, since a quote card is specifically for someone's own words - whose facts come from a listed
+    newspaper or TV broadcaster."""
     for c in _bound_claims(db, action):
         if c.basis == "attributed" and c.attribution and len(c.text) <= 220:
-            return {"text": c.text, "fact_id": c.claim_key, "speaker": c.attribution}
+            origin = _quote_origin(db, c)
+            if origin:
+                return {"text": c.text, "fact_id": c.claim_key, "speaker": c.attribution, **origin}
     return None
 
 
@@ -288,12 +308,124 @@ def _custody_data(db: Session, action: DetectiveToolAction) -> dict | None:
     return {"item": {"name": claims[0].entity_node_key, "fact_id": claims[0].claim_key}, "stages": stages}
 
 
+def _investigation_clock_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """2-N dated events from bound claims whose linked Fact has a real `event_date` - never an
+    invented date. `claim.attribute` names the track ("crime"/"investigation", the same
+    attribute-as-slot convention `_forensic_data`/`_courtroom_data`/`_sentencing_data` use below),
+    since neither a claim nor a Fact otherwise distinguishes the two tracks."""
+    from app.documentary.mvp.alternatives import _event_date
+    from app.db.models import Fact
+
+    events = []
+    for c in _bound_claims(db, action):
+        if c.attribute not in ("crime", "investigation"):
+            continue
+        fact_ids = json.loads(c.evidence_fact_ids_json or "[]")
+        fact = db.query(Fact).filter(Fact.id.in_(fact_ids)).first() if fact_ids else None
+        parsed = _event_date(fact.event_date) if fact else None
+        if not parsed:
+            continue
+        events.append({"track": c.attribute, "date": parsed, "text": c.text[:70],
+                       "basis": _ENGINE_BASIS.get(c.basis, "fact"), "fact_id": c.claim_key})
+    events.sort(key=lambda e: (e["date"]["year"], e["date"].get("month") or 0, e["date"].get("day") or 0))
+    return {"events": events} if len(events) >= 2 else None
+
+
+def _forensic_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """One examination from bound claims tagged by `attribute` ("exam" names the EXAMS member,
+    "sample"/"method"/"result"/"limits" fill the matching slot) - a convention, not a schema field,
+    since forensic structure has no dedicated place on a text-grounded claim."""
+    from app.documentary.graphics.engines.evidence import EXAMS
+
+    claims = _bound_claims(db, action)
+    by_slot = {c.attribute: c for c in claims}
+    exam = next((c.text.strip().lower() for c in claims if c.attribute == "exam"
+                and c.text.strip().lower() in EXAMS), None)
+    sample, method, result = by_slot.get("sample"), by_slot.get("method"), by_slot.get("result")
+    if not exam or not sample or not method or not result:
+        return None
+    item = lambda c: {"text": c.text[:110], "basis": _ENGINE_BASIS.get(c.basis, "fact"), "fact_id": c.claim_key}
+    # "method" only accepts basis "illustration"/"expert" (an examiner's own procedural description,
+    # not a narration-style fact/claim) - no Section B basis maps there, so it's forced here, same
+    # as an examiner's methodology is inherently expert content regardless of how the underlying
+    # claim was classified.
+    data = {"exam": exam, "sample": item(sample),
+            "method": {"text": method.text[:110], "basis": "expert", "fact_id": method.claim_key},
+            "result": item(result)}
+    if "limits" in by_slot:
+        data["limits"] = item(by_slot["limits"])
+    return data
+
+
+def _interrogation_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """1-N question/answer turns: each bound `DetectiveQuestion` is the "question" turn, and a
+    claim bound alongside it with `attribute="answer"` and matching `entity_node_key` is its
+    "answer" turn - a question with no bound answer claim is skipped, never invented."""
+    claims = _bound_claims(db, action)
+    answers = {c.entity_node_key: c for c in claims if c.attribute == "answer"}
+    turns = []
+    for q in _bound_questions(db, action):
+        keys = json.loads(q.entity_node_keys_json or "[]")
+        who = keys[0] if keys else None
+        turns.append({"role": "question", "mode": "paraphrase", "who": who or "investigator",
+                      "text": q.text[:160], "basis": "unknown", "fact_id": q.question_key})
+        a = answers.get(who) if who else None
+        if a:
+            turns.append({"role": "answer", "mode": "paraphrase", "who": who,
+                          "text": a.text[:160], "basis": _ENGINE_BASIS.get(a.basis, "witness"),
+                          "fact_id": a.claim_key})
+    return {"turns": turns} if turns else None
+
+
+def _courtroom_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """Issue + prosecution/defense statements + finding, again via `claim.attribute` as the slot
+    name ("issue"/"prosecution"/"defense"/"finding") - the same convention as `_forensic_data`."""
+    claims = _bound_claims(db, action)
+    item = lambda c: {"text": c.text[:90], "basis": _ENGINE_BASIS.get(c.basis, "witness"), "fact_id": c.claim_key}
+    issue = next((c for c in claims if c.attribute == "issue"), None)
+    prosecution = [item(c) for c in claims if c.attribute == "prosecution"]
+    defense = [item(c) for c in claims if c.attribute == "defense"]
+    finding = next((c for c in claims if c.attribute == "finding"), None)
+    if not issue or not prosecution or not defense or not finding:
+        return None
+    return {"issue": item(issue), "prosecution": prosecution, "defense": defense,
+            "finding": {"text": finding.text[:110], "basis": "finding", "fact_id": finding.claim_key}}
+
+
+def _sentencing_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """Charges (>=1) plus the required final sentence, via `claim.attribute` slots ("charge" claims
+    each become one charge with the claim text as its outcome; "final" is the closing sentence,
+    always required; "aggravating"/"mitigating" are optional one-item lists - never invented when
+    absent). `arrangement` (concurrent/consecutive) has its own non-claim shape and is left for a
+    later pass rather than approximated."""
+    claims = _bound_claims(db, action)
+    charges = [{"charge": c.entity_node_key, "outcome": c.text[:90],
+               "basis": _ENGINE_BASIS.get(c.basis, "fact"), "fact_id": c.claim_key}
+              for c in claims if c.attribute == "charge"]
+    final = next((c for c in claims if c.attribute == "final"), None)
+    if not charges or not final:
+        return None
+    item = lambda c: {"text": c.text[:110], "basis": _ENGINE_BASIS.get(c.basis, "fact"), "fact_id": c.claim_key}
+    data: dict = {"charges": charges, "final": {"text": final.text[:90], "basis": "finding",
+                                                "fact_id": final.claim_key}}
+    for slot in ("aggravating", "mitigating"):
+        c = next((c for c in claims if c.attribute == slot), None)
+        if c:
+            data[slot] = [item(c)]
+    if len(charges) < 2 and not (data.get("aggravating") or data.get("mitigating")):
+        return None
+    return data
+
+
 BUILDERS = {
     "fact_card": _fact_card_data, "floor_plan": _floor_plan_data,
     "detective_board": _detective_board_data, "recap": _recap_data, "unknowns": _unknowns_data,
     "conflict": _conflict_data, "conflict_board": _conflict_board_data,
     "key_facts": _key_facts_data, "quote": _quote_data,
     "evidence_check": _evidence_check_data, "custody": _custody_data,
+    "investigation_clock": _investigation_clock_data, "forensic": _forensic_data,
+    "interrogation": _interrogation_data, "courtroom": _courtroom_data,
+    "sentencing": _sentencing_data,
 }
 
 

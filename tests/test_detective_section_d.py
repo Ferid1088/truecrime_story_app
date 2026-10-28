@@ -103,8 +103,12 @@ def test_floor_plan_dispatches_when_payload_has_real_plan_data_T14(db_session):
 
 
 def test_unsupported_tool_id_is_reported_not_silently_dropped(db_session):
+    # "map" still has no dispatch builder (Section D2: it isn't a Graphic-kind renderer at all,
+    # see docs/detective_toolkit_section_d2_builders_design.md) - a genuine example of a tool_id
+    # this pass cannot dispatch, unlike "courtroom" which gained a real builder since this test
+    # was first written.
     graph, _, _ = _graph(db_session, beats=[{"id": "B01"}])
-    _scene_with_action(db_session, graph, "B01", 0, "courtroom")
+    _scene_with_action(db_session, graph, "B01", 0, "map")
     resolved = D.resolve_dispatchable_actions(db_session, graph.id)
     assert resolved[0]["skip"] == "not_dispatched_in_this_pass"
 

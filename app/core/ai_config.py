@@ -3058,6 +3058,7 @@ class GraphicsConfig(BaseModel):
     recap: dict
     floor_plan: dict
     key_facts: dict
+    quote: dict
     headline: dict
     planner: dict
     engines: dict
