@@ -28,7 +28,8 @@ def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
             "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
             "headline": S.headline(), "floor_plan": S.floor_plan(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
                                                 "fact_id": "F1"},
-            "fact_card": {"text": S.TEXT[language]["fact"], "source": S.TEXT[language]["as"], "fact_id": "F12"}}[kind]
+            "fact_card": {"facts": [{"text": S.TEXT[language]["fact"], "fact_id": "F12"},
+                                    {"text": S.TEXT[language]["ac"], "fact_id": "F13"}]}}[kind]
     schedule = GS.schedule_of(kind, data, language)
     return data, schedule.total + 2.0, list(schedule.cues)
 

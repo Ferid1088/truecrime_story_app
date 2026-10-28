@@ -268,8 +268,12 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
     offers, _evidence = await EV.build_offers(db, case, bp_row, needs_plan, manifest)
     region = case_region(case)
-    report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                  director if use_agent else None, target, None, region, offers)
+    async def direct(matches=None, last: bool = False) -> dict:
+        return await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
+                                    director if use_agent else None, target, None, region, offers, matches,
+                                    cover_last=last)
+
+    report = await direct()
     for _ in range(ai_config.mvp().topup.passes):
         if not report["gaps"]:
             break
@@ -277,8 +281,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         if not made["created"]:
             break
         verified = await verify_pending(db, case, needs_plan, requirements)
-        report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                      director if use_agent else None, target, None, region, offers)
+        report = await direct()
         report["topup"] = {**made, "judged": verified["judged"]}
     if report["gaps"] and ai_config.mvp().moments.enabled:
         used = {s["asset_id"] for b in json.loads(target.plan_json or "{}").get("beats") or []
@@ -287,8 +290,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         if moments["approved"]:
             overlays = await scan_overlays(db, case, needs_plan)
             timing = await label_timing(db, case, needs_plan, bp_row)
-            report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                          director if use_agent else None, target, None, region, offers)
+            report = await direct()
         report["moments"] = moments
     if report["gaps"] and ai_config.mvp().general.enabled:
         general = await GI.GeneralImagery(db, case, needs_plan.id, language).run(report["gaps"])
@@ -296,15 +298,19 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             overlays = await scan_overlays(db, case, needs_plan)
             timing = await label_timing(db, case, needs_plan, bp_row)
         report["general"] = general
+    matches = None
     if report["gaps"] and ai_config.mvp().topical.enabled:
         matcher = TP.TopicMatcher(db, case, needs_plan)
         matches = await matcher.run(report["gaps"], TP.catalog_of(DR.approved_items(db, needs_plan)))
         if matches:
             kept_before = {k: report[k] for k in ("moments", "general") if k in report}
-            report = await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                          director if use_agent else None, target, None, region, offers, matches)
+            report = await direct(matches)
             report.update(kept_before)
         report["topical"] = {"moments_matched": len(matches), "calls": matcher.calls, "errors": matcher.errors}
+    if report["gaps"] and DR.cover_approved(needs_plan):    # the very last resort, after every other source was tried
+        kept_before = {k: report[k] for k in ("moments", "general", "topical") if k in report}
+        report = await direct(matches, last=True)
+        report.update(kept_before)
     report["overlays"], report["timing"] = overlays, timing
     kept = {k: report[k] for k in ("moments", "general", "topical", "overlays", "timing") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)

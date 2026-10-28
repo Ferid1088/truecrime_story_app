@@ -153,11 +153,29 @@ def test_the_same_download_is_stored_once_and_reused(db_session, monkeypatch):
     assert out == "duplicates" and seen == {}
 
 
-def test_a_youtube_clip_is_credited_on_screen_even_though_its_status_is_not_a_licence():
+def test_a_youtube_clip_is_credited_in_the_credit_list_but_never_over_our_picture():
     class A:
         rights_status, provider, credit = "editorial_review_required", "youtube_clip", "X / Channel (YouTube)"
 
-    assert R.credit_due(A)
+    class Licensed:
+        rights_status, provider, credit = "creative_commons", "youtube_clip", "X / Channel (YouTube)"
+
+    class Map:
+        rights_status, provider, credit = "public_domain", "nasa", "NASA"
+
+    assert R.credit_due(A) and not R.credit_on_screen(A)         # another publisher's name is not written over the film
+    assert R.credit_on_screen(Licensed) and R.credit_on_screen(Map)   # a licence or a provider's terms ask for it
+
+
+def test_the_credit_overlays_of_a_film_skip_a_clip_whose_credit_is_not_demanded_on_screen():
+    from app.documentary.production import script as S
+
+    shots = [{"kind": "video", "credit": "Title / Dark Record HQ (YouTube)", "credit_due": True, "credit_on_screen": False,
+              "rights": "editorial_review_required", "start": 0.0, "end": 20.0},
+             {"kind": "image", "credit": "Jane / Wikimedia Commons", "credit_due": True, "credit_on_screen": True,
+              "rights": "creative_commons", "start": 20.0, "end": 40.0}]
+    assert [(o["text"], o["start"], o["end"]) for o in S.credit_overlays(shots, 40.0)] == [
+        ("Jane / Wikimedia Commons", 20.0, 40.0)]
 
 
 def test_a_clip_from_youtube_is_cut_to_its_own_length_and_share_of_the_film(monkeypatch):

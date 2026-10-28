@@ -140,6 +140,12 @@ def needs_attribution(rights_status: str) -> bool:
     return rights_status in ai_config.rights.attribution_required
 
 
+def credit_on_screen(asset) -> bool:
+    """The credit is drawn over the picture: its licence demands it (creative commons) or its provider's terms do (public
+    maps and satellite imagery). Another publisher's footage is credited in the credit list only."""
+    return needs_attribution(asset.rights_status) or asset.provider in ai_config.rights.on_screen_credit_providers
+
+
 def credit_due(asset) -> bool:
     """The film shows a credit for this picture: its licence asks for one, or its source does."""
     return needs_attribution(asset.rights_status) or asset.provider in ai_config.rights.credit_providers

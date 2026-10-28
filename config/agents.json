@@ -511,6 +511,13 @@
       "description": "Picture and footage check: where other people's logos, watermarks and caption strips are laid over a picture or clip.",
       "used_by": "app/documentary/mvp/overlays.py"
     },
+    "mvp.statement": {
+      "role": "mvp_copywriter",
+      "prompt": "documentary/mvp/statement_system",
+      "output": "json",
+      "description": "Statement cards: a stored confirmed fact written as one complete, meaningful short sentence.",
+      "used_by": "app/documentary/mvp/copy.py"
+    },
     "mvp.general_queries": {
       "role": "mvp_general_planner",
       "prompt": "documentary/mvp/general_queries_system",

@@ -797,6 +797,7 @@
       },
       "timeline": {
         "max_events_per_card": 3,
+        "same_event_share": 0.4,
         "base_seconds": 6.0,
         "seconds_per_event": 5.1,
         "min_base_seconds": 6.0,
@@ -813,8 +814,10 @@
       "copy": {
         "fact_line_chars": 38,
         "caption_chars": 90,
-        "event_label_chars": 44
+        "event_label_chars": 44,
+        "statement_chars": 100
       },
+      "statement": {"max_facts": 3},
       "headline": {
         "max_per_film": 12
       },

@@ -22,6 +22,7 @@ from app.services.tracking import stamp_run, track_run
 
 log = logging.getLogger(__name__)
 NUMBER = re.compile(r"\d[\d,.:]*")
+MIN_SENTENCE_WORDS = 4
 STOP = {"the", "and", "was", "were", "that", "his", "her", "with", "for", "from", "this", "had", "has", "not"}
 
 
@@ -37,6 +38,12 @@ def valid_line(claim: str, line: str, limit: int) -> bool:
     """A shortened line stays within its limit and keeps every figure of the claim it was made from."""
     line = " ".join((line or "").split())
     return bool(line) and len(line) <= limit and numbers(claim) <= numbers(line) and bool(words(claim) & words(line))
+
+
+def valid_sentence(claim: str, sentence: str, limit: int) -> bool:
+    """A statement-card sentence is a sentence (at least `MIN_SENTENCE_WORDS` words, no trailing label style) that keeps
+    every figure of its claim and stays within its limit."""
+    return valid_line(claim, sentence, limit) and len(sentence.split()) >= MIN_SENTENCE_WORDS
 
 
 def valid_conflict(raw: dict, conflict: dict, sources: dict[int, dict]) -> dict | None:
@@ -68,6 +75,7 @@ def valid_conflict(raw: dict, conflict: dict, sources: dict[int, dict]) -> dict 
 INSTRUCTION = {
     "mvp.conflict": "Structure this disputed point as instructed. Reply with the JSON object only.",
     "mvp.copy": "Shorten these facts as instructed. Reply with the JSON object only.",
+    "mvp.statement": "Write these facts as sentences as instructed. Reply with the JSON object only.",
     "mvp.headline": "Decide where this headline may be shown, as instructed. Reply with the JSON object only.",
 }
 
@@ -87,6 +95,7 @@ class Copywriter:
                 body = f"{INSTRUCTION[agent]}\n\n{task}"
                 calls = {"mvp.conflict": lambda: run_agent("mvp.conflict", self.generation, body),
                          "mvp.copy": lambda: run_agent("mvp.copy", self.generation, body),
+                         "mvp.statement": lambda: run_agent("mvp.statement", self.generation, body),
                          "mvp.headline": lambda: run_agent("mvp.headline", self.generation, body)}
                 data, res = await asyncio.wait_for(calls[agent](), ai_config.mvp().call_timeout_s * 2)
                 stamp_run(run, res, ai_config.agents[agent].role)
@@ -111,6 +120,24 @@ class Copywriter:
                 self.cache[key] = line if valid_line(item["claim"], line, item["max_chars"]) else ""
         return {i["id"]: self.cache[k] for i in items
                 if self.cache.get(k := f"line|{i['id']}|{i['max_chars']}|{hashlib.sha256(i['claim'].encode()).hexdigest()[:12]}")}
+
+    async def sentences(self, items: list[dict]) -> dict[str, str]:
+        """{id: one complete short sentence} for [{id, claim, max_chars}]; an id the agent could not say faithfully as a
+        sentence is left out."""
+        def key(item: dict) -> str:
+            return f"sentence|{item['id']}|{item['max_chars']}|{hashlib.sha256(item['claim'].encode()).hexdigest()[:12]}"
+
+        todo = [i for i in items if key(i) not in self.cache]
+        for start in range(0, len(todo), 60):
+            batch = todo[start:start + 60]
+            answer = await self._ask("mvp.statement", f"{len(batch)} statement sentences", {"items": batch})
+            if answer is None:
+                continue
+            got = answer.get("sentences") or {}
+            for item in batch:
+                sentence = " ".join(str(got.get(item["id"], "")).split())
+                self.cache[key(item)] = sentence if valid_sentence(item["claim"], sentence, item["max_chars"]) else ""
+        return {i["id"]: self.cache[key(i)] for i in items if self.cache.get(key(i))}
 
     async def headline_where(self, data: dict, key: str, beats: list[dict], order: dict[str, int]) -> dict:
         """{"earliest": beat id, "best": beat id} for a real headline, or {} when it should not be shown."""

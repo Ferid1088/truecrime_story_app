@@ -107,15 +107,17 @@ def timeline_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
         label = label if label and len(label) <= p["copy"]["event_label_chars"] else lines.get(e["id"], "")
         parsed = _event_date(e.get("date"))
         if label and parsed and e.get("first_beat") in ev.order:
-            events.append({"date": parsed, "label": label, "fact_id": e["id"],
-                           "beat": ev.order[e["first_beat"]]})
-    events.sort(key=lambda x: (x["beat"], x["date"]["year"], x["date"].get("month") or 0, x["date"].get("day") or 0))
+            events.append({"date": parsed, "label": label, "fact_id": e["id"], "beat": ev.order[e["first_beat"]],
+                           "claim": e.get("claim") or label})
+    events.sort(key=lambda x: (x["beat"], x["date"]["year"], x["date"].get("month") or 0, x["date"].get("day") or 0,
+                               x["fact_id"]))
+    events = same_event_once(events, p["timeline"]["same_event_share"])
     out: list[Offer] = []
     size = p["timeline"]["max_events_per_card"]
     for start in range(0, len(events), size):
         group = events[start:start + size]
         # every card continues the road: the points shown so far stay on the line, only this group is revealed
-        data = {"events": [{k: v for k, v in e.items() if k != "beat"} for e in events[:start + len(group)]],
+        data = {"events": [{k: v for k, v in e.items() if k not in ("beat", "claim")} for e in events[:start + len(group)]],
                 "shown": start}
         best = max(e["beat"] for e in group)
         made = offer("timeline", f"timeline|{group[0]['fact_id']}", data, best,
@@ -124,6 +126,16 @@ def timeline_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
             made.after = out[-1] if out else None
             out.append(made)
     return out
+
+
+def same_event_once(events: list[dict], share: float) -> list[dict]:
+    """Two points of the timeline that are on the same day and say the same thing in their claims (two sources, two
+    wordings of one event) are one point: the one told first stays."""
+    kept: list[dict] = []
+    for e in events:
+        if not any(k["date"] == e["date"] and similar(k["claim"], e["claim"], share) for k in kept):
+            kept.append(e)
+    return kept
 
 
 def _event_date(value) -> dict | None:
@@ -228,26 +240,29 @@ def key_fact_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
     return out
 
 
-def fact_card_offers(ev: Evidence, lines: dict[str, str]) -> list[Offer]:
-    """One statement card for each confirmed fact that has a short line: the fact in large text with its source, offered
-    at the beat that tells it (the quote card's look for what the record shows without a quotation). They are the supply
-    for moments that no other alternative fits; the placement still needs the words spoken to be about the fact."""
+def fact_card_offers(ev: Evidence, sentences: dict[str, str]) -> list[Offer]:
+    """The statement cards: each confirmed fact that has a complete short sentence in large text (no source is written on
+    it), and, for facts told in the same beat, a board of two or three of them on one card, which says more in one
+    stretch than a picture that is not about the words. They are the supply for moments that no other alternative
+    fits; the placement still needs the words spoken to be about the facts."""
     confirmed = T.config().planner["confirmed_strengths"]
-    out = []
-    for fid, fact in ev.facts.items():
+    top = T.config().planner["statement"]["max_facts"]
+    told: dict[int, list[str]] = {}
+    for fid, fact in sorted(ev.facts.items()):
         if fact.get("disputed") or fact.get("uncertain") or fact.get("evidence_strength") not in confirmed:
             continue
-        beat, line = reveal_index(ev, fid), lines.get(fid)
-        if beat is None or not line:
-            continue
-        data = {"text": line, "fact_id": fid}
-        source = next((ev.sources[s]["publisher"] for s in fact.get("source_ids") or []
-                       if (ev.sources.get(s) or {}).get("publisher")), None)
-        if source:
-            data["source"] = source
-        made = offer("fact_card", f"fact_card|{fid}", data, beat, items=(fid,))
-        if made:
-            out.append(made)
+        beat = reveal_index(ev, fid)
+        if beat is not None and sentences.get(fid):
+            told.setdefault(beat, []).append(fid)
+    out = []
+    for beat, ids in sorted(told.items()):
+        groups = {tuple(ids[i:i + size]): None for size in range(min(top, len(ids)), 0, -1)
+                  for i in range(0, len(ids), size)}
+        for group in groups:
+            data = {"facts": [{"text": sentences[fid], "fact_id": fid} for fid in group]}
+            made = offer("fact_card", f"fact_card|{'+'.join(group)}", data, beat, items=tuple(group))
+            if made:
+                out.append(made)
     return out
 
 
@@ -390,8 +405,8 @@ def priority(o: Offer, idx: int, state: State | None = None) -> tuple:
     chain = planner["chain"]
     again = 1 if state is not None and o.kind == state.engine_kind else 0       # another engine than the last one
     last_resort = 1 if o.kind in planner["last_resort"] else 0                  # only when no other alternative fits
-    return (last_resort, 0 if o.best == idx else 1, again, chain.index(o.kind) if o.kind in chain else len(chain),
-            o.best)
+    return (last_resort, 0 if o.best == idx else 1, -len(o.items) if last_resort else 0, again,
+            chain.index(o.kind) if o.kind in chain else len(chain), o.best)
 
 
 def gap_runs(shots: list[dict], window_len: float) -> list[tuple[int, int, float]]:

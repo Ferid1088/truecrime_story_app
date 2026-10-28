@@ -143,6 +143,24 @@ def test_agent_answers_are_remembered_but_a_failed_call_never_is(db_session, cas
     assert asyncio.run(writer.headline_where(data, "other", beats, {"B01": 0, "B02": 1})) == {}   # best before earliest
 
 
+def test_a_statement_sentence_must_be_a_real_sentence_that_keeps_the_figures_and_is_remembered(db_session, case, monkeypatch):
+    claim = "At 2:31 a.m. Caleb Flynn called 911 and said an intruder had shot his wife in the garage."
+    agent = FakeAgent({"mvp.statement": {"sentences": {
+        "F1": "Caleb Flynn called 911 at 2:31 a.m.", "F2": "Garage door broken", "F3": "Police came at 9:15 p.m.",
+        "F4": "He called 911 and then " + "waited " * 20}}})
+    monkeypatch.setattr(CP, "run_agent", agent)
+    writer = CP.Copywriter(db_session, case, {}, generation=object())
+    items = [{"id": "F1", "claim": claim, "max_chars": 100},
+             {"id": "F2", "claim": "The garage door was broken off its handle.", "max_chars": 100},   # a label, not a sentence
+             {"id": "F3", "claim": "Police arrived at 11:58 p.m.", "max_chars": 100},                 # changed figure
+             {"id": "F4", "claim": "He called 911 and waited.", "max_chars": 60}]                     # too long
+    assert asyncio.run(writer.sentences(items)) == {"F1": "Caleb Flynn called 911 at 2:31 a.m."}
+    asyncio.run(writer.sentences(items))
+    assert [c[0] for c in agent.calls] == ["mvp.statement"]                           # asked once, then remembered
+    prompt = open("prompts/documentary/mvp/statement_system.md").read()
+    assert "complete sentence" in prompt.lower() and "No source" in prompt
+
+
 # -- offers --------------------------------------------------------------------------------------------------
 
 
@@ -172,6 +190,27 @@ def test_timeline_offers_group_events_in_story_order_and_never_before_they_are_t
     first = offers[0]
     assert first.best == ev.order["B05"] and first.first == first.best      # not before its last event is told
     assert first.seconds == pytest.approx(GS.planned_seconds("timeline", first.data)) and first.items == {"T1", "T2", "T3"}
+
+
+def test_one_event_told_by_two_sources_is_one_point_of_the_timeline_but_two_different_events_of_a_day_are_kept():
+    flag = ("Flynn told investigators that the day before the killing a man came to the home and handed his wife an "
+            "American flag with a weird sales pitch for America.")
+    events = [
+        {"id": "T004", "date": "2026-02-15", "first_beat": "B03", "label": {"en": "Flynn says man handed wife an American flag"},
+         "claim": flag},
+        {"id": "T008", "date": "2026-02-15", "first_beat": "B03", "label": {"en": "Caleb alleges a man gave Ashley a flag"},
+         "claim": "Caleb also alleged he saw a man hand Ashley an American flag the day before the murder, making a weird "
+                  "sales pitch for America (per NBC News)."},
+        {"id": "T015", "date": "2026-10-05", "first_beat": "B04", "label": {"en": "Flynn says he lied a lot"},
+         "claim": "Caleb Flynn said he had lied about a lot of things over the last couple of years."},
+        {"id": "T016", "date": "2026-10-05", "first_beat": "B04", "label": {"en": "Flynn says he broke his vows"},
+         "claim": "Caleb Flynn told Ashley's family he made vows on his wedding day and failed to keep them."}]
+    offers = AL.timeline_offers(evidence(events=events), {})
+    assert [e["fact_id"] for e in offers[-1].data["events"]] == ["T004", "T015", "T016"]     # the second flag line is gone
+    assert all("claim" not in e for e in offers[-1].data["events"])
+    same_day_other_year = [dict(events[1], id="T099", date="2025-02-15")]
+    assert [e["fact_id"] for e in AL.timeline_offers(evidence(events=events[:1] + same_day_other_year), {})[-1].data["events"]] \
+        == ["T099", "T004"]                                                                    # another year: another event
 
 
 def test_quotes_are_complete_the_fullest_wording_and_once_per_fact():
@@ -710,21 +749,39 @@ def _facts_evidence():
     return ev
 
 
-def test_a_statement_card_is_offered_for_each_confirmed_fact_with_a_short_line_at_the_beat_that_tells_it():
+def test_a_statement_card_is_offered_for_each_confirmed_fact_with_a_sentence_at_the_beat_that_tells_it_and_names_no_source():
     ev = _facts_evidence()
-    lines = {"F1": "Caleb Flynn convicted of murder", "F2": "Disputed", "F3": "Weak", "F5": "Ashley lived in Tipp City",
-             "F6": "Reported once"}
-    offers = AL.fact_card_offers(ev, lines)
-    assert [o.key for o in offers] == ["fact_card|F1", "fact_card|F5"]       # not disputed, weak or only secondary; a line is needed
+    sentences = {"F1": "Caleb Flynn was convicted of murder.", "F2": "A disputed thing happened.", "F3": "A weak thing.",
+                 "F5": "Ashley Flynn lived in Tipp City.", "F6": "It was reported once."}
+    offers = AL.fact_card_offers(ev, sentences)
+    assert [o.key for o in offers] == ["fact_card|F1", "fact_card|F5"]       # not disputed, weak or only secondary; a sentence is needed
     first = offers[0]
     assert first.kind == "fact_card" and first.best == 0 and first.first == 0 and first.items == {"F1"}
-    assert first.data == {"text": "Caleb Flynn convicted of murder", "fact_id": "F1", "source": "AP"}
-    assert "source" not in offers[1].data                                      # a source without a name is not shown
+    assert first.data == {"facts": [{"text": "Caleb Flynn was convicted of murder.", "fact_id": "F1"}]}    # no source
     assert first.seconds >= GS.planned_seconds("fact_card", first.data) - 1e-6 and first.min_seconds >= 9.0
 
 
+def test_facts_told_in_one_beat_are_also_offered_as_a_board_of_two_or_three_and_the_board_is_chosen_first():
+    ev = _facts_evidence()
+    ev.beats[0]["reveals"] = ["F1", "F5", "F4"]
+    sentences = {"F1": "Caleb Flynn was convicted of murder.", "F4": "He had no alibi that night.",
+                 "F5": "Ashley Flynn lived in Tipp City."}
+    offers = AL.fact_card_offers(ev, sentences)
+    keys = [o.key for o in offers]
+    assert len(keys) == len(set(keys)) and set(keys) == {"fact_card|F1+F4+F5", "fact_card|F1+F4", "fact_card|F5",
+                                                         "fact_card|F1", "fact_card|F4"}
+    board = next(o for o in offers if len(o.items) == 3)
+    assert [f["fact_id"] for f in board.data["facts"]] == ["F1", "F4", "F5"] and board.seconds > 20.0
+    assert AL.priority(board, 0) < AL.priority(next(o for o in offers if len(o.items) == 1), 0)
+    shots, length = gap_beat(60.0, (60.0,))
+    shots[0]["said"] = "Caleb Flynn lived in Tipp City and had no alibi."
+    AL.fill_beat(shots, length, 0, offers, AL.State())
+    assert [s["graphic"]["data"]["facts"][0]["fact_id"] for s in shots if s["command"] == "SHOW_GRAPHIC"][0] == "F1"
+    assert sum(len(s["graphic"]["data"]["facts"]) for s in shots if s["command"] == "SHOW_GRAPHIC") == 3
+
+
 def test_a_statement_card_fills_a_bare_moment_whose_words_are_about_the_fact_and_no_other():
-    offer = AL.fact_card_offers(_facts_evidence(), {"F1": "Caleb Flynn convicted of murder"})[0]
+    offer = AL.fact_card_offers(_facts_evidence(), {"F1": "Caleb Flynn was convicted of murder."})[0]
     shots, length = gap_beat(30.0, (30.0,))
     shots[0]["said"] = "The jury found the weather cold that morning."
     AL.fill_beat(shots, length, 2, [offer], AL.State())

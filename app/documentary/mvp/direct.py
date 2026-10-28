@@ -557,22 +557,25 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       director: Director | None = None, target: VisualPlan | None = None,
                       entities: list[dict] | None = None, region: str | None = None,
                       offers: list[AL.Offer] | None = None,
-                      topical: dict[str, list[tuple[str, float, str]]] | None = None) -> dict:
+                      topical: dict[str, list[tuple[str, float, str]]] | None = None,
+                      cover_last: bool = True) -> dict:
     """Plan the film. When moments are still bare after the approved pictures, the alternatives and every other fill,
     the whole film is planned again from its first beat with wider limits for the alternatives (`planner.escalation`),
     round after round, never by patching the previous round's plan; the round with the fewest bare seconds is kept.
-    Pictures are not asked for again: the director's choices are cached per beat."""
+    Pictures are not asked for again: the director's choices are cached per beat. The last round covers what is still
+    bare from the neighbouring pictures, but only when `cover_last` says every other source (fact boards, the web
+    search, topical pictures) has been tried: the cover is the very last resort."""
     target = target or plan
     args = (db, case, plan, manifest, graph_id, beat_order, beats, director, target, entities, region, offers, topical)
-    report = await _direct_pass(*args)
+    report = await _direct_pass(*args, cover_last=cover_last)
     if report["gaps"] and "rounds" not in report:
         rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0, "neighbour_cover": False}]
         kept = (report, target.plan_json, target.validation_json)
         steps = [(step, False) for step in AL.escalation_steps()]
-        if cover_approved(plan):             # only after the owner's review: the last round covers from the neighbours
+        if cover_last and cover_approved(plan):    # only after the owner's review: the last round covers from the neighbours
             steps.append((AL.escalation_steps()[-1] if steps else {}, True))
         for n, (step, cover) in enumerate(steps, 1):
-            again = await _direct_pass(*args, relax=step, force=True, cover=cover)
+            again = await _direct_pass(*args, relax=step, force=True, cover=cover, cover_last=cover_last)
             rounds.append({"round": n, "gap_seconds": again["gap_seconds"], "placed": sum(
                 1 for o in offers or [] if o.placed), "neighbour_cover": cover, **step})
             if again["gap_seconds"] < kept[0]["gap_seconds"]:
@@ -593,7 +596,8 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                        director: Director | None, target: VisualPlan, entities: list[dict] | None,
                        region: str | None, offers: list[AL.Offer] | None,
                        topical: dict[str, list[tuple[str, float, str]]] | None,
-                       relax: dict | None = None, force: bool = False, cover: bool = False) -> dict:
+                       relax: dict | None = None, force: bool = False, cover: bool = False,
+                       cover_last: bool = True) -> dict:
     """One planning round: beat by beat, agent first, rules always. `plan` holds the approved requirements; the shot
     list is stored on `target` (the language's own plan row). `relax` widens the limits of the alternatives; `cover` lets
     the moments that stay bare be covered from their neighbours (the last round, after the owner's review)."""
@@ -624,7 +628,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         "places": sorted(place_names), "region": region,
         "offers": [[o.key, o.first, o.last, o.seconds, sorted(o.items)] for o in offers],
         "requirements": {b: sorted(r["key"] for r in rs) for b, rs in sorted(counted_requirements(db, plan).items())},
-        "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "rules": AL.T.config().planner, "neighbour_cover": cover_approved(plan),
+        "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "rules": AL.T.config().planner, "neighbour_cover": cover_approved(plan), "cover_last": cover_last,
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}

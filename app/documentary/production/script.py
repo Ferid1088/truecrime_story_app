@@ -127,6 +127,7 @@ def _asset_info(a: VisualAsset) -> dict:
         "role": a.asset_role, "width": a.width, "height": a.height,
         "highlight": spec.get("highlight"), "marker": spec.get("marker"),
         "rights": a.rights_status, "credit": a.credit, "credit_due": R.credit_due(a),
+        "credit_on_screen": R.credit_on_screen(a),
         "subject_type": a.subject_type or ver.get("subject_type"),
         # what repetition control needs (critics check a script alone)
         "tier": facts["tier"], "entity_type": facts["entity_type"],
@@ -591,7 +592,7 @@ def credit_overlays(shots: list[dict], duration: float) -> list[dict]:
             text = " · ".join(sh["attribution"])
         elif sh.get("kind") == "map":
             text = ai_config.maps.attribution
-        elif sh.get("credit") and (sh.get("credit_due") or R.needs_attribution(sh.get("rights"))):
+        elif sh.get("credit") and sh.get("credit_on_screen"):
             text = sh["credit"]
         else:
             continue
@@ -1129,6 +1130,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                         shot.update(_repeat_fields(repeat))
                     if R.credit_due(a) and a.credit:
                         credits.add(a.credit)
+                    if R.credit_on_screen(a) and a.credit:
                         add_overlay("credit", a.credit, start, end)
                     if a.asset_role == "illustration":
                         add_overlay("label", LABELS["illustration"].get(language, ""), start, end)

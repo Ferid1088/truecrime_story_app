@@ -380,6 +380,10 @@
       "usgs_naip",
       "nasa",
       "youtube_clip"
+    ],
+    "on_screen_credit_providers": [
+      "usgs_naip",
+      "nasa"
     ]
   },
   "maps": {

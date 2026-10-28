@@ -2668,6 +2668,9 @@ class RightsConfig(BaseModel):
     attribution_required: list[str] = ["creative_commons"]
     # Providers whose pictures are public domain but ask for a credit: the film shows it.
     credit_providers: list[str] = []
+    # Of those, the providers whose credit is drawn on the picture itself. Anything else (a YouTube channel's clip) is
+    # credited in the film's credit list only: another publisher's name and title never appear over our picture.
+    on_screen_credit_providers: list[str] = []
     # False: rights are no filter. True-crime pictures and footage are taken as public material
     # (owner decision); only relevance to the case, the point in the story and the spoken words
     # decides (the verifier and the auditor). Credits for attribution_required licences stay.

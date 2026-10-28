@@ -414,7 +414,7 @@ def _fake_rounds(monkeypatch, gap_seconds):
     target = SimpleNamespace(plan_json="{}", validation_json="{}")
 
     async def fake(db, case, plan, manifest, graph, order, beats, director, target_, entities, region, offers, topical,
-                   relax=None, force=False, cover=False):
+                   relax=None, force=False, cover=False, cover_last=True):
         n = len(calls)
         calls.append({"relax": relax, "force": force, "cover": cover})
         gaps = [{"beat": "B01", "start": 0.0, "end": gap_seconds[n]}] if gap_seconds[n] else []
@@ -447,6 +447,14 @@ def test_after_the_owners_review_the_last_round_covers_from_the_neighbours_and_i
     assert calls[-1]["relax"] == D.AL.escalation_steps()[-1]                    # with the widest limits as well
     assert report["gaps"] == [] and json.loads(target.plan_json) == {"round": steps + 1}
     assert [r["neighbour_cover"] for r in report["rounds"]] == [False] * (steps + 1) + [True]
+
+
+def test_the_cover_waits_for_the_last_call_so_every_other_source_is_tried_first(monkeypatch):
+    steps = len(D.AL.escalation_steps())
+    calls, target, db = _fake_rounds(monkeypatch, [100.0] + [60.0] * steps)
+    report = run(D.direct_film(db, None, _flagged(review_requested=True), {}, None, {}, {}, None, target, None, None, [],
+                               cover_last=False))
+    assert [c["cover"] for c in calls] == [False] * (steps + 1) and report["gaps"]     # the owner approved, but not yet
 
 
 def test_rounds_stop_as_soon_as_nothing_is_bare(monkeypatch):

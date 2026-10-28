@@ -90,6 +90,10 @@ async def build_offers(db: Session, case: Case, bp_row: EditorialBlueprint, need
     wanted += [{"id": q["id"], "claim": q["question"], "max_chars": cfg["fact_line_chars"]} for q in ev.questions]
     lines = await writer.lines(wanted)
     lines.update({c["id"]: c["summary"] for c in structured})
+    confirmed = T.config().planner["confirmed_strengths"]
+    sentences = await writer.sentences(
+        [{"id": fid, "claim": f["claim"], "max_chars": cfg["statement_chars"]} for fid, f in ev.facts.items()
+         if not f.get("disputed") and not f.get("uncertain") and f.get("evidence_strength") in confirmed])
     placed: dict[str, dict] = {}
     beats_view = beats_for_headlines(ev)
     for data in HL.candidates(ev.sources)[:T.config().planner["headline"]["max_per_film"] * 2]:
@@ -105,7 +109,7 @@ async def build_offers(db: Session, case: Case, bp_row: EditorialBlueprint, need
     shown = {i for o in quotes + facts for i in o.items}
     headlines = AL.headline_offers(ev, placed)[:T.config().planner["headline"]["max_per_film"]]
     engines = await EN.build_engine_offers(db, case, needs_plan, ev)
-    offers = (engines + conflicts + quotes + facts + AL.fact_card_offers(ev, lines) + AL.timeline_offers(ev, lines)
+    offers = (engines + conflicts + quotes + facts + AL.fact_card_offers(ev, sentences) + AL.timeline_offers(ev, lines)
               + headlines + AL.recap_offers(ev, lines, best, shown))
     return offers, ev
 
@@ -118,7 +122,7 @@ TEXT_FIELDS = {
     "timeline": [("events", "label")],
     "key_facts": [("facts", "caption")],
     "quote": [("", "text")],
-    "fact_card": [("", "text")],
+    "fact_card": [("facts", "text")],
 }
 
 
