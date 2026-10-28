@@ -174,7 +174,10 @@ _FUNCTION_BY_TOOL = {
     "evidence_check": ("evidence", []), "custody": ("evidence", []),
     "forensic": ("evidence", []), "interrogation": ("investigation", []),
     "courtroom": ("investigation", []), "sentencing": ("investigation", []),
-    "photo": ("human_connection", ["photo"]), "host": ("human_connection", []),
+    "photo": ("human_connection", ["photo"]),
+    # No "host" entry: Host is owned by the Main Visual Planner's own Host system, never a
+    # detective-dispatchable tool (see the comment in tool_catalog.py). A detective action can no
+    # longer carry tool_id="host" - it is rejected upstream, in schema.py, as an unknown tool_id.
 }
 _ENTITY_TYPE_BY_CATEGORY = {"person": "person", "place": "place", "building": "building",
                            "object": "object", "vehicle": "vehicle", "event": "event",

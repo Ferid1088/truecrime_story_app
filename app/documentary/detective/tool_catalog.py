@@ -3,17 +3,19 @@
 PROVISIONAL: Section D ("Make all twenty alternatives executable detective tools") builds the
 real common tool descriptor/adapter with live availability, typed input schemas and asset
 requirements derived from the actual registry. Until that lands, this module gives the director
-the same 22 tools/engines/paths that Section A's audit traced in
-`docs/detective_toolkit_capability_matrix.md`, with the investigative-job wording from Section D's
-own tool table in the implementation prompt. Availability here is static ("reachable" per Section
-A), not live-checked against the current case's assets — Section D must replace that.
+the 21 detective-dispatchable tools/engines/paths that Section A's audit traced in
+`docs/detective_toolkit_capability_matrix.md` (the 20 named tools plus "photo"), with the
+investigative-job wording from Section D's own tool table in the implementation prompt.
+Availability here is static ("reachable" per Section A), not live-checked against the current
+case's assets — Section D must replace that. Host is deliberately excluded; see the comment above
+the end of TOOL_CATALOG.
 """
 
 from __future__ import annotations
 
 # tool_id -> (purpose, input_contract_summary, availability)
 # tool_id matches app/documentary/graphics/registry.py `kind` where a graphic kind exists, the
-# cinematic-engine `kind` otherwise, or "photo"/"host" for the two non-graphic tools.
+# cinematic-engine `kind` otherwise, or "photo" for the one non-graphic, non-host tool.
 TOOL_CATALOG: dict[str, dict[str, str]] = {
     "map": {
         "purpose": "Orient the viewer geographically and clarify spatial relationships.",
@@ -122,12 +124,20 @@ TOOL_CATALOG: dict[str, dict[str, str]] = {
         "availability": "reachable (primary fill path today; Section D must let the director choose it "
                          "deliberately rather than it always filling first)",
     },
-    "host": {
-        "purpose": "A presenter moment: human connection, transition, or framing in the host's own voice.",
-        "input_contract": "planned HostScene row, produced independently of this plan.",
-        "availability": "reachable, but host placement is independent of the detective plan today "
-                         "(Section H integration gap)",
-    },
+    # Deliberately NOT a catalog entry: the Host system is its own authority, owned by the Main
+    # Visual Planner, not by the detective toolkit (owner correction, 2026-10-28; see
+    # docs/MAIN_VISUAL_PLANNER_12_STEP_IMPLEMENTATION.md Step 4 and
+    # docs/detective_toolkit_section_cd_architecture_remediation.md). The Detective Director must
+    # never choose, place, or request a host appearance as one of its tool actions - Host plans,
+    # writes, and times its own scenes independently, and the detective plans the surrounding case
+    # visuals around them. Excluding "host" from TOOL_CATALOG means `known_tool_ids` in
+    # schema.py:validate_director_output never contains it, so a director output that still
+    # proposes tool_id="host" (the runtime prompt's prose generically mentions "host shots" as a
+    # useful tool, per the doc's own required wording) is rejected as an unknown tool_id, the same
+    # as any other invalid tool_id - not silently dispatched. Passing the Host system's already-
+    # placed scenes to the director as read-only context (so it can plan around them rather than
+    # compete with them) is real, deferred work for Section H's production-integration pass, not
+    # this fix - `director.py`'s `asset_catalog` is still a stub (`[]`) pending that.
 }
 
 

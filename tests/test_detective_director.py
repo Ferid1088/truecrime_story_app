@@ -102,6 +102,29 @@ def test_schema_rejects_unknown_tool_id():
     assert any("unknown tool_id" in v for v in violations)
 
 
+def test_host_is_not_a_detective_dispatchable_tool():
+    """Owner correction, 2026-10-28: Host is owned by the Main Visual Planner's own Host system,
+    never a detective-chosen tool action. The real tool_catalog the director is given must not
+    offer "host", and an output that proposes it anyway is rejected as an unknown tool_id — the
+    same path as any other invalid tool_id, not a silent drop."""
+    from app.documentary.detective.tool_catalog import build_tool_catalog
+
+    catalog = build_tool_catalog()
+    tool_ids = {t["tool_id"] for t in catalog}
+    assert "host" not in tool_ids
+    assert "photo" in tool_ids  # photos remain a legitimate detective choice; only host is excluded
+
+    index = NarrationIndex.build([{"unit_key": "B01-1", "story_order": 1}], [])
+    payload = {
+        "schema_version": "1.0", "run_id": "r1", "film_id": "f1", "language": "en",
+        "text_version": 1, "mode": "direct_scenes",
+        "scenes": [{"id": "s1", "covered_span_ids": ["B01-1"],
+                    "actions": [{"id": "a1", "tool_id": "host", "content_bindings": []}]}],
+    }
+    violations = validate_director_output(payload, index, known_tool_ids=tool_ids)
+    assert any("unknown tool_id" in v for v in violations)
+
+
 def test_schema_accepts_clean_payload():
     narration = [{"unit_key": "B01-1", "story_order": 1}]
     anchors = [{"anchor_key": "a1", "unit_key": "B01-1"}]
