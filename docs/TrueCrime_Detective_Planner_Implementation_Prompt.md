@@ -19,6 +19,20 @@ Use three coordinated runtime roles for this feature:
 
 Reuse or evolve the relevant existing agents. These roles do not require a new application or a separate competing pipeline. The twenty tools are renderer capabilities, not twenty mandatory new agents. Other existing app agents outside this feature retain their jobs.
 
+## Architecture rule: the detective toolkit is a tool of the Main Visual Planner
+
+The Main Visual Planner remains the single top-level orchestrator for the film. The detective toolkit is an internal, callable planning tool/service that the Main Visual Planner invokes whenever it needs investigative analysis, context, relationships, questions, board state, conflicts, or a purposeful visual treatment. It is not a second top-level planner, a parallel film pipeline, or a replacement for the Main Visual Planner.
+
+Expose the toolkit through one stable capability boundary such as `detective_toolkit`. Its operations may include `map_context`, `analyze_scene`, `propose_tool_sequence`, `update_investigation_state`, `explain_conflict`, `resolve_question`, `prepare_board_update`, and `repair_scene`. Use the repository's naming conventions if an equivalent boundary already exists. Every operation receives the Main Visual Planner's current film/language/text version, scene scope, narration anchors, heard/displayed state, available assets, tool catalog, and constraints. Every result returns structured investigative findings and executable tool actions with stable IDs, supporting spans, release anchors, expected audience gain, availability, and any replan request.
+
+The Main Visual Planner owns the final scene graph, ordering, asset scheduling, timing, composition, production script, and handoff to rendering. The detective toolkit supplies grounded analysis and recommendations; it does not directly bypass the planner, write an unrelated final film, or silently replace the planner's decisions. The planner may accept, combine, defer, or reject a recommendation, but must record the reason and preserve the investigative meaning. When the toolkit needs more narration, timing, assets, or renderer capability, it returns a typed request to the Main Visual Planner.
+
+The call path must be observable and resumable:
+
+Main Visual Planner → detective_toolkit operation → validated investigative result → planner decision/sequence → Visual Design Director → renderer → Film Experience Reviewer → targeted repair back through the Main Visual Planner
+
+Persist the toolkit call, input versions, output, planner decision, tool execution result, and review findings. The Main Visual Planner must be able to call the toolkit repeatedly during mapping, scene planning, board updates, and repair while preserving one shared investigation state. Do not create a second downstream selector that can override the planner after it has accepted a detective-tool result.
+
 ## How the implementation agent must work: mandatory implementation loop
 
 Implement every section A–K through an evidence-based loop. This is an instruction to carry out the work, test it, inspect the result, repair defects, and verify again. A single implementation pass or an unchecked list is not completion.
@@ -146,7 +160,7 @@ Before audio exists, keep semantic decisions anchored to text. Bind them to real
 
 **Dependencies:** A–B; use A's discovered catalog until D completes dispatch.
 
-Extend the existing director/planner with a persistent detective plan derived from final text. Reuse the blueprint, reveal graph, IDs, timing, and production system. Avoid a disconnected second planner whose decisions are ignored downstream.
+Extend the existing Main Visual Planner with a persistent detective-tool integration derived from final text. Implement the Detective Director logic behind the callable `detective_toolkit` boundary above, reusing the blueprint, reveal graph, IDs, timing, and production system. Avoid a disconnected second planner whose decisions are ignored downstream. The Main Visual Planner must be the caller and owner of the resulting scene sequence.
 
 Plan across the whole film, then refine each scene. For each scene determine the active investigative thread, what changes in understanding, which earlier information becomes relevant, what deserves emphasis, and what the audience should carry into the next scene. Some passages need analysis; others need a person, a place, a sustained image, or space to absorb what was said.
 
@@ -167,12 +181,15 @@ Keep first introduction separate from later reference, reconsideration, or resol
 
 Separate semantic planning from scheduling: first identify the necessary explanation, then fit it to actual narration and available assets. Persist decisions so reruns, previews, and targeted edits can reproduce and explain the film.
 
-Implement the Detective Director using the existing prompt/agent/model configuration and structured generation system. It must create the investigation map, then direct scenes from that shared state. Expose map, direct, and repair modes with validated scopes and stable IDs.
+Implement the Detective Director as the investigative operation inside the Main Visual Planner's `detective_toolkit` tool, using the existing prompt/agent/model configuration and structured generation system. It may create the investigation map and direct scene recommendations, but the Main Visual Planner calls it, validates its result, decides what enters the film, and owns the final ordered scene graph. Expose map, direct, and repair modes with validated scopes and stable IDs. Do not expose it as an independent user-facing film planner that competes with the Main Visual Planner.
 
 Use this complete runtime system prompt:
 
 ```text
 You are the Detective Director of a true-crime film.
+
+TOOL ROLE
+You run inside the Main Visual Planner as the `detective_toolkit` capability. You are not the top-level film planner. Return grounded investigative findings and executable tool recommendations to the Main Visual Planner, which owns the authoritative scene graph, ordering, timing, production script, and final visual decisions. Never bypass that planner or create a competing film pipeline.
 
 YOUR AIM
 Make the film behave like an intelligent detective guiding the audience through a case. Help viewers notice, understand, connect, question, compare, and progressively clarify what the final narration says. Preserve curiosity, human interest, and room to absorb important developments. An unresolved case may end with a clearer understanding of its uncertainties; do not manufacture a solution.
@@ -246,7 +263,7 @@ A content binding must cover every case-specific visible statement, number, capt
 Before returning, inspect the proposed film progression from the audience's position: no future answers, no invented certainty, no forgotten important questions, no gratuitous repetitions, no tool chosen merely because it exists. Return concise decision reasons, concrete visual instructions, and actionable issues.
 ```
 
-Supply the typed schema from B and a dynamically built tool catalog from D. Register the role and provide a real call path. Validate returned payloads before they reach renderers. Store each call's input versions, decision artifacts, and actionable failures.
+Supply the typed schema from B and a dynamically built tool catalog from D. Register the `detective_toolkit` capability with the Main Visual Planner and provide a real call path from planner input to planner decision to production. Validate returned payloads before they reach the planner or renderers. Store each call's input versions, decision artifacts, the planner's accept/combine/defer/reject decision, and actionable failures.
 
 **Completion proof:** A real agent call maps a sample narration and directs scenes with aims, state changes, tool choices, and release anchors. Its output validates and is persisted; the prompt is not an unused file.
 
@@ -283,7 +300,7 @@ Also keep photographs, footage, host segments, and the app's other presentation 
 
 Implement a common tool descriptor/adapter exposing: `tool_id`, investigative purposes, typed input schema, supported outputs, narration/state requirements, asset requirements, language/layout capabilities, release bindings, state behavior, and availability. Use existing renderers wherever possible.
 
-The Detective Director chooses tool actions. The application validates and dispatches those actions, returns actual outcomes, and updates the displayed state. Asset search or tool-data preparation may support the action; it must not silently select a different investigative purpose.
+The Detective Director recommends tool actions through `detective_toolkit`; the Main Visual Planner validates, sequences, and dispatches the accepted actions, returns actual outcomes to the toolkit when another analysis pass is needed, and updates the displayed state. Asset search or tool-data preparation may support the action; it must not silently select a different investigative purpose. No renderer, coverage pass, or downstream helper may bypass the Main Visual Planner to make an unrecorded detective-tool decision.
 
 For every consequential selection retain a short decision record: investigative aim → audience need → chosen tool/sequence → reason → expected gain → final result. Compare alternatives when there is a meaningful choice, without generating a fixed number of candidates for every beat.
 
@@ -454,13 +471,13 @@ Build the mode-specific input wrapper, strict output model, renderer-parameter p
 
 **Dependencies:** C–G.
 
-Wire the runtime agent prompt, schema, model/agent configuration, persistence, pipeline, renderers, UI, and validation together. Use existing structures where they fit; add migrations only where needed. Retain compatibility with existing projects and saved work.
+Wire the runtime agent prompt, schema, model/agent configuration, persistence, pipeline, renderers, UI, and validation together. Register the detective toolkit as a callable service of the Main Visual Planner and make its input/output part of the planner's persisted state. Use existing structures where they fit; add migrations only where needed. Retain compatibility with existing projects and saved work.
 
 Compile the detective plan into the actual production script. Later picture-fill, coverage, host, and board-insertion passes must respect the planned semantic sequence and its anchors. Preserve essential explanatory moments or explicitly replan them with an equivalent treatment; do not silently replace them with generic coverage. Validate the compiled script and rendered result, not only the planner JSON.
 
-The runtime flow is: final text → detective map and tool plan → tool payload preparation → design specification → actual language timing/layout resolution → render previews → design corrections → compiled production script → final render → film review. Allow the timing/design feedback loop to refine only affected scenes.
+The runtime flow is: Main Visual Planner receives final text → calls `detective_toolkit` for a detective map and tool recommendations → Main Visual Planner accepts, combines, defers, or rejects recommendations and builds the authoritative scene graph → tool payload preparation → design specification → actual language timing/layout resolution → render previews → design corrections → compiled production script → final render → film review → targeted repair through the Main Visual Planner and, when needed, another `detective_toolkit` call. Allow the timing/design feedback loop to refine only affected scenes.
 
-Pass the detective's intent, anchors, and content bindings through every adapter. A coverage/requirement pass may add or replace material only when it preserves the intended explanation and timing; otherwise it must return a scoped replan request. Use the same state and decisions for previews and final production. Compatibility paths must not silently reinstate the old selection rules.
+Pass the detective toolkit's intent, anchors, and content bindings through every adapter. A coverage/requirement pass may add or replace material only when it preserves the intended explanation and timing; otherwise it must return a scoped replan request to the Main Visual Planner. Use the same state and decisions for previews and final production. Compatibility paths must not silently reinstate the old selection rules or bypass the planner/tool boundary.
 
 **Completion proof:** A real production script and rendered excerpt contain the chosen tools and preserve their release order. Late composition passes do not overwrite an explanatory moment or silently change its meaning.
 
@@ -602,6 +619,7 @@ For every row, record actual implementation location, test or inspection method,
 | [ ] A1 | Audit | Current instructions, implementation paths, saved-project baseline, and all relevant prompts/configuration are mapped. | Code references and baseline artifact. |
 | [ ] A2 | Audit | Every registered visual tool is traced to its renderer, inputs, production caller, and owner control. | Completed capability/reachability matrix. |
 | [ ] A3 | Audit | Conflicting old selection/validation rules are identified and replaced where required without disabling useful capabilities. | Before/after behavior and regression checks. |
+| [ ] A4 | Architecture | The detective toolkit is registered as a callable internal tool of the Main Visual Planner, with one observable, persisted call boundary and no competing top-level pipeline. | Planner-to-tool trace, persisted versions, and bypass regression check. |
 | [ ] B1 | Investigation memory | Final language-specific narration is the content reference; valid text spans work without research rows. | Text-only fixture with optional metadata absent. |
 | [ ] B2 | Investigation memory | Stable entities, claims, questions, relationships, anchors, and replayable knowledge events exist. | Schema validation and event-replay test. |
 | [ ] B3 | Investigation memory | Partial knowledge, attributed/disputed statements, not-yet-explained details, and explicit unknowns remain distinct. | Gun example and status/attribution fixtures. |
@@ -610,10 +628,12 @@ For every row, record actual implementation location, test or inspection method,
 | [ ] C2 | Detective Director | Every consequential tool selection follows an investigative aim and records its expected audience benefit. | Scene decisions linked to narration and state. |
 | [ ] C3 | Detective Director | Question payoffs, meaningful connections, human interest, and breathing room follow the text. | Reviewed continuous scene sequence. |
 | [ ] C4 | Detective Director | Future knowledge does not leak; unsupported certainty, conclusions, or connections are not added. | Reveal, attribution, and semantic fixtures plus render inspection. |
+| [ ] C5 | Detective Director | The Detective Director runs only through the Main Visual Planner's detective-tool boundary; planner ownership of the final scene graph is preserved. | Real map/direct/repair calls showing caller, decision, and persisted handoff. |
 | [ ] D1 | Tool execution | All twenty tools have usable adapters or completed wiring to existing renderers. | Individual tool checks T01–T20 below. |
 | [ ] D2 | Tool execution | Tools, photos, clips, and host shots can be selected or combined by purpose without old arbitrary selection rules. | Competing-choice and composite-sequence tests. |
 | [ ] D3 | Tool execution | Typed payloads, release bindings, availability outcomes, and state updates reach execution. | Contract and integration tests. |
 | [ ] D4 | Tool execution | A fallback preserves the intended explanation; an unsupported treatment is reported honestly. | Unavailable-data/media fixtures and observed fallback output. |
+| [ ] D5 | Tool execution | Every tool action has a typed toolkit result that the Main Visual Planner can accept, combine, defer, reject, or route for repair without an unrecorded downstream override. | Contract tests and planner decision trace. |
 | [ ] E1 | Continuing boards | Board returns preserve identities, recognizable positions, relationships, and historical state. | Consecutive board frames and state comparison. |
 | [ ] E2 | Continuing boards | Heard knowledge and displayed board state are separate; additions and status changes appear deliberately. | Replay and multi-return visual proof. |
 | [ ] E3 | Continuing boards | A fact can return for a new connection, comparison, or answer without duplicate-first-reveal errors. | Meaningful reuse and redundant-replay cases. |
@@ -629,6 +649,7 @@ For every row, record actual implementation location, test or inspection method,
 | [ ] H2 | Production integration | All three agents and deterministic components share current versions, state, and timing. | Full integration trace. |
 | [ ] H3 | Runtime loop | Findings route to the correct owner, produce a repair, and close only after the new output passes. | Injected-defect end-to-end repair demonstration. |
 | [ ] H4 | Runtime loop | New regressions reopen checks; exhausted settings leave a resumable incomplete state rather than approval. | Regression, timeout, budget/retry, and cancellation tests. |
+| [ ] H5 | Production integration | The final production script and renderer consume the Main Visual Planner's accepted detective-tool decisions, with no bypass from toolkit or coverage helpers. | End-to-end trace from toolkit result to compiled script and rendered output. |
 | [ ] I1 | Owner inspection | The inspector exposes aims, text, state changes, tool reasons, previews, design findings, and loop progress. | Working UI demonstration. |
 | [ ] I2 | Targeted revision | Edits invalidate affected dependencies and stale approvals while preserving unrelated valid work. | Text/asset/font/timing edit and rerun tests. |
 | [ ] I3 | Persistence | Owner edits, saved projects, checkpoints, and interrupted work remain usable. | Compatibility and interruption/resume proof. |
