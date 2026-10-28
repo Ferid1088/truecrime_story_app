@@ -70,8 +70,11 @@ export default function DocumentaryPage() {
                 titles={titles}
                 configured={settings.data.concurrency}
               />
-              <RecentJobs refreshKey={`${tick}|${activeSignature}`} resolutions={resolutions} />
             </div>
+          </div>
+
+          <div className="mb-8">
+            <RecentJobs refreshKey={`${tick}|${activeSignature}`} resolutions={resolutions} />
           </div>
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
