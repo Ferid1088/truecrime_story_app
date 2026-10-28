@@ -1,12 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
-/** Pages that work on a lot of material at once (the picture review) use the whole width of the screen. */
-const WIDE_PAGES = [/^\/documentary\/\d+\/review$/];
-
+/** Every page uses the whole width next to the sidebar, so a wide screen is filled instead of leaving a narrow column
+ * in an empty field; running text keeps its own reading width (max-w-2xl / max-w-3xl) where it is written. */
 export function PageFrame({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
-  const wide = WIDE_PAGES.some((page) => page.test(path));
-  return <div className={`mx-auto px-4 py-4 sm:px-6 sm:py-6 ${wide ? "max-w-none" : "max-w-6xl"}`}>{children}</div>;
+  return <div className="px-4 py-4 sm:px-6 sm:py-6 xl:px-10">{children}</div>;
 }
