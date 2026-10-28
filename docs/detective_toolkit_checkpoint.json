@@ -1037,17 +1037,20 @@
         "app/documentary/detective/review_schema.py"
       ],
       "validation_method": null,
-      "actual_result": "plan_audit honesty (never claims motion/audio) proven live and by test. rendered_review/repair_check honest-scope behavior against real rendered media needs a real case with a real render - Section K.",
+      "actual_result": "plan_audit honesty (never claims motion/audio) proven both by test and by a real live call (Section K, scratch case 29, graph 11, outcome=pass, inspection_modes=[\"plan\"]). rendered_review/repair_check honest-scope behavior against real rendered media still has no live proof: Section K could not produce a real render for its excerpt (K2's own gap, tied to the same D2 dispatch-builder limitation), so only the schema-level test covers those two modes.",
       "evidence": [
-        "tests/test_detective_film_reviewer.py::test_schema_rejects_plan_audit_claiming_motion_or_audio"
+        "tests/test_detective_film_reviewer.py::test_schema_rejects_plan_audit_claiming_motion_or_audio",
+        "docs/detective_toolkit_section_k_handover.md#film-experience-reviewer-evidence-closes-j3",
+        "docs/detective_toolkit_section_k_evidence/live_reviewer.py"
       ],
       "versions": {},
       "dependencies": [
         "H",
-        "I"
+        "I",
+        "K"
       ],
       "repair_history": [],
-      "remaining_issue": "Needs Section K real-case rendered media to prove rendered_review scope honesty live, not just by schema test."
+      "remaining_issue": "rendered_review/repair_check modes need a real rendered excerpt to prove their scope-honesty live, same blocker as K2."
     },
     {
       "id": "J4",

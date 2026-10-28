@@ -129,7 +129,7 @@ clarifies the investigation" (detective_board for the unfolding account; conflic
 discrepancy) is visible by direct comparison against what the same real beats produced before this
 feature existed.
 
-## Film Experience Reviewer evidence (closes J3)
+## Film Experience Reviewer evidence (advances J3, does not fully close it)
 
 Real `plan_audit` call against graph 11 (`docs/detective_toolkit_section_k_evidence/live_reviewer.py`):
 
@@ -145,9 +145,12 @@ plan passes audit and is approved for rendering.
 ```
 
 `inspection_modes` is correctly `["plan"]` only — this was a `plan_audit` call with no rendered
-media, and the reviewer did not claim otherwise. This closes **J3** (frame-only/transcript-
-only/excerpt/unavailable-media limits reported accurately), left `IN_PROGRESS` by Section J pending
-exactly this: a real plan-level review on real content, honestly scoped.
+media, and the reviewer did not claim otherwise. **J3**'s acceptance criterion covers all three
+modes (plan_audit, rendered_review, repair_check); this proves `plan_audit`'s scope-honesty live
+(previously only schema-tested), so J3 stays `IN_PROGRESS` with a narrower remaining gap:
+`rendered_review`/`repair_check` still have no live proof against real rendered media, since this
+section could not produce a real render for its excerpt (see K2 below — the same D2 dispatch-
+builder limitation).
 
 ## Dispatch and rendered-evidence scope — honest limits
 
@@ -211,6 +214,7 @@ Section C's live evidence (`docs/detective_toolkit_section_c_design.md`).
   tools remain reachable through the pre-existing pipeline, just not yet through the new dispatch
   path), G2/G3 (FactCard per-fact visual hierarchy; full RTL/German-expansion fixtures), H2 (full
   staleness/invalidation is Section I's I2, already built, but not yet wired to auto-invalidate a
-  *design review* specifically), I4 (RTL layout verification for the inspector UI itself), J3 now
-  closed by this section for the `plan_audit` mode specifically — `rendered_review`/`repair_check`
-  still have no real-media live proof, since no full render was produced.
+  *design review* specifically), I4 (RTL layout verification for the inspector UI itself), J3
+  advanced by this section for the `plan_audit` mode specifically (now live-proven, not just
+  schema-tested) — `rendered_review`/`repair_check` still have no real-media live proof, since no
+  full render was produced, same as K2 below.
