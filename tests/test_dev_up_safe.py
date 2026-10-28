@@ -33,3 +33,14 @@ def test_first_run_safe_worker_makes_no_calls_or_job_changes_for_one_minute(tmp_
     assert db_reconcile.job_snapshot(database) == before
     assert before["provider_calls"] == 0
     assert os.environ["TRUECRIME_SAFE_START_SECONDS"] == "60"
+
+
+def test_a_frontend_process_that_already_exited_does_not_stop_dev_up():
+    """`ps` lists a stale Next.js process, killing its sibling ends it, then `lsof` finds nothing: under
+    `set -e` + `pipefail` that used to end the whole script right after "stopped stale frontend"."""
+    result = subprocess.run(
+        ["bash", "-c", 'set -euo pipefail; eval "$(sed -n "/^_frontend_process_cwd()/,/^}/p" scripts/dev_up.sh)"; '
+                       'cwd="$(_frontend_process_cwd 2147483646)"; echo reached'],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    assert result.returncode == 0 and result.stdout.strip() == "reached"

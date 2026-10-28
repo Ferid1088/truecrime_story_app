@@ -109,7 +109,8 @@ _wait_for_port() {
 _frontend_process_cwd() {
   local pid="$1"
   command -v lsof >/dev/null 2>&1 || return 0
-  lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1
+  # a process that exited since `ps` listed it is not an error
+  lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1 || true
 }
 
 _stop_stale_frontend_servers() {
