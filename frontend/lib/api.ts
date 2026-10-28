@@ -1,4 +1,5 @@
 import type {
+  DetectivePlan,
   CaseControlEvent,
   CaseControlView,
   CaseTombstone,
@@ -1077,6 +1078,20 @@ export const mvpApi = {
     post<MvpFilmReview>(`/api/mvp/reviews/${reviewId}/decision`, {
       decision, note, render_sha256: renderSha256,
     }),
+};
+
+export const detectiveApi = {
+  plan: (caseId: number) => request<DetectivePlan>(`/api/cases/${caseId}/detective/plan`),
+  correctClaim: (caseId: number, claimKey: string, reason: string, newText?: string) =>
+    post<{ claim_key: string; invalidated_scenes: string[] }>(
+      `/api/cases/${caseId}/detective/claims/${encodeURIComponent(claimKey)}/correct`,
+      { reason, new_text: newText },
+    ),
+  repairScene: (caseId: number, sceneKey: string, issues: string[]) =>
+    post<{ agent_run_id: number; counts: Record<string, number> }>(
+      `/api/cases/${caseId}/detective/scenes/${encodeURIComponent(sceneKey)}/repair`,
+      { issues },
+    ),
 };
 
 export interface AutopilotEstimate {

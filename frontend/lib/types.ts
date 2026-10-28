@@ -2453,6 +2453,41 @@ export interface MvpPlan {
   shortages: number;
 }
 
+export interface DetectiveAction {
+  action_key: string;
+  tool_id: string;
+  purpose: string;
+  content_bindings: string[];
+  reuse_reason: string | null;
+  planner_decision: "accepted" | "combined" | "deferred" | "rejected" | null;
+  planner_decision_reason: string | null;
+}
+
+export interface DetectiveScene {
+  scene_key: string;
+  scene_order: number;
+  mode: string;
+  aim: string;
+  change_in_understanding: string;
+  why_selected: string;
+  expected_audience_gain: string;
+  covered_unit_keys: string[];
+  active_question_keys: string[];
+  active_entity_keys: string[];
+  alternatives_considered: unknown[];
+  stale: boolean;
+  stale_reason: string | null;
+  actions: DetectiveAction[];
+}
+
+export interface DetectivePlan {
+  graph_id: number;
+  scene_count: number;
+  stale_count: number;
+  scenes: DetectiveScene[];
+  design_reviews: Array<Record<string, unknown>>;
+}
+
 export type MvpReviewState =
   | "IMPLEMENTING"
   | "PRODUCING"

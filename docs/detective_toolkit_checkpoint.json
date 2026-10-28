@@ -886,13 +886,23 @@
       "section": "I. Owner inspection",
       "acceptance_criterion": "The inspector exposes aims, text, state changes, tool reasons, previews, design findings, and loop progress.",
       "required_proof": "Working UI demonstration.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/api.py",
+        "app/documentary/detective/inspector.py",
+        "frontend/components/documentary/tabs/detective.tsx"
+      ],
+      "validation_method": "Backend pytest (real Postgres, FastAPI TestClient) plus a real Playwright browser run against this repo's disposable e2e stack (scripts/e2e_stack.sh).",
+      "actual_result": "Inspector endpoint and UI tab show every scene, its tool choices, planner_decision, and stale state; verified rendered in a real browser.",
+      "evidence": [
+        "tests/test_detective_inspector.py",
+        "frontend/e2e/detective-inspector.spec.ts",
+        "docs/detective_toolkit_section_i_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -901,13 +911,21 @@
       "section": "I. Targeted revision",
       "acceptance_criterion": "Edits invalidate affected dependencies and stale approvals while preserving unrelated valid work.",
       "required_proof": "Text/asset/font/timing edit and rerun tests.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/inspector.py:invalidate_dependent_scenes",
+        "migrations/versions/0075_detective_scene_stale.py"
+      ],
+      "validation_method": "Live Postgres migration round-trip + pytest proving a bound scene is marked stale while an unrelated scene is untouched.",
+      "actual_result": "detective_scenes.stale/stale_reason added live; binding-level invalidation implemented and tested. Scoped to direct content_bindings, not a full transitive graph (stated).",
+      "evidence": [
+        "tests/test_detective_inspector.py::test_correcting_a_claim_invalidates_only_the_bound_scene",
+        "docs/detective_toolkit_section_i_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -916,13 +934,19 @@
       "section": "I. Persistence",
       "acceptance_criterion": "Owner edits, saved projects, checkpoints, and interrupted work remain usable.",
       "required_proof": "Compatibility and interruption/resume proof.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "VERIFIED",
+      "implementation_location": [
+        "app/documentary/detective/toolkit.py"
+      ],
+      "validation_method": "Characterization against an already-proven existing test.",
+      "actual_result": "toolkit.invoke never re-pays once a plan exists for a graph (Section C/architecture remediation); no rebuild needed.",
+      "evidence": [
+        "tests/test_detective_toolkit_boundary.py::test_toolkit_invoke_never_re_pays_for_an_existing_plan"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H"
+      ],
       "repair_history": [],
       "remaining_issue": null
     },
@@ -931,15 +955,21 @@
       "section": "I. Languages",
       "acceptance_criterion": "English, German, Persian, and Arabic use their actual text/timing, fonts, and readable layouts.",
       "required_proof": "Per-language fixtures/previews, RTL and mixed-script checks.",
-      "status": "NOT_STARTED",
-      "implementation_location": null,
-      "validation_method": null,
-      "actual_result": null,
-      "evidence": [],
+      "status": "IN_PROGRESS",
+      "implementation_location": [
+        "app/documentary/memory.py (narration_units.language)"
+      ],
+      "validation_method": "Code inspection only this pass.",
+      "actual_result": "Narration/claim data is already language-tagged; the inspector UI does not yet have RTL/German-expansion layout verification.",
+      "evidence": [
+        "docs/detective_toolkit_section_i_design.md"
+      ],
       "versions": {},
-      "dependencies": [],
+      "dependencies": [
+        "H"
+      ],
       "repair_history": [],
-      "remaining_issue": null
+      "remaining_issue": "Build and verify RTL/German-expansion fixtures for the detective inspector UI across en/de/fa/ar."
     },
     {
       "id": "J1",

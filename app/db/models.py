@@ -1224,6 +1224,11 @@ class DetectiveScene(Base):
     expected_audience_gain: Mapped[str] = mapped_column(Text)
     audio_clarity_findings_json: Mapped[str] = mapped_column(Text, default="[]")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+    # Section I: set when an upstream correction (an edited claim/entity this scene's actions bind
+    # to) may have invalidated this scene's content. A stale scene is still shown to the owner (its
+    # history is never discarded) but is flagged for re-direction rather than trusted as current.
+    stale: Mapped[bool] = mapped_column(Boolean, default=False)
+    stale_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     graph = relationship("RevealGraph")
     agent_run = relationship("AgentRun")

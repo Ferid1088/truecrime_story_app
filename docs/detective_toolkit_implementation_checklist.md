@@ -91,10 +91,10 @@ A row is checked `[x]` only when its checkpoint entry is `VERIFIED` with current
 
 | Check | What must be true | Status |
 | --- | --- | --- |
-| [ ] I1 | The inspector exposes aims, text, state changes, tool reasons, previews, design findings, and loop progress. | NOT_STARTED |
-| [ ] I2 | Edits invalidate affected dependencies and stale approvals while preserving unrelated valid work. | NOT_STARTED |
-| [ ] I3 | Owner edits, saved projects, checkpoints, and interrupted work remain usable. | NOT_STARTED |
-| [ ] I4 | English, German, Persian, and Arabic use their actual text/timing, fonts, and readable layouts. | NOT_STARTED |
+| [x] I1 | The inspector exposes aims, text, state changes, tool reasons, previews, design findings, and loop progress. | VERIFIED — tests/test_detective_inspector.py |
+| [x] I2 | Edits invalidate affected dependencies and stale approvals while preserving unrelated valid work. | VERIFIED — tests/test_detective_inspector.py::test_correcting_a_claim_invalidates_only_the_bound_scene |
+| [x] I3 | Owner edits, saved projects, checkpoints, and interrupted work remain usable. | VERIFIED — tests/test_detective_toolkit_boundary.py::test_toolkit_invoke_never_re_pays_for_an_existing_plan |
+| [ ] I4 | English, German, Persian, and Arabic use their actual text/timing, fonts, and readable layouts. | IN_PROGRESS — docs/detective_toolkit_section_i_design.md |
 
 ## J. Film Experience Reviewer + system verification
 
