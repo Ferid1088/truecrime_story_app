@@ -4,6 +4,7 @@ plan exists) and OFF (it doesn't, i.e. every real case today) to guarantee no re
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from uuid import uuid4
 
 from app.db.models import (
@@ -186,3 +187,53 @@ def test_needs_py_seam_detective_requirements_are_authoritative_when_they_cover_
     requirements, report = validate_needs(raw, json.loads(blueprint_row.blueprint_json), {"facts": []}, [], view)
     assert requirements["beats"][0]["requirements"][0]["entity"] == "gun_1"
     assert report["status"] in ("valid", "needs_review")
+
+
+def test_a_requirement_names_the_entity_of_its_bound_claim_not_an_investigation_thread(db_session):
+    """Real case 15: a scene's active keys are thread keys (thd_*), which are not graph nodes, so every toolkit
+    requirement used to be dropped as an unknown entity and the toolkit contributed nothing to the plan."""
+    from app.documentary.detective.dispatch import detective_raw_needs
+    from app.documentary.mvp.needs import validate_needs
+
+    graph, blueprint_row, _ = _graph(db_session, beats=[{"id": "B01"}])
+    MEM.ensure_entity(db_session, graph.id, "gun-1", "the 9mm", "object", "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "gun-1", "location", "The gun was missing.", "established_in_text")
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "timeline", active_entity="thd_missing_gun")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    raw = detective_raw_needs(db_session, graph)
+    assert raw["beats"][0]["requirements"][0]["entity"] == "gun-1"
+    view = {"nodes": [{"key": "gun-1", "label": "the 9mm", "category": "object",
+                       "first_beat": "B01", "first_order": 0}], "edges": [], "beat_order": {"B01": 0}}
+    requirements, report = validate_needs(raw, json.loads(blueprint_row.blueprint_json), {"facts": []}, [], view)
+    assert report["errors"] == [] and requirements["beats"][0]["requirements"]
+
+
+def test_a_merged_needs_report_carries_no_error_while_the_plan_has_requirements(db_session, monkeypatch):
+    import asyncio
+
+    from app.documentary.mvp import needs as N
+
+    graph, blueprint_row, case = _graph(db_session, beats=[{"id": "B01"}, {"id": "B02"}])
+    MEM.ensure_entity(db_session, graph.id, "gun-1", "the 9mm", "object", "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "gun-1", "location", "The gun was missing.", "established_in_text")
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "timeline")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+
+    async def no_toolkit(*args, **kwargs):
+        return None
+
+    async def agent_gave_nothing(*args, **kwargs):
+        return {"entities": [], "beats": []}, SimpleNamespace(model="m")
+
+    monkeypatch.setattr("app.documentary.detective.toolkit.invoke", no_toolkit)
+    monkeypatch.setattr(N, "run_agent", agent_gave_nothing)
+    monkeypatch.setattr(N, "get_generation_provider", lambda: None)
+    monkeypatch.setattr(N, "stamp_run", lambda *a, **k: None)
+    blueprint = json.loads(blueprint_row.blueprint_json)
+    pack, sources = N.build_pack(db_session, case.id)
+    order = {b["id"]: i for i, b in enumerate(blueprint["beats"])}
+    _, report, _ = asyncio.run(N._needs_with_detective_handoff(
+        db_session, case, blueprint_row, graph, blueprint, pack, sources, N.graph_view(graph, order), order, {}))
+    assert report["status"] != "invalid" and report["errors"] == []

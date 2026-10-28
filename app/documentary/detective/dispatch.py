@@ -625,18 +625,20 @@ def detective_raw_needs(db: Session, graph) -> dict:
     entities_raw = [{"key": n.node_key, "name": n.label,
                      "type": _ENTITY_TYPE_BY_CATEGORY.get(n.category, "object")}
                     for n in graph.nodes]
+    node_keys = {e["key"] for e in entities_raw}
     fallback_entity = entities_raw[0]["key"] if entities_raw else None
     beats: dict[str, list[dict]] = {}
     map_places: dict[str, str] = {}
     for scene in (db.query(DetectiveScene).filter(DetectiveScene.graph_id == graph.id)
                   .order_by(DetectiveScene.scene_order).all()):
-        active = json.loads(scene.active_entity_keys_json or "[]")
-        entity = active[0] if active else fallback_entity
-        if entity is None:
-            continue
+        active = [k for k in json.loads(scene.active_entity_keys_json or "[]") if k in node_keys]
         for action in scene.actions:
             beat_id = _beat_id_of(db, action)
             if beat_id is None:
+                continue
+            claimed = [c.entity_node_key for c in _bound_claims(db, action) if c.entity_node_key in node_keys]
+            entity = (claimed or active or [fallback_entity])[0]
+            if entity is None:
                 continue
             function, alternatives = _FUNCTION_BY_TOOL.get(action.tool_id, ("investigation", []))
             if action.tool_id == "map":

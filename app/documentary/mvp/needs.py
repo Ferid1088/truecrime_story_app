@@ -283,10 +283,11 @@ async def _needs_with_detective_handoff(db: Session, case: Case, blueprint_row: 
                     "beats": [by_beat[bid] for bid in beat_order if bid in by_beat]}
     without = [bid for bid in beat_order if bid not in covered and bid not in
               {b["beat_id"] for b in agent_requirements["beats"] if b["requirements"]}]
+    status = ("invalid" if not requirements["entities"] or not requirements["beats"] else
+              ("needs_review" if (report.get("warnings") or det_report.get("warnings")) else "valid"))
     merged_report = {
-        "status": "invalid" if not requirements["entities"] or not requirements["beats"] else
-                 ("needs_review" if (report.get("warnings") or det_report.get("warnings")) else "valid"),
-        "errors": (report.get("errors") or []) + det_report.get("errors", []),
+        "status": status,
+        "errors": (report.get("errors") or []) + det_report.get("errors", []) if status == "invalid" else [],
         "warnings": (report.get("warnings") or []) + det_report.get("warnings", []),
         "entities": len(requirements["entities"]),
         "beats_with_needs": len(requirements["beats"]), "beats_without_needs": without}
