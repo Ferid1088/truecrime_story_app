@@ -663,9 +663,14 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
 
     by_beat = {sp["beat_id"]: sp for sp in spans}
     records: list[dict] = []
+    placed = {sh["detective_action_key"] for sh in shots if sh.get("detective_action_key")}
     for item in resolved:
         record = dict(item)
         if "skip" in record:
+            records.append(record)
+            continue
+        if record["action_key"] in placed:                # the planner fixed this card in its timeline already
+            record["skip"] = "already_placed_by_the_planner"
             records.append(record)
             continue
         span = by_beat.get(record["beat_id"])
@@ -724,7 +729,7 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
                 hold, hold, "move the card to a quieter stretch, or fold it into the narrated point"))
         if requests:
             record["timing_requests"] = requests
-        shot = {"kind": "graphic", **GS.plan_fields(record["tool_id"], record["data"]),
+        shot = {"kind": "graphic", "command": "SHOW_GRAPHIC", **GS.plan_fields(record["tool_id"], record["data"]),
                "beat_id": record["beat_id"], "start": round(start, 3),
                "end": round(start + max(hold, 1.0), 3), "motion": "NONE", "speed": 1.0,
                "transition_in": "FADE_BLACK", "why": record["purpose"],

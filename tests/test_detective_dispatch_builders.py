@@ -439,3 +439,17 @@ def test_a_map_action_is_not_dispatched_as_a_graphic_because_the_planner_places_
     resolved = [{"action_key": "m1", "tool_id": "map", "beat_id": "B01", "data": {"place": "Miami County"}}]
     spans = [{"beat_id": "B01", "start": 0.0, "end": 30.0}]
     assert D.place_detective_graphics([], spans, "en", resolved)[0]["skip"] == "placed_by_the_planner"
+
+
+def test_a_card_the_planner_already_placed_is_not_placed_again_and_a_placed_card_has_a_command():
+    resolved = [{"action_key": "a1", "tool_id": "fact_card", "beat_id": "B01",
+                 "data": {"facts": [{"text": "He called 911.", "fact_id": "c1"}]}, "purpose": "state",
+                 "reuse_reason": None}]
+    spans = [{"beat_id": "B01", "start": 0.0, "end": 40.0}]
+    twice = [{"kind": "graphic", "command": "SHOW_GRAPHIC", "detective_action_key": "a1", "beat_id": "B01",
+              "start": 5.0, "end": 15.0}]
+    assert D.place_detective_graphics(twice, spans, "en", resolved)[0]["skip"] == "already_placed_by_the_planner"
+    shots = [{"kind": "image", "command": "NEW_IMAGE", "beat_id": "B01", "start": 0.0, "end": 40.0, "motion": "NONE",
+              "speed": 1.0, "transition_in": "CROSSFADE"}]
+    D.place_detective_graphics(shots, spans, "en", resolved)
+    assert all("command" in sh for sh in shots) and any(sh.get("detective_action_key") == "a1" for sh in shots)

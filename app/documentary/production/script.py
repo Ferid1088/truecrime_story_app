@@ -1191,6 +1191,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
                     current = shot
             elif cmd == "SHOW_GRAPHIC":
                 shot.update({"kind": "graphic", "motion": "NONE", "graphic": json.loads(json.dumps(s["graphic"]))})
+                if s.get("detective_action_key"):
+                    shot["detective_action_key"] = s["detective_action_key"]      # the toolkit's card, already placed
                 if s.get("credit"):
                     credits.add(s["credit"])
                 current = None
