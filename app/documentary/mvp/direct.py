@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
-from app.documentary.mvp import alternatives as AL
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import neighbours as NC
 from app.documentary.mvp import satisfy as SA
@@ -297,6 +296,27 @@ def map_seconds() -> float:
     return variant.seconds + variant.hold_seconds
 
 
+def card_seconds_by_kind(timeline) -> dict[str, float]:
+    """Seconds of the film the toolkit's fixed cards fill, by kind of card."""
+    seconds: dict[str, float] = {}
+    for cards in timeline.cards_by_beat.values():
+        for card in cards:
+            seconds[card["tool_id"]] = round(seconds.get(card["tool_id"], 0.0) + card["end"] - card["start"], 1)
+    return seconds
+
+
+def gap_runs(shots: list[dict], window_len: float) -> list[tuple[int, int, float]]:
+    """Consecutive bare stretches of a beat: (first index, last index, seconds)."""
+    runs, start = [], None
+    for i, s in enumerate(shots + [{"gap": False}]):
+        if s.get("gap") and start is None:
+            start = i
+        elif not s.get("gap") and start is not None:
+            runs.append((start, i - 1, sum(x["share"] for x in shots[start:i]) * window_len))
+            start = None
+    return runs
+
+
 def add_map_cards(shots: list[dict], extras: dict, window_len: float, places: list[str],
                   mapped: set[str], region: str | None) -> None:
     """A map only where the narration names its place (the bare stretch whose words say it), each place once in
@@ -308,7 +328,7 @@ def add_map_cards(shots: list[dict], extras: dict, window_len: float, places: li
             continue
         words = content_words(place)
         need = map_seconds()
-        run = next((r for r in AL.gap_runs(shots, window_len) if r[2] >= 0.8 * need and words
+        run = next((r for r in gap_runs(shots, window_len) if r[2] >= 0.8 * need and words
                     and words <= content_words(" ".join(s.get("said", "") for s in shots[r[0]:r[1] + 1]))), None)
         if run is None:
             continue
@@ -607,57 +627,26 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
                       director: Director | None = None, target: VisualPlan | None = None,
                       entities: list[dict] | None = None, region: str | None = None,
-                      offers: list[AL.Offer] | None = None,
                       topical: dict[str, list[tuple[str, float, str]]] | None = None,
                       cover_last: bool = True, timeline=None, sequence=None) -> dict:
-    """Plan the film. When moments are still bare after the approved pictures, the alternatives and every other fill,
-    the whole film is planned again from its first beat with wider limits for the alternatives (`planner.escalation`),
-    round after round, never by patching the previous round's plan; the round with the fewest bare seconds is kept.
-    Pictures are not asked for again: the director's choices are cached per beat. The last round covers what is still
-    bare from the neighbouring pictures, but only when `cover_last` says every other source (fact boards, the web
-    search, topical pictures) has been tried: the cover is the very last resort."""
-    target = target or plan
-    args = (db, case, plan, manifest, graph_id, beat_order, beats, director, target, entities, region, offers, topical)
-    report = await _direct_pass(*args, cover_last=cover_last, timeline=timeline, sequence=sequence)
-    if report["gaps"] and "rounds" not in report and timeline is None:     # a toolkit film is never planned again
-        rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0, "neighbour_cover": False}]
-        kept = (report, target.plan_json, target.validation_json)
-        steps = [(step, False) for step in AL.escalation_steps()]
-        if cover_last and cover_approved(plan):    # only after the owner's review: the last round covers from the neighbours
-            steps.append((AL.escalation_steps()[-1] if steps else {}, True))
-        for n, (step, cover) in enumerate(steps, 1):
-            again = await _direct_pass(*args, relax=step, force=True, cover=cover, cover_last=cover_last,
-                                       timeline=timeline, sequence=sequence)
-            rounds.append({"round": n, "gap_seconds": again["gap_seconds"], "placed": sum(
-                1 for o in offers or [] if o.placed), "neighbour_cover": cover, **step})
-            if again["gap_seconds"] < kept[0]["gap_seconds"]:
-                kept = (again, target.plan_json, target.validation_json)
-            if not again["gaps"]:
-                break
-        report, target.plan_json, target.validation_json = kept
-        report["rounds"] = rounds
-        validation = json.loads(target.validation_json)
-        validation["plan"]["rounds"] = rounds
-        target.validation_json = json.dumps(validation, ensure_ascii=False)
-        db.commit()
-    return report
+    """Plan the film around the toolkit's fixed cards: the free stretches of every beat get approved pictures and
+    clips. Pictures are not asked for again: the director's choices are cached per beat. The fallback (a picture
+    shown again, then the neighbouring pictures) fills what is still bare, but only when `cover_last` says every other
+    source (the web search, topical pictures) has been tried and the owner has reviewed twice."""
+    return await _direct_pass(db, case, plan, manifest, graph_id, beat_order, beats, director, target or plan, entities,
+                              region, topical, cover=cover_last and cover_approved(plan), cover_last=cover_last,
+                              timeline=timeline, sequence=sequence)
 
 
 async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                        graph_id: int | None, beat_order: dict[str, int], beats: dict[str, dict],
                        director: Director | None, target: VisualPlan, entities: list[dict] | None,
-                       region: str | None, offers: list[AL.Offer] | None,
-                       topical: dict[str, list[tuple[str, float, str]]] | None,
-                       relax: dict | None = None, force: bool = False, cover: bool = False,
-                       cover_last: bool = True, timeline=None, sequence=None) -> dict:
+                       region: str | None, topical: dict[str, list[tuple[str, float, str]]] | None,
+                       force: bool = False, cover: bool = False, cover_last: bool = True, timeline=None,
+                       sequence=None) -> dict:
     """One planning round: beat by beat, agent first, rules always. `plan` holds the approved requirements; the shot
-    list is stored on `target` (the language's own plan row). `relax` widens the limits of the alternatives; `cover` lets
-    the moments that stay bare be covered from their neighbours (the last round, after the owner's review)."""
-    offers = offers if offers is not None else []
-    offers[:] = [o for o in offers if o.kind != "conflict_board"]      # the board is made again from this round's pages
-    for o in offers:
-        o.placed = False
-    state = AL.State(relax=relax or {})
+    list is stored on `target` (the language's own plan row). `cover` lets the moments that stay bare be covered from
+    their neighbours (after the owner's second review)."""
     entities = entities or json.loads(plan.requirements_json or "{}").get("entities") or []
     names = {e["key"]: content_words(" ".join([e["name"], *e.get("aliases", [])])) for e in entities}
     place_names = {e["key"]: e["name"] for e in entities if e.get("type") in ("place", "building")}
@@ -670,6 +659,10 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     items = {b: [i for i in group if not i.moment] for b, group in items.items()}
     out_beats, candidates, window_of, agent_used = [], {}, {}, 0
     windows = beat_windows(manifest)
+    if timeline is None:           # no toolkit film: every beat is free for pictures
+        from app.documentary.detective.timeline import film_timeline
+
+        timeline = film_timeline(windows, [], language)
     extras = {b["beat_id"]: b for b in json.loads(plan.requirements_json or "{}").get("beats") or []}
     fingerprint = hashlib.sha256(json.dumps({
         "windows": [[w["beat_id"], round(w["start"], 2), round(w["end"], 2), len(w["sentences"]), card_tail(w)]
@@ -678,11 +671,10 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         "graph": graph_id, "shots": cfg.model_dump(),
         "extras": {b: [e.get("date_text"), (e.get("quote") or {}).get("text")] for b, e in extras.items()},
         "places": sorted(place_names), "region": region,
-        "offers": [[o.key, o.first, o.last, o.seconds, sorted(o.items)] for o in offers],
         "requirements": {b: sorted(r["key"] for r in rs) for b, rs in sorted(counted_requirements(db, plan).items())},
-        "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "rules": AL.T.config().planner, "neighbour_cover": cover_approved(plan), "cover_last": cover_last,
+        "repeat": ai_config.visual_direction.model_dump(), "neighbour_cover": cover_approved(plan), "cover_last": cover_last,
         "timeline": {b: [[c["action_key"], c["start"], c["end"]] for c in cs]
-                     for b, cs in sorted((timeline.cards_by_beat if timeline else {}).items())},
+                     for b, cs in sorted(timeline.cards_by_beat.items())},
         "sequence": sorted((sequence or {}).items()),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
@@ -693,8 +685,8 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     new_cache: dict = {}
     for window in windows:
         bid = window["beat_id"]
-        cards = timeline.cards_by_beat.get(bid, []) if timeline else []
-        slots = free_slots(window, timeline.free_by_beat.get(bid, [])) if timeline else make_slots(window)
+        cards = timeline.cards_by_beat.get(bid, [])
+        slots = free_slots(window, timeline.free_by_beat[bid])
         if not slots and cards:       # the toolkit's cards fill the whole beat: nothing for the planner to fill
             window_len = window["end"] - window["start"]
             out_beats.append({"beat_id": bid, "shots": with_cards([], [], cards, window_len)})
@@ -756,17 +748,9 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                        slot_text.get(id(s), "")) for n, s in enumerate(slots)]
         spoken = " ".join(x["speech"] for x in window["sentences"])
         places = [name for key, name in place_names.items() if content_words(name) <= content_words(spoken)]
-        if timeline:
-            shots = with_cards(shots, slots, cards, window_len)
+        shots = with_cards(shots, slots, cards, window_len)
         add_map_cards(shots, extras.get(bid) or {}, window_len, places, mapped, region)
         add_date_overlay(shots, extras.get(bid) or {})
-        idx = beat_order.get(bid, 0)
-        if timeline is None:          # with a toolkit timeline the alternatives are its cards, not the planner's offers
-            AL.fill_beat(shots, window_len, idx, offers, state, card_tail(window))
-            AL.extend_road(shots, window_len, idx, offers, state, card_tail(window))
-            board = AL.board_offer(state, idx + 1) if AL.board_due(offers, state, idx) else None
-            if board is not None:
-                offers.append(board)
         absorb_gaps(shots, window_len)
         total = sum(s["share"] for s in shots)
         for s in shots:
@@ -777,7 +761,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
     topical_in = place_topical(out_beats, window_of, items, topical or {}, tracker,
                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
-    if timeline is None or cover_approved(plan):      # with a toolkit film a picture is shown again only as the fallback
+    if cover_approved(plan):          # a picture is shown again only as the fallback, after the owner's second review
         repeat_for_gaps(out_beats, window_of, items, tracker, names,
                         lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     covered = NC.NeighbourCover(out_beats, window_of, items, tracker, names, beat_order,
@@ -790,8 +774,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     gaps = bare_stretches(out_beats, window_of)
     report = {"fingerprint": fingerprint, "beat_cache": new_cache, "beats": len(out_beats), "shots": sum(len(b["shots"]) for b in out_beats),
               "gaps": gaps, "neighbour_cover": covered, "requirements_placed": satisfied, "gap_seconds": round(sum(g["end"] - g["start"] for g in gaps), 1),
-              "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": AL.seconds_report(state),
-              "alternatives_unplaced": sorted(o.key for o in offers if not o.placed), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
+              "agent_directed_beats": agent_used, "moment_clips_placed": cut_in, "topical_placed": topical_in, "alternatives": card_seconds_by_kind(timeline), "assets_used": len({c for c in tracker.facts if tracker.appearances(c)}),
               "reuse": {c: tracker.appearances(c) for c in tracker.facts if tracker.appearances(c) > 1}}
     target.plan_json = json.dumps({"beats": out_beats, "candidates": candidates, "mvp": True},
                                   ensure_ascii=False)

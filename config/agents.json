@@ -511,13 +511,6 @@
       "description": "Picture and footage check: where other people's logos, watermarks and caption strips are laid over a picture or clip.",
       "used_by": "app/documentary/mvp/overlays.py"
     },
-    "mvp.statement": {
-      "role": "mvp_copywriter",
-      "prompt": "documentary/mvp/statement_system",
-      "output": "json",
-      "description": "Statement cards: a stored confirmed fact written as one complete, meaningful short sentence.",
-      "used_by": "app/documentary/mvp/copy.py"
-    },
     "mvp.general_queries": {
       "role": "mvp_general_planner",
       "prompt": "documentary/mvp/general_queries_system",
@@ -538,34 +531,6 @@
       "output": "json",
       "description": "Topical fill: how related each approved picture or video is to what is said at a bare moment.",
       "used_by": "app/documentary/mvp/topical.py"
-    },
-    "mvp.engine_plan": {
-      "role": "mvp_engine_planner",
-      "prompt": "documentary/mvp/engine_plan_system",
-      "output": "json",
-      "description": "Cinematic engines: whether a beat is clearer with one of the eight engines, and the engine's data from stored facts only.",
-      "used_by": "app/documentary/mvp/engines.py"
-    },
-    "mvp.conflict": {
-      "role": "mvp_conflict_structurer",
-      "prompt": "documentary/mvp/conflict_system",
-      "output": "json",
-      "description": "Alternative graphics: one disputed point structured into its two sides, only from the stored description and sources.",
-      "used_by": "app/documentary/mvp/copy.py"
-    },
-    "mvp.copy": {
-      "role": "mvp_copywriter",
-      "prompt": "documentary/mvp/copy_system",
-      "output": "json",
-      "description": "Alternative graphics: stored facts shortened into one faithful line each for large on-screen text.",
-      "used_by": "app/documentary/mvp/copy.py"
-    },
-    "mvp.headline": {
-      "role": "mvp_headline_placer",
-      "prompt": "documentary/mvp/headline_system",
-      "output": "json",
-      "description": "Alternative graphics: the earliest beat a real newspaper headline may be shown without telling the viewer anything early.",
-      "used_by": "app/documentary/mvp/headlines.py"
     },
     "detective.director": {
       "role": "detective_director",

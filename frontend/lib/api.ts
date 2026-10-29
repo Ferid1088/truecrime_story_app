@@ -51,7 +51,6 @@ import type {
   MonitoringAppSnapshot,
   MonitoringSnapshot,
   MvpCandidateGroup,
-  MvpEngines,
   MvpGaps,
   MvpFilmReview,
   MvpPlan,
@@ -1064,12 +1063,6 @@ export const mvpApi = {
     request<MvpGaps>(`/api/cases/${caseId}/mvp/gaps?language=${language}`),
   decideNeighbourCover: (caseId: number, approved: boolean) =>
     post<{ approved: boolean }>(`/api/cases/${caseId}/mvp/neighbour-cover`, { approved }),
-  engines: (caseId: number, language = "en") =>
-    request<MvpEngines>(`/api/cases/${caseId}/mvp/engines?language=${language}`),
-  enginePreview: (caseId: number, beat: string, step: number, language = "en") =>
-    apiFileUrl(`/api/cases/${caseId}/mvp/engines/preview?beat=${encodeURIComponent(beat)}&step=${step}&language=${language}`),
-  engineOverride: (caseId: number, body: { beat: string; action: string; engine?: string; data?: unknown; seconds?: number }) =>
-    post<MvpEngines>(`/api/cases/${caseId}/mvp/engines/override`, body),
   decideCandidate: (candidateId: number, decision: "approve" | "reject", note?: string) =>
     post<MvpCandidate>(`/api/mvp/candidates/${candidateId}/decision`, { decision, note }),
   reviews: (caseId: number) => request<MvpFilmReview[]>(`/api/cases/${caseId}/mvp/reviews`),

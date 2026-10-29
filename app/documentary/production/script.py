@@ -1421,8 +1421,8 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
     detective_design_reviews: list[dict] = []
     if detective_actions:
         # Section H wiring seam: the Visual Design Director (Section G) reviews each real
-        # dispatched graphic's actual rendered frame. Gated by the same `detective_toolkit.enabled`
-        # flag as `toolkit.invoke` (default off) - informational only, does not affect `compose()`'s
+        # dispatched graphic's actual rendered frame. Gated by `detective_toolkit.design_review`
+        # (default off) - informational only, does not affect `compose()`'s
         # shot placement; acting on a `revise`/`needs_attention` finding is Section J's job.
         from app.documentary.detective.design_review import review_resolved_actions
 

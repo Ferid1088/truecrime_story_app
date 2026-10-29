@@ -104,7 +104,6 @@ from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.detective.api import router as detective_router  # noqa: E402
 from app.documentary.monitoring import router as monitoring_router  # noqa: E402
 from app.documentary.mvp.api import router as mvp_router  # noqa: E402
-from app.documentary.mvp.engines_api import router as mvp_engines_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
 from app.lifecycle.api import router as lifecycle_router  # noqa: E402
 from app.longform.api import router as longform_router  # noqa: E402
@@ -121,7 +120,6 @@ for _router in (
     detective_router,
     monitoring_router,
     mvp_router,
-    mvp_engines_router,
     lifecycle_router,
         longform_router,
         naming_router,

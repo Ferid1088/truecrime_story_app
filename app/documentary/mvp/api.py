@@ -15,7 +15,6 @@ from app.db.models import MvpCandidate, MvpFilmReview, MvpRequirement, VisualAss
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
-from app.documentary.mvp.engines_api import needs_plan_of
 
 router = APIRouter(tags=["main-visual-planner"])
 
@@ -72,6 +71,15 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "rights_blocked": cand.rights_status == "blocked", "rights_reason": asset.rights_reason,
             "reasons": json.loads(cand.reasons_json or "[]"),
             "verifiers": json.loads(cand.verifiers_json or "[]")}
+
+
+def needs_plan_of(db: Session, case_id: int) -> VisualPlan:
+    """The case's shared needs plan: the planner's plan row that is no language's own direction."""
+    for row in db.query(VisualPlan).filter_by(case_id=case_id).order_by(VisualPlan.id.desc()).all():
+        mvp = json.loads(row.validation_json or "{}").get("mvp", {})
+        if mvp.get("reveal_graph_id") and not mvp.get("language"):
+            return row
+    raise HTTPException(404, "This case has no Main Visual Planner needs plan yet")
 
 
 @router.get("/api/cases/{case_id}/mvp/plan")

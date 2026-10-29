@@ -8,6 +8,7 @@ must check `has_detective_plan` first and fall back to the pre-existing pipeline
 from __future__ import annotations
 
 import json
+import re
 
 from sqlalchemy.orm import Session
 
@@ -300,12 +301,26 @@ def _custody_data(db: Session, action: DetectiveToolAction) -> dict | None:
     return {"item": {"name": claims[0].entity_node_key, "fact_id": claims[0].claim_key}, "stages": stages}
 
 
+def _event_date(value) -> dict | None:
+    """A stored event date (year, year-month or a full date) as the parts the clock card shows, or None."""
+    from app.documentary.graphics import dates
+
+    m = re.match(r"^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$", str(value or ""))
+    if not m:
+        return None
+    parsed = {"year": int(m.group(1))}
+    if m.group(2):
+        parsed["month"] = int(m.group(2))
+    if m.group(3):
+        parsed["day"] = int(m.group(3))
+    return parsed if dates.valid(parsed) else None
+
+
 def _investigation_clock_data(db: Session, action: DetectiveToolAction) -> dict | None:
     """2-N dated events from bound claims whose linked Fact has a real `event_date` - never an
     invented date. `claim.attribute` names the track ("crime"/"investigation", the same
     attribute-as-slot convention `_forensic_data`/`_courtroom_data`/`_sentencing_data` use below),
     since neither a claim nor a Fact otherwise distinguishes the two tracks."""
-    from app.documentary.mvp.alternatives import _event_date
     from app.db.models import Fact
 
     events = []

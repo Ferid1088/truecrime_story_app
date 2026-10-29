@@ -101,12 +101,12 @@ def film_timeline(windows: list[dict], resolved: list[dict], language: str) -> F
     return timeline
 
 
-def timeline_for(db, graph_id: int, manifest: dict, language: str) -> FilmTimeline | None:
-    """The film timeline of a graph the toolkit has planned, over this language's real beat windows; None when the
-    toolkit has made no plan for the graph."""
+def timeline_for(db, graph_id: int, manifest: dict, language: str) -> FilmTimeline:
+    """The film timeline of a graph over this language's real beat windows: the toolkit's cards where it has planned
+    the graph, otherwise every beat free."""
     from app.documentary.detective.dispatch import has_detective_plan, resolve_dispatchable_actions
     from app.documentary.mvp.direct import beat_windows
 
-    if not has_detective_plan(db, graph_id):
-        return None
-    return film_timeline(beat_windows(manifest), resolve_dispatchable_actions(db, graph_id), language)
+    windows = beat_windows(manifest)
+    return film_timeline(windows, resolve_dispatchable_actions(db, graph_id) if has_detective_plan(db, graph_id) else [],
+                         language)

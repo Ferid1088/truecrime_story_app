@@ -49,13 +49,10 @@ class UnbuildableCards(DirectorValidationFailed):
 
 
 def _without(raw: dict, keys: set[str]) -> dict:
-    """The output without the actions that cannot be built (and without scenes left with no action)."""
-    scenes = []
-    for scene in raw.get("scenes", []):
-        actions = [a for a in scene.get("actions", []) if a.get("id") not in keys]
-        if actions:
-            scenes.append({**scene, "actions": actions})
-    return {**raw, "scenes": scenes}
+    """The output without the actions that cannot be built; a scene left with no action stays, so the beats it covers
+    count as directed."""
+    return {**raw, "scenes": [{**scene, "actions": [a for a in scene.get("actions", []) if a.get("id") not in keys]}
+                              for scene in raw.get("scenes", [])]}
 
 
 def _case_id_for_graph(db: Session, graph_id: int) -> int:

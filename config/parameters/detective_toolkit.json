@@ -1,6 +1,7 @@
 {
  "detective_toolkit": {
-  "enabled": false,
+  "enabled": true,
+  "design_review": false,
   "beats_per_call": 6,
   "reading": {
    "dense_card_words": 18,

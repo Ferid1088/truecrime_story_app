@@ -3,7 +3,6 @@ frames, cards and lines), then the words in the order they are read, and at the 
 viewer. A board that continues keeps what it shows and streams only the new text."""
 import numpy as np
 import pytest
-from test_engines import SAMPLES as ENGINE_SAMPLES
 from test_graphics import KINDS as PAGE_KINDS
 from test_graphics import sample as page_sample
 
@@ -12,6 +11,57 @@ from app.documentary.graphics import shots as GS
 from app.documentary.graphics import streaming as ST
 from app.documentary.graphics.page import WORD_PAD
 from app.documentary.graphics.registry import graphic
+
+"""Sample data of the cinematic engines' graphics, for the streaming tests."""
+
+
+def it(text, basis="fact", fact="F001", **extra):
+    return {"text": text, "basis": basis, "fact_id": fact, **extra}
+
+
+ENGINE_SAMPLES = {
+    "courtroom": {"issue": it("Who fired the shots?"),
+                  "prosecution": [it("Flynn shot his wife twice in bed", "allegation")],
+                  "defense": [it("No direct evidence ties him to the killing", "allegation", "F005")],
+                  "evidence": it("About 100,000 text messages were read in court", "fact", "F012"),
+                  "finding": it("The jury found him guilty after two hours", "finding", "F080")},
+    "custody": {"item": {"name": "9mm handgun", "fact_id": "F002"},
+                "stages": [{"stage": "discovery", **it("Missing from the truck console", "fact", "F002")},
+                           {"stage": "collection", **it("Officers searched the property", "fact", "F003"),
+                            "gap_after": {"text": "No custody record is in the file", "fact_id": "F009"}},
+                           {"stage": "court", **it("Prosecutors told the jury it was never found", "allegation", "F004")}]},
+    "unknowns": {"known": [it("Flynn called 911 on Feb. 16")],
+                 "unknown": [it("Where the missing handgun is", "unknown", "Q2")],
+                 "disputed": [it("Whether the daughters attended", "disputed", "C001")],
+                 "span": {"start": it("The 911 call"), "end": None}},
+    "forensic": {"exam": "ballistics", "sample": it("Two 9mm bullets recovered", "expert", "F002"),
+                 "method": {"text": "Marks on a bullet are compared with test shots", "basis": "illustration"},
+                 "result": it("Prosecutors said the bullets were 9mm", "allegation", "F002"),
+                 "limits": it("No firearm was recovered to compare", "fact", "F005")},
+    "interrogation": {"turns": [{"role": "question", "who": "Investigator", "mode": "paraphrase",
+                                 **it("Asked where he was that night", "witness", "F003")},
+                                {"role": "answer", "who": "Flynn", "mode": "paraphrase",
+                                 **it("Said he slept on the couch", "witness", "F003")}],
+                      "compare": {"earlier": {**it("A man brought a flag", "witness", "F011"), "when": "Feb. 16",
+                                              "mode": "paraphrase"},
+                                  "later": {**it("No visitor was identified", "fact", "F011"), "when": "Later",
+                                            "mode": "paraphrase"},
+                                  "record": it("The claim stayed unsupported", "disputed", "F011")}},
+    "sentencing": {"charges": [{"charge": "Aggravated murder", "outcome": "Life, no parole", "fact_id": "F008",
+                                "basis": "finding", "text": "Life, no parole"}],
+                   "aggravating": [it("Used his faith to manipulate others", "finding", "F032")],
+                   "final": it("Life without parole", "finding", "F008")},
+    "investigation_clock": {"events": [
+        {"track": "crime", "date": {"year": 2026, "month": 2, "day": 16}, **it("Ashley Flynn is shot", "fact", "T001")},
+        {"track": "investigation", "date": {"year": 2026, "month": 2, "day": 16}, **it("911 call", "fact", "T001")},
+        {"track": "investigation", "date": {"year": 2026, "month": 4, "day": 20}, **it("Flynn is charged", "fact", "T004")}]},
+    "evidence_check": {"item": {"name": "Text messages", "fact_id": "F012"},
+                       "establishes": [it("Flynn wrote of wanting her dead", "fact", "F014")],
+                       "not_establishes": [it("They do not show who fired", "fact", "F005")],
+                       "supported_by": [it("Motive described by prosecutors", "allegation", "F001")],
+                       "assessment": it("The jury treated them as central", "finding", "F080")},
+}
+
 
 ALL = tuple(PAGE_KINDS) + tuple(ENGINE_SAMPLES)
 LANGUAGES = ("en", "fa")

@@ -84,7 +84,8 @@ def _fake_payload(graph):
 
 
 def test_toolkit_invoke_is_a_noop_when_disabled(db_session, monkeypatch):
-    assert ai_config.detective_toolkit.enabled is False, "the flag must default off"
+    assert ai_config.detective_toolkit.enabled is True, "the toolkit is on by default: it plans the film first"
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", False)
     case, blueprint, graph = _graph_with_narration(db_session)
 
     def _boom():
@@ -140,8 +141,7 @@ def test_pipeline_and_needs_never_import_the_director_module_directly():
     guarded_files = [
         repo_root / "app" / "documentary" / "mvp" / "pipeline.py",
         repo_root / "app" / "documentary" / "mvp" / "direct.py",
-        repo_root / "app" / "documentary" / "mvp" / "alternatives.py",
-        repo_root / "app" / "documentary" / "mvp" / "engines.py",
+        repo_root / "app" / "documentary" / "mvp" / "needs.py",
         repo_root / "app" / "documentary" / "mvp" / "coverage.py",
     ]
     for path in guarded_files:

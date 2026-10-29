@@ -133,21 +133,17 @@ def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) 
 
 
 def prune_unbuildable(db: Session, graph_id: int) -> int:
-    """Remove the actions whose card cannot be built, and the scenes left with no action: the toolkit hands over
-    only what it has made. Returns how many actions were removed."""
+    """Remove the actions whose card cannot be built: the toolkit hands over only what it has made. A scene left with
+    no action stays (it records that the beat was directed and has no card), so the beat is never planned again.
+    Returns how many actions were removed."""
     found = {key for key, _ in unbuildable(db, graph_id)}
     if not found:
         return 0
-    scenes = db.query(DetectiveScene).filter_by(graph_id=graph_id).all()
     removed = 0
-    for scene in scenes:
+    for scene in db.query(DetectiveScene).filter_by(graph_id=graph_id).all():
         for action in list(scene.actions):
             if action.action_key in found:
                 db.delete(action)
                 removed += 1
-        db.flush()
-        db.refresh(scene)
-        if not scene.actions:
-            db.delete(scene)
     db.commit()
     return removed

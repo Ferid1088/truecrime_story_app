@@ -276,11 +276,10 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
     sequence = reference_sequence(db, needs_plan, language)       # other languages show the English film's material
     timeline = TL.timeline_for(db, graph_id, manifest, language)     # the toolkit's fixed cards, when it planned the film
-    offers = [] if timeline else (await EV.build_offers(db, case, bp_row, needs_plan, manifest))[0]
     region = case_region(case)
     async def direct(matches=None, last: bool = False) -> dict:
         return await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
-                                    director if use_agent else None, target, None, region, offers, matches,
+                                    director if use_agent else None, target, None, region, matches,
                                     cover_last=last, timeline=timeline, sequence=sequence)
 
     report = await direct()

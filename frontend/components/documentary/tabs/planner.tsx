@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DocumentaryTabProps } from "../shared";
-import { EnginesPanel } from "../engines-panel";
 
 const REVIEW_STEPS = ["IMPLEMENTING", "PRODUCING", "VALIDATING", "AWAITING_OWNER_REVIEW"] as const;
 
@@ -82,7 +81,6 @@ export function PlannerTab({ caseId, refreshKey }: DocumentaryTabProps) {
         and the film itself. A rendered film stays a review candidate until you approve its exact file.
       </p>
       <DirectionCard caseId={caseId} refreshKey={refreshKey} />
-      <EnginesPanel caseId={caseId} refreshKey={refreshKey} />
       {(reviews.data ?? []).map((review) => (
         <FilmReviewCard key={review.id} review={review} onChange={reviews.refetch} />
       ))}

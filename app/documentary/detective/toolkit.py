@@ -9,8 +9,7 @@ imported or called directly from pipeline code (`app/documentary/mvp/*`) — onl
     result.scene_count     # DetectiveScene rows now available for this graph
     result.uncovered_beats # beats no directed scene covers yet (the planner gap-fills these)
 
-Off by default (`config/parameters/detective_toolkit.json`, `ai_config.detective_toolkit.enabled`)
-so no real case's pipeline behavior or cost changes until the owner turns it on. When enabled it
+Switched by `ai_config.detective_toolkit.enabled` (`config/parameters/detective_toolkit.json`). When enabled it
 first registers the blueprint's text as the graph's narration units (the planner owns the text),
 then maps and directs the film in chunks of `beats_per_call` consecutive beats through the exact
 Section C code path (`director.map_film` / `direct_scenes`). A chunk whose beats are all covered by

@@ -118,13 +118,13 @@ async def review_resolved_actions(db: Session, case_id: int, resolved: list[dict
                                   *, text_version: int = 1) -> list[dict]:
     """Section H's wiring seam: the real, gated call path from the production pipeline into the
     Visual Design Director for every dispatched (non-skip) detective action. Off by default via
-    the same `ai_config.detective_toolkit.enabled` flag as `toolkit.invoke` - a real case's
-    pipeline makes zero extra calls or cost unless the owner turns it on. This is informational
+    `ai_config.detective_toolkit.design_review` - a real case's pipeline makes zero extra calls or cost unless
+    the owner turns it on. This is informational
     (persisted via `track_run`/`stamp_run` inside `review`); it does not change shot placement -
     acting on a `revise`/`needs_attention` outcome is Section J's repair-routing job."""
     from app.core.ai_config import ai_config
 
-    if not ai_config.detective_toolkit.enabled:
+    if not ai_config.detective_toolkit.design_review:
         return []
     outcomes = []
     for action in resolved:

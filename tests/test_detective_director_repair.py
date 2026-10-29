@@ -11,7 +11,7 @@ import json
 import pytest
 
 from app.core.ai_config import ai_config
-from app.db.models import AgentRun, DetectiveClaim, DetectiveScene, DetectiveToolAction
+from app.db.models import AgentRun, DetectiveClaim, DetectiveScene, DetectiveToolAction, NarrationUnit
 from app.documentary.detective import director
 from app.documentary.memory import add_narration_unit
 from app.providers.generation.base import GenerationResult
@@ -263,13 +263,18 @@ def test_a_card_the_renderer_refuses_is_repaired_with_the_renderers_own_reason(d
     assert any("action a1 (fact_card) cannot be rendered" in i and "facts" in i for i in issues)
 
 
-def test_the_toolkit_removes_the_actions_it_cannot_build_and_the_scenes_left_empty(db_session, monkeypatch):
+def test_the_toolkit_removes_the_actions_it_cannot_build_but_keeps_the_scene_so_the_beat_stays_directed(db_session, monkeypatch):
     from app.documentary.detective import buildable as BD
+    from app.documentary.detective import toolkit as TK
 
     graph = _setup(db_session)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
-    _map(db_session, graph, monkeypatch, _unbound())
+    fake = SequenceGen({**_unbound(), "mode": "direct_scenes"})
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    asyncio.run(director.direct_scenes(db_session, graph.id, scene_unit_keys=["B01-1"], language="en", text_version=1))
     assert _actions(db_session, graph) == 1 and len(BD.unbuildable(db_session, graph.id)) == 1
     assert BD.prune_unbuildable(db_session, graph.id) == 1
-    assert _actions(db_session, graph) == 0 and db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 0
+    assert _actions(db_session, graph) == 0 and db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 1
+    units = db_session.query(NarrationUnit).filter_by(graph_id=graph.id).all()
+    assert TK._directed_beats(db_session, graph.id, units) == {"B01"}, "the beat is not planned (and paid for) again"
     assert db_session.query(DetectiveClaim).filter_by(graph_id=graph.id).count() == 1, "the claims stay"

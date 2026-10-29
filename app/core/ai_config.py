@@ -134,18 +134,11 @@ REQUIRED_ROLES = {
     # that a found picture shows no identifiable person and fits the words.
     "mvp_general_planner",
     "mvp_general_checker",
-    # Cinematic engines: whether a beat is clearer with one of the eight engines, and its structured data.
-    "mvp_engine_planner",
     # Other people's logos, watermarks and caption strips in a picture or footage: where they are (vision).
     "mvp_overlay_scanner",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
-    # The alternative graphics: a disputed point structured into two sourced sides, stored facts
-    # shortened faithfully, and the earliest beat a real newspaper headline may be shown.
-    "mvp_conflict_structurer",
-    "mvp_copywriter",
-    "mvp_headline_placer",
     # A second, independent model looks at the same picture and the same inputs when the first
     # left a place, object, document or map in needs_review.
     # Independent of the planner: may this editorial-review picture be used at all (right
@@ -2411,13 +2404,13 @@ class DetectiveAudioOnlyConfig(BaseModel):
 
 
 class DetectiveToolkitConfig(BaseModel):
-    """The detective_toolkit call boundary (architecture rule, 2026-10-28): off by default so no
-    real case's pipeline cost or behavior changes until the owner turns it on. When enabled,
-    `app.documentary.mvp.pipeline.stage_needs` calls `app.documentary.detective.toolkit.invoke`
-    once per blueprint/graph instead of leaving the detective plan to be pre-populated out of
-    band."""
+    """The Detective Toolkit plans the whole film's alternatives and hands the Main Visual Planner a fixed timeline
+    (`app.documentary.detective.toolkit.stage_toolkit`, run before the planner's needs stage). `enabled` False makes the
+    toolkit only build the reveal graph: the planner then fills every beat with pictures."""
 
-    enabled: bool = False
+    enabled: bool = True
+    # the Visual Design Director reviews every dispatched card's rendered frame in production (a paid call each)
+    design_review: bool = False
     # how many consecutive beats one map/direct call owns: a whole film in one call overruns the model's
     # output (a real 51-beat film), and each chunk's state carries into the next through the event log
     beats_per_call: int = Field(default=6, ge=1, le=30)
@@ -3109,7 +3102,6 @@ class GraphicsConfig(BaseModel):
     key_facts: dict
     quote: dict
     headline: dict
-    planner: dict
     engines: dict
     labels: dict[str, dict[str, str]]
 

@@ -278,7 +278,7 @@ def get_narration_span(
 ) -> list[dict]:
     """Return the *complete* text of the matching narration units, in story order, with no
     length truncation and no cap on how many units are returned — the defect this replaces is
-    `app/documentary/mvp/engines.py:beat_view`, which hard-truncates narration to 900 characters
+    the removed engine planner, which hard-truncates narration to 900 characters
     and facts to ~28 entries, silently dropping a decisive clause past those limits.
     """
     if not beat_id and not unit_keys:

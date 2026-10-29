@@ -146,21 +146,3 @@ def test_obstacle_6_detective_board_override_wins_over_dated_event_when_present(
                               card_overrides={"B01": {"kind": "contradiction", "source_fact": "C1"}})
     assert (overridden[0]["kind"], overridden[0]["source_fact"]) == ("contradiction", "C1")
 
-
-def test_obstacle_3_a_detective_unknown_with_no_fact_row_passes_check_item(db_session):
-    """engines.py:check_item rejects basis="unknown" unless the cited ref is category="question"
-    or disputed. A DetectiveQuestion has no backing Fact/Q row at all - this proves it still
-    passes, because `legacy_evidence_additions` re-shapes it into exactly that category."""
-    from app.documentary.mvp.engines import Fact as RefFact
-    from app.documentary.mvp.engines import check_item
-
-    graph, _, _ = _graph(db_session, beats=[{"id": "B01"}])
-    MEM.ensure_entity(db_session, graph.id, "gun-1", "the 9mm", "object", "B01", 0)
-    MEM.add_question(db_session, graph.id, "q-location", ["gun-1"], "Where is the gun?",
-                     "not_yet_explained")
-    facts, questions = D.legacy_evidence_additions(db_session, graph.id)
-    assert questions == [{"id": "q-location", "question": "Where is the gun?"}]
-    refs = {q["id"]: RefFact(q["id"], q["question"], True, "question") for q in questions}
-    item = {"basis": "unknown", "fact_id": "q-location", "text": "the gun's location"}
-    assert check_item(item, refs, "path") is None   # no "does not record an open question" rejection
-
