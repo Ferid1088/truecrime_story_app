@@ -328,7 +328,7 @@ def describe_cut(script: dict, assets: dict[str, VisualAsset], words: list[dict]
                if m["start"] < s["end"] and m["start"] + (m.get("duration") or 0) > s["start"]]
         lines.append(
             f"[{_mmss(s['start'])}-{_mmss(s['end'])}] shot {s['index']} {s.get('beat_id')} "
-            f"{s['command']} {s.get('transition_in')} motion={s.get('motion')} "
+            f"{s.get('command') or s.get('kind')} {s.get('transition_in')} motion={s.get('motion')} "
             f"picture=({role}) {str(what)[:140]}"
             + (f" | text {'; '.join(texts)}" if texts else "")
             + (f" | music {', '.join(mus)}" if mus else "")

@@ -363,3 +363,10 @@ def test_a_card_of_the_toolkit_is_never_pulled_before_its_first_word():
     shots = [{"kind": "graphic", "start": 22.85, "end": 30.0}]
     _close_lead_out(shots, 22.45, 22.85)
     assert shots[0]["start"] == 22.85
+
+
+def test_the_critic_describes_a_shot_that_has_no_command_by_its_kind():
+    shots = [{**_shot(0, 10, "B01"), "kind": "graphic", "index": 0}]
+    shots[0].pop("command", None)
+    script = {"duration": 10.0, "shots": shots, "candidates": {}, "overlays": []}
+    assert " graphic " in describe_cut(script, {}, [])

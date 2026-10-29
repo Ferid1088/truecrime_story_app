@@ -632,6 +632,7 @@ class DocumentaryPipeline(StageRunner):
                 except JobCancelled:
                     raise
                 except Exception as e:
+                    log.exception("documentary job %s: the %s film failed", self.job.id, lang)
                     self.lang_errors[lang] = f"{type(e).__name__}: {e}"[:400]
                     self._skip_language(lang, str(e))
 
