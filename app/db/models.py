@@ -1247,11 +1247,6 @@ class DetectiveToolAction(Base):
     __tablename__ = "detective_tool_actions"
     __table_args__ = (
         UniqueConstraint("scene_id", "action_key", name="uq_detective_action_key"),
-        CheckConstraint(
-            "planner_decision IS NULL OR planner_decision IN "
-            "('accepted', 'combined', 'deferred', 'rejected')",
-            name="ck_detective_action_planner_decision",
-        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -1273,8 +1268,6 @@ class DetectiveToolAction(Base):
     # requirement; 'combined' = merged with another source's requirement at the same beat;
     # 'deferred' = no resolvable narration anchor yet, left for a later pass; 'rejected' = resolved
     # but dropped by requirement validation.
-    planner_decision: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    planner_decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
     scene = relationship("DetectiveScene", back_populates="actions")

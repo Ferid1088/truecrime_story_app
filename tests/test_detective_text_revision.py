@@ -132,8 +132,7 @@ def _scene(db_session, graph, claim_key, *, binding=None, covered=("B01-1",), qu
     bindings = binding if binding is not None else [claim_key] + ([question] if question else [])
     db_session.add(DetectiveToolAction(
         scene_id=scene.id, action_key="act1", order_index=0, tool_id="fact_card", purpose="p",
-        payload_json="{}", content_bindings_json=json.dumps(bindings), continuity_refs_json="[]",
-        planner_decision="accepted"))
+        payload_json="{}", content_bindings_json=json.dumps(bindings), continuity_refs_json="[]"))
     db_session.flush()
 
 

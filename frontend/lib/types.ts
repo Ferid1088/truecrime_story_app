@@ -2459,8 +2459,6 @@ export interface DetectiveAction {
   purpose: string;
   content_bindings: string[];
   reuse_reason: string | null;
-  planner_decision: "accepted" | "combined" | "deferred" | "rejected" | null;
-  planner_decision_reason: string | null;
 }
 
 export interface DetectiveScene {

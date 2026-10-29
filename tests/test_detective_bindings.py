@@ -56,8 +56,7 @@ def _action(db_session, bindings):
     db_session.flush()
     action = DetectiveToolAction(
         scene_id=scene.id, action_key="act1", order_index=0, tool_id="fact_card", purpose="p",
-        payload_json="{}", content_bindings_json=json.dumps(bindings), continuity_refs_json="[]",
-        planner_decision="accepted")
+        payload_json="{}", content_bindings_json=json.dumps(bindings), continuity_refs_json="[]")
     db_session.add(action)
     db_session.flush()
     return action

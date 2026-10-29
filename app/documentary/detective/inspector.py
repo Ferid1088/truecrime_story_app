@@ -33,8 +33,6 @@ def action_dict(action: DetectiveToolAction) -> dict:
         "action_key": action.action_key, "tool_id": action.tool_id, "purpose": action.purpose,
         "content_bindings": json.loads(action.content_bindings_json or "[]"),
         "reuse_reason": action.reuse_reason,
-        "planner_decision": action.planner_decision,
-        "planner_decision_reason": action.planner_decision_reason,
     }
 
 

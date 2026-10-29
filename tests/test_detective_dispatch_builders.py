@@ -348,14 +348,6 @@ def test_map_place_comes_only_from_a_stored_place_entity(db_session):
     assert D._map_place_of(db_session, person) is None      # never a map of a person or invented geography
 
 
-def test_map_action_reaches_needs_as_the_beats_map_place_and_is_not_dispatched_as_a_graphic(db_session):
-    graph, _, action = _map_fixture(db_session)
-    raw = D.detective_raw_needs(db_session, graph)
-    assert [b["map_place"] for b in raw["beats"]] == ["Cunningham Court"]
-    skipped = D.resolve_dispatchable_actions(db_session, graph.id)[0]
-    assert skipped["skip"] == "routed_via_needs_map_place" and skipped["map_place"] == "Cunningham Court"
-
-
 def test_map_renders_through_the_real_direction_and_map_panel_path_T01(db_session):
     import numpy as np
 
@@ -366,7 +358,7 @@ def test_map_renders_through_the_real_direction_and_map_panel_path_T01(db_sessio
 
     graph, case, action = _map_fixture(db_session)
     case.location = "Tipp City, Ohio, United States"
-    place = D.detective_raw_needs(db_session, graph)["beats"][0]["map_place"]
+    place = D._map_place_of(db_session, action)
     # the real direction step: a bare stretch whose words name the place becomes a SHOW_MAP shot
     window = 30.0
     shots = [{"gap": True, "share": 1.0, "said": "The call came from Cunningham Court in Tipp City."}]
@@ -394,22 +386,3 @@ def _beat_with_a_plentiful_photo(db_session, tool_id):
     photo = {"kind": "photo", "beat_id": "B01", "start": 0.0, "end": 20.0, "asset_id": "A1"}
     return graph, [photo], [{"beat_id": "B01", "start": 0.0, "end": 20.0}]
 
-
-def test_with_a_photo_available_the_narrated_aim_decides_whether_a_graphic_or_the_photo_is_shown(db_session):
-    """D2's competitive choice: the same beat with a plentiful photo ends up with a graphic when the
-    detective's aim is a consequential fact, and keeps the photo untouched when its aim is the
-    person/object itself - and the two aims reach the old requirement vocabulary differently."""
-    # aim: emphasize a fact -> the fact card gets its own carved moment even though a photo covers the beat
-    graph, shots, spans = _beat_with_a_plentiful_photo(db_session, "fact_card")
-    D.place_detective_graphics(shots, spans, "en", D.resolve_dispatchable_actions(db_session, graph.id))
-    assert [s["kind"] for s in shots].count("graphic") == 1 and any(s["kind"] == "photo" for s in shots)
-    fact_need = D.detective_raw_needs(db_session, graph)["beats"][0]["requirements"][0]
-    assert fact_need["function"] == "evidence" and fact_need["alternatives"] == []
-
-    # aim: show the real object -> a photo action dispatches no graphic and leaves the photo as it was
-    graph, shots, spans = _beat_with_a_plentiful_photo(db_session, "photo")
-    before = [dict(s) for s in shots]
-    records = D.place_detective_graphics(shots, spans, "en", D.resolve_dispatchable_actions(db_session, graph.id))
-    assert shots == before and records[0]["skip"] == "not_dispatched_in_this_pass"
-    photo_need = D.detective_raw_needs(db_session, graph)["beats"][0]["requirements"][0]
-    assert photo_need["function"] == "human_connection" and photo_need["alternatives"] == ["photo"]

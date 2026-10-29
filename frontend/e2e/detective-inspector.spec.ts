@@ -23,7 +23,6 @@ const PLAN = {
         {
           action_key: "s1-a1", tool_id: "fact_card", purpose: "State the gun's origin",
           content_bindings: ["c-origin"], reuse_reason: null,
-          planner_decision: "accepted", planner_decision_reason: null,
         },
       ],
     },
@@ -45,7 +44,6 @@ const PLAN = {
         {
           action_key: "s2-a1", tool_id: "unknowns", purpose: "Show the open location question",
           content_bindings: ["q-location"], reuse_reason: null,
-          planner_decision: "rejected", planner_decision_reason: "duplicate of s1's claim",
         },
       ],
     },
@@ -53,7 +51,7 @@ const PLAN = {
   design_reviews: [],
 };
 
-test("Detective tab shows scenes, their tool choices, planner decisions, and stale state", async ({ page }) => {
+test("Detective tab shows scenes, their tool choices, and stale state", async ({ page }) => {
   await page.route("**/api/cases/1/detective/plan", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(PLAN) }));
 
@@ -65,11 +63,8 @@ test("Detective tab shows scenes, their tool choices, planner decisions, and sta
   const sceneOne = page.getByTestId("detective-scene-s1");
   await expect(sceneOne).toContainText("Establish the gun's origin");
   await expect(sceneOne).toContainText("fact_card");
-  await expect(sceneOne).toContainText("accepted");
   await expect(sceneOne.getByTestId("scene-stale-badge")).toHaveCount(0);
 
   const sceneTwo = page.getByTestId("detective-scene-s2");
   await expect(sceneTwo.getByTestId("scene-stale-badge")).toContainText("owner correction");
-  await expect(sceneTwo).toContainText("rejected");
-  await expect(sceneTwo).toContainText("duplicate of s1's claim");
 });

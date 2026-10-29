@@ -47,7 +47,7 @@ def _scene_with_action(db, graph, scene_key, claim_key, order=1):
     db.commit()
     action = DetectiveToolAction(
         scene_id=scene.id, action_key=f"{scene_key}-a1", order_index=0, tool_id="fact_card",
-        purpose="x", content_bindings_json=json.dumps([claim_key]), planner_decision="accepted",
+        purpose="x", content_bindings_json=json.dumps([claim_key]),
     )
     db.add(action)
     db.commit()
@@ -60,7 +60,7 @@ def test_plan_summary_lists_scenes_with_decisions_and_bindings(db_session):
     body = plan_summary(db_session, graph)
     assert body["scene_count"] == 1 and body["stale_count"] == 0
     action = body["scenes"][0]["actions"][0]
-    assert action["content_bindings"] == ["c-location"] and action["planner_decision"] == "accepted"
+    assert action["content_bindings"] == ["c-location"]
 
 
 def test_correcting_a_claim_invalidates_only_the_bound_scene(db_session):

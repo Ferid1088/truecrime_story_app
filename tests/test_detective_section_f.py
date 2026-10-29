@@ -61,8 +61,7 @@ def _scene_with_fact_card(db_session, graph, unit_text, claim_text, anchor_start
     action = DetectiveToolAction(
         scene_id=scene.id, action_key="action-B01", order_index=0, tool_id="fact_card",
         purpose="show the open question", payload_json="{}",
-        content_bindings_json=json.dumps([{"claim_key": "claim-1"}]), continuity_refs_json="[]",
-        planner_decision="accepted")
+        content_bindings_json=json.dumps([{"claim_key": "claim-1"}]), continuity_refs_json="[]")
     db_session.add(action)
     db_session.flush()
     return anchor
@@ -150,7 +149,7 @@ def test_an_action_with_no_resolvable_anchor_keeps_the_old_beat_start_unchanged(
     action = DetectiveToolAction(
         scene_id=scene.id, action_key="action-B01", order_index=0, tool_id="fact_card",
         purpose="p", payload_json="{}", content_bindings_json=json.dumps([{"claim_key": "claim-1"}]),
-        continuity_refs_json="[]", planner_decision="accepted")
+        continuity_refs_json="[]")
     db_session.add(action)
     db_session.flush()
 

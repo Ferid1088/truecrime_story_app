@@ -50,30 +50,6 @@ def actions_for_graph(db: Session, graph_id: int) -> list[DetectiveToolAction]:
     return out
 
 
-def record_planner_decisions(db: Session, graph_id: int, covered_beats: set[str]) -> int:
-    """The Main Visual Planner's recorded decision on every tool action of this graph
-    (architecture rule, 2026-10-28; checklist row D5): 'deferred' when the action has no
-    resolvable narration anchor yet, 'accepted' when its beat made it into the final merged
-    requirements (`covered_beats`, computed by `app.documentary.mvp.needs` after validation),
-    'rejected' when its beat resolved but validation dropped it. Returns the number of actions
-    updated. Idempotent: safe to call again after a later pass changes `covered_beats`."""
-    updated = 0
-    for action in actions_for_graph(db, graph_id):
-        beat_id = _beat_id_of(db, action)
-        if beat_id is None:
-            decision, reason = "deferred", "no resolvable narration anchor for this action yet"
-        elif beat_id in covered_beats:
-            decision, reason = "accepted", f"beat {beat_id}'s requirement came from this action"
-        else:
-            decision, reason = "rejected", f"beat {beat_id} resolved but was dropped by requirement validation"
-        if action.planner_decision != decision or action.planner_decision_reason != reason:
-            action.planner_decision, action.planner_decision_reason = decision, reason
-            updated += 1
-    if updated:
-        db.flush()
-    return updated
-
-
 def _covered_unit(db: Session, action: DetectiveToolAction):
     """The narration unit a tool action targets, from its scene's covered narration-unit keys.
 
@@ -572,31 +548,6 @@ def board_card_overrides(db: Session, graph_id: int) -> dict[str, dict]:
     return overrides
 
 
-# tool_id -> (needs.py FUNCTIONS value, needs.py ALTERNATIVES values) - the closest legacy
-# "what does the viewer need" vocabulary for each detective tool, used only to translate an
-# already-made detective choice into the existing MvpRequirement contract (Section D hand-off
-# seam). See docs/detective_toolkit_capability_matrix.md for the seam this replaces.
-_FUNCTION_BY_TOOL = {
-    "map": ("orientation", ["map"]), "detective_board": ("investigation", ["board"]),
-    "recap": ("orientation", ["board"]), "unknowns": ("investigation", []),
-    "conflict": ("investigation", []), "conflict_board": ("investigation", ["board"]),
-    "timeline": ("time", ["timeline"]), "investigation_clock": ("time", ["timeline"]),
-    "fact_card": ("evidence", []), "key_facts": ("evidence", []),
-    "document": ("evidence", ["document"]), "quote": ("evidence", ["quote_card"]),
-    "headline": ("orientation", []), "floor_plan": ("orientation", []),
-    "evidence_check": ("evidence", []), "custody": ("evidence", []),
-    "forensic": ("evidence", []), "interrogation": ("investigation", []),
-    "courtroom": ("investigation", []), "sentencing": ("investigation", []),
-    "photo": ("human_connection", ["photo"]),
-    # No "host" entry: Host is owned by the Main Visual Planner's own Host system, never a
-    # detective-dispatchable tool (see the comment in tool_catalog.py). A detective action can no
-    # longer carry tool_id="host" - it is rejected upstream, in schema.py, as an unknown tool_id.
-}
-_ENTITY_TYPE_BY_CATEGORY = {"person": "person", "place": "place", "building": "building",
-                           "object": "object", "vehicle": "vehicle", "event": "event",
-                           "document": "document", "organization": "organization"}
-
-
 def _map_place_of(db: Session, action: DetectiveToolAction) -> str | None:
     """The place a `map` action points at: an explicit `payload.place`, else the label of the first
     place/building entity among the bound claims' entities and the scene's active entities. A map is
@@ -617,46 +568,6 @@ def _map_place_of(db: Session, action: DetectiveToolAction) -> str | None:
     return None
 
 
-def detective_raw_needs(db: Session, graph) -> dict:
-    """The Detective Director's scenes/actions re-shaped as the SAME raw payload
-    `app.documentary.mvp.needs.validate_needs` already validates agent output against - no new
-    validation path, no new trust boundary. `graph` is the loaded `RevealGraph` (its `.nodes`
-    give every entity; Section B's `RevealNode` already IS the Entity contract)."""
-    entities_raw = [{"key": n.node_key, "name": n.label,
-                     "type": _ENTITY_TYPE_BY_CATEGORY.get(n.category, "object")}
-                    for n in graph.nodes]
-    node_keys = {e["key"] for e in entities_raw}
-    fallback_entity = entities_raw[0]["key"] if entities_raw else None
-    beats: dict[str, list[dict]] = {}
-    map_places: dict[str, str] = {}
-    for scene in (db.query(DetectiveScene).filter(DetectiveScene.graph_id == graph.id)
-                  .order_by(DetectiveScene.scene_order).all()):
-        active = [k for k in json.loads(scene.active_entity_keys_json or "[]") if k in node_keys]
-        for action in scene.actions:
-            beat_id = _beat_id_of(db, action)
-            if beat_id is None:
-                continue
-            claimed = [c.entity_node_key for c in _bound_claims(db, action) if c.entity_node_key in node_keys]
-            entity = (claimed or active or [fallback_entity])[0]
-            if entity is None:
-                continue
-            function, alternatives = _FUNCTION_BY_TOOL.get(action.tool_id, ("investigation", []))
-            if action.tool_id == "map":
-                # A map is not a Graphic: it reaches the film as the beat's `map_place`, which
-                # `direct.add_map_cards` already turns into a SHOW_MAP shot (only where the narration
-                # names the place and the stretch has room) and compose resolves into the zoom.
-                place = _map_place_of(db, action)
-                if place:
-                    map_places.setdefault(beat_id, place)
-            beats.setdefault(beat_id, []).append({
-                "entity": entity, "function": function, "role_needed": "context",
-                "priority": "high", "alternatives": alternatives, "need": action.purpose[:200]})
-    return {"entities": entities_raw,
-           "beats": [{"beat_id": bid, "requirements": reqs[:4],
-                      **({"map_place": map_places[bid]} if bid in map_places else {})}
-                     for bid, reqs in beats.items()]}
-
-
 def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
     """DB-dependent half: for each tool action this pass can dispatch, resolve its beat and real
     renderer data. Plain-dict output (no DB handle) so the pure `compose()` can place it without
@@ -665,14 +576,8 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
     for action in actions_for_graph(db, graph_id):
         build = BUILDERS.get(action.tool_id)
         record = {"action_key": action.action_key, "tool_id": action.tool_id, "purpose": action.purpose,
-                  "reuse_reason": action.reuse_reason, "planner_decision": action.planner_decision}
-        if action.planner_decision not in ("accepted", "combined"):
-            # H5: the Main Visual Planner's recorded decision is authoritative. A 'rejected' or
-            # 'deferred' action, or one `needs.py` has not processed yet (None), must never reach
-            # a real shot just because a renderer happens to exist for its tool_id - that would be
-            # exactly the unrecorded downstream bypass this checklist row exists to prevent.
-            record["skip"] = "not_accepted_by_planner"
-        elif action.tool_id == "map":
+                  "reuse_reason": action.reuse_reason}
+        if action.tool_id == "map":
             record["skip"] = "routed_via_needs_map_place"
             record["map_place"] = _map_place_of(db, action)
         elif build is None:

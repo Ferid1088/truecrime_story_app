@@ -7,13 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DocumentaryTabProps } from "../shared";
 
-const DECISION_VARIANT: Record<string, "success" | "warning" | "danger" | "outline"> = {
-  accepted: "success",
-  combined: "success",
-  deferred: "warning",
-  rejected: "danger",
-};
-
 function SceneCard({ scene }: { scene: DetectiveScene }) {
   return (
     <Card data-testid={`detective-scene-${scene.scene_key}`}>
@@ -44,8 +37,7 @@ function SceneCard({ scene }: { scene: DetectiveScene }) {
                 <th className="py-1 pr-3">Tool</th>
                 <th className="pr-3">Purpose</th>
                 <th className="pr-3">Content bindings</th>
-                <th className="pr-3">Reuse reason</th>
-                <th>Planner decision</th>
+                <th>Reuse reason</th>
               </tr>
             </thead>
             <tbody>
@@ -54,15 +46,7 @@ function SceneCard({ scene }: { scene: DetectiveScene }) {
                   <td className="py-1 pr-3 font-mono">{action.tool_id}</td>
                   <td className="pr-3">{action.purpose}</td>
                   <td className="pr-3 font-mono">{action.content_bindings.join(", ") || "–"}</td>
-                  <td className="pr-3">{action.reuse_reason ?? "–"}</td>
-                  <td>
-                    <Badge variant={DECISION_VARIANT[action.planner_decision ?? ""] ?? "outline"}>
-                      {action.planner_decision ?? "not yet decided"}
-                    </Badge>
-                    {action.planner_decision_reason && (
-                      <span className="ml-1 text-muted-foreground">{action.planner_decision_reason}</span>
-                    )}
-                  </td>
+                  <td>{action.reuse_reason ?? "–"}</td>
                 </tr>
               ))}
             </tbody>

@@ -23,7 +23,6 @@ from app.db.models import (
     StoryVersion,
 )
 from app.documentary.detective import director, toolkit
-from app.documentary.detective.dispatch import record_planner_decisions
 from app.documentary.memory import add_narration_unit
 from app.providers.generation.base import GenerationResult
 
@@ -168,23 +167,6 @@ def _scene_with_action(db_session, graph, action_key, covered_unit_keys):
     db_session.add(action)
     db_session.commit()
     return action
-
-
-def test_record_planner_decisions_covers_deferred_accepted_and_rejected(db_session):
-    case, blueprint, graph = _graph_with_narration(db_session, beats=("B01", "B02"))
-    deferred_action = _scene_with_action(db_session, graph, "a-deferred", [])
-    accepted_action = _scene_with_action(db_session, graph, "a-accepted", ["B01-1"])
-    rejected_action = _scene_with_action(db_session, graph, "a-rejected", ["B02-1"])
-
-    record_planner_decisions(db_session, graph.id, covered_beats={"B01"})
-
-    db_session.refresh(deferred_action)
-    db_session.refresh(accepted_action)
-    db_session.refresh(rejected_action)
-    assert deferred_action.planner_decision == "deferred"
-    assert accepted_action.planner_decision == "accepted"
-    assert rejected_action.planner_decision == "rejected"
-    assert all(a.planner_decision_reason for a in (deferred_action, accepted_action, rejected_action))
 
 
 def test_the_toolkit_makes_the_reveal_graph_and_the_planner_only_reads_it(db_session, monkeypatch):

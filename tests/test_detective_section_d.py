@@ -40,8 +40,7 @@ def _graph(db_session, beats=None):
 
 
 def _scene_with_action(db_session, graph, beat_id, order, tool_id, purpose="test purpose",
-                       payload=None, reuse_reason=None, scene_key=None, active_entity=None,
-                       planner_decision="accepted"):
+                       payload=None, reuse_reason=None, scene_key=None, active_entity=None):
     unit = MEM.add_narration_unit(db_session, graph.id, unit_key=f"{beat_id}-1", beat_id=beat_id,
                                   story_order=order, text="narration text", language="en")
     scene = DetectiveScene(
@@ -55,7 +54,7 @@ def _scene_with_action(db_session, graph, beat_id, order, tool_id, purpose="test
     action = DetectiveToolAction(
         scene_id=scene.id, action_key=f"action-{beat_id}", order_index=0, tool_id=tool_id,
         purpose=purpose, payload_json=json.dumps(payload or {}), content_bindings_json="[]",
-        continuity_refs_json="[]", reuse_reason=reuse_reason, planner_decision=planner_decision)
+        continuity_refs_json="[]", reuse_reason=reuse_reason)
     db_session.add(action)
     db_session.flush()
     return scene, action
@@ -165,71 +164,3 @@ def test_obstacle_3_a_detective_unknown_with_no_fact_row_passes_check_item(db_se
     item = {"basis": "unknown", "fact_id": "q-location", "text": "the gun's location"}
     assert check_item(item, refs, "path") is None   # no "does not record an open question" rejection
 
-
-def test_needs_py_seam_detective_requirements_are_authoritative_when_they_cover_a_beat(db_session):
-    """Section A's obstacle: `plan_needs` used to independently invent every beat's requirement.
-    This proves a detective-covered beat's requirement comes from the detective's own tool
-    choice, not a fresh agent guess, while an uncovered beat still falls back to the agent
-    (exercised indirectly: see the full ungated regression suite for the agent path unchanged)."""
-    from app.documentary.detective.dispatch import detective_raw_needs
-    from app.documentary.mvp.needs import validate_needs
-
-    graph, blueprint_row, _ = _graph(db_session, beats=[{"id": "B01"}])
-    MEM.ensure_entity(db_session, graph.id, "gun-1", "the 9mm", "object", "B01", 0)
-    _scene_with_action(db_session, graph, "B01", 0, "timeline", purpose="show when the gun went missing",
-                      active_entity="gun-1")
-    raw = detective_raw_needs(db_session, graph)
-    assert raw["entities"] == [{"key": "gun-1", "name": "the 9mm", "type": "object"}]
-    beat = raw["beats"][0]
-    assert beat["beat_id"] == "B01" and beat["requirements"][0]["function"] == "time"
-    view = {"nodes": [{"key": "gun-1", "label": "the 9mm", "category": "object",
-                       "first_beat": "B01", "first_order": 0}], "edges": [], "beat_order": {"B01": 0}}
-    requirements, report = validate_needs(raw, json.loads(blueprint_row.blueprint_json), {"facts": []}, [], view)
-    assert requirements["beats"][0]["requirements"][0]["entity"] == "gun_1"
-    assert report["status"] in ("valid", "needs_review")
-
-
-def test_a_requirement_names_the_entity_of_its_bound_claim_not_an_investigation_thread(db_session):
-    """Real case 15: a scene's active keys are thread keys (thd_*), which are not graph nodes, so every toolkit
-    requirement used to be dropped as an unknown entity and the toolkit contributed nothing to the plan."""
-    from app.documentary.detective.dispatch import detective_raw_needs
-    from app.documentary.mvp.needs import validate_needs
-
-    graph, blueprint_row, _ = _graph(db_session, beats=[{"id": "B01"}])
-    MEM.ensure_entity(db_session, graph.id, "gun-1", "the 9mm", "object", "B01", 0)
-    MEM.add_claim(db_session, graph.id, "c1", "gun-1", "location", "The gun was missing.", "established_in_text")
-    _, action = _scene_with_action(db_session, graph, "B01", 0, "timeline", active_entity="thd_missing_gun")
-    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
-    db_session.flush()
-    raw = detective_raw_needs(db_session, graph)
-    assert raw["beats"][0]["requirements"][0]["entity"] == "gun-1"
-    view = {"nodes": [{"key": "gun-1", "label": "the 9mm", "category": "object",
-                       "first_beat": "B01", "first_order": 0}], "edges": [], "beat_order": {"B01": 0}}
-    requirements, report = validate_needs(raw, json.loads(blueprint_row.blueprint_json), {"facts": []}, [], view)
-    assert report["errors"] == [] and requirements["beats"][0]["requirements"]
-
-
-def test_a_merged_needs_report_carries_no_error_while_the_plan_has_requirements(db_session, monkeypatch):
-    import asyncio
-
-    from app.documentary.mvp import needs as N
-
-    graph, blueprint_row, case = _graph(db_session, beats=[{"id": "B01"}, {"id": "B02"}])
-    MEM.ensure_entity(db_session, graph.id, "gun-1", "the 9mm", "object", "B01", 0)
-    MEM.add_claim(db_session, graph.id, "c1", "gun-1", "location", "The gun was missing.", "established_in_text")
-    _, action = _scene_with_action(db_session, graph, "B01", 0, "timeline")
-    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
-    db_session.flush()
-
-    async def agent_gave_nothing(*args, **kwargs):
-        return {"entities": [], "beats": []}, SimpleNamespace(model="m")
-
-    monkeypatch.setattr(N, "run_agent", agent_gave_nothing)
-    monkeypatch.setattr(N, "get_generation_provider", lambda: None)
-    monkeypatch.setattr(N, "stamp_run", lambda *a, **k: None)
-    blueprint = json.loads(blueprint_row.blueprint_json)
-    pack, sources = N.build_pack(db_session, case.id)
-    order = {b["id"]: i for i, b in enumerate(blueprint["beats"])}
-    _, report, _ = asyncio.run(N._needs_with_detective_handoff(
-        db_session, case, blueprint_row, graph, blueprint, pack, sources, N.graph_view(graph, order), order, {}))
-    assert report["status"] != "invalid" and report["errors"] == []
