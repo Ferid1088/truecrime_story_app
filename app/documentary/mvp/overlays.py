@@ -29,6 +29,8 @@ log = logging.getLogger(__name__)
 
 FRAME = 16 / 9
 CLEAN, CROPPED, UNUSABLE = "clean", "cropped", "unusable"
+OTHER = "other"
+REJECTED_FOR_MARK = "another channel's mark cannot be cut away"
 
 
 @dataclass(frozen=True)
@@ -153,12 +155,22 @@ def best_crop(marks: list[Mark], width: float, height: float) -> tuple[float, fl
 
 
 def judge(marks: list[Mark], width: float, height: float) -> Scan:
-    """clean when nothing is laid over the picture, cropped when a window free of every mark keeps enough of it,
-    unusable otherwise (what is left would be too little of the picture, or not its subject, to mean anything)."""
+    """clean when no logo, watermark or text is laid over the picture, cropped when a window free of every mark keeps
+    enough of it, unusable otherwise (what is left would be too little of the picture, or not its subject, to mean
+    anything). A mark of kind `other` is soft: it is cut away when a window allows, but a picture is never given up
+    for it, because only a logo, a watermark or text must not be shown."""
     if not marks:
         return Scan(CLEAN)
     crop = best_crop(marks, width, height)
-    return Scan(CROPPED, marks, crop) if crop else Scan(UNUSABLE, marks)
+    if crop:
+        return Scan(CROPPED, marks, crop)
+    hard = [m for m in marks if m.kind != OTHER]
+    if len(hard) == len(marks):
+        return Scan(UNUSABLE, marks)
+    if not hard:
+        return Scan(CLEAN)
+    crop = best_crop(hard, width, height)
+    return Scan(CROPPED, hard, crop) if crop else Scan(UNUSABLE, hard)
 
 
 def jpeg_of(path, width: int) -> bytes:
@@ -283,6 +295,8 @@ class OverlayScanner:
             if scan.status == UNUSABLE:
                 reject(self.db, asset, scan)
                 out["rejected_codes"].append(asset.asset_code)
+            else:
+                out["restored"] = out.get("restored", 0) + restore(self.db, asset)
         self.errors.sort()                 # scans finish in any order; the report is the same every time
         VF.sync_asset_status(self.db, self.case.id)
         return out
@@ -296,7 +310,26 @@ def reject(db: Session, asset: VisualAsset, scan: Scan) -> None:
                                               MvpCandidate.final_status == "approved"):
         cand.scene_status = "rejected"
         cand.reasons_json = json.dumps(
-            json.loads(cand.reasons_json or "[]") + [f"another channel's mark cannot be cut away ({what})"],
+            json.loads(cand.reasons_json or "[]") + [f"{REJECTED_FOR_MARK} ({what})"],
             ensure_ascii=False)
         cand.final_status = VF.final_status(cand)
     db.commit()
+
+
+def restore(db: Session, asset: VisualAsset) -> int:
+    """The candidates of an asset that an earlier scan gave up because its marks could not be cut away, now that the
+    asset is clean or can be cut free (an element that is no logo or text no longer counts): their scene check is
+    approved again and the reason is removed. Returns how many candidates came back."""
+    back = 0
+    for cand in db.query(MvpCandidate).filter(MvpCandidate.visual_asset_id == asset.id,
+                                              MvpCandidate.scene_status == "rejected"):
+        reasons = json.loads(cand.reasons_json or "[]")
+        kept = [r for r in reasons if not r.startswith(REJECTED_FOR_MARK)]
+        if len(kept) == len(reasons):
+            continue
+        cand.scene_status, cand.reasons_json = "approved", json.dumps(kept, ensure_ascii=False)
+        cand.final_status = VF.final_status(cand)
+        back += 1
+    if back:
+        db.commit()
+    return back

@@ -206,9 +206,60 @@ def test_a_corner_logo_in_a_wide_video_is_cut_to_a_full_screen_window():
     assert abs((w * 1920) / (h * 1080) - 16 / 9) < 0.01 and w * h > 0.7
 
 
-def test_a_split_picture_is_unusable_because_either_half_could_be_the_wrong_person():
-    divider = [OV.Mark("other", "divider", (0.498, 0.0, 0.502, 1.0))]
-    assert OV.judge(divider, 1500, 1000).status == OV.UNUSABLE
+def test_a_divider_between_two_portraits_is_no_logo_or_text_so_the_picture_is_not_given_up():
+    divider = [OV.Mark("other", "white vertical divider between portraits", (0.498, 0.0, 0.502, 1.0))]
+    scan = OV.judge(divider, 1500, 1000)
+    assert scan.status == OV.CLEAN and scan.crop is None
+
+
+def test_a_soft_mark_is_cut_away_when_a_window_allows_and_never_decides_the_pictures_fate():
+    sticker = OV.Mark("other", "sticker", (0.0, 0.0, 0.2, 0.2))
+    scan = OV.judge([sticker], 1920, 1080)
+    assert scan.status == OV.CROPPED and not overlaps(scan.crop, sticker, 1.0, 1.0), "cut away where it can be"
+    divider = OV.Mark("other", "divider", (0.498, 0.0, 0.502, 1.0))
+    logo = OV.Mark("logo", "channel", (0.85, 0.05, 0.98, 0.2))
+    mixed = OV.judge([divider, logo], 1500, 1000)
+    assert mixed.status == OV.CROPPED and not overlaps(mixed.crop, logo, 1.0, 1.0)
+    assert [m.kind for m in mixed.marks] == ["logo"], "the divider is not held against the picture"
+
+
+def test_a_logo_across_the_middle_still_makes_the_picture_unusable_even_with_a_divider():
+    marks = [OV.Mark("other", "divider", (0.498, 0.0, 0.502, 1.0)), OV.Mark("watermark", "agency", (0.02, 0.4, 0.98, 0.6))]
+    assert OV.judge(marks, 1920, 1080).status == OV.UNUSABLE
+
+
+def test_candidates_given_up_for_a_divider_come_back_when_the_asset_is_scanned_again(db_session):
+    case = _case(db_session)
+    asset = _asset(db_session, case, "A7")
+    sv = StoryVersion(case_id=case.id, version=1, kind="final", language="en", story_text="t", narrative_angle="a")
+    db_session.add(sv)
+    db_session.commit()
+    bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
+    db_session.add(bp)
+    db_session.commit()
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1, validation_json="{}")
+    db_session.add(plan)
+    db_session.commit()
+    req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
+                         function="evidence", role_needed="evidence", priority="high", status="open")
+    db_session.add(req)
+    db_session.commit()
+    cand = MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id, role="evidence", final_status="approved",
+                        provenance_status="approved", identity_status="approved", ethics_status="approved",
+                        scene_status="approved", rights_status="approved")
+    db_session.add(cand)
+    db_session.commit()
+    OV.reject(db_session, asset, OV.Scan(OV.UNUSABLE, [OV.Mark("other", "white vertical divider between portraits",
+                                                                (0.498, 0.0, 0.502, 1.0))]))
+    db_session.refresh(cand)
+    assert cand.final_status == "rejected" and OV.REJECTED_FOR_MARK in cand.reasons_json
+
+    answer = {"marks": [{"kind": "other", "what": "white vertical divider between portraits",
+                         "box": [0.498, 0.0, 0.502, 1.0]}]}
+    out = asyncio.run(scanner(db_session, case, answer).run([asset]))
+    db_session.refresh(cand)
+    assert out["restored"] == 1 and out["rejected_codes"] == []
+    assert cand.final_status == "approved" and cand.scene_status == "approved" and "cannot be cut away" not in cand.reasons_json
 
 
 def test_a_mark_off_the_centre_is_cut_away_and_the_centre_is_kept():

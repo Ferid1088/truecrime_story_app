@@ -18,7 +18,12 @@ WHAT TO MARK (each as a box)
   sides, top or bottom (also when a logo sits in it; mark that logo too). Mark the whole bar as ONE box. A blurred
   copy of the picture used as a side fill is not a bar and is not marked.
 - credit_line: a source or photographer credit printed on the image.
-- other: any other graphic, sticker, frame or overlay that is not part of the scene.
+- other: only a sticker, stamp, badge or overlay that carries a logo, an emblem, a symbol or text and fits none of
+  the kinds above.
+Do NOT mark the layout of the picture itself: a white or coloured divider or separator between two or more photos
+of a collage or split screen, the gap between portraits, a picture frame or passe-partout, a vignette, a plain
+coloured or white background, a shadow. Only a logo, a watermark or text laid over the picture is a mark: if nothing
+of that kind is on it, return "clean": true.
 Do NOT mark blurs, pixelation or boxes that hide a face or a number plate (the footage's own protection of
 people), the blurred or mirrored fill at the sides of a tall video, or text that belongs to the scene itself: a street sign, a car's licence plate, a badge on a uniform,
 a shop front, a document held in the scene, a name on a building.
