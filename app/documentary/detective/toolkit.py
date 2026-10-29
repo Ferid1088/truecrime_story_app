@@ -32,6 +32,7 @@ from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
 from app.documentary.detective.narration import ingest_narration
 from app.longform import service as LF
+from app.providers.generation.base import GenerationError
 from app.services.budget import BudgetService
 
 
@@ -105,6 +106,30 @@ async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit
     return share, passes, stopped
 
 
+async def _plan_chunk(db: Session, graph_id: int, language: str, text_version: int, beats: list[str],
+                      unit_keys: list[str], units: list[NarrationUnit]) -> tuple[bool, list[str]]:
+    """Map and direct one chunk. A chunk the model cannot answer (an answer that overruns, or one that stays invalid
+    after its repairs) is split in half and each half planned on its own, down to one beat; what still fails is
+    reported and stays uncovered for the next run."""
+    try:
+        await DD.map_film(db, graph_id, language=language, text_version=text_version, scene_unit_keys=unit_keys)
+        await DD.direct_scenes(db, graph_id, scene_unit_keys=unit_keys, language=language, text_version=text_version)
+        return True, []
+    except (DD.DirectorValidationFailed, GenerationError) as e:
+        if isinstance(e, GenerationError) and e.kind != "invalid_output":
+            raise                  # credentials, limits and timeouts are not cured by a smaller chunk
+        if len(beats) == 1:
+            return False, [f"{beats[0]}: {e}"[:300]]
+        middle = len(beats) // 2
+        done, errors = False, []
+        for half in (beats[:middle], beats[middle:]):
+            ok, more = await _plan_chunk(db, graph_id, language, text_version, half,
+                                         [u.unit_key for u in units if u.beat_id in half and u.unit_key in unit_keys],
+                                         units)
+            done, errors = done or ok, errors + more
+        return done, errors
+
+
 def _cap_reached(db: Session, case) -> str | None:
     """The case's own cap, read without `BudgetService.check`'s side effect of stopping the case."""
     snap = BudgetService(db).snapshot(case.id)
@@ -134,13 +159,9 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
         stopped = _cap_reached(db, case)
         if stopped:
             break
-        try:
-            await DD.map_film(db, graph.id, language=language, text_version=text_version,
-                              scene_unit_keys=unit_keys)
-            await DD.direct_scenes(db, graph.id, scene_unit_keys=unit_keys,
-                                   language=language, text_version=text_version)
-        except DD.DirectorValidationFailed as e:     # the chunk stays uncovered and is planned again on the next run
-            failed.append(f"{beats[0]}-{beats[-1]}: {e}"[:300])
+        done, errors = await _plan_chunk(db, graph.id, language, text_version, beats, unit_keys, units)
+        failed.extend(errors)
+        if not done:
             continue
         called += 1
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))

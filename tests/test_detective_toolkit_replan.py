@@ -225,4 +225,47 @@ def test_a_chunk_the_director_cannot_get_right_is_reported_and_the_other_chunks_
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
 
     assert result.chunks_total == 5 and result.chunks_called == 4 and len(result.failed_chunks) == 1
-    assert result.failed_chunks[0].startswith("B02-B02") and "B02" in result.uncovered_beats
+    assert result.failed_chunks[0].startswith("B02") and "B02" in result.uncovered_beats
+
+
+def test_a_chunk_the_model_cannot_answer_is_split_in_half_and_each_half_is_planned(db_session, monkeypatch):
+    from app.providers.generation.base import GenerationError
+
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    real = fake.generate_structured
+
+    async def overruns_on_two_beats_or_more(role, system, user, images=None, **kw):
+        scope = json.loads(user)["scene_scope"]
+        if len({k.split("-")[0] for k in scope}) > 1:
+            raise GenerationError("invalid_output", "non-JSON output")
+        return await real(role, system, user, images, **kw)
+
+    fake.generate_structured = overruns_on_two_beats_or_more
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 5)
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    assert result.failed_chunks == [] and result.uncovered_beats == [] and result.chunks_called == 1
+
+
+def test_a_provider_failure_that_is_not_about_the_answer_still_stops_the_run(db_session, monkeypatch):
+    import pytest
+
+    from app.providers.generation.base import GenerationError
+
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+
+    async def rate_limited(role, system, user, images=None, **kw):
+        raise GenerationError("rate_limit", "slow down")
+
+    fake.generate_structured = rate_limited
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    with pytest.raises(GenerationError, match="slow down"):
+        asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
