@@ -23,6 +23,7 @@ from app.core.prompts import prompt
 from app.db.models import DetectiveScene, DetectiveToolAction, ReleaseAnchor, RevealGraph
 from app.documentary import memory as MEM
 from app.documentary.memory import MemoryValidationError
+from app.documentary.detective import buildable as BD
 from app.documentary.detective.persist import persist_director_output
 from app.documentary.detective.schema import NarrationIndex, validate_director_output
 from app.documentary.detective.tool_catalog import build_tool_catalog
@@ -36,6 +37,10 @@ class DirectorValidationFailed(ValueError):
     def __init__(self, violations: list[str]):
         super().__init__("; ".join(violations))
         self.violations = violations
+
+
+class UnbuildableCards(DirectorValidationFailed):
+    """Actions whose card cannot be made from the claims they bind: the output is rolled back and repaired."""
 
 
 def _case_id_for_graph(db: Session, graph_id: int) -> int:
@@ -193,9 +198,16 @@ async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
             try:
                 with db.begin_nested():
                     counts = persist_director_output(db, graph_id, run_id, mode, raw)
+                    if ai_config.detective_toolkit.require_buildable:
+                        db.flush()
+                        unbuildable = BD.unbuildable(db, graph_id, {a["id"] for s in raw.get("scenes", [])
+                                                                    for a in s.get("actions", [])})
+                        if unbuildable:
+                            raise UnbuildableCards(unbuildable)
+                db.commit()
                 return {"agent_run_id": run_id, "output": raw, "counts": counts}
-            except MemoryValidationError as e:
-                issues = [str(e)]
+            except (MemoryValidationError, UnbuildableCards) as e:
+                issues = e.violations if isinstance(e, UnbuildableCards) else [str(e)]
         payload = {**payload, "mode": "repair", "repair_target": {"previous_output": raw, "issues": issues}}
     raise DirectorValidationFailed(issues)
 

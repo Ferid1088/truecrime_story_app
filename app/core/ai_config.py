@@ -2424,6 +2424,11 @@ class DetectiveToolkitConfig(BaseModel):
     # how many times a call whose output violates an invariant is sent back once more with the exact
     # issues (the Director's own `repair` mode) before it fails; every attempt is a paid call
     max_repair_iterations: int = Field(default=1, ge=0, le=3)
+    # an action whose card cannot be built from the claims it binds is sent back to the Director as a repair
+    # issue instead of being kept: the toolkit hands over only cards it has made
+    require_buildable: bool = True
+    # the share of the film's length the toolkit's alternatives must fill (cards, boards, maps; never the Host)
+    min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
     reading: DetectiveReadingConfig = Field(default_factory=DetectiveReadingConfig)
     pacing: DetectivePacingConfig = Field(default_factory=DetectivePacingConfig)
     audio_only: DetectiveAudioOnlyConfig = Field(default_factory=DetectiveAudioOnlyConfig)

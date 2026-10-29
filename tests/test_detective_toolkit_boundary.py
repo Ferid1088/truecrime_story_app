@@ -103,6 +103,7 @@ def test_toolkit_invoke_maps_and_directs_when_enabled(db_session, monkeypatch):
     fake = FakeDirectorGen(_fake_payload(graph))
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
 
@@ -118,6 +119,7 @@ def test_toolkit_invoke_never_re_pays_for_an_existing_plan(db_session, monkeypat
     fake = FakeDirectorGen(_fake_payload(graph))
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
 
     first = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
     calls_after_first = len(fake.calls)

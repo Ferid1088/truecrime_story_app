@@ -11,7 +11,7 @@ import json
 import pytest
 
 from app.core.ai_config import ai_config
-from app.db.models import AgentRun, DetectiveClaim, DetectiveScene
+from app.db.models import AgentRun, DetectiveClaim, DetectiveScene, DetectiveToolAction
 from app.documentary.detective import director
 from app.documentary.memory import add_narration_unit
 from app.providers.generation.base import GenerationResult
@@ -118,3 +118,36 @@ def test_a_clean_first_answer_costs_exactly_one_call(db_session, monkeypatch):
     graph = _setup(db_session)
     fake, _ = _map(db_session, graph, monkeypatch, GOOD())
     assert len(fake.calls) == 1 and fake.calls[0]["mode"] == "map_film"
+
+
+def _actions(db_session, graph):
+    return (db_session.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
+            .filter(DetectiveScene.graph_id == graph.id).count())
+
+
+def _unbound():
+    payload = GOOD()
+    payload["scenes"][0]["actions"][0]["content_bindings"] = []
+    return payload
+
+
+def test_an_action_whose_card_cannot_be_built_is_repaired_and_only_the_buildable_output_is_kept(db_session, monkeypatch):
+    graph = _setup(db_session)
+    fake, result = _map(db_session, graph, monkeypatch, _unbound(), GOOD())
+
+    assert len(fake.calls) == 2 and fake.calls[1]["mode"] == "repair"
+    assert any("action a1 (fact_card) cannot be built" in issue for issue in fake.calls[1]["repair_target"]["issues"])
+    assert _actions(db_session, graph) == 1
+    from app.documentary.detective import buildable as BD
+
+    assert BD.unbuildable(db_session, graph.id) == []
+    assert BD.alternative_seconds(db_session, graph.id, "en") > 0
+
+
+def test_a_plan_that_is_never_buildable_persists_nothing(db_session, monkeypatch):
+    graph = _setup(db_session)
+    fake = SequenceGen(_unbound())
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    with pytest.raises(director.DirectorValidationFailed, match="cannot be built"):
+        asyncio.run(director.map_film(db_session, graph.id, language="en", text_version=1))
+    assert _actions(db_session, graph) == 0 and db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 0

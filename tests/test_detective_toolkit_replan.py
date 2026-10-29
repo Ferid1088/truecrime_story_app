@@ -106,6 +106,7 @@ def test_invoke_registers_the_text_and_plans_in_chunks_of_beats(db_session, monk
     fake = ScopedDirectorGen()
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
@@ -122,6 +123,7 @@ def test_a_cap_stop_leaves_a_partial_plan_and_the_next_run_pays_only_for_what_is
     fake = ScopedDirectorGen()
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
     verdicts = iter([None, "case budget €1.00 reached: spent €1.00"])
     monkeypatch.setattr(toolkit, "_cap_reached", lambda db, c: next(verdicts, "case budget reached"))
@@ -145,6 +147,7 @@ def test_a_cap_stop_leaves_a_partial_plan_and_the_next_run_pays_only_for_what_is
 def test_a_film_with_no_text_is_reported_not_called(db_session, monkeypatch):
     case, blueprint, graph = _film(db_session, [{"id": "B01", "act_id": "full", "paragraphs": [1, 1]}])
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(director, "get_generation_provider", lambda: (_ for _ in ()).throw(AssertionError))
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
     assert result.called is False and "no narration" in result.reason

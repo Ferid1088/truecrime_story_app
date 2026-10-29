@@ -18,6 +18,8 @@
   "audio_only": {
    "min_supported_fraction": 0.5
   },
-  "max_repair_iterations": 1
+  "max_repair_iterations": 2,
+  "require_buildable": true,
+  "min_alternative_share": 0.5
  }
 }

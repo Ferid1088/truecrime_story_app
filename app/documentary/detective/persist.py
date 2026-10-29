@@ -119,7 +119,7 @@ def persist_director_output(db: Session, graph_id: int, agent_run_id: int | None
                          agent_run_id=agent_run_id)
         revisions += 1
 
-    db.commit()
+    db.flush()
     return {
         "entities": len(payload.get("entities", [])), "claims": len(payload.get("claims", [])),
         "questions": len(payload.get("questions", [])), "relations": len(payload.get("relations", [])),
