@@ -445,16 +445,26 @@ class MomentCutter:
             return self.stats.as_dict()
         picks: dict[str, list[str]] = {}
         failed: set[str] = set()                  # moments of a pick call that failed are tried again next time
-        for i in range(0, len(todo), self.cfg.picks_per_call):
-            batch = todo[i:i + self.cfg.picks_per_call]
-            if self.broke():
-                failed |= {m.key for m in batch}
-                break
-            try:
-                picks.update(await self.pick(batch, regions))
-            except Exception as e:  # noqa: BLE001
-                failed |= {m.key for m in batch}
-                self.stats.errors.append(f"pick: {type(e).__name__}: {e}"[:200])
+        batches = [todo[i:i + self.cfg.picks_per_call] for i in range(0, len(todo), self.cfg.picks_per_call)]
+        pick_gate = asyncio.Semaphore(limit_size("vision"))
+
+        async def pick_one(batch: list[Moment]):
+            """(batch, its picks, None) or (batch, None, why not): the batches do not depend on each other."""
+            async with pick_gate:
+                if self.broke():
+                    return batch, None, None
+                try:
+                    return batch, await self.pick(batch, regions), None
+                except Exception as e:  # noqa: BLE001
+                    return batch, None, e
+
+        for batch, got, error in await asyncio.gather(*(pick_one(b) for b in batches)):
+            if got is not None:
+                picks.update(got)
+                continue
+            failed |= {m.key for m in batch}
+            if error is not None:
+                self.stats.errors.append(f"pick: {type(error).__name__}: {error}"[:200])
         gate = asyncio.Semaphore(limit_size("vision"))
         jobs = []
         for m in todo:

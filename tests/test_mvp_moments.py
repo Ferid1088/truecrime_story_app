@@ -266,3 +266,30 @@ def test_a_clip_for_another_moment_or_beat_is_never_placed_here():
     tracker = UsageTracker({"C1": asset_facts(clip.asset)})
     assert D.place_moment_clips(beats, windows, [clip], tracker) == 0
     assert beats[0]["shots"][0].get("gap")
+
+
+def test_the_batches_of_moments_are_picked_at_the_same_time_and_a_failed_batch_is_tried_again_next_time(db_session, monkeypatch):
+    import time
+
+    monkeypatch.setattr(MC.ai_config.mvp().moments, "picks_per_call", 1)
+    case, plan, source, pieces = _case_with_footage(db_session)
+    gaps = [{"beat": f"B{n:02d}", "start": 10.0 * n, "end": 10.0 * n + 8, "said": f"{SAID} variant {n}"}
+            for n in range(1, 5)]
+    failing = MC.moment_key(gaps[1]["beat"], gaps[1]["said"])
+
+    async def picker(payload):
+        await asyncio.sleep(0.3)
+        if payload["moments"][0]["id"] == failing:
+            raise RuntimeError("model down")
+        return {"picks": []}
+
+    _, cutter, checker, calls = _fakes(pieces[0].asset_code)
+    cut = _cutter(db_session, case, plan, picker, cutter, checker)
+    started = time.monotonic()
+    run(cut.run(gaps, set()))
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.9, f"four picks of 0.3 s ran one after another ({elapsed:.2f}s)"
+    assert any("model down" in e for e in cut.stats.errors) and calls["cut"] == 0
+    assert db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id, function="moment").count() == 3, \
+        "the three moments nothing was picked for are recorded; the failed one is not, so it is tried again"

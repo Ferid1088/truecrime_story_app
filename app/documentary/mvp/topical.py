@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
+from app.core.concurrency import limit_size
 from app.db.models import Case, VisualPlan
 from app.documentary.mvp.moments import SAID_CHARS, Moment
 from app.providers.generation import get_generation_provider
@@ -107,19 +108,33 @@ class TopicMatcher:
                                       for g in gaps if g.get("said"))}
         todo = [m for k, m in moments.items() if k not in matches]
         listing = list(catalog.values())
-        for i in range(0, len(todo), self.cfg.moments_per_call):
-            batch = todo[i:i + self.cfg.moments_per_call]
-            snap = BudgetService(self.db).snapshot(self.case.id)
-            if snap.spent_eur >= snap.cap_eur - 1e-9:
-                break
-            payload = {"moments": [{"id": m.key, "beat": m.beat, "seconds": m.seconds, "said": m.said[:SAID_CHARS]}
-                                   for m in batch],
-                       "items": listing, "most_items_per_moment": self.cfg.max_per_moment}
-            try:
-                self.calls += 1
-                matches.update(self.valid(await self.ask(payload), batch, catalog))
-            except Exception as e:  # noqa: BLE001 - a failed batch is tried again next time, never remembered
-                self.errors.append(f"{type(e).__name__}: {e}"[:200])
-                log.warning("topical match failed: %s", e)
+        batches = [todo[i:i + self.cfg.moments_per_call] for i in range(0, len(todo), self.cfg.moments_per_call)]
+        gate = asyncio.Semaphore(limit_size("vision"))
+
+        async def match_one(batch: list[Moment]):
+            """(batch, its matches, None), (batch, None, why not) or None when the case's cap is reached: the batches do
+            not depend on each other."""
+            async with gate:
+                snap = BudgetService(self.db).snapshot(self.case.id)
+                if snap.spent_eur >= snap.cap_eur - 1e-9:
+                    return None
+                payload = {"moments": [{"id": m.key, "beat": m.beat, "seconds": m.seconds, "said": m.said[:SAID_CHARS]}
+                                       for m in batch],
+                           "items": listing, "most_items_per_moment": self.cfg.max_per_moment}
+                try:
+                    self.calls += 1
+                    return batch, self.valid(await self.ask(payload), batch, catalog), None
+                except Exception as e:  # noqa: BLE001 - a failed batch is tried again next time, never remembered
+                    return batch, None, e
+
+        for result in await asyncio.gather(*(match_one(b) for b in batches)):
+            if result is None:
+                continue
+            _batch, found, error = result
+            if error is not None:
+                self.errors.append(f"{type(error).__name__}: {error}"[:200])
+                log.warning("topical match failed: %s", error)
+            else:
+                matches.update(found)
         self._save(fp, matches)
         return {k: [(c, s, w) for c, s, w in rows] for k, rows in matches.items() if k in moments and rows}

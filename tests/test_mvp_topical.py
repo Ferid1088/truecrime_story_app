@@ -214,3 +214,30 @@ def test_direction_places_the_matches_it_is_given(db_session):
     final = run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, topical=matches))
     shots = [s for b in json.loads(plan.plan_json)["beats"] for s in b["shots"]]
     assert final["topical_placed"] >= 1 and any(s.get("topical") for s in shots) and gap
+
+
+def test_the_batches_of_moments_are_matched_at_the_same_time_and_a_failed_one_does_not_stop_the_rest(db_session, monkeypatch):
+    import time
+
+    monkeypatch.setattr(TP.ai_config.mvp().topical, "moments_per_call", 1)
+    case, plan = _plan(db_session)
+    catalog = TP.catalog_of({"B01": [_item("A")]})
+    gaps = [{"beat": f"B{n:02d}", "start": 10.0 * n, "end": 10.0 * n + 5, "said": f"words number {n} about the case"}
+            for n in range(1, 5)]
+    keys = [MC.moment_key(g["beat"], g["said"]) for g in gaps]
+
+    async def matcher(payload):
+        await asyncio.sleep(0.3)
+        moment = payload["moments"][0]["id"]
+        if moment == keys[1]:
+            raise RuntimeError("model down")
+        return {"matches": [{"moment": moment, "items": [{"id": "A", "score": 0.9, "why": "the court"}]}]}
+
+    matching = TP.TopicMatcher(db_session, case, plan, matcher)
+    started = time.monotonic()
+    found = run(matching.run(gaps, catalog))
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.9, f"four calls of 0.3 s ran one after another ({elapsed:.2f}s)"
+    assert set(found) == {keys[0], keys[2], keys[3]} and matching.calls == 4
+    assert matching.errors == ["RuntimeError: model down"]
