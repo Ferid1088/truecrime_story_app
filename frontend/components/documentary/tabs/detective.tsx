@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
+
 import { detectiveApi } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { DetectiveScene } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DocumentaryTabProps } from "../shared";
 
@@ -58,15 +61,42 @@ function SceneCard({ scene }: { scene: DetectiveScene }) {
 }
 
 export function DetectiveTab({ caseId, refreshKey }: DocumentaryTabProps) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
   const plan = useApi(() => detectiveApi.plan(caseId), [caseId, refreshKey], { keepPrevious: true });
   return (
     <div className="space-y-4" data-testid="detective-tab">
       <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
-        The Detective Director is one of the Main Visual Planner&apos;s own tools: for each scene it
-        proposes an investigative aim, a tool sequence, and why that sequence was chosen. The Main
-        Visual Planner records whether it accepted, combined, deferred, or rejected each proposed
-        action — only an accepted or combined action ever reaches a real shot.
+        The Detective Toolkit plans the film from its text: first a strategy for the whole film, then for each scene an
+        investigative aim and the cards that serve it. It builds every card and fixes it in the film&apos;s timeline;
+        the Main Visual Planner fills the rest with pictures and videos and never moves a card.
       </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          loading={busy}
+          disabled={busy}
+          data-testid="detective-reset"
+          onClick={async () => {
+            if (!window.confirm("Start the toolkit again? Its plan (strategy, scenes, cards) is removed and made again by "
+              + "the next run. Every picture and video that was found and approved is kept.")) return;
+            setBusy(true);
+            try {
+              const done = await detectiveApi.reset(caseId);
+              setMessage(`Removed ${done.removed.scenes} scenes and ${done.removed.claims} claims. Start a run to plan the film again.`);
+              plan.refetch();
+            } catch (e) {
+              setMessage(e instanceof Error ? e.message : "Could not start the toolkit again.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Start the toolkit again
+        </Button>
+        {message && <span className="text-xs text-muted-foreground" role="status">{message}</span>}
+      </div>
       {plan.error && !plan.data && (
         <p className="text-sm text-muted-foreground" data-testid="detective-tab-empty">
           {plan.error}

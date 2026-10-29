@@ -284,3 +284,22 @@ async def stage_toolkit(db: Session, case, blueprint_row: EditorialBlueprint) ->
     plans the film's alternatives on it."""
     graph = ensure_graph(db, case, blueprint_row)
     return graph, await invoke(db, case, blueprint_row, graph)
+
+
+def reset_plan(db: Session, graph_id: int) -> dict[str, int]:
+    """The toolkit's own plan of a graph (its strategy, scenes, cards, claims, questions, relations, events and findings)
+    removed so that it is made again from the text. The graph itself, the narration, and everything the Main Visual
+    Planner found (the pictures and clips, their verdicts and the owner's approvals) are not touched. Returns how many
+    rows of each kind were removed."""
+    from app.db.models import (DetectiveClaim, DetectiveFinding, DetectiveKnowledgeEvent, DetectiveQuestion,
+                               DetectiveRelation, DetectiveStrategy, DetectiveToolAction)
+
+    scene_ids = [i for (i,) in db.query(DetectiveScene.id).filter_by(graph_id=graph_id)]
+    removed = {"actions": db.query(DetectiveToolAction).filter(DetectiveToolAction.scene_id.in_(scene_ids))
+               .delete(synchronize_session=False) if scene_ids else 0}
+    for name, model in (("scenes", DetectiveScene), ("events", DetectiveKnowledgeEvent), ("relations", DetectiveRelation),
+                        ("questions", DetectiveQuestion), ("claims", DetectiveClaim), ("findings", DetectiveFinding),
+                        ("strategies", DetectiveStrategy)):
+        removed[name] = db.query(model).filter_by(graph_id=graph_id).delete(synchronize_session=False)
+    db.commit()
+    return removed

@@ -1080,6 +1080,8 @@ export const detectiveApi = {
       `/api/cases/${caseId}/detective/claims/${encodeURIComponent(claimKey)}/correct`,
       { reason, new_text: newText },
     ),
+  reset: (caseId: number) =>
+    post<{ graph_id: number; removed: Record<string, number> }>(`/api/cases/${caseId}/detective/reset`, {}),
   repairScene: (caseId: number, sceneKey: string, issues: string[]) =>
     post<{ agent_run_id: number; counts: Record<string, number> }>(
       `/api/cases/${caseId}/detective/scenes/${encodeURIComponent(sceneKey)}/repair`,

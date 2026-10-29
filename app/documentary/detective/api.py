@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.base import get_db
-from app.db.models import DetectiveScene, RevealGraph
+from app.db.models import DetectiveScene, DocumentaryJob, RevealGraph, VisualPlan
 from app.documentary.detective import director as DIR
+from app.documentary.detective import toolkit as TK
 from app.documentary.detective.inspector import invalidate_dependent_scenes, plan_summary
 from app.documentary.memory import record_knowledge_event
 
@@ -24,8 +25,13 @@ router = APIRouter(tags=["detective-toolkit"])
 
 
 def _latest_graph(db: Session, case_id: int) -> RevealGraph:
-    graph = (db.query(RevealGraph).filter_by(case_id=case_id)
-             .order_by(RevealGraph.id.desc()).first())
+    """The graph the case's film is planned on (the one its needs plan uses), else its newest graph."""
+    for row in db.query(VisualPlan).filter_by(case_id=case_id).order_by(VisualPlan.id.desc()):
+        mvp = json.loads(row.validation_json or "{}").get("mvp") or {}
+        graph = db.get(RevealGraph, mvp["reveal_graph_id"]) if mvp.get("reveal_graph_id") and not mvp.get("language") else None
+        if graph is not None:
+            return graph
+    graph = db.query(RevealGraph).filter_by(case_id=case_id).order_by(RevealGraph.id.desc()).first()
     if graph is None:
         raise HTTPException(404, "No reveal graph for this case yet")
     return graph
@@ -91,3 +97,14 @@ async def repair_scene(case_id: int, scene_key: str, payload: RepairPayload, db:
     scene.stale_reason = None
     db.commit()
     return {"agent_run_id": result["agent_run_id"], "counts": result["counts"]}
+
+
+@router.post("/api/cases/{case_id}/detective/reset")
+def reset_toolkit_plan(case_id: int, db: Session = Depends(get_db)):
+    """The owner starts the toolkit again: its plan of the film (strategy, scenes, cards, claims) is removed and made
+    again by the next run. The pictures and clips that were found and approved, and the owner's approvals, stay."""
+    if db.query(DocumentaryJob).filter(DocumentaryJob.case_id == case_id,
+                                       DocumentaryJob.status.in_(("queued", "running", "cancelling"))).count():
+        raise HTTPException(409, "A job is running for this case: pause or cancel it first")
+    graph = _latest_graph(db, case_id)
+    return {"graph_id": graph.id, "removed": TK.reset_plan(db, graph.id)}
