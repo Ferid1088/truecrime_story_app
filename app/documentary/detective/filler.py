@@ -89,9 +89,7 @@ def import_fact_nodes(db: Session, graph_id: int, units: list[NarrationUnit]) ->
 
 
 def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim], order: int, units: list[NarrationUnit],
-              serial: int) -> DetectiveToolAction:
-    covered = sorted({k for c in group for k in json.loads(c.supporting_unit_keys_json or "[]")
-                      if any(u.unit_key == k and u.beat_id == beat for u in units)})
+              serial: int, release: float | None, covered: list[str]) -> DetectiveToolAction:
     scene = DetectiveScene(
         graph_id=graph_id, scene_key=f"fill-{beat}-{serial}", scene_order=order, mode="direct_scenes",
         covered_unit_keys_json=json.dumps(covered), aim="Show the facts the narration has just established",
@@ -104,8 +102,7 @@ def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim]
     action = DetectiveToolAction(
         scene_id=scene.id, action_key=f"fill-{beat}-{serial}-a1", order_index=0, tool_id="fact_card",
         purpose="State the facts the narration has just established",
-        payload_json=json.dumps({"release_fraction": FACT_NODE_RELEASE_FRACTION}) if any(
-            c.claim_key.startswith("fact-") for c in group) else "{}",
+        payload_json=json.dumps({"release_fraction": release}) if release is not None else "{}",
         content_bindings_json=json.dumps([c.claim_key for c in group]), continuity_refs_json="[]")
     db.add(action)
     db.flush()
@@ -122,6 +119,8 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
     order = db.query(DetectiveScene).filter_by(graph_id=graph_id).count()
     made: list[str] = []
     serial, last, imported = 0, None, False
+    order_of_beats = list(narration)
+    previous = {b: order_of_beats[i - 1] for i, b in enumerate(order_of_beats) if i}
     while True:
         timeline = BD.planned_timeline(db, graph_id, language, units)
         if last is not None and last.action_key in {s["action_key"] for s in timeline.skipped}:
@@ -136,13 +135,25 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
         placed = BD.placed_card_seconds_by_beat(timeline)
         for beat in sorted(narration, key=lambda b: (placed.get(b, 0.0) / narration[b], b)):
             room = cfg.max_beat_card_share * narration[beat] - placed.get(beat, 0.0)
-            group = _card_for([c for c in pending.get(beat, []) if c.claim_key not in shown], room)
-            if group:
-                serial += 1
-                order += 1
-                last = _add_card(db, graph_id, beat, group, order, units, serial)
-                shown.update(c.claim_key for c in group)
-                made.append(last.action_key)
+            own = [c for c in pending.get(beat, []) if c.claim_key not in shown]
+            # a fact the previous beat has told may be shown at the start of this one: nothing is revealed early
+            after = [c for c in pending.get(previous.get(beat), []) if c.claim_key not in shown
+                     and c.claim_key.startswith("fact-")]
+            for claims, release, covered in (
+                    (own, FACT_NODE_RELEASE_FRACTION if any(c.claim_key.startswith("fact-") for c in own) else None,
+                     None),
+                    (after, 0.0, [u.unit_key for u in units if u.beat_id == beat])):
+                group = _card_for(claims, room)
+                if group:
+                    covered = covered or sorted({k for c in group for k in json.loads(c.supporting_unit_keys_json or "[]")
+                                                 if any(u.unit_key == k and u.beat_id == beat for u in units)})
+                    serial += 1
+                    order += 1
+                    last = _add_card(db, graph_id, beat, group, order, units, serial, release, covered)
+                    shown.update(c.claim_key for c in group)
+                    made.append(last.action_key)
+                    break
+            if last is not None:
                 break
         if last is None:
             if imported or not import_fact_nodes(db, graph_id, units):

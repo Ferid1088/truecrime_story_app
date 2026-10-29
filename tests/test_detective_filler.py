@@ -103,3 +103,20 @@ def test_when_the_claims_are_used_up_the_cases_own_facts_of_a_beat_become_cards_
         window = next(w for w in BD.estimated_windows(units) if w["beat_id"] == beat)
         assert all(c["start"] >= window["start"] + 0.5 * (window["end"] - window["start"]) - 0.01 for c in cards)
     assert FL.import_fact_nodes(db_session, graph.id, units) == 0, "a fact becomes a claim once"
+
+
+def test_a_fact_a_beat_has_told_may_be_shown_at_the_start_of_the_next_beat_when_its_own_has_no_room(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 0.9)
+    graph, units = _film(db_session, claims_per_beat=0)
+    for n in range(8):
+        MEM.ensure_entity(db_session, graph.id, f"FB{n}", f"The sourced fact of the first beat number {n}.", "fact", "B01", n)
+    db_session.flush()
+
+    FL.fill_with_fact_cards(db_session, graph.id, "en", units)
+
+    timeline = BD.planned_timeline(db_session, graph.id, "en", units)
+    windows = {w["beat_id"]: w for w in BD.estimated_windows(units)}
+    assert timeline.cards_by_beat.get("B02"), "the next beat shows facts the first beat told"
+    assert abs(timeline.cards_by_beat["B02"][0]["start"] - windows["B02"]["start"]) < 0.01, "at its start, right after the telling"
+    assert all(c["start"] >= windows["B01"]["start"] + 0.5 * (windows["B01"]["end"] - windows["B01"]["start"]) - 0.01
+               for c in timeline.cards_by_beat.get("B01", [])), "its own beat: the second half only"
