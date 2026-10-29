@@ -89,22 +89,33 @@ FILL_INSTRUCTIONS = (
 
 
 async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit], language: str,
-                text_version: int) -> tuple[float, int, str | None]:
-    """Extra Director calls for the weakest beats until the alternatives fill the configured share of the film."""
+                text_version: int) -> tuple[float, int, str | None, list[str]]:
+    """Extra Director calls for the weakest beats until the alternatives fill the configured share of the film.
+    Beats whose call the Director could not get right are reported and left out of the next picks."""
     cfg = ai_config.detective_toolkit
     share = BD.alternative_share(db, graph.id, language, units)
-    passes, stopped = 0, None
+    passes, stopped, skipped, errors = 0, None, set(), []
     while share < cfg.min_alternative_share and passes < cfg.max_fill_passes:
         stopped = _cap_reached(db, case)
         if stopped:
             break
-        beats = set(BD.weakest_beats(db, graph.id, language, units, cfg.beats_per_call))
+        beats = [b for b in BD.weakest_beats(db, graph.id, language, units, cfg.beats_per_call + len(skipped))
+                 if b not in skipped][:cfg.beats_per_call]
+        if not beats:
+            break
         keys = [u.unit_key for u in units if u.beat_id in beats]
         passes += 1
-        await DD.direct_scenes(db, graph.id, scene_unit_keys=keys, language=language, text_version=text_version,
-                               run_id=f"fill-{passes}", owner_instructions=FILL_INSTRUCTIONS.format(prefix=f"fill{passes}"))
+        try:
+            await DD.direct_scenes(db, graph.id, scene_unit_keys=keys, language=language, text_version=text_version,
+                                   run_id=f"fill-{passes}",
+                                   owner_instructions=FILL_INSTRUCTIONS.format(prefix=f"fill{passes}"))
+        except (DD.DirectorValidationFailed, GenerationError) as e:
+            if isinstance(e, GenerationError) and e.kind != "invalid_output":
+                raise
+            skipped.update(beats)
+            errors.append(f"fill {beats[0]}-{beats[-1]}: {e}"[:300])
         share = BD.alternative_share(db, graph.id, language, units)
-    return share, passes, stopped
+    return share, passes, stopped, errors
 
 
 async def _plan_chunk(db: Session, graph_id: int, language: str, text_version: int, beats: list[str],
@@ -168,7 +179,8 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
     share, fill_passes = 0.0, 0
     if not stopped and not uncovered:
-        share, fill_passes, stopped = await _fill(db, case, graph, units, language, text_version)
+        share, fill_passes, stopped, fill_errors = await _fill(db, case, graph, units, language, text_version)
+        failed.extend(fill_errors)
     else:
         share = BD.alternative_share(db, graph.id, language, units)
     pruned = BD.prune_unbuildable(db, graph.id) if ai_config.detective_toolkit.require_buildable else 0

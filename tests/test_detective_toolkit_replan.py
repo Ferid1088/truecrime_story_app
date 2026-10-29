@@ -269,3 +269,32 @@ def test_a_provider_failure_that_is_not_about_the_answer_still_stops_the_run(db_
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     with pytest.raises(GenerationError, match="slow down"):
         asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+
+def test_a_fill_pass_the_director_cannot_get_right_is_reported_and_the_next_pass_tries_other_beats(db_session, monkeypatch):
+    from app.documentary.detective import buildable as BD
+
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    real = fake.generate_structured
+
+    async def never_right_on_the_first_fill(role, system, user, images=None, **kw):
+        payload = json.loads(user)
+        if payload["run_id"] == "fill-1":
+            return ({"schema_version": "1.0"}, GenerationResult(text="{}", model="fake", provider="fake"))
+        return await real(role, system, user, images, **kw)
+
+    fake.generate_structured = never_right_on_the_first_fill
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 2)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 1)
+    monkeypatch.setattr(BD, "alternative_share", lambda *a, **k: 0.2)
+    monkeypatch.setattr(BD, "weakest_beats", lambda db, g, lang, units, count: ["B01", "B02", "B03"][:count])
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    scopes = {c["run_id"]: c["scene_scope"] for c in fake.calls if str(c["run_id"]).startswith("fill-")}
+    assert result.fill_passes == 2 and len(result.failed_chunks) == 1 and result.failed_chunks[0].startswith("fill B01")
+    assert scopes["fill-2"] and all(k.startswith("B02-") for k in scopes["fill-2"]), "the next pass tries another beat"

@@ -198,6 +198,7 @@ def _mutations(payload):
                 yield from paths(value, path + (key,))
         elif isinstance(node, list):
             for index, value in enumerate(node):
+                yield path + (index,)
                 yield from paths(value, path + (index,))
 
     def with_change(change, path):
