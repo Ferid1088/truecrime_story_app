@@ -31,6 +31,7 @@ from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, Rev
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
 from app.documentary.detective import filler as FL
+from app.documentary.detective import graph_cards as GC
 from app.documentary.detective import strategy as ST
 from app.documentary.detective.narration import ingest_narration
 from app.longform import service as LF
@@ -117,13 +118,17 @@ async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit
 
 
 async def _plan_chunk(db: Session, graph_id: int, language: str, text_version: int, beats: list[str],
-                      unit_keys: list[str], units: list[NarrationUnit]) -> tuple[bool, list[str], int]:
+                      unit_keys: list[str], units: list[NarrationUnit],
+                      mapped: bool = False) -> tuple[bool, list[str], int]:
     """Map and direct one chunk. A chunk the model cannot answer (an answer that overruns, or one that stays invalid
     after its repairs) is split in half and each half planned on its own, down to one beat; what still fails is
     reported and stays uncovered for the next run. Also returns how many times a chunk had to be split, so that the
-    next chunks are cut smaller."""
+    next chunks are cut smaller. The memory of a chunk is made once: its halves are directed from it, never mapped
+    again."""
     try:
-        await DD.map_film(db, graph_id, language=language, text_version=text_version, scene_unit_keys=unit_keys)
+        if not mapped:
+            await DD.map_film(db, graph_id, language=language, text_version=text_version, scene_unit_keys=unit_keys)
+            mapped = True
         await DD.direct_scenes(db, graph_id, scene_unit_keys=unit_keys, language=language, text_version=text_version)
         return True, [], 0
     except (DD.DirectorValidationFailed, GenerationError) as e:
@@ -136,7 +141,7 @@ async def _plan_chunk(db: Session, graph_id: int, language: str, text_version: i
         for half in (beats[:middle], beats[middle:]):
             ok, more, inner = await _plan_chunk(db, graph_id, language, text_version, half,
                                                 [u.unit_key for u in units if u.beat_id in half and u.unit_key in unit_keys],
-                                                units)
+                                                units, mapped)
             done, errors, splits = done or ok, errors + more, splits + inner
         return done, errors, splits
 
@@ -239,6 +244,8 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
             called += 1
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
     share, fill_passes = 0.0, 0
+    FL.remove_filler_cards(db, graph.id)                       # made again below, after the richer cards
+    GC.add_graph_cards(db, graph.id, language, units)          # the cards the stored data fills, with no model call
     if not stopped:
         _, diversity_errors = await _diversify(db, case, graph, units, language, text_version, strategy)
         failed.extend(diversity_errors)

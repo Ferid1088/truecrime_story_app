@@ -2,7 +2,7 @@
   "detective_toolkit": {
     "enabled": true,
     "design_review": false,
-    "call_timeout_s": 300,
+    "call_timeout_s": 600,
     "beats_per_call": 3,
     "reading": {
       "dense_card_words": 18,
@@ -30,6 +30,13 @@
       "detective_board"
     ],
     "min_card_kinds": 14,
-    "max_diversity_passes": 4
+    "max_diversity_passes": 4,
+    "graph_cards": {
+      "timeline_cards": 3,
+      "timeline_events": 3,
+      "unknowns_cards": 3,
+      "conflict_cards": 3,
+      "later_beats": 4
+    }
   }
 }

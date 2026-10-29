@@ -114,6 +114,9 @@ REQUIRED_ROLES = {
     # Detective toolkit (Section C): the investigative aim, scene direction and tool
     # choice behind every visual, map/direct/repair modes over app/documentary/memory.py.
     "detective_director",
+    # The film strategist and the card strategist: one planning call each over the whole text, at the model's own
+    # reasoning (unlike the Director's many calls).
+    "detective_strategist",
     # Vision-capable: judges one dispatched detective visual's actual rendered frame(s) (Section G).
     "detective_design_director",
     # Checks the detective's achieved purpose and film continuity across plan/render/repair modes,
@@ -460,6 +463,9 @@ class GenerationSettings(BaseModel):
     # Sent as `reasoning_effort` to a model that declares the capability;
     # a role without it asks for the model's default.
     reasoning_effort: ReasoningEffort | None = None
+    # Send `reasoning_effort` for this role although its model does not declare the capability for every role: a model
+    # whose gateway accepts it (checked with a live call) can then be limited for one role without changing any other
+    send_reasoning_effort: bool = False
 
 
 class StoryConfig(BaseModel):
@@ -2403,6 +2409,18 @@ class DetectiveAudioOnlyConfig(BaseModel):
     min_supported_fraction: float = 0.5
 
 
+class DetectiveGraphCardsConfig(BaseModel):
+    """Cards the toolkit makes from the graph's stored data with no model call: how many of each kind at most."""
+
+    timeline_cards: int = Field(default=3, ge=0, le=10)
+    timeline_events: int = Field(default=3, ge=2, le=12)
+    unknowns_cards: int = Field(default=3, ge=0, le=10)
+    conflict_cards: int = Field(default=3, ge=0, le=10)
+    # a card the timeline has no room for in its own beat is tried in this many beats after it (never before: what it
+    # shows has been told by then)
+    later_beats: int = Field(default=4, ge=0, le=10)
+
+
 class DetectiveToolkitConfig(BaseModel):
     """The Detective Toolkit plans the whole film's alternatives and hands the Main Visual Planner a fixed timeline
     (`app.documentary.detective.toolkit.stage_toolkit`, run before the planner's needs stage). `enabled` False makes the
@@ -2433,6 +2451,7 @@ class DetectiveToolkitConfig(BaseModel):
     min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
     # how many extra Director calls may add cards for the weakest beats before the toolkit reports it fell short
     max_fill_passes: int = Field(default=3, ge=0, le=30)
+    graph_cards: DetectiveGraphCardsConfig = Field(default_factory=DetectiveGraphCardsConfig)
     reading: DetectiveReadingConfig = Field(default_factory=DetectiveReadingConfig)
     pacing: DetectivePacingConfig = Field(default_factory=DetectivePacingConfig)
     audio_only: DetectiveAudioOnlyConfig = Field(default_factory=DetectiveAudioOnlyConfig)

@@ -561,14 +561,14 @@
       "used_by": "app/documentary/mvp/clip_edges.py"
     },
     "detective.film_strategist": {
-      "role": "detective_director",
+      "role": "detective_strategist",
       "prompt": "documentary/detective/film_strategist_system",
       "output": "json",
       "description": "Film strategist: from the whole text, the film's investigative strategy: its acts, what each card kind is for and how the kinds help each other.",
       "used_by": "app/documentary/detective/strategy.py"
     },
     "detective.card_strategist": {
-      "role": "detective_director",
+      "role": "detective_strategist",
       "prompt": "documentary/detective/card_strategist_system",
       "output": "json",
       "description": "Card strategist: for each card kind, where in the film it is used and what it shows there, keeping the film strategist's plan.",

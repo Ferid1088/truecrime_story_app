@@ -718,6 +718,15 @@ def status_overlays(case_status: str | None, production_type: str | None,
 CARD_KINDS = ("chapter", "title", "detective_board", "graphic")
 
 
+def _close_lead_out(shots: list[dict], card_end: float, beat_start: float) -> None:
+    """The first picture of the new chapter comes at the end of the chapter card, `chapters.lead_out_seconds` before its
+    first word: a shot that starts in that lead-out (a card of the toolkit starts with its beat) begins at the card's end
+    instead, so that no moment is left without a picture."""
+    following = [sh for sh in shots if card_end < sh["start"] <= beat_start + 0.01 and sh["kind"] not in CARD_KINDS]
+    if following:
+        min(following, key=lambda sh: sh["start"])["start"] = round(card_end, 3)
+
+
 def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict],
                          overlays: list[dict]) -> tuple[list[dict], dict | None]:
     """The channel intro and the film title (after a cold open) and each
@@ -815,6 +824,7 @@ def insert_chapter_cards(shots: list[dict], cards: dict | None, spans: list[dict
             _carve(shots, card)
             placed.append((card["start"], card["end"]))
             t += dur
+        _close_lead_out(shots, end, gap_to)
     if placed:
         overlays[:] = [o for o in overlays
                        if o["kind"] not in ("date", "place", "status")

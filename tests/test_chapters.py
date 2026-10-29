@@ -347,3 +347,19 @@ def test_an_event_label_with_quotation_marks_is_sent_back_before_the_auditor_see
     assert "quotation" in ChapterWriter.precheck("event:T014", "He said “I did not kill my wife")
     assert ChapterWriter.precheck("event:T009", "Caleb texted that he chose Alleigha") is None
     assert ChapterWriter.precheck("chapter:1", "The garage") is None
+
+
+def test_a_picture_that_starts_in_the_lead_out_after_a_chapter_card_begins_where_the_card_ends():
+    from app.documentary.production.script import _close_lead_out
+
+    shots = [{"kind": "image", "start": 22.85, "end": 40.0}, {"kind": "image", "start": 40.0, "end": 50.0}]
+    _close_lead_out(shots, 22.45, 22.85)
+    assert shots[0]["start"] == 22.45 and shots[1]["start"] == 40.0
+
+
+def test_a_card_of_the_toolkit_is_never_pulled_before_its_first_word():
+    from app.documentary.production.script import _close_lead_out
+
+    shots = [{"kind": "graphic", "start": 22.85, "end": 30.0}]
+    _close_lead_out(shots, 22.45, 22.85)
+    assert shots[0]["start"] == 22.85

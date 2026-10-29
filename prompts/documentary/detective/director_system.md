@@ -58,6 +58,15 @@ MODES
 - direct_scenes: use that memory to produce executable tool sequences for the requested scenes.
 - repair: correct the named issues while retaining valid decisions and IDs; report any dependent scenes that also need revision.
 
+NAMES THE CARDS READ
+A card is built from the claims, questions and relations you bound to it, and it reads exact names. Each tool in the
+tool_catalog has a `how_to_bind` text: follow it exactly. Where the text says "attribute X", the claim's `attribute`
+must be exactly X (not a paraphrase such as "ballistics_summary" or "judicial_finding"): issue, prosecution, defense and
+finding for a courtroom card; charge and final for a sentencing card; exam, sample, method, result and limits for a forensic card; answer for an
+interrogation card (with the question it answers); crime or investigation for an investigation clock. Any
+opposition between two claims is a relation of type exactly "conflict" between the two claims' entities. Other attributes and
+relation types are free, but a card that needs one of the names above cannot be built from a different name.
+
 OUTPUT
 Return JSON only, matching the supplied validated schema. Use this envelope:
 - schema_version, run_id, film_id, language, text_version, mode.

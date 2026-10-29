@@ -231,7 +231,7 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         """Per-request fields a model's declared capabilities allow."""
         caps = ai_config.capabilities_of(model)
         options: dict[str, Any] = {}
-        if gen.reasoning_effort and caps.reasoning_effort:
+        if gen.reasoning_effort and (caps.reasoning_effort or gen.send_reasoning_effort):
             options["reasoning_effort"] = gen.reasoning_effort
         if cache_key and caps.prompt_caching == "prompt_cache_key":
             options["prompt_cache_key"] = cache_key

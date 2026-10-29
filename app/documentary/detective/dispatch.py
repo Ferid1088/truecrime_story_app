@@ -316,20 +316,32 @@ def _event_date(value) -> dict | None:
     return parsed if dates.valid(parsed) else None
 
 
+def claim_event_date(db: Session, claim) -> dict | None:
+    """The real date of the event a claim stands on, as its parts: from the stored Fact it cites, or from the
+    case's timeline entry (a reveal node of the graph) it cites. None when the claim cites no dated event."""
+    from app.db.models import Fact, RevealNode
+
+    cited = json.loads(claim.evidence_fact_ids_json or "[]")
+    fact_ids = [i for i in cited if isinstance(i, int)]
+    fact = db.query(Fact).filter(Fact.id.in_(fact_ids)).first() if fact_ids else None
+    if fact is not None and _event_date(fact.event_date):
+        return _event_date(fact.event_date)
+    keys = [i for i in cited if isinstance(i, str)]
+    node = (db.query(RevealNode).filter(RevealNode.graph_id == claim.graph_id, RevealNode.category == "timeline",
+                                        RevealNode.node_key.in_(keys)).first() if keys else None)
+    return _event_date(((json.loads(node.metadata_json or "{}").get("evidence") or {}).get("event_date"))) if node else None
+
+
 def _investigation_clock_data(db: Session, action: DetectiveToolAction) -> dict | None:
     """2-N dated events from bound claims whose linked Fact has a real `event_date` - never an
     invented date. `claim.attribute` names the track ("crime"/"investigation", the same
     attribute-as-slot convention `_forensic_data`/`_courtroom_data`/`_sentencing_data` use below),
     since neither a claim nor a Fact otherwise distinguishes the two tracks."""
-    from app.db.models import Fact
-
     events = []
     for c in _bound_claims(db, action):
         if c.attribute not in ("crime", "investigation"):
             continue
-        fact_ids = json.loads(c.evidence_fact_ids_json or "[]")
-        fact = db.query(Fact).filter(Fact.id.in_(fact_ids)).first() if fact_ids else None
-        parsed = _event_date(fact.event_date) if fact else None
+        parsed = claim_event_date(db, c)
         if not parsed:
             continue
         events.append({"track": c.attribute, "date": parsed, "text": c.text[:70],
@@ -341,15 +353,12 @@ def _investigation_clock_data(db: Session, action: DetectiveToolAction) -> dict 
 def _timeline_data(db: Session, action: DetectiveToolAction) -> dict | None:
     """The events of a timeline card from bound claims whose linked Fact has a real `event_date` (never an invented
     date), in date order, with the card's own text limit. At least two are needed for a line."""
-    from app.db.models import Fact
     from app.documentary.graphics import theme as T
 
     limit = T.config().timeline["node_text_max_chars"]
     events = []
     for c in _bound_claims(db, action):
-        fact_ids = json.loads(c.evidence_fact_ids_json or "[]")
-        fact = db.query(Fact).filter(Fact.id.in_(fact_ids)).first() if fact_ids else None
-        parsed = _event_date(fact.event_date) if fact else None
+        parsed = claim_event_date(db, c)
         if parsed:
             events.append({"label": " ".join(c.text.split())[:limit], "date": parsed, "fact_id": c.claim_key})
     events.sort(key=lambda e: (e["date"]["year"], e["date"].get("month") or 0, e["date"].get("day") or 0))

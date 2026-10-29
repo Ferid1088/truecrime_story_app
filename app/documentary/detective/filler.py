@@ -88,25 +88,45 @@ def import_fact_nodes(db: Session, graph_id: int, units: list[NarrationUnit]) ->
     return made
 
 
-def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim], order: int, units: list[NarrationUnit],
-              serial: int, release: float | None, covered: list[str]) -> DetectiveToolAction:
+def place_card(db: Session, graph_id: int, scene_key: str, order: int, tool_id: str, bindings: list[str],
+               covered: list[str], entities: list[str], release: float | None, aim: str, change: str, why: str,
+               gain: str, purpose: str) -> DetectiveToolAction:
+    """One scene of one card, made by the toolkit itself from stored data (no model call)."""
     scene = DetectiveScene(
-        graph_id=graph_id, scene_key=f"fill-{beat}-{serial}", scene_order=order, mode="direct_scenes",
-        covered_unit_keys_json=json.dumps(covered), aim="Show the facts the narration has just established",
-        active_question_keys_json="[]", active_entity_keys_json=json.dumps(sorted({c.entity_node_key for c in group})),
-        change_in_understanding="The viewer sees the established facts written down",
-        alternatives_considered_json="[]", why_selected="Sourced claims no card has shown yet",
-        expected_audience_gain="The facts stay in mind while the narration moves on", audio_clarity_findings_json="[]")
+        graph_id=graph_id, scene_key=scene_key, scene_order=order, mode="direct_scenes",
+        covered_unit_keys_json=json.dumps(covered), aim=aim, active_question_keys_json="[]",
+        active_entity_keys_json=json.dumps(sorted(entities)), change_in_understanding=change,
+        alternatives_considered_json="[]", why_selected=why, expected_audience_gain=gain,
+        audio_clarity_findings_json="[]")
     db.add(scene)
     db.flush()
     action = DetectiveToolAction(
-        scene_id=scene.id, action_key=f"fill-{beat}-{serial}-a1", order_index=0, tool_id="fact_card",
-        purpose="State the facts the narration has just established",
+        scene_id=scene.id, action_key=f"{scene_key}-a1", order_index=0, tool_id=tool_id, purpose=purpose,
         payload_json=json.dumps({"release_fraction": release}) if release is not None else "{}",
-        content_bindings_json=json.dumps([c.claim_key for c in group]), continuity_refs_json="[]")
+        content_bindings_json=json.dumps(bindings), continuity_refs_json="[]")
     db.add(action)
     db.flush()
     return action
+
+
+def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim], order: int, units: list[NarrationUnit],
+              serial: int, release: float | None, covered: list[str]) -> DetectiveToolAction:
+    return place_card(
+        db, graph_id, f"fill-{beat}-{serial}", order, "fact_card", [c.claim_key for c in group], covered,
+        list({c.entity_node_key for c in group}), release, "Show the facts the narration has just established",
+        "The viewer sees the established facts written down", "Sourced claims no card has shown yet",
+        "The facts stay in mind while the narration moves on", "State the facts the narration has just established")
+
+
+def remove_filler_cards(db: Session, graph_id: int) -> int:
+    """The fact cards `fill_with_fact_cards` made, taken out again: they are made from stored claims with no model call,
+    so they can be made again, after the richer cards the toolkit makes have taken their room."""
+    scenes = [s for s in db.query(DetectiveScene).filter_by(graph_id=graph_id) if s.scene_key.startswith("fill-")]
+    for scene in scenes:
+        db.query(DetectiveToolAction).filter_by(scene_id=scene.id).delete(synchronize_session=False)
+        db.delete(scene)
+    db.flush()
+    return len(scenes)
 
 
 def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[NarrationUnit],

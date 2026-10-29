@@ -114,8 +114,10 @@ class Page:
 
     @staticmethod
     def _px(role: str, px: int) -> int:
-        """Label text (the mono roles) is never set smaller than the type scale's `min_label`: it has to be read."""
-        return max(px, T.size("min_label")) if role.startswith("mono") else px
+        """Label text (the mono roles) of a themed card is never set smaller than the type scale's `min_label`: it has to
+        be read. The map and the detective board have no theme and keep their own sizes."""
+        themed = T.theme_of(T.active()) is not None
+        return max(px, T.size("min_label")) if themed and role.startswith("mono") else px
 
     # -- geometry ------------------------------------------------------
     def x(self, left: float, width: float = 0) -> int:
