@@ -13,6 +13,7 @@ from app.core.ai_config import ai_config
 from app.db.base import get_db
 from app.db.models import MvpCandidate, MvpFilmReview, MvpRequirement, VisualAsset, VisualPlan
 from app.documentary.mvp import direct as DR
+from app.documentary.mvp import overlays as OV
 from app.documentary.mvp import review as RV
 from app.documentary.mvp import verify as VF
 
@@ -62,6 +63,7 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "asset_id": asset.id, "asset_code": asset.asset_code, "asset_type": asset.asset_type,
             "title": asset.title, "source": asset.source_name, "rights": asset.rights_status,
             "clip_start": asset.clip_start, "clip_end": asset.clip_end,
+            "width": asset.width, "height": asset.height, "cut": OV.cut_view(asset),
             "duration_seconds": asset.duration_seconds,
             "owner_note": asset.owner_note,
             "thumb_url": f"/api/visuals/{asset.id}/file?thumb=1", "role": cand.role,

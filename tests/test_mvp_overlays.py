@@ -361,3 +361,15 @@ def test_a_scan_repeated_never_adds_the_same_reason_to_a_candidate_twice(db_sess
         OV.reject(db_session, asset, scan)
     db_session.refresh(cand)
     assert json.loads(cand.reasons_json).count(f"{OV.REJECTED_FOR_MARK} (watermark: agency)") == 1
+
+
+def test_the_review_shows_what_the_film_cuts_away_of_a_scanned_asset_and_nothing_before_the_scan(db_session):
+    case = _case(db_session)
+    asset = _asset(db_session, case, "A6", kind="video")
+    assert OV.cut_view(asset) is None
+    answer = {"marks": [{"kind": "logo", "what": "White circular emblem", "box": [0.92, 0.0, 0.98, 0.1]}]}
+    asyncio.run(scanner(db_session, case, answer).run([asset]))
+    view = OV.cut_view(asset)
+    assert view["status"] == "cropped" and view["marks"] == [{"kind": "logo", "what": "White circular emblem"}]
+    crop = view["crop"]
+    assert crop["x"] + crop["w"] <= 0.92 + 1e-6 or crop["y"] >= 0.1 - 1e-6, "the emblem is outside the shown window"

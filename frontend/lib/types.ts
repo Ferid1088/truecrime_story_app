@@ -2329,7 +2329,16 @@ export interface VisualUpdate {
 }
 
 /** The Main Visual Planner: one candidate picture judged for one requirement (five separate decisions). */
+export interface MvpCut {
+  status: "clean" | "cropped" | "unusable";
+  crop: { x: number; y: number; w: number; h: number } | null;
+  marks: { kind: string; what: string }[];
+}
+
 export interface MvpCandidate {
+  width: number | null;
+  height: number | null;
+  cut: MvpCut | null;
   clip_start: number | null;
   clip_end: number | null;
   duration_seconds: number | null;

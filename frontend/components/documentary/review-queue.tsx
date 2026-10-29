@@ -362,24 +362,47 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
             })}
           </ol>
 
-          <section className={`flex h-[60vh] min-h-[320px] items-center justify-center rounded bg-muted/40 p-3 lg:h-[calc(100vh-17rem)]`}>
-            {isVideo(item) ? (
-              <video
-                key={item.asset_id}
-                src={clipUrl(item)}
-                poster={apiFileUrl(item.thumb_url)}
-                controls
-                preload="metadata"
-                className="h-full w-full object-contain"
-                data-testid="review-queue-video"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={apiFileUrl(`/api/visuals/${item.asset_id}/file`)}
-                alt={item.title ?? item.asset_code}
-                className="h-full w-full object-contain"
-              />
+          <section className={`flex h-[60vh] min-h-[320px] flex-col items-center justify-center gap-2 rounded bg-muted/40 p-3 lg:h-[calc(100vh-17rem)]`}>
+            <div
+              className="relative max-h-full max-w-full"
+              style={{ height: "100%", aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : undefined }}
+            >
+              {isVideo(item) ? (
+                <video
+                  key={item.asset_id}
+                  src={clipUrl(item)}
+                  poster={apiFileUrl(item.thumb_url)}
+                  controls
+                  preload="metadata"
+                  className="h-full w-full object-fill"
+                  data-testid="review-queue-video"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={apiFileUrl(`/api/visuals/${item.asset_id}/file`)}
+                  alt={item.title ?? item.asset_code}
+                  className="h-full w-full object-fill"
+                />
+              )}
+              {item.cut?.crop && (
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  data-testid="review-queue-cut"
+                  style={{
+                    clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${item.cut.crop.x * 100}% ${item.cut.crop.y * 100}%, ${item.cut.crop.x * 100}% ${(item.cut.crop.y + item.cut.crop.h) * 100}%, ${(item.cut.crop.x + item.cut.crop.w) * 100}% ${(item.cut.crop.y + item.cut.crop.h) * 100}%, ${(item.cut.crop.x + item.cut.crop.w) * 100}% ${item.cut.crop.y * 100}%, ${item.cut.crop.x * 100}% ${item.cut.crop.y * 100}%)`,
+                    background: "rgba(0,0,0,0.65)",
+                  }}
+                />
+              )}
+            </div>
+            {item.cut && item.cut.status === "cropped" && (
+              <p className="text-xs text-emerald-700" data-testid="review-queue-cut-note">
+                The dimmed part is cut away in the film: {item.cut.marks.map((m) => `${m.kind}: ${m.what}`).join("; ")}.
+              </p>
+            )}
+            {item.cut?.status === "clean" && (
+              <p className="text-xs text-emerald-700">No logo or text: the whole picture is used.</p>
             )}
           </section>
 

@@ -333,3 +333,13 @@ def restore(db: Session, asset: VisualAsset) -> int:
     if back:
         db.commit()
     return back
+
+
+def cut_view(asset: VisualAsset) -> dict | None:
+    """What the film will cut away of this asset, for the owner's review: the window that is shown (shares of the
+    picture) and what lies outside it. None while the asset has not been scanned."""
+    stored = json.loads(asset.spec_json or "{}").get("overlays")
+    if not stored:
+        return None
+    return {"status": stored.get("status"), "crop": crop_of(asset),
+            "marks": [{"kind": m["kind"], "what": m.get("what", "")} for m in stored.get("marks") or []]}
