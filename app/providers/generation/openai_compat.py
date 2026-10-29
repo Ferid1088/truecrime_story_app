@@ -18,6 +18,7 @@ import httpx
 from app.core.ai_config import ai_config
 from app.core.concurrency import slot
 from app.core.env import env_value
+from app.providers.generation import json_repair
 from app.providers.generation.base import (
     GenerationError,
     GenerationProvider,
@@ -517,7 +518,13 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
             pass
         start, end = cleaned.find("{"), cleaned.rfind("}")
         if start != -1 and end > start:
-            return json.loads(cleaned[start : end + 1])
+            try:
+                return json.loads(cleaned[start : end + 1])
+            except json.JSONDecodeError:
+                pass
+        repaired = json_repair.repair(cleaned)
+        if repaired is not None:
+            return repaired
         raise json.JSONDecodeError("no JSON object found", cleaned, 0)
 
     async def generate_structured(
@@ -534,8 +541,8 @@ class OpenAICompatibleGenerationProvider(GenerationProvider):
         # a transient hiccup, not a stage failure; malformed output is
         # never silently accepted.
         log.warning(
-            "%s non-JSON output for role=%s; retrying with strict JSON",
-            self.label, role,
+            "%s non-JSON output for role=%s (%s chars, starts %r, ends %r); retrying with strict JSON",
+            self.label, role, len(first.text), first.text[:80], first.text[-120:],
         )
         strict = (
             system

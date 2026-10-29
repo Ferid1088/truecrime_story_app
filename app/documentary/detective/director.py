@@ -167,6 +167,18 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
     return payload
 
 
+STABLE_FIRST = ("schema_version", "language", "text_version", "film_id", "tool_catalog", "asset_catalog",
+                "channel_preferences", "narration")
+
+
+def cache_ordered(payload: dict) -> dict:
+    """The payload with what is the same in every call of a film first (the whole narration is most of the input) and
+    what changes with every call (mode, scope, the state so far, a repair's issues) last: a provider that caches by
+    prompt prefix then reuses the long start for every chunk and every repair."""
+    first = {k: payload[k] for k in STABLE_FIRST if k in payload}
+    return {**first, **{k: v for k, v in payload.items() if k not in first}}
+
+
 async def _ask(db: Session, case_id: int, graph_id: int, label: str, payload: dict) -> tuple[dict, int]:
     """One paid agent call, tracked as its own run (a repair attempt's run records the issues it was
     sent). Returns (raw output, agent run id)."""
@@ -174,7 +186,7 @@ async def _ask(db: Session, case_id: int, graph_id: int, label: str, payload: di
     summary = f"graph={graph_id} mode={payload['mode']}" + (f" issues={issues}"[:600] if issues else "")
     with track_run(db, case_id, f"Detective Director: {label}", input_summary=summary) as run:
         raw, res = await run_agent(
-            "detective.director", get_generation_provider(), json.dumps(payload, ensure_ascii=False)
+            "detective.director", get_generation_provider(), json.dumps(cache_ordered(payload), ensure_ascii=False)
         )
         stamp_run(run, res, "detective_director")
         run_id = run.id

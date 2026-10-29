@@ -239,3 +239,13 @@ def test_no_single_field_damage_to_a_directors_output_crashes_the_call(db_sessio
 
     summary = collections.Counter((c[2], c[3][:50]) for c in crashes)
     assert crashes == [], f"{len(crashes)} crashes: {dict(summary)}"
+
+
+def test_the_director_input_starts_with_what_is_the_same_in_every_call_so_a_prefix_cache_can_reuse_it(db_session, monkeypatch):
+    graph = _setup(db_session)
+    fake, _ = _map(db_session, graph, monkeypatch, BAD(), GOOD())
+    first, repair = (list(c) for c in fake.calls)
+    assert first[:len(director.STABLE_FIRST)] == [k for k in director.STABLE_FIRST if k in first]
+    assert first.index("narration") < first.index("mode") and first.index("narration") < first.index("existing_state")
+    assert repair.index("narration") < repair.index("repair_target")
+    assert fake.calls[0]["narration"] == fake.calls[1]["narration"]
