@@ -30,6 +30,21 @@ def _domain(url: str | None) -> str:
         return ""
 
 
+WATERMARK_REASON = "watermark visible"
+
+
+def reclassify_watermarked(asset) -> bool:
+    """An asset an older audit gave up for a visible watermark gets the rights its provider, licence and source give it:
+    the overlay scan cuts the mark away, so the mark no longer decides. True when its rights changed."""
+    if asset.rights_status != "do_not_use" or (asset.rights_reason or "") != WATERMARK_REASON:
+        return False
+    status, reason = classify(asset.provider, asset.license, asset.source_url, asset.page_url)
+    if (status, reason) == (asset.rights_status, asset.rights_reason):
+        return False
+    asset.rights_status, asset.rights_reason = status, reason
+    return True
+
+
 def classify(provider: str, license_name: str | None = None,
              url: str | None = None, page_url: str | None = None,
              watermark: bool = False) -> tuple[str, str]:

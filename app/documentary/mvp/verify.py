@@ -309,6 +309,36 @@ async def verify_candidate(db: Session, case: Case, cand: MvpCandidate, requirem
     return cand
 
 
+WATERMARK_REASON = "watermark visible"
+
+
+def release_watermark_blocks(db: Session, case_id: int) -> int:
+    """Candidates that an earlier rule blocked for a visible watermark, with the block lifted: a watermark is cut away
+    by the overlay scan (which gives a picture up only when it cannot be cut clean), so it no longer decides the
+    picture's rights. The rights are decided again from the asset itself; a picture that is blocked for another reason
+    stays blocked. Returns how many candidates were released."""
+    from app.documentary.visuals.rights import reclassify_watermarked
+
+    for asset in db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.rights_status == "do_not_use",
+                                              VisualAsset.rights_reason == WATERMARK_REASON):
+        reclassify_watermarked(asset)
+    released = 0
+    for cand in (db.query(MvpCandidate).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+                 .filter(MvpRequirement.case_id == case_id, MvpCandidate.rights_status == "blocked")):
+        reasons = json.loads(cand.reasons_json or "[]")
+        mine = [r for r in reasons if r == WATERMARK_REASON or r.endswith(f": {WATERMARK_REASON}")]
+        if not mine:
+            continue
+        cand.reasons_json = json.dumps([r for r in reasons if r not in mine], ensure_ascii=False)
+        status, _ = rights_decision(db.get(VisualAsset, cand.visual_asset_id))
+        if status != "blocked":
+            cand.rights_status = status
+            cand.final_status = final_status(cand)
+            released += 1
+    db.commit()
+    return released
+
+
 def sync_asset_status(db: Session, case_id: int) -> dict:
     """The library asset carries the aggregate of its candidates so the production script's usability
     check sees it: approved somewhere -> verified; rejected everywhere it was judged -> rejected;

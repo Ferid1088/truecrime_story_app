@@ -154,3 +154,52 @@ def test_a_first_verifier_that_says_unrelated_is_not_overruled_into_approval(db_
     run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [],
                            judge=_judge(_verdict("unrelated", 0.9)), second=_judge(_verdict("exact", 0.95))))
     assert cand.final_status == "rejected"
+
+
+def test_a_block_that_only_the_old_watermark_rule_made_is_lifted_and_another_block_stays(db_session, tmp_path, monkeypatch):
+    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)             # public domain: usable
+    cand.rights_status, cand.final_status = "blocked", "rejected"
+    cand.provenance_status = cand.identity_status = cand.ethics_status = cand.scene_status = "approved"
+    cand.reasons_json = json.dumps(["watermark visible", "something else"])
+    other_asset = VisualAsset(case_id=case.id, asset_code="BLK1", local_path="x.jpg", rights_status="do_not_use")
+    db_session.add(other_asset)
+    db_session.commit()
+    blocked = MvpCandidate(requirement_id=req.id, visual_asset_id=other_asset.id, rights_status="blocked",
+                           final_status="rejected", reasons_json=json.dumps(["watermark visible"]))
+    db_session.add(blocked)
+    db_session.commit()
+
+    assert V.release_watermark_blocks(db_session, case.id) == 1
+
+    db_session.refresh(cand)
+    db_session.refresh(blocked)
+    assert cand.rights_status != "blocked" and cand.final_status == "approved"
+    assert json.loads(cand.reasons_json) == ["something else"]
+    assert blocked.rights_status == "blocked" and blocked.final_status == "rejected", "blocked for its own rights"
+    assert V.release_watermark_blocks(db_session, case.id) == 0, "done once"
+
+
+def test_an_asset_an_older_audit_gave_up_for_a_watermark_gets_its_rights_from_its_source_again(db_session, tmp_path, monkeypatch):
+    from app.documentary.visuals import rights as RT
+
+    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)
+    marked = VisualAsset(case_id=case.id, asset_code="WM1", local_path="x.jpg", provider="wikimedia",
+                         license="CC BY-SA 4.0", source_url="https://commons.wikimedia.org/x.jpg",
+                         rights_status="do_not_use", rights_reason="watermark visible")
+    stock = VisualAsset(case_id=case.id, asset_code="WM2", local_path="x.jpg", provider="web",
+                        source_url="https://www.gettyimages.com/x.jpg", rights_status="do_not_use",
+                        rights_reason="watermark visible")
+    db_session.add_all([marked, stock])
+    db_session.commit()
+    for a in (marked, stock):
+        db_session.add(MvpCandidate(requirement_id=req.id, visual_asset_id=a.id, rights_status="blocked",
+                                    final_status="rejected", reasons_json=json.dumps(["do_not_use: watermark visible"])))
+    db_session.commit()
+
+    V.release_watermark_blocks(db_session, case.id)
+    db_session.refresh(marked)
+    db_session.refresh(stock)
+
+    assert marked.rights_status != "do_not_use" and marked.rights_reason != "watermark visible"
+    assert stock.rights_status == "do_not_use" and stock.rights_reason.startswith("stock library"), "a stock library stays out"
+    assert RT.reclassify_watermarked(marked) is False, "only an asset still given up for the watermark is looked at"

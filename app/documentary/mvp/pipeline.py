@@ -120,8 +120,9 @@ async def verify_pending(db: Session, case: Case, plan: VisualPlan, requirements
 async def stage_library_and_verify(db: Session, case: Case, plan: VisualPlan) -> dict:
     requirements = requirements_of(plan)
     built = build_candidates(db, plan, requirements)
+    released = VF.release_watermark_blocks(db, case.id)       # verdicts of the old watermark rule
     verified = await verify_pending(db, case, plan, requirements)
-    return {**built, **verified}
+    return {**built, **verified, "watermark_blocks_released": released}
 
 
 async def stage_research(db: Session, case: Case, plan: VisualPlan) -> dict:
