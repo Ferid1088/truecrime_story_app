@@ -170,3 +170,15 @@ def test_the_run_stops_while_a_picture_needs_the_owner_and_goes_on_once_it_is_de
     assert response.status_code == 200
     db_session.expire_all()
     assert stage_owner_attention(db_session, plan, "en") is None
+
+
+def test_the_attention_stop_is_the_owners_one_review_and_undecided_pictures_do_not_stop_the_run_again(db_session):
+    from app.documentary.mvp.pipeline import request_review, stage_owner_attention
+    from app.documentary.pipeline.errors import AwaitingPictureReview
+
+    case, plan, cand = _seed(db_session)
+    with pytest.raises(AwaitingPictureReview):
+        stage_owner_attention(db_session, plan, "en")
+    request_review(db_session, plan)           # what the language chain does when the gate stops the run
+    assert cand.final_status == "needs_review", "the owner decided nothing"
+    assert stage_owner_attention(db_session, plan, "en") is None, "it is shown once: the run goes on after Resume"

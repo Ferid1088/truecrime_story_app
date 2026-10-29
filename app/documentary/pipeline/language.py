@@ -193,7 +193,11 @@ class LanguageChain:
                           else mvp_host)
 
         async def mvp_direct():
-            MVP.stage_owner_attention(db, needs_plan, lang)
+            try:
+                MVP.stage_owner_attention(db, needs_plan, lang)
+            except AwaitingPictureReview:
+                MVP.request_review(db, needs_plan)          # this stop is the owner's one review
+                raise
             plan, report = await MVP.stage_direct(db, case, needs_plan, state["bp"], manifest, lang)
             holder["plan"] = plan
             out = {"visual_plan_id": plan.id, **{k: report[k] for k in (

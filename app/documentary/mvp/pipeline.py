@@ -338,13 +338,10 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
 
 
 def next_round_note(reviews: int) -> str:
-    """What resuming does next, given the reviews done once this stop is counted: after the first, the general search
-    and then the fallback in one pass; after that only pictures the owner approves can fill what is bare."""
-    if reviews <= DR.REVIEWS_BEFORE_FALLBACK:
-        return (" On resume the planner searches public general photos and videos for these moments, then fills what is "
-                "still bare by showing a picture again and by the neighbouring pictures (withdraw that in the review).")
-    return (" The general search and the neighbour cover have already run: only pictures that you approve can fill "
-            "these moments.")
+    """What resuming does: the general search, then the fallback, in one pass. The owner is asked only once."""
+    return (" On resume the planner searches public general photos and videos for these moments, then fills what is "
+            "still bare by showing a picture again and by the neighbouring pictures (withdraw that in the review). "
+            "This is the only review: what is still undecided stays out of the film.")
 
 
 def request_review(db: Session, needs_plan: VisualPlan) -> None:
@@ -359,9 +356,12 @@ def request_review(db: Session, needs_plan: VisualPlan) -> None:
 
 def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) -> None:
     """The gate before direction: pictures the verifiers could not settle (needs_review) are the owner's to decide, so
-    the run stops until they have been reviewed. Approving or rejecting a picture takes it out of needs_review."""
+    the first run stops until they have been reviewed. It stops once: after the owner's review (the review is counted,
+    see `request_review`) a picture left undecided is simply not used."""
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
+    if DR.reviews_done(needs_plan) >= 1:        # the owner's one review is done: what is still undecided stays out
+        return
     pictures = {asset_id for (asset_id,) in (
         db.query(MvpCandidate.visual_asset_id)
         .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
@@ -374,8 +374,9 @@ def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) ->
 
 
 def stage_complete(plan_row: VisualPlan, language: str, reviews: int = 0) -> dict:
-    """The gate before anything is made from the plan: every moment has a picture, a video or a graphic. Moments
-    that are still empty after all alternatives stop the run for the owner's picture review."""
+    """The gate before anything is made from the plan: every moment has a picture, a video or a graphic. Moments that
+    are still empty after the case search stop the run once, for the owner's picture review. After that review the
+    general search and the fallback have run, and what is still bare is reported, not asked about again."""
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
     plan = json.loads(plan_row.validation_json or "{}").get("plan") or {}
@@ -384,10 +385,15 @@ def stage_complete(plan_row: VisualPlan, language: str, reviews: int = 0) -> dic
         return {"gaps": 0, "alternatives": plan.get("alternatives", {})}
     seconds = round(sum(g["end"] - g["start"] for g in gaps), 1)
     beats = sorted({g["beat"] for g in gaps})
+    shown = f"{', '.join(beats[:12])}{'...' if len(beats) > 12 else ''}"
+    if reviews >= 1:
+        return {"gaps": len(gaps), "bare_seconds": seconds, "alternatives": plan.get("alternatives", {}),
+                "degraded": f"{len(gaps)} moment(s) ({seconds}s) of the {language} film are still bare after the review, "
+                            f"the general search and the neighbour cover, in beats {shown}"}
     raise AwaitingPictureReview(
         f"Awaiting picture review: {len(gaps)} moment(s) ({seconds}s) of the {language} film have no picture, "
-        f"video or graphic, in beats {', '.join(beats[:12])}{'...' if len(beats) > 12 else ''}. Review the pictures "
-        "the planner rejected or was unsure about (Review pictures), then resume." + next_round_note(reviews + 1))
+        f"video or graphic, in beats {shown}. Review the pictures the planner rejected or was unsure about (Review "
+        "pictures), then resume." + next_round_note(reviews + 1))
 
 
 def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: dict) -> dict:

@@ -406,9 +406,24 @@ def test_the_general_search_and_the_fallback_wait_for_the_owners_one_review(db_s
     assert D.reviews_done(plan) == 1 and D.cover_approved(plan), "after the review: the general search, then the cover"
 
 
-def test_what_resuming_does_next_depends_on_how_many_reviews_have_been_done():
+def test_the_stop_message_says_what_resuming_does_and_that_it_is_the_only_review():
     from app.documentary.mvp import pipeline as PL
 
-    first = PL.next_round_note(1)
-    assert "general photos and videos" in first and "showing a picture again" in first
-    assert "already run" in PL.next_round_note(2) and "only pictures that you approve" in PL.next_round_note(2)
+    note = PL.next_round_note(1)
+    assert "general photos and videos" in note and "showing a picture again" in note and "only review" in note
+
+
+def test_bare_moments_stop_the_run_only_for_the_one_review_and_afterwards_are_reported_not_asked_about_again():
+    import pytest
+
+    from app.documentary.mvp import pipeline as PL
+    from app.documentary.pipeline.errors import AwaitingPictureReview
+
+    from types import SimpleNamespace
+
+    plan = SimpleNamespace(validation_json=json.dumps({"plan": {"gaps": [
+        {"beat": "B03", "start": 100.0, "end": 130.0, "said": "x"}]}}))
+    with pytest.raises(AwaitingPictureReview, match="only review"):
+        PL.stage_complete(plan, "en", reviews=0)
+    after = PL.stage_complete(plan, "en", reviews=1)
+    assert after["gaps"] == 1 and after["bare_seconds"] == 30.0 and "still bare after the review" in after["degraded"]
