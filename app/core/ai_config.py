@@ -2967,6 +2967,9 @@ class MvpOverlaysConfig(BaseModel):
 
     enabled: bool
     edges: MvpClipEdgesConfig = Field(default_factory=MvpClipEdgesConfig)
+    # after a cut the cut frames are inspected again; a mark that is still there is cut away and the result checked
+    # once more, at most this many times, and a picture that is still not clean is not used
+    verify_cut_passes: int = Field(default=2, ge=0, le=5)
     # sampled frames of a clip and their width; a photo is scanned at `photo_width`
     frames_per_video: int = Field(ge=1)
     video_frame_width: int = Field(ge=256)

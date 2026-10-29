@@ -81,10 +81,17 @@ def jpeg(width=640, height=360):
     return out.getvalue()
 
 
-def scanner(db, case, answer):
+def scanner(db, case, answer, *then):
+    """The inspector answers the scan with `answer`; each later call (the check of the cut) with the next of `then`, a
+    clean result when there is none."""
+    answers, calls = [answer, *then], []
+
     async def asker(payload, images):
-        return answer
-    return OV.OverlayScanner(db, case, asker=asker, frames=lambda asset: [jpeg()])
+        calls.append(images)
+        return answers[len(calls) - 1] if len(calls) <= len(answers) else {"marks": []}
+    sc = OV.OverlayScanner(db, case, asker=asker, frames=lambda asset: [jpeg()])
+    sc.asked = calls
+    return sc
 
 
 def test_a_scan_is_stored_on_the_asset_and_not_asked_again(db_session):
@@ -310,11 +317,12 @@ def test_a_stored_scan_is_judged_again_by_todays_rules_without_asking_the_model(
     asset = _asset(db_session, case)
     asset.width, asset.height = 1500, 1000
     asset.spec_json = json.dumps({"overlays": {
-        "version": 2, "status": "unusable", "crop": None, "sha256": asset.sha256,
+        "version": 2, "status": "unusable", "crop": None, "sha256": asset.sha256, "verified": True,
         "marks": [{"kind": "logo", "what": "channel", "box": [0.8, 0.0, 1.0, 0.25]}]}})
     db_session.commit()
-    out = asyncio.run(scanner(db_session, case, {"unexpected": True}).run([asset]))
-    assert out["cropped"] == 1 and out["failed"] == 0 and OV.crop_of(asset)["w"] > 0.5
+    sc = scanner(db_session, case, {"unexpected": True})
+    out = asyncio.run(sc.run([asset]))
+    assert out["cropped"] == 1 and out["failed"] == 0 and OV.crop_of(asset)["w"] > 0.5 and sc.asked == []
     assert json.loads(asset.spec_json)["overlays"]["status"] == "cropped"
 
 
@@ -440,3 +448,57 @@ def test_a_failed_edge_check_is_made_again_and_never_taken_as_no_edges(db_sessio
     sc = edge_scanner(db_session, case, boom)
     asyncio.run(sc.scan(asset))
     assert "clip_edges" not in json.loads(asset.spec_json or "{}") and any("edges" in e for e in sc.errors)
+
+
+def test_a_mark_in_the_cut_frames_is_cut_away_too_and_the_new_cut_is_checked_again(db_session):
+    case = _case(db_session)
+    asset = _asset(db_session, case, "C1")
+    first = {"marks": [{"kind": "logo", "what": "corner emblem", "box": [0.85, 0.0, 1.0, 0.15]}]}
+    # in the cut picture a caption strip is left at the bottom: x 0-1, y 0.9-1 of the cut
+    second = {"marks": [{"kind": "caption", "what": "name strip", "box": [0.0, 0.9, 1.0, 1.0]}]}
+    sc = scanner(db_session, case, first, second)
+    scan = asyncio.run(sc.scan(asset))
+
+    assert len(sc.asked) == 3, "the scan, then two checks of the cut"
+    assert scan.status == OV.CROPPED and scan.verified is True and {m.kind for m in scan.marks} == {"logo", "caption"}
+    assert json.loads(asset.spec_json)["overlays"]["verified"] is True
+
+
+def test_a_cut_that_is_clean_is_marked_verified_and_a_picture_that_cannot_be_cut_clean_is_given_up(db_session):
+    case = _case(db_session)
+    clean_after_cut = _asset(db_session, case, "C2")
+    scan = asyncio.run(scanner(db_session, case, {"marks": [{"kind": "logo", "what": "emblem",
+                                                           "box": [0.85, 0.0, 1.0, 0.15]}]}).scan(clean_after_cut))
+    assert scan.status == OV.CROPPED and scan.verified is True
+
+    never_clean = _asset(db_session, case, "C3", sha="s3")
+    logo = {"marks": [{"kind": "logo", "what": "emblem", "box": [0.85, 0.0, 1.0, 0.15]}]}
+    again = {"marks": [{"kind": "watermark", "what": "agency", "box": [0.1, 0.1, 0.9, 0.9]}]}
+    scan = asyncio.run(scanner(db_session, case, logo, again, again, again).scan(never_clean))
+    assert scan.status == OV.UNUSABLE, "a mark that stays in every cut means the picture is not used"
+
+
+def test_a_cut_found_before_the_check_existed_is_checked_when_the_asset_is_scanned_again(db_session):
+    case = _case(db_session)
+    asset = _asset(db_session, case, "C4", sha="s4")
+    asset.width, asset.height = 1500, 1000
+    asset.spec_json = json.dumps({"overlays": {
+        "version": 2, "status": "cropped", "crop": None, "sha256": "s4",
+        "marks": [{"kind": "logo", "what": "channel", "box": [0.8, 0.0, 1.0, 0.25]}]}})
+    db_session.commit()
+    sc = scanner(db_session, case, {"marks": []})
+    scan = asyncio.run(sc.scan(asset))
+    assert scan.verified is True and len(sc.asked) == 1 and json.loads(asset.spec_json)["overlays"]["verified"] is True
+
+
+def test_a_mark_found_in_the_cut_is_mapped_back_to_the_original_picture():
+    mark = OV.Mark("caption", "strip", (0.0, 0.9, 1.0, 1.0))
+    original = OV.to_original(mark, (0.1, 0.2, 0.5, 0.5))
+    assert tuple(round(v, 3) for v in original.box) == (0.1, 0.65, 0.6, 0.7)
+
+
+def test_the_frame_of_a_cut_is_the_part_the_film_shows():
+    from PIL import Image
+
+    cut = OV.cut_frame(jpeg(640, 360), (0.25, 0.0, 0.5, 1.0))
+    assert Image.open(io.BytesIO(cut)).size == (320, 360)

@@ -152,7 +152,8 @@
         "edge_seconds": 15.0,
         "frames_per_edge": 6,
         "min_keep_seconds": 3.0
-      }
+      },
+      "verify_cut_passes": 2
     }
   }
 }

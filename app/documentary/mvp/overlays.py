@@ -49,11 +49,13 @@ class Scan:
     status: str
     marks: list[Mark] = field(default_factory=list)
     crop: tuple[float, float, float, float] | None = None      # x, y, width, height as shares of the picture
+    verified: bool = False                                     # the cut frames were inspected again and are clean
 
     def as_json(self) -> dict:
         return {"version": ai_config.mvp().overlays.version, "status": self.status,
                 "marks": [m.as_json() for m in self.marks],
-                "crop": dict(zip("xywh", (round(v, 5) for v in self.crop), strict=True)) if self.crop else None}
+                "crop": dict(zip("xywh", (round(v, 5) for v in self.crop), strict=True)) if self.crop else None,
+                "verified": self.verified}
 
 
 def parse_marks(data: dict | None) -> list[Mark]:
@@ -174,6 +176,23 @@ def judge(marks: list[Mark], width: float, height: float) -> Scan:
     return Scan(CROPPED, hard, crop) if crop else Scan(UNUSABLE, hard)
 
 
+def to_original(mark: Mark, crop: tuple[float, float, float, float]) -> Mark:
+    """A mark found in the cut picture, as a mark of the original picture (both as shares of the picture)."""
+    x, y, w, h = crop
+    a, b, c, d = mark.box
+    return Mark(mark.kind, mark.what, (x + a * w, y + b * h, x + c * w, y + d * h))
+
+
+def cut_frame(frame: bytes, crop: tuple[float, float, float, float]) -> bytes:
+    """The part of a JPEG frame that the film will show."""
+    img = Image.open(io.BytesIO(frame)).convert("RGB")
+    x, y, w, h = crop
+    box = (round(x * img.width), round(y * img.height), round((x + w) * img.width), round((y + h) * img.height))
+    out = io.BytesIO()
+    img.crop(box).save(out, "JPEG", quality=85)
+    return out.getvalue()
+
+
 def jpeg_of(path, width: int) -> bytes:
     img = Image.open(path).convert("RGB")
     if img.width > width:
@@ -197,9 +216,12 @@ def current(asset: VisualAsset) -> Scan | None:
         return None
     marks = [Mark(m["kind"], m.get("what", ""), tuple(m["box"])) for m in stored.get("marks") or []]
     if asset.width and asset.height:        # the cut follows today's rules, the marks are what the model found
-        return judge(marks, asset.width, asset.height)
+        scan = judge(marks, asset.width, asset.height)
+        scan.verified = bool(stored.get("verified"))
+        return scan
     crop = stored.get("crop")
-    return Scan(stored["status"], marks, tuple(crop[k] for k in "xywh") if crop else None)
+    return Scan(stored["status"], marks, tuple(crop[k] for k in "xywh") if crop else None,
+                bool(stored.get("verified")))
 
 
 def crop_of(asset: VisualAsset) -> dict | None:
@@ -315,6 +337,10 @@ class OverlayScanner:
             return Scan(UNUSABLE, [Mark(OTHER, "only an intro or an end card, no footage", (0.0, 0.0, 1.0, 1.0))])
         known = current(asset)
         if known is not None:
+            if known.status == CROPPED and not known.verified and self.cfg.verify_cut_passes:
+                known = await self.verified(asset, known)         # a scan made before the cut was checked
+                if known is None:
+                    return None
             self.store(asset, known)
             return known
         snap = BudgetService(self.db).snapshot(self.case.id)
@@ -333,8 +359,47 @@ class OverlayScanner:
             return None
         width, height = Image.open(io.BytesIO(frames[0])).size
         scan = judge(parse_marks(data), width, height)
+        if scan.status == CROPPED and self.cfg.verify_cut_passes:
+            try:
+                scan = await self.verify_cut(asset, frames, scan, width, height)
+            except Exception as e:  # noqa: BLE001 - an unchecked cut is checked again next time, never trusted
+                self.errors.append(f"{asset.asset_code}: cut check: {e}")
+                log.warning("cut check of %s failed: %s", asset.asset_code, e)
+                return None
         self.store(asset, scan)
         return scan
+
+    async def verified(self, asset: VisualAsset, scan: Scan) -> Scan | None:
+        """A stored cut that was never checked, checked now (None when it could not be: it is tried again)."""
+        snap = BudgetService(self.db).snapshot(self.case.id)
+        if snap.spent_eur >= snap.cap_eur - 1e-9:
+            self.stopped_for_budget = True
+            return None
+        try:
+            frames = await asyncio.to_thread(self._frames, asset)
+            width, height = Image.open(io.BytesIO(frames[0])).size
+            return await self.verify_cut(asset, frames, scan, width, height)
+        except Exception as e:  # noqa: BLE001
+            self.errors.append(f"{asset.asset_code}: cut check: {e}")
+            log.warning("cut check of %s failed: %s", asset.asset_code, e)
+            return None
+
+    async def verify_cut(self, asset: VisualAsset, frames: list[bytes], scan: Scan, width: int, height: int) -> Scan:
+        """The cut is checked, not trusted: the frames the film will show (the cut part of each) go to the inspector
+        again. A mark found in them is a mark of the original picture too, so the cut is made again around it and checked
+        again, at most `verify_cut_passes` times; a cut that is still not clean is a picture that cannot be cut free."""
+        for _ in range(self.cfg.verify_cut_passes):
+            if scan.status != CROPPED or scan.crop is None:
+                return scan
+            data = await self.ask(asset, [cut_frame(f, scan.crop) for f in frames])
+            if not isinstance(data, dict) or "marks" not in data:
+                raise ValueError("the answer has no marks")
+            found = [to_original(m, scan.crop) for m in parse_marks(data)]
+            if not found:
+                scan.verified = True
+                return scan
+            scan = judge(scan.marks + found, width, height)
+        return scan if scan.status != CROPPED else Scan(UNUSABLE, scan.marks)
 
     def store(self, asset: VisualAsset, scan: Scan) -> None:
         """Keep the scan on the asset (the renderer reads the cut from there); nothing is written when it is unchanged."""
