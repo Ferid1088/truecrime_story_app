@@ -1,7 +1,8 @@
 """Free, local repairs of a model's almost-JSON answer, tried before a paid retry.
 
 Fixes only what cannot change the meaning: markdown fences and prose around the object, trailing commas and Python
-literals (True/False/None), both only outside strings. An answer that is cut off, or whose structure is wrong, is
+literals (True/False/None), both only outside strings, and the line breaks a gateway wrapped into the middle of a
+string or a key (a real newline in a JSON string is always written \\n, so a raw one is never part of the answer). An answer that is cut off, or whose structure is wrong, is
 not repaired: closing it would silently keep a partial answer as if it were whole."""
 
 from __future__ import annotations
@@ -17,6 +18,9 @@ def _fixed_outside_strings(text: str) -> str:
     while i < len(text):
         ch = text[i]
         if in_string:
+            if ch in "\r\n":
+                i += 1
+                continue
             out.append(ch)
             if ch == "\\" and i + 1 < len(text):
                 out.append(text[i + 1])
