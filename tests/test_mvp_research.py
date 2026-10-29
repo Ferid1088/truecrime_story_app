@@ -2,6 +2,7 @@ import asyncio
 import json
 from uuid import uuid4
 
+from app.core.ai_config import ai_config
 from app.db.models import (Case, EditorialBlueprint, MvpCandidate, MvpRequirement, MvpSearchRound,
                            StoryVersion, VisualAsset, VisualPlan)
 from app.documentary.mvp import research as RS
@@ -71,7 +72,8 @@ def test_requirement_met_in_the_first_round_stops_searching(db_session):
     assert db_session.query(MvpSearchRound).filter_by(requirement_id=req.id).count() == 2
 
 
-def test_never_more_than_one_initial_and_four_further_rounds(db_session):
+def test_never_more_than_one_initial_and_four_further_rounds(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.mvp().search, "extra_rounds_max", 4)
     case, plan, req = _setup(db_session)
     f = Fakes(db_session, [1, 1, 1, 1, 1, 1, 1])
     report = run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
@@ -82,7 +84,8 @@ def test_never_more_than_one_initial_and_four_further_rounds(db_session):
     assert report["shortages"] == 1
 
 
-def test_repeated_queries_are_dropped_and_a_barren_round_stops_early(db_session):
+def test_repeated_queries_are_dropped_and_a_barren_round_stops_early(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.mvp().search, "extra_rounds_max", 4)
     case, plan, req = _setup(db_session)
     f = Fakes(db_session, [1, 0, 0])
     run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
@@ -98,3 +101,10 @@ def test_illustration_requirements_are_never_searched(db_session):
     f = Fakes(db_session, [1])
     run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
     assert f.calls == 0
+
+
+def test_with_the_shipped_config_the_case_search_is_one_round_and_the_general_search_is_the_second(db_session):
+    case, plan, req = _setup(db_session)
+    f = Fakes(db_session, [1, 1, 1])
+    run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
+    assert f.calls == 1, "one case round; the owner reviews, then the general search runs"

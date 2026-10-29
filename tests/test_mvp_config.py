@@ -21,9 +21,9 @@ def test_roles_that_look_at_pictures_use_a_vision_model():
         assert provider.capabilities[model].vision, role
 
 
-def test_search_rounds_are_one_initial_and_four_further():
+def test_the_case_search_is_one_round():
     cfg = ai_config.mvp().search
-    assert (cfg.initial_rounds, cfg.extra_rounds_max) == (1, 4)
+    assert (cfg.initial_rounds, cfg.extra_rounds_max) == (1, 0)
 
 
 def test_a_status_cannot_both_approve_and_never_approve():
