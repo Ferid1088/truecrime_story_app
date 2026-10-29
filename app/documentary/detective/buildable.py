@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import DetectiveScene, DetectiveToolAction
 from app.documentary.detective import dispatch as D
+from app.documentary.detective import timeline as TL
 from app.documentary.detective.reading import reading_need
 from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import GraphicUnavailable
@@ -59,6 +60,10 @@ def issue_of(db: Session, action: DetectiveToolAction) -> str | None:
     problem = render_problem(action.tool_id, data)
     if problem:
         return f"action {action.action_key} ({action.tool_id}) cannot be rendered: {problem}"
+    try:
+        reading_need(action.tool_id, data, "en")
+    except GraphicUnavailable as e:
+        return f"action {action.action_key} ({action.tool_id}) cannot be laid out to be read: {e}"
     return None
 
 
@@ -121,23 +126,41 @@ def card_seconds_by_beat(db: Session, graph_id: int, language: str) -> dict[str,
     return seconds
 
 
-def capped_card_seconds_by_beat(db: Session, graph_id: int, language: str, units) -> dict[str, float]:
-    """The seconds the cards can fill in each beat: what they need to be read, never more than the beat's own share
-    (`max_beat_card_share`) of its narration, so the film keeps room for pictures."""
-    cap = ai_config.detective_toolkit.max_beat_card_share
-    narration = narration_seconds(units)
-    return {beat: min(seconds, cap * narration.get(beat, 0.0))
-            for beat, seconds in card_seconds_by_beat(db, graph_id, language).items()}
+def estimated_windows(units) -> list[dict]:
+    """The film's beat windows as the narration alone gives them: every sentence lasts its words at the speech rate,
+    one after the other, a beat runs from its first sentence to its last."""
+    rate = ai_config.detective_toolkit.reading.dense_speech_words_per_second
+    windows: list[dict] = []
+    at = 0.0
+    for unit in units:
+        if not windows or windows[-1]["beat_id"] != unit.beat_id:
+            windows.append({"beat_id": unit.beat_id, "start": at, "end": at, "sentences": []})
+        seconds = len(unit.text.split()) / rate
+        windows[-1]["sentences"].append({"start": at, "end": at + seconds, "speech": unit.text})
+        windows[-1]["end"] = at + seconds
+        at += seconds
+    return windows
+
+
+def planned_timeline(db: Session, graph_id: int, language: str, units) -> TL.FilmTimeline:
+    """The film timeline the cards would get over the narration's estimated windows: the placement the Main Visual
+    Planner will see (release points, reading times, each beat's card share), not a sum of card seconds."""
+    return TL.film_timeline(estimated_windows(units), D.resolve_dispatchable_actions(db, graph_id), language)
+
+
+def placed_card_seconds_by_beat(timeline: TL.FilmTimeline) -> dict[str, float]:
+    return {beat: sum(c["end"] - c["start"] for c in cards) for beat, cards in timeline.cards_by_beat.items()}
 
 
 def alternative_share(db: Session, graph_id: int, language: str, units) -> float:
-    film = sum(narration_seconds(units).values())
-    return round(sum(capped_card_seconds_by_beat(db, graph_id, language, units).values()) / film, 3) if film else 0.0
+    """The share of the film its cards fill once placed."""
+    return planned_timeline(db, graph_id, language, units).alternative_share
 
 
 def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) -> list[str]:
     """The beats whose cards fill the smallest share of their own narration, weakest first."""
-    narration, cards = narration_seconds(units), capped_card_seconds_by_beat(db, graph_id, language, units)
+    narration = narration_seconds(units)
+    cards = placed_card_seconds_by_beat(planned_timeline(db, graph_id, language, units))
     return sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))[:count]
 
 

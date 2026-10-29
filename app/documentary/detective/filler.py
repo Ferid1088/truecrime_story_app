@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.core.ai_config import ai_config
 from app.db.models import DetectiveClaim, DetectiveScene, DetectiveToolAction, NarrationUnit
 from app.documentary.detective import buildable as BD
+from app.documentary.detective.reading import reading_need
+from app.documentary.graphics.base import GraphicUnavailable
 
 GROUNDED = ("established_in_text", "attributed")
 MAX_FACTS_PER_CARD = 3
@@ -39,13 +41,23 @@ def _claims_by_beat(db: Session, graph_id: int, units: list[NarrationUnit]) -> d
     return by_beat
 
 
-def _card_for(claims: list[DetectiveClaim]) -> list[DetectiveClaim]:
-    """The largest group of up to three of these claims the fact card's renderer accepts."""
+def _seconds(claims: list[DetectiveClaim]) -> float:
+    """How long a fact card of these claims is held; infinity when its layout cannot be read."""
+    data = {"facts": [{"text": c.text, "fact_id": c.claim_key} for c in claims]}
+    try:
+        return reading_need("fact_card", data, "en").planned
+    except GraphicUnavailable:
+        return float("inf")
+
+
+def _card_for(claims: list[DetectiveClaim], room: float) -> list[DetectiveClaim]:
+    """The largest group of up to three of these claims that the fact card's renderer accepts and that fits `room`
+    seconds."""
     group: list[DetectiveClaim] = []
     for claim in claims:
         candidate = group + [claim]
         data = {"facts": [{"text": c.text, "fact_id": c.claim_key} for c in candidate]}
-        if BD.render_problem("fact_card", data) is None:
+        if BD.render_problem("fact_card", data) is None and _seconds(candidate) <= room:
             group = candidate
         if len(group) == MAX_FACTS_PER_CARD:
             break
@@ -75,35 +87,38 @@ def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim]
 
 
 def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[NarrationUnit]) -> dict:
-    """Add fact cards, weakest beat first, until the cards fill the configured share of the film or no sourced claim
-    is left. Returns what was made."""
+    """Add fact cards, weakest beat first, until the cards fill the configured share of the film once placed, or no
+    sourced claim is left that fits. A card the timeline then cannot place is taken out again. Returns what was made."""
     cfg = ai_config.detective_toolkit
     narration = BD.narration_seconds(units)
     shown = _shown_claims(db, graph_id)
     pending = _claims_by_beat(db, graph_id, units)
-    order = (db.query(DetectiveScene).filter_by(graph_id=graph_id).count())
-    made, serial = [], 0
-    while BD.alternative_share(db, graph_id, language, units) < cfg.min_alternative_share:
-        cards = BD.card_seconds_by_beat(db, graph_id, language)    # raw: the cap is checked below
-        beats = [b for b in sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))
-                 if cards.get(b, 0.0) < cfg.max_beat_card_share * narration[b]
-                 and any(c.claim_key not in shown for c in pending.get(b, []))]
-        if not beats:
-            break
-        beat = beats[0]
-        group = _card_for([c for c in pending[beat] if c.claim_key not in shown])
-        if not group:
-            pending[beat] = [c for c in pending[beat] if c.claim_key in shown]
-            continue
-        serial += 1
-        order += 1
-        action = _add_card(db, graph_id, beat, group, order, units, serial)
-        shown.update(c.claim_key for c in group)
-        if BD.issue_of(db, action) is not None:        # never keep a card that cannot be built
-            db.delete(action.scene)
-            db.delete(action)
+    order = db.query(DetectiveScene).filter_by(graph_id=graph_id).count()
+    made: list[str] = []
+    serial, last = 0, None
+    while True:
+        timeline = BD.planned_timeline(db, graph_id, language, units)
+        if last is not None and last.action_key in {s["action_key"] for s in timeline.skipped}:
+            made.remove(last.action_key)               # the timeline has no room for it: not a card of the film
+            db.delete(last.scene)
+            db.delete(last)
             db.flush()
-            continue
-        made.append(action.action_key)
+            timeline = BD.planned_timeline(db, graph_id, language, units)
+        last = None
+        if timeline.alternative_share >= cfg.min_alternative_share:
+            break
+        placed = BD.placed_card_seconds_by_beat(timeline)
+        for beat in sorted(narration, key=lambda b: (placed.get(b, 0.0) / narration[b], b)):
+            room = cfg.max_beat_card_share * narration[beat] - placed.get(beat, 0.0)
+            group = _card_for([c for c in pending.get(beat, []) if c.claim_key not in shown], room)
+            if group:
+                serial += 1
+                order += 1
+                last = _add_card(db, graph_id, beat, group, order, units, serial)
+                shown.update(c.claim_key for c in group)
+                made.append(last.action_key)
+                break
+        if last is None:
+            break
     db.commit()
     return {"cards": len(made), "share": BD.alternative_share(db, graph_id, language, units)}

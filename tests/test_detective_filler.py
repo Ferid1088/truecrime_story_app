@@ -11,7 +11,7 @@ from app.documentary.detective import filler as FL
 from tests.test_detective_section_d import _graph
 
 
-def _film(db_session, beats=("B01", "B02"), words=40, claims_per_beat=4):
+def _film(db_session, beats=("B01", "B02"), words=220, claims_per_beat=4):
     graph, _, _ = _graph(db_session, beats=[{"id": b} for b in beats])
     MEM.ensure_entity(db_session, graph.id, "gun", "the 9mm", "object", beats[0], 0)
     for order, beat in enumerate(beats):
@@ -73,12 +73,14 @@ def test_a_second_run_makes_nothing_new(db_session, monkeypatch):
     assert first["cards"] >= 1 and again["cards"] == 0
 
 
-def test_the_measured_share_never_counts_more_of_a_beat_than_its_cap(db_session, monkeypatch):
+def test_the_share_is_what_the_placed_cards_fill_and_a_beat_never_goes_past_its_cap(db_session, monkeypatch):
     monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 1.0)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_beat_card_share", 0.3)
     graph, units = _film(db_session, claims_per_beat=12)
     FL.fill_with_fact_cards(db_session, graph.id, "en", units)
-    assert BD.alternative_share(db_session, graph.id, "en", units) <= 0.3 + 1e-6
+    timeline = BD.planned_timeline(db_session, graph.id, "en", units)
+    assert timeline.alternative_share == BD.alternative_share(db_session, graph.id, "en", units) <= 0.3 + 1e-6
     narration = BD.narration_seconds(units)
-    capped = BD.capped_card_seconds_by_beat(db_session, graph.id, "en", units)
-    assert all(seconds <= 0.3 * narration[beat] + 1e-6 for beat, seconds in capped.items())
+    for beat, seconds in BD.placed_card_seconds_by_beat(timeline).items():
+        assert seconds <= 0.3 * narration[beat] + 1e-6
+    assert timeline.skipped == [], "every card the filler keeps is placed"
