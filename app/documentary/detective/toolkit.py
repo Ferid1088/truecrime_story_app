@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
+from app.core.prompts import prompt
 from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, RevealGraph, StoryVersion
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
@@ -81,14 +82,6 @@ def _directed_beats(db: Session, graph_id: int, units: list[NarrationUnit]) -> s
     return covered
 
 
-FILL_INSTRUCTIONS = (
-    "ADD CARDS: these beats are already directed, but their alternatives fill too little of the film. Add new scenes "
-    "(scene ids starting with '{prefix}-', never an existing id) that cover these units with alternative cards the "
-    "sourced claims can really build: fact_card, key_facts, evidence_check, unknowns, recap, timeline, conflict, "
-    "quote, courtroom or another catalog tool. Bind every claim, relation or question the card shows. A card the "
-    "claims cannot build is rejected, so choose by what the claims support.")
-
-
 async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit], language: str,
                 text_version: int) -> tuple[float, int, str | None, list[str]]:
     """Extra Director calls for the weakest beats until the alternatives fill the configured share of the film.
@@ -109,7 +102,7 @@ async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit
         try:
             await DD.direct_scenes(db, graph.id, scene_unit_keys=keys, language=language, text_version=text_version,
                                    run_id=f"fill-{passes}",
-                                   owner_instructions=FILL_INSTRUCTIONS.format(prefix=f"fill{passes}"))
+                                   owner_instructions=prompt("documentary/detective/fill_instructions").format(prefix=f"fill{passes}"))
         except (DD.DirectorValidationFailed, GenerationError) as e:
             if isinstance(e, GenerationError) and e.kind != "invalid_output":
                 raise
