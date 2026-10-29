@@ -84,7 +84,7 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
     order = (db.query(DetectiveScene).filter_by(graph_id=graph_id).count())
     made, serial = [], 0
     while BD.alternative_share(db, graph_id, language, units) < cfg.min_alternative_share:
-        cards = BD.card_seconds_by_beat(db, graph_id, language)
+        cards = BD.card_seconds_by_beat(db, graph_id, language)    # raw: the cap is checked below
         beats = [b for b in sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))
                  if cards.get(b, 0.0) < cfg.max_beat_card_share * narration[b]
                  and any(c.claim_key not in shown for c in pending.get(b, []))]

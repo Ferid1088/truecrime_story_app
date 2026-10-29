@@ -73,3 +73,16 @@ def test_a_beat_the_cards_fill_completely_leaves_nothing_for_the_planner():
         assert DR.free_slots(window, timeline.free_by_beat["B01"])
     else:
         assert DR.free_slots(window, []) == []
+
+
+def test_a_beat_takes_cards_only_up_to_its_share_so_the_planner_keeps_room_for_pictures(monkeypatch):
+    from app.core.ai_config import ai_config
+
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_beat_card_share", 0.5)
+    records = [_record(f"a{i}", "B01", text=f"Sourced fact number {i}.") for i in range(6)]
+    timeline = TL.film_timeline([_window("B01", 0.0, 100.0)], records, "en")
+
+    taken = sum(c["end"] - c["start"] for c in timeline.cards_by_beat["B01"])
+    assert 0 < taken <= 50.0 + 1e-6 and timeline.alternative_share <= 0.5
+    assert any(s["reason"] == "beat_card_share_reached" for s in timeline.skipped)
+    assert timeline.free_seconds >= 50.0 - 0.2

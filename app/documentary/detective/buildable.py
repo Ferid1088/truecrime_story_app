@@ -121,14 +121,23 @@ def card_seconds_by_beat(db: Session, graph_id: int, language: str) -> dict[str,
     return seconds
 
 
+def capped_card_seconds_by_beat(db: Session, graph_id: int, language: str, units) -> dict[str, float]:
+    """The seconds the cards can fill in each beat: what they need to be read, never more than the beat's own share
+    (`max_beat_card_share`) of its narration, so the film keeps room for pictures."""
+    cap = ai_config.detective_toolkit.max_beat_card_share
+    narration = narration_seconds(units)
+    return {beat: min(seconds, cap * narration.get(beat, 0.0))
+            for beat, seconds in card_seconds_by_beat(db, graph_id, language).items()}
+
+
 def alternative_share(db: Session, graph_id: int, language: str, units) -> float:
     film = sum(narration_seconds(units).values())
-    return round(sum(card_seconds_by_beat(db, graph_id, language).values()) / film, 3) if film else 0.0
+    return round(sum(capped_card_seconds_by_beat(db, graph_id, language, units).values()) / film, 3) if film else 0.0
 
 
 def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) -> list[str]:
     """The beats whose cards fill the smallest share of their own narration, weakest first."""
-    narration, cards = narration_seconds(units), card_seconds_by_beat(db, graph_id, language)
+    narration, cards = narration_seconds(units), capped_card_seconds_by_beat(db, graph_id, language, units)
     return sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))[:count]
 
 

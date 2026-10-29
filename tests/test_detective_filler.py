@@ -71,3 +71,14 @@ def test_a_second_run_makes_nothing_new(db_session, monkeypatch):
     first = FL.fill_with_fact_cards(db_session, graph.id, "en", units)
     again = FL.fill_with_fact_cards(db_session, graph.id, "en", units)
     assert first["cards"] >= 1 and again["cards"] == 0
+
+
+def test_the_measured_share_never_counts_more_of_a_beat_than_its_cap(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 1.0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_beat_card_share", 0.3)
+    graph, units = _film(db_session, claims_per_beat=12)
+    FL.fill_with_fact_cards(db_session, graph.id, "en", units)
+    assert BD.alternative_share(db_session, graph.id, "en", units) <= 0.3 + 1e-6
+    narration = BD.narration_seconds(units)
+    capped = BD.capped_card_seconds_by_beat(db_session, graph.id, "en", units)
+    assert all(seconds <= 0.3 * narration[beat] + 1e-6 for beat, seconds in capped.items())

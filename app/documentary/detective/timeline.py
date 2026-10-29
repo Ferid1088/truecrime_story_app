@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.core.ai_config import ai_config
 from app.documentary.detective import reading as R
 from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import GraphicUnavailable
@@ -84,6 +85,11 @@ def film_timeline(windows: list[dict], resolved: list[dict], language: str) -> F
         slot, skip = _place(window, record, cursor.get(window["beat_id"], window["start"]), language)
         if skip:
             timeline.skipped.append(skip)
+            continue
+        taken = sum(c["end"] - c["start"] for c in timeline.cards_by_beat.get(window["beat_id"], []))
+        if taken + slot["end"] - slot["start"] > ai_config.detective_toolkit.max_beat_card_share * (
+                window["end"] - window["start"]) + 1e-6:
+            timeline.skipped.append({"action_key": record["action_key"], "reason": "beat_card_share_reached"})
             continue
         timeline.cards_by_beat.setdefault(window["beat_id"], []).append(slot)
         cursor[window["beat_id"]] = slot["end"]

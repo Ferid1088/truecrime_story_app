@@ -17,6 +17,7 @@ from app.db.models import (
     Case,
     EditorialBlueprint,
     MvpCandidate,
+    NarrationUnit,
     MvpRequirement,
     RevealGraph,
     VisualAsset,
@@ -58,7 +59,8 @@ async def stage_needs(db: Session, case: Case, bp_row: EditorialBlueprint,
                       replan: bool = False) -> tuple[VisualPlan, RevealGraph, dict]:
     graph = TK.graph_of(db, bp_row)
     blueprint = json.loads(bp_row.blueprint_json or "{}")
-    cards = BD.card_seconds_by_beat(db, graph.id, case.language)       # the toolkit's cards are fixed: not the planner's
+    cards = BD.capped_card_seconds_by_beat(db, graph.id, case.language, db.query(NarrationUnit).filter_by(
+        graph_id=graph.id).all())                                       # the toolkit's cards are fixed: not the planner's
     free = {b: max(seconds - cards.get(b, 0.0), 0.0) for b, seconds in estimated_seconds(blueprint).items()}
     plan = await ND.plan_needs(db, case, bp_row, graph, free, replan=replan)
     if plan.status == "invalid":
