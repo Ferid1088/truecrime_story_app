@@ -283,7 +283,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             timing = await label_timing(db, case, needs_plan, bp_row)
             report = await direct()
         report["moments"] = moments
-    if report["gaps"] and ai_config.mvp().general.enabled:
+    if report["gaps"] and ai_config.mvp().general.enabled and DR.reviews_done(needs_plan) >= 1:   # the 2nd round
         general = await GI.GeneralImagery(db, case, needs_plan.id, language).run(report["gaps"])
         if general["approved"]:
             overlays = await scan_overlays(db, case, needs_plan)
@@ -316,14 +316,21 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     return target, report
 
 
-NEIGHBOUR_NOTE = " On resume the last round covers what is still bare from neighbours (withdraw it in the review)."
+def next_round_note(reviews: int) -> str:
+    """What resuming does next, given the reviews done once this stop is counted: the general search after the
+    first, the fallback after the second."""
+    if reviews < DR.REVIEWS_BEFORE_FALLBACK:
+        return " On resume the planner searches public general photos and videos for these moments (round 2)."
+    return (" On resume the moments still bare are filled by showing a picture again and by the neighbouring pictures "
+            "(withdraw that in the review).")
 
 
 def request_review(db: Session, needs_plan: VisualPlan) -> None:
     """The run stops for the owner's picture review: when it is resumed, the last planning round may cover what is still
     bare from the neighbouring pictures (the owner can withdraw that in the review)."""
     validation = json.loads(needs_plan.validation_json or "{}")
-    validation.setdefault("mvp", {})["review_requested"] = True
+    mvp = validation.setdefault("mvp", {})
+    mvp["reviews"] = int(mvp.get("reviews") or 0) + 1
     needs_plan.validation_json = json.dumps(validation, ensure_ascii=False)
     db.commit()
 
@@ -344,7 +351,7 @@ def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) ->
         "directed. Open Review pictures, approve or reject each one marked Not sure, then resume.")
 
 
-def stage_complete(plan_row: VisualPlan, language: str) -> dict:
+def stage_complete(plan_row: VisualPlan, language: str, reviews: int = 0) -> dict:
     """The gate before anything is made from the plan: every moment has a picture, a video or a graphic. Moments
     that are still empty after all alternatives stop the run for the owner's picture review."""
     from app.documentary.pipeline.errors import AwaitingPictureReview
@@ -358,7 +365,7 @@ def stage_complete(plan_row: VisualPlan, language: str) -> dict:
     raise AwaitingPictureReview(
         f"Awaiting picture review: {len(gaps)} moment(s) ({seconds}s) of the {language} film have no picture, "
         f"video or graphic, in beats {', '.join(beats[:12])}{'...' if len(beats) > 12 else ''}. Review the pictures "
-        "the planner rejected or was unsure about (Review pictures), then resume." + NEIGHBOUR_NOTE)
+        "the planner rejected or was unsure about (Review pictures), then resume." + next_round_note(reviews + 1))
 
 
 def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: dict) -> dict:

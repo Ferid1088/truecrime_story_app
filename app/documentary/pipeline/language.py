@@ -189,7 +189,7 @@ class LanguageChain:
 
         async def mvp_complete():
             try:
-                return MVP.stage_complete(plan_row, lang)
+                return MVP.stage_complete(plan_row, lang, MVP.DR.reviews_done(needs_plan))
             except AwaitingPictureReview:
                 # the owner's review changes what direction can use: direction runs again on resume
                 pipe._entry(f"mvp_direct:{lang}").update({"status": "pending", "detail": None})

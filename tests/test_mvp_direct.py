@@ -393,70 +393,23 @@ def _flagged(**mvp):
 def test_neighbour_cover_needs_the_owners_review_first_and_the_owner_can_withdraw_it():
     assert not D.cover_approved(_flagged())                                                   # nothing yet
     assert D.cover_approved(_flagged(neighbour_cover={"approved": True}))                     # approved by the owner
-    assert D.cover_approved(_flagged(review_requested=True))                                  # resumed after the review
-    assert not D.cover_approved(_flagged(review_requested=True, neighbour_cover={"approved": False}))   # withdrawn
+    assert D.cover_approved(_flagged(reviews=2))                                  # resumed after the review
+    assert not D.cover_approved(_flagged(reviews=2, neighbour_cover={"approved": False}))   # withdrawn
 
 
-def test_the_review_stop_marks_the_plan_so_that_the_next_run_may_cover(db_session):
+def test_the_fallback_waits_for_the_second_review_and_the_general_search_for_the_first(db_session):
     from app.documentary.mvp import pipeline as PL
 
     case, plan = _plan(db_session, 0)
-    assert not D.cover_approved(plan)
+    assert D.reviews_done(plan) == 0 and not D.cover_approved(plan)
     PL.request_review(db_session, plan)
-    assert D.cover_approved(plan)
+    assert D.reviews_done(plan) == 1 and not D.cover_approved(plan), "after one review: the general search, not the fallback"
+    PL.request_review(db_session, plan)
+    assert D.reviews_done(plan) == 2 and D.cover_approved(plan), "after two reviews the fallback may fill what is left"
 
 
-def _fake_rounds(monkeypatch, gap_seconds):
-    """direct_film with each planning round replaced by a recorded one that leaves `gap_seconds[n]` bare."""
-    from types import SimpleNamespace
+def test_what_resuming_does_next_depends_on_how_many_reviews_have_been_done():
+    from app.documentary.mvp import pipeline as PL
 
-    calls = []
-    target = SimpleNamespace(plan_json="{}", validation_json="{}")
-
-    async def fake(db, case, plan, manifest, graph, order, beats, director, target_, entities, region, offers, topical,
-                   relax=None, force=False, cover=False, cover_last=True, timeline=None):
-        n = len(calls)
-        calls.append({"relax": relax, "force": force, "cover": cover})
-        gaps = [{"beat": "B01", "start": 0.0, "end": gap_seconds[n]}] if gap_seconds[n] else []
-        target_.plan_json = json.dumps({"round": n})
-        target_.validation_json = json.dumps({"plan": {"gaps": gaps, "gap_seconds": gap_seconds[n]}})
-        return {"gaps": gaps, "gap_seconds": gap_seconds[n]}
-
-    monkeypatch.setattr(D, "_direct_pass", fake)
-    return calls, target, SimpleNamespace(commit=lambda: None)
-
-
-def _run_rounds(monkeypatch, gap_seconds, plan):
-    calls, target, db = _fake_rounds(monkeypatch, gap_seconds)
-    report = run(D.direct_film(db, None, plan, {}, None, {}, {}, None, target, None, None, []))
-    return calls, report, target
-
-
-def test_a_first_run_plans_with_alternatives_only_and_never_covers_from_neighbours(monkeypatch):
-    calls, report, _ = _run_rounds(monkeypatch, [100.0, 80.0, 70.0, 60.0, 50.0], _flagged())
-    assert [c["cover"] for c in calls] == [False] * len(calls) and len(calls) == 1 + len(D.AL.escalation_steps())
-    assert [c["force"] for c in calls] == [False] + [True] * (len(calls) - 1)
-    assert report["gap_seconds"] == 60.0 or report["gap_seconds"] == min(100.0, 80.0, 70.0, 60.0)
-
-
-def test_after_the_owners_review_the_last_round_covers_from_the_neighbours_and_is_kept(monkeypatch):
-    steps = len(D.AL.escalation_steps())
-    gaps = [100.0] + [60.0] * steps + [0.0]
-    calls, report, target = _run_rounds(monkeypatch, gaps, _flagged(review_requested=True))
-    assert [c["cover"] for c in calls] == [False] * (steps + 1) + [True]
-    assert calls[-1]["relax"] == D.AL.escalation_steps()[-1]                    # with the widest limits as well
-    assert report["gaps"] == [] and json.loads(target.plan_json) == {"round": steps + 1}
-    assert [r["neighbour_cover"] for r in report["rounds"]] == [False] * (steps + 1) + [True]
-
-
-def test_the_cover_waits_for_the_last_call_so_every_other_source_is_tried_first(monkeypatch):
-    steps = len(D.AL.escalation_steps())
-    calls, target, db = _fake_rounds(monkeypatch, [100.0] + [60.0] * steps)
-    report = run(D.direct_film(db, None, _flagged(review_requested=True), {}, None, {}, {}, None, target, None, None, [],
-                               cover_last=False))
-    assert [c["cover"] for c in calls] == [False] * (steps + 1) and report["gaps"]     # the owner approved, but not yet
-
-
-def test_rounds_stop_as_soon_as_nothing_is_bare(monkeypatch):
-    calls, report, _ = _run_rounds(monkeypatch, [100.0, 0.0], _flagged(review_requested=True))
-    assert len(calls) == 2 and report["gaps"] == []
+    assert "general photos and videos" in PL.next_round_note(1)
+    assert "showing a picture again" in PL.next_round_note(2) and "neighbouring pictures" in PL.next_round_note(2)

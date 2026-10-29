@@ -703,7 +703,7 @@ def documentary_env(tmp_path, monkeypatch):
 
     # the owner's picture review is tested on its own (test_one_button_pipeline_pilot_end_to_end); the other
     # films here are small fixtures whose few empty moments are not what they test
-    monkeypatch.setattr(MVP, "stage_complete", lambda plan_row, language: {"gaps": 0})
+    monkeypatch.setattr(MVP, "stage_complete", lambda plan_row, language, reviews=0: {"gaps": 0})
 
     from app.documentary.music import DocumentaryMixer, MusicLibrary
     from app.documentary.voice_render import VoiceRenderer

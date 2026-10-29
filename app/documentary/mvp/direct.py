@@ -573,12 +573,21 @@ def bare_stretches(out_beats: list[dict], window_of: dict[str, dict]) -> list[di
     return gaps
 
 
+REVIEWS_BEFORE_FALLBACK = 2
+
+
+def reviews_done(plan: VisualPlan) -> int:
+    """How many times the run has stopped for the owner's picture review and been resumed."""
+    return int(json.loads(plan.validation_json or "{}").get("mvp", {}).get("reviews") or 0)
+
+
 def cover_approved(plan: VisualPlan) -> bool:
-    """The owner has approved covering the moments that stay bare from their neighbours (the last resort): by saying
-    so, or by resuming the film after the picture review it was stopped for (unless the owner withdrew it)."""
+    """The fallback for moments that stay bare (a picture shown again, then the neighbours' cover) may run: after the
+    owner has reviewed twice (once after the case search, once after the general search), or by saying so, unless the
+    owner withdrew it."""
     mvp = json.loads(plan.validation_json or "{}").get("mvp", {})
     approved = (mvp.get("neighbour_cover") or {}).get("approved")
-    return approved is True or (bool(mvp.get("review_requested")) and approved is not False)
+    return approved is True or (reviews_done(plan) >= REVIEWS_BEFORE_FALLBACK and approved is not False)
 
 
 async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
@@ -597,7 +606,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     target = target or plan
     args = (db, case, plan, manifest, graph_id, beat_order, beats, director, target, entities, region, offers, topical)
     report = await _direct_pass(*args, cover_last=cover_last, timeline=timeline)
-    if report["gaps"] and "rounds" not in report:
+    if report["gaps"] and "rounds" not in report and timeline is None:     # a toolkit film is never planned again
         rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0, "neighbour_cover": False}]
         kept = (report, target.plan_json, target.validation_json)
         steps = [(step, False) for step in AL.escalation_steps()]
@@ -752,8 +761,9 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     cut_in = place_moment_clips(out_beats, window_of, moment_clips, tracker)
     topical_in = place_topical(out_beats, window_of, items, topical or {}, tracker,
                                lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
-    repeat_for_gaps(out_beats, window_of, items, tracker, names,
-                    lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
+    if timeline is None or cover_approved(plan):      # with a toolkit film a picture is shown again only as the fallback
+        repeat_for_gaps(out_beats, window_of, items, tracker, names,
+                        lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset))
     covered = NC.NeighbourCover(out_beats, window_of, items, tracker, names, beat_order,
                                 lambda bid, item: reveal_blocked(db, graph_id, beat_order, bid, item.asset),
                                 related, _shot).run() \
