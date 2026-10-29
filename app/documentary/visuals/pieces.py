@@ -76,7 +76,11 @@ def piece_frames(asset: VisualAsset, fps: float | None = None, max_frames: int |
                 else (asset.duration_seconds or start + 1.0))
     length = max(end - start, 0.1)
     n = max(3, min(max_frames, int(length * fps) or 1))
-    times = [start + length * (i + 0.5) / n for i in range(n)]
+    return frames_at(clip, [start + length * (i + 0.5) / n for i in range(n)], width)
+
+
+def frames_at(clip: Path, times: list[float], width: int) -> list[bytes]:
+    """JPEG frames of a video file at the given seconds, in order; a second that cannot be read is left out."""
     out: list[bytes] = []
     for t in times:
         res = subprocess.run(

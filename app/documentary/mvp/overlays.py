@@ -19,6 +19,7 @@ from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, VisualAsset
 from app.documentary import storage
+from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import verify as VF
 from app.documentary.visuals import pieces as PC
 from app.providers.generation import get_generation_provider
@@ -208,9 +209,11 @@ def crop_of(asset: VisualAsset) -> dict | None:
 
 
 class OverlayScanner:
-    def __init__(self, db: Session, case: Case, asker=None, frames=None):
+    def __init__(self, db: Session, case: Case, asker=None, frames=None, edges_asker=None, edge_frames=None, cuts=None):
         self.db, self.case = db, case
         self._asker = asker
+        self._edges_asker, self._edge_frames, self._cuts = edges_asker, edge_frames, cuts
+        self._cut_cache: dict[str, list[float]] = {}
         self._frames = frames or self.frames_of
         self.cfg = ai_config.mvp().overlays
         self.calls = 0
@@ -241,9 +244,75 @@ class OverlayScanner:
         self.calls += 1
         return data or {}
 
+    async def trim(self, asset: VisualAsset) -> bool:
+        """Narrow a video's window to its footage (an intro or an end card is cut off) before it is scanned for marks.
+        False when no footage is left. The check is made once per file; a failed one is made again next time."""
+        cfg = self.cfg.edges
+        if not cfg.enabled or asset.asset_type != "video":
+            return True
+        spec = json.loads(asset.spec_json or "{}")
+        done = spec.get("clip_edges")
+        if done and done.get("sha256") == asset.sha256:
+            return done["keep"][1] - done["keep"][0] >= cfg.min_keep_seconds
+        start = float(asset.clip_start or 0.0)
+        end = float(asset.clip_end if asset.clip_end is not None else (asset.duration_seconds or 0.0))
+        if not CE.long_enough_to_check(start, end):
+            return True
+        snap = BudgetService(self.db).snapshot(self.case.id)
+        if snap.spent_eur >= snap.cap_eur - 1e-9:
+            self.stopped_for_budget = True
+            return True
+        head, tail = CE.sample_times(start, end)
+        try:
+            path = storage.resolve(asset.local_path)
+            frames = await asyncio.to_thread(self._edge_frames or self.edge_frames_of, asset, head + tail)
+            answer = await self.ask_edges(asset, head, tail, frames, start, end)
+            cuts = await asyncio.to_thread(self._cuts or self.cuts_of, path)
+        except Exception as e:  # noqa: BLE001 - a failed check is made again, never taken as "no edges"
+            self.errors.append(f"{asset.asset_code}: edges: {e}")
+            log.warning("edge check of %s failed: %s", asset.asset_code, e)
+            return True
+        window = CE.window_of(answer, start, end, head, tail, cuts)
+        spec["clip_edges"] = {"sha256": asset.sha256, "was": [start, end], "keep": [window.start, window.end],
+                              "what": window.what}
+        if (window.start, window.end) != (start, end) and window.length >= cfg.min_keep_seconds:
+            asset.clip_start, asset.clip_end, asset.duration_seconds = window.start, window.end, window.length
+            spec.pop("overlays", None)               # the marks were looked for in frames that included the edges
+        asset.spec_json = json.dumps(spec, ensure_ascii=False)
+        self.db.commit()
+        return window.length >= cfg.min_keep_seconds
+
+    def edge_frames_of(self, asset: VisualAsset, times: list[float]) -> list[bytes]:
+        path = storage.resolve(asset.local_path)
+        if path is None or not path.exists():
+            raise FileNotFoundError(asset.local_path)
+        return PC.frames_at(path, times, self.cfg.video_frame_width)
+
+    def cuts_of(self, path) -> list[float]:
+        key = str(path)
+        if key not in self._cut_cache:
+            self._cut_cache[key] = PC.detect_cuts(path)
+        return self._cut_cache[key]
+
+    async def ask_edges(self, asset: VisualAsset, head: list[float], tail: list[float], frames: list[bytes],
+                        start: float, end: float) -> dict:
+        payload = {"head": head, "tail": tail, "clip": [start, end]}
+        images = [data_url(f) for f in frames]
+        if self._edges_asker is not None:
+            return await self._edges_asker(payload, images) or {}
+        gen = get_generation_provider()
+        with track_run(self.db, self.case.id, "Clip edges", input_summary=asset.asset_code) as run:
+            data, res = await asyncio.wait_for(
+                run_agent("mvp.clip_edges", gen, json.dumps(payload), images=images), ai_config.mvp().call_timeout_s)
+            stamp_run(run, res, ai_config.agents["mvp.clip_edges"].role)
+        self.calls += 1
+        return data or {}
+
     async def scan(self, asset: VisualAsset) -> Scan | None:
         """The stored scan, or a new one (None when the asset could not be read or the model failed: it is
         scanned again next time and not trusted meanwhile)."""
+        if not await self.trim(asset):
+            return Scan(UNUSABLE, [Mark(OTHER, "only an intro or an end card, no footage", (0.0, 0.0, 1.0, 1.0))])
         known = current(asset)
         if known is not None:
             self.store(asset, known)

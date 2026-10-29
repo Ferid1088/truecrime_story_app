@@ -17,6 +17,7 @@ from app.db.models import (
     VisualAsset,
     VisualPlan,
 )
+from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import overlays as OV
 from app.documentary.render import engine as RE
 
@@ -373,3 +374,69 @@ def test_the_review_shows_what_the_film_cuts_away_of_a_scanned_asset_and_nothing
     assert view["status"] == "cropped" and view["marks"] == [{"kind": "logo", "what": "White circular emblem"}]
     crop = view["crop"]
     assert crop["x"] + crop["w"] <= 0.92 + 1e-6 or crop["y"] >= 0.1 - 1e-6, "the emblem is outside the shown window"
+
+
+def _clip(db, case, code, start, end, sha="v1"):
+    asset = _asset(db, case, code, kind="video", sha=sha)
+    asset.clip_start, asset.clip_end, asset.duration_seconds = start, end, end - start
+    db.commit()
+    return asset
+
+
+def edge_scanner(db, case, edges_answer, cuts=(), marks=None, asked=None):
+    async def edges_asker(payload, images):
+        if asked is not None:
+            asked.append(payload)
+        return edges_answer(payload) if callable(edges_answer) else edges_answer
+
+    async def asker(payload, images):
+        return marks or {"marks": []}
+
+    return OV.OverlayScanner(db, case, asker=asker, frames=lambda asset: [jpeg()], edges_asker=edges_asker,
+                             edge_frames=lambda asset, times: [jpeg()] * len(times), cuts=lambda path: list(cuts))
+
+
+def test_an_end_card_is_cut_off_the_clip_before_it_is_scanned_for_marks_and_the_check_is_made_once(db_session):
+    """Case 15's source video: footage until about 133 s, then a QR end card to the end."""
+    case = _case(db_session)
+    asset = _clip(db_session, case, "E1", 0.0, 138.16)
+    head, tail = CE.sample_times(0.0, 138.16)
+    card = next(t for t in tail if t > 133.0)
+    asked: list[dict] = []
+    sc = edge_scanner(db_session, case, {"tail_from": card, "what": "QR end card"}, cuts=[132.9], asked=asked)
+
+    scan = asyncio.run(sc.scan(asset))
+
+    assert scan.status == OV.CLEAN and len(asked) == 1
+    assert (asset.clip_start, asset.clip_end) == (0.0, 132.9) and abs(asset.duration_seconds - 132.9) < 1e-6
+    edges = json.loads(asset.spec_json)["clip_edges"]
+    assert edges["was"] == [0.0, 138.16] and edges["keep"] == [0.0, 132.9] and edges["what"] == "QR end card"
+    asyncio.run(sc.scan(asset))
+    assert len(asked) == 1, "the file is looked at once"
+
+
+def test_a_clip_with_no_footage_left_is_given_up_and_a_short_clip_is_not_checked(db_session):
+    case = _case(db_session)
+    card_only = _clip(db_session, case, "E2", 0.0, 30.0, sha="v2")
+    head, tail = CE.sample_times(0.0, 30.0)
+    sc = edge_scanner(db_session, case, {"head_until": head[-1], "tail_from": tail[0]}, cuts=[])
+    scan = asyncio.run(sc.scan(card_only))
+    assert scan.status == OV.UNUSABLE and "no footage" in scan.marks[0].what
+
+    short = _clip(db_session, case, "E3", 100.0, 105.0, sha="v3")
+    asked: list[dict] = []
+    sc = edge_scanner(db_session, case, {"tail_from": 104.0}, asked=asked)
+    asyncio.run(sc.scan(short))
+    assert asked == [] and (short.clip_start, short.clip_end) == (100.0, 105.0)
+
+
+def test_a_failed_edge_check_is_made_again_and_never_taken_as_no_edges(db_session):
+    case = _case(db_session)
+    asset = _clip(db_session, case, "E4", 0.0, 60.0, sha="v4")
+
+    def boom(payload):
+        raise RuntimeError("model down")
+
+    sc = edge_scanner(db_session, case, boom)
+    asyncio.run(sc.scan(asset))
+    assert "clip_edges" not in json.loads(asset.spec_json or "{}") and any("edges" in e for e in sc.errors)

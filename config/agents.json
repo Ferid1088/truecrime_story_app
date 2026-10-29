@@ -552,6 +552,13 @@
       "output": "json",
       "description": "Film Experience Reviewer (Section J): checks achieved audience understanding, continuity, curiosity, routes findings to their repair owner (plan_audit/rendered_review/repair_check modes).",
       "used_by": "app/documentary/detective/review.py"
+    },
+    "mvp.clip_edges": {
+      "role": "mvp_overlay_scanner",
+      "prompt": "documentary/mvp/clip_edges_system",
+      "output": "json",
+      "description": "Clip edges: which frames at the start or end of a clip or video are an intro or an end card (a logo screen, a QR code, credits, a presenter with a caption) and not footage.",
+      "used_by": "app/documentary/mvp/clip_edges.py"
     }
   }
 }

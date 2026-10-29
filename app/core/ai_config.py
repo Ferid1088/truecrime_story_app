@@ -2943,6 +2943,18 @@ class MvpNeighbourCoverConfig(BaseModel):
     max_hold_seconds: float = Field(gt=0.0)
 
 
+class MvpClipEdgesConfig(BaseModel):
+    """The start and the end of a clip or video: an intro or an end card (a QR code, a logo screen, credits, a
+    presenter with a burned-in caption) is not footage. Frames of the first and last `edge_seconds` are looked at and
+    the clip's window is narrowed to the footage."""
+
+    enabled: bool = True
+    edge_seconds: float = Field(default=15.0, gt=1.0)
+    frames_per_edge: int = Field(default=6, ge=2, le=12)
+    # a clip with less footage than this left is not used
+    min_keep_seconds: float = Field(default=3.0, gt=0.0)
+
+
 class MvpOverlaysConfig(BaseModel):
     """Other channels' and agencies' marks in the pictures and footage the film uses (a logo, a watermark, a caption
     strip, a channel name, a bar with a logo in it). Each approved picture and clip is scanned; the film shows the
@@ -2950,6 +2962,7 @@ class MvpOverlaysConfig(BaseModel):
     that cannot be cut free of them is not used."""
 
     enabled: bool
+    edges: MvpClipEdgesConfig = Field(default_factory=MvpClipEdgesConfig)
     # sampled frames of a clip and their width; a photo is scanned at `photo_width`
     frames_per_video: int = Field(ge=1)
     video_frame_width: int = Field(ge=256)

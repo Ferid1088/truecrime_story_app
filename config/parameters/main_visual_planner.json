@@ -85,8 +85,13 @@
       "queries_per_moment": 2,
       "max_query_chars": 80,
       "photo_width": 640,
-      "accept_fit": ["direct", "supports"],
-      "review_fit": ["loose"]
+      "accept_fit": [
+        "direct",
+        "supports"
+      ],
+      "review_fit": [
+        "loose"
+      ]
     },
     "neighbour_cover": {
       "min_piece_seconds": 3.0,
@@ -100,9 +105,21 @@
       "version": 1,
       "assets_per_call": 16,
       "summary_chars": 170,
-      "phases": ["scene", "investigation", "interview", "arrest_charge", "court_filing", "trial", "verdict",
-                 "sentencing", "aftermath", "background"],
-      "always_ok": ["background"]
+      "phases": [
+        "scene",
+        "investigation",
+        "interview",
+        "arrest_charge",
+        "court_filing",
+        "trial",
+        "verdict",
+        "sentencing",
+        "aftermath",
+        "background"
+      ],
+      "always_ok": [
+        "background"
+      ]
     },
     "overlays": {
       "enabled": true,
@@ -118,7 +135,22 @@
       "margin": 0.012,
       "max_marks": 12,
       "pictures_per_call": 1,
-      "kinds": ["logo", "watermark", "caption", "channel_name", "ticker", "bar", "credit_line", "other"]
+      "kinds": [
+        "logo",
+        "watermark",
+        "caption",
+        "channel_name",
+        "ticker",
+        "bar",
+        "credit_line",
+        "other"
+      ],
+      "edges": {
+        "enabled": true,
+        "edge_seconds": 15.0,
+        "frames_per_edge": 6,
+        "min_keep_seconds": 3.0
+      }
     }
   }
 }
