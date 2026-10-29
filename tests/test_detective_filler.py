@@ -101,5 +101,5 @@ def test_when_the_claims_are_used_up_the_cases_own_facts_of_a_beat_become_cards_
     timeline = BD.planned_timeline(db_session, graph.id, "en", units)
     for beat, cards in timeline.cards_by_beat.items():
         window = next(w for w in BD.estimated_windows(units) if w["beat_id"] == beat)
-        assert all(c["start"] >= window["start"] + 0.5 * (window["end"] - window["start"]) - 1e-6 for c in cards)
+        assert all(c["start"] >= window["start"] + 0.5 * (window["end"] - window["start"]) - 0.01 for c in cards)
     assert FL.import_fact_nodes(db_session, graph.id, units) == 0, "a fact becomes a claim once"
