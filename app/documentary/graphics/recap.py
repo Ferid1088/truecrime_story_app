@@ -14,7 +14,7 @@ from app.documentary.graphics.page import DoesNotFit, Page, mode_cache
 
 SECTIONS = ("confirmed", "disputed", "unknown")
 RULE_COLOR = {"confirmed": "amber", "disputed": "blue", "unknown": "red"}
-TOP, HEIGHT, WIDTH, GAP = 260, 540, 520, 60
+TOP, WIDTH, GAP = 260, 520, 60
 PAD = 52
 
 
@@ -54,19 +54,22 @@ def _recap(data_json: str, language: str, step: int) -> Image.Image:
     page = Page(language)
     m = page.margin
     parts.header(page, "", T.rgb("amber"), T.label(language, "recap_title"), T.config().recap["title_px"], lines_max=1)
+    item_h = lambda item: len(page.lines(item["text"], "body", 40, WIDTH - 2 * PAD, 2, 30)[0]) * 56 + 26  # noqa: E731
+    height = 150 + max(sum(item_h(i) for i in data[s]) for s in sections_with_items(data)) + PAD // 2
+    top = TOP + max(0, (860 - TOP - height) // 2)
     for n, name in enumerate(sections_with_items(data)):
         left = m + n * (WIDTH + GAP)
         shown = step >= n + 1
         color = T.rgb(RULE_COLOR[name])
-        parts.card(page, left, TOP, WIDTH, HEIGHT, color, alpha=255 if shown else 70)
+        parts.card(page, left, top, WIDTH, height, color, alpha=255 if shown else 70)
         if not shown:
             continue
-        page.text(left + 52, TOP + 62, WIDTH - 104, T.label(language, name), "title", 60, color, lines_max=1,
+        page.text(left + 52, top + 62, WIDTH - 104, T.label(language, name), "title", 60, color, lines_max=1,
                   min_px=40, spacing=1.0, upper=True)
-        y = TOP + 150
+        y = top + 150
         for item in data[name]:
             y = page.text(left + PAD, y, WIDTH - 2 * PAD, item["text"], "body", 40, T.rgb("ink"), lines_max=2,
                           min_px=30, spacing=1.35) + 26
-        if y - 26 > TOP + HEIGHT - PAD // 2:
+        if y - 26 > top + height - PAD // 2:
             raise DoesNotFit(f"the {name} items do not fit their card")
     return page.done()

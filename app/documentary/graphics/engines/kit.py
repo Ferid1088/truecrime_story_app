@@ -138,6 +138,18 @@ def statement(page: Page, left: int, top: int, width: int, item: dict, alpha: in
                      min_px=min_px, spacing=1.32)
 
 
+def statement_height(page: Page, width: int, item: dict, **kw) -> int:
+    """How tall `statement` is for `item` at `width`, measured on a scratch layer so that a panel can be made exactly
+    as tall as its content (and keep that height while its content is revealed step by step)."""
+    scratch = Page(page.language, (page.W, page.H), (0, 0, 0))
+    return statement(scratch, 0, 0, width, item, **kw)
+
+
+def centered(top: int, height: int, limit: int = 860) -> int:
+    """The top of a block `height` tall that starts at `top` at the earliest, centred in the space down to `limit`."""
+    return top + max(0, (limit - top - height) // 2)
+
+
 def heading(page: Page, label_key: str, title: str | None = None, title_px: int = 84, lines_max: int = 2) -> int:
     """The engine's name as a small spaced label and the point of the shot as a large title (the name itself when
     the shot has no other point); returns the y below."""

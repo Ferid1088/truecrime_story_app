@@ -55,14 +55,18 @@ def _interview(data_json: str, language: str, step: int) -> Image.Image:
     if comparing:
         compare = data["compare"]
         width = (inner - 100) // 3
+        panel_h = 80 + max(kit.statement_height(page, width - 72, compare[k], px=42, lines_max=7, min_px=30,
+                                                quoted=compare[k].get("mode") == "verbatim")
+                           + (50 if compare[k].get("when") else 0) for k in ("earlier", "later", "record")) + 40
+        top = kit.centered(TOP, panel_h)
         for n, (key, color, label) in enumerate((("earlier", "blue", "earlier"), ("later", "amber", "later"),
                                                  ("record", "ink", "inconsistent"))):
             if key == "record" and step < len(turns) + 1:
                 continue
             left = m + n * (width + 50)
-            kit.panel(page, left, TOP, width, 560, T.rgb(color))
-            page.tracked(left + 36, TOP + 34, T.label(language, label), "mono", 26, T.rgb(color), 5)
-            y = TOP + 80
+            kit.panel(page, left, top, width, panel_h, T.rgb(color))
+            page.tracked(left + 36, top + 34, T.label(language, label), "mono", 26, T.rgb(color), 5)
+            y = top + 80
             if compare[key].get("when"):
                 y = page.text(left + 36, y, width - 72, compare[key]["when"], "mono", 24, T.rgb("grey"), lines_max=2, min_px=18) + 6
             kit.statement(page, left + 36, y, width - 72, compare[key], px=42, lines_max=7, min_px=30,

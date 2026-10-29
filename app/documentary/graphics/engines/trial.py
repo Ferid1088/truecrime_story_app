@@ -13,7 +13,6 @@ from app.documentary.graphics.page import Page, mode_cache
 
 CLAIM = ("allegation", "fact", "witness", "expert", "disputed")
 TOP = 300
-PANEL_H = 450
 
 
 class CourtroomReasoning(kit.Engine):
@@ -43,19 +42,23 @@ def _courtroom(data_json: str, language: str, step: int) -> Image.Image:
     m = page.margin
     kit.heading(page, "courtroom", data["issue"]["text"], 96)
     width = (page.W - 2 * m - 60) // 2
+    stack = lambda key: sum(kit.statement_height(page, width - 88, i, px=40, lines_max=3, min_px=26,  # noqa: E731
+                                                 show_tag=i["basis"] != "allegation") + 14 for i in data[key])
+    panel_h = 88 + max(stack("prosecution"), stack("defense")) + 24
+    top = kit.centered(TOP, panel_h + 30 + 210)
     for n, (key, color) in enumerate((("prosecution", "blue"), ("defense", "amber"))):
         if key not in shown:
             continue
         alpha = kit.alpha_of(names.index(key), step - 1)
         left = m + n * (width + 60)
-        kit.panel(page, left, TOP, width, PANEL_H, T.rgb(color), alpha)
-        page.tracked(left + 44, TOP + 38, T.label(language, key), "mono", 28, kit.blend(T.rgb(color), alpha), 5)
-        y = TOP + 88
+        kit.panel(page, left, top, width, panel_h, T.rgb(color), alpha)
+        page.tracked(left + 44, top + 38, T.label(language, key), "mono", 28, kit.blend(T.rgb(color), alpha), 5)
+        y = top + 88
         for item in data[key]:
             y = kit.statement(page, left + 44, y, width - 88, item, alpha, px=40, lines_max=3, min_px=26,
                               show_tag=item["basis"] != "allegation") + 14
-        kit.within(y, TOP + PANEL_H, f"the {key} column")
-    band = TOP + PANEL_H + 30
+        kit.within(y, top + panel_h, f"the {key} column")
+    band = top + panel_h + 30
     if "evidence" in shown and "finding" not in shown:
         kit.panel(page, m, band, page.width_inside(), 210, T.rgb("blue"))
         page.tracked(m + 44, band + 30, T.label(language, "court_evidence"), "mono", 28, T.rgb("blue"), 5)
@@ -112,6 +115,7 @@ def _sentencing(data_json: str, language: str, step: int) -> Image.Image:
     kit.heading(page, "sentencing", None, 96)
     factors = "factors" in shown
     left_w = (inner - 60) * 6 // 10 if factors else inner
+    bottom = TOP
     if "charges" in shown:
         alpha = kit.alpha_of(names.index("charges"), step - 1)
         page.tracked(m, TOP, T.label(language, "charges"), "mono", 28, kit.blend(T.rgb("amber"), alpha), 5)
@@ -123,6 +127,7 @@ def _sentencing(data_json: str, language: str, step: int) -> Image.Image:
             page.text(m + left_w * 52 // 100, y + 22, left_w * 48 // 100, c["outcome"], "title", 56,
                       kit.blend(T.rgb("amber"), alpha), align="end", lines_max=1, min_px=26, upper=True)
             y += 118
+        bottom = y
     if factors:
         alpha = kit.alpha_of(names.index("factors"), step - 1)
         left, width, y = m + left_w + 60, inner - left_w - 60, TOP
@@ -131,8 +136,9 @@ def _sentencing(data_json: str, language: str, step: int) -> Image.Image:
                 page.tracked(left, y, T.label(language, key), "mono", 26, kit.blend(T.rgb(color), alpha), 5)
                 y = page.text(left, y + 40, width, item["text"], "body", 42, kit.blend(T.rgb("ink"), alpha),
                               lines_max=4, min_px=30, spacing=1.3) + 34
+        bottom = max(bottom, y)
     if "final" in shown:
-        top = 740
+        top = min(740, bottom + 50)
         kit.panel(page, m, top, inner, 250, T.rgb("amber"))
         page.tracked(m + 48, top + 40, T.label(language, "final_sentence"), "mono", 28, T.rgb("amber"), 6)
         arrangement = (data.get("arrangement") or {}).get("kind")
@@ -181,11 +187,12 @@ def _check(data_json: str, language: str, step: int) -> Image.Image:
     now = names[step - 1] if step else "item"
     page = Page(language)
     m, inner = page.margin, page.width_inside()
-    kit.heading(page, "evidence_check", data["item"]["name"], 96)
+    kit.heading(page, "evidence_check", None, 96)
     plate_w = 520
-    kit.panel(page, m, TOP, plate_w, 640, T.rgb("amber"))
-    page.tracked(m + 40, TOP + 40, T.label(language, "evidence_check"), "mono", 26, T.rgb("amber"), 5)
-    page.text(m + 40, TOP + 100, plate_w - 80, data["item"]["name"], "title", 72, T.rgb("ink"), lines_max=5,
+    name_lines, name_px = page.lines(data["item"]["name"], "title", 72, plate_w - 80, 5, 44)
+    plate_h = 80 + round(len(name_lines) * name_px * 1.04) + 40
+    kit.panel(page, m, TOP, plate_w, plate_h, T.rgb("amber"))
+    page.text(m + 40, TOP + 56, plate_w - 80, data["item"]["name"], "title", 72, T.rgb("ink"), lines_max=5,
               min_px=44, spacing=1.04, upper=True)
     left, width, y = m + plate_w + 70, inner - plate_w - 70, TOP
     blocks = {"item": [("establishes", "blue")], "limits": [("not_establishes", "grey")],
