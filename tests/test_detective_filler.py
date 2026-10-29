@@ -84,3 +84,22 @@ def test_the_share_is_what_the_placed_cards_fill_and_a_beat_never_goes_past_its_
     for beat, seconds in BD.placed_card_seconds_by_beat(timeline).items():
         assert seconds <= 0.3 * narration[beat] + 1e-6
     assert timeline.skipped == [], "every card the filler keeps is placed"
+
+
+def test_when_the_claims_are_used_up_the_cases_own_facts_of_a_beat_become_cards_placed_in_its_second_half(
+        db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 0.25)
+    graph, units = _film(db_session, claims_per_beat=0)
+    for beat in ("B01", "B02"):
+        for n in range(3):
+            MEM.ensure_entity(db_session, graph.id, f"F{beat}{n}", f"The sourced fact {beat} number {n}.", "fact", beat, n)
+    db_session.flush()
+
+    result = FL.fill_with_fact_cards(db_session, graph.id, "en", units)
+
+    assert result["cards"] >= 1 and result["share"] >= 0.25
+    timeline = BD.planned_timeline(db_session, graph.id, "en", units)
+    for beat, cards in timeline.cards_by_beat.items():
+        window = next(w for w in BD.estimated_windows(units) if w["beat_id"] == beat)
+        assert all(c["start"] >= window["start"] + 0.5 * (window["end"] - window["start"]) - 1e-6 for c in cards)
+    assert FL.import_fact_nodes(db_session, graph.id, units) == 0, "a fact becomes a claim once"

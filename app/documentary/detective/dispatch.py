@@ -606,7 +606,8 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
                 record["skip"] = "insufficient_data"
             else:
                 record["beat_id"], record["data"] = beat_id, data
-                record["min_release_fraction"] = _min_release_fraction(db, action)
+                record["min_release_fraction"] = _min_release_fraction(db, action) or json.loads(
+                    action.payload_json or "{}").get("release_fraction")
         resolved.append(record)
     return resolved
 

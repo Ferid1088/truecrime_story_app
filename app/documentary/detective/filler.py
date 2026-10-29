@@ -13,13 +13,15 @@ import json
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import DetectiveClaim, DetectiveScene, DetectiveToolAction, NarrationUnit
+from app.db.models import DetectiveClaim, DetectiveScene, DetectiveToolAction, NarrationUnit, RevealNode
+from app.documentary import memory as MEM
 from app.documentary.detective import buildable as BD
 from app.documentary.detective.reading import reading_need
 from app.documentary.graphics.base import GraphicUnavailable
 
 GROUNDED = ("established_in_text", "attributed")
 MAX_FACTS_PER_CARD = 3
+FACT_NODE_RELEASE_FRACTION = 0.5     # a fact with no anchor in the narration is shown in the second half of its beat
 
 
 def _shown_claims(db: Session, graph_id: int) -> set[str]:
@@ -64,6 +66,28 @@ def _card_for(claims: list[DetectiveClaim], room: float) -> list[DetectiveClaim]
     return group
 
 
+def import_fact_nodes(db: Session, graph_id: int, units: list[NarrationUnit]) -> int:
+    """The case's own verified facts the blueprint assigned to a beat (the graph's fact nodes) as claims, for the facts
+    no claim of the Director already carries. The text is the fact's text."""
+    known = {k for (keys,) in db.query(DetectiveClaim.evidence_fact_ids_json).filter_by(graph_id=graph_id)
+             for k in json.loads(keys or "[]")}
+    unit_keys: dict[str, list[str]] = {}
+    for unit in units:
+        unit_keys.setdefault(unit.beat_id, []).append(unit.unit_key)
+    made = 0
+    for node in db.query(RevealNode).filter_by(graph_id=graph_id, category="fact").order_by(RevealNode.id):
+        if node.node_key in known or not node.label or node.first_revealed_beat_id not in unit_keys:
+            continue
+        if db.query(DetectiveClaim.id).filter_by(graph_id=graph_id, claim_key=f"fact-{node.node_key}").first():
+            continue
+        MEM.add_claim(db, graph_id, claim_key=f"fact-{node.node_key}", entity_node_key=node.node_key, attribute="fact",
+                      text=node.label, basis="established_in_text",
+                      supporting_unit_keys=unit_keys[node.first_revealed_beat_id], evidence_fact_ids=[node.node_key])
+        made += 1
+    db.flush()
+    return made
+
+
 def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim], order: int, units: list[NarrationUnit],
               serial: int) -> DetectiveToolAction:
     covered = sorted({k for c in group for k in json.loads(c.supporting_unit_keys_json or "[]")
@@ -79,7 +103,9 @@ def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim]
     db.flush()
     action = DetectiveToolAction(
         scene_id=scene.id, action_key=f"fill-{beat}-{serial}-a1", order_index=0, tool_id="fact_card",
-        purpose="State the facts the narration has just established", payload_json="{}",
+        purpose="State the facts the narration has just established",
+        payload_json=json.dumps({"release_fraction": FACT_NODE_RELEASE_FRACTION}) if any(
+            c.claim_key.startswith("fact-") for c in group) else "{}",
         content_bindings_json=json.dumps([c.claim_key for c in group]), continuity_refs_json="[]")
     db.add(action)
     db.flush()
@@ -95,7 +121,7 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
     pending = _claims_by_beat(db, graph_id, units)
     order = db.query(DetectiveScene).filter_by(graph_id=graph_id).count()
     made: list[str] = []
-    serial, last = 0, None
+    serial, last, imported = 0, None, False
     while True:
         timeline = BD.planned_timeline(db, graph_id, language, units)
         if last is not None and last.action_key in {s["action_key"] for s in timeline.skipped}:
@@ -119,6 +145,8 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
                 made.append(last.action_key)
                 break
         if last is None:
-            break
+            if imported or not import_fact_nodes(db, graph_id, units):
+                break
+            imported, pending = True, _claims_by_beat(db, graph_id, units)       # the facts of the case, once
     db.commit()
     return {"cards": len(made), "share": BD.alternative_share(db, graph_id, language, units)}
