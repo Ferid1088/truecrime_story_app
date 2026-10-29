@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_config import ai_config
 from app.db.models import DetectiveScene, DetectiveToolAction
 from app.documentary.detective import dispatch as D
 from app.documentary.detective.reading import reading_need
@@ -69,3 +70,34 @@ def alternative_seconds(db: Session, graph_id: int, language: str) -> float:
     query = (db.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
              .filter(DetectiveScene.graph_id == graph_id))
     return round(sum(card_seconds(db, a, language) for a in query), 1)
+
+
+def narration_seconds(units) -> dict[str, float]:
+    """Seconds of narration per beat, from its words at the speech rate the reading rules use."""
+    rate = ai_config.detective_toolkit.reading.dense_speech_words_per_second
+    seconds: dict[str, float] = {}
+    for unit in units:
+        seconds[unit.beat_id] = seconds.get(unit.beat_id, 0.0) + len(unit.text.split()) / rate
+    return seconds
+
+
+def card_seconds_by_beat(db: Session, graph_id: int, language: str) -> dict[str, float]:
+    query = (db.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
+             .filter(DetectiveScene.graph_id == graph_id))
+    seconds: dict[str, float] = {}
+    for action in query:
+        beat = D._beat_id_of(db, action)
+        if beat is not None:
+            seconds[beat] = seconds.get(beat, 0.0) + card_seconds(db, action, language)
+    return seconds
+
+
+def alternative_share(db: Session, graph_id: int, language: str, units) -> float:
+    film = sum(narration_seconds(units).values())
+    return round(sum(card_seconds_by_beat(db, graph_id, language).values()) / film, 3) if film else 0.0
+
+
+def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) -> list[str]:
+    """The beats whose cards fill the smallest share of their own narration, weakest first."""
+    narration, cards = narration_seconds(units), card_seconds_by_beat(db, graph_id, language)
+    return sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))[:count]

@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, RevealGraph, StoryVersion
+from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
 from app.documentary.detective.narration import ingest_narration
 from app.services.budget import BudgetService
@@ -44,6 +45,9 @@ class ToolkitResult:
     chunks_called: int = 0
     uncovered_beats: list[str] = field(default_factory=list)
     stopped: str | None = None
+    alternative_share: float = 0.0
+    target_met: bool = False
+    fill_passes: int = 0
 
 
 def _language_and_text_version(db: Session, case, blueprint_row: EditorialBlueprint) -> tuple[str, int]:
@@ -72,6 +76,33 @@ def _directed_beats(db: Session, graph_id: int, units: list[NarrationUnit]) -> s
     return covered
 
 
+FILL_INSTRUCTIONS = (
+    "ADD CARDS: these beats are already directed, but their alternatives fill too little of the film. Add new scenes "
+    "(scene ids starting with '{prefix}-', never an existing id) that cover these units with alternative cards the "
+    "sourced claims can really build: fact_card, key_facts, evidence_check, unknowns, recap, timeline, conflict, "
+    "quote, courtroom or another catalog tool. Bind every claim, relation or question the card shows. A card the "
+    "claims cannot build is rejected, so choose by what the claims support.")
+
+
+async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit], language: str,
+                text_version: int) -> tuple[float, int, str | None]:
+    """Extra Director calls for the weakest beats until the alternatives fill the configured share of the film."""
+    cfg = ai_config.detective_toolkit
+    share = BD.alternative_share(db, graph.id, language, units)
+    passes, stopped = 0, None
+    while share < cfg.min_alternative_share and passes < cfg.max_fill_passes:
+        stopped = _cap_reached(db, case)
+        if stopped:
+            break
+        beats = set(BD.weakest_beats(db, graph.id, language, units, cfg.beats_per_call))
+        keys = [u.unit_key for u in units if u.beat_id in beats]
+        passes += 1
+        await DD.direct_scenes(db, graph.id, scene_unit_keys=keys, language=language, text_version=text_version,
+                               run_id=f"fill-{passes}", owner_instructions=FILL_INSTRUCTIONS.format(prefix=f"fill{passes}"))
+        share = BD.alternative_share(db, graph.id, language, units)
+    return share, passes, stopped
+
+
 def _cap_reached(db: Session, case) -> str | None:
     """The case's own cap, read without `BudgetService.check`'s side effect of stopping the case."""
     snap = BudgetService(db).snapshot(case.id)
@@ -95,10 +126,6 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     chunks = _beat_chunks(units, ai_config.detective_toolkit.beats_per_call)
     covered = _directed_beats(db, graph.id, units)
     pending = [c for c in chunks if not set(c[0]) <= covered]
-    if not pending:
-        return ToolkitResult(enabled=True, called=False, scene_count=scenes, chunks_total=len(chunks),
-                             units_registered=ingested.registered,
-                             reason="a current detective plan already covers every beat of this graph")
     language, text_version = _language_and_text_version(db, case, blueprint_row)
     called, stopped = 0, None
     for beats, unit_keys in pending:
@@ -111,9 +138,18 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
                                language=language, text_version=text_version)
         called += 1
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
+    share, fill_passes = 0.0, 0
+    if not stopped and not uncovered:
+        share, fill_passes, stopped = await _fill(db, case, graph, units, language, text_version)
+    else:
+        share = BD.alternative_share(db, graph.id, language, units)
     return ToolkitResult(
-        enabled=True, called=called > 0, chunks_total=len(chunks), chunks_called=called,
+        enabled=True, called=called > 0 or fill_passes > 0, chunks_total=len(chunks), chunks_called=called,
         units_registered=ingested.registered, uncovered_beats=uncovered, stopped=stopped,
+        alternative_share=share, fill_passes=fill_passes,
+        target_met=share >= ai_config.detective_toolkit.min_alternative_share,
         scene_count=db.query(DetectiveScene).filter_by(graph_id=graph.id).count(),
-        reason=(f"planned {called} of {len(pending)} pending chunk(s)" if not stopped
-                else f"stopped after {called} of {len(pending)} pending chunk(s): {stopped}"))
+        reason=("a current detective plan already covers every beat of this graph" if not pending
+                else f"planned {called} of {len(pending)} pending chunk(s)" if not stopped
+                else f"stopped after {called} of {len(pending)} pending chunk(s): {stopped}")
+        + f"; alternatives fill {share:.1%} of the film after {fill_passes} fill pass(es)")

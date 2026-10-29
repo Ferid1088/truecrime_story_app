@@ -62,6 +62,8 @@ def validate_director_output(payload: dict, narration_index: NarrationIndex,
         if missing:
             violations.append(f"claim missing required field(s) {missing}: {c.get('id', c)!r}")
             continue
+        if not c["entity_ids"]:
+            violations.append(f"claim {c['id']!r}: entity_ids is empty; a claim is about at least one entity")
         if c["basis"] not in CLAIM_BASIS_VALUES:
             violations.append(f"claim {c['id']!r}: basis {c['basis']!r} is not one of {sorted(CLAIM_BASIS_VALUES)}")
     for q in payload.get("questions", []):
@@ -69,12 +71,16 @@ def validate_director_output(payload: dict, narration_index: NarrationIndex,
         if missing:
             violations.append(f"question missing required field(s) {missing}: {q.get('id', q)!r}")
             continue
+        if not q["entity_ids"]:
+            violations.append(f"question {q['id']!r}: entity_ids is empty; a question is about at least one entity")
         if q["kind"] not in QUESTION_KIND_VALUES:
             violations.append(f"question {q['id']!r}: kind {q['kind']!r} is not one of {sorted(QUESTION_KIND_VALUES)}")
     for r in payload.get("relations", []):
         missing = [f for f in ("id", "endpoint_ids", "relation_type", "label") if f not in r]
         if missing:
             violations.append(f"relation missing required field(s) {missing}: {r.get('id', r)!r}")
+        elif len(r["endpoint_ids"]) != 2:
+            violations.append(f"relation {r['id']!r}: endpoint_ids must name exactly two entities")
     for ev in payload.get("knowledge_events", []):
         missing = [f for f in ("subject_type", "subject_id", "operation") if f not in ev]
         if missing:

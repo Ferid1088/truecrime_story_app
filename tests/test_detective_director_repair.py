@@ -151,3 +151,10 @@ def test_a_plan_that_is_never_buildable_persists_nothing(db_session, monkeypatch
     with pytest.raises(director.DirectorValidationFailed, match="cannot be built"):
         asyncio.run(director.map_film(db_session, graph.id, language="en", text_version=1))
     assert _actions(db_session, graph) == 0 and db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 0
+
+
+def test_a_claim_without_an_entity_is_sent_back_for_repair_instead_of_crashing_the_persist(db_session, monkeypatch):
+    graph = _setup(db_session)
+    fake, result = _map(db_session, graph, monkeypatch, _payload([]), GOOD())
+    assert len(fake.calls) == 2 and any("entity_ids is empty" in i for i in fake.calls[1]["repair_target"]["issues"])
+    assert result["counts"]["claims"] == 1

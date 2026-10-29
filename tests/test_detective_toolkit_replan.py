@@ -107,6 +107,7 @@ def test_invoke_registers_the_text_and_plans_in_chunks_of_beats(db_session, monk
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
@@ -124,6 +125,7 @@ def test_a_cap_stop_leaves_a_partial_plan_and_the_next_run_pays_only_for_what_is
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
     verdicts = iter([None, "case budget €1.00 reached: spent €1.00"])
     monkeypatch.setattr(toolkit, "_cap_reached", lambda db, c: next(verdicts, "case budget reached"))
@@ -148,6 +150,7 @@ def test_a_film_with_no_text_is_reported_not_called(db_session, monkeypatch):
     case, blueprint, graph = _film(db_session, [{"id": "B01", "act_id": "full", "paragraphs": [1, 1]}])
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
     monkeypatch.setattr(director, "get_generation_provider", lambda: (_ for _ in ()).throw(AssertionError))
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
     assert result.called is False and "no narration" in result.reason
@@ -178,3 +181,25 @@ def test_replan_makes_a_new_needs_plan_beside_the_existing_one(db_session, monke
     assert db_session.query(MvpRequirement).filter_by(visual_plan_id=first.id).count() == 1
     assert db_session.query(MvpRequirement).filter_by(visual_plan_id=replanned.id).count() == 1
     assert ND.latest_mvp_plan(db_session, blueprint.id).id == replanned.id
+
+
+def test_a_film_whose_cards_fill_too_little_gets_fill_passes_for_its_weakest_beats_and_reports_the_share(
+        db_session, monkeypatch):
+    from app.documentary.detective import buildable as BD
+
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 2)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
+    monkeypatch.setattr(BD, "alternative_share", lambda *a, **k: 0.2)
+    monkeypatch.setattr(BD, "weakest_beats", lambda *a, **k: ["B03"])
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    fills = [c for c in fake.calls if str(c["run_id"]).startswith("fill-")]
+    assert [c["run_id"] for c in fills] == ["fill-1", "fill-2"]
+    assert all("ADD CARDS" in c["owner_instructions"] and c["scene_scope"] and all(k.startswith("B03-") for k in c["scene_scope"]) for c in fills)
+    assert result.fill_passes == 2 and result.alternative_share == 0.2 and result.target_met is False

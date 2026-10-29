@@ -105,7 +105,8 @@ def _existing_state(db: Session, graph_id: int) -> dict:
 
 def _build_input(db: Session, graph_id: int, mode: str, language: str, text_version: int,
                   scene_scope: list[str] | None = None, run_id: str = "run-1",
-                  film_id: str | None = None, repair_target: dict | None = None) -> dict:
+                  film_id: str | None = None, repair_target: dict | None = None,
+                  owner_instructions: str = "") -> dict:
     graph = db.get(RevealGraph, graph_id)
     payload = {
         "mode": mode, "run_id": run_id, "film_id": film_id or f"case-{graph.case_id}",
@@ -115,7 +116,7 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
         "scene_scope": scene_scope or all_unit_keys(db, graph_id),
         "tool_catalog": build_tool_catalog(),
         "asset_catalog": [],
-        "channel_preferences": {}, "owner_instructions": "",
+        "channel_preferences": {}, "owner_instructions": owner_instructions,
         "schema_hints": {
             "claim_basis_values": sorted(MEM.CLAIM_BASES),
             "question_kind_values": sorted(MEM.QUESTION_KINDS),
@@ -221,9 +222,11 @@ async def map_film(db: Session, graph_id: int, language: str, text_version: int,
 
 
 async def direct_scenes(db: Session, graph_id: int, scene_unit_keys: list[str], language: str,
-                         text_version: int, run_id: str = "run-1", film_id: str | None = None) -> dict:
+                         text_version: int, run_id: str = "run-1", film_id: str | None = None,
+                         owner_instructions: str = "") -> dict:
     payload = _build_input(db, graph_id, "direct_scenes", language, text_version,
-                            scene_scope=scene_unit_keys, run_id=run_id, film_id=film_id)
+                            scene_scope=scene_unit_keys, run_id=run_id, film_id=film_id,
+                            owner_instructions=owner_instructions)
     return await _call(db, graph_id, "direct_scenes", payload)
 
 

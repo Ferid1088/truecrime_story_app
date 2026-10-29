@@ -104,6 +104,7 @@ def test_toolkit_invoke_maps_and_directs_when_enabled(db_session, monkeypatch):
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
 
@@ -120,6 +121,7 @@ def test_toolkit_invoke_never_re_pays_for_an_existing_plan(db_session, monkeypat
     monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
 
     first = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
     calls_after_first = len(fake.calls)
@@ -127,7 +129,7 @@ def test_toolkit_invoke_never_re_pays_for_an_existing_plan(db_session, monkeypat
 
     assert first.called is True
     assert second.called is False
-    assert second.reason == "a current detective plan already covers every beat of this graph"
+    assert second.reason.startswith("a current detective plan already covers every beat of this graph")
     assert len(fake.calls) == calls_after_first, "no new agent call on the second invoke"
 
 

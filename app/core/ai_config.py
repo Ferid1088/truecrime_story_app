@@ -2429,6 +2429,8 @@ class DetectiveToolkitConfig(BaseModel):
     require_buildable: bool = True
     # the share of the film's length the toolkit's alternatives must fill (cards, boards, maps; never the Host)
     min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
+    # how many extra Director calls may add cards for the weakest beats before the toolkit reports it fell short
+    max_fill_passes: int = Field(default=8, ge=0, le=30)
     reading: DetectiveReadingConfig = Field(default_factory=DetectiveReadingConfig)
     pacing: DetectivePacingConfig = Field(default_factory=DetectivePacingConfig)
     audio_only: DetectiveAudioOnlyConfig = Field(default_factory=DetectiveAudioOnlyConfig)
