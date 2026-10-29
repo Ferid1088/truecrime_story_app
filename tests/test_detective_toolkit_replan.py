@@ -263,6 +263,37 @@ def test_a_chunk_the_model_cannot_answer_is_split_in_half_and_each_half_is_plann
     assert result.failed_chunks == [] and result.uncovered_beats == [] and result.chunks_called == 1
 
 
+def test_after_a_chunk_had_to_be_split_the_next_chunks_are_cut_smaller(db_session, monkeypatch):
+    from app.providers.generation.base import GenerationError
+
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    real = fake.generate_structured
+    sizes: list[int] = []
+
+    async def overruns_on_three_beats_or_more(role, system, user, images=None, **kw):
+        scope = json.loads(user)["scene_scope"]
+        beats = len({k.split("-")[0] for k in scope})
+        sizes.append(beats)
+        if beats > 2:
+            raise GenerationError("invalid_output", "non-JSON output")
+        return await real(role, system, user, images, **kw)
+
+    fake.generate_structured = overruns_on_three_beats_or_more
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 4)
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    assert result.uncovered_beats == [] and result.failed_chunks == []
+    assert sizes[:3] == [4, 2, 2] and 4 not in sizes[3:], sizes
+
+
 def test_a_provider_failure_that_is_not_about_the_answer_still_stops_the_run(db_session, monkeypatch):
     import pytest
 

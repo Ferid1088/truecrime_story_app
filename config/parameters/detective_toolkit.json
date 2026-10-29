@@ -3,7 +3,7 @@
     "enabled": true,
     "design_review": false,
     "call_timeout_s": 300,
-    "beats_per_call": 6,
+    "beats_per_call": 3,
     "reading": {
       "dense_card_words": 18,
       "dense_speech_words_per_second": 2.6,

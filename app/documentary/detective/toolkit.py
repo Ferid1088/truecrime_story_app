@@ -117,27 +117,28 @@ async def _fill(db: Session, case, graph: RevealGraph, units: list[NarrationUnit
 
 
 async def _plan_chunk(db: Session, graph_id: int, language: str, text_version: int, beats: list[str],
-                      unit_keys: list[str], units: list[NarrationUnit]) -> tuple[bool, list[str]]:
+                      unit_keys: list[str], units: list[NarrationUnit]) -> tuple[bool, list[str], int]:
     """Map and direct one chunk. A chunk the model cannot answer (an answer that overruns, or one that stays invalid
     after its repairs) is split in half and each half planned on its own, down to one beat; what still fails is
-    reported and stays uncovered for the next run."""
+    reported and stays uncovered for the next run. Also returns how many times a chunk had to be split, so that the
+    next chunks are cut smaller."""
     try:
         await DD.map_film(db, graph_id, language=language, text_version=text_version, scene_unit_keys=unit_keys)
         await DD.direct_scenes(db, graph_id, scene_unit_keys=unit_keys, language=language, text_version=text_version)
-        return True, []
+        return True, [], 0
     except (DD.DirectorValidationFailed, GenerationError) as e:
         if isinstance(e, GenerationError) and e.kind != "invalid_output":
             raise                  # credentials, limits and timeouts are not cured by a smaller chunk
         if len(beats) == 1:
-            return False, [f"{beats[0]}: {e}"[:300]]
+            return False, [f"{beats[0]}: {e}"[:300]], 1
         middle = len(beats) // 2
-        done, errors = False, []
+        done, errors, splits = False, [], 1
         for half in (beats[:middle], beats[middle:]):
-            ok, more = await _plan_chunk(db, graph_id, language, text_version, half,
-                                         [u.unit_key for u in units if u.beat_id in half and u.unit_key in unit_keys],
-                                         units)
-            done, errors = done or ok, errors + more
-        return done, errors
+            ok, more, inner = await _plan_chunk(db, graph_id, language, text_version, half,
+                                                [u.unit_key for u in units if u.beat_id in half and u.unit_key in unit_keys],
+                                                units)
+            done, errors, splits = done or ok, errors + more, splits + inner
+        return done, errors, splits
 
 
 def _cap_reached(db: Session, case) -> str | None:
@@ -220,18 +221,22 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     chunks = _beat_chunks(units, ai_config.detective_toolkit.beats_per_call)
     covered = _directed_beats(db, graph.id, units)
     pending = [c for c in chunks if not set(c[0]) <= covered]
+    waiting = [c for c in _beat_chunks(units, 1) if not set(c[0]) <= covered]
     language, text_version = _language_and_text_version(db, case, blueprint_row)
     strategy = await ST.ensure(db, case, graph.id, units, language) if ai_config.detective_toolkit.strategy_enabled else None
     called, stopped, failed = 0, None, []
-    for beats, unit_keys in pending:
+    size = ai_config.detective_toolkit.beats_per_call
+    while waiting:
         stopped = _cap_reached(db, case)
         if stopped:
             break
-        done, errors = await _plan_chunk(db, graph.id, language, text_version, beats, unit_keys, units)
+        taken, waiting = waiting[:size], waiting[size:]
+        beats, unit_keys = [b for c in taken for b in c[0]], [k for c in taken for k in c[1]]
+        done, errors, splits = await _plan_chunk(db, graph.id, language, text_version, beats, unit_keys, units)
         failed.extend(errors)
-        if not done:
-            continue
-        called += 1
+        size = max(size // 2, 1) if splits else min(size + 1, ai_config.detective_toolkit.beats_per_call)
+        if done:
+            called += 1
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
     share, fill_passes = 0.0, 0
     if not stopped and not uncovered:
