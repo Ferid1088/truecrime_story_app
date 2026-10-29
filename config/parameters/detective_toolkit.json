@@ -27,10 +27,14 @@
     "strategy_enabled": true,
     "required_kinds": [
       "map",
-      "detective_board"
+      "detective_board",
+      "timeline"
     ],
-    "min_card_kinds": 14,
-    "max_diversity_passes": 4,
+    "min_card_kinds": 12,
+    "max_diversity_passes": 10,
+    "director_cannot_make": [
+      "floor_plan"
+    ],
     "graph_cards": {
       "timeline_cards": 3,
       "timeline_events": 3,

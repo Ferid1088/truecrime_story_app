@@ -100,11 +100,12 @@ class GraphCards:
         return shown
 
     def _place(self, tool_id: str, beat: str, bindings: list[str], claims: list[DetectiveClaim], aim: str, purpose: str,
-               release: float | None) -> bool:
-        """The card, kept in the first beat from `beat` on where its builder accepts what it binds and the film's
-        timeline has room for it."""
+               release: float | None, reach: int | None = None) -> bool:
+        """The card, kept in the first beat from `beat` on (at most `reach` beats later, the configured number by
+        default) where its builder accepts what it binds and the film's timeline has room for it."""
         start = self.film.order.index(beat)
-        for later in self.film.order[start:start + 1 + self.cfg.later_beats]:
+        reach = self.cfg.later_beats if reach is None else reach
+        for later in self.film.order[start:start + 1 + reach]:
             covered = sorted({k for c in claims for k in self.film.units_in(later, _keys(c.supporting_unit_keys_json))})
             covered = covered or [u.unit_key for u in self.units if u.beat_id == later]
             self.serial += 1
@@ -141,6 +142,18 @@ class GraphCards:
             self._place("timeline", group[-1][1], [c.claim_key for c in claims], claims,
                         "Put the events in the order they happened", "Set the dated events on one line",
                         _release(claims))
+        if not any(a.tool_id == "timeline" for a in self.added) and not shown:
+            self._one_timeline(dated)
+
+    def _one_timeline(self, dated: list) -> None:
+        """Every film has a timeline: when none found room in its own beats, the shortest one (two dated events) is
+        tried in every beat from the second event's on."""
+        for (first, _), (second, beat) in zip(dated, dated[1:]):
+            claims = [first, second]
+            if self._place("timeline", beat, [c.claim_key for c in claims], claims,
+                           "Put the events in the order they happened", "Set the dated events on one line",
+                           _release(claims), reach=len(self.film.order)):
+                return
 
     def unknowns(self) -> None:
         from app.documentary.graphics.engines import kit

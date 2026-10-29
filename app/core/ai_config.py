@@ -2442,10 +2442,10 @@ class DetectiveToolkitConfig(BaseModel):
     require_buildable: bool = True
     # before any scene is directed the film strategist and the card strategist plan the whole film from its text
     strategy_enabled: bool = True
-    # every film uses these kinds (the map and the detective board) and at least `min_card_kinds` kinds other than the
+    # every film uses these kinds (the map, the detective board and the timeline) and at least `min_card_kinds` kinds other than the
     # map, the board counted; the toolkit adds scenes for the kinds that are missing, at most this many passes
-    required_kinds: list[str] = Field(default_factory=lambda: ["map", "detective_board"])
-    min_card_kinds: int = Field(default=14, ge=1)
+    required_kinds: list[str] = Field(default_factory=lambda: ["map", "detective_board", "timeline"])
+    min_card_kinds: int = Field(default=12, ge=1)
     max_diversity_passes: int = Field(default=10, ge=0, le=30)
     # kinds the Director cannot make because their card needs real data it must not invent (a floor plan needs the
     # rooms of a stored plan): never asked for in a diversity pass

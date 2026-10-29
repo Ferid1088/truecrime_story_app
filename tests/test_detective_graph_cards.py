@@ -171,4 +171,16 @@ def test_the_catalog_states_the_rules_the_card_builders_enforce():
 
 def test_a_kind_the_director_cannot_make_is_never_asked_for(monkeypatch):
     missing = toolkit.missing_kinds({"map", "detective_board"}, None)
-    assert "floor_plan" not in missing and len([k for k in missing if k != "map"]) == 13
+    assert "floor_plan" not in missing and len([k for k in missing if k != "map"]) == 11 and "timeline" in missing[:3]
+
+
+def test_a_film_with_dated_events_always_gets_a_timeline_even_when_its_own_beats_have_no_room(db_session, monkeypatch):
+    _, graph, units = _graph(db_session)
+    monkeypatch.setattr(ai_config.detective_toolkit.graph_cards, "later_beats", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit.graph_cards, "timeline_events", 2)
+    crowded = _windows(units)
+    for window in crowded:
+        window["end"] = window["start"] + 2.0          # no beat has room for a card of its own
+    crowded[-1]["end"] = crowded[-1]["start"] + 600.0   # only the last beat has
+    kept = GC.add_graph_cards(db_session, graph.id, "en", units, crowded)
+    assert kept.get("timeline") == 1

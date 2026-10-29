@@ -41,7 +41,7 @@ def test_a_film_strategy_must_use_the_required_kinds_and_enough_others():
     assert ST.validate_film(_film_strategy(), KINDS, rule) == []
     few = _film_strategy({"must_use": ["map", "detective_board", "fact_card"]})
     issues = ST.validate_film(few, KINDS, rule)
-    assert any("at least 14" in i for i in issues)
+    assert any("at least 12" in i for i in issues)
     no_map = _film_strategy()
     no_map["must_use"].remove("map")
     assert any("required kind 'map'" in i for i in ST.validate_film(no_map, KINDS, rule))
@@ -73,7 +73,7 @@ def test_the_strategy_is_asked_once_checked_stored_and_reused(db_session, monkey
     strategy = asyncio.run(ST.ensure(db_session, case, graph.id, units, "en"))
 
     assert [a for a, _ in seen] == ["detective.film_strategist", "detective.card_strategist"]
-    assert seen[0][1]["narration"][0]["beat"] == "B01" and seen[0][1]["rules"]["min_kinds"] == 14
+    assert seen[0][1]["narration"][0]["beat"] == "B01" and seen[0][1]["rules"]["min_kinds"] == 12
     assert seen[1][1]["film_strategy"]["thesis"] == film["thesis"], "the card strategist keeps the film strategist's plan"
     assert strategy.film["must_use"] == film["must_use"] and db_session.query(DetectiveStrategy).filter_by(graph_id=graph.id).count() == 2
     again = asyncio.run(ST.ensure(db_session, case, graph.id, units, "en"))
@@ -109,11 +109,13 @@ def test_the_missing_kinds_are_the_required_ones_first_then_the_planned_then_eno
     film = _film_strategy()
     strategy = ST.Strategy(film, {"plans": {}})
     nothing = TK.missing_kinds(set(), strategy)
-    assert nothing[:2] == ["map", "detective_board"] and len(nothing) == 2 + 13, "the board counts among the 14"
-    assert TK.missing_kinds({"map", "detective_board", *[k for k in OTHERS if k != "detective_board"][:13]}, strategy) == []
-    others_without_board = [k for k in OTHERS if k != "detective_board"]
-    only_board = TK.missing_kinds({"detective_board", *others_without_board[:13]}, strategy)
-    assert only_board == ["map"], "14 kinds with the board, the map still required"
+    assert nothing[:3] == ["map", "detective_board", "timeline"] and len(nothing) == 3 + 10, \
+        "the board and the timeline count among the 12"
+    others = [k for k in OTHERS if k not in ("detective_board", "timeline")]
+    assert TK.missing_kinds({"map", "detective_board", "timeline", *others[:10]}, strategy) == []
+    assert TK.missing_kinds({"detective_board", "timeline", *others[:10]}, strategy) == ["map"], \
+        "12 kinds with the board and the timeline, the map still required"
+    assert TK.missing_kinds({"map", "detective_board", *others[:11]}, strategy) == ["timeline"], "always there"
 
 
 def test_a_kind_is_asked_for_at_the_beats_the_card_strategist_planned_for_it():
