@@ -14,7 +14,7 @@ from sqlalchemy import (
     event,
     select,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db.base import Base
 from app.db.types import UTCDateTime
@@ -1537,6 +1537,11 @@ class VisualAsset(Base):
         "OriginalMediaSegment", back_populates="asset", cascade="all, delete-orphan"
     )
 
+    @validates("title", "location", "source_name", "found_for", "license", "credit", "rights_reason")
+    def _fit_the_column(self, key: str, value: str | None) -> str | None:
+        """A provider's title or credit can be longer than its column: it is cut to fit rather than failing the save
+        of a picture the research found."""
+        return value[: self.__table__.c[key].type.length] if isinstance(value, str) else value
 
 class VisualSearchLog(Base):
     """One search a provider ran for a case: the ledger that keeps the same query from being run
