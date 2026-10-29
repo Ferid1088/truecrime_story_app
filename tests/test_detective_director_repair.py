@@ -249,3 +249,26 @@ def test_the_director_input_starts_with_what_is_the_same_in_every_call_so_a_pref
     assert first.index("narration") < first.index("mode") and first.index("narration") < first.index("existing_state")
     assert repair.index("narration") < repair.index("repair_target")
     assert fake.calls[0]["narration"] == fake.calls[1]["narration"]
+
+
+def test_a_card_the_renderer_refuses_is_repaired_with_the_renderers_own_reason(db_session, monkeypatch):
+    graph = _setup(db_session)
+    many = GOOD()
+    many["claims"] += [{"id": f"c{i}", "entity_ids": ["gun"], "attribute": "origin", "text": f"fact number {i}",
+                        "basis": "established_in_text", "supporting_span_ids": ["B01-1"]} for i in range(4)]
+    many["scenes"][0]["actions"][0]["content_bindings"] = ["c-origin", "c0", "c1", "c2"]
+    fake, _ = _map(db_session, graph, monkeypatch, many, GOOD())
+    issues = fake.calls[1]["repair_target"]["issues"]
+    assert any("action a1 (fact_card) cannot be rendered" in i and "facts" in i for i in issues)
+
+
+def test_the_toolkit_removes_the_actions_it_cannot_build_and_the_scenes_left_empty(db_session, monkeypatch):
+    from app.documentary.detective import buildable as BD
+
+    graph = _setup(db_session)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    _map(db_session, graph, monkeypatch, _unbound())
+    assert _actions(db_session, graph) == 1 and len(BD.unbuildable(db_session, graph.id)) == 1
+    assert BD.prune_unbuildable(db_session, graph.id) == 1
+    assert _actions(db_session, graph) == 0 and db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 0
+    assert db_session.query(DetectiveClaim).filter_by(graph_id=graph.id).count() == 1, "the claims stay"

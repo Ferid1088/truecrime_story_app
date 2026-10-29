@@ -15,6 +15,7 @@ from app.documentary.detective import dispatch as D
 from app.documentary.detective.reading import reading_need
 from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import GraphicUnavailable
+from app.documentary.graphics.registry import graphic
 
 NEEDS = {
     "fact_card": "bind at least one claim; each bound claim becomes one fact",
@@ -51,10 +52,23 @@ def issue_of(db: Session, action: DetectiveToolAction) -> str | None:
     build = D.BUILDERS.get(action.tool_id)
     if build is None or action.tool_id == "detective_board":
         return None
-    if build(db, action) is None:
+    data = build(db, action)
+    if data is None:
         return (f"action {action.action_key} ({action.tool_id}) cannot be built from what it binds: "
                 f"{NEEDS.get(action.tool_id, DEFAULT_NEED)}; or choose a tool whose card can be built")
+    problem = render_problem(action.tool_id, data)
+    if problem:
+        return f"action {action.action_key} ({action.tool_id}) cannot be rendered: {problem}"
     return None
+
+
+def render_problem(tool_id: str, data: dict) -> str | None:
+    """What the card's renderer refuses in this data (too many facts, a text too long), or None. A tool with no
+    renderer of its own (the board) has nothing to refuse."""
+    try:
+        return graphic(tool_id).can_render(data)
+    except GraphicUnavailable:
+        return None
 
 
 def unbuildable(db: Session, graph_id: int, action_keys: set[str] | None = None) -> list[tuple[str, str]]:
@@ -73,7 +87,7 @@ def card_seconds(db: Session, action: DetectiveToolAction, language: str) -> flo
     if build is None or action.tool_id == "detective_board":      # a board is timed by its own placement
         return 0.0
     data = build(db, action)
-    if data is None:
+    if data is None or render_problem(action.tool_id, data):
         return 0.0
     try:
         return reading_need(action.tool_id, data, language).planned
@@ -116,3 +130,24 @@ def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) 
     """The beats whose cards fill the smallest share of their own narration, weakest first."""
     narration, cards = narration_seconds(units), card_seconds_by_beat(db, graph_id, language)
     return sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))[:count]
+
+
+def prune_unbuildable(db: Session, graph_id: int) -> int:
+    """Remove the actions whose card cannot be built, and the scenes left with no action: the toolkit hands over
+    only what it has made. Returns how many actions were removed."""
+    found = {key for key, _ in unbuildable(db, graph_id)}
+    if not found:
+        return 0
+    scenes = db.query(DetectiveScene).filter_by(graph_id=graph_id).all()
+    removed = 0
+    for scene in scenes:
+        for action in list(scene.actions):
+            if action.action_key in found:
+                db.delete(action)
+                removed += 1
+        db.flush()
+        db.refresh(scene)
+        if not scene.actions:
+            db.delete(scene)
+    db.commit()
+    return removed

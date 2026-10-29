@@ -50,6 +50,7 @@ class ToolkitResult:
     alternative_share: float = 0.0
     target_met: bool = False
     fill_passes: int = 0
+    pruned_actions: int = 0
     failed_chunks: list[str] = field(default_factory=list)
 
 
@@ -170,8 +171,11 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
         share, fill_passes, stopped = await _fill(db, case, graph, units, language, text_version)
     else:
         share = BD.alternative_share(db, graph.id, language, units)
+    pruned = BD.prune_unbuildable(db, graph.id) if ai_config.detective_toolkit.require_buildable else 0
+    if pruned:
+        share = BD.alternative_share(db, graph.id, language, units)
     return ToolkitResult(
-        enabled=True, called=called > 0 or fill_passes > 0, chunks_total=len(chunks), chunks_called=called,
+        enabled=True, called=called > 0 or fill_passes > 0, pruned_actions=pruned, chunks_total=len(chunks), chunks_called=called,
         units_registered=ingested.registered, uncovered_beats=uncovered, stopped=stopped,
         alternative_share=share, fill_passes=fill_passes, failed_chunks=failed,
         target_met=share >= ai_config.detective_toolkit.min_alternative_share,
