@@ -239,7 +239,7 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
             called += 1
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
     share, fill_passes = 0.0, 0
-    if not stopped and not uncovered:
+    if not stopped:
         _, diversity_errors = await _diversify(db, case, graph, units, language, text_version, strategy)
         failed.extend(diversity_errors)
         share, fill_passes, stopped, fill_errors = await _fill(db, case, graph, units, language, text_version)
@@ -247,7 +247,7 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     else:
         share = BD.alternative_share(db, graph.id, language, units)
     pruned = BD.prune_unbuildable(db, graph.id) if ai_config.detective_toolkit.require_buildable else 0
-    filler_cards = FL.fill_with_fact_cards(db, graph.id, language, units)["cards"] if not uncovered else 0
+    filler_cards = FL.fill_with_fact_cards(db, graph.id, language, units)["cards"]
     final = BD.planned_timeline(db, graph.id, language, units)
     share, missing = final.alternative_share, missing_kinds(final.kinds, strategy)
     reason = ("a current detective plan already covers every beat of this graph" if not pending

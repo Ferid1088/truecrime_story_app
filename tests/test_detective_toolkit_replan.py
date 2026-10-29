@@ -236,6 +236,31 @@ def test_a_chunk_the_director_cannot_get_right_is_reported_and_the_other_chunks_
     assert result.failed_chunks[0].startswith("B02") and "B02" in result.uncovered_beats
 
 
+def test_a_beat_the_director_could_not_plan_does_not_stop_the_fill_and_diversity_passes(db_session, monkeypatch):
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    real = fake.generate_structured
+
+    async def broken_on_the_second_beat(role, system, user, images=None, **kw):
+        if json.loads(user)["scene_scope"][0].startswith("B02"):
+            return ({"schema_version": "1.0"}, GenerationResult(text="{}", model="fake", provider="fake"))
+        return await real(role, system, user, images, **kw)
+
+    fake.generate_structured = broken_on_the_second_beat
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 1)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 1)
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    assert "B02" in result.uncovered_beats
+    assert result.fill_passes == 1 and any(str(c["run_id"]).startswith("fill-") for c in fake.calls)
+
+
 def test_a_chunk_the_model_cannot_answer_is_split_in_half_and_each_half_is_planned(db_session, monkeypatch):
     from app.providers.generation.base import GenerationError
 
