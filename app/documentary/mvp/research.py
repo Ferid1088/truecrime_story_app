@@ -150,8 +150,7 @@ async def research_unmet(db: Session, case: Case, plan: VisualPlan, requirements
                 queries = fresh_queries(await planner(db, case, reqs[0], entity, history, round_no), history)
             for req in reqs:
                 planned[req.id] = queries
-            cap = cfg.max_new_assets_per_requirement * len(reqs)       # what these requirements may bring in all
-            items += [query_item(entity, q["query"], q["kind"], cap) for q in queries]
+            items += [query_item(entity, q["query"], q["kind"], cfg.max_new_assets_per_requirement) for q in queries]
         stats = await research(db, case, items) if items else {}
         new_ids = [a.id for a in db.query(VisualAsset).filter(VisualAsset.case_id == case.id,
                                                               VisualAsset.id > before_assets)]

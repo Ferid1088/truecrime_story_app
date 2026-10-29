@@ -133,3 +133,15 @@ def test_the_shipped_caps_on_new_pictures_and_videos_are_five_for_a_requirement_
     assert ai_config.mvp().search.max_new_assets_per_requirement == 5
     assert ai_config.mvp().general.max_assets_per_moment == 5
     assert ai_config.visual_search.max_downloads_per_entity == 5
+
+
+def test_the_cap_of_a_search_is_the_same_whatever_number_of_requirements_share_its_entity(db_session):
+    case, plan, req = _setup(db_session)
+    for n in (2, 3):
+        db_session.add(MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key=f"B0{n}.1", beat_id=f"B0{n}",
+                                      function="evidence", entity_key="caleb_flynn", role_needed="evidence",
+                                      priority="high", spec_json=json.dumps({"acceptable_roles": ["evidence"]})))
+    db_session.commit()
+    f = Fakes(db_session, [1])
+    run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
+    assert set(f.caps) == {5}, "three requirements of one entity: still five per search item"
