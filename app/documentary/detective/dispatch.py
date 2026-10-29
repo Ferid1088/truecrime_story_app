@@ -627,6 +627,8 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
                 record["beat_id"], record["data"] = beat_id, {"place": place}
                 record["min_release_fraction"] = _min_release_fraction(db, action) or json.loads(
                     action.payload_json or "{}").get("release_fraction")
+        elif action.tool_id == "detective_board":
+            record["skip"] = "placed_by_the_board_plan"      # the board is drawn and placed by its own subsystem
         elif build is None:
             record["skip"] = "not_dispatched_in_this_pass"
         else:

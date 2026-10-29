@@ -421,3 +421,15 @@ def test_a_map_action_with_a_stored_place_becomes_a_placed_map_not_a_lost_note(d
     graph, _, action = _map_fixture(db_session)
     record = next(r for r in D.resolve_dispatchable_actions(db_session, graph.id) if r["tool_id"] == "map")
     assert record["data"] == {"place": "Cunningham Court"} and record["beat_id"] == "B01" and "skip" not in record
+
+
+def test_a_board_action_is_not_dispatched_as_a_graphic_because_the_board_plan_places_it(db_session):
+    graph, _, _ = _graph(db_session, beats=[{"id": "B01"}])
+    MEM.ensure_entity(db_session, graph.id, "p1", "Jane Doe", "person", "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "p1", "role", "Jane was home alone.", "established_in_text")
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "detective_board")
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    resolved = D.resolve_dispatchable_actions(db_session, graph.id)
+    assert [r["skip"] for r in resolved if r["tool_id"] == "detective_board"] == ["placed_by_the_board_plan"]
+    assert D.place_detective_graphics([], [], "en", resolved)[0]["skip"] == "placed_by_the_board_plan"
