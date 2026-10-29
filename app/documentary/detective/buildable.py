@@ -142,19 +142,20 @@ def estimated_windows(units) -> list[dict]:
     return windows
 
 
-def planned_timeline(db: Session, graph_id: int, language: str, units) -> TL.FilmTimeline:
-    """The film timeline the cards would get over the narration's estimated windows: the placement the Main Visual
-    Planner will see (release points, reading times, each beat's card share), not a sum of card seconds."""
-    return TL.film_timeline(estimated_windows(units), D.resolve_dispatchable_actions(db, graph_id), language)
+def planned_timeline(db: Session, graph_id: int, language: str, units, windows: list[dict] | None = None) -> TL.FilmTimeline:
+    """The film timeline the cards would get: over the real beat windows of the narration when it exists, otherwise over
+    the windows the text alone gives. It is the placement the Main Visual Planner will see (release points, reading
+    times, each beat's card share), not a sum of card seconds."""
+    return TL.film_timeline(windows or estimated_windows(units), D.resolve_dispatchable_actions(db, graph_id), language)
 
 
 def placed_card_seconds_by_beat(timeline: TL.FilmTimeline) -> dict[str, float]:
     return {beat: sum(c["end"] - c["start"] for c in cards) for beat, cards in timeline.cards_by_beat.items()}
 
 
-def alternative_share(db: Session, graph_id: int, language: str, units) -> float:
+def alternative_share(db: Session, graph_id: int, language: str, units, windows: list[dict] | None = None) -> float:
     """The share of the film its cards fill once placed."""
-    return planned_timeline(db, graph_id, language, units).alternative_share
+    return planned_timeline(db, graph_id, language, units, windows).alternative_share
 
 
 def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) -> list[str]:

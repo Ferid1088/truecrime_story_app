@@ -107,12 +107,19 @@ def film_timeline(windows: list[dict], resolved: list[dict], language: str) -> F
     return timeline
 
 
-def timeline_for(db, graph_id: int, manifest: dict, language: str) -> FilmTimeline:
+def timeline_for(db, graph_id: int, manifest: dict, language: str, top_up: bool = False) -> FilmTimeline:
     """The film timeline of a graph over this language's real beat windows: the toolkit's cards where it has planned
-    the graph, otherwise every beat free."""
+    the graph, otherwise every beat free. With `top_up` (the reference language, whose narration now exists) the
+    toolkit first adds fact cards until its cards fill the configured share of the film on these real windows: the
+    text alone only estimated them. The other languages reuse the cards and never add any."""
+    from app.db.models import NarrationUnit
+    from app.documentary.detective import filler as FL
     from app.documentary.detective.dispatch import has_detective_plan, resolve_dispatchable_actions
     from app.documentary.mvp.direct import beat_windows
 
     windows = beat_windows(manifest)
-    return film_timeline(windows, resolve_dispatchable_actions(db, graph_id) if has_detective_plan(db, graph_id) else [],
-                         language)
+    planned = has_detective_plan(db, graph_id)
+    if planned and top_up and ai_config.detective_toolkit.enabled:
+        units = db.query(NarrationUnit).filter_by(graph_id=graph_id).order_by(NarrationUnit.story_order).all()
+        FL.fill_with_fact_cards(db, graph_id, language, units, windows)
+    return film_timeline(windows, resolve_dispatchable_actions(db, graph_id) if planned else [], language)

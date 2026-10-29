@@ -120,3 +120,30 @@ def test_a_fact_a_beat_has_told_may_be_shown_at_the_start_of_the_next_beat_when_
     assert abs(timeline.cards_by_beat["B02"][0]["start"] - windows["B02"]["start"]) < 0.01, "at its start, right after the telling"
     assert all(c["start"] >= windows["B01"]["start"] + 0.5 * (windows["B01"]["end"] - windows["B01"]["start"]) - 0.01
                for c in timeline.cards_by_beat.get("B01", [])), "its own beat: the second half only"
+
+
+def _manifest(units, scale):
+    """A narration manifest whose beats last `scale` of what the text alone estimates."""
+    windows = BD.estimated_windows(units)
+    sentences = [{"start": s["start"] * scale, "end": s["end"] * scale, "speech": s["speech"]}
+                 for w in windows for s in w["sentences"]]
+    return {"duration_seconds": windows[-1]["end"] * scale,
+            "timeline": {"beats": [{"beat_id": w["beat_id"], "start": w["start"] * scale} for w in windows],
+                         "sentences": sentences}}
+
+
+def test_the_toolkit_tops_up_on_the_real_narration_timing_for_the_reference_language_only(db_session, monkeypatch):
+    from app.documentary.detective import timeline as TL
+
+    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 0.3)
+    graph, units = _film(db_session, claims_per_beat=10)
+    FL.fill_with_fact_cards(db_session, graph.id, "en", units)             # on the estimate: the share is met
+    manifest = _manifest(units, 1.8)                                          # the real narration is much slower
+    before = TL.timeline_for(db_session, graph.id, manifest, "en")
+    assert before.alternative_share < 0.3, "on the real timing the estimate's cards fall short"
+
+    german = TL.timeline_for(db_session, graph.id, manifest, "de", top_up=False)
+    assert german.alternative_share == before.alternative_share, "another language never adds cards"
+
+    topped = TL.timeline_for(db_session, graph.id, manifest, "en", top_up=True)
+    assert topped.alternative_share >= 0.3 > before.alternative_share, "the cards now fill the share on the real timing"

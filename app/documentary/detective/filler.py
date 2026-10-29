@@ -109,11 +109,13 @@ def _add_card(db: Session, graph_id: int, beat: str, group: list[DetectiveClaim]
     return action
 
 
-def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[NarrationUnit]) -> dict:
+def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[NarrationUnit],
+                         windows: list[dict] | None = None) -> dict:
     """Add fact cards, weakest beat first, until the cards fill the configured share of the film once placed, or no
     sourced claim is left that fits. A card the timeline then cannot place is taken out again. Returns what was made."""
     cfg = ai_config.detective_toolkit
-    narration = BD.narration_seconds(units)
+    narration = ({w["beat_id"]: w["end"] - w["start"] for w in windows} if windows
+                 else BD.narration_seconds(units))
     shown = _shown_claims(db, graph_id)
     pending = _claims_by_beat(db, graph_id, units)
     order = db.query(DetectiveScene).filter_by(graph_id=graph_id).count()
@@ -122,13 +124,13 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
     order_of_beats = list(narration)
     previous = {b: order_of_beats[i - 1] for i, b in enumerate(order_of_beats) if i}
     while True:
-        timeline = BD.planned_timeline(db, graph_id, language, units)
+        timeline = BD.planned_timeline(db, graph_id, language, units, windows)
         if last is not None and last.action_key in {s["action_key"] for s in timeline.skipped}:
             made.remove(last.action_key)               # the timeline has no room for it: not a card of the film
             db.delete(last.scene)
             db.delete(last)
             db.flush()
-            timeline = BD.planned_timeline(db, graph_id, language, units)
+            timeline = BD.planned_timeline(db, graph_id, language, units, windows)
         last = None
         if timeline.alternative_share >= cfg.min_alternative_share:
             break
@@ -160,4 +162,4 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
                 break
             imported, pending = True, _claims_by_beat(db, graph_id, units)       # the facts of the case, once
     db.commit()
-    return {"cards": len(made), "share": BD.alternative_share(db, graph_id, language, units)}
+    return {"cards": len(made), "share": BD.alternative_share(db, graph_id, language, units, windows)}
