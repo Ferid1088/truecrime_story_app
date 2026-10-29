@@ -30,6 +30,7 @@ from app.core.ai_config import ai_config
 from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, RevealGraph, StoryVersion
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
+from app.documentary.detective import filler as FL
 from app.documentary.detective.narration import ingest_narration
 from app.longform import service as LF
 from app.providers.generation.base import GenerationError
@@ -50,6 +51,7 @@ class ToolkitResult:
     alternative_share: float = 0.0
     target_met: bool = False
     fill_passes: int = 0
+    filler_cards: int = 0
     pruned_actions: int = 0
     failed_chunks: list[str] = field(default_factory=list)
 
@@ -184,10 +186,10 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     else:
         share = BD.alternative_share(db, graph.id, language, units)
     pruned = BD.prune_unbuildable(db, graph.id) if ai_config.detective_toolkit.require_buildable else 0
-    if pruned:
-        share = BD.alternative_share(db, graph.id, language, units)
+    filler_cards = FL.fill_with_fact_cards(db, graph.id, language, units)["cards"] if not uncovered else 0
+    share = BD.alternative_share(db, graph.id, language, units)
     return ToolkitResult(
-        enabled=True, called=called > 0 or fill_passes > 0, pruned_actions=pruned, chunks_total=len(chunks), chunks_called=called,
+        enabled=True, called=called > 0 or fill_passes > 0, pruned_actions=pruned, filler_cards=filler_cards, chunks_total=len(chunks), chunks_called=called,
         units_registered=ingested.registered, uncovered_beats=uncovered, stopped=stopped,
         alternative_share=share, fill_passes=fill_passes, failed_chunks=failed,
         target_met=share >= ai_config.detective_toolkit.min_alternative_share,

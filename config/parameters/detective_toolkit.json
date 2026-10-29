@@ -21,6 +21,7 @@
   "max_repair_iterations": 2,
   "require_buildable": true,
   "min_alternative_share": 0.5,
-  "max_fill_passes": 8
+  "max_fill_passes": 3,
+  "max_beat_card_share": 0.7
  }
 }
