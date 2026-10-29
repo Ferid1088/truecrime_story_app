@@ -74,6 +74,14 @@ def clip_discovery_enabled(db: Session) -> bool:
     return bool(YC.enabled(db) and getattr(settings, "youtube_api_key", None))
 
 
+def entity_cap(entity_key: str, queries: list[dict], default: int) -> int:
+    """How many new pictures and videos may be downloaded for an entity: the smallest `max_downloads` any of its
+    queries carries (a requirement's or a bare moment's own cap), never more than the agent's own limit."""
+    caps = [int(q["max_downloads"]) for q in queries if q.get("max_downloads")
+            and (q.get("entity") == entity_key or entity_key in (q.get("entities") or []))]
+    return min([default, *caps])
+
+
 class VisualResearchAgent:
     def _book_search(self, money: BudgetService, case_id: int, provider: str) -> None:
         """One billed search request, at the configured per-request price. The image-search
@@ -283,7 +291,7 @@ class VisualResearchAgent:
                     stats["relevance_rejected"] += 1
                     continue
                 if (c.entity_key and downloads_per_entity.get(c.entity_key, 0)
-                        >= self.cfg.max_downloads_per_entity):
+                        >= entity_cap(c.entity_key, queries, self.cfg.max_downloads_per_entity)):
                     stats["entity_cap_skipped"] += 1
                     continue
                 urls.add(c.url)

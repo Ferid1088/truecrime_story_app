@@ -2280,7 +2280,7 @@ class VisualSearchConfig(BaseModel):
     max_assets: int = Field(default=120, ge=1)
     # P5: at most this many DOWNLOADS per entity in one research run (candidates are already
     # ranked before the download loop, so this keeps one entity from using the whole budget).
-    max_downloads_per_entity: int = Field(default=40, ge=1)
+    max_downloads_per_entity: int = Field(default=5, ge=1)
     # P6: a provider whose useful share (verified + needs_review of what was actually checked)
     # stays below this after at least this many checked pictures is skipped in later runs; its
     # query slots go to the other active providers instead.
@@ -2836,6 +2836,8 @@ class MvpSearchConfig(BaseModel):
     initial_rounds: int = Field(ge=1, le=3)
     extra_rounds_max: int = Field(ge=0, le=5)
     min_new_candidates_to_continue: int = Field(ge=0)
+    # the case search downloads at most this many new pictures and videos for each unmet requirement
+    max_new_assets_per_requirement: int = Field(default=5, ge=1)
 
 
 class MvpShotsConfig(BaseModel):
@@ -2927,6 +2929,8 @@ class MvpGeneralConfig(BaseModel):
     max_moments: int = Field(ge=1)
     moments_per_call: int = Field(ge=1)
     queries_per_moment: int = Field(ge=1)
+    # the general search downloads at most this many new pictures and videos for each bare moment
+    max_assets_per_moment: int = Field(default=5, ge=1)
     max_query_chars: int = Field(ge=10)
     photo_width: int = Field(ge=128)
     accept_fit: list[str] = Field(min_length=1)

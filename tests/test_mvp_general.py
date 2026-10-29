@@ -152,3 +152,16 @@ def test_the_run_stops_before_a_paid_call_when_the_cap_is_reached(db_session, tm
 def test_the_checker_is_told_to_reject_drawn_images_and_look_alike_settings():
     prompt = open("prompts/documentary/mvp/general_check_system.md").read()
     assert "AI-generated" in prompt and "a viewer would take a stranger's house" in prompt
+
+
+def test_each_bare_moment_may_bring_in_only_a_few_new_pictures_and_videos(db_session):
+    from app.core.ai_config import ai_config
+
+    case, plan = _plan(db_session)
+    seen: list[dict] = []
+
+    async def searcher(items):
+        seen.extend(items)
+
+    run(GI.GeneralImagery(db_session, case, plan.id, "en", _planner(["insurance form"]), searcher, _checker({})).run(GAPS))
+    assert seen and all(i["max_downloads"] == ai_config.mvp().general.max_assets_per_moment for i in seen)

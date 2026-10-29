@@ -119,7 +119,8 @@ class GeneralImagery:
     async def search(self, wanted: dict[str, list[str]]) -> list[VisualAsset]:
         # an "exact" search, because a context search skips Brave (its pictures carry no known rights); nothing is
         # named, so the name pre-filter is off and the checker alone judges what the picture is about
-        items = [{**query_item({"key": entity_key(key), "name": q, "type": "object", "footage": False}, q),
+        items = [{**query_item({"key": entity_key(key), "name": q, "type": "object", "footage": False}, q,
+                               max_downloads=self.cfg.max_assets_per_moment),
                   "must_name": []} for key, queries in wanted.items() for q in queries]
         if not items:
             return []

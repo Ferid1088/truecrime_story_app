@@ -40,6 +40,7 @@ class Fakes:
 
     async def research(self, db, case, items):
         self.queries.append([i["query"] for i in items])
+        self.caps = [i.get("max_downloads") for i in items]
         self.calls += 1
         for _ in range(self.finds[min(self.calls - 1, len(self.finds) - 1)]):
             db.add(VisualAsset(case_id=case.id, asset_code=f"V{uuid4().hex[:6]}", local_path="x.jpg",
@@ -108,3 +109,27 @@ def test_with_the_shipped_config_the_case_search_is_one_round_and_the_general_se
     f = Fakes(db_session, [1, 1, 1])
     run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
     assert f.calls == 1, "one case round; the owner reviews, then the general search runs"
+
+
+def test_each_unmet_requirement_may_bring_in_only_a_few_new_pictures_and_videos(db_session):
+    case, plan, req = _setup(db_session)
+    f = Fakes(db_session, [1])
+    run(RS.research_unmet(db_session, case, plan, REQS, f.research, f.verify, f.planner))
+    assert f.caps and set(f.caps) == {ai_config.mvp().search.max_new_assets_per_requirement}, "one requirement, its cap"
+
+
+def test_an_entitys_download_cap_is_the_smallest_cap_of_its_queries_and_never_above_the_agents_limit():
+    from app.agents.visual_research import entity_cap
+
+    queries = [{"entity": "e1", "max_downloads": 6}, {"entity": "e1", "max_downloads": 3},
+               {"entities": ["e2"], "max_downloads": 99}, {"entity": "e3"}]
+    assert entity_cap("e1", queries, 5) == 3
+    assert entity_cap("e2", queries, 5) == 5, "the agent's own limit stays the ceiling"
+    assert entity_cap("e3", queries, 5) == 5, "a query with no cap leaves the agent's limit"
+    assert entity_cap("unknown", queries, 5) == 5
+
+
+def test_the_shipped_caps_on_new_pictures_and_videos_are_five_for_a_requirement_a_gap_and_an_entity():
+    assert ai_config.mvp().search.max_new_assets_per_requirement == 5
+    assert ai_config.mvp().general.max_assets_per_moment == 5
+    assert ai_config.visual_search.max_downloads_per_entity == 5

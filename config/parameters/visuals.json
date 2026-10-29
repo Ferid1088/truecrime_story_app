@@ -12,7 +12,7 @@
       "dpla"
     ],
     "era_boundary_year": 1980,
-    "max_downloads_per_entity": 40,
+    "max_downloads_per_entity": 5,
     "adaptive_stop_min_sample": 20,
     "adaptive_stop_min_share": 0.1,
     "refinement_min_sample": 10,

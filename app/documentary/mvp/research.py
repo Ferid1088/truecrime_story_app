@@ -93,7 +93,7 @@ def _history(req: MvpRequirement) -> list[dict]:
              "new_candidates": r.new_candidates, "error": r.error} for r in req.search_rounds]
 
 
-def query_item(entity: dict, query: str, kind: str = "exact") -> dict:
+def query_item(entity: dict, query: str, kind: str = "exact", max_downloads: int | None = None) -> dict:
     """One search for VisualResearchAgent.run: what to search, for which
     entity (key and type: the asset's library fields and provisional
     tier), exact or context, and whether footage is searched too.
@@ -115,7 +115,9 @@ def query_item(entity: dict, query: str, kind: str = "exact") -> dict:
             "aliases": list(entity.get("aliases") or []),
             "date_window": list(entity.get("date_window") or []),
             "not_this": list(entity.get("not_this") or []),
-            "negative_terms": list(entity.get("negative_terms") or [])}
+            "negative_terms": list(entity.get("negative_terms") or []),
+            # the most new pictures and videos this search may download (None: the agent's own limit)
+            **({"max_downloads": max_downloads} if max_downloads else {})}
 
 
 async def research_unmet(db: Session, case: Case, plan: VisualPlan, requirements: dict,
@@ -148,7 +150,8 @@ async def research_unmet(db: Session, case: Case, plan: VisualPlan, requirements
                 queries = fresh_queries(await planner(db, case, reqs[0], entity, history, round_no), history)
             for req in reqs:
                 planned[req.id] = queries
-            items += [query_item(entity, q["query"], q["kind"]) for q in queries]
+            cap = cfg.max_new_assets_per_requirement * len(reqs)       # what these requirements may bring in all
+            items += [query_item(entity, q["query"], q["kind"], cap) for q in queries]
         stats = await research(db, case, items) if items else {}
         new_ids = [a.id for a in db.query(VisualAsset).filter(VisualAsset.case_id == case.id,
                                                               VisualAsset.id > before_assets)]

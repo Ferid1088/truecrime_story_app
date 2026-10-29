@@ -3,7 +3,8 @@
     "search": {
       "initial_rounds": 1,
       "extra_rounds_max": 0,
-      "min_new_candidates_to_continue": 1
+      "min_new_candidates_to_continue": 1,
+      "max_new_assets_per_requirement": 5
     },
     "shots": {
       "min_seconds": 2.5,
@@ -91,7 +92,8 @@
       ],
       "review_fit": [
         "loose"
-      ]
+      ],
+      "max_assets_per_moment": 5
     },
     "neighbour_cover": {
       "min_piece_seconds": 3.0,
