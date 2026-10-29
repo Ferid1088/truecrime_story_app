@@ -218,6 +218,8 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
     async def offers(*args, **kw):
         return [], None
 
+    monkeypatch.setattr("app.documentary.detective.timeline.timeline_for", lambda *a, **k: None)
+
     async def nothing(*args, **kw):
         return {}
 

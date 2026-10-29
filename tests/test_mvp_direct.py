@@ -414,7 +414,7 @@ def _fake_rounds(monkeypatch, gap_seconds):
     target = SimpleNamespace(plan_json="{}", validation_json="{}")
 
     async def fake(db, case, plan, manifest, graph, order, beats, director, target_, entities, region, offers, topical,
-                   relax=None, force=False, cover=False, cover_last=True):
+                   relax=None, force=False, cover=False, cover_last=True, timeline=None):
         n = len(calls)
         calls.append({"relax": relax, "force": force, "cover": cover})
         gaps = [{"beat": "B01", "start": 0.0, "end": gap_seconds[n]}] if gap_seconds[n] else []

@@ -22,6 +22,7 @@ from app.db.models import (
     VisualAsset,
     VisualPlan,
 )
+from app.documentary.detective import timeline as TL
 from app.documentary.detective import toolkit as TK
 from app.documentary.mvp import coverage as CV
 from app.documentary.mvp import direct as DR
@@ -255,12 +256,13 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     requirements = requirements_of(needs_plan)
     overlays = await scan_overlays(db, case, needs_plan)      # first the marks: cut away, or the picture is out
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
-    offers, _evidence = await EV.build_offers(db, case, bp_row, needs_plan, manifest)
+    timeline = TL.timeline_for(db, graph_id, manifest, language)     # the toolkit's fixed cards, when it planned the film
+    offers = [] if timeline else (await EV.build_offers(db, case, bp_row, needs_plan, manifest))[0]
     region = case_region(case)
     async def direct(matches=None, last: bool = False) -> dict:
         return await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                     director if use_agent else None, target, None, region, offers, matches,
-                                    cover_last=last)
+                                    cover_last=last, timeline=timeline)
 
     report = await direct()
     for _ in range(ai_config.mvp().topup.passes):
