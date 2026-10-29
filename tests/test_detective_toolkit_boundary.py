@@ -185,3 +185,22 @@ def test_record_planner_decisions_covers_deferred_accepted_and_rejected(db_sessi
     assert accepted_action.planner_decision == "accepted"
     assert rejected_action.planner_decision == "rejected"
     assert all(a.planner_decision_reason for a in (deferred_action, accepted_action, rejected_action))
+
+
+def test_the_toolkit_makes_the_reveal_graph_and_the_planner_only_reads_it(db_session, monkeypatch):
+    import pytest
+
+    from app.db.models import RevealGraph
+    from app.documentary.mvp import pipeline as MVP
+
+    case, blueprint, graph = _graph_with_narration(db_session)
+    db_session.query(RevealGraph).filter_by(id=graph.id).delete()
+    db_session.flush()
+    with pytest.raises(LookupError, match="has not made the reveal graph"):
+        asyncio.run(MVP.stage_needs(db_session, case, blueprint))
+    assert db_session.query(RevealGraph).filter_by(case_id=case.id).count() == 0, "the planner makes no graph"
+    monkeypatch.setattr(toolkit.LF, "build_reveal_graph_payload", lambda db, c, b: {"nodes": [], "edges": []})
+    made = {}
+    monkeypatch.setattr(toolkit.LF, "create_reveal_graph",
+                        lambda db, c, b, payload: made.setdefault("g", graph) and made["g"])
+    assert toolkit.ensure_graph(db_session, case, blueprint) is graph and "g" in made

@@ -221,13 +221,9 @@ def test_a_merged_needs_report_carries_no_error_while_the_plan_has_requirements(
     action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
     db_session.flush()
 
-    async def no_toolkit(*args, **kwargs):
-        return None
-
     async def agent_gave_nothing(*args, **kwargs):
         return {"entities": [], "beats": []}, SimpleNamespace(model="m")
 
-    monkeypatch.setattr("app.documentary.detective.toolkit.invoke", no_toolkit)
     monkeypatch.setattr(N, "run_agent", agent_gave_nothing)
     monkeypatch.setattr(N, "get_generation_provider", lambda: None)
     monkeypatch.setattr(N, "stamp_run", lambda *a, **k: None)

@@ -22,6 +22,7 @@ from app.db.models import (
     VisualAsset,
     VisualPlan,
 )
+from app.documentary.detective import toolkit as TK
 from app.documentary.mvp import coverage as CV
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import evidence as EV
@@ -35,23 +36,10 @@ from app.documentary.mvp import timing as TM
 from app.documentary.mvp import topical as TP
 from app.documentary.mvp import verify as VF
 from app.documentary.mvp.library import build_candidates, build_gap_candidates
-from app.longform import service as LF
 from app.services.budget import BudgetService
 
 log = logging.getLogger(__name__)
 WORDS_PER_SECOND = 2.6
-
-
-def ensure_graph(db: Session, case: Case, bp_row: EditorialBlueprint) -> RevealGraph:
-    """The case's validated reveal graph for this blueprint: reused when present, built from the blueprint
-    otherwise, and never silently replaced by an invalid one."""
-    graph = (db.query(RevealGraph).filter_by(case_id=case.id, blueprint_id=bp_row.id, status="validated")
-             .order_by(RevealGraph.version.desc()).first())
-    if graph is not None:
-        return graph
-    payload = LF.build_reveal_graph_payload(db, case.id, bp_row.id)
-    count = db.query(RevealGraph).filter_by(case_id=case.id, blueprint_id=bp_row.id).count()
-    return LF.create_reveal_graph(db, case.id, bp_row.id, {**payload, "version": count + 1})
 
 
 def estimated_seconds(blueprint: dict) -> dict[str, float]:
@@ -66,7 +54,7 @@ def entities_with_dossiers(db: Session, case: Case, requirements: dict) -> list[
 
 async def stage_needs(db: Session, case: Case, bp_row: EditorialBlueprint,
                       replan: bool = False) -> tuple[VisualPlan, RevealGraph, dict]:
-    graph = ensure_graph(db, case, bp_row)
+    graph = TK.graph_of(db, bp_row)
     blueprint = json.loads(bp_row.blueprint_json or "{}")
     plan = await ND.plan_needs(db, case, bp_row, graph, estimated_seconds(blueprint), replan=replan)
     if plan.status == "invalid":

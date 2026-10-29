@@ -443,8 +443,10 @@ class DocumentaryPipeline(StageRunner):
                 db, master, lang, bp_row.id)
 
         async def mvp_needs():
+            from app.documentary.detective import toolkit as TK
             from app.documentary.mvp import pipeline as MVP
 
+            await TK.stage_toolkit(db, case, bp_row)      # the toolkit makes the graph and its alternatives first
             row, graph, detail = await MVP.stage_needs(db, case, bp_row)
             state["vp"], state["graph"] = row, graph
             return detail

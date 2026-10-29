@@ -246,13 +246,10 @@ async def _needs_with_detective_handoff(db: Session, case: Case, blueprint_row: 
     `mvp.needs` agent call runs only to gap-fill beats the detective plan left uncovered (or is
     skipped entirely when the detective plan already covers every beat). Absent a detective plan
     (every real case today, and every case while `ai_config.detective_toolkit.enabled` stays
-    False), this calls the agent exactly as before. `toolkit.invoke` is the Main Visual Planner's
-    only call into the Detective Director; nothing here or downstream calls
-    `app.documentary.detective.director` directly."""
-    from app.documentary.detective import toolkit as DT
+    False), this calls the agent exactly as before. The toolkit has already run (`toolkit.stage_toolkit`) and made
+    the reveal graph; the planner only reads both and never calls `app.documentary.detective.director`."""
     from app.documentary.detective.dispatch import detective_raw_needs, has_detective_plan
 
-    await DT.invoke(db, case, blueprint_row, graph)
     detective_requirements = None
     if has_detective_plan(db, graph.id):
         det_raw = detective_raw_needs(db, graph)

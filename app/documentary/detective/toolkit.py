@@ -31,6 +31,7 @@ from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, Rev
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
 from app.documentary.detective.narration import ingest_narration
+from app.longform import service as LF
 from app.services.budget import BudgetService
 
 
@@ -153,3 +154,30 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
                 else f"planned {called} of {len(pending)} pending chunk(s)" if not stopped
                 else f"stopped after {called} of {len(pending)} pending chunk(s): {stopped}")
         + f"; alternatives fill {share:.1%} of the film after {fill_passes} fill pass(es)")
+
+
+def graph_of(db: Session, blueprint_row: EditorialBlueprint) -> RevealGraph:
+    """The reveal graph the toolkit made for this blueprint: the Main Visual Planner reads it and never makes one."""
+    graph = (db.query(RevealGraph).filter_by(case_id=blueprint_row.case_id, blueprint_id=blueprint_row.id,
+                                             status="validated").order_by(RevealGraph.version.desc()).first())
+    if graph is None:
+        raise LookupError("The Detective Toolkit has not made the reveal graph for this blueprint yet")
+    return graph
+
+
+def ensure_graph(db: Session, case, blueprint_row: EditorialBlueprint) -> RevealGraph:
+    """The case's validated reveal graph for this blueprint: reused when present, built from the blueprint
+    otherwise, and never silently replaced by an invalid one."""
+    try:
+        return graph_of(db, blueprint_row)
+    except LookupError:
+        payload = LF.build_reveal_graph_payload(db, case.id, blueprint_row.id)
+        count = db.query(RevealGraph).filter_by(case_id=case.id, blueprint_id=blueprint_row.id).count()
+        return LF.create_reveal_graph(db, case.id, blueprint_row.id, {**payload, "version": count + 1})
+
+
+async def stage_toolkit(db: Session, case, blueprint_row: EditorialBlueprint) -> tuple[RevealGraph, ToolkitResult]:
+    """The toolkit's stage, run before the Main Visual Planner: it makes the reveal graph and, when enabled,
+    plans the film's alternatives on it."""
+    graph = ensure_graph(db, case, blueprint_row)
+    return graph, await invoke(db, case, blueprint_row, graph)
