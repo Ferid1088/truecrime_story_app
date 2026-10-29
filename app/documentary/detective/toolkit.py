@@ -49,6 +49,7 @@ class ToolkitResult:
     alternative_share: float = 0.0
     target_met: bool = False
     fill_passes: int = 0
+    failed_chunks: list[str] = field(default_factory=list)
 
 
 def _language_and_text_version(db: Session, case, blueprint_row: EditorialBlueprint) -> tuple[str, int]:
@@ -128,15 +129,19 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     covered = _directed_beats(db, graph.id, units)
     pending = [c for c in chunks if not set(c[0]) <= covered]
     language, text_version = _language_and_text_version(db, case, blueprint_row)
-    called, stopped = 0, None
+    called, stopped, failed = 0, None, []
     for beats, unit_keys in pending:
         stopped = _cap_reached(db, case)
         if stopped:
             break
-        await DD.map_film(db, graph.id, language=language, text_version=text_version,
-                          scene_unit_keys=unit_keys)
-        await DD.direct_scenes(db, graph.id, scene_unit_keys=unit_keys,
-                               language=language, text_version=text_version)
+        try:
+            await DD.map_film(db, graph.id, language=language, text_version=text_version,
+                              scene_unit_keys=unit_keys)
+            await DD.direct_scenes(db, graph.id, scene_unit_keys=unit_keys,
+                                   language=language, text_version=text_version)
+        except DD.DirectorValidationFailed as e:     # the chunk stays uncovered and is planned again on the next run
+            failed.append(f"{beats[0]}-{beats[-1]}: {e}"[:300])
+            continue
         called += 1
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
     share, fill_passes = 0.0, 0
@@ -147,7 +152,7 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     return ToolkitResult(
         enabled=True, called=called > 0 or fill_passes > 0, chunks_total=len(chunks), chunks_called=called,
         units_registered=ingested.registered, uncovered_beats=uncovered, stopped=stopped,
-        alternative_share=share, fill_passes=fill_passes,
+        alternative_share=share, fill_passes=fill_passes, failed_chunks=failed,
         target_met=share >= ai_config.detective_toolkit.min_alternative_share,
         scene_count=db.query(DetectiveScene).filter_by(graph_id=graph.id).count(),
         reason=("a current detective plan already covers every beat of this graph" if not pending

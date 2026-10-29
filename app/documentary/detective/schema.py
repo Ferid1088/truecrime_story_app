@@ -57,6 +57,10 @@ def validate_director_output(payload: dict, narration_index: NarrationIndex,
 
     violations: list[str] = []
 
+    for e in payload.get("entities", []):
+        missing = [f for f in ("id", "name") if not e.get(f)]
+        if missing:
+            violations.append(f"entity missing required field(s) {missing}: {e!r}"[:200])
     for c in payload.get("claims", []):
         missing = [f for f in ("id", "entity_ids", "attribute", "text", "basis") if f not in c]
         if missing:

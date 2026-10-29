@@ -17,14 +17,28 @@ from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import GraphicUnavailable
 
 NEEDS = {
+    "fact_card": "bind at least one claim; each bound claim becomes one fact",
+    "key_facts": "bind claims whose text starts with a short value (at most 14 characters, such as a number, a date "
+                 "or a count)",
+    "unknowns": "bind at least one established_in_text or attributed claim (the known) and at least one question "
+                "(the unknown)",
+    "detective_board": "bind at least one claim; each bound claim becomes a card",
     "conflict": "bind a relation of type conflict between exactly two claims, and bind both claims",
+    "conflict_board": "bind at least two relations of type conflict",
     "quote": "bind an attributed claim (with its attribution, at most 220 characters) from a listed newspaper "
              "or TV broadcaster",
-    "courtroom": "bind claims whose attribute is issue, prosecution, defense and finding",
-    "sentencing": "bind the claims the sentencing card shows (the court's finding and the terms)",
-    "interrogation": "bind the claims the interrogation card shows (who asked, what was answered)",
+    "courtroom": "bind claims whose attribute is issue, prosecution, defense and finding, one of each at least",
+    "sentencing": "bind claims with attribute charge (at least one) and exactly one claim with attribute final",
+    "interrogation": "bind a question and, for the same person, a claim with attribute answer",
     "evidence_check": "bind at least one established_in_text claim about the item",
+    "forensic": "bind claims with attribute exam, sample, method, result and limits",
+    "custody": "bind 2 to 5 claims about one item, in the order of its stages",
+    "investigation_clock": "bind at least two claims linked to facts that have a real event date; attribute crime "
+                           "or investigation",
     "recap": "bind claims of at most 38 characters, by basis (established, disputed, unknown)",
+    "document": "bind a claim whose text stands word for word in the stored text of an official source",
+    "headline": "bind claims linked to a listed newspaper source that has a full date",
+    "floor_plan": "carry real rooms in the payload; never invented",
     "map": "bind a claim about a stored place or building",
 }
 DEFAULT_NEED = "bind the claims, questions or relations the card shows"
@@ -43,10 +57,11 @@ def issue_of(db: Session, action: DetectiveToolAction) -> str | None:
     return None
 
 
-def unbuildable(db: Session, graph_id: int, action_keys: set[str] | None = None) -> list[str]:
+def unbuildable(db: Session, graph_id: int, action_keys: set[str] | None = None) -> list[tuple[str, str]]:
+    """(action key, why its card cannot be built) for every action of the graph that cannot be made."""
     query = (db.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
              .filter(DetectiveScene.graph_id == graph_id))
-    return [issue for action in query if (action_keys is None or action.action_key in action_keys)
+    return [(action.action_key, issue) for action in query if action_keys is None or action.action_key in action_keys
             for issue in [issue_of(db, action)] if issue]
 
 

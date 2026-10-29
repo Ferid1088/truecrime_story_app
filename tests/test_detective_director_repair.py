@@ -144,13 +144,12 @@ def test_an_action_whose_card_cannot_be_built_is_repaired_and_only_the_buildable
     assert BD.alternative_seconds(db_session, graph.id, "en") > 0
 
 
-def test_a_plan_that_is_never_buildable_persists_nothing(db_session, monkeypatch):
+def test_a_card_that_stays_unbuildable_after_the_repairs_is_dropped_and_the_rest_is_kept(db_session, monkeypatch):
     graph = _setup(db_session)
-    fake = SequenceGen(_unbound())
-    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
-    with pytest.raises(director.DirectorValidationFailed, match="cannot be built"):
-        asyncio.run(director.map_film(db_session, graph.id, language="en", text_version=1))
-    assert _actions(db_session, graph) == 0 and db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 0
+    fake, result = _map(db_session, graph, monkeypatch, _unbound())
+    assert len(fake.calls) == ai_config.detective_toolkit.max_repair_iterations + 1
+    assert result["dropped_actions"] == ["a1"] and _actions(db_session, graph) == 0
+    assert db_session.query(DetectiveClaim).filter_by(graph_id=graph.id).count() == 1, "the claims are kept"
 
 
 def test_a_claim_without_an_entity_is_sent_back_for_repair_instead_of_crashing_the_persist(db_session, monkeypatch):
@@ -158,3 +157,85 @@ def test_a_claim_without_an_entity_is_sent_back_for_repair_instead_of_crashing_t
     fake, result = _map(db_session, graph, monkeypatch, _payload([]), GOOD())
     assert len(fake.calls) == 2 and any("entity_ids is empty" in i for i in fake.calls[1]["repair_target"]["issues"])
     assert result["counts"]["claims"] == 1
+
+
+def test_an_entity_without_an_id_is_sent_back_for_repair_instead_of_crashing_the_persist(db_session, monkeypatch):
+    graph = _setup(db_session)
+    bad = GOOD()
+    bad["entities"].append({"type": "object", "name": "a nameless thing", "beat_id": "B01", "order": 2})
+    fake, result = _map(db_session, graph, monkeypatch, bad, GOOD())
+    assert len(fake.calls) == 2 and any("entity missing required field" in i for i in fake.calls[1]["repair_target"]["issues"])
+    assert result["counts"]["claims"] == 1
+
+
+def test_a_claim_that_names_an_unknown_entity_after_every_repair_is_dropped_and_the_rest_is_kept(db_session, monkeypatch):
+    graph = _setup(db_session)
+    bad = _payload(["gun"])
+    bad["claims"].append({"id": "c-bad", "entity_ids": ["c-origin"], "attribute": "x", "text": "t",
+                          "basis": "established_in_text", "supporting_span_ids": ["B01-1"]})
+    fake, result = _map(db_session, graph, monkeypatch, bad)
+    assert len(fake.calls) == ai_config.detective_toolkit.max_repair_iterations + 1
+    keys = {c.claim_key for c in db_session.query(DetectiveClaim).filter_by(graph_id=graph.id)}
+    assert keys == {"c-origin"} and "dropped_reason" in result
+
+
+def test_a_scene_without_an_id_is_repaired_instead_of_crashing_the_persist(db_session, monkeypatch):
+    graph = _setup(db_session)
+    bad = GOOD()
+    del bad["scenes"][0]["id"]
+    fake, result = _map(db_session, graph, monkeypatch, bad, GOOD())
+    assert len(fake.calls) == 2 and any("malformed output" in i for i in fake.calls[1]["repair_target"]["issues"])
+    assert _actions(db_session, graph) == 1
+
+
+def _mutations(payload):
+    """Every single-field damage a model could do to a good output: a field removed, set to None, or given the
+    wrong type, at every level (envelope, entity, claim, question, relation, event, scene, action)."""
+    def paths(node, path=()):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                yield path + (key,)
+                yield from paths(value, path + (key,))
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                yield from paths(value, path + (index,))
+
+    def with_change(change, path):
+        copy = json.loads(json.dumps(payload))
+        parent = copy
+        for step in path[:-1]:
+            parent = parent[step]
+        if change == "remove":
+            if isinstance(parent, dict):
+                del parent[path[-1]]
+            else:
+                parent.pop(path[-1])
+        else:
+            parent[path[-1]] = {"none": None, "string": "x", "number": 7, "list": [], "dict": {}}[change]
+        return copy
+
+    for path in paths(payload):
+        for change in ("remove", "none", "string", "number", "list", "dict"):
+            yield path, change, with_change(change, path)
+
+
+@pytest.mark.parametrize("repairs", [0, 2])
+def test_no_single_field_damage_to_a_directors_output_crashes_the_call(db_session, monkeypatch, repairs):
+    """The Director's output is untrusted: whatever is wrong with it, the call repairs it, keeps its valid part or
+    raises DirectorValidationFailed - never an uncaught KeyError, TypeError or IndexError."""
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_repair_iterations", repairs)
+    crashes = []
+    for path, change, damaged in _mutations(GOOD()):
+        graph = _setup(db_session)
+        monkeypatch.setattr(director, "get_generation_provider", lambda d=damaged: SequenceGen(d))
+        try:
+            asyncio.run(director.map_film(db_session, graph.id, language="en", text_version=1))
+        except director.DirectorValidationFailed:
+            pass
+        except Exception as e:                                           # noqa: BLE001 - this is what is hunted
+            crashes.append((path, change, type(e).__name__, str(e)[:80]))
+            db_session.rollback()
+    import collections
+
+    summary = collections.Counter((c[2], c[3][:50]) for c in crashes)
+    assert crashes == [], f"{len(crashes)} crashes: {dict(summary)}"

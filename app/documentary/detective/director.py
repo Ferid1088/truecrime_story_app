@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.agents.runner import run_agent
@@ -25,7 +26,7 @@ from app.documentary import memory as MEM
 from app.documentary.memory import MemoryValidationError
 from app.documentary.detective import buildable as BD
 from app.documentary.detective.persist import persist_director_output
-from app.documentary.detective.schema import NarrationIndex, validate_director_output
+from app.documentary.detective.schema import DirectorOutputError, NarrationIndex, validate_director_output
 from app.documentary.detective.tool_catalog import build_tool_catalog
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
@@ -41,6 +42,20 @@ class DirectorValidationFailed(ValueError):
 
 class UnbuildableCards(DirectorValidationFailed):
     """Actions whose card cannot be made from the claims they bind: the output is rolled back and repaired."""
+
+    def __init__(self, found: list[tuple[str, str]]):
+        super().__init__([message for _, message in found])
+        self.keys = {key for key, _ in found}
+
+
+def _without(raw: dict, keys: set[str]) -> dict:
+    """The output without the actions that cannot be built (and without scenes left with no action)."""
+    scenes = []
+    for scene in raw.get("scenes", []):
+        actions = [a for a in scene.get("actions", []) if a.get("id") not in keys]
+        if actions:
+            scenes.append({**scene, "actions": actions})
+    return {**raw, "scenes": scenes}
 
 
 def _case_id_for_graph(db: Session, graph_id: int) -> int:
@@ -173,11 +188,64 @@ async def _ask(db: Session, case_id: int, graph_id: int, label: str, payload: di
     return raw, run_id
 
 
+def _valid_part(db: Session, graph_id: int, raw: dict) -> dict:
+    """The output without what names an entity the graph does not know (a claim ID where an entity ID belongs):
+    such a claim, question or relation is dropped, and so is every binding, event and card that rested on it."""
+    from app.db.models import RevealNode
+
+    known = {n for (n,) in db.query(RevealNode.node_key).filter_by(graph_id=graph_id)} | {
+        e["id"] for e in raw.get("entities", []) if e.get("id")}
+    claims = [{**c, "entity_ids": [i for i in c.get("entity_ids") or [] if i in known]} for c in raw.get("claims", [])
+              if c.get("id")]
+    claims = [c for c in claims if c["entity_ids"]]
+    questions = [{**q, "entity_ids": [i for i in q.get("entity_ids") or [] if i in known]}
+                 for q in raw.get("questions", []) if q.get("id")]
+    questions = [q for q in questions if q["entity_ids"]]
+    relations = [r for r in raw.get("relations", []) if r.get("id") and r.get("endpoint_ids")
+                 and all(i in known for i in r["endpoint_ids"])]
+    kept = {x["id"] for x in claims + questions + relations}
+    events = [e for e in raw.get("knowledge_events", [])
+              if (e.get("subject_id") in known or e.get("subject_id") in kept)
+              and all(i in kept for i in e.get("supporting_claim_ids") or [])]
+    scenes = [{**s, "actions": [{**a, "content_bindings": [b for b in a.get("content_bindings", []) if b in kept]}
+                                for a in s.get("actions", []) if a.get("id") and a.get("tool_id")]}
+              for s in raw.get("scenes", []) if s.get("id")]
+    return {**raw, "claims": claims, "questions": questions, "relations": relations, "knowledge_events": events,
+            "scenes": scenes}
+
+
+def _validated(raw, narration_index, known_tool_ids) -> list[str]:
+    """The violations of an output; an output too damaged to be read at all is one violation, never a crash."""
+    try:
+        return validate_director_output(raw, narration_index, known_tool_ids)
+    except DirectorOutputError as e:
+        return [str(e)]
+    except (KeyError, IndexError, TypeError, AttributeError, ValueError) as e:
+        return [f"malformed output: {type(e).__name__} {e}"]
+
+
+def _persist(db: Session, graph_id: int, run_id: int, mode: str, raw: dict) -> dict:
+    """Write the output in a savepoint; one whose cards cannot be built is rolled back, nothing of it is kept."""
+    with db.begin_nested():
+        try:
+            counts = persist_director_output(db, graph_id, run_id, mode, raw)
+        except (KeyError, IndexError, TypeError, AttributeError, ValueError, SQLAlchemyError) as e:
+            raise MemoryValidationError(f"malformed output: {type(e).__name__} {e}") from e
+        if ai_config.detective_toolkit.require_buildable:
+            db.flush()
+            found = BD.unbuildable(db, graph_id, {a.get("id") for s in raw.get("scenes", []) for a in s.get("actions", [])})
+            if found:
+                raise UnbuildableCards(found)
+    db.commit()
+    return counts
+
+
 async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
     """Ask, validate, persist. A call whose output breaks an invariant is sent back with the exact
     issues, in the Director's own `repair` mode, up to `detective_toolkit.max_repair_iterations`
     times (each a paid call); only the output that finally passes is persisted, and a call that never
-    does persists nothing and raises. A real 84-sentence passage showed why: one claim listing a claim
+    does persists nothing and raises. Actions whose card cannot be built are repaired the same way; after the last
+    repair the buildable ones are kept and the rest dropped, so one stubborn card does not sink a chunk. A real 84-sentence passage showed why: one claim listing a claim
     ID among its entity IDs sank a whole-film map that was otherwise sound."""
     case_id = _case_id_for_graph(db, graph_id)
     attempts = ai_config.detective_toolkit.max_repair_iterations
@@ -188,7 +256,7 @@ async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
 
         narration_index = NarrationIndex.build(payload["narration"], _all_anchors(db, graph_id))
         known_tool_ids = {t["tool_id"] for t in payload["tool_catalog"]}
-        issues = validate_director_output(raw, narration_index, known_tool_ids)
+        issues = _validated(raw, narration_index, known_tool_ids)
         if not issues:
             # Section B's memory functions enforce invariants schema.py cannot see without a DB round
             # trip (e.g. first-introduction uniqueness against *already-persisted* events, not just
@@ -197,18 +265,25 @@ async def _call(db: Session, graph_id: int, mode: str, payload: dict) -> dict:
             # already written stayed committed while the run crashed - a partially-persisted, semantically
             # broken plan. A failure here must roll back exactly as cleanly as a schema.py violation.
             try:
-                with db.begin_nested():
-                    counts = persist_director_output(db, graph_id, run_id, mode, raw)
-                    if ai_config.detective_toolkit.require_buildable:
-                        db.flush()
-                        unbuildable = BD.unbuildable(db, graph_id, {a["id"] for s in raw.get("scenes", [])
-                                                                    for a in s.get("actions", [])})
-                        if unbuildable:
-                            raise UnbuildableCards(unbuildable)
-                db.commit()
+                counts = _persist(db, graph_id, run_id, mode, raw)
                 return {"agent_run_id": run_id, "output": raw, "counts": counts}
-            except (MemoryValidationError, UnbuildableCards) as e:
-                issues = e.violations if isinstance(e, UnbuildableCards) else [str(e)]
+            except UnbuildableCards as e:
+                if attempt < attempts:
+                    issues = e.violations
+                else:        # the last attempt keeps every card that can be built and drops the rest
+                    kept = _without(raw, e.keys)
+                    return {"agent_run_id": run_id, "output": kept, "counts": _persist(db, graph_id, run_id, mode, kept),
+                            "dropped_actions": sorted(e.keys)}
+            except MemoryValidationError as e:
+                if attempt < attempts:
+                    issues = [str(e)]
+                else:        # the last attempt keeps everything that names known entities
+                    try:
+                        kept = _valid_part(db, graph_id, raw)
+                        return {"agent_run_id": run_id, "output": kept,
+                                "counts": _persist(db, graph_id, run_id, mode, kept), "dropped_reason": str(e)}
+                    except (MemoryValidationError, KeyError, IndexError, TypeError, AttributeError, ValueError) as again:
+                        issues = [str(again)]
         payload = {**payload, "mode": "repair", "repair_target": {"previous_output": raw, "issues": issues}}
     raise DirectorValidationFailed(issues)
 

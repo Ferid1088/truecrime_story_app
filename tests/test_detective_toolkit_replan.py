@@ -203,3 +203,26 @@ def test_a_film_whose_cards_fill_too_little_gets_fill_passes_for_its_weakest_bea
     assert [c["run_id"] for c in fills] == ["fill-1", "fill-2"]
     assert all("ADD CARDS" in c["owner_instructions"] and c["scene_scope"] and all(k.startswith("B03-") for k in c["scene_scope"]) for c in fills)
     assert result.fill_passes == 2 and result.alternative_share == 0.2 and result.target_met is False
+
+
+def test_a_chunk_the_director_cannot_get_right_is_reported_and_the_other_chunks_still_run(db_session, monkeypatch):
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    real = fake.generate_structured
+
+    async def broken_on_the_second_chunk(role, system, user, images=None, **kw):
+        if json.loads(user)["scene_scope"][0].startswith("B02"):
+            return ({"schema_version": "1.0"}, GenerationResult(text="{}", model="fake", provider="fake"))
+        return await real(role, system, user, images, **kw)
+
+    fake.generate_structured = broken_on_the_second_chunk
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 1)
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    assert result.chunks_total == 5 and result.chunks_called == 4 and len(result.failed_chunks) == 1
+    assert result.failed_chunks[0].startswith("B02-B02") and "B02" in result.uncovered_beats
