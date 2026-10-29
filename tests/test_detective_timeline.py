@@ -85,3 +85,37 @@ def test_a_beat_has_no_card_limit_only_the_room_its_narration_leaves_and_cards_n
     assert len(cards) >= 3 and sum(c["end"] - c["start"] for c in cards) > 70.0, "more than 70% of the beat is cards"
     assert all(a["end"] <= b["start"] + 1e-6 for a, b in zip(cards, cards[1:])) and cards[-1]["end"] <= 100.0
     assert not any(s["reason"] == "beat_card_share_reached" for s in timeline.skipped)
+
+
+def test_the_detective_board_is_never_drawn_over_a_card_and_its_seconds_count_toward_the_share():
+    board = [{"beat_id": "B01", "start": 0.0, "end": 30.0, "new_card_ids": ["c1"], "cumulative_card_ids": ["c1"]}]
+    timeline = TL.film_timeline([_window("B01", 0.0, 100.0)], [_record("a1", "B01")], "en", board)
+
+    card = timeline.cards_by_beat["B01"][0]
+    assert card["start"] >= 30.0, "the card waits until the board has gone"
+    assert timeline.board_seconds == 30.0 and "detective_board" in timeline.kinds
+    assert timeline.alternative_share == round((timeline.card_seconds + 30.0) / 100.0, 3)
+
+
+def test_a_map_is_placed_for_the_time_its_zoom_needs_and_counts_as_a_kind():
+    from app.documentary.mvp.direct import map_seconds
+
+    record = {"action_key": "m1", "beat_id": "B01", "tool_id": "map", "purpose": "where it happened",
+              "reuse_reason": None, "min_release_fraction": None, "data": {"place": "Cunningham Court"}}
+    timeline = TL.film_timeline([_window("B01", 0.0, 60.0)], [record, _record("a1", "B01")], "en")
+    slot = timeline.cards_by_beat["B01"][0]
+    assert slot["kind"] == "map" and slot["place"] == "Cunningham Court"
+    assert abs((slot["end"] - slot["start"]) - map_seconds()) < 0.01
+    assert timeline.kinds == {"map", "fact_card"}
+
+
+def test_a_map_and_a_card_become_the_shots_the_planner_stores_with_the_cases_region():
+    from app.documentary.mvp import direct as DR
+
+    window = _window("B01", 0.0, 60.0)
+    record = {"action_key": "m1", "beat_id": "B01", "tool_id": "map", "purpose": "where", "reuse_reason": None,
+              "min_release_fraction": None, "data": {"place": "Cunningham Court"}}
+    timeline = TL.film_timeline([window], [record, _record("a1", "B01")], "en")
+    shots = DR.with_cards([], [], timeline.cards_by_beat["B01"], 60.0, "Tipp City, Ohio")
+    assert [s["command"] for s in shots] == ["SHOW_MAP", "SHOW_GRAPHIC"] and all(s["fixed"] for s in shots)
+    assert shots[0]["map_place"] == "Cunningham Court, Tipp City, Ohio"

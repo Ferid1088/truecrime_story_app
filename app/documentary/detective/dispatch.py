@@ -338,6 +338,24 @@ def _investigation_clock_data(db: Session, action: DetectiveToolAction) -> dict 
     return {"events": events} if len(events) >= 2 else None
 
 
+def _timeline_data(db: Session, action: DetectiveToolAction) -> dict | None:
+    """The events of a timeline card from bound claims whose linked Fact has a real `event_date` (never an invented
+    date), in date order, with the card's own text limit. At least two are needed for a line."""
+    from app.db.models import Fact
+    from app.documentary.graphics import theme as T
+
+    limit = T.config().timeline["node_text_max_chars"]
+    events = []
+    for c in _bound_claims(db, action):
+        fact_ids = json.loads(c.evidence_fact_ids_json or "[]")
+        fact = db.query(Fact).filter(Fact.id.in_(fact_ids)).first() if fact_ids else None
+        parsed = _event_date(fact.event_date) if fact else None
+        if parsed:
+            events.append({"label": " ".join(c.text.split())[:limit], "date": parsed, "fact_id": c.claim_key})
+    events.sort(key=lambda e: (e["date"]["year"], e["date"].get("month") or 0, e["date"].get("day") or 0))
+    return {"events": events, "shown": 0} if len(events) >= 2 else None
+
+
 def _forensic_data(db: Session, action: DetectiveToolAction) -> dict | None:
     """One examination from bound claims tagged by `attribute` ("exam" names the EXAMS member,
     "sample"/"method"/"result"/"limits" fill the matching slot) - a convention, not a schema field,
@@ -477,7 +495,7 @@ BUILDERS = {
     "fact_card": _fact_card_data, "floor_plan": _floor_plan_data,
     "detective_board": _detective_board_data, "recap": _recap_data, "unknowns": _unknowns_data,
     "conflict": _conflict_data, "conflict_board": _conflict_board_data,
-    "key_facts": _key_facts_data, "quote": _quote_data,
+    "key_facts": _key_facts_data, "quote": _quote_data, "timeline": _timeline_data,
     "evidence_check": _evidence_check_data, "custody": _custody_data,
     "investigation_clock": _investigation_clock_data, "forensic": _forensic_data,
     "interrogation": _interrogation_data, "courtroom": _courtroom_data,
@@ -593,8 +611,13 @@ def resolve_dispatchable_actions(db: Session, graph_id: int) -> list[dict]:
         record = {"action_key": action.action_key, "tool_id": action.tool_id, "purpose": action.purpose,
                   "reuse_reason": action.reuse_reason}
         if action.tool_id == "map":
-            record["skip"] = "routed_via_needs_map_place"
-            record["map_place"] = _map_place_of(db, action)
+            place, beat_id = _map_place_of(db, action), _beat_id_of(db, action)
+            if place is None or beat_id is None:
+                record["skip"] = "no_stored_place" if place is None else "no_beat_span"
+            else:
+                record["beat_id"], record["data"] = beat_id, {"place": place}
+                record["min_release_fraction"] = _min_release_fraction(db, action) or json.loads(
+                    action.payload_json or "{}").get("release_fraction")
         elif build is None:
             record["skip"] = "not_dispatched_in_this_pass"
         else:

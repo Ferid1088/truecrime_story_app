@@ -38,6 +38,7 @@ NEEDS = {
     "investigation_clock": "bind at least two claims linked to facts that have a real event date; attribute crime "
                            "or investigation",
     "recap": "bind claims of at most 38 characters, by basis (established, disputed, unknown)",
+    "timeline": "bind at least two claims linked to facts that have a real event date",
     "document": "bind a claim whose text stands word for word in the stored text of an official source",
     "headline": "bind claims linked to a listed newspaper source that has a full date",
     "floor_plan": "carry real rooms in the payload; never invented",
@@ -87,7 +88,9 @@ def unbuildable(db: Session, graph_id: int, action_keys: set[str] | None = None)
 def card_seconds(db: Session, action: DetectiveToolAction, language: str) -> float:
     """Seconds the action's card is held: the time its text needs to be read; a board or map its fixed hold."""
     if action.tool_id == "map":
-        return GS.hold_seconds("map") if D._map_place_of(db, action) else 0.0
+        from app.documentary.mvp.direct import map_seconds
+
+        return map_seconds() if D._map_place_of(db, action) else 0.0
     build = D.BUILDERS.get(action.tool_id)
     if build is None or action.tool_id == "detective_board":      # a board is timed by its own placement
         return 0.0

@@ -304,3 +304,31 @@ def appearances(cards: list[dict], room: dict[str, float]) -> list[dict]:
                    "new_card_ids": [p["id"] for p in pending],
                    "cumulative_card_ids": [s["id"] for s in shown], "hold_seconds": 0.0})
     return out
+
+
+def board_schedule(cards: list[dict], spans: list[dict]) -> list[dict]:
+    """When the board is on screen: each appearance starts where its beat has been spoken and holds long enough to read
+    the new notes, within the room until the next one is due and the share of the film the board may take. Pure: the
+    production script pins the board where this says, and the toolkit's film timeline keeps its cards out of these
+    moments. Returns [{beat_id, start, end, new_card_ids, cumulative_card_ids}]."""
+    cfg = ai_config.detective_board
+    by = {sp["beat_id"]: sp for sp in spans}
+    cards = sorted((c for c in cards if c["beat_id"] in by), key=lambda c: by[c["beat_id"]]["end"])
+    if not cards or not spans:
+        return []
+    film_end = max(sp["end"] for sp in spans)
+    due = [by[c["beat_id"]]["end"] for c in cards]
+    room = {c["beat_id"]: (due[k + 1] if k + 1 < len(cards) else film_end) - due[k] for k, c in enumerate(cards)}
+    budget = cfg.max_share * film_end
+    out, shown, used = [], [], 0.0
+    for app in appearances(cards, room):
+        start = by[app["beat_id"]]["end"]
+        hold = min(app["hold_seconds"], room[app["beat_id"]])
+        if hold < cfg.min_card_seconds or used + hold > budget:
+            continue                       # no usable room yet: the notes join the next appearance
+        used += hold
+        new_ids = [i for i in app["cumulative_card_ids"] if i not in shown]
+        shown = list(app["cumulative_card_ids"])
+        out.append({"beat_id": app["beat_id"], "start": round(start, 3), "end": round(start + hold, 3),
+                    "new_card_ids": new_ids, "cumulative_card_ids": shown})
+    return out

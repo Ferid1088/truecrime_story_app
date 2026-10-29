@@ -386,3 +386,38 @@ def _beat_with_a_plentiful_photo(db_session, tool_id):
     photo = {"kind": "photo", "beat_id": "B01", "start": 0.0, "end": 20.0, "asset_id": "A1"}
     return graph, [photo], [{"beat_id": "B01", "start": 0.0, "end": 20.0}]
 
+
+
+def test_timeline_builder_makes_a_dated_line_from_claims_with_real_event_dates_and_nothing_else(db_session):
+    from app.db.models import DetectiveClaim
+    from app.documentary.graphics.timeline import Timeline
+
+    graph, _, case = _graph(db_session, beats=[{"id": "B01"}])
+    MEM.ensure_entity(db_session, graph.id, "crime", "The break-in", "event", "B01", 0)
+    f1 = Fact(case_id=case.id, claim="Shots fired.", event_date="2024-03-16")
+    f2 = Fact(case_id=case.id, claim="Officers arrive.", event_date="2024-03-15")
+    db_session.add_all([f1, f2])
+    db_session.flush()
+    for key, fact in (("c1", f1), ("c2", f2)):
+        MEM.add_claim(db_session, graph.id, key, "crime", "event", f"Claim {key} happened.", "established_in_text")
+        db_session.query(DetectiveClaim).filter_by(claim_key=key).update({"evidence_fact_ids_json": json.dumps([fact.id])})
+    MEM.add_claim(db_session, graph.id, "c3", "crime", "event", "No date for this one.", "established_in_text")
+    db_session.flush()
+    _, action = _scene_with_action(db_session, graph, "B01", 0, "timeline")
+    action.content_bindings_json = json.dumps([{"claim_key": k} for k in ("c1", "c2", "c3")])
+    db_session.flush()
+
+    data = D._timeline_data(db_session, action)
+
+    assert [e["fact_id"] for e in data["events"]] == ["c2", "c1"], "in date order; the undated claim is left out"
+    assert Timeline().can_render(data) is None
+    action.content_bindings_json = json.dumps([{"claim_key": "c1"}])
+    db_session.flush()
+    assert D._timeline_data(db_session, action) is None, "one dated event is no line"
+    assert D.BUILDERS["timeline"] is D._timeline_data
+
+
+def test_a_map_action_with_a_stored_place_becomes_a_placed_map_not_a_lost_note(db_session):
+    graph, _, action = _map_fixture(db_session)
+    record = next(r for r in D.resolve_dispatchable_actions(db_session, graph.id) if r["tool_id"] == "map")
+    assert record["data"] == {"place": "Cunningham Court"} and record["beat_id"] == "B01" and "skip" not in record

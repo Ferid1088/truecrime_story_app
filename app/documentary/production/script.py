@@ -835,48 +835,30 @@ def insert_detective_board_cards(shots: list[dict], board: dict | None, spans: l
     Returns the appearance records actually placed (live-proof evidence
     and the "board" field of the script)."""
     from app.core.ai_config import ai_config
-    from app.documentary.detective_board import appearances, board_layout
+    from app.documentary.detective_board import board_layout, board_schedule
 
-    cfg = ai_config.detective_board
     cards = (board or {}).get("cards") or []
     if not cards or not spans:
         return []
     by = {sp["beat_id"]: sp for sp in spans}
     cards = [c for c in cards if c["beat_id"] in by]
-    cards.sort(key=lambda c: by[c["beat_id"]]["end"])
-    film_end = max(sp["end"] for sp in spans)
-    due = [by[c["beat_id"]]["end"] for c in cards]
-    room = {c["beat_id"]: (due[k + 1] if k + 1 < len(cards) else film_end) - due[k]
-            for k, c in enumerate(cards)}
-    budget = cfg.max_share * film_end
     by_id = {c["id"]: c for c in cards}
     placed: list[dict] = []
-    shown: list[str] = []
-    used = 0.0
-    for app in appearances(cards, room):
-        start = by[app["beat_id"]]["end"]
-        hold = min(app["hold_seconds"], room[app["beat_id"]])
-        if hold < cfg.min_card_seconds or used + hold > budget:
-            continue  # no usable room yet — the card still joins the next appearance
-        if any(zoom_seconds(sh) and sh["start"] < start + hold and sh["end"] > start
-               for sh in shots):
+    for app in board_schedule(cards, spans):
+        start, end = app["start"], app["end"]
+        if any(zoom_seconds(sh) and sh["start"] < end and sh["end"] > start for sh in shots):
             continue  # a zoom map is never covered: the card joins the next appearance
-        used += hold
         cumulative = [by_id[i] for i in app["cumulative_card_ids"]]
-        new_ids = [i for i in app["cumulative_card_ids"] if i not in shown]
-        shown = list(app["cumulative_card_ids"])
         layout = board_layout(cumulative, language, ai_config.render.width,
                               ai_config.render.height, total=len(cards))
         card_shot = {"kind": "detective_board", "command": "DETECTIVE_BOARD",
-                    "card": {"cards": cumulative, "layout": layout, "new_card_ids": new_ids},
-                    "beat_id": app["beat_id"], "start": round(start, 3),
-                    "end": round(start + hold, 3), "motion": "NONE", "speed": 1.0,
+                    "card": {"cards": cumulative, "layout": layout, "new_card_ids": app["new_card_ids"]},
+                    "beat_id": app["beat_id"], "start": start, "end": end, "motion": "NONE", "speed": 1.0,
                     "transition_in": "FADE_BLACK",
                     "why": "a new note is pinned to the detective board"}
         _carve(shots, card_shot)
-        placed.append({"beat_id": app["beat_id"], "start": card_shot["start"],
-                      "end": card_shot["end"], "new_card_ids": new_ids,
-                      "cumulative_card_ids": shown})
+        placed.append({"beat_id": app["beat_id"], "start": start, "end": end,
+                       "new_card_ids": app["new_card_ids"], "cumulative_card_ids": app["cumulative_card_ids"]})
     return placed
 
 

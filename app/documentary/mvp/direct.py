@@ -560,21 +560,27 @@ def free_slots(window: dict, stretches: list[tuple[float, float]]) -> list[dict]
     return slots
 
 
-def card_shot(card: dict, window_len: float) -> dict:
-    """A card the toolkit fixed, as the shot the planner stores: it keeps its own time and is never moved."""
-    shot = {"command": "SHOW_GRAPHIC", "share": (card["end"] - card["start"]) / window_len, "motion": "NONE",
-            "speed": 1.0, "transition_in": "FADE_BLACK", "why": card["why"], "graphic": card["graphic"],
-            "detective_action_key": card["action_key"], "fixed": True}
+def card_shot(card: dict, window_len: float, region: str | None = None) -> dict:
+    """A card or a map the toolkit fixed, as the shot the planner stores: it keeps its own time and is never moved."""
+    share = (card["end"] - card["start"]) / window_len
+    if card["kind"] == "map":
+        place = card["place"]
+        return {"command": "SHOW_MAP", "map_place": f"{place}, {region}" if region and "," not in place else place,
+                "share": share, "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE", "said": "",
+                "why": card["why"], "detective_action_key": card["action_key"], "fixed": True}
+    shot = {"command": "SHOW_GRAPHIC", "share": share, "motion": "NONE", "speed": 1.0, "transition_in": "FADE_BLACK",
+            "why": card["why"], "graphic": card["graphic"], "detective_action_key": card["action_key"], "fixed": True}
     for key in ("reuse_reason", "compressed", "competing_speech"):
         if card.get(key):
             shot[key] = card[key]
     return shot
 
 
-def with_cards(picture_shots: list[dict], slots: list[dict], cards: list[dict], window_len: float) -> list[dict]:
-    """The beat's shots in time order: the pictures of the free slots and the fixed cards."""
+def with_cards(picture_shots: list[dict], slots: list[dict], cards: list[dict], window_len: float,
+               region: str | None = None) -> list[dict]:
+    """The beat's shots in time order: the pictures of the free slots and the fixed cards and maps."""
     placed = [(slot["start"], shot) for slot, shot in zip(slots, picture_shots, strict=True)]
-    placed += [(card["start"], card_shot(card, window_len)) for card in cards]
+    placed += [(card["start"], card_shot(card, window_len, region)) for card in cards]
     return [shot for _, shot in sorted(placed, key=lambda item: item[0])]
 
 
@@ -689,7 +695,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         slots = free_slots(window, timeline.free_by_beat[bid])
         if not slots and cards:       # the toolkit's cards fill the whole beat: nothing for the planner to fill
             window_len = window["end"] - window["start"]
-            out_beats.append({"beat_id": bid, "shots": with_cards([], [], cards, window_len)})
+            out_beats.append({"beat_id": bid, "shots": with_cards([], [], cards, window_len, region)})
             window_of[bid], candidates[bid] = window, []
             continue
         if not slots:
@@ -748,7 +754,8 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                        slot_text.get(id(s), "")) for n, s in enumerate(slots)]
         spoken = " ".join(x["speech"] for x in window["sentences"])
         places = [name for key, name in place_names.items() if content_words(name) <= content_words(spoken)]
-        shots = with_cards(shots, slots, cards, window_len)
+        shots = with_cards(shots, slots, cards, window_len, region)
+        mapped.update(fold(c["place"]) for c in cards if c["kind"] == "map")
         add_map_cards(shots, extras.get(bid) or {}, window_len, places, mapped, region)
         add_date_overlay(shots, extras.get(bid) or {})
         absorb_gaps(shots, window_len)
