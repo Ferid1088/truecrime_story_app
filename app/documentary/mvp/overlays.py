@@ -309,9 +309,9 @@ def reject(db: Session, asset: VisualAsset, scan: Scan) -> None:
     for cand in db.query(MvpCandidate).filter(MvpCandidate.visual_asset_id == asset.id,
                                               MvpCandidate.final_status == "approved"):
         cand.scene_status = "rejected"
-        cand.reasons_json = json.dumps(
-            json.loads(cand.reasons_json or "[]") + [f"{REJECTED_FOR_MARK} ({what})"],
-            ensure_ascii=False)
+        reason = f"{REJECTED_FOR_MARK} ({what})"
+        reasons = json.loads(cand.reasons_json or "[]")
+        cand.reasons_json = json.dumps(reasons if reason in reasons else reasons + [reason], ensure_ascii=False)
         cand.final_status = VF.final_status(cand)
     db.commit()
 

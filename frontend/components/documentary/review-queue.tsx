@@ -432,7 +432,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Why it is open</div>
               <ul className="mt-1 list-disc pl-5 text-sm" data-testid="review-queue-reason">
                 {item.reasons.length === 0 && <li>The verifiers did not agree.</li>}
-                {item.reasons.map((r) => (
+                {Array.from(new Set(item.reasons)).map((r) => (
                   <li key={r}>{r}</li>
                 ))}
               </ul>

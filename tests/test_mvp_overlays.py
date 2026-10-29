@@ -332,3 +332,32 @@ def test_the_errors_of_concurrent_scans_are_reported_in_the_same_order_whichever
     out = asyncio.run(scan.run([first, second]))
     assert out["failed"] == 2
     assert scan.errors == sorted(scan.errors) and [e.split(":")[0] for e in scan.errors] == ["A1", "A2"]
+
+
+def test_a_scan_repeated_never_adds_the_same_reason_to_a_candidate_twice(db_session):
+    case = _case(db_session)
+    asset = _asset(db_session, case, "A8")
+    sv = StoryVersion(case_id=case.id, version=1, kind="final", language="en", story_text="t", narrative_angle="a")
+    db_session.add(sv)
+    db_session.commit()
+    bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
+    db_session.add(bp)
+    db_session.commit()
+    plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=1, validation_json="{}")
+    db_session.add(plan)
+    db_session.commit()
+    req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B01.1", beat_id="B01",
+                         function="evidence", role_needed="evidence", priority="high", status="open")
+    db_session.add(req)
+    db_session.commit()
+    cand = MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id, role="evidence", final_status="approved",
+                        provenance_status="approved", identity_status="approved", ethics_status="approved",
+                        scene_status="approved", rights_status="approved")
+    db_session.add(cand)
+    db_session.commit()
+    scan = OV.Scan(OV.UNUSABLE, [OV.Mark("watermark", "agency", (0.02, 0.4, 0.98, 0.6))])
+    for _ in range(3):
+        cand.final_status = "approved"          # approved again (for example by the owner), then scanned again
+        OV.reject(db_session, asset, scan)
+    db_session.refresh(cand)
+    assert json.loads(cand.reasons_json).count(f"{OV.REJECTED_FOR_MARK} (watermark: agency)") == 1
