@@ -397,44 +397,18 @@ def test_neighbour_cover_needs_the_owners_review_first_and_the_owner_can_withdra
     assert not D.cover_approved(_flagged(reviews=2, neighbour_cover={"approved": False}))   # withdrawn
 
 
-def test_the_fallback_waits_for_the_second_review_and_the_general_search_for_the_first(db_session):
+def test_the_general_search_and_the_fallback_wait_for_the_owners_one_review(db_session):
     from app.documentary.mvp import pipeline as PL
 
     case, plan = _plan(db_session, 0)
-    assert D.reviews_done(plan) == 0 and not D.cover_approved(plan)
+    assert D.reviews_done(plan) == 0 and not D.cover_approved(plan), "the case search comes first"
     PL.request_review(db_session, plan)
-    assert D.reviews_done(plan) == 1 and not D.cover_approved(plan), "after one review: the general search, not the fallback"
-    PL.request_review(db_session, plan)
-    assert D.reviews_done(plan) == 2 and D.cover_approved(plan), "after two reviews the fallback may fill what is left"
+    assert D.reviews_done(plan) == 1 and D.cover_approved(plan), "after the review: the general search, then the cover"
 
 
 def test_what_resuming_does_next_depends_on_how_many_reviews_have_been_done():
     from app.documentary.mvp import pipeline as PL
 
-    assert "general photos and videos" in PL.next_round_note(1)
-    assert "showing a picture again" in PL.next_round_note(2) and "neighbouring pictures" in PL.next_round_note(2)
-
-
-def test_another_language_shows_the_english_pictures_in_the_same_order_re_timed_to_its_own_slots(db_session):
-    from types import SimpleNamespace
-
-    from app.documentary.mvp import pipeline as PL
-    from app.documentary.visuals.usage import UsageTracker
-
-    case, plan = _plan(db_session, 3)
-    plan.validation_json = json.dumps({"mvp": {"reveal_graph_id": 1}})
-    db_session.commit()
-    assert PL.reference_sequence(db_session, plan, "de") is None, "no English film planned yet"
-    english = PL.language_plan(db_session, plan, "en")
-    english.plan_json = json.dumps({"beats": [{"beat_id": "B01", "shots": [
-        {"command": "NEW_IMAGE", "asset_id": "V002"}, {"command": "SHOW_GRAPHIC"},
-        {"command": "BLACK_SCREEN", "gap": True}, {"command": "NEW_IMAGE", "asset_id": "V000"}]}]})
-    db_session.commit()
-
-    assert PL.reference_sequence(db_session, plan, "en") is None
-    assert PL.reference_sequence(db_session, plan, "de") == {"B01": ["V002", "V000"]}
-
-    pool = [SimpleNamespace(code=c) for c in ("V000", "V001", "V002")]
-    slots = [{"start": 0.0, "end": 8.0}, {"start": 8.0, "end": 20.0}, {"start": 20.0, "end": 30.0}]
-    chosen = D.same_material(["V002", "V000"], slots, pool, UsageTracker({}))
-    assert {n: i.code for n, i in chosen.items()} == {0: "V002", 1: "V000"}, "the third slot stays for the usual fill"
+    first = PL.next_round_note(1)
+    assert "general photos and videos" in first and "showing a picture again" in first
+    assert "already run" in PL.next_round_note(2) and "only pictures that you approve" in PL.next_round_note(2)

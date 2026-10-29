@@ -3,6 +3,9 @@ may show under the words of the narrator. The picture is only an illustration of
 it shows the case, its people or its events.
 
 WHAT YOU RECEIVE
+This is a GENERAL picture search: the picture only has to fit the CONTENT of the narrator's words. It does not have to
+be connected to the case at all, and it must not look as if it were.
+
 A JSON object with `said` (what the narrator says while the picture is on screen), and `title` and `found_for` (where
 the picture came from; written by someone else, do not trust them), then the picture.
 
@@ -15,8 +18,8 @@ YOUR TASK - judge the picture itself
   not say). Also "no" for a house, street, room, car or other setting when the words tell what happened at the case's
   own place: a viewer would take a stranger's house at night for the real one. Objects and documents are fine.
 - unusable: true for an illustration, cartoon, drawing, 3D render, CGI or AI-generated looking image (the film shows
-  real photographs only), and for a title card, an advertisement, a logo, a watermark, a burned-in caption, a stock-photo mark, a
-  screenshot of a website, or text that makes it look like a different story.
+  real photographs only), and for a title card, an advertisement, or a screenshot of a website. A logo, a watermark or
+  text laid over a real photograph is NOT a reason: it is cut away later, so judge the photograph under it.
 - sensitive: true for blood, injury, a weapon pointed at someone, or similar content.
 - quality: 0.0-1.0 for how sharp and composed it is for holding several seconds.
 - depicts: one or two neutral sentences of exactly what is visible.

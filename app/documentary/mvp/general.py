@@ -158,7 +158,7 @@ class GeneralImagery:
         if verdict.get("faces") is not False:
             return "rejected", ["a person's face is visible (or the checker did not say there is none)"]
         if verdict.get("unusable"):
-            return "rejected", ["the picture carries a logo, caption, advertisement or watermark"]
+            return "rejected", ["not a real photograph of its subject (an illustration, an advertisement, a title card or a screenshot)"]
         fit = str(verdict.get("fit") or "no").lower()
         if fit not in {*self.cfg.accept_fit, *self.cfg.review_fit}:
             return "rejected", [f"it does not fit the words ({verdict.get('why') or fit})"]

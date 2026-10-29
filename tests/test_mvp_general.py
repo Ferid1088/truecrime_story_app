@@ -165,3 +165,17 @@ def test_each_bare_moment_may_bring_in_only_a_few_new_pictures_and_videos(db_ses
 
     run(GI.GeneralImagery(db_session, case, plan.id, "en", _planner(["insurance form"]), searcher, _checker({})).run(GAPS))
     assert seen and all(i["max_downloads"] == ai_config.mvp().general.max_assets_per_moment for i in seen)
+
+
+def test_the_general_checker_judges_the_words_not_the_case_and_gives_up_only_a_picture_that_is_no_photograph():
+    from types import SimpleNamespace
+
+    from app.core.ai_config import ai_config
+
+    me = SimpleNamespace(cfg=ai_config.mvp().general)
+    good = {"faces": False, "unusable": False, "fit": "supports", "quality": 0.9, "why": "an insurance form"}
+    assert GI.GeneralImagery.decide(me, good)[0] == "approved"
+    status, why = GI.GeneralImagery.decide(me, {**good, "unusable": True})
+    assert status == "rejected" and "not a real photograph" in why[0]
+    assert GI.GeneralImagery.decide(me, {**good, "faces": True})[0] == "rejected", "a face is never accepted"
+    assert GI.GeneralImagery.decide(me, {**good, "fit": "no"})[0] == "rejected", "it must fit the words"

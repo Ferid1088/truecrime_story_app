@@ -125,12 +125,11 @@ def test_blocked_rights_reject_and_editorial_rights_are_preview_only(db_session,
     assert V.rights_decision(asset, "publish")[0] == "blocked"
 
 
-def test_watermark_blocks_rights_and_unsuitable_ethics_rejects(db_session, tmp_path, monkeypatch):
+def test_a_watermark_is_left_to_the_overlay_scan_to_cut_away_and_unsuitable_ethics_rejects(db_session, tmp_path, monkeypatch):
     case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)
     run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [],
                            judge=_judge(_verdict("exact", overlays={"watermark": True}))))
-    assert cand.final_status == "rejected"
-    cand2 = MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id) if False else None
+    assert cand.final_status == "approved" and cand.rights_status != "blocked", "the overlay scan cuts the mark away"
     out = V.interpret(_verdict("exact", ethics={"concern": "unsuitable"}).data, req, "person")
     assert out["ethics"] == "rejected"
 

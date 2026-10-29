@@ -606,7 +606,7 @@ def bare_stretches(out_beats: list[dict], window_of: dict[str, dict]) -> list[di
     return gaps
 
 
-REVIEWS_BEFORE_FALLBACK = 2
+REVIEWS_BEFORE_FALLBACK = 1
 
 
 def reviews_done(plan: VisualPlan) -> int:
@@ -616,7 +616,7 @@ def reviews_done(plan: VisualPlan) -> int:
 
 def cover_approved(plan: VisualPlan) -> bool:
     """The fallback for moments that stay bare (a picture shown again, then the neighbours' cover) may run: after the
-    owner has reviewed twice (once after the case search, once after the general search), or by saying so, unless the
+    owner's review (the case search, the review, then the general search and the cover), or by saying so, unless the
     owner withdrew it."""
     mvp = json.loads(plan.validation_json or "{}").get("mvp", {})
     approved = (mvp.get("neighbour_cover") or {}).get("approved")

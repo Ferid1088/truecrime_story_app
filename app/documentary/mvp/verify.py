@@ -237,9 +237,6 @@ def apply_verdict(db: Session, cand: MvpCandidate, asset: VisualAsset, requireme
         reasons.append(verdict.data.get("error", "transient failure"))
     else:
         out = interpret(verdict.data, requirement, entity_type)
-        if out["watermark"]:
-            cand.rights_status, rights_reason = "blocked", "watermark visible"
-            reasons.append(rights_reason)
         cand.role = out["role"]
         cand.identity_status, cand.ethics_status, cand.scene_status = (
             out["identity"], out["ethics"], out["scene"])

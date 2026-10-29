@@ -337,12 +337,13 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
 
 
 def next_round_note(reviews: int) -> str:
-    """What resuming does next, given the reviews done once this stop is counted: the general search after the
-    first, the fallback after the second."""
-    if reviews < DR.REVIEWS_BEFORE_FALLBACK:
-        return " On resume the planner searches public general photos and videos for these moments (round 2)."
-    return (" On resume the moments still bare are filled by showing a picture again and by the neighbouring pictures "
-            "(withdraw that in the review).")
+    """What resuming does next, given the reviews done once this stop is counted: after the first, the general search
+    and then the fallback in one pass; after that only pictures the owner approves can fill what is bare."""
+    if reviews <= DR.REVIEWS_BEFORE_FALLBACK:
+        return (" On resume the planner searches public general photos and videos for these moments, then fills what is "
+                "still bare by showing a picture again and by the neighbouring pictures (withdraw that in the review).")
+    return (" The general search and the neighbour cover have already run: only pictures that you approve can fill "
+            "these moments.")
 
 
 def request_review(db: Session, needs_plan: VisualPlan) -> None:
