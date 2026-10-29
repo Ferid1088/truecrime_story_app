@@ -2426,8 +2426,6 @@ class DetectiveToolkitConfig(BaseModel):
     min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
     # how many extra Director calls may add cards for the weakest beats before the toolkit reports it fell short
     max_fill_passes: int = Field(default=3, ge=0, le=30)
-    # a beat takes cards only up to this share of its own narration, so the film keeps room for pictures
-    max_beat_card_share: float = Field(default=0.7, ge=0.1, le=1.0)
     reading: DetectiveReadingConfig = Field(default_factory=DetectiveReadingConfig)
     pacing: DetectivePacingConfig = Field(default_factory=DetectivePacingConfig)
     audio_only: DetectiveAudioOnlyConfig = Field(default_factory=DetectiveAudioOnlyConfig)

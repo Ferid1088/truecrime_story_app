@@ -136,7 +136,7 @@ def fill_with_fact_cards(db: Session, graph_id: int, language: str, units: list[
             break
         placed = BD.placed_card_seconds_by_beat(timeline)
         for beat in sorted(narration, key=lambda b: (placed.get(b, 0.0) / narration[b], b)):
-            room = cfg.max_beat_card_share * narration[beat] - placed.get(beat, 0.0)
+            room = narration[beat] - placed.get(beat, 0.0)
             own = [c for c in pending.get(beat, []) if c.claim_key not in shown]
             # a fact the previous beat has told may be shown at the start of this one: nothing is revealed early
             after = [c for c in pending.get(previous.get(beat), []) if c.claim_key not in shown

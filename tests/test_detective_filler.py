@@ -44,15 +44,6 @@ def test_fact_cards_are_made_from_unshown_claims_until_the_share_is_met(db_sessi
     assert all(len(keys) <= 3 for keys in _bindings(db_session, graph))
 
 
-def test_a_beat_takes_cards_only_up_to_its_share_of_its_own_narration(db_session, monkeypatch):
-    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 1.0)
-    monkeypatch.setattr(ai_config.detective_toolkit, "max_beat_card_share", 0.5)
-    graph, units = _film(db_session, claims_per_beat=12)
-    FL.fill_with_fact_cards(db_session, graph.id, "en", units)
-    narration, cards = BD.narration_seconds(units), BD.card_seconds_by_beat(db_session, graph.id, "en")
-    for beat, seconds in narration.items():
-        card = cards.get(beat, 0.0)
-        assert card < 0.5 * seconds + 40, "at most one card past the share"
 
 
 def test_nothing_is_made_when_the_claims_are_all_shown_or_not_grounded(db_session, monkeypatch):
@@ -73,17 +64,6 @@ def test_a_second_run_makes_nothing_new(db_session, monkeypatch):
     assert first["cards"] >= 1 and again["cards"] == 0
 
 
-def test_the_share_is_what_the_placed_cards_fill_and_a_beat_never_goes_past_its_cap(db_session, monkeypatch):
-    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 1.0)
-    monkeypatch.setattr(ai_config.detective_toolkit, "max_beat_card_share", 0.3)
-    graph, units = _film(db_session, claims_per_beat=12)
-    FL.fill_with_fact_cards(db_session, graph.id, "en", units)
-    timeline = BD.planned_timeline(db_session, graph.id, "en", units)
-    assert timeline.alternative_share == BD.alternative_share(db_session, graph.id, "en", units) <= 0.3 + 1e-6
-    narration = BD.narration_seconds(units)
-    for beat, seconds in BD.placed_card_seconds_by_beat(timeline).items():
-        assert seconds <= 0.3 * narration[beat] + 1e-6
-    assert timeline.skipped == [], "every card the filler keeps is placed"
 
 
 def test_when_the_claims_are_used_up_the_cases_own_facts_of_a_beat_become_cards_placed_in_its_second_half(
@@ -147,3 +127,14 @@ def test_the_toolkit_tops_up_on_the_real_narration_timing_for_the_reference_lang
 
     topped = TL.timeline_for(db_session, graph.id, manifest, "en", top_up=True)
     assert topped.alternative_share >= 0.3 > before.alternative_share, "the cards now fill the share on the real timing"
+
+
+def test_the_filler_fills_a_beat_up_to_the_room_its_narration_leaves(db_session, monkeypatch):
+    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 1.0)
+    graph, units = _film(db_session, claims_per_beat=12)
+    FL.fill_with_fact_cards(db_session, graph.id, "en", units)
+    timeline = BD.planned_timeline(db_session, graph.id, "en", units)
+    narration = BD.narration_seconds(units)
+    for beat, seconds in BD.placed_card_seconds_by_beat(timeline).items():
+        assert seconds <= narration[beat] + 0.01
+    assert timeline.alternative_share > 0.7 and timeline.skipped == [], "no 70% limit; every card kept is placed"

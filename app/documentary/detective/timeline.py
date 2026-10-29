@@ -86,11 +86,6 @@ def film_timeline(windows: list[dict], resolved: list[dict], language: str) -> F
         if skip:
             timeline.skipped.append(skip)
             continue
-        taken = sum(c["end"] - c["start"] for c in timeline.cards_by_beat.get(window["beat_id"], []))
-        if taken + slot["end"] - slot["start"] > ai_config.detective_toolkit.max_beat_card_share * (
-                window["end"] - window["start"]) + 1e-6:
-            timeline.skipped.append({"action_key": record["action_key"], "reason": "beat_card_share_reached"})
-            continue
         timeline.cards_by_beat.setdefault(window["beat_id"], []).append(slot)
         cursor[window["beat_id"]] = slot["end"]
     for window in windows:
