@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from functools import wraps
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -16,10 +17,10 @@ from app.documentary.graphics.page import DoesNotFit, ground
 from app.documentary.graphics.streaming import Stream, StreamError
 
 
-def lowest_content_row(img: Image.Image, tolerance: int) -> int:
+def lowest_content_row(img: Image.Image, tolerance: int, theme: str | None = None, rtl: bool = False) -> int:
     """The lowest pixel row of the page that differs from the page ground (-1 when the page is empty)."""
     page = np.asarray(img.convert("RGB"), dtype=np.int16)
-    base = np.asarray(ground(img.width, img.height).convert("RGB"), dtype=np.int16)
+    base = np.asarray(ground(img.width, img.height, theme, rtl).convert("RGB"), dtype=np.int16)
     rows = np.where((np.abs(page - base).max(axis=2) > tolerance).any(axis=1))[0]
     return int(rows.max()) if len(rows) else -1
 
@@ -38,6 +39,18 @@ def ease(x: float) -> float:
 
 
 class Graphic(ABC):
+    def __init_subclass__(cls, **kwargs):
+        """A card is always drawn inside its kind's theme: the colours its layout names are the kind's own."""
+        super().__init_subclass__(**kwargs)
+        draw = cls.__dict__.get("draw_state")
+        if draw is not None and not getattr(draw, "_themed", False):
+            @wraps(draw)
+            def themed(self, *args, **kw):
+                with T.themed(self.kind):
+                    return draw(self, *args, **kw)
+            themed._themed = True
+            cls.draw_state = themed
+
     kind: str
     #: seconds the last cue keeps on screen before the graphic ends (after the cross-fade)
     minimum_rest_seconds = 1.5
@@ -124,7 +137,8 @@ class Rendered:
         of one graphic never move against each other."""
         if self._scale is None:
             zone = T.config().safe_zone
-            lowest = max(lowest_content_row(self.raw(step), zone["tolerance"]) for step in range(self.steps + 1))
+            lowest = max(lowest_content_row(self.raw(step), zone["tolerance"], self.graphic.kind, T.is_rtl(self.language))
+                         for step in range(self.steps + 1))
             limit = self.raw(0).height - zone["bottom"]
             self._scale = 1.0 if lowest < 0 or lowest + 1 <= limit else limit / (lowest + 1)
         return self._scale
@@ -135,7 +149,7 @@ class Rendered:
         if factor >= 1.0:
             return img
         size = (round(img.width * factor), round(img.height * factor))
-        canvas = ground(img.width, img.height).copy()
+        canvas = ground(img.width, img.height, self.graphic.kind, T.is_rtl(self.language)).copy()
         canvas.paste(img.resize(size, Image.LANCZOS), ((img.width - size[0]) // 2, 0))
         return canvas
 

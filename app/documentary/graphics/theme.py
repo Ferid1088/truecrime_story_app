@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import cache, lru_cache
 from pathlib import Path
 
@@ -48,10 +51,42 @@ def is_rtl(language: str) -> bool:
     return language in RTL
 
 
+THEMED_COLORS = ("ground", "glow", "card", "rule", "amber", "blue", "red")
+_ACTIVE: ContextVar[str | None] = ContextVar("graphic_theme", default=None)
+
+
+@contextmanager
+def themed(kind: str | None) -> Iterator[None]:
+    """While a card of `kind` is drawn its theme's colours stand behind the colour names its layout uses (a kind with
+    no theme, the map for one, keeps the common colours)."""
+    token = _ACTIVE.set(kind)
+    try:
+        yield
+    finally:
+        _ACTIVE.reset(token)
+
+
+def active() -> str | None:
+    """The kind whose theme is active (None outside a themed card)."""
+    kind = _ACTIVE.get()
+    return kind if kind in config().themes else None
+
+
+def theme_of(kind: str | None):
+    return config().themes.get(kind) if kind else None
+
+
 @cache
-def rgb(name: str) -> tuple[int, int, int]:
-    h = config().colors[name].lstrip("#")
+def _hex(value: str) -> tuple[int, int, int]:
+    h = value.lstrip("#")
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def rgb(name: str) -> tuple[int, int, int]:
+    theme = theme_of(active())
+    if theme is not None and name in THEMED_COLORS:
+        return _hex(getattr(theme, name))
+    return _hex(config().colors[name])
 
 
 @lru_cache(maxsize=256)

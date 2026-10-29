@@ -3105,6 +3105,24 @@ class StreamConfig(BaseModel):
     continued: list[str]
 
 
+HEX = r"^#[0-9A-Fa-f]{6}$"
+
+
+class GraphicTheme(BaseModel):
+    """The look of one card kind: its own ground, card and accent colours (the names the layouts use: amber is the
+    kind's primary accent, blue the secondary, red the tertiary), a frame drawn on the page and a header style."""
+
+    ground: str = Field(pattern=HEX)
+    glow: str = Field(pattern=HEX)
+    card: str = Field(pattern=HEX)
+    rule: str = Field(pattern=HEX)
+    amber: str = Field(pattern=HEX)
+    blue: str = Field(pattern=HEX)
+    red: str = Field(pattern=HEX)
+    frame: Literal["rail", "top_band", "corners", "inset", "tabs", "dots", "stripes", "double_rule"]
+    header: Literal["stack", "rule", "band", "center"]
+
+
 class GraphicsConfig(BaseModel):
     """The code-made graphics (config/parameters/graphics.json): look, fixed labels per language and the
     defaults the planner uses; the planner, not a graphic, decides use, place, length and cues."""
@@ -3124,6 +3142,7 @@ class GraphicsConfig(BaseModel):
     document_card: dict
     conflict: dict
     conflict_board: dict
+    themes: dict[str, GraphicTheme]
     recap: dict
     floor_plan: dict
     key_facts: dict

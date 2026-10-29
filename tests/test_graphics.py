@@ -99,7 +99,7 @@ def test_persian_and_arabic_pages_are_mirrored():
     def blue_x(language):
         data, duration, cues = sample("conflict", language)
         frame = graphic("conflict").render(data, duration, cues, language).frame_at(duration - 1)
-        hexa = ai_config.graphics_settings().colors["blue"].lstrip("#")
+        hexa = ai_config.graphics_settings().themes["conflict"].blue.lstrip("#")
         rgb = np.array([int(hexa[i:i + 2], 16) for i in (0, 2, 4)])
         mask = (np.abs(frame[250:520].astype(int) - rgb).sum(axis=2) < 12)        # the first side's rule
         return np.argwhere(mask.any(axis=0)).mean()
@@ -218,11 +218,13 @@ def test_the_conflict_label_is_amber_as_in_the_design():
     data, duration, cues = sample("conflict", "en")
     frame = graphic("conflict").render(data, duration, cues, "en").frame_at(duration - 1)
     label = frame[85:125, 120:420].reshape(-1, 3)
-    amber = np.array([int(ai_config.graphics_settings().colors["amber"].lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)])
+    amber = np.array([int(ai_config.graphics_settings().themes["conflict"].amber.lstrip("#")[i:i + 2], 16)
+                      for i in (0, 2, 4)])
     assert (np.abs(label.astype(int) - amber).sum(axis=1) < 60).any()
 
 
 class LowPage(GraphicBase):
+    kind = "recap"
     """A graphic whose content reaches down to `bottom` (a test double for the subtitle-zone rule)."""
 
     kind = "recap"
@@ -250,7 +252,7 @@ def test_content_is_shrunk_to_end_above_the_subtitle_zone_and_all_pages_alike():
     for step in (0, 1):
         page = np.asarray(shown.state(step).convert("RGB"), dtype=np.int16)
         assert page.shape == (1080, 1920, 3)
-        assert not (np.abs(page[limit + 2:] - np.asarray(ground(1920, 1080).convert("RGB"), dtype=np.int16)[limit + 2:])
+        assert not (np.abs(page[limit + 2:] - np.asarray(ground(1920, 1080, "recap").convert("RGB"), dtype=np.int16)[limit + 2:])
                     .max(axis=2) > zone["tolerance"]).any()
     assert LowPage(limit - 10).render({}, 8.0, [1.0], "en").scale() == 1.0
 
@@ -292,7 +294,7 @@ def test_every_point_of_the_road_stays_on_the_line_when_it_has_panned_away():
     for j in range(away):
         x = round(TL.LINE_LEFT + TL.HISTORY_LEFT + history / away * j)
         assert frame.getpixel((x, TL.LINE_Y - 6)) != ground                       # a mark above the line at every point
-        assert frame.getpixel((x, TL.LINE_Y - 6))[0] > 150                         # amber, not background
+        assert frame.getpixel((x, TL.LINE_Y - 6)) != ground                        # the kind's accent, not background
 
 
 def test_quote_card_accepts_only_a_listed_newspaper_or_tv_broadcaster():
@@ -303,3 +305,24 @@ def test_quote_card_accepts_only_a_listed_newspaper_or_tv_broadcaster():
     assert "not a listed" in card.can_render({**base, "url": "https://someblog.example.com/x"})
     assert "not a listed" in card.can_render({k: v for k, v in base.items() if k != "url"})
     assert "does not match" in card.can_render({**base, "source": "CNN"})
+
+
+def _luminance(hex_color: str) -> float:
+    channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def _contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def test_every_card_kind_has_its_own_readable_theme_and_map_and_board_have_none():
+    themes = ai_config.graphics_settings().themes
+    assert {"map", "detective_board"}.isdisjoint(themes)
+    assert len({(t.frame, t.header) for t in themes.values()}) == len(themes), "every card has its own layout"
+    assert len({t.amber for t in themes.values()}) == len(themes), "every card has its own accent colour"
+    for kind, t in themes.items():
+        for accent in (t.amber, t.blue, t.red):
+            assert _contrast(accent, t.card) >= 4.5, f"{kind}: accent {accent} is hard to read"

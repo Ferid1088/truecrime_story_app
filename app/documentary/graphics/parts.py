@@ -8,12 +8,24 @@ from app.documentary.graphics.page import Page
 
 def header(page: Page, label: str, label_color, title: str, title_px: int | None = None, lines_max: int = 2,
            top: int = 88, width: int | None = None) -> int:
-    """Small spaced label over a large condensed title; returns the y below the title."""
-    if label:
-        page.tracked(page.margin, top, label, "mono", T.size("label"), label_color, 5)
-    return page.text(page.margin, top + (36 if label else 8), width or page.width_inside(), title, "title",
-                     title_px or T.size("title"), T.rgb("ink"), lines_max=lines_max, min_px=60, spacing=1.02,
-                     upper=True)
+    """A small spaced label and a large condensed title, set in the card kind's own header style (stacked, with a rule
+    under it, with the label on a filled tab, or centred); returns the y below it."""
+    spec = T.theme_of(T.active())
+    style = spec.header if spec is not None else "stack"
+    full, label_px = width or page.width_inside(), T.size("label")
+    align = "center" if style == "center" else "start"
+    if label and style == "band":
+        tab = page.measure(label, "mono", label_px) + 5 * len(label) + 48
+        page.rect(page.margin, top - 12, tab, label_px + 26, fill=label_color)
+        page.tracked(page.margin + 24, top, label, "mono", label_px, T.rgb("ground"), 5)
+    elif label:
+        page.tracked(page.margin, top, label, "mono", label_px, label_color, 5, align=align, width=full if align == "center" else 0)
+    below = page.text(page.margin, top + (36 if label else 8), full, title, "title", title_px or T.size("title"),
+                      T.rgb("ink"), align=align, lines_max=lines_max, min_px=60, spacing=1.02, upper=True)
+    if style == "rule":
+        page.rect(page.margin, below + 10, 220, 6, fill=label_color)
+        return below + 30
+    return below
 
 
 def card(page: Page, left: int, top: int, width: int, height: int, rule_color, rule: int = 8, alpha: int = 255) -> None:

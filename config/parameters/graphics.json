@@ -27,7 +27,8 @@
       "claim": 50,
       "mono": 28,
       "big_number": 190,
-      "date": 84
+      "date": 84,
+      "min_label": 26
     },
     "margin": 120,
     "safe_zone": {
@@ -823,6 +824,206 @@
       },
       "hold_min_seconds": 22.5,
       "hold_max_seconds": 36.0
+    },
+    "themes": {
+      "sentencing": {
+        "ground": "#120A0A",
+        "glow": "#2B1919",
+        "card": "#1F1414",
+        "rule": "#422E2E",
+        "amber": "#EB5C5C",
+        "blue": "#81DAAD",
+        "red": "#EBC984",
+        "frame": "double_rule",
+        "header": "rule"
+      },
+      "conflict": {
+        "ground": "#120C0A",
+        "glow": "#2B1F19",
+        "card": "#1F1714",
+        "rule": "#42342E",
+        "amber": "#F28050",
+        "blue": "#81DAC8",
+        "red": "#EBE884",
+        "frame": "rail",
+        "header": "stack"
+      },
+      "conflict_board": {
+        "ground": "#120F0A",
+        "glow": "#2B2419",
+        "card": "#1F1B14",
+        "rule": "#423A2E",
+        "amber": "#F5AB3D",
+        "blue": "#81D1DA",
+        "red": "#D0EB84",
+        "frame": "top_band",
+        "header": "band"
+      },
+      "recap": {
+        "ground": "#12110A",
+        "glow": "#2B2919",
+        "card": "#1F1E14",
+        "rule": "#42402E",
+        "amber": "#F3DD49",
+        "blue": "#81B9DA",
+        "red": "#B4EB84",
+        "frame": "tabs",
+        "header": "center"
+      },
+      "document": {
+        "ground": "#11120A",
+        "glow": "#282B19",
+        "card": "#1D1F14",
+        "rule": "#3F422E",
+        "amber": "#BDCD70",
+        "blue": "#86A0D5",
+        "red": "#EBB884",
+        "frame": "tabs",
+        "header": "rule"
+      },
+      "timeline": {
+        "ground": "#0E120A",
+        "glow": "#222B19",
+        "card": "#1A1F14",
+        "rule": "#38422E",
+        "amber": "#94D651",
+        "blue": "#8181DA",
+        "red": "#EBDA84",
+        "frame": "dots",
+        "header": "stack"
+      },
+      "key_facts": {
+        "ground": "#0A120A",
+        "glow": "#1A2B19",
+        "card": "#141F14",
+        "rule": "#2F422E",
+        "amber": "#5AD256",
+        "blue": "#AA81DA",
+        "red": "#CCEB84",
+        "frame": "corners",
+        "header": "center"
+      },
+      "fact_card": {
+        "ground": "#0A120D",
+        "glow": "#192B21",
+        "card": "#141F19",
+        "rule": "#2E4237",
+        "amber": "#64CE92",
+        "blue": "#D283D8",
+        "red": "#9CEB84",
+        "frame": "rail",
+        "header": "band"
+      },
+      "evidence_check": {
+        "ground": "#0A1210",
+        "glow": "#192B27",
+        "card": "#141F1C",
+        "rule": "#2E423D",
+        "amber": "#47D7B5",
+        "blue": "#DA81C2",
+        "red": "#84EB8E",
+        "frame": "stripes",
+        "header": "stack"
+      },
+      "forensic": {
+        "ground": "#0A1212",
+        "glow": "#192A2B",
+        "card": "#141E1F",
+        "rule": "#2E4142",
+        "amber": "#47D7E1",
+        "blue": "#DA81A7",
+        "red": "#84EBAD",
+        "frame": "stripes",
+        "header": "rule"
+      },
+      "custody": {
+        "ground": "#0A1012",
+        "glow": "#19272B",
+        "card": "#141C1F",
+        "rule": "#2E3D42",
+        "amber": "#76A9BC",
+        "blue": "#C9929F",
+        "red": "#84EBC2",
+        "frame": "top_band",
+        "header": "center"
+      },
+      "floor_plan": {
+        "ground": "#0A0D12",
+        "glow": "#19212B",
+        "card": "#14191F",
+        "rule": "#2E3742",
+        "amber": "#4F94EE",
+        "blue": "#DA8781",
+        "red": "#84EBE1",
+        "frame": "top_band",
+        "header": "stack"
+      },
+      "headline": {
+        "ground": "#0A0C12",
+        "glow": "#191F2B",
+        "card": "#14171F",
+        "rule": "#2E3442",
+        "amber": "#C7CAD1",
+        "blue": "#B6A9A5",
+        "red": "#84E8EB",
+        "frame": "double_rule",
+        "header": "center"
+      },
+      "unknowns": {
+        "ground": "#0A0A12",
+        "glow": "#1B192B",
+        "card": "#15141F",
+        "rule": "#2F2E42",
+        "amber": "#A49EFA",
+        "blue": "#DAB381",
+        "red": "#84C2EB",
+        "frame": "dots",
+        "header": "band"
+      },
+      "courtroom": {
+        "ground": "#0D0A12",
+        "glow": "#21192B",
+        "card": "#19141F",
+        "rule": "#372E42",
+        "amber": "#A174DC",
+        "blue": "#DAD481",
+        "red": "#849CEB",
+        "frame": "tabs",
+        "header": "stack"
+      },
+      "interrogation": {
+        "ground": "#110A12",
+        "glow": "#29192B",
+        "card": "#1E141F",
+        "rule": "#402E42",
+        "amber": "#BB5EC9",
+        "blue": "#B8D685",
+        "red": "#9984EB",
+        "frame": "stripes",
+        "header": "band"
+      },
+      "quote": {
+        "ground": "#120A0F",
+        "glow": "#2B1924",
+        "card": "#1F141A",
+        "rule": "#422E39",
+        "amber": "#F386C4",
+        "blue": "#87DA81",
+        "red": "#D384EB",
+        "frame": "rail",
+        "header": "center"
+      },
+      "investigation_clock": {
+        "ground": "#120A0D",
+        "glow": "#2B1920",
+        "card": "#1F1418",
+        "rule": "#422E35",
+        "amber": "#ED6E9C",
+        "blue": "#81DA8C",
+        "red": "#EBA384",
+        "frame": "top_band",
+        "header": "rule"
+      }
     }
   }
 }

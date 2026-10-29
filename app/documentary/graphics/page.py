@@ -46,11 +46,11 @@ def text_hidden():
 def mode_cache(maxsize: int) -> Callable:
     """lru_cache for a page-drawing function that keeps the text-hidden pages apart from the pages with text."""
     def decorate(fn: Callable) -> Callable:
-        cached = lru_cache(maxsize=maxsize)(lambda hidden, *args, **kw: fn(*args, **kw))
+        cached = lru_cache(maxsize=maxsize)(lambda hidden, theme, *args, **kw: fn(*args, **kw))
 
         @wraps(fn)
         def wrapper(*args, **kw):
-            return cached(_HIDDEN.get(), *args, **kw)
+            return cached(_HIDDEN.get(), T.active(), *args, **kw)
 
         wrapper.cache_clear = cached.cache_clear
         return wrapper
@@ -81,15 +81,23 @@ class DoesNotFit(ValueError):
     """The text cannot be set inside its box even at the smallest allowed size."""
 
 
-@lru_cache(maxsize=4)
-def ground(width: int, height: int) -> Image.Image:
-    """The page ground: a near-black blue with a soft light from the top left."""
-    base = np.array(T.rgb("ground"), np.float32)
-    glow = np.array(T.rgb("glow"), np.float32)
-    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
-    d = np.sqrt((xx / (width * 0.75)) ** 2 + (yy / (height * 0.95)) ** 2)
-    k = np.clip(1.0 - d, 0.0, 1.0)[..., None] ** 1.6
-    return Image.fromarray((base + (glow - base) * k).astype(np.uint8), "RGB")
+@lru_cache(maxsize=64)
+def ground(width: int, height: int, theme: str | None = None, rtl: bool = False) -> Image.Image:
+    """The page ground: a near-black tint with a soft light from the top left, in the card kind's own colours when it
+    has a theme, with the kind's frame drawn on it."""
+    from app.documentary.graphics import frames
+
+    with T.themed(theme):
+        base = np.array(T.rgb("ground"), np.float32)
+        glow = np.array(T.rgb("glow"), np.float32)
+        yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
+        d = np.sqrt((xx / (width * 0.75)) ** 2 + (yy / (height * 0.95)) ** 2)
+        k = np.clip(1.0 - d, 0.0, 1.0)[..., None] ** 1.6
+        img = Image.fromarray((base + (glow - base) * k).astype(np.uint8), "RGB")
+        spec = T.theme_of(T.active())
+        if spec is None:
+            return img
+        return frames.draw(img, spec.frame, T.rgb("amber"), T.rgb("rule"), rtl)
 
 
 class Page:
@@ -99,10 +107,15 @@ class Page:
         self.language, self.rtl = language, T.is_rtl(language)
         self.W, self.H = size or (canvas["width"], canvas["height"])
         self.img = (Image.new("RGBA", (self.W, self.H), (*fill, 255)) if fill is not None
-                    else ground(self.W, self.H).copy().convert("RGBA"))
+                    else ground(self.W, self.H, T.active(), self.rtl).copy().convert("RGBA"))
         self.d = ImageDraw.Draw(self.img)
         self.margin = T.config().margin
         self.words: list[Word] = []              # every word drawn on the page, in drawing order
+
+    @staticmethod
+    def _px(role: str, px: int) -> int:
+        """Label text (the mono roles) is never set smaller than the type scale's `min_label`: it has to be read."""
+        return max(px, T.size("min_label")) if role.startswith("mono") else px
 
     # -- geometry ------------------------------------------------------
     def x(self, left: float, width: float = 0) -> int:
@@ -171,6 +184,8 @@ class Page:
     def lines(self, text: str, role: str, px: int, width: int, lines_max: int | None = None,
               min_px: int | None = None) -> tuple[list[str], int]:
         """Wrap `text` into `width`, shrinking from `px` toward `min_px` until it fits `lines_max` lines."""
+        px = self._px(role, px)
+        min_px = self._px(role, min_px) if min_px else min_px
         text = " ".join(text.split())
         floor = min_px or px
         for p in range(px, floor - 1, -2):
@@ -185,6 +200,7 @@ class Page:
              align: str = "start", lines_max: int | None = None, min_px: int | None = None,
              spacing: float = 1.18, upper: bool = False, alpha: int = 255) -> int:
         """Draw wrapped text in the box (left, top, width) and return the y below it."""
+        px = self._px(role, px)
         if upper and not self.rtl:
             text = text.upper()
         lines, used = self.lines(text, role, px, width, lines_max, min_px)
@@ -236,6 +252,7 @@ class Page:
     def tracked(self, left: float, top: float, text: str, role: str, px: int, fill: Color, tracking: int = 4,
                 align: str = "start", width: int = 0) -> int:
         """A short label with letter-spacing (Latin only; right-to-left scripts are never spaced out)."""
+        px = self._px(role, px)
         f = T.font(self.language, role, px)
         if self.rtl or tracking == 0:
             return self.text(left, top, width or self.W, text, role, px, fill, align=align, lines_max=1)
@@ -259,7 +276,7 @@ class Page:
         return top + int(px * 1.3)
 
     def measure(self, text: str, role: str, px: int) -> int:
-        return shaping.width(text, T.font(self.language, role, px), self.language)
+        return shaping.width(text, T.font(self.language, role, self._px(role, px)), self.language)
 
     def done(self) -> Image.Image:
         """The finished page; its `words` are the words drawn on it, in order."""
