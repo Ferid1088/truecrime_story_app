@@ -2,6 +2,7 @@
  "detective_toolkit": {
   "enabled": true,
   "design_review": false,
+  "call_timeout_s": 300,
   "beats_per_call": 6,
   "reading": {
    "dense_card_words": 18,

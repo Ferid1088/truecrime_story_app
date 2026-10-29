@@ -2411,6 +2411,8 @@ class DetectiveToolkitConfig(BaseModel):
     enabled: bool = True
     # the Visual Design Director reviews every dispatched card's rendered frame in production (a paid call each)
     design_review: bool = False
+    # a Director call that takes longer than this (seconds) is given up; the chunk is then split and planned in halves
+    call_timeout_s: float = Field(default=300.0, gt=0.0, le=900.0)
     # how many consecutive beats one map/direct call owns: a whole film in one call overruns the model's
     # output (a real 51-beat film), and each chunk's state carries into the next through the event log
     beats_per_call: int = Field(default=6, ge=1, le=30)

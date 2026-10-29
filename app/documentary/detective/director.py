@@ -12,6 +12,7 @@ semantically broken plan.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 
@@ -24,6 +25,7 @@ from app.core.prompts import prompt
 from app.db.models import DetectiveScene, DetectiveToolAction, ReleaseAnchor, RevealGraph
 from app.documentary import memory as MEM
 from app.documentary.memory import MemoryValidationError
+from app.providers.generation.base import GenerationError
 from app.documentary.detective import buildable as BD
 from app.documentary.detective.persist import persist_director_output
 from app.documentary.detective.schema import DirectorOutputError, NarrationIndex, validate_director_output
@@ -182,9 +184,13 @@ async def _ask(db: Session, case_id: int, graph_id: int, label: str, payload: di
     issues = (payload.get("repair_target") or {}).get("issues")
     summary = f"graph={graph_id} mode={payload['mode']}" + (f" issues={issues}"[:600] if issues else "")
     with track_run(db, case_id, f"Detective Director: {label}", input_summary=summary) as run:
-        raw, res = await run_agent(
-            "detective.director", get_generation_provider(), json.dumps(cache_ordered(payload), ensure_ascii=False)
-        )
+        try:
+            raw, res = await asyncio.wait_for(run_agent(
+                "detective.director", get_generation_provider(), json.dumps(cache_ordered(payload), ensure_ascii=False)),
+                ai_config.detective_toolkit.call_timeout_s)
+        except TimeoutError as e:
+            raise GenerationError("invalid_output", f"the Director did not answer within "
+                                  f"{ai_config.detective_toolkit.call_timeout_s:.0f}s") from e
         stamp_run(run, res, "detective_director")
         run_id = run.id
 

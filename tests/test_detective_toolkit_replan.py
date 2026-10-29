@@ -298,3 +298,26 @@ def test_a_fill_pass_the_director_cannot_get_right_is_reported_and_the_next_pass
     scopes = {c["run_id"]: c["scene_scope"] for c in fake.calls if str(c["run_id"]).startswith("fill-")}
     assert result.fill_passes == 2 and len(result.failed_chunks) == 1 and result.failed_chunks[0].startswith("fill B01")
     assert scopes["fill-2"] and all(k.startswith("B02-") for k in scopes["fill-2"]), "the next pass tries another beat"
+
+
+def test_a_director_call_that_takes_too_long_is_given_up_and_the_chunk_is_planned_in_halves(db_session, monkeypatch):
+    case, blueprint, graph = _film(db_session)
+    fake = ScopedDirectorGen()
+    real = fake.generate_structured
+
+    async def slow_on_two_beats_or_more(role, system, user, images=None, **kw):
+        if len({k.split("-")[0] for k in json.loads(user)["scene_scope"]}) > 1:
+            await asyncio.sleep(1.0)
+        return await real(role, system, user, images, **kw)
+
+    fake.generate_structured = slow_on_two_beats_or_more
+    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
+    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
+    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 5)
+    monkeypatch.setattr(ai_config.detective_toolkit, "call_timeout_s", 0.2)
+
+    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
+
+    assert result.failed_chunks == [] and result.uncovered_beats == [] and result.chunks_called == 1
