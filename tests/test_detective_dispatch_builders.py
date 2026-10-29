@@ -433,3 +433,9 @@ def test_a_board_action_is_not_dispatched_as_a_graphic_because_the_board_plan_pl
     resolved = D.resolve_dispatchable_actions(db_session, graph.id)
     assert [r["skip"] for r in resolved if r["tool_id"] == "detective_board"] == ["placed_by_the_board_plan"]
     assert D.place_detective_graphics([], [], "en", resolved)[0]["skip"] == "placed_by_the_board_plan"
+
+
+def test_a_map_action_is_not_dispatched_as_a_graphic_because_the_planner_places_it():
+    resolved = [{"action_key": "m1", "tool_id": "map", "beat_id": "B01", "data": {"place": "Miami County"}}]
+    spans = [{"beat_id": "B01", "start": 0.0, "end": 30.0}]
+    assert D.place_detective_graphics([], spans, "en", resolved)[0]["skip"] == "placed_by_the_planner"

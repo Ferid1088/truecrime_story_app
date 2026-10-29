@@ -658,7 +658,7 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
     from app.documentary.detective import reading as R
     from app.documentary.graphics import shots as GS
     from app.documentary.graphics.base import GraphicUnavailable
-    from app.documentary.graphics.registry import graphic
+    from app.documentary.graphics.registry import GRAPHICS, graphic
     from app.documentary.production.script import _carve
 
     by_beat = {sp["beat_id"]: sp for sp in spans}
@@ -671,6 +671,10 @@ def place_detective_graphics(shots: list[dict], spans: list[dict], language: str
         span = by_beat.get(record["beat_id"])
         if span is None:
             record["skip"] = "beat_not_in_compiled_timeline"
+            records.append(record)
+            continue
+        if record["tool_id"] not in GRAPHICS:             # the map is placed by the planner's map shot
+            record["skip"] = "placed_by_the_planner"
             records.append(record)
             continue
         problem = graphic(record["tool_id"]).can_render(record["data"])
