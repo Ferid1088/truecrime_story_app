@@ -22,11 +22,12 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.core.prompts import prompt
-from app.db.models import DetectiveScene, DetectiveToolAction, ReleaseAnchor, RevealGraph
+from app.db.models import DetectiveScene, DetectiveToolAction, NarrationUnit, ReleaseAnchor, RevealGraph
 from app.documentary import memory as MEM
 from app.documentary.memory import MemoryValidationError
 from app.providers.generation.base import GenerationError
 from app.documentary.detective import buildable as BD
+from app.documentary.detective import strategy as S
 from app.documentary.detective.persist import persist_director_output
 from app.documentary.detective.schema import DirectorOutputError, NarrationIndex, validate_director_output
 from app.documentary.detective.tool_catalog import build_tool_catalog
@@ -69,7 +70,6 @@ def all_narration(db: Session, graph_id: int) -> list[dict]:
 
 
 def all_unit_keys(db: Session, graph_id: int) -> list[str]:
-    from app.db.models import NarrationUnit
     rows = db.query(NarrationUnit).filter_by(graph_id=graph_id).order_by(NarrationUnit.story_order).all()
     return [r.unit_key for r in rows]
 
@@ -161,13 +161,16 @@ def _build_input(db: Session, graph_id: int, mode: str, language: str, text_vers
             "already_introduced_rule": prompt("documentary/detective/already_introduced_rule"),
         },
     }
+    scope_keys = payload["scene_scope"]
+    beats = {u.beat_id for u in db.query(NarrationUnit).filter_by(graph_id=graph_id) if u.unit_key in scope_keys}
+    payload.update(S.brief(S.load(db, graph_id), beats))      # the film's strategy and this scope's card plan
     if repair_target is not None:
         payload["repair_target"] = repair_target
     return payload
 
 
 STABLE_FIRST = ("schema_version", "language", "text_version", "film_id", "tool_catalog", "asset_catalog",
-                "channel_preferences", "narration")
+                "channel_preferences", "narration", "film_strategy")
 
 
 def cache_ordered(payload: dict) -> dict:

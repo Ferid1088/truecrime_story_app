@@ -31,6 +31,7 @@ from app.db.models import DetectiveScene, EditorialBlueprint, NarrationUnit, Rev
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import director as DD
 from app.documentary.detective import filler as FL
+from app.documentary.detective import strategy as ST
 from app.documentary.detective.narration import ingest_narration
 from app.longform import service as LF
 from app.providers.generation.base import GenerationError
@@ -53,6 +54,9 @@ class ToolkitResult:
     fill_passes: int = 0
     filler_cards: int = 0
     pruned_actions: int = 0
+    strategy_used: bool = False
+    kinds_used: list[str] = field(default_factory=list)
+    missing_kinds: list[str] = field(default_factory=list)
     failed_chunks: list[str] = field(default_factory=list)
 
 
@@ -144,6 +148,63 @@ def _cap_reached(db: Session, case) -> str | None:
     return None
 
 
+def missing_kinds(kinds: set[str], strategy: ST.Strategy | None) -> list[str]:
+    """The card kinds the film still has to use: the required ones (the map and the detective board) first, then enough
+    of the others to reach `min_card_kinds` kinds other than the map (the board counts), those the film strategy
+    planned before the rest."""
+    cfg = ai_config.detective_toolkit
+    missing = [k for k in cfg.required_kinds if k not in kinds]
+    have = kinds | {m for m in missing if m != "map"}
+    short = cfg.min_card_kinds - len(have - {"map"})
+    planned = [k for k in ((strategy.film.get("must_use") if strategy else None) or []) if k not in kinds
+               and k not in missing and k != "map"]
+    rest = [k for k in ST.card_kinds() if k not in kinds and k not in missing and k not in planned and k != "map"]
+    return missing + (planned + rest)[:max(short, 0)]
+
+
+def _beats_for(kind: str, strategy: ST.Strategy | None, units: list[NarrationUnit]) -> list[str]:
+    """The beats a missing kind is asked for: where the card strategist planned it, else beats spread over the film."""
+    cfg = ai_config.detective_toolkit
+    planned = list(dict.fromkeys(p["beat"] for p in (strategy.plans.get(kind) if strategy else None) or []))
+    if planned:
+        return planned[:cfg.beats_per_call]
+    every = list(dict.fromkeys(u.beat_id for u in units))
+    step = max(len(every) // cfg.beats_per_call, 1)
+    return every[::step][:cfg.beats_per_call]
+
+
+async def _diversify(db: Session, case, graph: RevealGraph, units: list[NarrationUnit], language: str,
+                     text_version: int, strategy: ST.Strategy | None) -> tuple[list[str], list[str]]:
+    """One Director call for each kind the film is missing (a kind at most twice), until the film uses the required
+    kinds and enough others or the passes are used. The detective board is the board plan's, not a Director card.
+    Returns (the kinds still missing, what failed)."""
+    cfg = ai_config.detective_toolkit
+    tried: dict[str, int] = {}
+    errors: list[str] = []
+    for _ in range(cfg.max_diversity_passes):
+        kinds = BD.planned_timeline(db, graph.id, language, units).kinds
+        todo = [k for k in missing_kinds(kinds, strategy) if k != "detective_board" and tried.get(k, 0) < 2]
+        if not todo or _cap_reached(db, case):
+            break
+        kind = todo[0]
+        tried[kind] = tried.get(kind, 0) + 1
+        beats = set(_beats_for(kind, strategy, units))
+        keys = [u.unit_key for u in units if u.beat_id in beats]
+        plan = json.dumps((strategy.plans.get(kind) if strategy else None) or "no placement planned", ensure_ascii=False)
+        brief = prompt("documentary/detective/diversify_instructions").format(
+            kind=kind, prefix=f"kind-{kind}-{tried[kind]}", needs=BD.NEEDS.get(kind, BD.DEFAULT_NEED), plan=plan[:600])
+        try:
+            await DD.direct_scenes(db, graph.id, scene_unit_keys=keys, language=language, text_version=text_version,
+                                   run_id=f"kind-{kind}-{tried[kind]}", owner_instructions=brief)
+        except (DD.DirectorValidationFailed, GenerationError) as e:
+            if isinstance(e, GenerationError) and e.kind != "invalid_output":
+                raise
+            errors.append(f"kind {kind}: {e}"[:300])
+    if cfg.require_buildable:
+        BD.prune_unbuildable(db, graph.id)
+    return missing_kinds(BD.planned_timeline(db, graph.id, language, units).kinds, strategy), errors
+
+
 async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: RevealGraph) -> ToolkitResult:
     """The single observable call boundary the Main Visual Planner uses to get a detective plan
     for `graph`. See module docstring for the gating rules."""
@@ -160,6 +221,7 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     covered = _directed_beats(db, graph.id, units)
     pending = [c for c in chunks if not set(c[0]) <= covered]
     language, text_version = _language_and_text_version(db, case, blueprint_row)
+    strategy = await ST.ensure(db, case, graph.id, units, language) if ai_config.detective_toolkit.strategy_enabled else None
     called, stopped, failed = 0, None, []
     for beats, unit_keys in pending:
         stopped = _cap_reached(db, case)
@@ -173,23 +235,28 @@ async def invoke(db: Session, case, blueprint_row: EditorialBlueprint, graph: Re
     uncovered = sorted(set(u.beat_id for u in units) - _directed_beats(db, graph.id, units))
     share, fill_passes = 0.0, 0
     if not stopped and not uncovered:
+        _, diversity_errors = await _diversify(db, case, graph, units, language, text_version, strategy)
+        failed.extend(diversity_errors)
         share, fill_passes, stopped, fill_errors = await _fill(db, case, graph, units, language, text_version)
         failed.extend(fill_errors)
     else:
         share = BD.alternative_share(db, graph.id, language, units)
     pruned = BD.prune_unbuildable(db, graph.id) if ai_config.detective_toolkit.require_buildable else 0
     filler_cards = FL.fill_with_fact_cards(db, graph.id, language, units)["cards"] if not uncovered else 0
-    share = BD.alternative_share(db, graph.id, language, units)
+    final = BD.planned_timeline(db, graph.id, language, units)
+    share, missing = final.alternative_share, missing_kinds(final.kinds, strategy)
+    reason = ("a current detective plan already covers every beat of this graph" if not pending
+              else f"planned {called} of {len(pending)} pending chunk(s)" if not stopped
+              else f"stopped after {called} of {len(pending)} pending chunk(s): {stopped}")
+    reason += (f"; alternatives fill {share:.1%} of the film after {fill_passes} fill pass(es); "
+               f"{len(final.kinds)} card kinds" + (f", missing {', '.join(missing)}" if missing else ""))
     return ToolkitResult(
-        enabled=True, called=called > 0 or fill_passes > 0, pruned_actions=pruned, filler_cards=filler_cards, chunks_total=len(chunks), chunks_called=called,
-        units_registered=ingested.registered, uncovered_beats=uncovered, stopped=stopped,
-        alternative_share=share, fill_passes=fill_passes, failed_chunks=failed,
+        enabled=True, called=called > 0 or fill_passes > 0, chunks_total=len(chunks), chunks_called=called,
+        units_registered=ingested.registered, uncovered_beats=uncovered, stopped=stopped, alternative_share=share,
+        fill_passes=fill_passes, filler_cards=filler_cards, pruned_actions=pruned, failed_chunks=failed,
+        strategy_used=strategy is not None, kinds_used=sorted(final.kinds), missing_kinds=missing,
         target_met=share >= ai_config.detective_toolkit.min_alternative_share,
-        scene_count=db.query(DetectiveScene).filter_by(graph_id=graph.id).count(),
-        reason=("a current detective plan already covers every beat of this graph" if not pending
-                else f"planned {called} of {len(pending)} pending chunk(s)" if not stopped
-                else f"stopped after {called} of {len(pending)} pending chunk(s): {stopped}")
-        + f"; alternatives fill {share:.1%} of the film after {fill_passes} fill pass(es)")
+        scene_count=db.query(DetectiveScene).filter_by(graph_id=graph.id).count(), reason=reason)
 
 
 def graph_of(db: Session, blueprint_row: EditorialBlueprint) -> RevealGraph:

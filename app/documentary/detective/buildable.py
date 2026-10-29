@@ -147,9 +147,11 @@ def estimated_windows(units) -> list[dict]:
 
 def planned_timeline(db: Session, graph_id: int, language: str, units, windows: list[dict] | None = None) -> TL.FilmTimeline:
     """The film timeline the cards would get: over the real beat windows of the narration when it exists, otherwise over
-    the windows the text alone gives. It is the placement the Main Visual Planner will see (release points, reading
-    times, each beat's card share), not a sum of card seconds."""
-    return TL.film_timeline(windows or estimated_windows(units), D.resolve_dispatchable_actions(db, graph_id), language)
+    the windows the text alone gives, with the detective board's moments kept free. It is the placement the Main Visual
+    Planner will see (release points, reading times), not a sum of card seconds."""
+    windows = windows or estimated_windows(units)
+    return TL.film_timeline(windows, D.resolve_dispatchable_actions(db, graph_id), language,
+                            TL.board_windows(db, graph_id, windows, language))
 
 
 def placed_card_seconds_by_beat(timeline: TL.FilmTimeline) -> dict[str, float]:

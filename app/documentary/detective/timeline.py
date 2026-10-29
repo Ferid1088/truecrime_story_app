@@ -110,6 +110,8 @@ def film_timeline(windows: list[dict], resolved: list[dict], language: str,
     by_beat = {w["beat_id"]: w for w in windows}
     cursor: dict[str, float] = {}
     for record in resolved:
+        if record.get("tool_id") == "detective_board":      # a note for the board, which is scheduled on its own
+            continue
         window = by_beat.get(record.get("beat_id"))
         if "skip" in record or window is None:
             if "skip" in record or record.get("beat_id") is not None:

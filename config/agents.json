@@ -559,6 +559,20 @@
       "output": "json",
       "description": "Clip edges: which frames at the start or end of a clip or video are an intro or an end card (a logo screen, a QR code, credits, a presenter with a caption) and not footage.",
       "used_by": "app/documentary/mvp/clip_edges.py"
+    },
+    "detective.film_strategist": {
+      "role": "detective_director",
+      "prompt": "documentary/detective/film_strategist_system",
+      "output": "json",
+      "description": "Film strategist: from the whole text, the film's investigative strategy: its acts, what each card kind is for and how the kinds help each other.",
+      "used_by": "app/documentary/detective/strategy.py"
+    },
+    "detective.card_strategist": {
+      "role": "detective_director",
+      "prompt": "documentary/detective/card_strategist_system",
+      "output": "json",
+      "description": "Card strategist: for each card kind, where in the film it is used and what it shows there, keeping the film strategist's plan.",
+      "used_by": "app/documentary/detective/strategy.py"
     }
   }
 }

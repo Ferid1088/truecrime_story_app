@@ -105,6 +105,8 @@ def test_toolkit_invoke_maps_and_directs_when_enabled(db_session, monkeypatch):
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
 
@@ -122,6 +124,8 @@ def test_toolkit_invoke_never_re_pays_for_an_existing_plan(db_session, monkeypat
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
 
     first = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
     calls_after_first = len(fake.calls)

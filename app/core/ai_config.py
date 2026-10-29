@@ -2422,6 +2422,13 @@ class DetectiveToolkitConfig(BaseModel):
     # an action whose card cannot be built from the claims it binds is sent back to the Director as a repair
     # issue instead of being kept: the toolkit hands over only cards it has made
     require_buildable: bool = True
+    # before any scene is directed the film strategist and the card strategist plan the whole film from its text
+    strategy_enabled: bool = True
+    # every film uses these kinds (the map and the detective board) and at least `min_card_kinds` kinds other than the
+    # map, the board counted; the toolkit adds scenes for the kinds that are missing, at most this many passes
+    required_kinds: list[str] = Field(default_factory=lambda: ["map", "detective_board"])
+    min_card_kinds: int = Field(default=14, ge=1)
+    max_diversity_passes: int = Field(default=4, ge=0, le=20)
     # the share of the film's length the toolkit's alternatives must fill (cards, boards, maps; never the Host)
     min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
     # how many extra Director calls may add cards for the weakest beats before the toolkit reports it fell short

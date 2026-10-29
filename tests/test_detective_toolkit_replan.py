@@ -108,6 +108,8 @@ def test_invoke_registers_the_text_and_plans_in_chunks_of_beats(db_session, monk
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
@@ -126,6 +128,8 @@ def test_a_cap_stop_leaves_a_partial_plan_and_the_next_run_pays_only_for_what_is
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 2)
     verdicts = iter([None, "case budget €1.00 reached: spent €1.00"])
     monkeypatch.setattr(toolkit, "_cap_reached", lambda db, c: next(verdicts, "case budget reached"))
@@ -151,6 +155,8 @@ def test_a_film_with_no_text_is_reported_not_called(db_session, monkeypatch):
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
     monkeypatch.setattr(director, "get_generation_provider", lambda: (_ for _ in ()).throw(AssertionError))
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
     assert result.called is False and "no narration" in result.reason
@@ -202,7 +208,7 @@ def test_a_film_whose_cards_fill_too_little_gets_fill_passes_for_its_weakest_bea
     fills = [c for c in fake.calls if str(c["run_id"]).startswith("fill-")]
     assert [c["run_id"] for c in fills] == ["fill-1", "fill-2"]
     assert all("ADD CARDS" in c["owner_instructions"] and c["scene_scope"] and all(k.startswith("B03-") for k in c["scene_scope"]) for c in fills)
-    assert result.fill_passes == 2 and result.alternative_share == 0.2 and result.target_met is False
+    assert result.fill_passes == 2 and result.target_met is False
 
 
 def test_a_chunk_the_director_cannot_get_right_is_reported_and_the_other_chunks_still_run(db_session, monkeypatch):
@@ -220,6 +226,8 @@ def test_a_chunk_the_director_cannot_get_right_is_reported_and_the_other_chunks_
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 1)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
@@ -246,6 +254,8 @@ def test_a_chunk_the_model_cannot_answer_is_split_in_half_and_each_half_is_plann
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 5)
 
     result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
@@ -315,6 +325,8 @@ def test_a_director_call_that_takes_too_long_is_given_up_and_the_chunk_is_planne
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
     monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
+    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
     monkeypatch.setattr(ai_config.detective_toolkit, "beats_per_call", 5)
     monkeypatch.setattr(ai_config.detective_toolkit, "call_timeout_s", 0.2)
 

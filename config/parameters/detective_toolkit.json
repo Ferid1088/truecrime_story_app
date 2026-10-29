@@ -23,6 +23,13 @@
     "max_repair_iterations": 2,
     "require_buildable": true,
     "min_alternative_share": 0.5,
-    "max_fill_passes": 3
+    "max_fill_passes": 3,
+    "strategy_enabled": true,
+    "required_kinds": [
+      "map",
+      "detective_board"
+    ],
+    "min_card_kinds": 14,
+    "max_diversity_passes": 4
   }
 }
