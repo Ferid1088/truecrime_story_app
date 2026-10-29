@@ -158,3 +158,17 @@ def test_the_memory_of_a_chunk_is_made_once_whether_or_not_it_has_to_be_split(db
     done, errors, splits = asyncio.run(toolkit._plan_chunk(db_session, graph.id, "en", 1, beats, keys, units))
     assert done and not errors and splits == 3
     assert len(mapped) == 1 and len(directed) == 1 + 2 + 4, (mapped, directed)
+
+
+def test_the_catalog_states_the_rules_the_card_builders_enforce():
+    from app.documentary.graphics.engines.evidence import EXAMS
+
+    catalog = {t["tool_id"]: t["how_to_bind"] for t in build_tool_catalog() if "how_to_bind" in t}
+    assert all(exam in catalog["forensic"] for exam in EXAMS), "the exam claim's text must be one of the exams"
+    assert "at least two claims with attribute charge" in catalog["sentencing"]
+    assert "at most 90 characters" in catalog["courtroom"] and "at most 90 characters" not in catalog["fact_card"]
+
+
+def test_a_kind_the_director_cannot_make_is_never_asked_for(monkeypatch):
+    missing = toolkit.missing_kinds({"map", "detective_board"}, None)
+    assert "floor_plan" not in missing and len([k for k in missing if k != "map"]) == 13

@@ -2446,7 +2446,10 @@ class DetectiveToolkitConfig(BaseModel):
     # map, the board counted; the toolkit adds scenes for the kinds that are missing, at most this many passes
     required_kinds: list[str] = Field(default_factory=lambda: ["map", "detective_board"])
     min_card_kinds: int = Field(default=14, ge=1)
-    max_diversity_passes: int = Field(default=4, ge=0, le=20)
+    max_diversity_passes: int = Field(default=10, ge=0, le=30)
+    # kinds the Director cannot make because their card needs real data it must not invent (a floor plan needs the
+    # rooms of a stored plan): never asked for in a diversity pass
+    director_cannot_make: list[str] = Field(default_factory=lambda: ["floor_plan"])
     # the share of the film's length the toolkit's alternatives must fill (cards, boards, maps; never the Host)
     min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
     # how many extra Director calls may add cards for the weakest beats before the toolkit reports it fell short

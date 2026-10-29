@@ -137,11 +137,19 @@ TOOL_CATALOG: dict[str, dict[str, str]] = {
 }
 
 
+#: the tools drawn by the cinematic engines, whose every text has the engines' length limit
+ENGINE_TOOLS = {"courtroom", "sentencing", "evidence_check", "forensic", "custody", "interrogation", "unknowns",
+                "investigation_clock"}
+
+
 def build_tool_catalog() -> list[dict[str, str]]:
     """The `tool_catalog` entries for the Detective Director's input payload. Each entry also says exactly what the
     card needs bound to it (the claim attributes, relation types and questions its builder reads), the contract the
     toolkit checks every action against, so the Director does not have to find it out from a failed repair."""
     from app.documentary.detective.buildable import NEEDS
+    from app.documentary.graphics.engines import kit
 
-    return [{"tool_id": tool_id, **info, **({"how_to_bind": NEEDS[tool_id]} if tool_id in NEEDS else {})}
+    limit = f"; every text on the card is at most {kit.settings()['text_max_chars']} characters"
+    return [{"tool_id": tool_id, **info,
+             **({"how_to_bind": NEEDS[tool_id] + (limit if tool_id in ENGINE_TOOLS else "")} if tool_id in NEEDS else {})}
             for tool_id, info in TOOL_CATALOG.items()]

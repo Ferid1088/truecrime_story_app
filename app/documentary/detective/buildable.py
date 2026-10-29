@@ -16,6 +16,7 @@ from app.documentary.detective import timeline as TL
 from app.documentary.detective.reading import reading_need
 from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import GraphicUnavailable
+from app.documentary.graphics.engines.evidence import EXAMS
 from app.documentary.graphics.registry import graphic
 
 NEEDS = {
@@ -30,10 +31,12 @@ NEEDS = {
     "quote": "bind an attributed claim (with its attribution, at most 220 characters) from a listed newspaper "
              "or TV broadcaster",
     "courtroom": "bind claims whose attribute is issue, prosecution, defense and finding, one of each at least",
-    "sentencing": "bind claims with attribute charge (at least one) and exactly one claim with attribute final",
+    "sentencing": "bind at least two claims with attribute charge (or one charge and one claim with attribute aggravating "
+                  "or mitigating) and exactly one claim with attribute final",
     "interrogation": "bind a question and, for the same person, a claim with attribute answer",
     "evidence_check": "bind at least one established_in_text claim about the item",
-    "forensic": "bind claims with attribute exam, sample, method, result and limits",
+    "forensic": "bind claims with attribute exam, sample, method, result and limits; the exam claim's text is exactly one "
+                "of: " + ", ".join(EXAMS),
     "custody": "bind 2 to 5 claims about one item, in the order of its stages",
     "investigation_clock": "bind at least two claims linked to facts that have a real event date; attribute crime "
                            "or investigation",

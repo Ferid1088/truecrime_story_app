@@ -162,9 +162,11 @@ def missing_kinds(kinds: set[str], strategy: ST.Strategy | None) -> list[str]:
     missing = [k for k in cfg.required_kinds if k not in kinds]
     have = kinds | {m for m in missing if m != "map"}
     short = cfg.min_card_kinds - len(have - {"map"})
+    unmakeable = set(cfg.director_cannot_make)
     planned = [k for k in ((strategy.film.get("must_use") if strategy else None) or []) if k not in kinds
-               and k not in missing and k != "map"]
-    rest = [k for k in ST.card_kinds() if k not in kinds and k not in missing and k not in planned and k != "map"]
+               and k not in missing and k != "map" and k not in unmakeable]
+    rest = [k for k in ST.card_kinds() if k not in kinds and k not in missing and k not in planned and k != "map"
+            and k not in unmakeable]
     return missing + (planned + rest)[:max(short, 0)]
 
 
