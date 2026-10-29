@@ -159,6 +159,21 @@ def language_plan(db: Session, needs_plan: VisualPlan, language: str) -> VisualP
     return row
 
 
+def reference_sequence(db: Session, needs_plan: VisualPlan, language: str) -> dict[str, list[str]] | None:
+    """The pictures and clips of the English film, beat by beat in their order, for a language that shows the same
+    material: None for English itself or while no English film has been planned."""
+    if language == "en":
+        return None
+    rows = db.query(VisualPlan).filter(VisualPlan.blueprint_id == needs_plan.blueprint_id).all()
+    english = next((r for r in rows if (json.loads(r.validation_json or "{}").get("mvp") or {}).get("language") == "en"
+                    and (json.loads(r.validation_json or "{}").get("mvp") or {}).get("needs_plan_id") == needs_plan.id
+                    and (json.loads(r.plan_json or "{}").get("beats"))), None)
+    if english is None:
+        return None
+    return {b["beat_id"]: [s["asset_id"] for s in b["shots"] if s.get("asset_id") and not s.get("gap")]
+            for b in json.loads(english.plan_json)["beats"]}
+
+
 def host_required() -> bool:
     """The host is part of every film (host.required_for_film) whenever it can appear at all."""
     return bool(ai_config.host.required_for_film and ai_config.host.enabled and ai_config.avatar.enabled)
@@ -259,13 +274,14 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     requirements = requirements_of(needs_plan)
     overlays = await scan_overlays(db, case, needs_plan)      # first the marks: cut away, or the picture is out
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
+    sequence = reference_sequence(db, needs_plan, language)       # other languages show the English film's material
     timeline = TL.timeline_for(db, graph_id, manifest, language)     # the toolkit's fixed cards, when it planned the film
     offers = [] if timeline else (await EV.build_offers(db, case, bp_row, needs_plan, manifest))[0]
     region = case_region(case)
     async def direct(matches=None, last: bool = False) -> dict:
         return await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                     director if use_agent else None, target, None, region, offers, matches,
-                                    cover_last=last, timeline=timeline)
+                                    cover_last=last, timeline=timeline, sequence=sequence)
 
     report = await direct()
     for _ in range(ai_config.mvp().topup.passes):

@@ -516,6 +516,19 @@ def _repeat_pieces(shot: dict, start: float, seconds: float, window_len: float, 
     return out
 
 
+def same_material(codes: list[str], slots: list[dict], pool: list[Item], tracker: UsageTracker) -> dict[int, Item]:
+    """The English film's pictures of a beat, in their order, given to this language's slots of the beat. A slot with no
+    English picture left stays for the usual fill."""
+    by_code = {i.code: i for i in pool}
+    chosen: dict[int, Item] = {}
+    for n, code in enumerate(codes[:len(slots)]):
+        item = by_code.get(code)
+        if item is not None:
+            tracker.add(item.code, slots[n]["start"], slots[n]["end"])
+            chosen[n] = item
+    return chosen
+
+
 def free_slots(window: dict, stretches: list[tuple[float, float]]) -> list[dict]:
     """Picture slots over the stretches of a beat the toolkit left free, cut at sentence ends like a whole beat."""
     slots = []
@@ -596,7 +609,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
                       entities: list[dict] | None = None, region: str | None = None,
                       offers: list[AL.Offer] | None = None,
                       topical: dict[str, list[tuple[str, float, str]]] | None = None,
-                      cover_last: bool = True, timeline=None) -> dict:
+                      cover_last: bool = True, timeline=None, sequence=None) -> dict:
     """Plan the film. When moments are still bare after the approved pictures, the alternatives and every other fill,
     the whole film is planned again from its first beat with wider limits for the alternatives (`planner.escalation`),
     round after round, never by patching the previous round's plan; the round with the fewest bare seconds is kept.
@@ -605,7 +618,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
     search, topical pictures) has been tried: the cover is the very last resort."""
     target = target or plan
     args = (db, case, plan, manifest, graph_id, beat_order, beats, director, target, entities, region, offers, topical)
-    report = await _direct_pass(*args, cover_last=cover_last, timeline=timeline)
+    report = await _direct_pass(*args, cover_last=cover_last, timeline=timeline, sequence=sequence)
     if report["gaps"] and "rounds" not in report and timeline is None:     # a toolkit film is never planned again
         rounds = [{"round": 0, "gap_seconds": report["gap_seconds"], "placed": 0, "neighbour_cover": False}]
         kept = (report, target.plan_json, target.validation_json)
@@ -614,7 +627,7 @@ async def direct_film(db: Session, case: Case, plan: VisualPlan, manifest: dict,
             steps.append((AL.escalation_steps()[-1] if steps else {}, True))
         for n, (step, cover) in enumerate(steps, 1):
             again = await _direct_pass(*args, relax=step, force=True, cover=cover, cover_last=cover_last,
-                                       timeline=timeline)
+                                       timeline=timeline, sequence=sequence)
             rounds.append({"round": n, "gap_seconds": again["gap_seconds"], "placed": sum(
                 1 for o in offers or [] if o.placed), "neighbour_cover": cover, **step})
             if again["gap_seconds"] < kept[0]["gap_seconds"]:
@@ -636,7 +649,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                        region: str | None, offers: list[AL.Offer] | None,
                        topical: dict[str, list[tuple[str, float, str]]] | None,
                        relax: dict | None = None, force: bool = False, cover: bool = False,
-                       cover_last: bool = True, timeline=None) -> dict:
+                       cover_last: bool = True, timeline=None, sequence=None) -> dict:
     """One planning round: beat by beat, agent first, rules always. `plan` holds the approved requirements; the shot
     list is stored on `target` (the language's own plan row). `relax` widens the limits of the alternatives; `cover` lets
     the moments that stay bare be covered from their neighbours (the last round, after the owner's review)."""
@@ -670,6 +683,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         "repeat": ai_config.visual_direction.model_dump(), "escalation": AL.escalation_steps(), "rules": AL.T.config().planner, "neighbour_cover": cover_approved(plan), "cover_last": cover_last,
         "timeline": {b: [[c["action_key"], c["start"], c["end"]] for c in cs]
                      for b, cs in sorted((timeline.cards_by_beat if timeline else {}).items())},
+        "sequence": sorted((sequence or {}).items()),
         "moment_clips": sorted([i.code, i.moment["beat"], i.moment["key"]] for i in moment_clips),
         "topical": {k: [[c, s_] for c, s_, _w in rows] for k, rows in sorted((topical or {}).items())}}, sort_keys=True).encode()).hexdigest()
     previous = json.loads(target.validation_json or "{}").get("plan") or {}
@@ -699,7 +713,9 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
             [[i.code, i.role, tracker.appearances(i.code), i.asset.owner_note] for i in pool] + [[s_["start"], s_["end"]] for s_ in slots],
             sort_keys=True).encode()).hexdigest()
         cached = beat_cache.get(bid)
-        if cached and cached["key"] == pool_key:
+        if sequence is not None and bid in sequence:      # the same pictures in the same order, re-timed to this language
+            chosen = same_material(sequence[bid], slots, items.get(bid, []) + near, tracker)
+        elif cached and cached["key"] == pool_key:
             by_code = {i.code: i for i in pool}
             chosen = {int(n): by_code[c] for n, c in cached["assignment"].items() if c in by_code}
             for n, item in chosen.items():
