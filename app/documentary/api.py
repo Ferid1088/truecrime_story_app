@@ -482,7 +482,7 @@ class JobRequest(BaseModel):
     """One documentary of ONE language, from that language's approved final version."""
     language: str
     final_version_id: int | None = None
-    mode: Literal["pilot", "full"] = "pilot"
+    mode: Literal["pilot", "full", "plan"] = "pilot"
     pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
     render_profile: Literal["preview", "publish"] = "preview"
     refresh_visuals: bool = False
@@ -543,7 +543,7 @@ class BatchItem(BaseModel):
 class BatchRequest(BaseModel):
     items: list[BatchItem] = Field(min_length=1, max_length=50)
     languages: list[str] = Field(default_factory=lambda: list(ai_config.documentary.languages))
-    mode: Literal["pilot", "full"] = "pilot"
+    mode: Literal["pilot", "full", "plan"] = "pilot"
     pilot_seconds: float | None = Field(default=None, gt=10, le=1800)
     render_profile: Literal["preview", "publish"] = "preview"
     refresh_visuals: bool = False

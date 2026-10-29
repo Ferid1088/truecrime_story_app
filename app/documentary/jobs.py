@@ -556,7 +556,7 @@ class DocumentaryPipeline(StageRunner):
             short = {l: m for l, m in est.items() if m < ai_config.documentary.min_film_minutes}
             long_ = {l: m for l, m in est.items() if m > ai_config.documentary.max_film_minutes}
             self.result["film_minutes"] = est
-            if not pilot and (short or long_):
+            if job.mode == "full" and (short or long_):      # only a film that is rendered must have the length
                 raise RuntimeError(
                     f"Film length outside {ai_config.documentary.min_film_minutes:g}–"
                     f"{ai_config.documentary.max_film_minutes:g} min: "
@@ -564,7 +564,7 @@ class DocumentaryPipeline(StageRunner):
                     + ". Run the language pipeline for a longer (or shorter) final text first.")
             return {"estimated_minutes": est,
                     "warning": (f"Story too short for a {ai_config.documentary.min_film_minutes:g}-"
-                                "minute film (pilot only)") if short else None}
+                                "minute film (a full film only)") if short else None}
 
         await self._stage("film_length", film_length)
 

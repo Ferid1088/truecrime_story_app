@@ -1442,7 +1442,7 @@ export interface DbOverview {
 // Documentary production — mirrors app/documentary/api.py serializers.
 // ---------------------------------------------------------------------------
 
-export type DocumentaryMode = "pilot" | "full";
+export type DocumentaryMode = "pilot" | "full" | "plan";
 export type RenderProfile = "preview" | "publish";
 export type DocumentaryJobStatus =
   | "queued"

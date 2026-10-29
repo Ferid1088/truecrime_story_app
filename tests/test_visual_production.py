@@ -1722,3 +1722,56 @@ def test_ambiguous_place_names_resolve_near_the_case(tmp_path, monkeypatch):
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200))) as client:
             return await MAPS.geocode("Wilhelmshof 188", client=client)
     assert asyncio.run(missing()) is None
+
+
+@needs_ffmpeg
+def test_a_planning_job_uses_the_narration_of_an_earlier_run_and_ends_with_the_planned_pictures(
+        db_session, documentary_env, isolated_host_history, monkeypatch):
+    from test_host import HostGen
+
+    from app.core.ai_config import ai_config
+    from app.documentary import jobs as J
+
+    monkeypatch.setattr(ai_config, "host", ai_config.host.model_copy(update={
+        "min_gap_seconds": 0, "min_acts_between": 0, "max_total_share": 0.5}))
+    documentary_env.host = HostGen(plans=[{"segments": [
+        {"id": "S1", "position": "opening", "role": "opening", "after_act": None, "reason": "r"},
+        {"id": "S2", "position": "mid", "role": "transition", "after_act": "B03", "reason": "r"},
+        {"id": "S4", "position": "final", "role": "outro", "after_act": None, "reason": "r"}]}])
+    case, master = _story(db_session)
+    case.resolution_status = "UNSOLVED"
+    db_session.commit()
+
+    first = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
+    asyncio.run(J.run_job(first.id))
+    db_session.expire_all()
+    assert db_session.get(DocumentaryJob, first.id).status in {"completed", "completed_warnings"}
+
+    job = J.create_job(db_session, case, master, ["en"], "plan", None, "preview")
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    job = db_session.get(DocumentaryJob, job.id)
+    stages = {s["name"]: s for s in json.loads(job.stages_json)}
+
+    assert job.status in {"completed", "completed_warnings"}, (job.error, stages)
+    assert stages["mvp_direct:en"]["status"] in ("done", "degraded") and stages["mvp_complete:en"]["status"] == "done"
+    for name in ("performance:en", "voice:en", "mvp_host:en", "production:en", "render:en", "mvp_review:en"):
+        assert stages[name]["status"] == "skipped", (name, stages[name])
+    assert json.loads(job.result_json).get("tts_characters", {}).get("en", 0) == 0, "no narration is paid for"
+
+
+@needs_ffmpeg
+def test_a_planning_job_without_an_earlier_narration_says_so_instead_of_making_one(
+        db_session, documentary_env, isolated_host_history, monkeypatch):
+    from app.documentary import jobs as J
+
+    case, master = _story(db_session)
+    case.resolution_status = "UNSOLVED"
+    db_session.commit()
+    job = J.create_job(db_session, case, master, ["en"], "plan", None, "preview")
+    asyncio.run(J.run_job(job.id))
+    db_session.expire_all()
+    job = db_session.get(DocumentaryJob, job.id)
+    stages = {s["name"]: s for s in json.loads(job.stages_json)}
+    assert job.status == "failed" and "uses the narration of an earlier run" in (job.error or "")
+    assert stages["voice:en"]["status"] == "skipped" and json.loads(job.result_json or "{}").get("tts_characters", {}) == {}

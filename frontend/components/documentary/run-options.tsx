@@ -210,6 +210,13 @@ export function RunOptionsFields({
           title="Full film"
           description={`The complete ${range.min}–${range.max} minute film. Refused when the story is too short or too long.`}
         />
+        <Choice
+          name={`${ids}-mode`}
+          checked={value.mode === "plan"}
+          onSelect={() => set({ mode: "plan" })}
+          title="Plan the pictures only"
+          description="The toolkit's cards and the planner's search and direction, on the narration of an earlier run. No voice, no render. It stops for your picture review when moments are bare."
+        />
         {value.mode === "pilot" && (
           <div className="pt-1">
             <label htmlFor={`${ids}-pilot`} className="mb-1 block text-xs font-medium text-muted-foreground">

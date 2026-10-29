@@ -42,6 +42,11 @@ class LanguageChain:
         vp_row, visual_ready, visual_state, renders = (
             sh.vp_row, sh.visual_ready, sh.visual_state, sh.renders)
 
+        planning = job.mode == "plan"       # the pictures only: the narration of an earlier run is used, nothing is made
+
+        async def skipped(reason: str) -> dict:
+            return {"skipped": True, "reason": reason}
+
         async def performance():
 
             lang_cfg = ai_config.voice.languages.get(lang)
@@ -94,8 +99,11 @@ class LanguageChain:
                                     f"{', '.join(left_out)}"} if left_out else {}),
                     **({"studio_error": scene_error} if scene_error else {})}
 
-        await pipe._optional(f"host:{lang}", host)
-        await pipe._stage(f"performance:{lang}", performance)
+        if not planning:
+            await pipe._optional(f"host:{lang}", host)
+            await pipe._stage(f"performance:{lang}", performance)
+        else:
+            await pipe._stage(f"performance:{lang}", lambda: skipped("planning job: no narration is made"))
         holder: dict = {}
 
         async def render_voice():
@@ -151,8 +159,18 @@ class LanguageChain:
                 if index + 1 < len(sh.music_turns):
                     sh.music_turns[index + 1].set()
 
-        await pipe._stage(f"voice:{lang}", voice)
-        manifest = holder.get("m") or _load_manifest(case.id, version)
+        async def reuse_narration():
+            index = sh.languages.index(lang)
+            if index + 1 < len(sh.music_turns):
+                sh.music_turns[index + 1].set()
+            return await skipped("planning job: the narration of an earlier run is used")
+
+        await pipe._stage(f"voice:{lang}", reuse_narration if planning else voice)
+        try:
+            manifest = holder.get("m") or _load_manifest(case.id, version)
+        except FileNotFoundError as e:
+            raise LanguageFailed(f"A planning job uses the narration of an earlier run, and the {lang} version has "
+                                 "none: run a pilot or a full film first.") from e
 
         await visual_ready.wait()
         if "error" in visual_state:
@@ -171,7 +189,8 @@ class LanguageChain:
         async def mvp_host():
             return await MVP.stage_host(db, case, version, lang)
 
-        await pipe._stage(f"mvp_host:{lang}", mvp_host)
+        await pipe._stage(f"mvp_host:{lang}", (lambda: skipped("planning job: the Host is not made")) if planning
+                          else mvp_host)
 
         async def mvp_direct():
             MVP.stage_owner_attention(db, needs_plan, lang)
@@ -197,6 +216,10 @@ class LanguageChain:
                 raise
 
         await pipe._stage(f"mvp_complete:{lang}", mvp_complete)
+        if planning:
+            for name in ("zoom_maps", "production", "critique", "mvp_coverage", "render", "mvp_review"):
+                await pipe._stage(f"{name}:{lang}", lambda: skipped("planning job: it ends with the planned pictures"))
+            return
 
         async def zoom_maps():
             from app.documentary.zoom_map.stage import render_zoom_maps
