@@ -19,8 +19,8 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
-from app.db.models import AppSetting
-from app.services.video_rights import RightsRefused, VideoRightsGate
+from app.db.models import AppSetting, VisualAsset
+from app.services.video_rights import TRUE_CRIME_CHANNEL, RightsRefused, VideoRightsGate
 from app.utils import utc_now
 
 SETTING_KEY = "youtube_clip_downloader"
@@ -59,12 +59,24 @@ def set_enabled(db: Session, value: bool) -> bool:
     return bool(value)
 
 
-def check_allowed(db: Session, video, profile: str | None = None) -> None:
+def allowance_used(db: Session, case_id: int) -> int:
+    """How many videos of other true-crime channels the case has downloaded under the owner's allowance."""
+    sources = db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.asset_type == "video_source",
+                                           VisualAsset.provider == "youtube_clip").all()
+    return sum(1 for a in sources
+               if ((json.loads(a.spec_json or "{}").get("source_record") or {}).get("source_class")) == TRUE_CRIME_CHANNEL)
+
+
+def check_allowed(db: Session, video, profile: str | None = None, case_id: int | None = None) -> None:
     """Raise RightsRefused with the reason unless this video may be downloaded from YouTube."""
     if not enabled(db):
         raise RightsRefused("the YouTube clip downloader switch is off (Settings)")
     VideoRightsGate().require(video, profile)
-    if getattr(video, "classification", None) in ai_config.video_rights.research_only_classifications:
+    if getattr(video, "source_class", None) == TRUE_CRIME_CHANNEL:
+        allowance = ai_config.video_rights.youtube.true_crime_allowance
+        if case_id is not None and allowance_used(db, case_id) >= allowance.max_videos_per_case:
+            raise RightsRefused(f"the case has its {allowance.max_videos_per_case} videos of other true-crime channels")
+    elif getattr(video, "classification", None) in ai_config.video_rights.research_only_classifications:
         raise RightsRefused("another creator's edited film is research only")
     seconds = getattr(video, "duration_seconds", None)
     if seconds and seconds > ai_config.youtube_clips.max_source_seconds:

@@ -197,7 +197,7 @@ class FootageAgent:
                               found_during: str) -> str:
         """A YouTube video of an allowed source class (switch on): downloaded once, cut into
         pieces like any footage, with its source record and an on-screen credit."""
-        YC.check_allowed(db, video, profile)
+        YC.check_allowed(db, video, profile, case.id)
         tmp = storage.visuals_dir(case.id, "video") / f".{next_asset_code(db)}.yt"
         fetched = await (self.downloader or YC.YtDlpDownloader()).fetch(video.url, tmp)
         try:

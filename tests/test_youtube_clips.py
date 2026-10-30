@@ -185,8 +185,8 @@ def test_a_clip_from_youtube_is_cut_to_its_own_length_and_share_of_the_film(monk
     monkeypatch.setattr(ai_config.youtube_clips, "max_share", 0.05)
     monkeypatch.setattr(ai_config.footage, "max_third_party_clip_seconds", 100.0)
     monkeypatch.setattr(ai_config.footage, "max_third_party_share", 1.0)
-    assets = {"Y1": SimpleNamespace(asset_code="Y1", provider="youtube_clip"),
-              "Y2": SimpleNamespace(asset_code="Y2", provider="youtube_clip"),
+    assets = {"Y1": SimpleNamespace(asset_code="Y1", provider="youtube_clip", spec_json="{}"),
+              "Y2": SimpleNamespace(asset_code="Y2", provider="youtube_clip", spec_json="{}"),
               "P1": SimpleNamespace(asset_code="P1", provider="upload", asset_type="photo")}
     shots = [{"kind": "video", "asset_id": "Y1", "clip_start": 0.0, "clip_end": 30.0, "start": 0.0, "end": 30.0,
               "beat_id": "B1"},
@@ -280,3 +280,33 @@ def test_a_failed_yt_dlp_download_is_a_candidate_error_not_a_job_failure(db_sess
     stats = asyncio.run(FootageAgent(client=None).ingest_film_candidates(db_session, case))
     assert stats["errors"] == 1
     assert stats["added"] == 0
+
+
+def _allowed_video(n):
+    return _video(url=f"https://www.youtube.com/watch?v=tc{n}", source_class="true_crime_channel",
+                  classification="creator_narration", channel_name="Dark Files", video_id=f"tc{n}")
+
+
+def test_a_true_crime_channels_film_is_downloaded_under_the_allowance_until_the_case_has_five(db_session):
+    from app.db.models import VisualAsset
+
+    case = _case(db_session)
+    YC.set_enabled(db_session, True)
+    YC.check_allowed(db_session, _allowed_video(0), None, case.id)
+    for n in range(5):
+        db_session.add(VisualAsset(case_id=case.id, asset_code=f"VIS_T{n}", asset_type="video_source", provider="youtube_clip",
+                                   spec_json=json.dumps({"source_record": {"source_class": "true_crime_channel"}})))
+    db_session.commit()
+    assert YC.allowance_used(db_session, case.id) == 5
+    with pytest.raises(RightsRefused, match="its 5 videos of other true-crime channels"):
+        YC.check_allowed(db_session, _allowed_video(6), None, case.id)
+    YC.check_allowed(db_session, _video(), None, case.id)           # an official video does not use the allowance
+
+
+def test_a_clip_of_a_true_crime_channel_plays_at_most_forty_seconds_other_youtube_clips_keep_their_cap():
+    from app.documentary.production.script import _youtube_clip_cap
+
+    allowed = SimpleNamespace(spec_json=json.dumps({"source_record": {"source_class": "true_crime_channel"}}))
+    official = SimpleNamespace(spec_json=json.dumps({"source_record": {"source_class": "official_body"}}))
+    assert _youtube_clip_cap(allowed) == 40.0
+    assert _youtube_clip_cap(official) == ai_config.youtube_clips.max_clip_seconds

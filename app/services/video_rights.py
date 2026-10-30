@@ -20,6 +20,7 @@ from app.documentary.visuals import rights
 from app.utils import utc_now
 
 RESEARCH_ONLY, FILM_CANDIDATE = "research_only", "film_candidate"
+TRUE_CRIME_CHANNEL = "true_crime_channel"      # the source class of the owner's allowance for other channels' films
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,10 @@ class VideoUseClassifier:
         channel = str(candidate.get("channel_name") or "").lower()
         title = " ".join(str(candidate.get(k) or "") for k in ("title", "description")).lower()
         if kind in self.cfg.research_only_classifications:
+            if cfg.true_crime_allowance.enabled:
+                return self._candidate(candidate, TRUE_CRIME_CHANNEL,
+                                       f"the owner allows {cfg.true_crime_allowance.max_videos_per_case} short clips "
+                                       "of true-crime channels", None)
             return self._research_only("other_creator_edited")
         if any(p in channel for p in cfg.reuploader_channel_patterns):
             return self._research_only("reuploader")

@@ -46,6 +46,7 @@ from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.mvp.overlays import crop_of
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
+from app.services.video_rights import TRUE_CRIME_CHANNEL
 from app.documentary.visuals.generated import LABELS, localize_texts
 from app.documentary.visuals.usage import (
     UsageTracker,
@@ -65,6 +66,16 @@ STATUS_END_MARGIN_SECONDS = 1.0
 # Fill/repeat bookkeeping keys that never travel to a shot made from another.
 _PER_SHOT = ("fill_reason", "repeat_reason", "repeat_justified", "usage", "why",
              "black_filled", "reframe", "held_reason")
+
+
+def _youtube_clip_cap(asset) -> float:
+    """The longest a clip of this YouTube asset plays: a clip of another true-crime channel (the owner's allowance) has its
+    own limit."""
+    record = (json.loads(asset.spec_json or "{}").get("source_record")) or {}
+    allowance = ai_config.video_rights.youtube.true_crime_allowance
+    if record.get("source_class") == TRUE_CRIME_CHANNEL:
+        return allowance.max_clip_seconds
+    return ai_config.youtube_clips.max_clip_seconds
 
 
 @lru_cache(maxsize=256)
@@ -630,7 +641,7 @@ def _clip_overruns(shots: list[dict], plan: dict, assets: dict[str, VisualAsset]
             # other people's footage: capped per clip and in total
             length = min(length, footage.max_third_party_clip_seconds, max(budget, 0.0))
             if assets[sh["asset_id"]].provider == "youtube_clip":
-                length = min(length, yt.max_clip_seconds, max(yt_budget, 0.0))
+                length = min(length, _youtube_clip_cap(assets[sh["asset_id"]]), max(yt_budget, 0.0))
                 yt_budget -= min(length, sh["end"] - sh["start"])
             budget -= min(length, sh["end"] - sh["start"])
         if length <= 0 and not third_party:

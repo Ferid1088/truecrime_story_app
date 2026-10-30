@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.ai_config import ai_config
+from app.db.models import Case
 from app.services.video_rights import (
     FILM_CANDIDATE,
     RESEARCH_ONLY,
@@ -23,13 +24,22 @@ def _youtube(**kw):
             "channel_name": "Dark Files", "classification": "creator_narration", **kw}
 
 
-def test_a_video_of_another_true_crime_channel_is_always_research_only_even_with_cc():
+def test_a_video_of_another_true_crime_channel_is_research_only_unless_the_owners_allowance_is_on(monkeypatch):
+    cc = {"license": "creativeCommon", "license_url": "https://www.youtube.com/t/creative_commons"}
+    monkeypatch.setattr(ai_config.video_rights.youtube.true_crime_allowance, "enabled", False)
     for classification in ("creator_narration", "analysis", "documentary", "interview", "unknown"):
-        use = VideoUseClassifier().classify(_youtube(classification=classification, license="creativeCommon",
-                                                      license_url="https://www.youtube.com/t/creative_commons"))
+        use = VideoUseClassifier().classify(_youtube(classification=classification, **cc))
         assert use.use == RESEARCH_ONLY, classification
     assert use.reason in (ai_config.video_rights.reasons["no_class"],
                           ai_config.video_rights.reasons["other_creator_edited"])
+
+
+def test_with_the_owners_allowance_a_true_crime_channels_film_is_a_film_candidate_of_its_own_class():
+    assert ai_config.video_rights.youtube.true_crime_allowance.max_videos_per_case == 5
+    assert ai_config.video_rights.youtube.true_crime_allowance.max_clip_seconds == 40.0
+    for classification in ("creator_narration", "analysis", "documentary"):
+        use = VideoUseClassifier().classify(_youtube(classification=classification))
+        assert (use.use, use.source_class) == (FILM_CANDIDATE, "true_crime_channel"), classification
 
 
 def test_an_official_youtube_cc_video_with_evidence_is_a_film_candidate():
@@ -98,8 +108,11 @@ def test_the_footage_agent_refuses_a_research_video_a_page_and_a_missing_evidenc
                            (_video(url="https://archive.org/details/some-item"), "web page")):
         with pytest.raises(RightsRefused, match=message):
             asyncio.run(agent.ingest_film_candidate(None, None, video))
+    case = Case(canonical_title="YT", slug="yt-rights", language="en")
+    db_session.add(case)
+    db_session.commit()
     with pytest.raises(RightsRefused, match="switch is off"):     # a YouTube page: the owner's switch decides
-        asyncio.run(agent.ingest_film_candidate(db_session, None, _video(url="https://www.youtube.com/watch?v=abc")))
+        asyncio.run(agent.ingest_film_candidate(db_session, case, _video(url="https://www.youtube.com/watch?v=abc")))
 
 
 def test_a_film_candidate_that_passes_the_gate_goes_through_the_normal_footage_ingest(monkeypatch):

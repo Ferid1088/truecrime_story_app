@@ -768,8 +768,17 @@ class VideoRightsHosts(BaseModel):
     public_broadcasters: dict[str, str]
 
 
+class TrueCrimeAllowance(BaseModel):
+    """The owner's allowance: a few short clips of another true-crime channel's edited films (otherwise research only)."""
+
+    enabled: bool
+    max_videos_per_case: int = Field(ge=1)
+    max_clip_seconds: float = Field(gt=1)
+
+
 class VideoRightsYouTube(BaseModel):
     film_candidate_license: str
+    true_crime_allowance: TrueCrimeAllowance
     # Only these channel kinds (video classification) can be film candidates at all; the
     # videos of other true-crime channels (creator narration, analysis...) never are.
     film_candidate_classifications: list[str]

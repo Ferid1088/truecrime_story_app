@@ -21,6 +21,11 @@
     },
     "youtube": {
       "film_candidate_license": "creativeCommon",
+      "true_crime_allowance": {
+        "enabled": true,
+        "max_videos_per_case": 5,
+        "max_clip_seconds": 40.0
+      },
       "film_candidate_classifications": [
         "official",
         "archive"
