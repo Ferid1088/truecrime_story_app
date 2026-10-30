@@ -9,7 +9,8 @@
     "shots": {
       "min_seconds": 2.5,
       "max_still_seconds": 20.0,
-      "target_shots_per_minute": 8.5
+      "target_shots_per_minute": 8.5,
+      "director_slots_per_call": 4
     },
     "coverage": {
       "min_temporal_coverage": 0.9995,

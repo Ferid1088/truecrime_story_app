@@ -140,6 +140,8 @@ REQUIRED_ROLES = {
     # that a found picture shows no identifiable person and fits the words.
     # Other people's logos, watermarks and caption strips in a picture or footage: where they are (vision).
     "mvp_overlay_scanner",
+    # Just before the film is planned: what each approved picture or clip shows and which of the case's people it shows (vision).
+    "mvp_picture_describer",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2896,6 +2898,8 @@ class MvpShotsConfig(BaseModel):
     min_seconds: float = Field(gt=0.0)
     max_still_seconds: float = Field(gt=0.0)
     target_shots_per_minute: float = Field(gt=0.0)
+    # The director is asked about a scene of this many slots at a time (it sees the names in context and the pictures already used).
+    director_slots_per_call: int = Field(ge=1)
 
 
 class MvpCoverageConfig(BaseModel):

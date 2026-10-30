@@ -223,6 +223,13 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
     target = SimpleNamespace(plan_json="{}", validation_json="{}")
     monkeypatch.setattr(PL, "scan_overlays", scan)
     monkeypatch.setattr(PL, "label_timing", label)
+    async def describe(db, case, assets, entities):
+        calls.append("describe")
+        return {}
+
+    monkeypatch.setattr(PL.DS, "describe_approved", describe)
+    monkeypatch.setattr(PL.DS, "approved_assets", lambda db, plan: [])
+    monkeypatch.setattr(PL, "entities_with_dossiers", lambda db, case, requirements: [])
     monkeypatch.setattr(PL, "language_plan", lambda *a: target)
     monkeypatch.setattr(PL, "requirements_of", lambda plan: [])
     monkeypatch.setattr(PL, "case_region", lambda case: None)
@@ -234,4 +241,4 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
     needs = SimpleNamespace(validation_json=json.dumps({"mvp": {"reveal_graph_id": 1}}))
     bp = SimpleNamespace(blueprint_json="{}")
     asyncio.run(PL.stage_direct(SimpleNamespace(commit=lambda: None), SimpleNamespace(id=1), needs, bp, {}, "en"))
-    assert calls == ["overlays", "timing", "direct"]
+    assert calls == ["overlays", "timing", "describe", "direct"], "only the approved pictures are described, after they are cut and labelled"

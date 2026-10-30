@@ -78,3 +78,16 @@ def test_no_picture_stays_on_screen_longer_than_the_limit_the_rest_is_a_bare_mom
     assert shots[0]["end"] == 27.0 and shots[1]["kind"] == "black" and shots[1]["start"] == 27.0 and shots[1]["end"] == 89
     assert done[0]["was"] == 89.0
     assert PR.limit_picture_seconds([image(0, 27, "VIS_B")]) == []
+
+
+def test_the_photo_that_fits_the_words_is_chosen_for_a_named_person():
+    shots = [image(0, 60, "VIS_A", ["caleb_flynn"])]
+    sentences = [sentence(20, 30, "Alleigha Botner testified about the messages in court.")]
+    pool = [photo("VIS_PORTRAIT"), photo("VIS_COURT")]
+    desc = {"VIS_PORTRAIT": "a smiling woman outdoors", "VIS_COURT": "a woman who testified in court at the witness stand"}
+    PR.cover_people(shots, sentences, {"alleigha_botner": ["VIS_PORTRAIT", "VIS_COURT"]}, lambda beat: pool,
+                    lambda target, a, start, end, why: {**target, "asset_id": a.asset_code, "entities": ["alleigha_botner"],
+                                                        "start": start, "end": end},
+                    lambda t: "B01", lambda a: ["alleigha_botner"],
+                    lambda a, text: len(PR.tokens(text) & PR.tokens(desc[a.asset_code])))
+    assert next(s for s in shots if s["start"] <= 25 < s["end"])["asset_id"] == "VIS_COURT"

@@ -504,6 +504,13 @@
       "description": "Story timing: what each approved picture or clip shows and the first beat in which the story has told of it.",
       "used_by": "app/documentary/mvp/timing.py"
     },
+    "mvp.describe": {
+      "role": "mvp_picture_describer",
+      "prompt": "documentary/mvp/describe_system",
+      "output": "json",
+      "description": "Just before the film is planned: what each approved picture or clip shows and which of the case's people it shows (vision).",
+      "used_by": "app/documentary/mvp/describe.py"
+    },
     "mvp.overlay_scan": {
       "role": "mvp_overlay_scanner",
       "prompt": "documentary/mvp/overlay_scan_system",

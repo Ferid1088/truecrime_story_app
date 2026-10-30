@@ -44,6 +44,7 @@ from app.db.models import (
 from app.documentary import storage
 from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.mvp.overlays import crop_of
+from app.documentary.mvp import describe as DS
 from app.documentary.production import card_audit as CA
 from app.documentary.production import picture_rules as PR
 from app.documentary.visuals import rights as R
@@ -984,10 +985,13 @@ def _picture_rules(final: list[dict], manifest: dict, spans: list[dict], plan: d
 
     def words_of(code: str) -> set[str]:
         asset = assets.get(code)
-        return PR.tokens(f"{asset.title or ''} {' '.join(facts[code]['entities'])}") if asset else set()
+        return PR.tokens(f"{DS.depicts(asset)} {' '.join(facts[code]['entities'])}") if asset else set()
+
+    def fit(asset: VisualAsset, text: str) -> int:
+        return len(PR.tokens(text) & PR.tokens(DS.depicts(asset)))
 
     return {"people": PR.cover_people(final, sentences, persons, lambda beat: _earned_pool(beat, final, plan, assets, order, guard),
-                                      make, beat_at, lambda a: facts[a.asset_code]["entities"]),
+                                      make, beat_at, lambda a: facts[a.asset_code]["entities"], fit),
             "repeats": PR.drop_unrelated_repeats(final, sentences, words_of),
             "held_too_long": PR.limit_picture_seconds(final)}
 

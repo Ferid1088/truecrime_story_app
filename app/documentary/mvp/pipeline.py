@@ -28,6 +28,7 @@ from app.documentary.detective import timeline as TL
 from app.documentary.detective import toolkit as TK
 from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import coverage as CV
+from app.documentary.mvp import describe as DS
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import duplicates as DUP
 from app.documentary.mvp import evidence as EV
@@ -282,6 +283,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     requirements = requirements_of(needs_plan)
     overlays = await scan_overlays(db, case, needs_plan)      # first the marks: cut away, or the picture is out
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
+    described = await DS.describe_approved(db, case, DS.approved_assets(db, needs_plan),
+                                           entities_with_dossiers(db, case, requirements))   # and what each approved one shows
     sequence = reference_sequence(db, needs_plan, language)       # other languages show the English film's material
     timeline = TL.timeline_for(db, graph_id, manifest, language)   # the toolkit's fixed cards
     region = case_region(case)
@@ -322,9 +325,9 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         kept_before = {k: report[k] for k in ("moments", "topical") if k in report}
         report = await direct(matches, last=True)
         report.update(kept_before)
-    report["overlays"], report["timing"] = overlays, timing
+    report["overlays"], report["timing"], report["described"] = overlays, timing, described
     report["must_use"] = place_must_use(db, case.id, needs_plan, target)
-    kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing", "must_use") if k in report}
+    kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing", "described", "must_use") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)
         validation = json.loads(target.validation_json or "{}")
         validation.setdefault("plan", {}).update(kept)

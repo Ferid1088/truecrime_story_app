@@ -138,7 +138,7 @@ def test_unchanged_inputs_reuse_the_saved_direction_without_calling_the_agent(db
     second = run(D.direct_film(db_session, case, plan, manifest, None, {"B01": 0}, {}, director))
     assert calls["n"] == 1 and second["fingerprint"] == first["fingerprint"]
     run(D.direct_film(db_session, case, plan, _manifest([40.0]), None, {"B01": 0}, {}, director))
-    assert calls["n"] == 2
+    assert calls["n"] > 1, "a changed beat asks the director again (once for each scene of it)"
 
 
 def test_a_missing_picture_is_covered_by_holding_the_previous_one_within_the_still_limit(db_session):
@@ -507,3 +507,26 @@ def test_one_slot_that_breaks_a_rule_loses_only_itself_not_the_whole_beats_assig
 
 def test_the_director_reads_an_entity_as_a_name():
     assert D.readable("ent_jill_smith") == "Jill Smith" and D.readable("caleb_flynn") == "Caleb Flynn" and D.readable(None) is None
+
+
+def test_a_long_beat_is_directed_one_scene_at_a_time_and_a_picture_used_in_one_scene_is_not_offered_again(db_session):
+    case, plan = _plan(db_session, 12)
+    asked = []
+
+    async def director(case, beat, slots, pool):
+        asked.append(([s["slot"] for s in slots], [p["asset"] for p in pool]))
+        return [{"slot": 0, "asset": pool[0]["asset"]}]
+    run(D.direct_film(db_session, case, plan, _manifest([120.0]), None, {"B01": 0}, {}, director))
+    per_call = ai_config.mvp().shots.director_slots_per_call
+    assert len(asked) > 1 and all(len(slots) <= per_call and slots == list(range(len(slots))) for slots, _ in asked)
+    first_pool, second_pool = asked[0][1], asked[1][1]
+    assert first_pool[0] not in second_pool, "the picture the first scene used is not offered to the next"
+
+
+def test_a_picture_whose_card_shows_the_named_person_is_offered_although_its_own_entity_is_another():
+    family = _person("VIS_FAMILY", "caleb_flynn")
+    family.sha256 = "s"
+    family.spec_json = json.dumps({"picture_card": {"shows": "Caleb with his mother-in-law.", "sha": "s",
+                                                    "people": [{"entity": "caleb_flynn"}, {"entity": "jill_smith"}]}})
+    items = {"B05": [D.Item(family, "context", "caleb_flynn", 0, [])]}
+    assert [i.code for i in D.named_in_text(items, [], "Ashley's mother, Jill Smith, answered.")] == ["VIS_FAMILY"]

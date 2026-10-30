@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.agents.runner import run_agent
 from app.core.ai_config import ai_config
 from app.db.models import Case, MvpCandidate, MvpRequirement, RevealNode, VisualAsset, VisualPlan
+from app.documentary.mvp import describe as DS
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import neighbours as NC
 from app.documentary.mvp import satisfy as SA
@@ -50,6 +51,11 @@ class Item:
     @property
     def code(self) -> str:
         return self.asset.asset_code
+
+    @property
+    def people(self) -> list[str]:
+        """The case's people the picture's card says it shows (the picture's own entity first)."""
+        return list(dict.fromkeys(([self.entity] if self.entity else []) + DS.people_of(self.asset)))
 
     @property
     def clip_seconds(self) -> float | None:
@@ -199,7 +205,7 @@ def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str) -> 
     out: list[Item] = []
     for group in items.values():
         for item in group:
-            if item.code in have or not item.entity or not mentions(text, item.entity, _is_person(item)):
+            if item.code in have or not any(mentions(text, e, _is_person(item) or e != item.entity) for e in item.people):
                 continue
             have.add(item.code)
             out.append(item)
@@ -795,20 +801,26 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
             slots_view = [{"slot": n, "seconds": round(s["end"] - s["start"], 1),
                            "sentences": [x["speech"] for x in window["sentences"][s["from"]:s["to"] + 1]]}
                           for n, s in enumerate(slots)]
-            pool_view = [{"asset": i.code, "kind": i.asset.asset_type, "role": i.role, "entity": i.entity,
-                          "who": readable(i.entity),
-                          "depicts": (i.asset.description or i.asset.title or "")[:160], "owner_note": i.asset.owner_note,
-                          "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves,
-                          "named_in_text": i.code in named_codes} for i in pool]
-            proposal = validate_assignment(await director(case, beats.get(bid, {"beat_id": bid}),
-                                                          slots_view, pool_view), slots, pool)
-            if proposal:
-                for n, item in sorted(proposal.items()):
-                    if tracker.appearances(item.code) == 0 and tracker.allows(
-                            item.code, slots[n]["start"], slots[n]["end"])[0]:
+            per_call = cfg.director_slots_per_call
+            for first in range(0, len(slots), per_call):       # one scene at a time: the names are read in context
+                numbers = list(range(first, min(first + per_call, len(slots))))
+                left = [i for i in pool if i.code not in {c.code for c in chosen.values()}]
+                if not left:
+                    break
+                pool_view = [{"asset": i.code, "kind": i.asset.asset_type, "role": i.role, "entity": i.entity,
+                              "who": readable(i.entity), "depicts": DS.depicts(i.asset),
+                              "people_shown": [readable(e) for e in i.people], "owner_note": i.asset.owner_note,
+                              "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves,
+                              "named_in_text": i.code in named_codes} for i in left]
+                scene = [{**slots_view[n], "slot": k} for k, n in enumerate(numbers)]
+                proposal = validate_assignment(await director(case, beats.get(bid, {"beat_id": bid}), scene, pool_view),
+                                               [slots[n] for n in numbers], left)
+                for k, item in sorted((proposal or {}).items()):
+                    n = numbers[k]
+                    if tracker.appearances(item.code) == 0 and tracker.allows(item.code, slots[n]["start"], slots[n]["end"])[0]:
                         tracker.add(item.code, slots[n]["start"], slots[n]["end"])
                         chosen[n] = item
-                agent_used += 1 if chosen else 0
+            agent_used += 1 if chosen else 0
         if not (cached and cached["key"] == pool_key):
             new_cache[bid] = {"key": pool_key, "assignment": {str(n): i.code for n, i in chosen.items()}}
         else:
