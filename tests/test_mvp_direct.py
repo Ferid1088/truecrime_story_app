@@ -418,3 +418,18 @@ def test_bare_moments_are_reported_at_the_end_and_never_asked_about_again():
     assert PL.stage_complete(SimpleNamespace(validation_json="{}"), "en")["gaps"] == 0
 
 
+
+
+def test_a_person_the_beats_words_name_is_in_the_pool_although_the_picture_was_approved_for_another_beat():
+    from types import SimpleNamespace
+
+    from app.documentary.mvp import direct as D
+
+    def item(code, entity):
+        return D.Item(SimpleNamespace(asset_code=code), "context", entity, 0, [f"{code}.req"])
+
+    items = {"B05": [item("VIS_SMITH", "todd_smith"), item("VIS_CALEB", "caleb_flynn")], "B11": [item("VIS_OTHER", "paul_watkins")]}
+    pool = [item("VIS_OTHER", "paul_watkins")]
+    named = D.named_in_text(items, pool, "Todd and Jill Smith arrived at the house that morning.")
+    assert [i.code for i in named] == ["VIS_SMITH"], "only the person the words name, and nothing already in the pool"
+    assert D.named_in_text(items, pool, "Nothing was said about anyone.") == []

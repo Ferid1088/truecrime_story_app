@@ -24,6 +24,12 @@ DIRECT LIKE AN EDITOR
   that person or relation, never where they are about someone else.
 - Every pool item has "serves": the requirement keys it was approved for. Make sure each requirement of
   the beat appears in one slot where its words are spoken.
+- PEOPLE FIRST. Whenever the narration names a person, the film shows that person's picture where the name is spoken, and
+  the first time the film names a person that picture must be shown (when the pool has one). A pool item with
+  "named_in_text": true was approved for another part of the film but shows a person or place that THESE sentences name:
+  use it in the slot where the name is spoken. Who is shown is "entity" (and "depicts" and "owner_note"): never put a picture of
+  one person where the words are about another, and never let a person who is named go without their picture while a
+  picture of someone else is used in that slot.
 - Never fill a slot with a picture just to avoid emptiness. Repetition of a picture the viewer has just
   seen (shown_before > 0) is worse than an empty slot.
 

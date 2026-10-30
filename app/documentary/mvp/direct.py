@@ -22,6 +22,7 @@ from app.documentary.mvp import neighbours as NC
 from app.documentary.mvp import satisfy as SA
 from app.documentary.mvp import timing as TM
 from app.documentary.mvp.coverage import counted_requirements
+from app.documentary.production.picture_rules import mentions
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.providers.generation import get_generation_provider
@@ -137,6 +138,20 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
         out.setdefault(req.beat_id, []).append(
             Item(asset, cand.role or "context", req.entity_key, priority[req.priority] * 3
                  + ROLE_RANK.get(cand.role or "", 3), [req.requirement_key], moment))
+    return out
+
+
+def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str) -> list[Item]:
+    """The approved items of a person or place that the beat's own words name, approved for other beats (the beat's pool holds
+    only what was approved for the beat's requirements): the director may show them where the name is spoken."""
+    have = {i.code for i in pool}
+    out: list[Item] = []
+    for group in items.values():
+        for item in group:
+            if item.code in have or not item.entity or not mentions(text, item.entity):
+                continue
+            have.add(item.code)
+            out.append(item)
     return out
 
 
@@ -701,6 +716,10 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
         if not slots:
             continue
         pool = [i for i in items.get(bid, []) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
+        beat_text = " ".join(x["speech"] for x in window["sentences"])
+        named = [i for i in named_in_text(items, pool, beat_text) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
+        named_codes = {i.code for i in named}
+        pool += named
         near = [i for other, group in items.items() if abs(beat_order.get(other, 99) - beat_order.get(bid, 0)) <= 2
                 and other != bid for i in group
                 if i.entity in {p.entity for p in pool} and not reveal_blocked(
@@ -724,7 +743,8 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                           for n, s in enumerate(slots)]
             pool_view = [{"asset": i.code, "kind": i.asset.asset_type, "role": i.role, "entity": i.entity,
                           "depicts": (i.asset.description or i.asset.title or "")[:160], "owner_note": i.asset.owner_note,
-                          "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves} for i in pool]
+                          "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves,
+                          "named_in_text": i.code in named_codes} for i in pool]
             proposal = validate_assignment(await director(case, beats.get(bid, {"beat_id": bid}),
                                                           slots_view, pool_view), slots, pool)
             if proposal:
