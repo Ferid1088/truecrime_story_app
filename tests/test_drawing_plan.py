@@ -71,3 +71,8 @@ def test_a_film_too_short_to_finish_even_one_portrait_uses_one_at_the_fastest_sp
     plan = DP.plan_drawing([pic(0, 300)], [DP.Portrait("A", 1), DP.Portrait("B", 2)])
     assert plan.fits and len(plan.portraits) == 1 and plan.speed == ai_config.drawing_settings().max_speed
     assert plan.portraits[0]["finished"] is None, "it is not finished: the film ends first"
+
+
+def test_a_black_stretch_of_four_seconds_or_more_is_a_gap_whether_or_not_it_is_flagged_bare():
+    shots = [pic(0, 20), {"kind": "black", "start": 20.0, "end": 26.0}, {"kind": "black", "start": 26.0, "end": 28.0}, pic(28, 40)]
+    assert [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)] == [(0, 20, "window"), (20.0, 26.0, "full"), (28, 40, "window")]

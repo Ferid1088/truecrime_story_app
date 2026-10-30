@@ -44,14 +44,14 @@ class DrawingPlan:
 
 
 def intervals_of(shots: list[dict]) -> list[Interval]:
-    """The moments the drawing is on screen: a window over every picture and clip, the whole screen in every bare gap of the
-    configured length; shorter gaps are covered by the neighbouring pictures, cards hide the drawing."""
+    """The moments the drawing is on screen: a window over every picture and clip, the whole screen in every gap of the configured length
+    (a black stretch is a gap, flagged bare or not); shorter gaps are covered by the neighbouring pictures, cards hide the drawing."""
     cfg = ai_config.drawing_settings()
     out = []
     for shot in sorted(shots, key=lambda s: s["start"]):
         if shot.get("kind") in ("image", "video"):
             out.append(Interval(shot["start"], shot["end"], "window"))
-        elif shot.get("bare") and shot["end"] - shot["start"] >= cfg.gap_full_seconds:
+        elif (shot.get("bare") or shot.get("kind") == "black") and shot["end"] - shot["start"] >= cfg.gap_full_seconds:
             out.append(Interval(shot["start"], shot["end"], "full"))
     return out
 
