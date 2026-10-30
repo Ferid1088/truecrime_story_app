@@ -170,6 +170,8 @@ def owner_settled(candidate: MvpCandidate) -> str | None:
             state = "approved" if entry.get("decision") == "approve" else "rejected"
         elif entry.get("verifier") == INSPECTOR_REMOVAL:
             state = "rejected"
+        elif entry.get("verifier") == DUPLICATE_FILTER and entry.get("owner_ordered"):
+            state = "rejected"          # the owner told the planner to keep one of a repeated approved picture
     return state
 
 

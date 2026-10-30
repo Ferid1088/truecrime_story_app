@@ -267,3 +267,17 @@ def test_a_new_run_stops_for_review_1_even_when_an_earlier_run_was_reviewed(db_s
     restart_reviews(db_session, plan)
     with pytest.raises(AwaitingPictureReview, match="every photo and video"):
         stage_owner_attention(db_session, plan, "en")
+
+
+def test_saving_one_selection_field_keeps_the_other(db_session):
+    from app.db.models import VisualAsset
+
+    case, _, cand = _seed(db_session)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    asset.asset_type = "photo"
+    db_session.commit()
+    client, url = TestClient(app), f"/api/cases/{case.id}/mvp/assets/{asset.id}/selection"
+    assert client.put(url, json={"must_use": True}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": None}
+    assert client.put(url, json={"draw_priority": 4}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": 4}
+    assert client.put(url, json={"must_use": False}).json()["draw_priority"] == 4
+    assert client.put(url, json={"draw_priority": None}).json() == {"asset_id": asset.id, "must_use": False, "draw_priority": None}

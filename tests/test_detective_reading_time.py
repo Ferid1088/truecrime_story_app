@@ -15,10 +15,8 @@ from app.documentary.detective import reading as R
 from app.documentary.graphics import shots as GS
 
 ONE_LINE = {"facts": [{"text": "The gun was found.", "fact_id": "c0"}]}
-DENSE = {"facts": [
-    {"text": "The gun was found near the foot of the bed.", "fact_id": "c1"},
-    {"text": "Two cartridge casings lay beside it, both spent.", "fact_id": "c2"},
-    {"text": "Nothing suggested she had struggled with anyone.", "fact_id": "c3"}]}
+LONG = "The gun was found near the foot of the bed in the main bedroom while officers searched the room slowly"
+DENSE = {"facts": [{"text": LONG, "fact_id": f"c{i}"} for i in range(1, 4)]}
 
 
 def _resolved(data, key="a1"):

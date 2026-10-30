@@ -364,8 +364,8 @@ def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) ->
     if DR.reviews_done(needs_plan) >= 1:
         return
     raise AwaitingPictureReview(
-        f"Awaiting picture review: every photo and video found for the {language} film is waiting for your decision. Open "
-        "Review pictures, approve or reject them (check what must be used, give the photos to draw a priority), then resume.")
+        f"Awaiting picture review: every photo and video of the {language} film waits for your decision. "
+        "Open Review pictures, decide, then resume.")
 
 
 def cut_items(db: Session, needs_plan: VisualPlan) -> list[MvpCandidate]:

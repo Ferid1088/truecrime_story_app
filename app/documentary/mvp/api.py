@@ -216,6 +216,8 @@ def set_owner_note(case_id: int, asset_id: int, payload: OwnerNote, db: Session 
 
 
 class AssetSelection(BaseModel):
+    """What the owner changed: a field that is not sent keeps its value."""
+
     must_use: bool = False
     draw_priority: int | None = Field(default=None, ge=1, le=10)
 
@@ -227,14 +229,16 @@ def set_asset_selection(case_id: int, asset_id: int, payload: AssetSelection, db
     asset = db.get(VisualAsset, asset_id)
     if asset is None or asset.case_id != case_id:
         raise HTTPException(404, "No such picture in this case")
-    if payload.draw_priority is not None:
+    must_use = payload.must_use if "must_use" in payload.model_fields_set else asset.must_use
+    draw_priority = payload.draw_priority if "draw_priority" in payload.model_fields_set else asset.draw_priority
+    if draw_priority is not None and "draw_priority" in payload.model_fields_set:
         if asset.asset_type != "photo":
             raise HTTPException(422, "Only a photo can be drawn")
         taken = (db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.id != asset_id,
-                                              VisualAsset.draw_priority == payload.draw_priority).first())
+                                              VisualAsset.draw_priority == draw_priority).first())
         if taken is not None:
-            raise HTTPException(409, f"Priority {payload.draw_priority} belongs to {taken.asset_code}")
-    asset.must_use, asset.draw_priority = payload.must_use, payload.draw_priority
+            raise HTTPException(409, f"Priority {draw_priority} already belongs to {taken.asset_code}; give that one another first")
+    asset.must_use, asset.draw_priority = must_use, draw_priority
     db.commit()
     return {"asset_id": asset.id, "must_use": asset.must_use, "draw_priority": asset.draw_priority}
 

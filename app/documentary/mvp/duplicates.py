@@ -7,7 +7,9 @@ marked: the owner's decisions stand."""
 from __future__ import annotations
 
 import json
+import shutil
 from collections import defaultdict
+from pathlib import Path
 from functools import cache
 
 import numpy as np
@@ -101,5 +103,72 @@ def filter_duplicates(db: Session, plan: VisualPlan) -> dict:
                     {"verifier": VF.DUPLICATE_FILTER, "decision": "duplicate", "of": keeper.asset_code}])
                 cand.final_status = VF.final_status(cand)
                 stats["marked"] += 1
+    db.commit()
+    return stats
+
+
+def _keeper_of(group: list[VisualAsset], by_asset: dict[int, list[MvpCandidate]]) -> VisualAsset:
+    """The picture of a group that stays: the owner's approved one, else the one most requirements approved, else the largest."""
+    owner = [a for a in group if any(VF.owner_settled(c) == "approved" for c in by_asset[a.id])]
+    if owner:
+        return max(owner, key=lambda a: (sum(c.final_status == "approved" for c in by_asset[a.id]), -a.id))
+    return max(group, key=lambda a: (sum(c.final_status == "approved" for c in by_asset[a.id]),
+                                     (a.width or 0) * (a.height or 0), -a.id))
+
+
+def _into_repeated_folder(asset: VisualAsset) -> str | None:
+    """The file of a repeated picture moves to the case's `repeated` folder (its path is updated); returns the new path."""
+    source = storage.resolve(asset.local_path)
+    if source is None or not source.is_file():
+        return None
+    target = storage.visuals_dir(asset.case_id, "repeated") / source.name
+    shutil.move(source, target)
+    asset.local_path = (str(target.relative_to(storage.ROOT)) if not Path(asset.local_path).is_absolute()
+                        else str(target))
+    return asset.local_path
+
+
+def repeat_approved(db: Session, plan: VisualPlan) -> dict:
+    """Of the approved pictures that are the same picture, one stays approved. The others (also the owner's approved ones: the
+    owner asked for this) are marked as repeated, rejected, kept out of every list and moved to the `repeated` folder; what they
+    were approved for goes to the picture that stays. Returns the counts and the files."""
+    distance = ai_config.main_visual_planner.duplicates.max_hash_distance
+    rows = (db.query(MvpCandidate).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+            .filter(MvpRequirement.visual_plan_id == plan.id).all())
+    by_asset: dict[int, list[MvpCandidate]] = defaultdict(list)
+    for cand in rows:
+        by_asset[cand.visual_asset_id].append(cand)
+    approved = [a for a in db.query(VisualAsset).filter(VisualAsset.case_id == plan.case_id, VisualAsset.asset_type == "photo",
+                                                        VisualAsset.phash.isnot(None)).all()
+                if any(c.final_status == "approved" and not VF.is_duplicate(c) for c in by_asset.get(a.id, []))]
+    stats = {"groups": 0, "repeated": 0, "moved_files": 0, "approvals_moved": 0, "kept": []}
+    for group in groups_of(approved, distance):
+        stats["groups"] += 1
+        keeper = _keeper_of(group, by_asset)
+        kept = {c.requirement_id: c for c in by_asset[keeper.id]}
+        stats["kept"].append(keeper.asset_code)
+        for copy in group:
+            if copy.id == keeper.id:
+                continue
+            for cand in by_asset[copy.id]:
+                if VF.is_duplicate(cand):
+                    continue
+                if cand.final_status == "approved" and cand.requirement_id not in kept:
+                    moved = MvpCandidate(
+                        requirement_id=cand.requirement_id, visual_asset_id=keeper.id, role=cand.role,
+                        provenance_status=cand.provenance_status, identity_status=cand.identity_status,
+                        rights_status=cand.rights_status, ethics_status=cand.ethics_status, scene_status=cand.scene_status,
+                        final_status="approved", reasons_json=cand.reasons_json, verifiers_json=cand.verifiers_json)
+                    db.add(moved)
+                    kept[cand.requirement_id] = moved
+                    stats["approvals_moved"] += 1
+                cand.verifiers_json = json.dumps(json.loads(cand.verifiers_json or "[]") + [
+                    {"verifier": VF.DUPLICATE_FILTER, "decision": "duplicate", "of": keeper.asset_code, "owner_ordered": True}])
+                cand.final_status = VF.final_status(cand)
+                stats["repeated"] += 1
+            spec = json.loads(copy.spec_json or "{}")
+            spec["repeated_of"] = keeper.asset_code
+            copy.spec_json = json.dumps(spec)
+            stats["moved_files"] += _into_repeated_folder(copy) is not None
     db.commit()
     return stats

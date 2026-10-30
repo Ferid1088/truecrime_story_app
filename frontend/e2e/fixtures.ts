@@ -554,6 +554,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     candidate(2, "VIS_205", "Ka-Bar sheath", "the sheath on the evidence table", "verifiers disagree; stored for review"),
   ];
   const reviewQueueState = { list: () => reviewQueueItems };
+  const selections = new Map<number, { must_use: boolean; draw_priority: number | null }>();
 
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
@@ -667,7 +668,9 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     const selection = path.match(/^\/api\/cases\/1\/mvp\/assets\/(\d+)\/selection$/);
     if (selection && method === "PUT") {
       const body = route.request().postDataJSON() as { must_use?: boolean; draw_priority?: number | null };
-      return json(route, { asset_id: Number(selection[1]), must_use: body.must_use ?? false, draw_priority: body.draw_priority ?? null });
+      const id = Number(selection[1]);
+      selections.set(id, { must_use: false, draw_priority: null, ...selections.get(id), ...body });
+      return json(route, { asset_id: id, ...selections.get(id) });
     }
     if (path === "/api/cases/1/mvp/gaps") return json(route, { detail: "No en direction for this case yet" }, 404);
     if (path === "/api/cases/1/mvp/plan") return json(route, { detail: "No Main Visual Planner plan for this case yet" }, 404);

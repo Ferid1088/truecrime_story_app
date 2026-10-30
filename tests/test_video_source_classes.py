@@ -66,7 +66,9 @@ def test_a_creative_commons_video_of_a_channel_that_is_not_a_commentator_is_a_fi
     assert use.license_evidence_url and use.rights_status == "creative_commons"
 
 
-def test_another_creators_edited_film_is_always_research_only_whatever_its_markers_or_licence():
+def test_another_creators_edited_film_is_research_only_whatever_its_markers_or_licence_without_the_owners_allowance(
+        monkeypatch):
+    monkeypatch.setattr(ai_config.video_rights.youtube.true_crime_allowance, "enabled", False)
     for classification in ("documentary", "creator_narration", "analysis"):
         use = classify(classification=classification, channel_name="Dark Files Police Watch",
                        title="RAW eyewitness home video explained", license="creativeCommon",
@@ -128,8 +130,9 @@ def test_stored_videos_are_classified_again_under_the_current_classes(db_session
     db_session.commit()
     out = reclassify_case(db_session, case.id)
     got = {v.video_id: (v.use, v.source_class) for v in db_session.query(VideoSource).filter_by(case_id=case.id)}
-    assert got == {"a": ("film_candidate", "official_body"), "b": ("research_only", None), "c": ("research_only", None)}
-    assert out == {"film_candidate": 1, "research_only": 2, "by_class": {"official_body": 1}}
+    assert got == {"a": ("film_candidate", "official_body"), "b": ("film_candidate", "true_crime_channel"),
+                   "c": ("research_only", None)}, "b is another channel's film: the owner's allowance makes it a candidate"
+    assert out == {"film_candidate": 2, "research_only": 1, "by_class": {"official_body": 1, "true_crime_channel": 1}}
 
 
 def test_a_commentary_channel_titled_like_a_witness_video_is_not_a_witness(db_session):

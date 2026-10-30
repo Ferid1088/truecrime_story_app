@@ -65,26 +65,27 @@ function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): 
 
 const PRIORITIES = Array.from({ length: 10 }, (_, i) => i + 1);
 
+type SelectionValue = { must_use: boolean; draw_priority: number | null };
+
 /** The owner's selection of one picture or clip: checked, it is used 100 % in the film (a clip: its whole approved cut
- * once); a photo can also be given a drawing priority from 1 to 10 (the planner draws in that order). Saved at once. */
-function Selection({ caseId, item }: { caseId: number; item: MvpCandidateGroup }) {
-  const [mustUse, setMustUse] = useState(item.must_use);
-  const [priority, setPriority] = useState<number | null>(item.draw_priority);
-  const [status, setStatus] = useState("");
+ * once); a photo can also be given a drawing priority from 1 to 10 (the planner draws in that order). Saved at once; the
+ * saved value is kept by the page, so it is still shown when you come back to the picture. */
+function Selection({ caseId, item, value, onSaved }: {
+  caseId: number;
+  item: MvpCandidateGroup;
+  value: SelectionValue;
+  onSaved: (assetId: number, value: SelectionValue) => void;
+}) {
+  const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
 
   async function save(selection: { must_use?: boolean; draw_priority?: number | null }) {
-    const before = { mustUse, priority };
-    if (selection.must_use !== undefined) setMustUse(selection.must_use);
-    if (selection.draw_priority !== undefined) setPriority(selection.draw_priority);
+    setStatus(null);
     try {
       const out = await mvpApi.saveSelection(caseId, item.asset_id, selection);
-      setMustUse(out.must_use);
-      setPriority(out.draw_priority);
-      setStatus("Saved.");
+      onSaved(item.asset_id, { must_use: out.must_use, draw_priority: out.draw_priority });
+      setStatus({ text: "Saved.", error: false });
     } catch (e) {
-      setMustUse(before.mustUse);
-      setPriority(before.priority);
-      setStatus(e instanceof ApiError ? e.message : "Could not save your selection.");
+      setStatus({ text: e instanceof ApiError ? e.message : "Could not save your selection.", error: true });
     }
   }
 
@@ -93,7 +94,7 @@ function Selection({ caseId, item }: { caseId: number; item: MvpCandidateGroup }
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          checked={mustUse}
+          checked={value.must_use}
           data-testid="review-queue-must-use"
           onChange={(e) => void save({ must_use: e.target.checked })}
         />
@@ -104,7 +105,7 @@ function Selection({ caseId, item }: { caseId: number; item: MvpCandidateGroup }
           Drawing priority
           <select
             className="rounded border bg-background px-2 py-1 text-sm"
-            value={priority ?? ""}
+            value={value.draw_priority ?? ""}
             data-testid="review-queue-draw-priority"
             onChange={(e) => void save({ draw_priority: e.target.value === "" ? null : Number(e.target.value) })}
           >
@@ -116,7 +117,11 @@ function Selection({ caseId, item }: { caseId: number; item: MvpCandidateGroup }
           <span className="text-xs text-muted-foreground">1 is drawn first</span>
         </label>
       )}
-      {status && <p role="status" className="text-xs text-muted-foreground">{status}</p>}
+      {status && (
+        <p role="status" className={`text-xs ${status.error ? "font-medium text-rose-700" : "text-muted-foreground"}`}>
+          {status.text}
+        </p>
+      )}
     </div>
   );
 }
@@ -199,6 +204,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const { data: gaps, refetch: refetchGaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
   const [index, setIndex] = useState(0);
   const [decided, setDecided] = useState<Record<number, Verdict>>({});
+  const [selections, setSelections] = useState<Record<number, SelectionValue>>({});
   const [message, setMessage] = useState("");
   const activeRef = useRef<HTMLButtonElement | null>(null);
   const flushNote = useRef<(() => Promise<boolean>) | null>(null);
@@ -505,7 +511,13 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 )}
               </p>
             </div>
-            <Selection key={`selection-${item.asset_id}`} caseId={caseId} item={item} />
+            <Selection
+              key={`selection-${item.asset_id}`}
+              caseId={caseId}
+              item={item}
+              value={selections[item.asset_id] ?? { must_use: item.must_use, draw_priority: item.draw_priority }}
+              onSaved={(assetId, value) => setSelections((all) => ({ ...all, [assetId]: value }))}
+            />
             <OwnerNote key={item.asset_id} caseId={caseId} item={item} flushRef={flushNote} />
             <div className="flex flex-wrap gap-2" data-testid="review-queue-decisions">
               {DECISIONS.map((key) => (

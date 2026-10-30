@@ -127,3 +127,33 @@ def test_two_different_pictures_with_close_hashes_are_not_duplicates(db_session,
     _offer(db_session, plan, case, a, "B01.1")
     _offer(db_session, plan, case, b, "B01.1")
     assert DUP.filter_duplicates(db_session, plan) == {"groups": 0, "marked": 0, "moved": 0}
+
+
+def _approve(db, cand, by_owner=False):
+    cand.final_status = "approved"
+    if by_owner:
+        cand.verifiers_json = json.dumps([{"verifier": "owner", "decision": "approve"}])
+    db.commit()
+
+
+def test_of_repeated_approved_pictures_one_stays_approved_and_the_others_go_to_the_repeated_folder(db_session, pictures):
+    from pathlib import Path
+
+    case, plan = _plan(db_session)
+    kept = _photo(db_session, case, SAME, pictures["large"], 1600, 1200)
+    copy = _photo(db_session, case, NEAR, pictures["small"], 400, 300)
+    other = _photo(db_session, case, OTHER, pictures["other"])
+    for asset, key in ((kept, "B01.1"), (copy, "B01.2"), (other, "B01.1")):
+        _approve(db_session, _offer(db_session, plan, case, asset, key), by_owner=asset is not other)
+    stats = DUP.repeat_approved(db_session, plan)
+    assert (stats["groups"], stats["repeated"], stats["moved_files"], stats["approvals_moved"]) == (1, 1, 1, 1)
+    assert stats["kept"] == [kept.asset_code]
+    moved = db_session.query(MvpCandidate).filter_by(visual_asset_id=copy.id).one()
+    assert VF.is_duplicate(moved) and moved.final_status == "rejected", "also the owner's approval: the owner ordered it"
+    to_keeper = db_session.query(MvpCandidate).filter_by(visual_asset_id=kept.id).all()
+    assert sorted(c.final_status for c in to_keeper) == ["approved", "approved"], "the repeated one's approval is moved"
+    assert db_session.query(MvpCandidate).filter_by(visual_asset_id=other.id).one().final_status == "approved"
+    db_session.refresh(copy)
+    assert Path(copy.local_path).parent.name == "repeated" and Path(copy.local_path).is_file()
+    assert json.loads(copy.spec_json)["repeated_of"] == kept.asset_code
+    assert DUP.repeat_approved(db_session, plan)["repeated"] == 0

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 VISUAL_DIRS = {
     "photo": "photos", "video": "video", "document": "documents", "map": "maps",
-    "card": "cards", "graphic": "cards", "broll": "broll",
+    "card": "cards", "graphic": "cards", "broll": "broll", "repeated": "repeated",
 }
 
 
