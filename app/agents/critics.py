@@ -12,6 +12,7 @@ from app.documentary.visuals.usage import annotate, asset_facts, record_media_us
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
 from app.documentary.production import card_audit as CA
+from app.documentary.production import picture_rules as PR
 from app.documentary.production.critics import (
     CRITIC_FOCUS,
     CRITIC_ROLES,
@@ -71,6 +72,7 @@ class DocumentaryCritics:
             if report["fixes"]:
                 # a fix may have moved a card: every card gets its own time again
                 report["card_audit"] = CA.audit(script.get("shots") or [], script.get("board"))
+                report["picture_limit"] = PR.limit_picture_seconds(script.get("shots") or [])     # and no picture stays too long
                 for n, sh in enumerate(script.get("shots") or []):
                     sh["index"] = n
                 # appearance numbers and justifications follow the fixed cut

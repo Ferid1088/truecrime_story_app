@@ -91,3 +91,13 @@ def test_the_photo_that_fits_the_words_is_chosen_for_a_named_person():
                     lambda t: "B01", lambda a: ["alleigha_botner"],
                     lambda a, text: len(PR.tokens(text) & PR.tokens(desc[a.asset_code])))
     assert next(s for s in shots if s["start"] <= 25 < s["end"])["asset_id"] == "VIS_COURT"
+
+
+def test_a_picture_stretched_over_the_hole_a_removed_card_left_is_cut_again_at_the_limit():
+    from app.documentary.production import card_audit as CA
+
+    shots = [image(0, 20, "VIS_A"), {"kind": "graphic", "start": 20.0, "end": 30.0}, image(60, 80, "VIS_B")]
+    CA.audit(shots)                                    # the card is too short: taken out, and the picture before it holds the hole
+    assert shots[0]["end"] - shots[0]["start"] > 27
+    PR.limit_picture_seconds(shots)
+    assert shots[0]["end"] - shots[0]["start"] <= 27 and any(s.get("bare") for s in shots)
