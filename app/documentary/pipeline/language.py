@@ -217,7 +217,7 @@ class LanguageChain:
         await pipe._stage(f"mvp_complete:{lang}", mvp_complete)
 
         async def mvp_portraits():
-            return MVP.stage_portraits(db, case, plan_row, manifest, lang)
+            return MVP.stage_portraits(db, case, plan_row, manifest, lang, require_made=not planning)
 
         await pipe._stage(f"mvp_portraits:{lang}", mvp_portraits)
         if planning:

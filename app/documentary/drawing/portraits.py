@@ -48,3 +48,26 @@ def label(seconds: float) -> str:
     if seconds == NEVER:
         return "never"
     return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
+
+
+def person_keys(db: Session, case, plan_row) -> set[str]:
+    """The entity keys of the case's people (from the needs plan this language's plan was made from)."""
+    import json
+
+    from app.db.models import VisualPlan
+    from app.documentary.mvp.pipeline import entities_with_dossiers, requirements_of
+
+    needs = db.get(VisualPlan, json.loads(plan_row.validation_json or "{}").get("mvp", {}).get("needs_plan_id") or 0)
+    entities = entities_with_dossiers(db, case, requirements_of(needs)) if needs is not None else []
+    return {e["key"] for e in entities if e.get("type") == "person"}
+
+
+def no_portrait_message(language: str, gaps: list[dict], pool: list[Portrait]) -> str:
+    """What the owner reads when a gap has no portrait that may be shown without a spoiler."""
+    usable = [p for p in pool if p.refused is None]
+    first = gaps[0]
+    earliest = min(usable, key=lambda p: p.earned_from)
+    return (f"Awaiting portrait choice: {len(gaps)} gap(s) of the {language} film have no portrait that may be shown without a spoiler "
+            f"(the first at {label(first['start'])}). Of your {len(pool)} photos, none shows a person named in the film by then: "
+            f"{label(first['start'])} comes before {earliest.code} (its person is named at {label(earliest.earned_from)}). "
+            "Open Review pictures and give a photo of someone named earlier the drawing priority 1.")

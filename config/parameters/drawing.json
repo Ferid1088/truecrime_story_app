@@ -12,6 +12,13 @@
       "width": 120,
       "height": 150
     },
-    "finish_hold_seconds": 4.0
+    "finish_hold_seconds": 4.0,
+    "grow_seconds": 0.8,
+    "fade_seconds": 0.4,
+    "pencil": {
+      "length": 4.5,
+      "thickness": 0.9,
+      "angle_degrees": 36
+    }
   }
 }

@@ -39,7 +39,9 @@ from app.documentary.render.cards import (
     chapter_image,
     title_image,
 )
+from app.documentary.render.drawing_layer import DrawingLayer
 from app.documentary.render.logo import LogoBug
+from app.documentary.visuals.typography import RTL
 from app.documentary.visuals.typography import overlay as text_layer
 
 MARGIN = 1.16          # canvas headroom for camera moves
@@ -431,7 +433,11 @@ class Overlays:
         lang = script["language"]
         for ov in script.get("overlays") or []:
             layer = text_layer(ov["kind"], ov["text"], lang, W, H)
-            self.items.append((ov["start"], ov["end"], *self._prep(layer)))
+            box, rgb, alpha = self._prep(layer)
+            if ov.get("offset_fraction") and rgb is not None:         # beside the drawing window, never under it
+                dx = round(W * ov["offset_fraction"]) * (-1 if lang in RTL else 1)
+                box = (box[0] + dx, box[1], box[2] + dx, box[3])
+            self.items.append((ov["start"], ov["end"], box, rgb, alpha))
         if burn_subtitles:
             for sub in script.get("subtitles") or []:
                 layer = text_layer("subtitle", sub["text"], lang, W, H)
@@ -593,6 +599,7 @@ class VideoRenderer:
         ]
         overlays = Overlays(script, W, H, cfg.burn_subtitles)
         logo = LogoBug(script, W, H)
+        drawing = DrawingLayer(script, W, H)
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         total = int(math.ceil((duration + pre) * fps))
         idx = 0
@@ -622,7 +629,7 @@ class VideoRenderer:
                     frame = (frame.astype(np.float32) * _ease(since / 1.2)).astype(np.uint8)
                 if duration - t < 1.5:  # fade out at the very end
                     frame = (frame.astype(np.float32) * _ease((duration - t) / 1.5)).astype(np.uint8)
-                frame = overlays.apply(logo.apply(frame, t), t)
+                frame = overlays.apply(logo.apply(drawing.apply(frame, t), t), t)
                 proc.stdin.write(np.ascontiguousarray(frame).tobytes())
                 maker.release_clips(t)
                 if progress and f % (fps * 5) == 0:
@@ -644,6 +651,7 @@ class VideoRenderer:
             raise
         finally:
             maker.release_clips()
+            drawing.close()
             _canvas.cache_clear()
         info = {"path": storage.rel(out_path), "srt": storage.rel(srt),
                 "duration": round(duration + pre, 3), "width": W, "height": H, "fps": fps,

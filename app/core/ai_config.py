@@ -3069,6 +3069,14 @@ class DrawingWindowConfig(BaseModel):
     height: int = Field(gt=0)
 
 
+class DrawingPencilConfig(BaseModel):
+    """The tiny black-and-white pencil, in pixels on a 1280-wide frame (scaled with the film's size)."""
+
+    length: float = Field(gt=0.0)
+    thickness: float = Field(gt=0.0)
+    angle_degrees: float
+
+
 class DrawingConfig(BaseModel):
     """The pencil drawing of a portrait (config/parameters/drawing.json): one portrait is drawn in `base_seconds` of drawing time
     at normal speed; the planner runs it between `min_speed` and `max_speed`, shows it in a corner window over the pictures
@@ -3082,6 +3090,10 @@ class DrawingConfig(BaseModel):
     full_opacity: float = Field(gt=0.0, le=1.0)
     window: DrawingWindowConfig
     finish_hold_seconds: float = Field(ge=0.0)
+    # The window grows over a gap and shrinks after it in `grow_seconds`; it fades in and out over a card in `fade_seconds`.
+    grow_seconds: float = Field(gt=0.0)
+    fade_seconds: float = Field(gt=0.0)
+    pencil: DrawingPencilConfig
 
     @model_validator(mode="after")
     def _speeds(self):

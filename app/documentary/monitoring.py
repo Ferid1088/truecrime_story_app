@@ -197,10 +197,13 @@ class CaseMonitor(Monitor):
 
     def stopped_job(self, job: DocumentaryJob, view: dict) -> None:
         portrait = "Awaiting portrait choice" in (job.error or "")
-        awaiting = portrait or "Awaiting picture review" in (job.error or "")
+        made = "Awaiting portrait creation" in (job.error or "")
+        awaiting = portrait or made or "Awaiting picture review" in (job.error or "")
         actions = []
         if portrait:
             actions.append(Action("Choose another first portrait", "href", f"/documentary/{job.case_id}/review?portraits=1"))
+        elif made:
+            actions.append(Action("Create the portraits", "href", f"/documentary/{job.case_id}/review"))
         elif awaiting:
             actions.append(Action("Review pictures", "href", f"/documentary/{job.case_id}/review"))
         elif view["stage"]:

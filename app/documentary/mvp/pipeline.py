@@ -28,6 +28,8 @@ from app.documentary.detective import timeline as TL
 from app.documentary.detective import toolkit as TK
 from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import coverage as CV
+from app.documentary.drawing import plan as DP
+from app.documentary.drawing import portraits as DRP
 from app.documentary.mvp import describe as DS
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import duplicates as DUP
@@ -404,18 +406,14 @@ async def stage_cut(db: Session, case: Case, needs_plan: VisualPlan, bp_row: Edi
     return {"overlays": overlays, "timing": timing, "cut_items": len(items)}
 
 
-def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str) -> dict:
+def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str, require_made: bool = False) -> dict:
     """No film without the pencil drawing, and no gap of the film without a portrait: every gap of four seconds or more must have a
     photo (of the ones the owner chose, in priority order) that may be shown there without giving the story away. When one has not,
     the run stops here, before anything is rendered, and tells the owner what to do (Monitoring shows it with a button to the review)."""
-    from app.documentary.drawing import plan as DP
-    from app.documentary.drawing import portraits as DRP
     from app.documentary.pipeline.errors import AwaitingPortrait
 
     sentences = manifest["timeline"].get("sentences") or []
-    needs = db.get(VisualPlan, json.loads(plan_row.validation_json or "{}").get("mvp", {}).get("needs_plan_id") or 0)
-    entities = entities_with_dossiers(db, case, requirements_of(needs)) if needs is not None else []
-    pool = DRP.portrait_pool(db, case.id, sentences, {e["key"] for e in entities if e.get("type") == "person"})
+    pool = DRP.portrait_pool(db, case.id, sentences, DRP.person_keys(db, case, plan_row))
     usable = [p for p in pool if p.refused is None]
     if not usable:
         raise AwaitingPortrait(
@@ -424,13 +422,7 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
     gaps = (json.loads(plan_row.validation_json or "{}").get("plan") or {}).get("gaps") or []
     bad = DP.uncoverable(gaps, pool)
     if bad:
-        first = bad[0]
-        earliest = min(usable, key=lambda p: p.earned_from)
-        raise AwaitingPortrait(
-            f"Awaiting portrait choice: {len(bad)} gap(s) of the {language} film have no portrait that may be shown without a spoiler "
-            f"(the first at {DRP.label(first['start'])}). Of your {len(pool)} photos, none shows a person named in the film by then: "
-            f"{DRP.label(first['start'])} comes before {earliest.code} (its person is named at {DRP.label(earliest.earned_from)}). "
-            "Open Review pictures and give a photo of someone named earlier the drawing priority 1.")
+        raise AwaitingPortrait(DRP.no_portrait_message(language, bad, pool))
     plan = json.loads(plan_row.validation_json or "{}").get("plan") or {}
     shots = DP.estimated_shots(float(manifest.get("duration_seconds") or 0.0), gaps,
                                sum(v for k, v in (plan.get("alternatives") or {}).items() if k != "map") + (plan.get("alternatives") or {}).get("map", 0.0))
@@ -442,6 +434,12 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
     validation.setdefault("mvp", {})["portraits"] = record
     plan_row.validation_json = json.dumps(validation, ensure_ascii=False)
     db.commit()
+    if require_made:                         # a film that is rendered needs its portraits made (the owner presses Create portraits)
+        from app.documentary.drawing.script import awaiting_creation, not_made
+
+        missing = not_made(db, case.id, [o["code"] for o in record["order"]])
+        if missing:
+            raise awaiting_creation(missing, record["needed"])
     return {"portraits": len(pool), "usable": len(usable), "gaps_checked": len(gaps), "needed": record["needed"],
             "speed": record["speed"]}
 

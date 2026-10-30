@@ -639,6 +639,11 @@ function JobPanel({
             <span className="font-medium">Next:</span> {job.next_action}
           </p>
         )}
+        {job.error?.includes("Awaiting portrait creation") && (
+          <Button size="sm" onClick={() => router.push(`/documentary/${job.case_id}/review`)} data-testid="job-create-portraits">
+            Create the portraits
+          </Button>
+        )}
         {job.error?.includes("Awaiting portrait choice") && (
           <Button size="sm" onClick={() => router.push(`/documentary/${job.case_id}/review?portraits=1`)} data-testid="job-choose-portrait">
             Choose another first portrait
