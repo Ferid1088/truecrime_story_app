@@ -92,7 +92,7 @@
       ]
     },
     "timeline": {
-      "node_text_max_chars": 70,
+      "node_text_max_chars": 52,
       "max_points": 8,
       "max_labels_per_point": 2
     },

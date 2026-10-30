@@ -32,6 +32,14 @@ def date_key(date: dict) -> tuple[int, int, int]:
     return date["year"], date.get("month") or 0, date.get("day") or 0
 
 
+def _short(text: str, limit: int) -> str:
+    """`text` cut at a word boundary to at most `limit` characters."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-")
+
+
 def merge_points(events: list[dict]) -> list[dict]:
     """The time points of some events ({key, label, date}): one point per date, in date order, the texts of a date together
     (as many as a point may show, each cut to the length a text may have)."""
@@ -39,7 +47,7 @@ def merge_points(events: list[dict]) -> list[dict]:
     merged: dict[tuple[int, int, int], dict] = {}
     for e in events:
         point = merged.setdefault(date_key(e["date"]), {"date": e["date"], "labels": [], "fact_id": e["key"]})
-        label = " ".join(e["label"].split())[:cfg["node_text_max_chars"]].rstrip()
+        label = _short(e["label"], cfg["node_text_max_chars"])
         if label not in point["labels"]:
             point["labels"].append(label)
     return [{**p, "labels": p["labels"][:cfg["max_labels_per_point"]]} for _, p in sorted(merged.items())]

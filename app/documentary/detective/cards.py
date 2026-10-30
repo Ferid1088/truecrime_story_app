@@ -321,17 +321,20 @@ def timeline_events(db: Session, graph_id: int) -> list[dict]:
 
 def ensure_map(db: Session, graph_id: int, units: list[NarrationUnit], language: str) -> bool:
     """The film's map: a stored place (a place or building of the graph) shown after the beat that names it. None is made
-    when the film has a map already or the graph holds no place."""
+    when the film has a map already or the graph holds no place; a place the text never names is shown after the first beat."""
     if (db.query(DetectiveToolAction).join(DetectiveScene, DetectiveScene.id == DetectiveToolAction.scene_id)
             .filter(DetectiveScene.graph_id == graph_id, DetectiveToolAction.tool_id == "map").first()):
         return False
-    beats = {u.beat_id for u in units}
-    node = next((n for n in db.query(RevealNode).filter(RevealNode.graph_id == graph_id,
-                                                        RevealNode.category.in_(("place", "building")))
-                 .order_by(RevealNode.first_revealed_order) if n.first_revealed_beat_id in beats and n.label), None)
+    texts = {u.unit_key: " ".join(u.text.lower().split()) for u in units}
+    places = [n for n in db.query(RevealNode).filter(RevealNode.graph_id == graph_id,
+                                                     RevealNode.category.in_(("place", "building", "location")))
+              .order_by(RevealNode.first_revealed_order) if n.label]
+    named = [(n, next((k for k, t in texts.items() if n.label.lower() in t), None)) for n in places]
+    node, unit_key = next(((n, k) for n, k in named if k), (places[0], units[0].unit_key) if places else (None, None))
     if node is None:
         return False
-    keys = [u.unit_key for u in units if u.beat_id == node.first_revealed_beat_id]
+    beat = next(u.beat_id for u in units if u.unit_key == unit_key)
+    keys = [u.unit_key for u in units if u.beat_id == beat]
     action = store_card(db, graph_id, Part("MAP", keys, f"Where it happened: {node.label}", ["map"]), "map",
                         {"place": node.label}, units, language, 0)
     action.payload_json = json.dumps({"place": node.label, "data": {"place": node.label}, "part": "MAP",

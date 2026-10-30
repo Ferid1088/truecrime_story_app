@@ -8,11 +8,12 @@ import json
 import pytest
 
 from app.core.ai_config import ai_config
-from app.db.models import DetectiveScene, DetectiveToolAction
+from app.db.models import DetectiveScene, DetectiveToolAction, RevealNode
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import cards as CD
 from app.documentary.detective import timeline_cards as TC
 from app.documentary.detective import toolkit
+from app.documentary.graphics import theme as T
 from app.documentary.graphics.timeline import merge_points
 from tests.detective_film import film
 
@@ -187,6 +188,14 @@ def test_the_map_comes_from_a_stored_place_once(db_session):
     assert BD.issue_of(db_session, action) is None
 
 
+def test_a_place_that_is_not_in_the_films_beats_still_gives_the_map(db_session):
+    graph, units = film(db_session)
+    place = db_session.query(RevealNode).filter_by(graph_id=graph.id, node_key="loc1").one()
+    place.first_revealed_beat_id, place.category = "B00", "location"
+    db_session.flush()
+    assert CD.ensure_map(db_session, graph.id, units, "en") is True
+
+
 def test_a_card_is_shown_after_the_last_sentence_it_covers():
     from app.db.models import NarrationUnit
 
@@ -240,6 +249,13 @@ def test_events_of_the_same_date_become_one_time_point_and_the_points_run_later(
     points = merge_points(events)
     assert [p["labels"] for p in points] == [["Officers found the casings", "He called 911"], ["A letter arrived"]]
     assert [p["date"]["month"] for p in points] == [2, 6]
+
+
+def test_a_long_event_text_is_cut_at_a_word_to_the_length_a_point_may_show():
+    limit = T.config().timeline["node_text_max_chars"]
+    label = merge_points([{"key": "T1", "label": "Botner testified she began an affair with Flynn in March 2024 and more",
+                           "date": {"year": 2024, "month": 3}}])[0]["labels"][0]
+    assert len(label) <= limit and not label.endswith(" ") and "Flynn" in label and "and more" not in label
 
 
 def test_the_timeline_cards_are_runs_of_dates_made_once_and_shown_after_their_last_event(db_session):
