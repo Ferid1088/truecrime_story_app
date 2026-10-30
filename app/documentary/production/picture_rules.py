@@ -137,3 +137,49 @@ def cover_people(shots: list[dict], sentences: list[dict], persons: dict[str, li
             done.append({"fix": "person_shown", "person": slug, "asset": options[0].asset_code, "start": round(start, 1),
                          "first_mention": first})
     return done
+
+
+def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[dict]:
+    """A black stretch shorter than the drawing's gap length is covered by its neighbours: the picture before it is held longer, else
+    the one after it starts earlier, else the two share it, always within the limit a picture may stay. Black stretches next to each
+    other are one stretch first. A stretch at the very start or end of the film (its fades) stays."""
+    limit = ai_config.motion.max_picture_seconds
+    gap = ai_config.drawing_settings().gap_full_seconds
+    shots.sort(key=lambda s: (s["start"], s["end"]))
+    merged: list[dict] = []
+    for shot in shots:
+        if merged and shot["kind"] == "black" and merged[-1]["kind"] == "black" and shot["start"] - merged[-1]["end"] < 1e-3:
+            merged[-1]["end"] = shot["end"]
+            merged[-1]["bare"] = bool(merged[-1].get("bare") or shot.get("bare"))
+        else:
+            merged.append(shot)
+    shots[:] = merged
+    end = film_end if film_end is not None else max((s["end"] for s in shots), default=0.0)
+    done = []
+    i = 0
+    while i < len(shots):
+        g = shots[i]
+        length = g["end"] - g["start"]
+        before = shots[i - 1] if i else None
+        after = shots[i + 1] if i + 1 < len(shots) else None
+        if g["kind"] != "black" or not 0.05 < length < gap or g["start"] < 0.5 or g["end"] > end - 0.5:
+            i += 1
+            continue
+
+        def room(shot):
+            return shot is not None and shot["kind"] == "image" and shot["end"] - shot["start"] + length <= limit + 1e-6
+
+        if room(before):
+            before["end"] = g["end"]
+        elif room(after):
+            after["start"] = g["start"]
+        elif (before is not None and before["kind"] == "image" and after is not None and after["kind"] == "image"
+              and before["end"] - before["start"] + length / 2 <= limit and after["end"] - after["start"] + length / 2 <= limit):
+            mid = round(g["start"] + length / 2, 3)
+            before["end"], after["start"] = mid, mid
+        else:
+            i += 1
+            continue
+        done.append({"fix": "short_gap_covered", "start": round(g["start"], 1), "seconds": round(length, 1)})
+        shots.pop(i)
+    return done

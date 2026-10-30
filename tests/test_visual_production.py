@@ -241,16 +241,13 @@ def test_compose_timeline_from_real_audio():
     # stays, and the black beat becomes a short pause at its end (never
     # 20 s of black, never a return of an earlier picture)
     # (no picture is held longer than motion.max_picture_seconds: what is left of the hold is a bare moment)
-    assert [x["kind"] for x in shots] == ["image", "image", "black", "black"]
+    assert [x["kind"] for x in shots] == ["image", "image", "black"]
     assert shots[0]["start"] == 0 and shots[0]["end"] == 20.0  # date extends the image
     assert shots[1]["asset_id"] == "VIS_000002" and shots[1]["start"] == 20.0
     assert shots[1]["end"] - shots[1]["start"] == pytest.approx(ai_config.motion.max_picture_seconds)
     assert "no picture twice" in shots[1]["held_reason"]
-    assert shots[2].get("bare") is True and shots[2]["start"] == pytest.approx(shots[1]["end"])
-    assert shots[3]["end"] == 60.0
-    assert shots[3]["end"] - shots[3]["start"] == pytest.approx(
-        ai_config.attention.max_black_seconds
-    )
+    # what the limit cut and the black pause at the end are one black stretch: a gap the pencil drawing fills the screen of
+    assert shots[2].get("bare") is True and shots[2]["start"] == pytest.approx(shots[1]["end"]) and shots[2]["end"] == 60.0
     # credits and the illustration label follow the final cut
     creds = [o for o in s["overlays"] if o["kind"] == "credit"]
     assert [(o["start"], o["end"]) for o in creds] == [(0.0, 20.0)]

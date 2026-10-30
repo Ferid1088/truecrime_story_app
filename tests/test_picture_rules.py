@@ -101,3 +101,29 @@ def test_a_picture_stretched_over_the_hole_a_removed_card_left_is_cut_again_at_t
     assert shots[0]["end"] - shots[0]["start"] > 27
     PR.limit_picture_seconds(shots)
     assert shots[0]["end"] - shots[0]["start"] <= 27 and any(s.get("bare") for s in shots)
+
+
+def black(start, end):
+    return {"kind": "black", "start": start, "end": end}
+
+
+def test_a_black_stretch_under_four_seconds_is_covered_by_the_picture_before_it():
+    shots = [image(0, 10, "A"), black(10, 12.5), image(12.5, 30, "B")]
+    done = PR.cover_short_gaps(shots)
+    assert [s["kind"] for s in shots] == ["image", "image"] and shots[0]["end"] == 12.5 and done[0]["seconds"] == 2.5
+
+
+def test_when_the_picture_before_is_at_its_limit_the_picture_after_starts_earlier_and_else_the_two_share_the_gap():
+    after = [image(0, 27, "A"), black(27, 29), image(29, 40, "B")]
+    PR.cover_short_gaps(after)
+    assert after[1]["start"] == 27
+    shared = [image(0, 25.5, "A"), black(25.5, 28.5), image(28.5, 54, "B")]
+    PR.cover_short_gaps(shared)
+    assert shared[0]["end"] == shared[1]["start"] == 27.0 and len(shared) == 2
+
+
+def test_two_black_stretches_next_to_each_other_are_one_gap_and_a_long_gap_or_the_films_fade_is_left_alone():
+    shots = [image(0, 10, "A"), black(10, 12), black(12, 15), image(15, 30, "B")]       # 5 s together: a drawing gap, not covered
+    assert PR.cover_short_gaps(shots) == [] and [s["kind"] for s in shots] == ["image", "black", "image"]
+    fade = [image(0, 10, "A"), black(10, 12)]
+    assert PR.cover_short_gaps(fade, 12.0) == [] and fade[-1]["kind"] == "black"

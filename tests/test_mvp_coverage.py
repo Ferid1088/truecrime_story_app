@@ -80,3 +80,30 @@ def test_probe_reads_the_real_file(tmp_path):
     info = C.probe_file(out)
     assert (info["width"], info["height"], info["video_codec"]) == (320, 180, "h264")
     assert 1.8 < info["duration"] < 2.3 and info["black_seconds"] == 0.0
+
+
+def test_a_gap_the_pencil_drawing_fills_the_whole_screen_of_is_covered_and_not_black(db_session):
+    plan = _plan(db_session)
+    script = {"duration": 40.0, "shots": [shot(0, 20), shot(20, 40, kind="black")],
+              "drawing": {"segments": [{"start": 20.0, "end": 40.0, "mode": "full"}]}}
+    report = C.measure(script, plan, db_session, [])
+    assert report["temporal_coverage"] == 1.0 and report["black_seconds"] == 0.0 and report["longest_black"] == 0.0
+    undrawn = C.measure({"duration": 40.0, "shots": script["shots"]}, plan, db_session, [])
+    assert undrawn["temporal_coverage"] == 0.5 and undrawn["longest_black"] == 20.0
+
+
+def test_a_picture_approved_in_an_earlier_round_is_not_flagged_and_a_picture_may_stay_27_seconds(db_session):
+    plan = _plan(db_session)
+    earlier = VisualPlan(case_id=plan.case_id, blueprint_id=plan.blueprint_id, version=0)
+    db_session.add(earlier)
+    db_session.commit()
+    req = MvpRequirement(case_id=plan.case_id, visual_plan_id=earlier.id, requirement_key="OLD.1", beat_id="B09",
+                         function="evidence", entity_key="e", role_needed="evidence", priority="high", spec_json="{}")
+    asset = VisualAsset(case_id=plan.case_id, asset_code="OLDV", local_path="o.jpg")
+    db_session.add_all([req, asset])
+    db_session.commit()
+    db_session.add(MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id, role="evidence", final_status="approved"))
+    db_session.commit()
+    script = {"duration": 27.0, "shots": [shot(0, 27, asset="OLDV")]}
+    report = C.measure(script, plan, db_session, [])
+    assert report["unapproved_assets"] == [] and report["long_stills"] == []

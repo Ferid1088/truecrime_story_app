@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.core.media_tools import ffmpeg_bin, ffprobe_bin
-from app.db.models import MvpCandidate, MvpRequirement, VisualAsset, VisualPlan
+from app.db.models import MvpRequirement, VisualAsset, VisualPlan
 from app.documentary.visuals.spoilers import Firewall
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 
@@ -40,26 +40,28 @@ def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
 
 def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) -> dict:
     """Everything the review needs to know about the picture track of one compiled script."""
-    cfg = ai_config.mvp()
     shots = script.get("shots") or []
     duration = float(script.get("duration") or 0.0)
-    covered = sum(s["end"] - s["start"] for s in shots if s.get("kind") not in (None, "black"))
+    full = [(g["start"], g["end"]) for g in (script.get("drawing") or {}).get("segments") or [] if g.get("mode") == "full"]
     black_runs = _runs(shots, {"black"})
-    longest_black = max((b - a for a, b in black_runs), default=0.0)
+    # a gap the pencil drawing fills the whole screen of is covered; what is left black is the rest of the run (short gaps the
+    # neighbouring pictures cover, and the fades)
+    drawn = [sum(_overlap(a, b, f0, f1) for f0, f1 in full) for a, b in black_runs]
+    covered = sum(s["end"] - s["start"] for s in shots if s.get("kind") not in (None, "black")) + sum(drawn)
+    left = [(b - a) - d for (a, b), d in zip(black_runs, drawn, strict=True)]
+    longest_black = max(left, default=0.0)
     long_stills = [{"asset": s.get("asset_id"), "start": s["start"], "seconds": round(s["end"] - s["start"], 2)}
                    for s in shots if s.get("kind") == "image"
-                   and s["end"] - s["start"] > cfg.shots.max_still_seconds + 0.5]
+                   and s["end"] - s["start"] > ai_config.motion.max_picture_seconds + 0.5]
     asset_rows = {a.asset_code: a for a in db.query(VisualAsset).filter(
         VisualAsset.case_id == plan.case_id, VisualAsset.asset_code.in_(
             {s["asset_id"] for s in shots if s.get("asset_id")} or {""})).all()}
     tracker = UsageTracker.from_shots(shots, {c: asset_facts(a) for c, a in asset_rows.items()})
     over_reused = {c: tracker.appearances(c) for c in tracker.facts
                    if tracker.appearances(c) > tracker.limit(c)}
-    approved = {c.visual_asset_id for c in db.query(MvpCandidate).join(
-        MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id).filter(
-        MvpRequirement.visual_plan_id == plan.id, MvpCandidate.final_status == "approved")}
-    approved_codes = {a.asset_code for a in db.query(VisualAsset).filter(VisualAsset.id.in_(approved))} \
-        if approved else set()
+    from app.documentary.mvp import direct as DR
+
+    approved_codes = {i.code for group in DR.approved_items(db, plan).values() for i in group}    # this round's and the earlier rounds'
     generated = {s.get("asset_id") for s in shots if s.get("kind") in ("map", "timeline", "detective_board")}
     generated |= {c for c, a in asset_rows.items() if a.provider == "generated"}
     unapproved = sorted({s["asset_id"] for s in shots if s.get("asset_id") and s.get("kind") in
@@ -75,7 +77,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
     return {
         "duration": round(duration, 2), "covered_seconds": round(covered, 2),
         "temporal_coverage": round(covered / duration, 4) if duration else 0.0,
-        "black_seconds": round(sum(b - a for a, b in black_runs), 2),
+        "black_seconds": round(sum(left), 2),
         "longest_black": round(longest_black, 2), "long_stills": long_stills,
         "over_reused": over_reused,
         "unapproved_assets": unapproved, "weak_sentences": weak[:50], "weak_sentence_count": len(weak),
