@@ -490,3 +490,20 @@ def test_the_planner_also_uses_pictures_approved_in_an_earlier_round_unless_they
     items = D.approved_items(db_session, plans[1])
     assert [i.code for i in items[D.CASE_WIDE]] == ["OLD_OK"]
     assert [i.code for i in items["B01"]] == ["ALREADY_HERE"]
+
+
+def test_one_slot_that_breaks_a_rule_loses_only_itself_not_the_whole_beats_assignment():
+    def item(code):
+        return D.Item(VisualAsset(case_id=1, asset_code=code, asset_type="photo", local_path=f"{code}.jpg"), "context", None, 0, [])
+
+    pool = [item("A"), item("B")]
+    slots = [{"start": 0.0, "end": 10.0}, {"start": 10.0, "end": 20.0}, {"start": 20.0, "end": 30.0}, {"start": 30.0, "end": 40.0}]
+    raw = [{"slot": 0, "asset": "A"}, {"slot": 1, "asset": "B"}, {"slot": 2, "asset": "A"},        # A twice
+           {"slot": 3, "asset": "NOPE"}, {"slot": 9, "asset": "B"}]                                 # unknown item, unknown slot
+    kept = D.validate_assignment(raw, slots, pool)
+    assert {n: i.code for n, i in kept.items()} == {0: "A", 1: "B"}
+    assert D.validate_assignment({"slot": 0}, slots, pool) is None
+
+
+def test_the_director_reads_an_entity_as_a_name():
+    assert D.readable("ent_jill_smith") == "Jill Smith" and D.readable("caleb_flynn") == "Caleb Flynn" and D.readable(None) is None

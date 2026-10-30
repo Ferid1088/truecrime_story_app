@@ -144,6 +144,13 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
     return out
 
 
+def readable(entity: str | None) -> str | None:
+    """An entity key as a name the director reads ('ent_jill_smith' -> 'Jill Smith')."""
+    if not entity:
+        return None
+    return " ".join(p.capitalize() for p in entity.split("_") if p and p != "ent")
+
+
 CASE_WIDE = "*"        # the key of the approved pictures that belong to no beat of this plan (approved in an earlier round)
 
 
@@ -296,20 +303,23 @@ def coalesce_slots(slots: list[dict], available: int, max_still: float) -> list[
 
 
 def validate_assignment(raw: list[dict], slots: list[dict], pool: list[Item]) -> dict[int, Item] | None:
-    """The agent's choice, or None if any of it breaks a rule (unknown item, twice in the beat, a clip too
-    short for its slot). Nulls are allowed: a slot may honestly stay empty for the baseline to fill."""
+    """The valid part of the agent's choice: a slot that breaks a rule (unknown item, an item already used in the beat, a clip too
+    short for its slot) stays empty for the baseline to fill, and every other slot keeps the agent's choice. None only when the
+    answer is not a list of assignments at all. Nulls are allowed: a slot may honestly stay empty."""
+    if not isinstance(raw, list):
+        return None
     by_code = {i.code: i for i in pool}
     used: set[str] = set()
     out: dict[int, Item] = {}
-    for a in raw or []:
+    for a in raw:
         if not isinstance(a, dict) or not isinstance(a.get("slot"), int) or not 0 <= a["slot"] < len(slots):
-            return None
-        if a.get("asset") is None:
+            continue
+        if a.get("asset") is None or a["slot"] in out:
             continue
         item = by_code.get(a["asset"])
         seconds = slots[a["slot"]]["end"] - slots[a["slot"]]["start"]
         if item is None or item.code in used or not fits(item, seconds):
-            return None
+            continue
         used.add(item.code)
         out[a["slot"]] = item
     return out
@@ -786,6 +796,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
                            "sentences": [x["speech"] for x in window["sentences"][s["from"]:s["to"] + 1]]}
                           for n, s in enumerate(slots)]
             pool_view = [{"asset": i.code, "kind": i.asset.asset_type, "role": i.role, "entity": i.entity,
+                          "who": readable(i.entity),
                           "depicts": (i.asset.description or i.asset.title or "")[:160], "owner_note": i.asset.owner_note,
                           "clip_seconds": i.clip_seconds, "shown_before": tracker.appearances(i.code), "serves": i.serves,
                           "named_in_text": i.code in named_codes} for i in pool]
