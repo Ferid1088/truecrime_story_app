@@ -789,6 +789,21 @@ class VideoSourceClass(BaseModel):
     blocked_channel_markers: list[str] = []
 
 
+class YouTubeFramesConfig(BaseModel):
+    """Photos taken from the scenes of a downloaded video (`app.documentary.visuals.youtube_frames`): how many an identity may
+    have at most, what makes a frame good enough, and how alike two frames may be."""
+
+    max_per_identity: int = Field(default=20, ge=1)
+    scene_threshold: float = Field(default=0.3, gt=0.0, lt=1.0)       # ffmpeg's score of how much the picture changed
+    into_scene_seconds: float = Field(default=0.6, ge=0.0)            # the frame is taken this long after a scene starts
+    min_gap_seconds: float = Field(default=4.0, ge=0.0)
+    min_sharpness: float = Field(default=60.0, ge=0.0)
+    min_brightness: float = Field(default=30.0, ge=0.0, le=255.0)
+    max_brightness: float = Field(default=225.0, ge=0.0, le=255.0)
+    max_hash_distance: int = Field(default=6, ge=0, le=64)            # frames this alike (difference hash) are one picture
+    width: int = Field(default=1280, ge=320)
+
+
 class YouTubeClipsConfig(BaseModel):
     """The YouTube clip downloader (Settings switch, off by default): only videos of the allowed
     source classes, bounded in size, length of the source, length of a clip and share of a film."""
@@ -3979,6 +3994,7 @@ class AIConfig(BaseModel):
     language_pipeline: LanguagePipelineConfig
     video_rights: VideoRightsConfig
     youtube_clips: YouTubeClipsConfig = Field(default_factory=YouTubeClipsConfig)
+    youtube_frames: YouTubeFramesConfig = Field(default_factory=YouTubeFramesConfig)
     cost_control: CostControlConfig
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     discovery: DiscoveryPolicies = Field(default_factory=DiscoveryPolicies)

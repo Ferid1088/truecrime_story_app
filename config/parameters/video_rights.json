@@ -165,5 +165,16 @@
     "max_clip_seconds": 16.0,
     "max_share": 0.08,
     "credit_suffix": "(YouTube)"
+  },
+  "youtube_frames": {
+    "max_per_identity": 20,
+    "scene_threshold": 0.3,
+    "into_scene_seconds": 0.6,
+    "min_gap_seconds": 4.0,
+    "min_sharpness": 60.0,
+    "min_brightness": 30.0,
+    "max_brightness": 225.0,
+    "max_hash_distance": 6,
+    "width": 1280
   }
 }

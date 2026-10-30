@@ -8,6 +8,7 @@ import asyncio
 from pathlib import Path
 import json
 import subprocess
+import tempfile
 import httpx
 from yt_dlp.utils import DownloadError
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ from app.documentary.visuals import images as IM
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import tiers as T
 from app.documentary.visuals import youtube_clips as YC
+from app.documentary.visuals import youtube_frames as YF
 from app.documentary.visuals.research import next_asset_code
 from app.documentary.visuals.footage import (
     DEDUPE_HAMMING,
@@ -208,9 +210,13 @@ class FootageAgent:
                 title=video.title, license=video.rights_status, credit=credit,
                 source_name=video.channel_name or "YouTube", found_for=video.discovery_query,
                 date=(video.published_at or "")[:20] or None)
-            return await self._ingest_pieces(
+            made = await self._ingest_pieces(
                 db, case, candidate, video.rights_status, f"youtube clip: {video.use_reason}", [], found_during,
                 fetched=fetched, record=YC.source_record(video, digest))
+            with tempfile.TemporaryDirectory() as frames_dir:         # and the photos of its scenes, for the same identity
+                frames = await asyncio.to_thread(YF.frames_of, fetched, Path(frames_dir))
+                YF.register_frames(db, case, video, frames, video.discovery_query or video.title, credit, digest)
+            return made
         finally:
             fetched.unlink(missing_ok=True)
 
