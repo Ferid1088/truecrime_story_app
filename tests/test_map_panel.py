@@ -68,3 +68,22 @@ def test_a_long_credit_with_all_imagery_providers_still_fits_the_footer_in_every
     for language in ("en", "de", "fa", "ar"):
         page = PANEL.MapPanel(language, panel, "Cunningham Court, Ohio", attribution).step(3)
         assert page.size[1] == 1080
+
+
+def test_the_names_on_the_map_are_pure_white_with_a_black_border():
+    width = PANEL.map_width(1920)
+    panel = {"names": ["United States", "Ohio", "Tipp City", "Cunningham Court"], "target": [39.96, -84.18],
+             "camera": [{"t": t, "zoom": z, "lon": -84.18, "lat": 39.96, "pitch": 0.0, "bearing": 0.0}
+                        for t, z in ((0.0, 2.0), (3.0, 6.0), (6.0, 10.0), (9.0, 15.0))]}
+    map_frame = np.full((1080, width, 3), 128, np.uint8)
+    frame = PANEL.MapPanel("en", panel, "Cunningham Court, Ohio", []).compose(map_frame, 9.5, [0.0, 3.0, 6.0, 9.0], 1920)
+    label = frame[40:110, 40:width // 2]                                   # the level and scale label, top left of the map
+    assert (label == 255).all(axis=2).any(), "pure white letters"
+    assert (label == 0).all(axis=2).any(), "with a black border"
+    assert not ((label[..., 0] > 200) & (label[..., 1] > 100) & (label[..., 1] < 190) & (label[..., 2] < 80)).any(), "no amber"
+
+
+def test_the_names_drawn_in_the_map_tiles_are_white_with_a_thick_black_border():
+    style = ai_config.zoom().style
+    assert style["label_color"] == "#ffffff" and style["label_halo"] == "#000000"
+    assert style["label_halo_width"] >= 2.5 and style["label_scale"] >= 1.9

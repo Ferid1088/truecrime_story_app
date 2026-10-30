@@ -176,8 +176,8 @@
       "building_opacity": 0.3,
       "label_color": "#ffffff",
       "label_halo": "#000000",
-      "label_halo_width": 1.3,
-      "label_scale": 1.55,
+      "label_halo_width": 2.8,
+      "label_scale": 1.9,
       "road_color": "#ffffff",
       "road_opacity": 0.3
     },

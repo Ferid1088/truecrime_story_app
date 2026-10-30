@@ -15,6 +15,15 @@ from app.documentary.graphics import theme as T
 from app.documentary.graphics.page import Page
 from app.documentary.visuals import shaping
 
+MAP_TEXT, MAP_TEXT_BORDER = (255, 255, 255, 255), (0, 0, 0, 255)       # names on the map: pure white with a black border
+
+
+def outlined(draw: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font, language: str) -> None:
+    """Text on the map: white, with a black border that keeps it readable on any tile."""
+    draw.text(xy, text, font=font, fill=MAP_TEXT, stroke_width=max(2, round(font.size * 0.12)), stroke_fill=MAP_TEXT_BORDER,
+              **shaping.kwargs(language))
+
+
 LEVELS = ("level_country", "level_region", "level_town", "level_place")
 SCALE_STEPS = (1, 2, 5)
 
@@ -128,8 +137,7 @@ class MapPanel:
         font = T.font(self.language, "mono", 28)
         w = shaping.width(label, font, self.language)
         x = width - 56 - w if rtl else 56
-        draw.text((x, 54), shaping.display(label, self.language), font=font, fill=(*T.rgb("amber"), 255),
-                  **shaping.kwargs(self.language))
+        outlined(draw, (x, 54), shaping.display(label, self.language), font, self.language)
         if step >= len(self.names) - 2 and not camera.get("pitch") and not camera.get("bearing"):
             self._marker_card(draw, camera, width, height, rtl)
         return np.asarray(Image.alpha_composite(img, layer).convert("RGB"))
@@ -144,11 +152,8 @@ class MapPanel:
         left = x - gap - w if rtl else x + gap
         if not 0 <= left <= width - w or not 0 <= y - h / 2 <= height - h:
             return
-        draw.rectangle((left, y - h / 2, left + w, y + h / 2), fill=(*T.rgb("paper"), 255))
-        draw.text((left + 28, y - h / 2 + 18), shaping.display(head, self.language), font=small, fill=(120, 110, 96, 255),
-                  **shaping.kwargs(self.language))
-        draw.text((left + 28, y - h / 2 + 46), shaping.display(name, self.language), font=big, fill=(*T.rgb("paper_ink"), 255),
-                  **shaping.kwargs(self.language))
+        outlined(draw, (left + 28, y - h / 2 + 18), shaping.display(head, self.language), small, self.language)
+        outlined(draw, (left + 28, y - h / 2 + 46), shaping.display(name, self.language), big, self.language)
 
     def compose(self, map_frame: np.ndarray, since: float, step_times: list[float], width: int) -> np.ndarray:
         """The full frame (`width` wide): the map video (with its labels) at one side, the panel at the other."""
