@@ -51,7 +51,7 @@ def _pencil(scale: float) -> tuple[np.ndarray, tuple[int, int]]:
 
 
 class DrawingLayer:
-    """Composites the drawing window onto a film frame."""
+    """Composites the drawing window onto a film frame (an RGB array, like every frame of the render)."""
 
     def __init__(self, script: dict, width: int, height: int):
         data = script.get("drawing") or {}
@@ -91,12 +91,12 @@ class DrawingLayer:
         if not 0 < index - at <= FORWARD_READ_LIMIT:
             cap.set(cv2.CAP_PROP_POS_FRAMES, index)
             at = index - 1
-        frame = None
+        frame = last[1] if last is not None else np.full((int(meta["height"]), int(meta["width"]), 3), 230, np.uint8)
         for _ in range(index - at):
-            ok, frame = cap.read()
+            ok, raw = cap.read()
             if not ok:
-                frame = last[1] if last is not None else np.full((int(meta["height"]), int(meta["width"]), 3), 230, np.uint8)
                 break
+            frame = cv2.cvtColor(raw, cv2.COLOR_BGR2RGB)         # the film's frames are RGB (the video decoder gives BGR)
         self._last[code] = (index, frame)
         return frame
 
@@ -163,7 +163,7 @@ class DrawingLayer:
             return
         sub = self.sprite[cy0 - y0:cy1 - y0, cx0 - x0:cx1 - x0]
         a = (sub[..., 3:4] / 255.0) * alpha
-        frame[cy0:cy1, cx0:cx1] = (frame[cy0:cy1, cx0:cx1] * (1 - a) + sub[..., :3][..., ::-1] * a).astype(np.uint8)
+        frame[cy0:cy1, cx0:cx1] = (frame[cy0:cy1, cx0:cx1] * (1 - a) + sub[..., :3] * a).astype(np.uint8)
 
     def close(self) -> None:
         for cap in self._caps.values():

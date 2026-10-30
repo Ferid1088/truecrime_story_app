@@ -165,3 +165,9 @@ def test_the_illustration_label_is_drawn_beside_the_window_in_both_directions():
 
     assert box("en", 0.0938)[0] - box("en", 0)[0] == round(1280 * 0.0938), "to the right of the window in English"
     assert box("fa", 0)[0] - box("fa", 0.0938)[0] == round(1280 * 0.0938), "to the left of the window in Persian"
+
+
+def test_the_paper_is_cream_in_the_films_rgb_frames_not_blue_and_the_pencil_is_black_and_white(made):
+    out = layer(made, mode="full").apply(black(), 20.0)
+    middle = out[H // 2 - 40:H // 2 + 40, W // 2 - 40:W // 2 + 40].reshape(-1, 3).mean(axis=0)
+    assert middle[0] > middle[2], "cream paper: more red than blue in an RGB frame"
