@@ -138,7 +138,51 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
         out.setdefault(req.beat_id, []).append(
             Item(asset, cand.role or "context", req.entity_key, priority[req.priority] * 3
                  + ROLE_RANK.get(cand.role or "", 3), [req.requirement_key], moment))
+    case_wide = earlier_approvals(db, plan, out)
+    if case_wide:
+        out[CASE_WIDE] = case_wide
     return out
+
+
+CASE_WIDE = "*"        # the key of the approved pictures that belong to no beat of this plan (approved in an earlier round)
+
+
+def earlier_approvals(db: Session, plan: VisualPlan, here: dict[str, list[Item]]) -> list[Item]:
+    """Pictures approved in an earlier planning round of the case that this plan has no approval for. An approval is a decision about
+    the picture, not about one round's requirement: the owner's review lists them all, so the planner may use them too (it shows
+    them where the words name their person or place, or where they relate to a bare moment). A picture the owner rejected last, or
+    that this plan judged and refused, is left out."""
+    from app.documentary.mvp import verify as VF
+
+    have = {i.asset.id for group in here.values() for i in group}
+    rows = (db.query(MvpCandidate, MvpRequirement).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+            .filter(MvpRequirement.case_id == plan.case_id).all())
+    by_asset: dict[int, list[tuple[MvpCandidate, MvpRequirement]]] = {}
+    for cand, req in rows:
+        by_asset.setdefault(cand.visual_asset_id, []).append((cand, req))
+    out: list[Item] = []
+    for asset_id, entries in by_asset.items():
+        if asset_id in have:
+            continue
+        owned = [c for c, _ in entries if VF.owner_settled(c) is not None]
+        if owned and VF.owner_settled(max(owned, key=lambda c: c.updated_at)) == "rejected":
+            continue
+        approved = [(c, r) for c, r in entries if c.final_status == "approved" and not VF.is_duplicate(c)]
+        if not approved:
+            continue
+        judged_here = any(r.visual_plan_id == plan.id for _, r in entries)
+        if judged_here and not any(VF.owner_settled(c) == "approved" for c, _ in approved):
+            continue                       # this plan looked at the picture and did not approve it
+        cand, req = approved[0]
+        asset = db.get(VisualAsset, asset_id)
+        if asset is None or asset.local_path is None or req.function == "moment":
+            continue
+        out.append(Item(asset, cand.role or "context", req.entity_key, 9, []))
+    return out
+
+
+def _is_person(item: Item) -> bool:
+    return asset_facts(item.asset).get("entity_type") == "person"
 
 
 def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str) -> list[Item]:
@@ -148,7 +192,7 @@ def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str) -> 
     out: list[Item] = []
     for group in items.values():
         for item in group:
-            if item.code in have or not item.entity or not mentions(text, item.entity):
+            if item.code in have or not item.entity or not mentions(text, item.entity, _is_person(item)):
                 continue
             have.add(item.code)
             out.append(item)

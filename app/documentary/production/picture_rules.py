@@ -20,15 +20,15 @@ def tokens(text: str) -> set[str]:
 
 def names_of(slug: str) -> tuple[str, str | None]:
     """The full name and the last word of an entity slug ('alleigha_botner' -> 'alleigha botner', 'botner')."""
-    parts = [p for p in slug.split("_") if len(p) > 2]
+    parts = [p for p in slug.split("_") if len(p) > 2 and p != "ent"]
     return " ".join(parts), (parts[-1] if parts else None)
 
 
-def mentions(text: str, slug: str) -> bool:
-    """The text names this entity: its full name or its last word."""
+def mentions(text: str, slug: str, person: bool = True) -> bool:
+    """The text names this entity: its full name, or for a person also the last word of it ('Smith' names todd_smith)."""
     full, last = names_of(slug)
     low = text.lower()
-    return bool((full and full in low) or (last and re.search(rf"\b{re.escape(last)}", low)))
+    return bool((full and full in low) or (person and last and re.search(rf"\b{re.escape(last)}", low)))
 
 
 def bare(start: float, end: float, beat_id: str | None) -> dict:

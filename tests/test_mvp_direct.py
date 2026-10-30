@@ -420,16 +420,73 @@ def test_bare_moments_are_reported_at_the_end_and_never_asked_about_again():
 
 
 
+def _person(code, entity):
+    return VisualAsset(case_id=1, asset_code=code, asset_type="photo", local_path=f"{code}.jpg", subject_type="person",
+                       entity_key=entity)
+
+
 def test_a_person_the_beats_words_name_is_in_the_pool_although_the_picture_was_approved_for_another_beat():
-    from types import SimpleNamespace
-
-    from app.documentary.mvp import direct as D
-
     def item(code, entity):
-        return D.Item(SimpleNamespace(asset_code=code), "context", entity, 0, [f"{code}.req"])
+        return D.Item(_person(code, entity), "context", entity, 0, [f"{code}.req"])
 
     items = {"B05": [item("VIS_SMITH", "todd_smith"), item("VIS_CALEB", "caleb_flynn")], "B11": [item("VIS_OTHER", "paul_watkins")]}
     pool = [item("VIS_OTHER", "paul_watkins")]
     named = D.named_in_text(items, pool, "Todd and Jill Smith arrived at the house that morning.")
     assert [i.code for i in named] == ["VIS_SMITH"], "only the person the words name, and nothing already in the pool"
     assert D.named_in_text(items, pool, "Nothing was said about anyone.") == []
+
+
+def test_a_place_is_named_only_by_its_full_name_not_by_its_last_word():
+    place = VisualAsset(case_id=1, asset_code="VIS_GARAGE", asset_type="photo", local_path="g.jpg", entity_key="garage_scene")
+    items = {"B05": [D.Item(place, "context", "garage_scene", 0, [])]}
+    assert D.named_in_text(items, [], "The next scene was calm.") == []
+    assert [i.code for i in D.named_in_text(items, [], "The garage scene was sealed.")] == ["VIS_GARAGE"]
+
+
+def test_the_planner_also_uses_pictures_approved_in_an_earlier_round_unless_they_were_refused(db_session):
+    case = Case(canonical_title="Rounds", slug=f"r-{uuid4().hex[:8]}", language="en")
+    db_session.add(case)
+    db_session.commit()
+    sv = StoryVersion(case_id=case.id, version=1, kind="final", language="en", story_text="t", narrative_angle="a")
+    db_session.add(sv)
+    db_session.commit()
+    bp = EditorialBlueprint(case_id=case.id, story_version_id=sv.id, blueprint_json="{}")
+    db_session.add(bp)
+    db_session.commit()
+    plans = []
+    for n in (1, 2):
+        plan = VisualPlan(case_id=case.id, blueprint_id=bp.id, version=n, validation_json="{}")
+        db_session.add(plan)
+        db_session.commit()
+        plans.append(plan)
+
+    def candidate(plan, key, asset, status, owner=None):
+        req = db_session.query(MvpRequirement).filter_by(visual_plan_id=plan.id, requirement_key=key).first()
+        if req is None:
+            req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key=key, beat_id="B01",
+                                 function="human_connection", entity_key="todd_smith", role_needed="evidence",
+                                 priority="high", spec_json="{}")
+            db_session.add(req)
+            db_session.commit()
+        cand = MvpCandidate(requirement_id=req.id, visual_asset_id=asset.id, final_status=status, role="context")
+        if owner:
+            cand.verifiers_json = json.dumps([{"verifier": "owner", "decision": owner}])
+        db_session.add(cand)
+        db_session.commit()
+
+    assets = {}
+    for code in ("OLD_OK", "OLD_REFUSED_BY_OWNER", "OLD_REFUSED_HERE", "ALREADY_HERE"):
+        a = VisualAsset(case_id=case.id, asset_code=code, asset_type="photo", local_path=f"{code}.jpg", subject_type="person")
+        db_session.add(a)
+        db_session.commit()
+        assets[code] = a
+    candidate(plans[0], "OLD.1", assets["OLD_OK"], "approved")
+    candidate(plans[0], "OLD.2", assets["OLD_REFUSED_BY_OWNER"], "approved", owner="approve")
+    candidate(plans[1], "NEW.1", assets["OLD_REFUSED_BY_OWNER"], "rejected", owner="reject")
+    candidate(plans[0], "OLD.3", assets["OLD_REFUSED_HERE"], "approved")
+    candidate(plans[1], "NEW.2", assets["OLD_REFUSED_HERE"], "rejected")
+    candidate(plans[0], "OLD.4", assets["ALREADY_HERE"], "approved")
+    candidate(plans[1], "NEW.3", assets["ALREADY_HERE"], "approved")
+    items = D.approved_items(db_session, plans[1])
+    assert [i.code for i in items[D.CASE_WIDE]] == ["OLD_OK"]
+    assert [i.code for i in items["B01"]] == ["ALREADY_HERE"]
