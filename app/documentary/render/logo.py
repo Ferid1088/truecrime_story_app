@@ -2,8 +2,8 @@
 
 One logo per language (the channel's `logo` in config/parameters/identity.json). It sits in the top corner at the END of
 the reading direction - top right for English and German, top left for Persian and Arabic - the opposite corner to the
-"illustration" label, clear of the subtitles, the date and place, and the map credit. It is shown over pictures and clips
-only: graphics, maps, host scenes, chapter and title cards have their own layouts, and the channel intro is the logo.
+"illustration" label, clear of the subtitles, the date and place, and the map credit. It is on screen for the whole film, over
+every kind of shot (the cards draw no logo and keep that corner free); only the channel intro, which is the logo, has none.
 The production script decides when (`script["logo"]["windows"]`); this module draws.
 """
 
@@ -30,23 +30,22 @@ def logo_path(language: str) -> Path | None:
 
 
 def windows_of(script: dict) -> dict:
-    """When the logo is on screen: the stretches of picture and clip shots, at least `min_window_seconds` long."""
+    """When the logo is on screen: every shot except the kinds the config leaves out, joined into stretches."""
     cfg = ai_config.branding_settings().logo
     language = script.get("language")
     if not cfg.enabled or logo_path(language) is None:
         return {"windows": []}
     out: list[list[float]] = []
     for shot in sorted(script.get("shots") or [], key=lambda s: s["start"]):
-        if shot.get("kind") not in cfg.shot_kinds:
+        if shot.get("kind") in cfg.except_kinds:
             continue
         if out and shot["start"] - out[-1][1] <= JOIN_SECONDS:
             out[-1][1] = round(shot["end"], 3)
         else:
             out.append([round(shot["start"], 3), round(shot["end"], 3)])
-    return {"windows": [w for w in out if w[1] - w[0] >= cfg.min_window_seconds]}
+    return {"windows": out}
 
 
-@lru_cache(maxsize=8)
 def _bug(path: str, height: int, black_below: int, plate: float) -> tuple[np.ndarray, np.ndarray]:
     """(rgb, alpha) of the logo cut to its content at `height` pixels. A file without transparency has a black
     background, which becomes see-through; a soft dark plate under it keeps it readable on bright pictures."""

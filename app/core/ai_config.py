@@ -3048,16 +3048,15 @@ class LogoLapConfig(BaseModel):
 
 
 class LogoConfig(BaseModel):
-    """The channel logo shown in a corner of the film (config/parameters/branding.json): on pictures and clips, not on
-    graphics, maps, host scenes, chapter or title cards (they have their own layouts, or the logo already plays)."""
+    """The channel logo shown in a corner of the film (config/parameters/branding.json): over the whole film, every kind of shot
+    included (a card draws no logo of its own), except the kinds listed (the channel intro is the logo already)."""
 
     enabled: bool
-    shot_kinds: list[str] = Field(min_length=1)
+    except_kinds: list[str]
     height_fraction: float = Field(gt=0.0, le=0.3)
     margin_fraction: float = Field(ge=0.0, le=0.2)
     opacity: float = Field(gt=0.0, le=1.0)
     fade_seconds: float = Field(gt=0.0)
-    min_window_seconds: float = Field(gt=0.0)
     # a logo file without transparency has a black background: below this brightness it becomes see-through
     black_key_below: int = Field(ge=0, le=255)
     # a faint dark plate under the logo keeps it readable on a bright picture

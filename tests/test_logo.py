@@ -16,9 +16,12 @@ def _script(language="en", shots=None):
     return {"language": language, "shots": shots}
 
 
-def test_the_logo_shows_over_pictures_and_clips_only_and_never_in_a_stretch_shorter_than_the_minimum():
+def test_the_logo_is_on_screen_for_the_whole_film_over_every_kind_of_shot_except_the_intro():
     windows = LG.windows_of(_script())["windows"]
-    assert windows == [[0.0, 10.0], [50.0, 58.0]]        # pictures and clips joined; graphic, map, host, 2 s stub left out
+    assert windows == [[0.0, 42.0], [50.0, 58.0]]      # pictures, clips, graphics, maps and host joined; the 8 s gap stays out
+    with_intro = _script(shots=[{"kind": "intro", "start": 0.0, "end": 6.0}, {"kind": "image", "start": 6.0, "end": 9.0},
+                                {"kind": "graphic", "start": 9.0, "end": 12.0}])
+    assert LG.windows_of(with_intro)["windows"] == [[6.0, 12.0]], "the intro is the logo already; a 3 s picture and a card count"
 
 
 def test_each_language_has_its_own_logo_file_and_a_film_without_one_has_no_logo(monkeypatch):
