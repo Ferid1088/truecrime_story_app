@@ -3036,6 +3036,16 @@ class MvpTimingConfig(BaseModel):
     always_ok: list[str] = Field(min_length=1)
 
 
+class MvpDuplicatesConfig(BaseModel):
+    """The duplicate filter after research: photos whose perceptual hashes differ in at most this many bits are
+    candidates for the same picture, and are the same picture when their small grayscale versions correlate at least
+    `min_similarity` (a crop or another size of one picture does, two different pictures of one scene do not)."""
+
+    max_hash_distance: int = Field(ge=0, le=16)
+    min_similarity: float = Field(gt=0.0, le=1.0)
+    thumb_side: int = Field(ge=8)
+
+
 class MvpOwnerNoteConfig(BaseModel):
     """The owner's note beside a picture or clip in the review (who or what it shows, how it belongs to the story)."""
 
@@ -3100,6 +3110,7 @@ class MainVisualPlannerConfig(BaseModel):
     overlays: MvpOverlaysConfig
     timing: MvpTimingConfig
     owner_note: MvpOwnerNoteConfig
+    duplicates: MvpDuplicatesConfig
     review: MvpReviewConfig
 
 

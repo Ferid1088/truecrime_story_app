@@ -146,7 +146,8 @@ def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None 
     if cut_only:
         cut_assets = [c.visual_asset_id for c in MVP.cut_items(db, needs_plan_of(db, case_id))]
         query = query.filter(MvpCandidate.visual_asset_id.in_(cut_assets or [0]))
-    rows = query.order_by(MvpCandidate.final_status, MvpCandidate.id).all()
+    rows = [(c, r) for c, r in query.order_by(MvpCandidate.final_status, MvpCandidate.id).all()
+            if not VF.is_duplicate(c)]                      # a copy of a picture the planner keeps is not shown
     if group:
         return grouped(db, rows)[:min(max(limit, 1), 5000)]
     return [candidate_dict(db, c, r) for c, r in rows[:min(max(limit, 1), 500)]]

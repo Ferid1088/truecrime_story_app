@@ -29,6 +29,7 @@ from app.documentary.detective import toolkit as TK
 from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import coverage as CV
 from app.documentary.mvp import direct as DR
+from app.documentary.mvp import duplicates as DUP
 from app.documentary.mvp import evidence as EV
 from app.documentary.mvp.must_use import place_must_use
 from app.documentary.mvp import moments as MC
@@ -138,6 +139,9 @@ async def stage_research(db: Session, case: Case, plan: VisualPlan) -> dict:
         return await verify_pending(db_, case_, plan_, reqs)
 
     report = await RS.research_unmet(db, case, plan, requirements, research, verify)
+    report["duplicates"] = DUP.filter_duplicates(db, plan)       # the same picture found twice is kept once
+    if report["duplicates"]["moved"]:
+        report["duplicates"]["verified"] = await verify_pending(db, case, plan, requirements)
     report["shortage_ids"] = [r.requirement_key for r in db.query(MvpRequirement).filter_by(
         visual_plan_id=plan.id, status="shortage")]
     return report

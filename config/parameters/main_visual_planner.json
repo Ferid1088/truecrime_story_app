@@ -86,6 +86,11 @@
     "owner_note": {
       "max_chars": 400
     },
+    "duplicates": {
+      "max_hash_distance": 10,
+      "min_similarity": 0.92,
+      "thumb_side": 32
+    },
     "timing": {
       "enabled": true,
       "version": 1,

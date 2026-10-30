@@ -157,6 +157,7 @@ def _num(value, default: float) -> float:
         return default
 
 INSPECTOR_REMOVAL = "inspector_removal"
+DUPLICATE_FILTER = "duplicate_filter"
 
 
 def owner_settled(candidate: MvpCandidate) -> str | None:
@@ -172,12 +173,19 @@ def owner_settled(candidate: MvpCandidate) -> str | None:
     return state
 
 
+def is_duplicate(candidate: MvpCandidate) -> bool:
+    """The duplicate filter marked this picture as a copy of another one that the planner keeps."""
+    return any(e.get("verifier") == DUPLICATE_FILTER for e in json.loads(candidate.verifiers_json or "[]"))
+
+
 def final_status(candidate: MvpCandidate) -> str:
-    """The aggregate decision: an owner's decision stands; otherwise only all-approved is approved, any hard rejection
-    rejects, and the rest wait."""
+    """The aggregate decision: an owner's decision stands; otherwise a duplicate is rejected, only all-approved is
+    approved, any hard rejection rejects, and the rest wait."""
     settled = owner_settled(candidate)
     if settled is not None:
         return settled
+    if is_duplicate(candidate):
+        return "rejected"
     parts = [candidate.provenance_status, candidate.identity_status, candidate.ethics_status,
              candidate.scene_status]
     rights = candidate.rights_status
