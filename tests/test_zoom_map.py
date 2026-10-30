@@ -485,3 +485,23 @@ def test_the_zoom_runs_at_half_the_earlier_speed():
     variants = AC.ai_config.zoom_map.variants
     assert (variants["zoom_in"].seconds, variants["route"].seconds, variants["pitched_3d"].seconds) == (16.0, 18.0, 18.0)
     assert AC.ai_config.zoom_map.limits["place_label_after_seconds"] == 7.0
+
+
+def test_a_place_name_that_is_not_a_place_of_its_own_falls_back_to_the_street_and_then_the_region(monkeypatch):
+    import asyncio
+
+    from app.documentary.visuals import maps
+
+    assert maps.place_fallbacks("Cunningham Court Residence, Ohio, United States") == [
+        "Cunningham Court Residence, Ohio, United States", "Cunningham Court, Ohio, United States", "Ohio, United States"]
+    assert maps.place_fallbacks("Tipp City") == ["Tipp City"]
+    asked = []
+
+    async def lookup(name, client=None, near=None):
+        asked.append(name)
+        return [{"lat": 39.9, "lon": -84.2, "display_name": name, "granularity": "street"}] if name.startswith("Cunningham Court,") else []
+
+    monkeypatch.setattr(maps, "_lookup", lookup)
+    found = asyncio.run(maps.geocode("Cunningham Court Residence, Ohio, United States"))
+    assert found["lat"] == 39.9 and asked == ["Cunningham Court Residence, Ohio, United States",
+                                              "Cunningham Court, Ohio, United States"]

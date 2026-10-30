@@ -292,8 +292,31 @@ async def _lookup(place: str, client: httpx.AsyncClient | None,
     return [x for x in res if all(w in _fold(x.get("display_name") or "") for w in words)]
 
 
+def place_fallbacks(place: str) -> list[str]:
+    """The names to try for a place, most specific first: the name itself, the name without its trailing words down to two
+    words ("Cunningham Court Residence, Ohio" -> "Cunningham Court, Ohio"), then the region after the first comma."""
+    head, _, tail = place.partition(",")
+    words, names = head.split(), [place]
+    for n in range(len(words) - 1, 1, -1):
+        names.append(" ".join(words[:n]) + (f", {tail.strip()}" if tail.strip() else ""))
+    if tail.strip():
+        names.append(tail.strip())
+    return list(dict.fromkeys(names))
+
+
 async def geocode(place: str, client: httpx.AsyncClient | None = None,
                   near: tuple[float, float] | None = None) -> dict | None:
+    """The first of `place_fallbacks(place)` the geocoder can find (a made-up name such as "Cunningham Court Residence" is
+    not a place of its own), see `_geocode_exact`."""
+    for name in place_fallbacks(place):
+        found = await _geocode_exact(name, client, near)
+        if found:
+            return found
+    return None
+
+
+async def _geocode_exact(place: str, client: httpx.AsyncClient | None = None,
+                         near: tuple[float, float] | None = None) -> dict | None:
     """{"lat", "lon", "display_name", "granularity", "bbox" ([s, n, w,
     e]), "addresstype", "osm_class", "osm_type", "place_rank"} or None.
     Several places share a name (there is more than one "Wilhelmshof"):
