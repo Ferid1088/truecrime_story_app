@@ -80,10 +80,9 @@ def card_seconds(db: Session, action: DetectiveToolAction, language: str) -> flo
         from app.documentary.mvp.direct import map_seconds
 
         return map_seconds() if D._map_place_of(db, action) else 0.0
-    build = D.BUILDERS.get(action.tool_id)
-    if build is None or action.tool_id == "detective_board":      # a board is timed by its own placement
+    if D.BUILDERS.get(action.tool_id) is None or action.tool_id == "detective_board":   # a board is timed by its own placement
         return 0.0
-    data = build(db, action)
+    data = D.build_data(db, action)
     if data is None or render_problem(action.tool_id, data):
         return 0.0
     try:

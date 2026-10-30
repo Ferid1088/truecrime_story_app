@@ -55,14 +55,14 @@ def test_every_registered_alternative_is_covered():
 
 @pytest.mark.parametrize("language", LANGUAGES)
 @pytest.mark.parametrize("kind", ALL)
-def test_the_schedule_streams_at_a_pace_slower_than_reading_and_ends_with_a_hold(kind, language):
+def test_the_schedule_streams_at_twice_the_earlier_pace_and_ends_with_a_hold(kind, language):
     cfg = ai_config.graphics_settings().stream
     schedule = GS.schedule_of(kind, data_of(kind, language), language)
     assert list(schedule.cues) == sorted(schedule.cues) and sum(schedule.counts) > 0
     streaming = sum(schedule.counts) / cfg.words_per_second
     assert schedule.total >= cfg.start_seconds + streaming + cfg.end_hold_seconds - 1e-6
-    assert cfg.words_per_second <= 2.5                                         # a reading pace is 3 to 4 words a second
-    assert GS.planned_seconds(kind, data_of(kind, language), language) >= schedule.total
+    assert cfg.words_per_second == 4.0                                         # twice the pace of 2 words a second before
+    assert GS.planned_seconds(kind, data_of(kind, language), language) >= GS.reading_seconds(kind, data_of(kind, language), language) - 0.06
 
 
 @pytest.mark.parametrize("language", LANGUAGES)

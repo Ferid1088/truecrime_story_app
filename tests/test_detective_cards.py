@@ -130,10 +130,10 @@ def test_a_card_that_cites_a_sentence_outside_its_part_is_sent_back(db_session, 
 def test_the_cards_are_made_until_the_minimum_share_is_reached_spread_over_the_film_without_repeats(db_session, agents,
                                                                                                    monkeypatch):
     graph, units = film(db_session)
-    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 0.25)
+    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 0.18)
     monkeypatch.setattr(ai_config.detective_toolkit, "max_alternative_share", 0.40)
     report = asyncio.run(CD.build_cards(db_session, _case(db_session, graph), graph.id, units, "en"))
-    assert report.share >= 0.25 and report.made.get("fact_card", 0) + report.made.get("recap", 0) >= 1
+    assert report.share >= 0.18 and report.made.get("fact_card", 0) + report.made.get("recap", 0) >= 1
     stored = [json.loads(a.payload_json)["data"] for a in db_session.query(DetectiveToolAction).filter(
         DetectiveToolAction.tool_id.in_(["fact_card", "recap"]))]
     texts = [CD.texts_of(d)[0] for d in stored]

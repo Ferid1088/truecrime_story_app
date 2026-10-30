@@ -203,12 +203,15 @@ async def _inspector(payload: dict) -> dict:
     return raw
 
 
-def _problem_of(kind: str, data: object) -> str | None:
-    """Why the renderer would refuse this card, or None."""
+def _problem_of(kind: str, data: object, language: str) -> str | None:
+    """Why the renderer would refuse this card, or why its text cannot be read in the time a card may be held, or None."""
     if not isinstance(data, dict):
         return "the card is not an object"
     try:
-        return BD.render_problem(kind, data)
+        problem = BD.render_problem(kind, data)
+        if problem is None:
+            reading_need(kind, data, language)
+        return problem
     except GraphicUnavailable as e:
         return str(e)
 
@@ -253,7 +256,7 @@ async def make_card(case_units: list[NarrationUnit], part: Part, kind: str, lang
             if data is None:
                 return None, str(raw.get("reason") or "no card")[:200]
             problems = []
-            if (problem := _problem_of(kind, data)) is not None:
+            if (problem := _problem_of(kind, data, language)) is not None:
                 problems.append({"where": "the card", "what": problem, "fix": "keep every limit of the schema"})
             elif (bad := _bad_references(data, part.unit_keys)):
                 problems.append({"where": "fact_id", "what": f"{bad} are not unit keys of this part",

@@ -172,7 +172,7 @@ class Stream:
         count = len(self.new[step])
         if step == 0:
             limit = self.cues[0] if self.cues else self.limit_end
-            start = min(self.cfg.start_seconds, 0.4 * limit)
+            start = self.cfg.start_seconds if limit >= self.cfg.start_seconds + 0.3 else 0.4 * limit
         else:
             start = self.cues[step - 1] + lead_of(self.kind)
             limit = self.cues[step] if step < len(self.cues) else self.limit_end

@@ -299,3 +299,37 @@ def test_every_card_kind_has_its_own_readable_theme_and_map_and_board_have_none(
     for kind, t in themes.items():
         for accent in (t.amber, t.blue, t.red):
             assert _contrast(accent, t.card) >= 4.5, f"{kind}: accent {accent} is hard to read"
+
+
+def test_a_card_is_held_15_to_20_seconds_and_up_to_5_more_when_a_normal_reader_needs_longer():
+    from app.documentary.graphics import shots as GS
+
+    short = {"facts": [{"text": "He called 911.", "fact_id": "B01-1"}]}
+    assert GS.planned_seconds("fact_card", short, "en") == 15.0, "never less than 15 seconds"
+    cfg = ai_config.graphics_settings().card_timing
+    assert (cfg["min_seconds"], cfg["max_seconds"], cfg["extension_seconds"]) == (15.0, 20.0, 5.0)
+    long_text = " ".join(["word"] * 14)
+    wordy = {"facts": [{"text": long_text[:88], "fact_id": "B01-1"}] * 3}
+    held = GS.planned_seconds("fact_card", wordy, "en")
+    assert 15.0 <= held <= 25.0
+    assert GS.reading_seconds("fact_card", wordy, "en") >= GS.reading_seconds("fact_card", short, "en")
+
+
+def test_a_card_whose_text_needs_more_than_the_longest_hold_is_refused(monkeypatch):
+    from app.documentary.graphics import shots as GS
+
+    monkeypatch.setattr(GS, "reading_seconds", lambda kind, data, language="en": 26.0)
+    with pytest.raises(GraphicUnavailable, match="more than the 25s"):
+        GS.planned_seconds("fact_card", {"facts": [{"text": "x", "fact_id": "B01-1"}]}, "en")
+
+
+@pytest.mark.parametrize("language", ("en", "fa"))
+def test_no_card_decoration_is_drawn_in_the_corner_of_the_channel_logo(language):
+    """The logo sits in the top corner at the end of the reading direction (top right for English, top left for Persian):
+    every card's ground leaves that corner as plain as the rest of the page's soft light."""
+    from app.documentary.graphics.page import ground
+
+    for kind in ai_config.graphics_settings().themes:
+        img = np.asarray(ground(1920, 1080, kind, language == "fa").convert("RGB")).astype(int)
+        corner = img[30:185, 60:220] if language == "fa" else img[30:185, 1700:1860]
+        assert np.ptp(corner, axis=(0, 1)).max() < 14, f"{kind}: something is drawn where the logo goes"

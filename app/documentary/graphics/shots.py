@@ -39,7 +39,8 @@ def plan_fields(kind: str, data: dict) -> dict:
 
 
 def hold_seconds(kind: str) -> float:
-    return T.config().hold_seconds[kind]
+    """The shortest a card is held (every kind alike)."""
+    return T.config().card_timing["min_seconds"]
 
 
 def schedule_of(kind: str, data: dict, language: str = "en") -> Schedule:
@@ -50,13 +51,24 @@ def schedule_of(kind: str, data: dict, language: str = "en") -> Schedule:
         raise GraphicUnavailable(f"{kind}: {e}") from e
 
 
+def reading_seconds(kind: str, data: dict, language: str = "en") -> float:
+    """How long a normal reader needs to see and read all the text of the card, and the card to stream it at the streaming pace:
+    a base time and the words at a reading speed, never less than the time the card needs to stream all its text."""
+    cfg = T.config().card_timing
+    sched = schedule_of(kind, data, language)
+    streamed = sched.total - T.config().stream.end_hold_seconds + 2.0          # the last word is in, and the viewer has 2 s more
+    return max(cfg["read_base_seconds"] + sum(sched.counts) / cfg["read_words_per_second"], streamed)
+
+
 def planned_seconds(kind: str, data: dict, language: str = "en") -> float:
-    """How long the planner holds the graphic: its streaming schedule with a margin (other languages need more words),
-    never less than the kind's configured hold."""
-    cfg = T.config().stream
-    if not cfg.enabled:
-        return hold_seconds(kind)
-    return max(hold_seconds(kind), round(schedule_of(kind, data, language).total * cfg.plan_margin, 1))
+    """How long the card is held: 15 to 20 seconds for the toolkit; when the text needs longer the planner extends it by up
+    to 5 more. A card whose text needs more than that cannot be shown (the toolkit splits it)."""
+    cfg = T.config().card_timing
+    needed = reading_seconds(kind, data, language)
+    if needed > cfg["max_seconds"] + cfg["extension_seconds"]:
+        raise GraphicUnavailable(f"{kind}: its text needs {needed:.0f}s to read, more than the "
+                                 f"{cfg['max_seconds'] + cfg['extension_seconds']:.0f}s a card may be held")
+    return round(min(max(needed, cfg["min_seconds"]), cfg["max_seconds"] + cfg["extension_seconds"]), 1)
 
 
 def cues_for(spec: dict, seconds: float, language: str = "en") -> list[float]:

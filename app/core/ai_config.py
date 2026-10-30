@@ -3155,7 +3155,9 @@ class GraphicsConfig(BaseModel):
     transition_seconds: float = Field(gt=0.0)
     line_draw_seconds: float = Field(gt=0.0)
     stream: StreamConfig
-    hold_seconds: dict[str, float]
+    # how long a card is held: at least min_seconds and at most max_seconds for the toolkit, up to extension_seconds more
+    # when the planner finds that a normal reader needs longer (read_base_seconds + words / read_words_per_second)
+    card_timing: dict[str, float]
     cue_fractions: dict[str, list[float]]
     timeline: dict
     document_card: dict
@@ -3177,8 +3179,6 @@ class GraphicsConfig(BaseModel):
                 raise ValueError(f"graphics.labels.{language} differs from en: "
                                  f"{sorted(set(table) ^ keys)}")
         for kind, fractions in self.cue_fractions.items():
-            if kind not in self.hold_seconds:
-                raise ValueError(f"graphics.cue_fractions.{kind} has no hold_seconds")
             if fractions != sorted(fractions) or not all(0.0 <= f < 1.0 for f in fractions):
                 raise ValueError(f"graphics.cue_fractions.{kind} must rise within [0, 1)")
         return self
