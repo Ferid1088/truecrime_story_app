@@ -11,6 +11,7 @@ from app.db.models import ProductionScript, VisualAsset
 from app.documentary.visuals.usage import annotate, asset_facts, record_media_usage
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
+from app.documentary.production import card_audit as CA
 from app.documentary.production.critics import (
     CRITIC_FOCUS,
     CRITIC_ROLES,
@@ -68,6 +69,10 @@ class DocumentaryCritics:
             problems += [i for i in report["deterministic"]["issues"] if i.get("fix")]
             report["fixes"] = apply_fixes(script, problems, assets)
             if report["fixes"]:
+                # a fix may have moved a card: every card gets its own time again
+                report["card_audit"] = CA.audit(script.get("shots") or [], script.get("board"))
+                for n, sh in enumerate(script.get("shots") or []):
+                    sh["index"] = n
                 # appearance numbers and justifications follow the fixed cut
                 annotate(script.get("shots") or [],
                          {c: asset_facts(a) for c, a in assets.items()},

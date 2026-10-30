@@ -44,6 +44,7 @@ from app.db.models import (
 from app.documentary import storage
 from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.mvp.overlays import crop_of
+from app.documentary.production import card_audit as CA
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.services.video_rights import TRUE_CRIME_CHANNEL
@@ -1253,6 +1254,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     if detective_actions:
         from app.documentary.detective.dispatch import place_detective_graphics
         detective_graphics = place_detective_graphics(final, spans, language, detective_actions)
+    card_fixes = CA.audit(final, board_appearances)               # every card is held for a logical time, cut by nothing
     graphics_dropped = finalize_graphics(final, language)
     for n, sh in enumerate(final):
         sh["index"] = n
@@ -1302,6 +1304,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         # chapter / title cards that found no room (the gap was too short)
         "cards_left_out": cards_left_out,
         "board": board_appearances,
+        # what the planner's check of the cards' times changed
+        "card_audit": card_fixes,
         # Detective Director tool actions dispatched into real shots, and why each one was or
         # was not placed (Section D live evidence)
         "detective_graphics": detective_graphics,
