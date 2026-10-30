@@ -283,7 +283,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     requirements = requirements_of(needs_plan)
     overlays = await scan_overlays(db, case, needs_plan)      # first the marks: cut away, or the picture is out
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
-    described = await DS.describe_approved(db, case, DS.approved_assets(db, needs_plan),
+    described = await DS.describe_approved(db, case, DS.approved_assets(db, needs_plan) + DS.portrait_assets(db, case.id, needs_plan),
                                            entities_with_dossiers(db, case, requirements))   # and what each approved one shows
     sequence = reference_sequence(db, needs_plan, language)       # other languages show the English film's material
     timeline = TL.timeline_for(db, graph_id, manifest, language)   # the toolkit's fixed cards
@@ -402,6 +402,36 @@ async def stage_cut(db: Session, case: Case, needs_plan: VisualPlan, bp_row: Edi
             "were trimmed or cut. Open Review pictures, look at them (only the trimmed and cut ones are shown), approve or "
             "reject each one, then resume.")
     return {"overlays": overlays, "timing": timing, "cut_items": len(items)}
+
+
+def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dict, language: str) -> dict:
+    """No film without the pencil drawing, and no gap of the film without a portrait: every gap of four seconds or more must have a
+    photo (of the ones the owner chose, in priority order) that may be shown there without giving the story away. When one has not,
+    the run stops here, before anything is rendered, and tells the owner what to do (Monitoring shows it with a button to the review)."""
+    from app.documentary.drawing import plan as DP
+    from app.documentary.drawing import portraits as DRP
+    from app.documentary.pipeline.errors import AwaitingPortrait
+
+    sentences = manifest["timeline"].get("sentences") or []
+    needs = db.get(VisualPlan, json.loads(plan_row.validation_json or "{}").get("mvp", {}).get("needs_plan_id") or 0)
+    entities = entities_with_dossiers(db, case, requirements_of(needs)) if needs is not None else []
+    pool = DRP.portrait_pool(db, case.id, sentences, {e["key"] for e in entities if e.get("type") == "person"})
+    usable = [p for p in pool if p.refused is None]
+    if not usable:
+        raise AwaitingPortrait(
+            "Awaiting portrait choice: no photo is chosen for the pencil drawing, and no film is made without it. Open Review pictures "
+            "and give at least one approved photo of a person a drawing priority.")
+    gaps = (json.loads(plan_row.validation_json or "{}").get("plan") or {}).get("gaps") or []
+    bad = DP.uncoverable(gaps, pool)
+    if bad:
+        first = bad[0]
+        earliest = min(usable, key=lambda p: p.earned_from)
+        raise AwaitingPortrait(
+            f"Awaiting portrait choice: {len(bad)} gap(s) of the {language} film have no portrait that may be shown without a spoiler "
+            f"(the first at {DRP.label(first['start'])}). Of your {len(pool)} photos, none shows a person named in the film by then: "
+            f"{DRP.label(first['start'])} comes before {earliest.code} (its person is named at {DRP.label(earliest.earned_from)}). "
+            "Open Review pictures and give a photo of someone named earlier the drawing priority 1.")
+    return {"portraits": len(pool), "usable": len(usable), "gaps_checked": len(gaps)}
 
 
 def stage_complete(plan_row: VisualPlan, language: str) -> dict:

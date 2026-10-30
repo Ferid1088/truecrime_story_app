@@ -196,9 +196,12 @@ class CaseMonitor(Monitor):
                                      self.open_tab(stale[0]))
 
     def stopped_job(self, job: DocumentaryJob, view: dict) -> None:
-        awaiting = "Awaiting picture review" in (job.error or "")
+        portrait = "Awaiting portrait choice" in (job.error or "")
+        awaiting = portrait or "Awaiting picture review" in (job.error or "")
         actions = []
-        if awaiting:
+        if portrait:
+            actions.append(Action("Choose another first portrait", "href", f"/documentary/{job.case_id}/review?portraits=1"))
+        elif awaiting:
             actions.append(Action("Review pictures", "href", f"/documentary/{job.case_id}/review"))
         elif view["stage"]:
             actions.append(self.open_tab(view["stage"]))
@@ -270,7 +273,7 @@ class CaseMonitor(Monitor):
         # issues are this case's own: its active jobs and its latest job (older stopped jobs are history)
         self.check_jobs([j for j in jobs if j.case_id == self.case.id
                          and (j.status in ACTIVE or (latest and j.id == latest.id))])
-        planning = any(stage_base(j.stage or "") in ("mvp_direct", "mvp_complete")
+        planning = any(stage_base(j.stage or "") in ("mvp_direct", "mvp_complete", "mvp_portraits")
                        for j in running if j.case_id == self.case.id)
         if not planning:      # while the picture plan is being redone the old gap list is out of date
             self.check_gates(sorted({lang for j in own[:1] for lang in json.loads(j.languages_json or "[]")}))

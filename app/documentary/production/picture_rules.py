@@ -24,6 +24,13 @@ def names_of(slug: str) -> tuple[str, str | None]:
     return " ".join(parts), (parts[-1] if parts else None)
 
 
+def named_by(text: str, slug: str) -> bool:
+    """The text names this very person: the full name or the first name (a shared last name names a family, not a person)."""
+    parts = [p for p in slug.split("_") if len(p) > 2 and p != "ent"]
+    low = text.lower()
+    return bool(parts and (" ".join(parts) in low or re.search(rf"\b{re.escape(parts[0])}", low)))
+
+
 def mentions(text: str, slug: str, person: bool = True) -> bool:
     """The text names this entity: its full name, or for a person also the last word of it ('Smith' names todd_smith)."""
     full, last = names_of(slug)

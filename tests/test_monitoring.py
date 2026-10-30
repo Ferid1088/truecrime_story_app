@@ -158,3 +158,16 @@ def test_the_app_wide_view_lists_a_stopped_case_with_buttons_that_open_it(db_ses
     assert any(a["kind"] == "resume" and a["target"] == str(job.id) for a in mine[0]["actions"])
     assert any(c["id"] == case.id for c in snap["cases"])
     assert {s["name"] for s in snap["services"]} == {"API", "Database", "Worker", "Brave Search"}
+
+
+def test_a_job_that_waits_for_a_portrait_choice_gets_a_button_to_the_review_with_the_portrait_view(db_session):
+    case = _case(db_session)
+    message = "Awaiting portrait choice: 2 gap(s) of the en film have no portrait that may be shown without a spoiler"
+    job = _job(db_session, case, "failed", "mvp_portraits:en",
+               [{"name": "mvp_portraits:en", "status": "failed", "attempts": 1}],
+               error=f"AwaitingPortrait: {message}", result_json=json.dumps({"failure": failure_details(message)}))
+    snap = _snapshot(case)
+    kinds = {(a["label"], a["kind"], a["target"]) for i in snap["issues"] for a in i["actions"]}
+    assert ("Choose another first portrait", "href", f"/documentary/{case.id}/review?portraits=1") in kinds
+    assert ("Resume the job", "resume", str(job.id)) in kinds
+    assert any("is waiting for you" in t for t in _titles(snap)) and snap["state"] == "attention"

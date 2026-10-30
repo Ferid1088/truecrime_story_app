@@ -706,6 +706,7 @@ def the_owner_has_reviewed(monkeypatch):
     from app.documentary.mvp import pipeline as MVP
 
     monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)
+    monkeypatch.setattr(MVP, "stage_portraits", lambda *args: {"portraits": 1, "usable": 1, "gaps_checked": 0})   # (tested on its own)
 
 
 @pytest.fixture

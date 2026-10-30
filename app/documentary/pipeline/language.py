@@ -215,6 +215,11 @@ class LanguageChain:
             return MVP.stage_complete(plan_row, lang)
 
         await pipe._stage(f"mvp_complete:{lang}", mvp_complete)
+
+        async def mvp_portraits():
+            return MVP.stage_portraits(db, case, plan_row, manifest, lang)
+
+        await pipe._stage(f"mvp_portraits:{lang}", mvp_portraits)
         if planning:
             for name in ("zoom_maps", "production", "critique", "mvp_coverage", "render", "mvp_review"):
                 await pipe._stage(f"{name}:{lang}", lambda: skipped("planning job: it ends with the planned pictures"))

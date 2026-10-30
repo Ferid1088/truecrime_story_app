@@ -35,3 +35,8 @@ class AwaitingPictureReview(RuntimeError):
     """Moments of the film are still empty after every real picture, video and alternative graphic the case's material
     allows: the run waits (before anything is rendered) for the owner to review the pictures the planner rejected or
     was unsure about, and is resumable once they have."""
+
+
+class AwaitingPortrait(RuntimeError):
+    """A gap of the film has no portrait that may be shown (every photo the owner chose is refused or would give the story away at
+    that moment): the run stops before anything is rendered and is resumable once the owner has chosen another first photo."""

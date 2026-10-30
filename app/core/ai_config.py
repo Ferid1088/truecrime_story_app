@@ -3062,6 +3062,34 @@ class MvpOwnerNoteConfig(BaseModel):
     max_chars: int = Field(ge=40)
 
 
+class DrawingWindowConfig(BaseModel):
+    reference_width: int = Field(gt=0)
+    reference_height: int = Field(gt=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+
+class DrawingConfig(BaseModel):
+    """The pencil drawing of a portrait (config/parameters/drawing.json): one portrait is drawn in `base_seconds` of drawing time
+    at normal speed; the planner runs it between `min_speed` and `max_speed`, shows it in a corner window over the pictures
+    (`window_opacity`) and over the whole screen in a gap of `gap_full_seconds` or more, where nothing else may be shown."""
+
+    base_seconds: float = Field(gt=0.0)
+    min_speed: float = Field(gt=0.0)
+    max_speed: float = Field(gt=0.0)
+    gap_full_seconds: float = Field(gt=0.0)
+    window_opacity: float = Field(gt=0.0, le=1.0)
+    full_opacity: float = Field(gt=0.0, le=1.0)
+    window: DrawingWindowConfig
+    finish_hold_seconds: float = Field(ge=0.0)
+
+    @model_validator(mode="after")
+    def _speeds(self):
+        if self.min_speed >= self.max_speed:
+            raise ValueError("drawing: min_speed must be below max_speed")
+        return self
+
+
 class LogoLapConfig(BaseModel):
     """Every `every_seconds` of the film the logo leaves its corner, goes once around the screen and returns, taking
     `seconds` (it eases out of and into its place); it is on screen for the whole lap, over any kind of shot. The
@@ -4076,6 +4104,7 @@ class AIConfig(BaseModel):
     zoom_map: ZoomMapConfig | None = None
     graphics: GraphicsConfig | None = None
     branding: BrandingConfig | None = None
+    drawing: DrawingConfig | None = None
     monitoring: MonitoringConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
@@ -4293,6 +4322,12 @@ class AIConfig(BaseModel):
         if self.main_visual_planner is None:
             raise RuntimeError("config/parameters/main_visual_planner.json is missing")
         return self.main_visual_planner
+
+    def drawing_settings(self) -> DrawingConfig:
+        """The pencil drawing's settings (config/parameters/drawing.json)."""
+        if self.drawing is None:
+            raise RuntimeError("config/parameters/drawing.json is missing")
+        return self.drawing
 
     def branding_settings(self) -> BrandingConfig:
         """The channel logo's settings (config/parameters/branding.json)."""

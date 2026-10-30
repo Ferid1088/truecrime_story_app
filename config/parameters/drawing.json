@@ -1,0 +1,17 @@
+{
+  "drawing": {
+    "base_seconds": 1140.0,
+    "min_speed": 0.5,
+    "max_speed": 2.0,
+    "gap_full_seconds": 4.0,
+    "window_opacity": 0.6,
+    "full_opacity": 1.0,
+    "window": {
+      "reference_width": 1280,
+      "reference_height": 720,
+      "width": 120,
+      "height": 150
+    },
+    "finish_hold_seconds": 4.0
+  }
+}

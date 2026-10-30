@@ -110,3 +110,10 @@ def approved_assets(db: Session, plan: VisualPlan) -> list[VisualAsset]:
         for item in group:
             seen.setdefault(item.asset.id, item.asset)
     return list(seen.values())
+
+
+def portrait_assets(db: Session, case_id: int, plan: VisualPlan) -> list[VisualAsset]:
+    """The photos the owner chose for the pencil drawing that are not among the approved ones already (their card says who they show)."""
+    have = {a.id for a in approved_assets(db, plan)}
+    return [a for a in db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.draw_priority.isnot(None)).all()
+            if a.id not in have]

@@ -59,4 +59,11 @@ test.describe("Main Visual Planner picture review", () => {
     await expect(page.getByTestId("review-queue-draw-priority")).toHaveValue("3");
     await expect(page.getByTestId("review-queue-must-use")).toBeChecked();
   });
+
+  test("opened from the portrait stop it explains what to do and shows the approved photos", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/documentary/1/review?portraits=1");
+    await expect(page.getByTestId("review-queue-portraits-note")).toContainText("Drawing priority 1");
+    await expect(page.getByTestId("review-queue-shown").getByRole("button", { name: "Approved" })).toBeVisible();
+  });
 });

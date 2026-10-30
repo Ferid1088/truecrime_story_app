@@ -194,9 +194,10 @@ function OwnerNote({ caseId, item, flushRef }: {
   );
 }
 
-export function ReviewQueuePage({ caseId }: { caseId: number }) {
-  const [chosenShown, setShown] = useState<(typeof SHOWN)[number]["key"] | null>(null);
-  const [chosenKind, setKind] = useState<Kind | null>(null);
+export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number; portraits?: boolean }) {
+  // opened from "Choose another first portrait": the approved photos, to give one the drawing priority
+  const [chosenShown, setShown] = useState<(typeof SHOWN)[number]["key"] | null>(portraits ? "approved" : null);
+  const [chosenKind, setKind] = useState<Kind | null>(portraits ? "photo" : null);
   const [beat, setBeat] = useState<string | undefined>(undefined);
   const cutOnly = chosenShown === "cut";
   const { data, loading, error, refetch } = useApi(
@@ -315,6 +316,12 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
           <p className="text-xs text-muted-foreground">
             Each picture is shown once, however many requirements it was offered for; your decision applies to all of them.
           </p>
+          {portraits && (
+            <p role="note" className="mt-2 max-w-3xl rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm" data-testid="review-queue-portraits-note">
+              The film stopped because a gap has no portrait that may be shown without giving the story away. Choose an approved photo
+              of a person who is named early in the film and give it the <strong>Drawing priority 1</strong>; then resume the job.
+            </p>
+          )}
           {message && <p role="status" className="mt-1 text-sm text-emerald-700">{message}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">

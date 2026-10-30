@@ -229,6 +229,7 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
 
     monkeypatch.setattr(PL.DS, "describe_approved", describe)
     monkeypatch.setattr(PL.DS, "approved_assets", lambda db, plan: [])
+    monkeypatch.setattr(PL.DS, "portrait_assets", lambda db, case_id, plan: [])
     monkeypatch.setattr(PL, "entities_with_dossiers", lambda db, case, requirements: [])
     monkeypatch.setattr(PL, "language_plan", lambda *a: target)
     monkeypatch.setattr(PL, "requirements_of", lambda plan: [])

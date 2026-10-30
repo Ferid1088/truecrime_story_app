@@ -298,7 +298,7 @@ def plan_stages(languages: list[str], from_zero: bool = False) -> list[dict]:
     for l in languages:
         names += ([f"host:{l}"] if host else []) + [
             f"performance:{l}", f"voice:{l}", f"mvp_host:{l}", f"mvp_direct:{l}", f"mvp_complete:{l}",
-            f"zoom_maps:{l}", f"production:{l}", f"critique:{l}", f"mvp_coverage:{l}", f"render:{l}", f"mvp_review:{l}"]
+            f"mvp_portraits:{l}", f"zoom_maps:{l}", f"production:{l}", f"critique:{l}", f"mvp_coverage:{l}", f"render:{l}", f"mvp_review:{l}"]
     # Shorts are real post-film stages.  They remain pending while the film
     # runs and are claimed only after the documentary job is finished.
     names += ["short_selection"]
