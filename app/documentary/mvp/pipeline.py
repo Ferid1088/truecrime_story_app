@@ -343,6 +343,14 @@ def request_review(db: Session, needs_plan: VisualPlan) -> None:
     db.commit()
 
 
+def restart_reviews(db: Session, needs_plan: VisualPlan) -> None:
+    """A new run starts with the owner's review 1 again: the reviews of an earlier run do not count for it."""
+    validation = json.loads(needs_plan.validation_json or "{}")
+    validation.setdefault("mvp", {})["reviews"] = 0
+    needs_plan.validation_json = json.dumps(validation, ensure_ascii=False)
+    db.commit()
+
+
 def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) -> None:
     """Review 1, before anything is cut or planned again: the owner sees every photo and video, approved and rejected, and
     decides. The run always stops here once; after the owner's review (counted, see `request_review`) it goes on, and

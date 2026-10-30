@@ -238,3 +238,16 @@ def test_a_picture_the_owner_checked_is_put_into_the_film_when_the_direction_lef
     db_session.commit()
     failed = {f["asset"] for f in place_must_use(db_session, case.id, plan, target)["failed"]}
     assert failed == {"OTHER2", "NOTAPPROVED"}, "a checked item that is not approved cannot be shown, and is reported"
+
+
+def test_a_new_run_stops_for_review_1_even_when_an_earlier_run_was_reviewed(db_session):
+    from app.documentary.mvp.pipeline import request_review, restart_reviews, stage_owner_attention
+    from app.documentary.pipeline.errors import AwaitingPictureReview
+
+    _, plan, _ = _seed(db_session)
+    request_review(db_session, plan)
+    request_review(db_session, plan)
+    assert stage_owner_attention(db_session, plan, "en") is None
+    restart_reviews(db_session, plan)
+    with pytest.raises(AwaitingPictureReview, match="every photo and video"):
+        stage_owner_attention(db_session, plan, "en")

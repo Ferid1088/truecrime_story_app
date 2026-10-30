@@ -448,6 +448,7 @@ class DocumentaryPipeline(StageRunner):
 
             _, toolkit = await TK.stage_toolkit(db, case, bp_row)      # the toolkit makes the graph and its cards first
             row, graph, detail = await MVP.stage_needs(db, case, bp_row)
+            MVP.restart_reviews(db, row)                              # a new run: the owner reviews everything first
             state["vp"], state["graph"] = row, graph
             detail["toolkit"] = {"parts": toolkit.parts, "made": toolkit.made, "card_share": toolkit.alternative_share,
                                  "card_kinds": toolkit.kinds_used, "missing_kinds": toolkit.missing_kinds,
