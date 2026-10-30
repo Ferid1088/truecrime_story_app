@@ -555,6 +555,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
   ];
   const reviewQueueState = { list: () => reviewQueueItems };
   const selections = new Map<number, { must_use: boolean; draw_priority: number | null }>();
+  let drawingMade = false;
 
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
@@ -673,6 +674,18 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       const saved = selections.get(id)!;
       saved.draw_priority = saved.draw_priority || null;                   // 0 unselects the photo
       return json(route, { asset_id: id, ...saved });
+    }
+    if (path === "/api/cases/1/drawing" || path === "/api/cases/1/drawing/create") {
+      if (path.endsWith("/create") && method === "POST") drawingMade = true;
+      const status = drawingMade ? "drawing" : "none";
+      return json(route, {
+        planned: true, needed: 2, speed: 0.84, uncovered: [], chosen: 3, ready: 0, drawing: drawingMade ? 2 : 0,
+        portraits: [
+          { asset_id: 101, code: "VIS_101", priority: 1, title: "Ashley", thumb_url: "/api/visuals/101/file?thumb=1", needed: true, status, progress: 0.2, error: null },
+          { asset_id: 102, code: "VIS_102", priority: 2, title: "Caleb", thumb_url: "/api/visuals/102/file?thumb=1", needed: true, status, progress: 0.1, error: null },
+          { asset_id: 103, code: "VIS_103", priority: 3, title: "Jill", thumb_url: "/api/visuals/103/file?thumb=1", needed: false, status: "none", progress: 0, error: null },
+        ],
+      });
     }
     if (path === "/api/cases/1/mvp/gaps") return json(route, { detail: "No en direction for this case yet" }, 404);
     if (path === "/api/cases/1/mvp/plan") return json(route, { detail: "No Main Visual Planner plan for this case yet" }, 404);

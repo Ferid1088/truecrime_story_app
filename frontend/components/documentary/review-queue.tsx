@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PortraitsPanel } from "@/components/documentary/portraits-panel";
 import type { MvpCandidateGroup } from "@/lib/types";
 
 const DECISIONS = ["provenance", "identity", "rights_decision", "ethics", "scene"] as const;
@@ -366,6 +367,8 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
           )}
         </div>
       </header>
+
+      <PortraitsPanel caseId={caseId} />
 
       {gaps && gaps.gap_count > 0 && (
         <details className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-foreground" data-testid="review-queue-gaps">

@@ -136,3 +136,25 @@ def reasons(pool: list[Portrait], at: float) -> list[dict]:
     return [{"code": p.code, "priority": p.priority,
              "why": p.refused or (f"the person is first named at {p.earned_from:.0f} s" if p.earned_from > at else "usable")}
             for p in sorted(pool, key=lambda p: p.priority)]
+
+
+def estimated_shots(duration: float, gaps: list[dict], card_seconds: float) -> list[dict]:
+    """The film's shots as far as the picture plan knows them (before the production script exists): every gap as it is, and the
+    pictures spread over the rest of the film, less the seconds the cards take."""
+    cfg = ai_config.drawing_settings()
+    ordered = sorted(gaps, key=lambda g: g["start"])
+    spans, t = [], 0.0
+    for g in ordered:
+        spans.append((t, g["start"]))
+        t = g["end"]
+    spans.append((t, duration))
+    room = sum(max(b - a, 0.0) for a, b in spans)
+    pictures = max(room - card_seconds, 0.0) / room if room else 0.0
+    shots = []
+    for (a, b), gap in zip(spans, [*ordered, None], strict=True):
+        if b - a > 1e-6 and pictures > 0:
+            shots.append({"kind": "image", "start": a, "end": a + (b - a) * pictures})
+        if gap is not None:
+            shots.append({"kind": "black", "start": gap["start"], "end": gap["end"],
+                          "bare": gap["end"] - gap["start"] >= cfg.gap_full_seconds})
+    return shots

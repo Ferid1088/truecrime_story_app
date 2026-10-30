@@ -50,6 +50,7 @@ import type {
   MvpCandidate,
   MonitoringAppSnapshot,
   MonitoringSnapshot,
+  DrawingOverview,
   MvpCandidateGroup,
   MvpGaps,
   MvpFilmReview,
@@ -1044,6 +1045,11 @@ export const youtubeClipsApi = {
 export const monitoringApi = {
   snapshot: (caseId: number) => request<MonitoringSnapshot>(`/api/cases/${caseId}/monitoring`),
   app: () => request<MonitoringAppSnapshot>("/api/monitoring"),
+};
+
+export const drawingApi = {
+  overview: (caseId: number) => request<DrawingOverview>(`/api/cases/${caseId}/drawing`),
+  create: (caseId: number) => post<DrawingOverview>(`/api/cases/${caseId}/drawing/create`, {}),
 };
 
 export const mvpApi = {

@@ -71,4 +71,14 @@ test.describe("Main Visual Planner picture review", () => {
     await expect(page.getByTestId("review-queue-portraits-note")).toContainText("Drawing priority 1");
     await expect(page.getByTestId("review-queue-shown").getByRole("button", { name: "Approved" })).toBeVisible();
   });
+
+  test("the planner says how many portraits the film needs and the button makes them", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/documentary/1/review");
+    await expect(page.getByTestId("portraits-summary")).toContainText("The film needs 2 portraits");
+    await expect(page.getByTestId("portrait-status-VIS_103")).toHaveText("reserve");
+    await page.getByTestId("create-portraits").click();
+    await expect(page.getByTestId("portrait-status-VIS_101")).toContainText("being drawn 20 %");
+    await expect(page.getByTestId("create-portraits")).toBeDisabled();
+  });
 });

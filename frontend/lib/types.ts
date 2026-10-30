@@ -3605,3 +3605,28 @@ export interface MonitoringAppSnapshot {
   budgets: (MonitoringSnapshot["budget"] & { case_id: number; title: string })[];
   providers: MonitoringSnapshot["providers"];
 }
+
+
+/** The pencil portraits of a case: how many the planner needs, which photos, and how far the making has come. */
+export interface DrawingPortrait {
+  asset_id: number;
+  code: string;
+  priority: number | null;
+  title: string | null;
+  thumb_url: string;
+  needed: boolean;
+  status: "none" | "drawing" | "ready" | "failed";
+  progress: number;
+  error: string | null;
+}
+
+export interface DrawingOverview {
+  planned: boolean;
+  needed: number;
+  speed: number | null;
+  uncovered: { start: number; end: number }[];
+  chosen: number;
+  portraits: DrawingPortrait[];
+  ready: number;
+  drawing: number;
+}

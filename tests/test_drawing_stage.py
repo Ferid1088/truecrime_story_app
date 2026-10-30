@@ -38,7 +38,7 @@ def _film(db, gaps, photos):
     return case, plan
 
 
-MANIFEST = {"timeline": {"sentences": [
+MANIFEST = {"duration_seconds": 2700.0, "timeline": {"sentences": [
     {"start": 0.0, "end": 8.0, "display": "A call came in about a house."},
     {"start": 300.0, "end": 310.0, "display": "Ashley Flynn had taught children for years."},
     {"start": 900.0, "end": 910.0, "display": "Alleigha Botner testified."}]}}
@@ -46,7 +46,11 @@ MANIFEST = {"timeline": {"sentences": [
 
 def test_a_gap_is_covered_when_a_chosen_photo_of_an_already_named_person_exists(db_session):
     case, plan = _film(db_session, [(400, 430)], [("VIS_A", 1, "ashley_flynn"), ("VIS_B", 2, "alleigha_botner")])
-    assert PL.stage_portraits(db_session, case, plan, MANIFEST, "en") == {"portraits": 2, "usable": 2, "gaps_checked": 1}
+    done = PL.stage_portraits(db_session, case, plan, MANIFEST, "en")
+    assert (done["portraits"], done["usable"], done["gaps_checked"]) == (2, 2, 1)
+    record = json.loads(plan.validation_json)["mvp"]["portraits"]
+    assert record["needed"] == done["needed"] >= 1 and record["uncovered"] == [] and 0.5 <= record["speed"] <= 2.0
+    assert [o["code"] for o in record["order"]][0] == "VIS_A", "the planner keeps the owner's priority order"
 
 
 def test_when_a_spoiler_blocks_every_photo_the_run_stops_and_says_what_to_do(db_session):

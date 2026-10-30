@@ -431,7 +431,19 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
             f"(the first at {DRP.label(first['start'])}). Of your {len(pool)} photos, none shows a person named in the film by then: "
             f"{DRP.label(first['start'])} comes before {earliest.code} (its person is named at {DRP.label(earliest.earned_from)}). "
             "Open Review pictures and give a photo of someone named earlier the drawing priority 1.")
-    return {"portraits": len(pool), "usable": len(usable), "gaps_checked": len(gaps)}
+    plan = json.loads(plan_row.validation_json or "{}").get("plan") or {}
+    shots = DP.estimated_shots(float(manifest.get("duration_seconds") or 0.0), gaps,
+                               sum(v for k, v in (plan.get("alternatives") or {}).items() if k != "map") + (plan.get("alternatives") or {}).get("map", 0.0))
+    drawing = DP.plan_drawing(shots, pool)
+    record = {"needed": len(drawing.portraits), "speed": round(drawing.speed, 3),
+              "order": [{"code": p["code"], "started": p["started"], "finished": p["finished"]} for p in drawing.portraits],
+              "uncovered": drawing.uncovered}
+    validation = json.loads(plan_row.validation_json or "{}")
+    validation.setdefault("mvp", {})["portraits"] = record
+    plan_row.validation_json = json.dumps(validation, ensure_ascii=False)
+    db.commit()
+    return {"portraits": len(pool), "usable": len(usable), "gaps_checked": len(gaps), "needed": record["needed"],
+            "speed": record["speed"]}
 
 
 def stage_complete(plan_row: VisualPlan, language: str) -> dict:

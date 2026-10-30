@@ -102,6 +102,7 @@ if os.environ.get("TC_TEST_NO_NETWORK") == "1":
 from app.autopilot.api import router as autopilot_router  # noqa: E402
 from app.documentary.api import router as documentary_router  # noqa: E402
 from app.documentary.detective.api import router as detective_router  # noqa: E402
+from app.documentary.drawing.api import router as drawing_router  # noqa: E402
 from app.documentary.monitoring import router as monitoring_router  # noqa: E402
 from app.documentary.mvp.api import router as mvp_router  # noqa: E402
 from app.documentary.studio_api import router as studio_router  # noqa: E402
@@ -118,6 +119,7 @@ for _router in (
     background_jobs.router,
     documentary_router,
     detective_router,
+    drawing_router,
     monitoring_router,
     mvp_router,
     lifecycle_router,
