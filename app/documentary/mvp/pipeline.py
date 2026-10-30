@@ -428,6 +428,10 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
                                sum(v for k, v in (plan.get("alternatives") or {}).items() if k != "map") + (plan.get("alternatives") or {}).get("map", 0.0))
     drawing = DP.plan_drawing(shots, pool)
     record = {"needed": len(drawing.portraits), "speed": round(drawing.speed, 3),
+              "pool": [{"code": p.code, "earned_from": None if p.earned_from == float("inf") else round(p.earned_from, 3),
+                        "refused": p.refused} for p in pool],
+              "estimate": {"duration": float(manifest.get("duration_seconds") or 0.0), "gaps": gaps,
+                           "card_seconds": sum((plan.get("alternatives") or {}).values())},
               "order": [{"code": p["code"], "started": p["started"], "finished": p["finished"]} for p in drawing.portraits],
               "uncovered": drawing.uncovered}
     validation = json.loads(plan_row.validation_json or "{}")

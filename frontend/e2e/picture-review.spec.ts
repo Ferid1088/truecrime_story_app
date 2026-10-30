@@ -80,5 +80,6 @@ test.describe("Main Visual Planner picture review", () => {
     await page.getByTestId("create-portraits").click();
     await expect(page.getByTestId("portrait-status-VIS_101")).toContainText("being drawn 20 %");
     await expect(page.getByTestId("create-portraits")).toBeDisabled();
+    await expect(page.getByTestId("portraits-check")).toContainText("The planner ordered VIS_103 and checks again");
   });
 });

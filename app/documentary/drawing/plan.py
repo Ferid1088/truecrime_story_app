@@ -38,6 +38,7 @@ class DrawingPlan:
     segments: list[dict] = field(default_factory=list)      # {start, end, mode, portrait, from, speed}
     portraits: list[dict] = field(default_factory=list)     # {code, started, finished} in the order they are drawn
     speed: float = 1.0
+    fits: bool = False                                      # a number of portraits that finish by the film's end inside the speed range, no gap bare
     uncovered: list[dict] = field(default_factory=list)     # gaps of `gap_full_seconds` or more that no photo may cover
     tried: list[dict] = field(default_factory=list)         # for each photo of the pool: why it could not cover the first gap
 
@@ -108,9 +109,15 @@ def plan_drawing(shots: list[dict], pool: list[Portrait]) -> DrawingPlan:
             continue
         plan = _simulate(intervals, pool, speed, count)
         if not plan.uncovered:
+            plan.fits = True
             return plan
         if best is None or len(plan.uncovered) < len(best.uncovered):
             best = plan
+    if usable and total * cfg.max_speed <= cfg.base_seconds:     # a film too short to finish even one portrait: one portrait, fastest speed
+        short = _simulate(intervals, pool, cfg.max_speed, 1)
+        if not short.uncovered:
+            short.fits = True
+            return short
     if best is None:                                        # no count is inside the speed range: the film is too short or too long
         speed = min(max(cfg.base_seconds * max(len(usable), 1) / max(total, 1e-6), cfg.min_speed), cfg.max_speed)
         best = _simulate(intervals, pool, speed, max(len(usable), 1))

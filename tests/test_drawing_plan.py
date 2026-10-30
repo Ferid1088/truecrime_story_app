@@ -65,3 +65,9 @@ def test_a_film_without_gaps_needs_no_portrait_for_a_gap_and_the_drawing_may_be_
     pool = [DP.Portrait("A", 1, earned_from=300.0)]
     plan = DP.plan_drawing([pic(0, 600), pic(600, 1400)], pool)
     assert not plan.uncovered and plan.portraits[0]["started"] == 300.0
+
+
+def test_a_film_too_short_to_finish_even_one_portrait_uses_one_at_the_fastest_speed():
+    plan = DP.plan_drawing([pic(0, 300)], [DP.Portrait("A", 1), DP.Portrait("B", 2)])
+    assert plan.fits and len(plan.portraits) == 1 and plan.speed == ai_config.drawing_settings().max_speed
+    assert plan.portraits[0]["finished"] is None, "it is not finished: the film ends first"

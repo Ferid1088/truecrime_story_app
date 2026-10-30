@@ -58,6 +58,18 @@ export function PortraitsPanel({ caseId }: { caseId: number }) {
           {drawing > 0 ? "Drawing…" : allReady ? "Portraits made" : "Create portraits"}
         </Button>
       </div>
+      {data.check && (
+        <p className={`mt-2 ${data.check.enough ? "text-emerald-700" : data.check.exhausted ? "text-rose-700" : "text-amber-700"}`}
+           data-testid="portraits-check" role="status">
+          {data.check.enough
+            ? `Checked: the ${data.check.made} portrait${data.check.made === 1 ? "" : "s"} made cover the film (speed ${data.check.speed}×).`
+            : data.check.exhausted
+              ? "Checked: the portraits made are not enough for the film and every photo you chose is made: give more approved photos a Drawing priority."
+              : data.check.ordered.length > 0
+                ? `Checked: the portraits made are not enough for the film. The planner ordered ${data.check.ordered.join(", ")} and checks again when it is made.`
+                : "Checked: the portraits made are not enough for the film; the next one is being made."}
+        </p>
+      )}
       {data.uncovered.length > 0 && (
         <p className="mt-2 text-rose-700" role="alert">
           A gap of the film has no portrait that may be shown without a spoiler: give a photo of someone named earlier the Drawing priority 1.

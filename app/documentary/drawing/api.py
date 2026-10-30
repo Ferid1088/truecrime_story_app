@@ -26,6 +26,7 @@ def overview(db: Session, case_id: int) -> dict:
 
     rows = [row(chosen[c], True) for c in needed if c in chosen] + [row(a, False) for c, a in chosen.items() if c not in needed]
     return {"planned": record is not None, "needed": len(needed), "speed": (record or {}).get("speed"),
+            "check": (record or {}).get("check"),
             "uncovered": (record or {}).get("uncovered") or [], "chosen": len(chosen), "portraits": rows,
             "ready": sum(1 for r in rows if r["needed"] and r["status"] == "ready"),
             "drawing": sum(1 for r in rows if r["status"] == "drawing")}
@@ -51,4 +52,5 @@ def create_portraits(case_id: int, db: Session = Depends(get_db)):
     for r in current["portraits"]:
         if r["needed"]:
             S.start(db.get(VisualAsset, r["asset_id"]))
+    S.check(db, case_id)                     # when the made ones are already enough nothing more is ordered; when not, the next photo is
     return overview(db, case_id)

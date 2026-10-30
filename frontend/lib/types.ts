@@ -3620,8 +3620,18 @@ export interface DrawingPortrait {
   error: string | null;
 }
 
+/** The check after the portraits are made: is their drawing time enough for the film? */
+export interface DrawingCheck {
+  enough: boolean;
+  made: number;
+  speed: number;
+  ordered: string[];
+  exhausted: boolean;
+}
+
 export interface DrawingOverview {
   planned: boolean;
+  check: DrawingCheck | null;
   needed: number;
   speed: number | null;
   uncovered: { start: number; end: number }[];

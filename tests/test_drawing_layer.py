@@ -124,10 +124,21 @@ SCRIPT = {"subtitles": [{"start": 0.0, "end": 5.0, "text": "Ashley taught childr
                     {"kind": "image", "start": 60.0, "end": 400.0}]}
 
 
-def test_a_film_whose_portraits_are_not_made_is_not_made_and_the_run_says_to_create_them(db_session):
+def test_a_film_whose_portraits_are_not_made_is_not_made_the_planner_orders_them_and_the_run_says_so(db_session, monkeypatch):
     case, plan = _film(db_session)
-    with pytest.raises(AwaitingPortrait, match="Awaiting portrait creation: 1 of the 1 portraits"):
+    ordered = []
+    monkeypatch.setattr(DRS.S, "order", lambda db, case_id, codes: ordered.extend(codes) or codes)
+    with pytest.raises(AwaitingPortrait, match="Awaiting portrait creation: 1 of the 1 portraits") as stopped:
         DRS.build(db_session, case, plan, json.loads(json.dumps(SCRIPT)), "en")
+    assert ordered == ["PORT"] and "The planner has ordered PORT" in str(stopped.value)
+
+
+def test_a_film_whose_drawing_time_the_chosen_photos_cannot_cover_asks_the_owner_for_more_photos(db_session):
+    case, plan = _film(db_session)
+    long_film = json.loads(json.dumps(SCRIPT))
+    long_film["shots"] = [{"kind": "image", "start": 0.0, "end": 9000.0}]
+    with pytest.raises(AwaitingPortrait, match="Awaiting portrait choice: the film shows the drawing for 150 minutes"):
+        DRS.build(db_session, case, plan, long_film, "en")
 
 
 def test_a_made_portrait_gives_the_segments_in_the_languages_corner_and_moves_the_label_beside_the_window(db_session, made):

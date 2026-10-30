@@ -23,10 +23,11 @@ def not_made(db: Session, case_id: int, codes: list[str]) -> list[str]:
     return [c for c in codes if c not in assets or S.state_of(assets[c])["status"] != "ready"]
 
 
-def awaiting_creation(missing: list[str], needed: int) -> AwaitingPortrait:
+def awaiting_creation(missing: list[str], needed: int, ordered: list[str] | None = None) -> AwaitingPortrait:
+    started = f" The planner has ordered {', '.join(ordered)}: they are being made, resume the job when they are ready." if ordered else ""
     return AwaitingPortrait(
-        f"Awaiting portrait creation: {len(missing)} of the {needed} portraits the film needs are not made yet ({', '.join(missing)}). "
-        "Open Review pictures and press Create portraits; no film is rendered without them.")
+        f"Awaiting portrait creation: {len(missing)} of the {needed} portraits the film needs are not made yet ({', '.join(missing)}).{started} "
+        "Open Review pictures to see them and press Create portraits; no film is rendered without them.")
 
 
 def build(db: Session, case: Case, plan_row: VisualPlan, script: dict, language: str) -> dict:
@@ -36,10 +37,17 @@ def build(db: Session, case: Case, plan_row: VisualPlan, script: dict, language:
     plan = DP.plan_drawing(script["shots"], pool)
     if plan.uncovered:
         raise AwaitingPortrait(DRP.no_portrait_message(language, plan.uncovered, pool))
+    if not plan.fits:                      # the film's drawing time is more than the chosen photos give, even at the slowest speed
+        usable = len([p for p in pool if p.refused is None])
+        visible = sum(i.seconds for i in DP.intervals_of(script["shots"]))
+        raise AwaitingPortrait(
+            f"Awaiting portrait choice: the film shows the drawing for {visible / 60:.0f} minutes, and the {usable} photo(s) you chose cannot cover "
+            f"that even at the slowest speed ({ai_config.drawing_settings().min_speed}x). Open Review pictures and give more approved photos of "
+            "people a drawing priority.")
     codes = [p["code"] for p in plan.portraits]
     missing = not_made(db, case.id, codes)
     if missing:
-        raise awaiting_creation(missing, len(codes))
+        raise awaiting_creation(missing, len(codes), S.order(db, case.id, missing))     # the planner orders what is missing
     assets = {a.asset_code: a for a in db.query(VisualAsset).filter(VisualAsset.case_id == case.id, VisualAsset.asset_code.in_(codes))}
     portraits = {}
     for code in codes:

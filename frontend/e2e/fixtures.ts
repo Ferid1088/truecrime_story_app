@@ -680,6 +680,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       const status = drawingMade ? "drawing" : "none";
       return json(route, {
         planned: true, needed: 2, speed: 0.84, uncovered: [], chosen: 3, ready: 0, drawing: drawingMade ? 2 : 0,
+        check: drawingMade ? { enough: false, made: 1, speed: 0.9, ordered: ["VIS_103"], exhausted: false } : null,
         portraits: [
           { asset_id: 101, code: "VIS_101", priority: 1, title: "Ashley", thumb_url: "/api/visuals/101/file?thumb=1", needed: true, status, progress: 0.2, error: null },
           { asset_id: 102, code: "VIS_102", priority: 2, title: "Caleb", thumb_url: "/api/visuals/102/file?thumb=1", needed: true, status, progress: 0.1, error: null },
