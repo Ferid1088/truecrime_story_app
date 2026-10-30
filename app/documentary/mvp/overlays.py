@@ -446,6 +446,8 @@ def reject(db: Session, asset: VisualAsset, scan: Scan) -> None:
         reason = f"{REJECTED_FOR_MARK} ({what})"
         reasons = json.loads(cand.reasons_json or "[]")
         cand.reasons_json = json.dumps(reasons if reason in reasons else reasons + [reason], ensure_ascii=False)
+        if VF.owner_settled(cand) == "approved":      # the owner's approval stands unless the inspector must take it out
+            VF.remove_unusable(cand, reason)
         cand.final_status = VF.final_status(cand)
     db.commit()
 

@@ -129,9 +129,8 @@ def test_an_entitys_download_cap_is_the_smallest_cap_of_its_queries_and_never_ab
     assert entity_cap("unknown", queries, 5) == 5
 
 
-def test_the_shipped_caps_on_new_pictures_and_videos_are_five_for_a_requirement_a_gap_and_an_entity():
+def test_the_shipped_caps_on_new_pictures_and_videos_are_five_for_a_requirement_and_an_entity():
     assert ai_config.mvp().search.max_new_assets_per_requirement == 5
-    assert ai_config.mvp().general.max_assets_per_moment == 5
     assert ai_config.visual_search.max_downloads_per_entity == 5
 
 

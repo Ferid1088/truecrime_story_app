@@ -26,10 +26,11 @@ from app.db.models import (
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import timeline as TL
 from app.documentary.detective import toolkit as TK
+from app.documentary.mvp import clip_edges as CE
 from app.documentary.mvp import coverage as CV
 from app.documentary.mvp import direct as DR
 from app.documentary.mvp import evidence as EV
-from app.documentary.mvp import general as GI
+from app.documentary.mvp.must_use import place_must_use
 from app.documentary.mvp import moments as MC
 from app.documentary.mvp import needs as ND
 from app.documentary.mvp import overlays as OV
@@ -304,27 +305,22 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
             timing = await label_timing(db, case, needs_plan, bp_row)
             report = await direct()
         report["moments"] = moments
-    if report["gaps"] and ai_config.mvp().general.enabled and DR.reviews_done(needs_plan) >= 1:   # the 2nd round
-        general = await GI.GeneralImagery(db, case, needs_plan.id, language).run(report["gaps"])
-        if general["approved"]:
-            overlays = await scan_overlays(db, case, needs_plan)
-            timing = await label_timing(db, case, needs_plan, bp_row)
-        report["general"] = general
     matches = None
     if report["gaps"] and ai_config.mvp().topical.enabled:
         matcher = TP.TopicMatcher(db, case, needs_plan)
         matches = await matcher.run(report["gaps"], TP.catalog_of(DR.approved_items(db, needs_plan)))
         if matches:
-            kept_before = {k: report[k] for k in ("moments", "general") if k in report}
+            kept_before = {k: report[k] for k in ("moments",) if k in report}
             report = await direct(matches)
             report.update(kept_before)
         report["topical"] = {"moments_matched": len(matches), "calls": matcher.calls, "errors": matcher.errors}
     if report["gaps"] and DR.cover_approved(needs_plan):    # the very last resort, after every other source was tried
-        kept_before = {k: report[k] for k in ("moments", "general", "topical") if k in report}
+        kept_before = {k: report[k] for k in ("moments", "topical") if k in report}
         report = await direct(matches, last=True)
         report.update(kept_before)
     report["overlays"], report["timing"] = overlays, timing
-    kept = {k: report[k] for k in ("moments", "general", "topical", "overlays", "timing") if k in report}
+    report["must_use"] = place_must_use(db, case.id, needs_plan, target)
+    kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing", "must_use") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)
         validation = json.loads(target.validation_json or "{}")
         validation.setdefault("plan", {}).update(kept)
@@ -335,13 +331,6 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     report["graphics"] = await materialize(db, case, target)
     report["graphics_localized"] = await EV.localize_graphics(db, case, target, language)
     return target, report
-
-
-def next_round_note(reviews: int) -> str:
-    """What resuming does: the general search, then the fallback, in one pass. The owner is asked only once."""
-    return (" On resume the planner searches public general photos and videos for these moments, then fills what is "
-            "still bare by showing a picture again and by the neighbouring pictures (withdraw that in the review). "
-            "This is the only review: what is still undecided stays out of the film.")
 
 
 def request_review(db: Session, needs_plan: VisualPlan) -> None:
@@ -355,30 +344,55 @@ def request_review(db: Session, needs_plan: VisualPlan) -> None:
 
 
 def stage_owner_attention(db: Session, needs_plan: VisualPlan, language: str) -> None:
-    """The gate before direction: pictures the verifiers could not settle (needs_review) are the owner's to decide, so
-    the first run stops until they have been reviewed. It stops once: after the owner's review (the review is counted,
-    see `request_review`) a picture left undecided is simply not used."""
+    """Review 1, before anything is cut or planned again: the owner sees every photo and video, approved and rejected, and
+    decides. The run always stops here once; after the owner's review (counted, see `request_review`) it goes on, and
+    nothing but the owner changes what was decided."""
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
-    if DR.reviews_done(needs_plan) >= 1:        # the owner's one review is done: what is still undecided stays out
-        return
-    pictures = {asset_id for (asset_id,) in (
-        db.query(MvpCandidate.visual_asset_id)
-        .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
-        .filter(MvpRequirement.visual_plan_id == needs_plan.id, MvpCandidate.final_status == "needs_review"))}
-    if not pictures:
+    if DR.reviews_done(needs_plan) >= 1:
         return
     raise AwaitingPictureReview(
-        f"Awaiting picture review: {len(pictures)} picture(s) need your attention before the {language} film is "
-        "directed. Open Review pictures, approve or reject each one marked Not sure, then resume.")
+        f"Awaiting picture review: every photo and video found for the {language} film is waiting for your decision. Open "
+        "Review pictures, approve or reject them (check what must be used, give the photos to draw a priority), then resume.")
 
 
-def stage_complete(plan_row: VisualPlan, language: str, reviews: int = 0) -> dict:
-    """The gate before anything is made from the plan: every moment has a picture, a video or a graphic. Moments that
-    are still empty after the case search stop the run once, for the owner's picture review. After that review the
-    general search and the fallback have run, and what is still bare is reported, not asked about again."""
+def cut_items(db: Session, needs_plan: VisualPlan) -> list[MvpCandidate]:
+    """The approved pictures and clips that are trimmed or cut for the film (a part of the picture cut away, or the start
+    or end of a clip), one candidate for each: what the owner looks at in review 2."""
+    seen: set[int] = set()
+    out = []
+    for cand in (db.query(MvpCandidate).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+                 .filter(MvpRequirement.visual_plan_id == needs_plan.id, MvpCandidate.final_status == "approved")):
+        if cand.visual_asset_id in seen:
+            continue
+        asset = db.get(VisualAsset, cand.visual_asset_id)
+        view = OV.cut_view(asset)
+        if view and (view.get("crop") or view.get("marks")) or (asset.asset_type == "video" and CE.trimmed(asset)):
+            seen.add(cand.visual_asset_id)
+            out.append(cand)
+    return out
+
+
+async def stage_cut(db: Session, case: Case, needs_plan: VisualPlan, bp_row: EditorialBlueprint, language: str) -> dict:
+    """Trim and cut what needs it and check it again (an item that cannot be made usable is taken out by the inspector, the
+    only one allowed to change an owner's decision), then review 2: the owner sees only the trimmed and cut items."""
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
+    overlays = await scan_overlays(db, case, needs_plan)
+    timing = await label_timing(db, case, needs_plan, bp_row)
+    items = cut_items(db, needs_plan)
+    if items and DR.reviews_done(needs_plan) < 2:
+        raise AwaitingPictureReview(
+            f"Awaiting review of the trimmed and cut pictures: {len(items)} picture(s) or clip(s) of the {language} film "
+            "were trimmed or cut. Open Review pictures, look at them (only the trimmed and cut ones are shown), approve or "
+            "reject each one, then resume.")
+    return {"overlays": overlays, "timing": timing, "cut_items": len(items)}
+
+
+def stage_complete(plan_row: VisualPlan, language: str) -> dict:
+    """The end of planning: every moment has a picture, a video or a graphic, or what is still bare is reported. The owner has
+    reviewed twice by now and the planner has covered what it could (a gap under four seconds from the neighbouring pictures,
+    a longer one by the drawing), so a bare moment is reported, never asked about again."""
     plan = json.loads(plan_row.validation_json or "{}").get("plan") or {}
     gaps = plan.get("gaps") or []
     if not gaps:
@@ -386,14 +400,8 @@ def stage_complete(plan_row: VisualPlan, language: str, reviews: int = 0) -> dic
     seconds = round(sum(g["end"] - g["start"] for g in gaps), 1)
     beats = sorted({g["beat"] for g in gaps})
     shown = f"{', '.join(beats[:12])}{'...' if len(beats) > 12 else ''}"
-    if reviews >= 1:
-        return {"gaps": len(gaps), "bare_seconds": seconds, "alternatives": plan.get("alternatives", {}),
-                "degraded": f"{len(gaps)} moment(s) ({seconds}s) of the {language} film are still bare after the review, "
-                            f"the general search and the neighbour cover, in beats {shown}"}
-    raise AwaitingPictureReview(
-        f"Awaiting picture review: {len(gaps)} moment(s) ({seconds}s) of the {language} film have no picture, "
-        f"video or graphic, in beats {shown}. Review the pictures the planner rejected or was unsure about (Review "
-        "pictures), then resume." + next_round_note(reviews + 1))
+    return {"gaps": len(gaps), "bare_seconds": seconds, "alternatives": plan.get("alternatives", {}),
+            "degraded": f"{len(gaps)} moment(s) ({seconds}s) of the {language} film are still bare, in beats {shown}"}
 
 
 def stage_coverage(db: Session, needs_plan: VisualPlan, script: dict, manifest: dict) -> dict:

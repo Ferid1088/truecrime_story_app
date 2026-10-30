@@ -194,9 +194,10 @@ class LanguageChain:
 
         async def mvp_direct():
             try:
-                MVP.stage_owner_attention(db, needs_plan, lang)
+                MVP.stage_owner_attention(db, needs_plan, lang)          # review 1: everything
+                await MVP.stage_cut(db, case, needs_plan, state["bp"], lang)     # then trim and cut; review 2: only those
             except AwaitingPictureReview:
-                MVP.request_review(db, needs_plan)          # this stop is the owner's one review
+                MVP.request_review(db, needs_plan)
                 raise
             plan, report = await MVP.stage_direct(db, case, needs_plan, state["bp"], manifest, lang)
             holder["plan"] = plan
@@ -211,13 +212,7 @@ class LanguageChain:
         plan_row = holder["plan"] if "plan" in holder else db.get(VisualPlan, direct["visual_plan_id"])
 
         async def mvp_complete():
-            try:
-                return MVP.stage_complete(plan_row, lang, MVP.DR.reviews_done(needs_plan))
-            except AwaitingPictureReview:
-                # the owner's review changes what direction can use: direction runs again on resume
-                pipe._entry(f"mvp_direct:{lang}").update({"status": "pending", "detail": None})
-                MVP.request_review(db, needs_plan)
-                raise
+            return MVP.stage_complete(plan_row, lang)
 
         await pipe._stage(f"mvp_complete:{lang}", mvp_complete)
         if planning:

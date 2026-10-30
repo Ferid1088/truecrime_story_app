@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Float,
+    false,
     ForeignKey,
     Index,
     Integer,
@@ -1533,6 +1534,10 @@ class VisualAsset(Base):
     # What the owner wrote about this picture or clip (who or what it shows and how it belongs to the story): the
     # planner takes it as true and places the picture accordingly.
     owner_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # the owner's selection in the review: a checked picture or clip must be used 100 % in the film; a photo with a draw
+    # priority (1 to 10) is drawn by the pencil, the first priority first
+    must_use: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    draw_priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
     original_media_segments = relationship(
         "OriginalMediaSegment", back_populates="asset", cascade="all, delete-orphan"
     )

@@ -691,7 +691,16 @@ class PipelineGen:
         raise AssertionError(f"unexpected role {role}")
 
 
-ORIGINAL_STAGE_COMPLETE = __import__("app.documentary.mvp.pipeline", fromlist=["stage_complete"]).stage_complete
+ORIGINAL_STAGE_ATTENTION = __import__("app.documentary.mvp.pipeline", fromlist=["stage_owner_attention"]).stage_owner_attention
+
+
+@pytest.fixture(autouse=True)
+def the_owner_has_reviewed(monkeypatch):
+    """These runs go through the whole film: the owner's review (which always stops a run once) is taken as done. The test
+    of the stop itself puts the real gate back."""
+    from app.documentary.mvp import pipeline as MVP
+
+    monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)
 
 
 @pytest.fixture
@@ -1070,20 +1079,18 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
     db_session.commit()
     from app.documentary.mvp import pipeline as MVP
 
-    passes = MVP.stage_complete
-    monkeypatch.setattr(MVP, "stage_complete", ORIGINAL_STAGE_COMPLETE)
+    monkeypatch.setattr(MVP, "stage_owner_attention", ORIGINAL_STAGE_ATTENTION)
     job = J.create_job(db_session, case, master, ["en"], "pilot", 80.0, "preview")
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()
     job = db_session.get(DocumentaryJob, job.id)
     first = {s["name"]: s for s in json.loads(job.stages_json)}
-    # the film has moments no picture or graphic can fill: the run stops BEFORE anything is rendered and asks
-    # the owner; direction is set to run again when the owner has reviewed the pictures and resumes
-    assert job.status == "failed" and "Awaiting picture review" in job.error
-    assert first["mvp_direct:en"]["status"] in ("pending", "blocked") and first["mvp_complete:en"]["status"] == "failed"
+    # the run always stops once BEFORE anything is cut, planned again or rendered, and shows the owner every picture and clip
+    assert job.status == "failed" and "every photo and video" in job.error
+    assert first["mvp_direct:en"]["status"] in ("pending", "blocked", "failed") and first["mvp_complete:en"]["status"] != "done"
     assert first["zoom_maps:en"]["status"] != "done" and first["render:en"]["status"] != "done"
     assert "Review pictures" in J.failure_details(job.error)["next_action"]
-    monkeypatch.setattr(MVP, "stage_complete", passes)       # (the owner approved pictures; here: nothing is empty)
+    monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)   # (the owner reviewed and resumed)
     J.prepare_resume(job)
     asyncio.run(J.run_job(job.id))
     db_session.expire_all()

@@ -156,9 +156,28 @@ def _num(value, default: float) -> float:
     except (TypeError, ValueError):
         return default
 
+INSPECTOR_REMOVAL = "inspector_removal"
+
+
+def owner_settled(candidate: MvpCandidate) -> str | None:
+    """What the owner has decided for this candidate, if anything: the latest entry of the owner decides ("approve" or
+    "reject"), and an inspector's removal after it (an item that trimming and cutting could not make usable) rejects it.
+    This is the only exception to an owner's decision standing; nothing else changes it but the owner again."""
+    state = None
+    for entry in json.loads(candidate.verifiers_json or "[]"):
+        if entry.get("verifier") == "owner":
+            state = "approved" if entry.get("decision") == "approve" else "rejected"
+        elif entry.get("verifier") == INSPECTOR_REMOVAL:
+            state = "rejected"
+    return state
+
 
 def final_status(candidate: MvpCandidate) -> str:
-    """The aggregate decision: only all-approved is approved; any hard rejection rejects; the rest wait."""
+    """The aggregate decision: an owner's decision stands; otherwise only all-approved is approved, any hard rejection
+    rejects, and the rest wait."""
+    settled = owner_settled(candidate)
+    if settled is not None:
+        return settled
     parts = [candidate.provenance_status, candidate.identity_status, candidate.ethics_status,
              candidate.scene_status]
     rights = candidate.rights_status
@@ -173,6 +192,13 @@ def final_status(candidate: MvpCandidate) -> str:
     if "unknown" in parts or rights == "unknown":
         return "pending"
     return "approved"
+
+
+def remove_unusable(candidate: MvpCandidate, reason: str) -> None:
+    """The inspector takes out an approved item that trimming and cutting could not make usable, and says why."""
+    candidate.verifiers_json = json.dumps(json.loads(candidate.verifiers_json or "[]")
+                                          + [{"verifier": INSPECTOR_REMOVAL, "decision": "remove", "note": reason}])
+    candidate.final_status = final_status(candidate)
 
 
 Judge = Callable[[Case, VisualAsset, list[dict], list[dict], str], Awaitable[Verdict]]

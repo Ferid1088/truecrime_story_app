@@ -397,33 +397,24 @@ def test_neighbour_cover_needs_the_owners_review_first_and_the_owner_can_withdra
     assert not D.cover_approved(_flagged(reviews=2, neighbour_cover={"approved": False}))   # withdrawn
 
 
-def test_the_general_search_and_the_fallback_wait_for_the_owners_one_review(db_session):
+def test_the_fallback_waits_for_the_owners_first_review(db_session):
     from app.documentary.mvp import pipeline as PL
 
     case, plan = _plan(db_session, 0)
-    assert D.reviews_done(plan) == 0 and not D.cover_approved(plan), "the case search comes first"
+    assert D.reviews_done(plan) == 0 and not D.cover_approved(plan), "the owner reviews first"
     PL.request_review(db_session, plan)
-    assert D.reviews_done(plan) == 1 and D.cover_approved(plan), "after the review: the general search, then the cover"
+    assert D.reviews_done(plan) == 1 and D.cover_approved(plan), "after the review: the cover from the neighbours"
 
 
-def test_the_stop_message_says_what_resuming_does_and_that_it_is_the_only_review():
-    from app.documentary.mvp import pipeline as PL
-
-    note = PL.next_round_note(1)
-    assert "general photos and videos" in note and "showing a picture again" in note and "only review" in note
-
-
-def test_bare_moments_stop_the_run_only_for_the_one_review_and_afterwards_are_reported_not_asked_about_again():
-    import pytest
-
-    from app.documentary.mvp import pipeline as PL
-    from app.documentary.pipeline.errors import AwaitingPictureReview
-
+def test_bare_moments_are_reported_at_the_end_and_never_asked_about_again():
     from types import SimpleNamespace
+
+    from app.documentary.mvp import pipeline as PL
 
     plan = SimpleNamespace(validation_json=json.dumps({"plan": {"gaps": [
         {"beat": "B03", "start": 100.0, "end": 130.0, "said": "x"}]}}))
-    with pytest.raises(AwaitingPictureReview, match="only review"):
-        PL.stage_complete(plan, "en", reviews=0)
-    after = PL.stage_complete(plan, "en", reviews=1)
-    assert after["gaps"] == 1 and after["bare_seconds"] == 30.0 and "still bare after the review" in after["degraded"]
+    done = PL.stage_complete(plan, "en")
+    assert done["gaps"] == 1 and done["bare_seconds"] == 30.0 and "still bare" in done["degraded"]
+    assert PL.stage_complete(SimpleNamespace(validation_json="{}"), "en")["gaps"] == 0
+
+

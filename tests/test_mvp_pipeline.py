@@ -228,6 +228,7 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
     monkeypatch.setattr(PL, "case_region", lambda case: None)
     monkeypatch.setattr(PL.RV, "supersede", lambda *a: None)
     monkeypatch.setattr(DR, "direct_film", direct_film)
+    monkeypatch.setattr(PL, "place_must_use", lambda *a: {})
     monkeypatch.setattr(EV, "localize_graphics", nothing)
     monkeypatch.setattr("app.documentary.visuals.generated.materialize", nothing)
     needs = SimpleNamespace(validation_json=json.dumps({"mvp": {"reveal_graph_id": 1}}))

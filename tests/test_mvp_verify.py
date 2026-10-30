@@ -203,3 +203,32 @@ def test_an_asset_an_older_audit_gave_up_for_a_watermark_gets_its_rights_from_it
     assert marked.rights_status != "do_not_use" and marked.rights_reason != "watermark visible"
     assert stock.rights_status == "do_not_use" and stock.rights_reason.startswith("stock library"), "a stock library stays out"
     assert RT.reclassify_watermarked(marked) is False, "only an asset still given up for the watermark is looked at"
+
+
+def _owner(cand, decision):
+    cand.verifiers_json = json.dumps(json.loads(cand.verifiers_json or "[]") + [{"verifier": "owner", "decision": decision}])
+    cand.final_status = V.final_status(cand)
+
+
+def test_an_owner_decision_stands_whatever_the_verifiers_say_afterwards(db_session, tmp_path, monkeypatch):
+    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)
+    run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [], judge=_judge(_verdict("exact"))))
+    assert cand.final_status == "approved"
+    _owner(cand, "reject")
+    assert cand.final_status == "rejected"
+    run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [], judge=_judge(_verdict("exact"))))
+    assert cand.final_status == "rejected", "an automatic check approves it again: the owner's rejection stands"
+    _owner(cand, "approve")
+    run(V.verify_candidate(db_session, case, cand, req, ENTITIES, [], judge=_judge(_verdict("unrelated", 0.9))))
+    assert cand.final_status == "approved", "and an owner approval stands against a rejecting verifier"
+
+
+def test_only_the_inspector_can_take_out_an_owner_approved_item_and_only_the_owner_brings_it_back(db_session, tmp_path,
+                                                                                                    monkeypatch):
+    case, req, asset, cand = _setup(db_session, tmp_path, monkeypatch)
+    _owner(cand, "approve")
+    V.remove_unusable(cand, "the logo could not be cut away")
+    assert cand.final_status == "rejected" and V.owner_settled(cand) == "rejected"
+    assert json.loads(cand.verifiers_json)[-1]["note"] == "the logo could not be cut away"
+    _owner(cand, "approve")
+    assert cand.final_status == "approved", "the owner decides again"

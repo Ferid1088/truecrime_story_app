@@ -511,20 +511,6 @@
       "description": "Picture and footage check: where other people's logos, watermarks and caption strips are laid over a picture or clip.",
       "used_by": "app/documentary/mvp/overlays.py"
     },
-    "mvp.general_queries": {
-      "role": "mvp_general_planner",
-      "prompt": "documentary/mvp/general_queries_system",
-      "output": "json",
-      "description": "General imagery: web searches for faceless, generic pictures about the subject of the words at a bare moment.",
-      "used_by": "app/documentary/mvp/general.py"
-    },
-    "mvp.general_check": {
-      "role": "mvp_general_checker",
-      "prompt": "documentary/mvp/general_check_system",
-      "output": "json",
-      "description": "General imagery: an independent check that a found picture shows nobody's face and fits the words.",
-      "used_by": "app/documentary/mvp/general.py"
-    },
     "mvp.topic_match": {
       "role": "mvp_topic_matcher",
       "prompt": "documentary/mvp/topic_match_system",

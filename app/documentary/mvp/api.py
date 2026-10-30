@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
@@ -65,7 +65,7 @@ def candidate_dict(db: Session, cand: MvpCandidate, req: MvpRequirement) -> dict
             "clip_start": asset.clip_start, "clip_end": asset.clip_end,
             "width": asset.width, "height": asset.height, "cut": OV.cut_view(asset),
             "duration_seconds": asset.duration_seconds,
-            "owner_note": asset.owner_note,
+            "owner_note": asset.owner_note, "must_use": asset.must_use, "draw_priority": asset.draw_priority,
             "thumb_url": f"/api/visuals/{asset.id}/file?thumb=1", "role": cand.role,
             "status": cand.final_status, "provenance": cand.provenance_status,
             "identity": cand.identity_status, "rights_decision": cand.rights_status,
@@ -205,6 +205,30 @@ def set_owner_note(case_id: int, asset_id: int, payload: OwnerNote, db: Session 
         asset.spec_json = json.dumps(spec, ensure_ascii=False)
     db.commit()
     return {"asset_id": asset.id, "owner_note": asset.owner_note}
+
+
+class AssetSelection(BaseModel):
+    must_use: bool = False
+    draw_priority: int | None = Field(default=None, ge=1, le=10)
+
+
+@router.put("/api/cases/{case_id}/mvp/assets/{asset_id}/selection")
+def set_asset_selection(case_id: int, asset_id: int, payload: AssetSelection, db: Session = Depends(get_db)):
+    """The owner's selection of a picture or clip: checked, it must be used 100 % in the film; a photo can also be given a
+    draw priority 1 to 10 for the pencil drawing (a clip cannot be drawn, and two photos cannot share a priority)."""
+    asset = db.get(VisualAsset, asset_id)
+    if asset is None or asset.case_id != case_id:
+        raise HTTPException(404, "No such picture in this case")
+    if payload.draw_priority is not None:
+        if asset.asset_type != "photo":
+            raise HTTPException(422, "Only a photo can be drawn")
+        taken = (db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.id != asset_id,
+                                              VisualAsset.draw_priority == payload.draw_priority).first())
+        if taken is not None:
+            raise HTTPException(409, f"Priority {payload.draw_priority} belongs to {taken.asset_code}")
+    asset.must_use, asset.draw_priority = payload.must_use, payload.draw_priority
+    db.commit()
+    return {"asset_id": asset.id, "must_use": asset.must_use, "draw_priority": asset.draw_priority}
 
 
 class GroupDecision(BaseModel):

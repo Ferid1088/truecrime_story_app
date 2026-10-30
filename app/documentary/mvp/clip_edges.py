@@ -66,3 +66,11 @@ def window_of(answer: dict | None, start: float, end: float, head: list[float], 
 def long_enough_to_check(start: float, end: float) -> bool:
     """A clip shorter than a few edge frames' worth is not looked at: the whole of it would be taken for an edge."""
     return end - start >= 2 * ai_config.mvp().overlays.edges.min_keep_seconds + 2.0
+
+
+def trimmed(asset) -> bool:
+    """True when the start or the end of this clip was trimmed away (an intro or an end card)."""
+    import json
+
+    done = json.loads(asset.spec_json or "{}").get("clip_edges") or {}
+    return bool(done) and [round(x, 3) for x in done.get("keep") or []] != [round(x, 3) for x in done.get("was") or []]

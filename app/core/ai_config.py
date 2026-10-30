@@ -138,8 +138,6 @@ REQUIRED_ROLES = {
     "mvp_topic_matcher",
     # General imagery: what to search the web for (faceless, generic) at a still-bare moment, and the vision check
     # that a found picture shows no identifiable person and fits the words.
-    "mvp_general_planner",
-    "mvp_general_checker",
     # Other people's logos, watermarks and caption strips in a picture or footage: where they are (vision).
     "mvp_overlay_scanner",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
@@ -178,7 +176,7 @@ REQUIRED_ROLES = {
 
 # Roles that send images and need a vision-capable model.
 VISION_ROLES = {"mvp_candidate_verifier", "mvp_second_verifier", "mvp_segment_scout", "mvp_moment_cutter",
-                "mvp_moment_checker", "mvp_general_checker", "mvp_overlay_scanner", "thumbnail_critic"}
+                "mvp_moment_checker", "mvp_overlay_scanner", "thumbnail_critic"}
 
 # Strict provider split: the research PROVIDER is now infrastructure
 # (the TrueCrime Search Engine — Brave Search + fetcher + index), not an LLM
@@ -2945,22 +2943,6 @@ class MvpTopicalConfig(BaseModel):
     moments_per_call: int = Field(ge=1)
 
 
-class MvpGeneralConfig(BaseModel):
-    """General imagery: a moment that is still bare may show a picture from the web that is about the subject of the
-    words and shows nobody's face (an insurance form, a phone, a laptop). It is searched for, never a person."""
-
-    enabled: bool
-    max_moments: int = Field(ge=1)
-    moments_per_call: int = Field(ge=1)
-    queries_per_moment: int = Field(ge=1)
-    # the general search downloads at most this many new pictures and videos for each bare moment
-    max_assets_per_moment: int = Field(default=5, ge=1)
-    max_query_chars: int = Field(ge=10)
-    photo_width: int = Field(ge=128)
-    accept_fit: list[str] = Field(min_length=1)
-    review_fit: list[str]
-
-
 class MvpNeighbourCoverConfig(BaseModel):
     """The owner-approved last resort for moments that are still bare. The neighbouring pictures are held longer: the
     shorter of the two takes more of the moment, so that both end up as equal as it allows. A picture is held at most
@@ -3090,7 +3072,6 @@ class MainVisualPlannerConfig(BaseModel):
     topup: MvpTopupConfig
     moments: MvpMomentsConfig
     topical: MvpTopicalConfig
-    general: MvpGeneralConfig
     neighbour_cover: MvpNeighbourCoverConfig
     overlays: MvpOverlaysConfig
     timing: MvpTimingConfig

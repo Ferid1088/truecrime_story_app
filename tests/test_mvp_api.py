@@ -158,27 +158,83 @@ def test_the_owner_note_is_stored_listed_and_limited(db_session):
     assert client.put(f"/api/cases/{case.id + 999}/mvp/assets/{asset.id}/note", json={"note": "a"}).status_code == 404
 
 
-def test_the_run_stops_while_a_picture_needs_the_owner_and_goes_on_once_it_is_decided(db_session):
-    from app.documentary.mvp.pipeline import stage_owner_attention
-    from app.documentary.pipeline.errors import AwaitingPictureReview
-
-    case, plan, cand = _seed(db_session)
-    with pytest.raises(AwaitingPictureReview, match=r"Awaiting picture review: 1 picture\(s\) need your attention"):
-        stage_owner_attention(db_session, plan, "en")
-    response = TestClient(app).post(f"/api/cases/{case.id}/mvp/candidates/decision",
-                                    json={"candidate_ids": [cand.id], "decision": "reject"})
-    assert response.status_code == 200
-    db_session.expire_all()
-    assert stage_owner_attention(db_session, plan, "en") is None
-
-
-def test_the_attention_stop_is_the_owners_one_review_and_undecided_pictures_do_not_stop_the_run_again(db_session):
+def test_the_run_always_stops_once_for_the_owners_review_of_every_picture_and_goes_on_after_it(db_session):
     from app.documentary.mvp.pipeline import request_review, stage_owner_attention
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
     case, plan, cand = _seed(db_session)
-    with pytest.raises(AwaitingPictureReview):
+    with pytest.raises(AwaitingPictureReview, match="every photo and video"):
         stage_owner_attention(db_session, plan, "en")
+    response = TestClient(app).post(f"/api/cases/{case.id}/mvp/candidates/decision",
+                                    json={"candidate_ids": [cand.id], "decision": "reject"})
+    assert response.status_code == 200
     request_review(db_session, plan)           # what the language chain does when the gate stops the run
-    assert cand.final_status == "needs_review", "the owner decided nothing"
+    db_session.expire_all()
     assert stage_owner_attention(db_session, plan, "en") is None, "it is shown once: the run goes on after Resume"
+    assert db_session.get(type(cand), cand.id).final_status == "rejected"
+
+
+def test_the_owner_marks_what_must_be_used_and_gives_photos_a_draw_priority(db_session):
+    from app.db.models import VisualAsset
+
+    case, plan, cand = _seed(db_session)
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    client, url = TestClient(app), f"/api/cases/{case.id}/mvp/assets/{asset.id}/selection"
+    assert client.put(url, json={"must_use": True, "draw_priority": 1}).json() == {
+        "asset_id": asset.id, "must_use": True, "draw_priority": 1}
+    other = VisualAsset(case_id=case.id, asset_code="PRIO2", local_path="y.jpg", asset_type="photo")
+    clip = VisualAsset(case_id=case.id, asset_code="CLIP1", local_path="z.mp4", asset_type="video")
+    db_session.add_all([other, clip])
+    db_session.commit()
+    assert client.put(f"/api/cases/{case.id}/mvp/assets/{other.id}/selection", json={"draw_priority": 1}).status_code == 409
+    assert client.put(f"/api/cases/{case.id}/mvp/assets/{clip.id}/selection", json={"draw_priority": 2}).status_code == 422
+    assert client.put(url, json={"draw_priority": 11}).status_code == 422
+    assert client.put(f"/api/cases/{case.id}/mvp/assets/{clip.id}/selection", json={"must_use": True}).json()["must_use"] is True
+    assert client.put(f"/api/cases/{case.id + 999}/mvp/assets/{asset.id}/selection", json={}).status_code == 404
+
+
+def test_the_review_of_the_trimmed_and_cut_pictures_shows_only_those_and_the_run_stops_once(db_session):
+    from app.db.models import VisualAsset
+    from app.documentary.mvp import pipeline as PL
+
+    case, plan, cand = _seed(db_session)
+    cand.final_status = "approved"
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    asset.spec_json = json.dumps({"overlays": {"status": "cut", "marks": [{"kind": "logo", "what": "a channel logo"}],
+                                                "crop": [0.0, 0.0, 0.9, 1.0]}})
+    db_session.commit()
+    assert [c.id for c in PL.cut_items(db_session, plan)] == [cand.id]
+    asset.spec_json = "{}"
+    db_session.commit()
+    assert PL.cut_items(db_session, plan) == [], "an untouched picture is not shown again in review 2"
+
+
+def test_a_picture_the_owner_checked_is_put_into_the_film_when_the_direction_left_it_out(db_session):
+    from app.db.models import VisualAsset, VisualPlan
+    from app.documentary.mvp.must_use import place_must_use
+
+    case, plan, cand = _seed(db_session)
+    cand.final_status = "approved"
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    asset.must_use = True
+    target = VisualPlan(case_id=case.id, blueprint_id=plan.blueprint_id, version=9, status="planned", plan_json=json.dumps({
+        "beats": [{"beat_id": cand.requirement.beat_id if hasattr(cand, "requirement") else "B01", "shots": [
+            {"command": "NEW_IMAGE", "asset_id": "OTHER", "share": 0.3}, {"command": "BLACK_SCREEN", "gap": True, "share": 0.2}]}]}))
+    db_session.add(target)
+    db_session.commit()
+    beat = (db_session.query(MvpRequirement.beat_id).filter_by(id=cand.requirement_id).scalar())
+    target.plan_json = json.dumps({"beats": [{"beat_id": beat, "shots": [
+        {"command": "NEW_IMAGE", "asset_id": "OTHER", "share": 0.3}, {"command": "BLACK_SCREEN", "gap": True, "share": 0.2}]}]})
+    db_session.commit()
+    report = place_must_use(db_session, case.id, plan, target)
+    shots = json.loads(target.plan_json)["beats"][0]["shots"]
+    assert report["placed"] == [{"asset": asset.asset_code, "beat": beat}] and shots[1]["asset_id"] == asset.asset_code
+    assert shots[1]["command"] == "NEW_IMAGE" and shots[1].get("gap") is None and shots[0]["asset_id"] == "OTHER"
+    assert place_must_use(db_session, case.id, plan, target)["already"] == [asset.asset_code], "used once"
+    cand.final_status = "rejected"
+    asset.asset_code = "OTHER2"
+    other = VisualAsset(case_id=case.id, asset_code="NOTAPPROVED", local_path="n.jpg", asset_type="photo", must_use=True)
+    db_session.add(other)
+    db_session.commit()
+    failed = {f["asset"] for f in place_must_use(db_session, case.id, plan, target)["failed"]}
+    assert failed == {"OTHER2", "NOTAPPROVED"}, "a checked item that is not approved cannot be shown, and is reported"
