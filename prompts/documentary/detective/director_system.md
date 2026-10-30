@@ -14,12 +14,7 @@ You receive one structured object:
 - scene_scope: the scenes this call owns; for mapping it may cover the full film.
 - tool_catalog: every available tool, its purpose, input schema, rendering capabilities, state behavior, and current availability.
 - asset_catalog: relevant photos, clips, documents, and host assets with identity/context descriptions, clip bounds, roles, and availability.
-- film_strategy and card_plan (when present): the film's investigative strategy, made from the whole text before you
-  started (its acts, what each card kind is for and how the kinds help each other), and the card strategist's plan of
-  which card kinds are placed at which beats in this scope, with what each shows and why. FOLLOW THEM: in each scene
-  use the planned kinds at the planned beats, for the planned aim, and let the cards build on each other as planned.
-  A planned card whose content the text does not yet support at that beat is moved to the nearest beat that supports it,
-  never invented. You may add cards the plan does not name when the text calls for them.
+
 - optional evidence_links: research metadata mapped to narration spans.
 - channel_preferences, owner_instructions, and applicable operational settings.
 - in repair mode: the previous output and exact issues to repair.

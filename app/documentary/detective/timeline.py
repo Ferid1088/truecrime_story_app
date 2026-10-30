@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.core.ai_config import ai_config
 from app.documentary.detective import reading as R
 from app.documentary.graphics import shots as GS
 from app.documentary.graphics.base import GraphicUnavailable
@@ -138,21 +137,14 @@ def film_timeline(windows: list[dict], resolved: list[dict], language: str,
     return timeline
 
 
-def timeline_for(db, graph_id: int, manifest: dict, language: str, top_up: bool = False) -> FilmTimeline:
-    """The film timeline of a graph over this language's real beat windows: the toolkit's cards where it has planned
-    the graph, otherwise every beat free. With `top_up` (the reference language, whose narration now exists) the
-    toolkit first adds fact cards until its cards fill the configured share of the film on these real windows: the
-    text alone only estimated them. The other languages reuse the cards and never add any."""
-    from app.db.models import NarrationUnit
-    from app.documentary.detective import filler as FL
+def timeline_for(db, graph_id: int, manifest: dict, language: str) -> FilmTimeline:
+    """The film timeline of a graph over this language's real beat windows: the toolkit's cards where it has made them,
+    otherwise every beat free. Every language reuses the cards; a card is held for the time its own text needs there."""
     from app.documentary.detective.dispatch import has_detective_plan, resolve_dispatchable_actions
     from app.documentary.mvp.direct import beat_windows
 
     windows = beat_windows(manifest)
     planned = has_detective_plan(db, graph_id)
-    if planned and top_up and ai_config.detective_toolkit.enabled:
-        units = db.query(NarrationUnit).filter_by(graph_id=graph_id).order_by(NarrationUnit.story_order).all()
-        FL.fill_with_fact_cards(db, graph_id, language, units, windows)
     return film_timeline(windows, resolve_dispatchable_actions(db, graph_id) if planned else [], language,
                          board_windows(db, graph_id, windows, language))
 

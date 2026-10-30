@@ -114,9 +114,12 @@ REQUIRED_ROLES = {
     # Detective toolkit (Section C): the investigative aim, scene direction and tool
     # choice behind every visual, map/direct/repair modes over app/documentary/memory.py.
     "detective_director",
-    # The film strategist and the card strategist: one planning call each over the whole text, at the model's own
-    # reasoning (unlike the Director's many calls).
-    "detective_strategist",
+    # The toolkit's new card pipeline: the text analyser (splits the narration into parts and says which card kinds suit
+    # each), the card maker (one card of one kind from one part of the text) and the card inspector (checks one card
+    # against the text it came from).
+    "detective_text_analyser",
+    "detective_card_maker",
+    "detective_card_inspector",
     # Vision-capable: judges one dispatched detective visual's actual rendered frame(s) (Section G).
     "detective_design_director",
     # Checks the detective's achieved purpose and film continuity across plan/render/repair modes,
@@ -2409,52 +2412,46 @@ class DetectiveAudioOnlyConfig(BaseModel):
     min_supported_fraction: float = 0.5
 
 
-class DetectiveGraphCardsConfig(BaseModel):
-    """Cards the toolkit makes from the graph's stored data with no model call: how many of each kind at most."""
+class DetectiveCardKindConfig(BaseModel):
+    """What the card maker is told about one kind of card: what it is for, the shape of its data (the renderer's own
+    limits) and an example."""
 
-    timeline_cards: int = Field(default=3, ge=0, le=10)
-    timeline_events: int = Field(default=3, ge=2, le=12)
-    unknowns_cards: int = Field(default=3, ge=0, le=10)
-    conflict_cards: int = Field(default=3, ge=0, le=10)
-    # a card the timeline has no room for in its own beat is tried in this many beats after it (never before: what it
-    # shows has been told by then)
-    later_beats: int = Field(default=4, ge=0, le=10)
+    purpose: str
+    schema_text: str
+    example: dict
 
 
 class DetectiveToolkitConfig(BaseModel):
-    """The Detective Toolkit plans the whole film's alternatives and hands the Main Visual Planner a fixed timeline
-    (`app.documentary.detective.toolkit.stage_toolkit`, run before the planner's needs stage). `enabled` False makes the
-    toolkit only build the reveal graph: the planner then fills every beat with pictures."""
+    """The Detective Toolkit makes the film's cards from its text and hands the Main Visual Planner the cards with their
+    metadata (`app.documentary.detective.toolkit.stage_toolkit`, run before the planner's needs stage). `enabled` False
+    makes the toolkit only build the reveal graph: the planner then fills every beat with pictures."""
 
     enabled: bool = True
     # the Visual Design Director reviews every dispatched card's rendered frame in production (a paid call each)
     design_review: bool = False
-    # a Director call that takes longer than this (seconds) is given up; the chunk is then split and planned in halves
-    call_timeout_s: float = Field(default=300.0, gt=0.0, le=900.0)
-    # how many consecutive beats one map/direct call owns: a whole film in one call overruns the model's
-    # output (a real 51-beat film), and each chunk's state carries into the next through the event log
-    beats_per_call: int = Field(default=6, ge=1, le=30)
-    # how many times a call whose output violates an invariant is sent back once more with the exact
-    # issues (the Director's own `repair` mode) before it fails; every attempt is a paid call
+    # a Director call (the film reviewer's repairs) that takes longer than this (seconds) is given up
+    call_timeout_s: float = Field(default=600.0, gt=0.0, le=900.0)
+    # how many times a call whose output violates an invariant is sent back once more with the exact issues
     max_repair_iterations: int = Field(default=1, ge=0, le=3)
-    # an action whose card cannot be built from the claims it binds is sent back to the Director as a repair
-    # issue instead of being kept: the toolkit hands over only cards it has made
     require_buildable: bool = True
-    # before any scene is directed the film strategist and the card strategist plan the whole film from its text
-    strategy_enabled: bool = True
-    # every film uses these kinds (the map, the detective board and the timeline) and at least `min_card_kinds` kinds other than the
-    # map, the board counted; the toolkit adds scenes for the kinds that are missing, at most this many passes
+    # the share of the film's length the toolkit's cards, the board and the map must fill: it tries `attempts` times to
+    # reach the minimum and never makes more cards once the maximum is reached
+    min_alternative_share: float = Field(default=0.30, ge=0.0, le=1.0)
+    max_alternative_share: float = Field(default=0.40, ge=0.0, le=1.0)
+    attempts: int = Field(default=2, ge=1, le=5)
+    # every film has these kinds (the map and the board are placed by their own systems)
     required_kinds: list[str] = Field(default_factory=lambda: ["map", "detective_board", "timeline"])
-    min_card_kinds: int = Field(default=12, ge=1)
-    max_diversity_passes: int = Field(default=10, ge=0, le=30)
-    # kinds the Director cannot make because their card needs real data it must not invent (a floor plan needs the
-    # rooms of a stored plan): never asked for in a diversity pass
-    director_cannot_make: list[str] = Field(default_factory=lambda: ["floor_plan"])
-    # the share of the film's length the toolkit's alternatives must fill (cards, boards, maps; never the Host)
-    min_alternative_share: float = Field(default=0.5, ge=0.0, le=1.0)
-    # how many extra Director calls may add cards for the weakest beats before the toolkit reports it fell short
-    max_fill_passes: int = Field(default=3, ge=0, le=30)
-    graph_cards: DetectiveGraphCardsConfig = Field(default_factory=DetectiveGraphCardsConfig)
+    # the card pipeline: parts of the text per analyser call, card makers running at the same time, how many times the
+    # inspector sends a card back to be fixed, how many fact cards a film may have at most, and how much of its words a card
+    # may share with an earlier card before it counts as a repeat
+    analyser_units_per_call: int = Field(default=160, ge=20)
+    concurrency: int = Field(default=6, ge=1, le=20)
+    inspector_rounds: int = Field(default=2, ge=0, le=5)
+    max_fact_cards: int = Field(default=10, ge=0)
+    repeat_overlap: float = Field(default=0.6, gt=0.0, le=1.0)
+    timeline_cards: int = Field(default=3, ge=0, le=10)
+    timeline_events: int = Field(default=4, ge=2, le=12)
+    card_kinds: dict[str, DetectiveCardKindConfig] = Field(default_factory=dict)
     reading: DetectiveReadingConfig = Field(default_factory=DetectiveReadingConfig)
     pacing: DetectivePacingConfig = Field(default_factory=DetectivePacingConfig)
     audio_only: DetectiveAudioOnlyConfig = Field(default_factory=DetectiveAudioOnlyConfig)
@@ -3163,11 +3160,8 @@ class GraphicsConfig(BaseModel):
     timeline: dict
     document_card: dict
     conflict: dict
-    conflict_board: dict
     themes: dict[str, GraphicTheme]
     recap: dict
-    floor_plan: dict
-    key_facts: dict
     quote: dict
     headline: dict
     engines: dict

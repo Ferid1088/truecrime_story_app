@@ -8,19 +8,21 @@ from fastapi.testclient import TestClient
 
 from app.core.ai_config import ai_config
 from app.db.base import get_db
-from app.db.models import (Case, DetectiveClaim, DetectiveScene, DetectiveStrategy, DetectiveToolAction, DocumentaryJob,
+from app.db.models import (Case, DetectiveClaim, DetectiveScene, DetectiveToolAction, DocumentaryJob,
                            MvpCandidate, MvpRequirement, VisualAsset, VisualPlan)
-from app.documentary.detective import filler as FL
+from app.documentary.detective import cards as CD
 from app.documentary.detective import toolkit as TK
 from app.main import app
-from tests.test_detective_filler import _film
+from tests.detective_film import film
 
 
 def _planned_film(db_session, monkeypatch):
-    monkeypatch.setattr(ai_config.detective_toolkit, "min_alternative_share", 0.3)
-    graph, units = _film(db_session, claims_per_beat=6)
-    FL.fill_with_fact_cards(db_session, graph.id, "en", units)
-    db_session.add(DetectiveStrategy(graph_id=graph.id, kind="film", language="en", strategy_json="{}"))
+    graph, units = film(db_session)
+    CD.store_card(db_session, graph.id, CD.Part("P01", ["B02-1", "B02-2"], "casings", ["fact_card"]), "fact_card",
+                  {"facts": [{"text": "Two casings by the bed.", "fact_id": "B02-1"}]}, units, "en", 1)
+    MEM = __import__("app.documentary.memory", fromlist=["add_claim"])
+    MEM.ensure_entity(db_session, graph.id, "gun", "the 9mm", "object", "B01", 0)
+    MEM.add_claim(db_session, graph.id, "c1", "gun", "origin", "A 9mm gun.", "established_in_text")
     case = db_session.get(Case, graph.case_id)
     plan = VisualPlan(case_id=case.id, blueprint_id=graph.blueprint_id, version=1,
                       validation_json=json.dumps({"mvp": {"reveal_graph_id": graph.id}}))
@@ -42,8 +44,8 @@ def test_the_toolkits_plan_is_removed_and_the_pictures_and_their_approvals_stay(
 
     removed = TK.reset_plan(db_session, graph.id)
 
-    assert removed["scenes"] > 0 and removed["actions"] > 0 and removed["claims"] > 0 and removed["strategies"] == 1
-    for model in (DetectiveScene, DetectiveClaim, DetectiveStrategy):
+    assert removed["scenes"] > 0 and removed["actions"] > 0 and removed["claims"] > 0
+    for model in (DetectiveScene, DetectiveClaim):
         assert db_session.query(model).filter_by(graph_id=graph.id).count() == 0
     assert db_session.query(DetectiveToolAction).join(DetectiveScene, isouter=True).filter(
         DetectiveScene.graph_id == graph.id).count() == 0

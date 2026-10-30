@@ -1,0 +1,12 @@
+{
+ "start_id": 79411,
+ "ceiling_eur": 50.0,
+ "started": "2026-10-29T07:34:44.832700+00:00",
+ "budget_before": {
+  "cap": 300.0,
+  "spent": 161.819076,
+  "remaining": 138.180924
+ },
+ "needs_plan_id": 23,
+ "language_plan_id": 24
+}

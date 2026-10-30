@@ -50,39 +50,6 @@ def _graph_with_narration(db_session, beats=("B01",)):
     return case, blueprint, graph
 
 
-class FakeDirectorGen:
-    """Counts calls so a test can assert the toolkit never re-pays for an existing plan."""
-
-    def __init__(self, payload: dict):
-        self.payload = payload
-        self.calls: list[dict] = []
-
-    async def generate_structured(self, role, system, user, images=None, **kw):
-        self.calls.append(json.loads(user))
-        return (self.payload, GenerationResult(text="{}", model="fake", provider="fake"))
-
-
-def _fake_payload(graph):
-    return {
-        "schema_version": "1.0", "run_id": "run-1", "film_id": f"case-{graph.case_id}",
-        "language": "en", "text_version": 1, "mode": "map_film",
-        "entities": [{"id": "gun", "type": "object", "name": "9mm handgun", "beat_id": "B01",
-                     "order": 1, "aliases": []}],
-        "claims": [], "questions": [], "relations": [], "knowledge_events": [],
-        "scenes": [{
-            "id": "s1", "covered_span_ids": ["B01-1"], "aim": "introduce the gun",
-            "active_question_ids": [], "active_thread_ids": ["gun"],
-            "change_in_understanding": "a gun is now known", "alternatives_considered": [],
-            "why_selected": "fact card", "expected_audience_gain": "a concrete anchor",
-            "audio_clarity_findings": [],
-            "actions": [{"id": "a1", "tool_id": "fact_card", "purpose": "state the find",
-                        "payload": {"sentences": ["A 9mm handgun was found."]},
-                        "content_bindings": []}],
-        }],
-        "requests": [], "affected_scene_ids": [], "checks": {},
-    }
-
-
 def test_toolkit_invoke_is_a_noop_when_disabled(db_session, monkeypatch):
     assert ai_config.detective_toolkit.enabled is True, "the toolkit is on by default: it plans the film first"
     monkeypatch.setattr(ai_config.detective_toolkit, "enabled", False)
@@ -96,45 +63,6 @@ def test_toolkit_invoke_is_a_noop_when_disabled(db_session, monkeypatch):
     assert result.enabled is False
     assert result.called is False
     assert db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count() == 0
-
-
-def test_toolkit_invoke_maps_and_directs_when_enabled(db_session, monkeypatch):
-    case, blueprint, graph = _graph_with_narration(db_session)
-    fake = FakeDirectorGen(_fake_payload(graph))
-    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
-    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
-    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
-    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
-    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
-    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
-
-    result = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
-
-    assert result.enabled is True
-    assert result.called is True
-    assert len(fake.calls) == 2, "exactly one map_film call and one direct_scenes call"
-    assert result.scene_count == db_session.query(DetectiveScene).filter_by(graph_id=graph.id).count()
-    assert result.scene_count >= 1
-
-
-def test_toolkit_invoke_never_re_pays_for_an_existing_plan(db_session, monkeypatch):
-    case, blueprint, graph = _graph_with_narration(db_session)
-    fake = FakeDirectorGen(_fake_payload(graph))
-    monkeypatch.setattr(director, "get_generation_provider", lambda: fake)
-    monkeypatch.setattr(ai_config.detective_toolkit, "enabled", True)
-    monkeypatch.setattr(ai_config.detective_toolkit, "require_buildable", False)
-    monkeypatch.setattr(ai_config.detective_toolkit, "max_fill_passes", 0)
-    monkeypatch.setattr(ai_config.detective_toolkit, "max_diversity_passes", 0)
-    monkeypatch.setattr(ai_config.detective_toolkit, "strategy_enabled", False)
-
-    first = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
-    calls_after_first = len(fake.calls)
-    second = asyncio.run(toolkit.invoke(db_session, case, blueprint, graph))
-
-    assert first.called is True
-    assert second.called is False
-    assert second.reason.startswith("a current detective plan already covers every beat of this graph")
-    assert len(fake.calls) == calls_after_first, "no new agent call on the second invoke"
 
 
 def test_pipeline_and_needs_never_import_the_director_module_directly():

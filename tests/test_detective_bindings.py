@@ -62,17 +62,15 @@ def _action(db_session, bindings):
     return action
 
 
-def test_flat_string_bindings_resolve_claims_and_questions_by_their_own_kind(db_session):
+def test_flat_string_bindings_resolve_claims_by_their_own_kind(db_session):
     action = _action(db_session, ["c1", "c2", "q1"])
     assert D.binding_keys(action, "claim_key") == ["c1", "c2", "q1"]   # a key of another kind matches no row
     assert [c.claim_key for c in D._bound_claims(db_session, action)] == ["c1", "c2"]
-    assert [q.question_key for q in D._bound_questions(db_session, action)] == ["q1"]
 
 
 def test_the_object_forms_still_resolve(db_session):
     action = _action(db_session, [{"claim_key": "c1"}, {"claim_id": "c2"}, {"id": "q1"}])
     assert [c.claim_key for c in D._bound_claims(db_session, action)] == ["c1", "c2"]
-    assert [q.question_key for q in D._bound_questions(db_session, action)] == ["q1"]
 
 
 def test_a_fact_card_builds_from_the_directors_real_binding_format(db_session):

@@ -1316,26 +1316,6 @@ class DetectiveFinding(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now, onupdate=utc_now)
 
 
-class DetectiveStrategy(Base):
-    """What the Detective Toolkit plans for a whole film before it directs a single scene: the film's investigative
-    strategy (which card kinds serve which aim, and how they help each other) and, per card kind, where in the film
-    it is used and for what. One row per graph and kind of strategy; a new plan replaces it."""
-
-    __tablename__ = "detective_strategies"
-    __table_args__ = (
-        UniqueConstraint("graph_id", "kind", name="uq_detective_strategy"),
-        CheckConstraint("kind IN ('film', 'cards')", name="ck_detective_strategy_kind"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    graph_id: Mapped[int] = mapped_column(ForeignKey("reveal_graphs.id"), index=True)
-    kind: Mapped[str] = mapped_column(String(10))               # film | cards
-    language: Mapped[str] = mapped_column(String(10))
-    strategy_json: Mapped[str] = mapped_column(Text)
-    agent_run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
-
-
 class EpistemicContractSet(Base):
     """A versioned, reviewable claim ledger for one long-form script."""
 

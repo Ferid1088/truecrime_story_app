@@ -20,41 +20,10 @@ def it(text, basis="fact", fact="F001", **extra):
 
 
 ENGINE_SAMPLES = {
-    "courtroom": {"issue": it("Who fired the shots?"),
-                  "prosecution": [it("Flynn shot his wife twice in bed", "allegation")],
-                  "defense": [it("No direct evidence ties him to the killing", "allegation", "F005")],
-                  "evidence": it("About 100,000 text messages were read in court", "fact", "F012"),
-                  "finding": it("The jury found him guilty after two hours", "finding", "F080")},
-    "custody": {"item": {"name": "9mm handgun", "fact_id": "F002"},
-                "stages": [{"stage": "discovery", **it("Missing from the truck console", "fact", "F002")},
-                           {"stage": "collection", **it("Officers searched the property", "fact", "F003"),
-                            "gap_after": {"text": "No custody record is in the file", "fact_id": "F009"}},
-                           {"stage": "court", **it("Prosecutors told the jury it was never found", "allegation", "F004")}]},
-    "unknowns": {"known": [it("Flynn called 911 on Feb. 16")],
-                 "unknown": [it("Where the missing handgun is", "unknown", "Q2")],
-                 "disputed": [it("Whether the daughters attended", "disputed", "C001")],
-                 "span": {"start": it("The 911 call"), "end": None}},
     "forensic": {"exam": "ballistics", "sample": it("Two 9mm bullets recovered", "expert", "F002"),
                  "method": {"text": "Marks on a bullet are compared with test shots", "basis": "illustration"},
                  "result": it("Prosecutors said the bullets were 9mm", "allegation", "F002"),
                  "limits": it("No firearm was recovered to compare", "fact", "F005")},
-    "interrogation": {"turns": [{"role": "question", "who": "Investigator", "mode": "paraphrase",
-                                 **it("Asked where he was that night", "witness", "F003")},
-                                {"role": "answer", "who": "Flynn", "mode": "paraphrase",
-                                 **it("Said he slept on the couch", "witness", "F003")}],
-                      "compare": {"earlier": {**it("A man brought a flag", "witness", "F011"), "when": "Feb. 16",
-                                              "mode": "paraphrase"},
-                                  "later": {**it("No visitor was identified", "fact", "F011"), "when": "Later",
-                                            "mode": "paraphrase"},
-                                  "record": it("The claim stayed unsupported", "disputed", "F011")}},
-    "sentencing": {"charges": [{"charge": "Aggravated murder", "outcome": "Life, no parole", "fact_id": "F008",
-                                "basis": "finding", "text": "Life, no parole"}],
-                   "aggravating": [it("Used his faith to manipulate others", "finding", "F032")],
-                   "final": it("Life without parole", "finding", "F008")},
-    "investigation_clock": {"events": [
-        {"track": "crime", "date": {"year": 2026, "month": 2, "day": 16}, **it("Ashley Flynn is shot", "fact", "T001")},
-        {"track": "investigation", "date": {"year": 2026, "month": 2, "day": 16}, **it("911 call", "fact", "T001")},
-        {"track": "investigation", "date": {"year": 2026, "month": 4, "day": 20}, **it("Flynn is charged", "fact", "T004")}]},
     "evidence_check": {"item": {"name": "Text messages", "fact_id": "F012"},
                        "establishes": [it("Flynn wrote of wanting her dead", "fact", "F014")],
                        "not_establishes": [it("They do not show who fired", "fact", "F005")],
@@ -78,10 +47,10 @@ def rendered(kind: str, language: str, slack: float = 2.0):
     return graphic(kind).render(data, duration, list(schedule.cues), language), schedule, duration
 
 
-def test_the_eighteen_alternatives_are_all_covered():
+def test_every_registered_alternative_is_covered():
     from app.documentary.graphics.registry import GRAPHICS
 
-    assert len(ALL) == 18 and set(ALL) == set(GRAPHICS)
+    assert set(ALL) == set(GRAPHICS)
 
 
 @pytest.mark.parametrize("language", LANGUAGES)
@@ -140,7 +109,7 @@ def test_words_come_in_one_by_one_never_faster_than_the_pace(kind):
     assert new_per_second <= cfg.words_per_second + 1.5                        # the fading word counts a little
 
 
-@pytest.mark.parametrize("kind", ["conflict", "quote", "recap", "key_facts", "headline", "courtroom", "custody"])
+@pytest.mark.parametrize("kind", ["conflict", "quote", "recap", "headline", "forensic"])
 def test_a_page_of_its_own_shows_all_its_frames_empty_before_the_first_word(kind):
     r, _, _ = rendered(kind, "en")
     stream = r.stream()
@@ -149,7 +118,7 @@ def test_a_page_of_its_own_shows_all_its_frames_empty_before_the_first_word(kind
     assert np.array_equal(np.asarray(r.frame_at(0.1)), empty)
 
 
-@pytest.mark.parametrize("kind", ["timeline", "conflict_board", "document"])
+@pytest.mark.parametrize("kind", ["timeline", "document"])
 def test_a_board_that_continues_keeps_what_it_shows_and_streams_only_the_new_text(kind):
     r, schedule, duration = rendered(kind, "en")
     stream = r.stream()
@@ -186,18 +155,3 @@ def test_a_shot_shorter_than_its_schedule_streams_faster_but_not_below_the_floor
 def test_other_languages_get_their_own_schedule_from_their_own_words():
     data = data_of("conflict", "en")
     assert GS.schedule_of("conflict", data_of("conflict", "fa"), "fa").counts != GS.schedule_of("conflict", data, "en").counts
-
-
-def _road(points, shown):
-    events = [{"date": {"year": 2019 + i}, "label": "The suspect told detectives he never left the house", "fact_id": f"T{i}"}
-              for i in range(points)]
-    return {"events": events, "shown": shown}
-
-
-def test_a_card_that_continues_the_road_does_not_stream_the_points_the_viewer_has_already_seen():
-    first, later = GS.schedule_of("timeline", _road(3, 0), "en"), GS.schedule_of("timeline", _road(6, 3), "en")
-    assert first.counts[0] > 0 and later.counts[0] == 0                      # the earlier points are simply there
-    assert later.total < first.total + 1.0                                    # as long as a first card, not longer
-    graph = graphic("timeline")
-    stream = ST.Stream(graph, _road(6, 3), "en", list(later.cues), later.total, 6.0)
-    assert stream.words_shown(0.0) == len(stream.layers[0].words)            # on screen at the first frame

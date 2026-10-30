@@ -560,19 +560,26 @@
       "description": "Clip edges: which frames at the start or end of a clip or video are an intro or an end card (a logo screen, a QR code, credits, a presenter with a caption) and not footage.",
       "used_by": "app/documentary/mvp/clip_edges.py"
     },
-    "detective.film_strategist": {
-      "role": "detective_strategist",
-      "prompt": "documentary/detective/film_strategist_system",
+    "detective.text_analyser": {
+      "role": "detective_text_analyser",
+      "prompt": "documentary/detective/text_analyser_system",
       "output": "json",
-      "description": "Film strategist: from the whole text, the film's investigative strategy: its acts, what each card kind is for and how the kinds help each other.",
-      "used_by": "app/documentary/detective/strategy.py"
+      "description": "Text analyser: splits the narration into parts and says which card kinds suit each part.",
+      "used_by": "app/documentary/detective/cards.py"
     },
-    "detective.card_strategist": {
-      "role": "detective_strategist",
-      "prompt": "documentary/detective/card_strategist_system",
+    "detective.card_maker": {
+      "role": "detective_card_maker",
+      "prompt": "documentary/detective/card_system",
       "output": "json",
-      "description": "Card strategist: for each card kind, where in the film it is used and what it shows there, keeping the film strategist's plan.",
-      "used_by": "app/documentary/detective/strategy.py"
+      "description": "Card maker: one card of one kind from one part of the text, or none when the text does not support it.",
+      "used_by": "app/documentary/detective/cards.py"
+    },
+    "detective.card_inspector": {
+      "role": "detective_card_inspector",
+      "prompt": "documentary/detective/card_inspector_system",
+      "output": "json",
+      "description": "Card inspector: checks one card against the text it came from and reports logical problems for the toolkit to fix.",
+      "used_by": "app/documentary/detective/cards.py"
     }
   }
 }

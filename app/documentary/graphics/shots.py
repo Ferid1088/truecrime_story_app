@@ -15,8 +15,7 @@ from app.documentary.graphics.page import DoesNotFit
 from app.documentary.graphics.registry import graphic
 from app.documentary.graphics.streaming import Schedule, StreamError, schedule
 
-ENGINE_KINDS = frozenset({"courtroom", "custody", "unknowns", "forensic", "interrogation", "sentencing",
-                          "investigation_clock", "evidence_check"})
+ENGINE_KINDS = frozenset({"forensic", "evidence_check"})
 
 
 def cue_fractions(kind: str, steps: int) -> list[float]:

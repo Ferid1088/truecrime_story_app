@@ -21,30 +21,17 @@ from app.documentary.graphics.registry import graphic
 
 NEEDS = {
     "fact_card": "bind at least one claim; each bound claim becomes one fact",
-    "key_facts": "bind claims whose text starts with a short value (at most 14 characters, such as a number, a date "
-                 "or a count)",
-    "unknowns": "bind at least one established_in_text or attributed claim (the known) and at least one question "
-                "(the unknown)",
     "detective_board": "bind at least one claim; each bound claim becomes a card",
     "conflict": "bind a relation of type conflict between exactly two claims, and bind both claims",
-    "conflict_board": "bind at least two relations of type conflict",
     "quote": "bind an attributed claim (with its attribution, at most 220 characters) from a listed newspaper "
              "or TV broadcaster",
-    "courtroom": "bind claims whose attribute is issue, prosecution, defense and finding, one of each at least",
-    "sentencing": "bind at least two claims with attribute charge (or one charge and one claim with attribute aggravating "
-                  "or mitigating) and exactly one claim with attribute final",
-    "interrogation": "bind a question and, for the same person, a claim with attribute answer",
     "evidence_check": "bind at least one established_in_text claim about the item",
     "forensic": "bind claims with attribute exam, sample, method, result and limits; the exam claim's text is exactly one "
                 "of: " + ", ".join(EXAMS),
-    "custody": "bind 2 to 5 claims about one item, in the order of its stages",
-    "investigation_clock": "bind at least two claims linked to facts that have a real event date; attribute crime "
-                           "or investigation",
     "recap": "bind claims of at most 38 characters, by basis (established, disputed, unknown)",
     "timeline": "bind at least two claims linked to facts that have a real event date",
     "document": "bind a claim whose text stands word for word in the stored text of an official source",
     "headline": "bind claims linked to a listed newspaper source that has a full date",
-    "floor_plan": "carry real rooms in the payload; never invented",
     "map": "bind a claim about a stored place or building",
 }
 DEFAULT_NEED = "bind the claims, questions or relations the card shows"
@@ -54,10 +41,9 @@ def issue_of(db: Session, action: DetectiveToolAction) -> str | None:
     """Why this action's card cannot be built, or None when it can (or when the tool is not a card)."""
     if action.tool_id == "map":
         return None if D._map_place_of(db, action) else f"the map has no stored place: {NEEDS['map']}"
-    build = D.BUILDERS.get(action.tool_id)
-    if build is None or action.tool_id == "detective_board":
+    if D.BUILDERS.get(action.tool_id) is None or action.tool_id == "detective_board":
         return None
-    data = build(db, action)
+    data = D.build_data(db, action)
     if data is None:
         return (f"action {action.action_key} ({action.tool_id}) cannot be built from what it binds: "
                 f"{NEEDS.get(action.tool_id, DEFAULT_NEED)}; or choose a tool whose card can be built")
@@ -171,20 +157,3 @@ def weakest_beats(db: Session, graph_id: int, language: str, units, count: int) 
     narration = narration_seconds(units)
     cards = placed_card_seconds_by_beat(planned_timeline(db, graph_id, language, units))
     return sorted(narration, key=lambda b: (cards.get(b, 0.0) / narration[b], b))[:count]
-
-
-def prune_unbuildable(db: Session, graph_id: int) -> int:
-    """Remove the actions whose card cannot be built: the toolkit hands over only what it has made. A scene left with
-    no action stays (it records that the beat was directed and has no card), so the beat is never planned again.
-    Returns how many actions were removed."""
-    found = {key for key, _ in unbuildable(db, graph_id)}
-    if not found:
-        return 0
-    removed = 0
-    for scene in db.query(DetectiveScene).filter_by(graph_id=graph_id).all():
-        for action in list(scene.actions):
-            if action.action_key in found:
-                db.delete(action)
-                removed += 1
-    db.commit()
-    return removed

@@ -34,13 +34,6 @@ def conflict(language: str, status: str = "open") -> dict:
                       {"who": t["b"], "claim": t["bc"], "source": t["bs"], "fact_id": "F15"}]}
 
 
-def board(language: str) -> dict:
-    t = TEXT[language]
-    cards = [{"id": f"C{n}", "number": n, "title": t["sum"], "a": t["a"], "b": t["b"],
-              "status": "open" if n > 1 else "decided"} for n in (1, 2, 3)]
-    return {"cards": cards, "new_card": "C3"}
-
-
 KEY_WORDS = {"en": ("Four found dead", "Two accounts, one door", "Door opened by whom?"),
              "de": ("Vier Tote gefunden", "Zwei Darstellungen, eine Tür", "Wer öffnete das Tor?"),
              "fa": ("چهار نفر مرده یافت شدند", "دو روایت از یک در", "چه کسی در را باز کرد؟"),
@@ -55,16 +48,10 @@ def recap(language: str) -> dict:
 
 def timeline(language: str) -> dict:
     t = TEXT[language]
-    events = [{"date": {"year": 2022, "month": 11, "day": 13}, "label": t["fact"], "fact_id": "F1"},
-              {"date": {"year": 2022, "month": 12, "day": 30}, "label": t["sum"], "fact_id": "F2"},
-              {"date": {"year": 2023, "month": 5}, "label": t["open"], "fact_id": "F3"}]
-    return {"title": t["q"], "events": events}
-
-
-def key_facts(language: str) -> dict:
-    t = TEXT[language]
-    return {"facts": [{"value": "4", "caption": t["fact"], "fact_id": "F1"},
-                      {"value": "11:58 PM", "caption": t["sum"], "fact_id": "F2"}]}
+    points = [{"date": {"year": 2022, "month": 11, "day": 13}, "labels": [t["fact"]], "fact_id": "F1"},
+              {"date": {"year": 2022, "month": 12, "day": 30}, "labels": [t["sum"], t["open"]], "fact_id": "F2"},
+              {"date": {"year": 2023, "month": 5}, "labels": [t["open"]], "fact_id": "F3"}]
+    return {"title": t["q"], "points": points}
 
 
 def document() -> dict:
@@ -82,13 +69,3 @@ def headline() -> dict:
             "fact_id": "F1", "language": "en"}
 
 
-def floor_plan() -> dict:
-    return {"title": "Inside the house", "source": {"document_id": 4, "page": 2, "name": "Police report"},
-            "rooms": [{"id": "a", "label": "Room A", "x": 0, "y": 0, "w": 4, "h": 5},
-                      {"id": "b", "label": "Room B", "x": 4, "y": 0, "w": 4, "h": 5},
-                      {"id": "k", "label": "Kitchen", "x": 4, "y": 5, "w": 4, "h": 4},
-                      {"id": "l", "label": "Living area", "x": 0, "y": 5, "w": 4, "h": 4}],
-            "doors": [{"x": 2, "y": 5, "w": 1, "axis": "h"}], "entrances": [{"x": 5, "y": 9, "w": 1, "axis": "h"}],
-            "markers": [{"kind": "found", "room": "a", "text": TEXT["en"]["fact"], "fact_id": "F1"},
-                        {"kind": "entry", "room": "k", "text": TEXT["en"]["sum"], "fact_id": "F2"},
-                        {"kind": "witness", "room": "l", "text": TEXT["en"]["open"], "fact_id": "F3"}]}

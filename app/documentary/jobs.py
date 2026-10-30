@@ -449,14 +449,14 @@ class DocumentaryPipeline(StageRunner):
             _, toolkit = await TK.stage_toolkit(db, case, bp_row)      # the toolkit makes the graph and its cards first
             row, graph, detail = await MVP.stage_needs(db, case, bp_row)
             state["vp"], state["graph"] = row, graph
-            detail["toolkit"] = {"strategy": toolkit.strategy_used, "card_share": toolkit.alternative_share,
+            detail["toolkit"] = {"parts": toolkit.parts, "made": toolkit.made, "card_share": toolkit.alternative_share,
                                  "card_kinds": toolkit.kinds_used, "missing_kinds": toolkit.missing_kinds,
-                                 "failed": toolkit.failed_chunks}
-            if toolkit.enabled and (toolkit.missing_kinds or not toolkit.target_met or not toolkit.strategy_used):
+                                 "attempts": toolkit.attempts, "repeats": toolkit.repeats, "dropped": toolkit.dropped,
+                                 "errors": toolkit.errors}
+            if toolkit.enabled and (toolkit.missing_kinds or not toolkit.target_met):
                 detail["degraded"] = (
                     f"the toolkit's cards fill {toolkit.alternative_share:.0%} of the film"
-                    + (f"; missing card kinds: {', '.join(toolkit.missing_kinds)}" if toolkit.missing_kinds else "")
-                    + ("" if toolkit.strategy_used else "; no valid film strategy could be made"))
+                    + (f"; missing: {', '.join(toolkit.missing_kinds)}" if toolkit.missing_kinds else ""))
             return detail
 
         async def host_plan():

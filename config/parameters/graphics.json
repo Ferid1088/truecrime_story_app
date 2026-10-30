@@ -61,18 +61,9 @@
       "document": 21.0,
       "quote": 15.0,
       "headline": 18.0,
-      "key_facts": 18.0,
       "fact_card": 15.0,
       "timeline": 24.0,
-      "conflict_board": 21.0,
-      "floor_plan": 24.0,
-      "courtroom": 30.0,
-      "custody": 30.0,
-      "unknowns": 30.0,
       "forensic": 30.0,
-      "interrogation": 30.0,
-      "sentencing": 30.0,
-      "investigation_clock": 30.0,
       "evidence_check": 30.0
     },
     "cue_fractions": {
@@ -95,11 +86,6 @@
       "headline": [
         0.2
       ],
-      "key_facts": [
-        0.1,
-        0.4,
-        0.7
-      ],
       "fact_card": [
         0.15
       ],
@@ -109,34 +95,7 @@
         0.52,
         0.74
       ],
-      "conflict_board": [
-        0.15
-      ],
-      "floor_plan": [
-        0.2,
-        0.4,
-        0.6,
-        0.8
-      ],
-      "courtroom": [
-        0.1
-      ],
-      "custody": [
-        0.1
-      ],
-      "unknowns": [
-        0.1
-      ],
       "forensic": [
-        0.1
-      ],
-      "interrogation": [
-        0.1
-      ],
-      "sentencing": [
-        0.1
-      ],
-      "investigation_clock": [
         0.1
       ],
       "evidence_check": [
@@ -144,12 +103,9 @@
       ]
     },
     "timeline": {
-      "max_nodes_visible": 5,
       "node_text_max_chars": 70,
-      "pan_target_range": [
-        0.4,
-        0.6
-      ]
+      "max_points": 8,
+      "max_labels_per_point": 2
     },
     "document_card": {
       "quote_max_chars": 160,
@@ -166,10 +122,6 @@
         "evidence"
       ]
     },
-    "conflict_board": {
-      "columns": 3,
-      "max_cards_per_view": 6
-    },
     "recap": {
       "max_items": {
         "confirmed": 3,
@@ -178,18 +130,6 @@
       },
       "item_max_chars": 38,
       "title_px": 76
-    },
-    "floor_plan": {
-      "max_markers": 8,
-      "legend_kinds": [
-        "found",
-        "entry",
-        "witness"
-      ]
-    },
-    "key_facts": {
-      "max_per_card": 3,
-      "caption_max_chars": 90
     },
     "quote": {
       "tv_source_names": {
@@ -292,8 +232,6 @@
         "confirmed": "CONFIRMED",
         "disputed": "DISPUTED",
         "unknown": "STILL UNKNOWN",
-        "conflict_board": "CONFLICT BOARD",
-        "conflict_board_title": "WHAT IS STILL DISPUTED",
         "told": "told",
         "document_card": "DOCUMENT CARD",
         "document_title": "WHAT THE RECORD SAYS",
@@ -303,14 +241,12 @@
         "map_zoom": "MAP ZOOM",
         "now_showing": "NOW SHOWING",
         "map_credit": "MAP",
-        "floor_plan": "FLOOR PLAN",
         "legend": "LEGEND",
         "found": "Where it was found",
         "entry": "Entry point",
         "witness": "Witness location",
         "schematic": "SCHEMATIC · NOT TO SCALE · FROM THE REPORT",
         "point": "POINT",
-        "key_facts": "KEY FACTS",
         "fact_card": "THE RECORD SHOWS",
         "headline": "NEWSPAPER HEADLINE",
         "headline_title": "AS THE PRESS REPORTED IT",
@@ -328,12 +264,10 @@
         "marker_place": "THE PLACE",
         "map_source": "MAP: OPEN DATA",
         "told_n": "{n} told",
-        "courtroom": "COURTROOM REASONING",
         "prosecution": "PROSECUTION",
         "defense": "DEFENSE",
         "court_evidence": "THE EVIDENCE",
         "court_finding": "THE COURT'S FINDING",
-        "custody": "CHAIN OF CUSTODY",
         "stage_discovery": "FOUND",
         "stage_collection": "COLLECTED",
         "stage_documentation": "DOCUMENTED",
@@ -341,8 +275,6 @@
         "stage_storage": "STORED",
         "stage_analysis": "EXAMINED",
         "stage_court": "IN COURT",
-        "custody_gap": "NO RECORD IN THE CASE FILE",
-        "unknowns": "MAP OF UNKNOWNS",
         "known_col": "KNOWN",
         "unknown_col": "UNKNOWN",
         "disputed_col": "DISPUTED",
@@ -362,13 +294,11 @@
         "f_result": "THE REPORTED RESULT",
         "f_limits": "LIMITS",
         "illustration": "EDUCATIONAL ILLUSTRATION · NOT CASE EVIDENCE",
-        "interrogation": "INTERVIEW ANALYSIS",
         "question": "QUESTION",
         "answer": "ANSWER",
         "earlier": "EARLIER STATEMENT",
         "later": "LATER STATEMENT",
         "inconsistent": "THE RECORD SHOWS",
-        "sentencing": "THE SENTENCE",
         "charges": "CHARGES",
         "aggravating": "AGGRAVATING",
         "mitigating": "MITIGATING",
@@ -420,8 +350,6 @@
         "confirmed": "BESTÄTIGT",
         "disputed": "UMSTRITTEN",
         "unknown": "NOCH UNKLAR",
-        "conflict_board": "WIDERSPRUCHSTAFEL",
-        "conflict_board_title": "WAS WEITERHIN UMSTRITTEN IST",
         "told": "erzählt",
         "document_card": "DOKUMENT",
         "document_title": "WAS DIE AKTE SAGT",
@@ -431,14 +359,12 @@
         "map_zoom": "KARTENZOOM",
         "now_showing": "JETZT ZU SEHEN",
         "map_credit": "KARTE",
-        "floor_plan": "GRUNDRISS",
         "legend": "LEGENDE",
         "found": "Fundort",
         "entry": "Zugang",
         "witness": "Standort des Zeugen",
         "schematic": "SCHEMA · NICHT MASSSTÄBLICH · NACH DEM BERICHT",
         "point": "PUNKT",
-        "key_facts": "WICHTIGE FAKTEN",
         "fact_card": "DIE AKTE ZEIGT",
         "headline": "ZEITUNGSSCHLAGZEILE",
         "headline_title": "SO BERICHTETE DIE PRESSE",
@@ -456,12 +382,10 @@
         "marker_place": "DER ORT",
         "map_source": "KARTE: OFFENE DATEN",
         "told_n": "{n} erzählt",
-        "courtroom": "GERICHTLICHE ABWÄGUNG",
         "prosecution": "ANKLAGE",
         "defense": "VERTEIDIGUNG",
         "court_evidence": "DAS BEWEISSTÜCK",
         "court_finding": "DIE FESTSTELLUNG DES GERICHTS",
-        "custody": "BEWEISKETTE",
         "stage_discovery": "GEFUNDEN",
         "stage_collection": "SICHERGESTELLT",
         "stage_documentation": "DOKUMENTIERT",
@@ -469,8 +393,6 @@
         "stage_storage": "VERWAHRT",
         "stage_analysis": "UNTERSUCHT",
         "stage_court": "VOR GERICHT",
-        "custody_gap": "KEIN NACHWEIS IN DEN AKTEN",
-        "unknowns": "KARTE DER OFFENEN FRAGEN",
         "known_col": "BEKANNT",
         "unknown_col": "UNBEKANNT",
         "disputed_col": "UMSTRITTEN",
@@ -490,13 +412,11 @@
         "f_result": "DAS BERICHTETE ERGEBNIS",
         "f_limits": "GRENZEN",
         "illustration": "LEHRBILD · KEIN BEWEISMATERIAL",
-        "interrogation": "VERNEHMUNGSANALYSE",
         "question": "FRAGE",
         "answer": "ANTWORT",
         "earlier": "FRÜHERE AUSSAGE",
         "later": "SPÄTERE AUSSAGE",
         "inconsistent": "DIE AKTENLAGE",
-        "sentencing": "DAS STRAFMASS",
         "charges": "ANKLAGEPUNKTE",
         "aggravating": "STRAFSCHÄRFEND",
         "mitigating": "STRAFMILDERND",
@@ -548,8 +468,6 @@
         "confirmed": "تأییدشده",
         "disputed": "محل اختلاف",
         "unknown": "هنوز نامعلوم",
-        "conflict_board": "تابلوی تضادها",
-        "conflict_board_title": "آنچه هنوز محل اختلاف است",
         "told": "روایت‌شده",
         "document_card": "سند",
         "document_title": "پرونده چه می‌گوید",
@@ -559,14 +477,12 @@
         "map_zoom": "نمای نقشه",
         "now_showing": "اکنون",
         "map_credit": "نقشه",
-        "floor_plan": "پلان",
         "legend": "راهنما",
         "found": "محل پیدا شدن",
         "entry": "نقطه ورود",
         "witness": "جای شاهد",
         "schematic": "طرح تقریبی · بدون مقیاس · بر پایه گزارش",
         "point": "نکته",
-        "key_facts": "حقایق کلیدی",
         "fact_card": "پرونده نشان می‌دهد",
         "headline": "تیتر روزنامه",
         "headline_title": "رسانه‌ها چنین گزارش دادند",
@@ -584,12 +500,10 @@
         "marker_place": "محل",
         "map_source": "نقشه: داده‌های باز",
         "told_n": "{n} روایت‌شده",
-        "courtroom": "استدلال دادگاه",
         "prosecution": "دادستانی",
         "defense": "دفاع",
         "court_evidence": "مدرک",
         "court_finding": "رأی دادگاه",
-        "custody": "زنجیرهٔ نگهداری مدرک",
         "stage_discovery": "کشف",
         "stage_collection": "جمع‌آوری",
         "stage_documentation": "ثبت",
@@ -597,8 +511,6 @@
         "stage_storage": "نگهداری",
         "stage_analysis": "بررسی",
         "stage_court": "در دادگاه",
-        "custody_gap": "سندی در پرونده نیست",
-        "unknowns": "نقشهٔ ناشناخته‌ها",
         "known_col": "معلوم",
         "unknown_col": "نامعلوم",
         "disputed_col": "مورد اختلاف",
@@ -618,13 +530,11 @@
         "f_result": "نتیجهٔ گزارش‌شده",
         "f_limits": "محدودیت‌ها",
         "illustration": "تصویر آموزشی · مدرک پرونده نیست",
-        "interrogation": "تحلیل بازجویی",
         "question": "پرسش",
         "answer": "پاسخ",
         "earlier": "اظهار قبلی",
         "later": "اظهار بعدی",
         "inconsistent": "آنچه پرونده نشان می‌دهد",
-        "sentencing": "حکم و مجازات",
         "charges": "اتهام‌ها",
         "aggravating": "عوامل تشدید",
         "mitigating": "عوامل تخفیف",
@@ -676,8 +586,6 @@
         "confirmed": "مؤكد",
         "disputed": "محل خلاف",
         "unknown": "لا يزال مجهولاً",
-        "conflict_board": "لوحة التعارضات",
-        "conflict_board_title": "ما يزال موضع خلاف",
         "told": "رُوي",
         "document_card": "وثيقة",
         "document_title": "ماذا يقول السجل",
@@ -687,14 +595,12 @@
         "map_zoom": "تقريب الخريطة",
         "now_showing": "الآن",
         "map_credit": "الخريطة",
-        "floor_plan": "مخطط الطابق",
         "legend": "دليل الرموز",
         "found": "مكان العثور",
         "entry": "نقطة الدخول",
         "witness": "موقع الشاهد",
         "schematic": "مخطط تقريبي · غير مقيّس · عن التقرير",
         "point": "نقطة",
-        "key_facts": "حقائق أساسية",
         "fact_card": "السجل يُظهر",
         "headline": "عنوان صحفي",
         "headline_title": "كما نقلته الصحافة",
@@ -712,12 +618,10 @@
         "marker_place": "المكان",
         "map_source": "الخريطة: بيانات مفتوحة",
         "told_n": "{n} رُوي",
-        "courtroom": "منطق المحكمة",
         "prosecution": "الادعاء",
         "defense": "الدفاع",
         "court_evidence": "الدليل",
         "court_finding": "حكم المحكمة",
-        "custody": "سلسلة حيازة الدليل",
         "stage_discovery": "العثور",
         "stage_collection": "الجمع",
         "stage_documentation": "التوثيق",
@@ -725,8 +629,6 @@
         "stage_storage": "التخزين",
         "stage_analysis": "الفحص",
         "stage_court": "في المحكمة",
-        "custody_gap": "لا سجل في ملف القضية",
-        "unknowns": "خريطة المجهول",
         "known_col": "معروف",
         "unknown_col": "مجهول",
         "disputed_col": "محل خلاف",
@@ -746,13 +648,11 @@
         "f_result": "النتيجة المُبلَّغ عنها",
         "f_limits": "الحدود",
         "illustration": "رسم تعليمي · ليس دليلاً في القضية",
-        "interrogation": "تحليل الاستجواب",
         "question": "سؤال",
         "answer": "إجابة",
         "earlier": "إفادة سابقة",
         "later": "إفادة لاحقة",
         "inconsistent": "ما يظهره السجل",
-        "sentencing": "العقوبة",
         "charges": "التهم",
         "aggravating": "ظروف مشددة",
         "mitigating": "ظروف مخففة",
@@ -826,17 +726,6 @@
       "hold_max_seconds": 36.0
     },
     "themes": {
-      "sentencing": {
-        "ground": "#120A0A",
-        "glow": "#2B1919",
-        "card": "#1F1414",
-        "rule": "#422E2E",
-        "amber": "#EB5C5C",
-        "blue": "#81DAAD",
-        "red": "#EBC984",
-        "frame": "double_rule",
-        "header": "rule"
-      },
       "conflict": {
         "ground": "#120C0A",
         "glow": "#2B1F19",
@@ -847,17 +736,6 @@
         "red": "#EBE884",
         "frame": "rail",
         "header": "stack"
-      },
-      "conflict_board": {
-        "ground": "#120F0A",
-        "glow": "#2B2419",
-        "card": "#1F1B14",
-        "rule": "#423A2E",
-        "amber": "#F5AB3D",
-        "blue": "#81D1DA",
-        "red": "#D0EB84",
-        "frame": "top_band",
-        "header": "band"
       },
       "recap": {
         "ground": "#12110A",
@@ -892,17 +770,6 @@
         "frame": "dots",
         "header": "stack"
       },
-      "key_facts": {
-        "ground": "#0A120A",
-        "glow": "#1A2B19",
-        "card": "#141F14",
-        "rule": "#2F422E",
-        "amber": "#5AD256",
-        "blue": "#AA81DA",
-        "red": "#CCEB84",
-        "frame": "corners",
-        "header": "center"
-      },
       "fact_card": {
         "ground": "#0A120D",
         "glow": "#192B21",
@@ -936,28 +803,6 @@
         "frame": "stripes",
         "header": "rule"
       },
-      "custody": {
-        "ground": "#0A1012",
-        "glow": "#19272B",
-        "card": "#141C1F",
-        "rule": "#2E3D42",
-        "amber": "#76A9BC",
-        "blue": "#C9929F",
-        "red": "#84EBC2",
-        "frame": "top_band",
-        "header": "center"
-      },
-      "floor_plan": {
-        "ground": "#0A0D12",
-        "glow": "#19212B",
-        "card": "#14191F",
-        "rule": "#2E3742",
-        "amber": "#4F94EE",
-        "blue": "#DA8781",
-        "red": "#84EBE1",
-        "frame": "top_band",
-        "header": "stack"
-      },
       "headline": {
         "ground": "#0A0C12",
         "glow": "#191F2B",
@@ -969,39 +814,6 @@
         "frame": "double_rule",
         "header": "center"
       },
-      "unknowns": {
-        "ground": "#0A0A12",
-        "glow": "#1B192B",
-        "card": "#15141F",
-        "rule": "#2F2E42",
-        "amber": "#A49EFA",
-        "blue": "#DAB381",
-        "red": "#84C2EB",
-        "frame": "dots",
-        "header": "band"
-      },
-      "courtroom": {
-        "ground": "#0D0A12",
-        "glow": "#21192B",
-        "card": "#19141F",
-        "rule": "#372E42",
-        "amber": "#A174DC",
-        "blue": "#DAD481",
-        "red": "#849CEB",
-        "frame": "tabs",
-        "header": "stack"
-      },
-      "interrogation": {
-        "ground": "#110A12",
-        "glow": "#29192B",
-        "card": "#1E141F",
-        "rule": "#402E42",
-        "amber": "#BB5EC9",
-        "blue": "#B8D685",
-        "red": "#9984EB",
-        "frame": "stripes",
-        "header": "band"
-      },
       "quote": {
         "ground": "#120A0F",
         "glow": "#2B1924",
@@ -1012,17 +824,6 @@
         "red": "#D384EB",
         "frame": "rail",
         "header": "center"
-      },
-      "investigation_clock": {
-        "ground": "#120A0D",
-        "glow": "#2B1920",
-        "card": "#1F1418",
-        "rule": "#422E35",
-        "amber": "#ED6E9C",
-        "blue": "#81DA8C",
-        "red": "#EBA384",
-        "frame": "top_band",
-        "header": "rule"
       }
     }
   }

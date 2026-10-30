@@ -1,0 +1,330 @@
+{
+ "agent_runs": {
+  "count": 17828,
+  "max_id": 31707
+ },
+ "approval_bundles": {
+  "count": 1,
+  "max_id": 5
+ },
+ "artifacts": {
+  "count": 45058,
+  "max_id": "artifact_voice_takes_fd30aecf419edeb7c1e8ff2f4c1d03cb"
+ },
+ "audio_plans": {
+  "count": 4,
+  "max_id": 11
+ },
+ "autopilot_runs": {
+  "count": 1,
+  "max_id": 6
+ },
+ "background_jobs": {
+  "count": 6,
+  "max_id": 59
+ },
+ "board_plans": {
+  "count": 4,
+  "max_id": 7
+ },
+ "case_events": {
+  "count": 10,
+  "max_id": 20
+ },
+ "case_status_checks": {
+  "count": 0,
+  "max_id": null
+ },
+ "case_status_history": {
+  "count": 1,
+  "max_id": 12
+ },
+ "case_title_candidates": {
+  "count": 63,
+  "max_id": 114
+ },
+ "case_tombstones": {
+  "count": 0,
+  "max_id": null
+ },
+ "chapter_plans": {
+  "count": 4,
+  "max_id": 7
+ },
+ "claim_clusters": {
+  "count": 1569,
+  "max_id": 5310
+ },
+ "contradictions": {
+  "count": 4,
+  "max_id": 121
+ },
+ "discovery_candidates": {
+  "count": 1,
+  "max_id": 63
+ },
+ "documentary_jobs": {
+  "count": 23,
+  "max_id": 50
+ },
+ "editorial_blueprints": {
+  "count": 4,
+  "max_id": 10
+ },
+ "editorial_review_decisions": {
+  "count": 0,
+  "max_id": null
+ },
+ "entity_dossiers": {
+  "count": 31,
+  "max_id": 41
+ },
+ "entity_glossary": {
+  "count": 0,
+  "max_id": null
+ },
+ "episode_identities": {
+  "count": 4,
+  "max_id": 7
+ },
+ "epistemic_contract_sets": {
+  "count": 0,
+  "max_id": null
+ },
+ "facts": {
+  "count": 771,
+  "max_id": 9827
+ },
+ "follow_up_candidates": {
+  "count": 0,
+  "max_id": null
+ },
+ "host_appearances": {
+  "count": 4,
+  "max_id": 7
+ },
+ "host_led_music_usage": {
+  "count": 0,
+  "max_id": null
+ },
+ "host_memories": {
+  "count": 3,
+  "max_id": 72
+ },
+ "host_outfits": {
+  "count": 12,
+  "max_id": 13
+ },
+ "host_plans": {
+  "count": 4,
+  "max_id": 28
+ },
+ "host_scenes": {
+  "count": 10,
+  "max_id": 190
+ },
+ "host_segments": {
+  "count": 4,
+  "max_id": 62
+ },
+ "media_links": {
+  "count": 959,
+  "max_id": 1558
+ },
+ "media_usages": {
+  "count": 2226,
+  "max_id": 8774
+ },
+ "music_library_misses": {
+  "count": 0,
+  "max_id": null
+ },
+ "music_usages": {
+  "count": 70,
+  "max_id": 485
+ },
+ "mvp_film_reviews": {
+  "count": 1,
+  "max_id": 1
+ },
+ "mvp_requirements": {
+  "count": 429,
+  "max_id": 457
+ },
+ "narrative_insights": {
+  "count": 394,
+  "max_id": 1888
+ },
+ "official_bodies": {
+  "count": 8,
+  "max_id": 19
+ },
+ "original_media_segments": {
+  "count": 0,
+  "max_id": null
+ },
+ "policy_events": {
+  "count": 3511,
+  "max_id": 5389
+ },
+ "production_scripts": {
+  "count": 8,
+  "max_id": 33
+ },
+ "provider_calls": {
+  "count": 46284,
+  "max_id": 77706
+ },
+ "publish_requests": {
+  "count": 0,
+  "max_id": null
+ },
+ "rendered_shorts": {
+  "count": 20,
+  "max_id": 69
+ },
+ "research_jobs": {
+  "count": 3,
+  "max_id": 67
+ },
+ "reveal_graphs": {
+  "count": 1,
+  "max_id": 1
+ },
+ "short_candidates": {
+  "count": 70,
+  "max_id": 240
+ },
+ "short_form_concepts": {
+  "count": 18,
+  "max_id": 59
+ },
+ "short_form_publishing_plans": {
+  "count": 0,
+  "max_id": null
+ },
+ "short_production_jobs": {
+  "count": 25,
+  "max_id": 87
+ },
+ "sources": {
+  "count": 63,
+  "max_id": 409
+ },
+ "story_plans": {
+  "count": 3,
+  "max_id": 7
+ },
+ "story_versions": {
+  "count": 57,
+  "max_id": 271
+ },
+ "thumbnails": {
+  "count": 0,
+  "max_id": null
+ },
+ "transcript_claims": {
+  "count": 1569,
+  "max_id": 6910
+ },
+ "video_sources": {
+  "count": 885,
+  "max_id": 1064
+ },
+ "videos": {
+  "count": 5,
+  "max_id": 20
+ },
+ "visual_assets": {
+  "count": 2002,
+  "max_id": 4710
+ },
+ "visual_audits": {
+  "count": 0,
+  "max_id": null
+ },
+ "visual_leads": {
+  "count": 141,
+  "max_id": 283
+ },
+ "visual_plans": {
+  "count": 2,
+  "max_id": 14
+ },
+ "visual_search_log": {
+  "count": 449,
+  "max_id": 2588
+ },
+ "voice_performances": {
+  "count": 4,
+  "max_id": 7
+ },
+ "youtube_quota_ledger": {
+  "count": 602,
+  "max_id": 714
+ },
+ "mvp_search_rounds": {
+  "count": 303,
+  "max_id": 303
+ },
+ "mvp_candidates": {
+  "count": 9308,
+  "max_id": 10075
+ },
+ "reveal_nodes": {
+  "count": 122,
+  "max_id": 122
+ },
+ "narration_units": {
+  "count": 0,
+  "max_id": null
+ },
+ "release_anchors": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_claims": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_questions": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_relations": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_knowledge_events": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_scenes": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_findings": {
+  "count": 0,
+  "max_id": null
+ },
+ "detective_tool_actions": {
+  "count": 0,
+  "max_id": null
+ },
+ "_case": {
+  "status": "rendered",
+  "baseline": 207.402265,
+  "cap_field": null,
+  "location": "Troy, Miami County, Ohio, United States",
+  "language": "en"
+ },
+ "_film_reviews": [
+  {
+   "id": 1,
+   "language": "en",
+   "production_script_id": null,
+   "render_sha256": null,
+   "state": "IMPLEMENTING"
+  }
+ ]
+}

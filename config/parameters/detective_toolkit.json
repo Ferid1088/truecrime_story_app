@@ -3,7 +3,6 @@
     "enabled": true,
     "design_review": false,
     "call_timeout_s": 600,
-    "beats_per_call": 3,
     "reading": {
       "dense_card_words": 18,
       "dense_speech_words_per_second": 2.6,
@@ -22,25 +21,140 @@
     },
     "max_repair_iterations": 2,
     "require_buildable": true,
-    "min_alternative_share": 0.5,
-    "max_fill_passes": 3,
-    "strategy_enabled": true,
+    "min_alternative_share": 0.3,
     "required_kinds": [
       "map",
       "detective_board",
       "timeline"
     ],
-    "min_card_kinds": 12,
-    "max_diversity_passes": 10,
-    "director_cannot_make": [
-      "floor_plan"
-    ],
-    "graph_cards": {
-      "timeline_cards": 3,
-      "timeline_events": 3,
-      "unknowns_cards": 3,
-      "conflict_cards": 3,
-      "later_beats": 4
+    "max_alternative_share": 0.4,
+    "attempts": 2,
+    "analyser_units_per_call": 160,
+    "concurrency": 6,
+    "inspector_rounds": 2,
+    "max_fact_cards": 10,
+    "repeat_overlap": 0.6,
+    "timeline_cards": 3,
+    "timeline_events": 6,
+    "card_kinds": {
+      "fact_card": {
+        "purpose": "Emphasise one to three consequential facts the narration has just told.",
+        "schema_text": "{\"facts\": [{\"text\": \"a short sentence of at most 90 characters, in the narration's own words\", \"fact_id\": \"unit key of the sentence it comes from\"}]} - one to three facts.",
+        "example": {
+          "facts": [
+            {
+              "text": "Officers found two spent casings by the bed.",
+              "fact_id": "B03-2"
+            }
+          ]
+        }
+      },
+      "recap": {
+        "purpose": "Orient the viewer: what is confirmed, what is disputed, what is still unknown, each as a few key words.",
+        "schema_text": "{\"confirmed\": [{\"text\": \"at most 38 characters\", \"fact_id\": \"unit key\"}] (up to 3), \"disputed\": [same] (up to 2), \"unknown\": [same] (up to 2)} - only the sections that have items; every text at most 38 characters.",
+        "example": {
+          "confirmed": [
+            {
+              "text": "Two casings by the bed",
+              "fact_id": "B03-2"
+            }
+          ],
+          "disputed": [
+            {
+              "text": "Who opened the door",
+              "fact_id": "B05-1"
+            }
+          ],
+          "unknown": [
+            {
+              "text": "Where the gun is",
+              "fact_id": "B06-4"
+            }
+          ]
+        }
+      },
+      "conflict": {
+        "purpose": "Isolate one real disagreement between two accounts the narration has told.",
+        "schema_text": "{\"conflict\": {\"id\": \"c1\", \"title\": \"the point in dispute, at most 70 characters\", \"kind\": \"parties|witnesses|evidence\", \"status\": \"open\", \"summary\": \"at most 60 characters\"}, \"sides\": [{\"who\": \"who says it\", \"claim\": \"what they say, at most 160 characters\", \"source\": \"where it was said (statement, testimony, report)\", \"fact_id\": \"unit key\"}, {the second side}]} - exactly two sides that really contradict each other.",
+        "example": {
+          "conflict": {
+            "id": "c1",
+            "title": "Was the garage door open?",
+            "kind": "witnesses",
+            "status": "open",
+            "summary": "Two accounts of the same door"
+          },
+          "sides": [
+            {
+              "who": "Officer Harlan",
+              "claim": "The door stood open.",
+              "source": "incident report",
+              "fact_id": "B04-2"
+            },
+            {
+              "who": "Mrs Cole",
+              "claim": "It was shut that morning.",
+              "source": "witness statement",
+              "fact_id": "B04-5"
+            }
+          ]
+        }
+      },
+      "evidence_check": {
+        "purpose": "Explain what one piece of evidence establishes, what it does not, and how the jury or the record treated it.",
+        "schema_text": "{\"item\": {\"name\": \"at most 48 characters\", \"fact_id\": \"unit key\"}, \"establishes\": [{\"text\": \"at most 90 characters\", \"basis\": \"fact\", \"fact_id\": \"unit key\"}] (1-2), \"not_establishes\": [same] (0-2), \"supported_by\": [same] (0-2), \"contradicted_by\": [same] (0-2), \"assessment\": {\"text\": \"at most 90 characters\", \"basis\": \"finding\", \"fact_id\": \"unit key\"}} - basis is one of fact, allegation, witness, expert, finding, disputed; no percentages or scores.",
+        "example": {
+          "item": {
+            "name": "Text messages",
+            "fact_id": "B22-1"
+          },
+          "establishes": [
+            {
+              "text": "He wrote of wanting her dead.",
+              "basis": "fact",
+              "fact_id": "B22-2"
+            }
+          ],
+          "not_establishes": [
+            {
+              "text": "They do not show who fired.",
+              "basis": "fact",
+              "fact_id": "B22-4"
+            }
+          ],
+          "assessment": {
+            "text": "The jury treated them as central.",
+            "basis": "finding",
+            "fact_id": "B42-3"
+          }
+        }
+      },
+      "forensic": {
+        "purpose": "Explain one forensic examination: the sample, how the method works, the reported result and its limits.",
+        "schema_text": "{\"exam\": \"dna|fingerprint|toxicology|trace|fiber_hair|digital|ballistics|bloodstain\", \"sample\": {\"text\": \"at most 90 characters\", \"basis\": \"fact|finding|expert\", \"fact_id\": \"unit key\"}, \"method\": {\"text\": \"a plain general description of the method, at most 110 characters\", \"basis\": \"illustration\"}, \"result\": {\"text\": \"at most 110 characters\", \"basis\": \"fact|finding|expert|allegation\", \"fact_id\": \"unit key\"}, \"limits\": {\"text\": \"at most 110 characters\", \"basis\": \"fact|finding|expert|unknown\", \"fact_id\": \"unit key\"}} - limits may be left out; the method is the one item with no fact_id.",
+        "example": {
+          "exam": "ballistics",
+          "sample": {
+            "text": "Two 9mm casings were recovered.",
+            "basis": "expert",
+            "fact_id": "B17-2"
+          },
+          "method": {
+            "text": "Marks on a casing are compared with test shots.",
+            "basis": "illustration"
+          },
+          "result": {
+            "text": "Both casings came from one 9mm gun.",
+            "basis": "expert",
+            "fact_id": "B17-4"
+          },
+          "limits": {
+            "text": "No firearm was recovered to compare.",
+            "basis": "fact",
+            "fact_id": "B17-6"
+          }
+        }
+      }
     }
   }
 }

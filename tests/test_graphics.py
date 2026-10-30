@@ -14,7 +14,6 @@ from app.documentary.graphics.base import Graphic as GraphicBase
 from app.documentary.graphics.base import GraphicUnavailable
 from app.documentary.graphics.document import normalized, verify_verbatim
 from app.documentary.graphics.headline import known_source
-from app.documentary.graphics.keyfacts import extract
 from app.documentary.graphics.page import Page, ground
 from app.documentary.graphics.registry import GRAPHICS, graphic
 
@@ -24,9 +23,9 @@ GOLDEN = Path(__file__).parent / "golden" / "graphics"
 
 def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
     """The design sample of a kind with the cues and the length its streaming schedule gives it."""
-    data = {"conflict": S.conflict(language), "conflict_board": S.board(language), "recap": S.recap(language),
-            "timeline": S.timeline(language), "key_facts": S.key_facts(language), "document": S.document(),
-            "headline": S.headline(), "floor_plan": S.floor_plan(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
+    data = {"conflict": S.conflict(language), "recap": S.recap(language),
+            "timeline": S.timeline(language), "document": S.document(),
+            "headline": S.headline(), "quote": {"text": S.TEXT[language]["fact"], "speaker": S.TEXT[language]["a"],
                                                 "fact_id": "F1", "source": "BBC News",
                                                 "url": "https://www.bbc.com/news/world-us-canada-1"},
             "fact_card": {"facts": [{"text": S.TEXT[language]["fact"], "fact_id": "F12"},
@@ -35,7 +34,7 @@ def sample(kind: str, language: str) -> tuple[dict, float, list[float]]:
     return data, schedule.total + 2.0, list(schedule.cues)
 
 
-KINDS = ("conflict", "conflict_board", "recap", "timeline", "key_facts", "document", "headline", "quote", "floor_plan", "fact_card")
+KINDS = ("conflict", "recap", "timeline", "document", "headline", "quote", "fact_card")
 
 
 def thumb(image: Image.Image) -> np.ndarray:
@@ -167,51 +166,11 @@ def test_only_listed_newspapers_make_a_headline_card():
         graphic("headline").render(data, duration, cues, "en")
 
 
-def test_key_figures_come_from_the_fact_and_a_fact_without_a_figure_gives_none():
-    assert extract("The police arrived at 11:58 p.m. on the night of the fire.")["value"] == "11:58 p.m."
-    assert extract("He was sentenced to 25 years in prison.")["value"] == "25"
-    assert extract("No one answered.") is None
-    assert extract("x " * 80 + "7") is None
-
-
-def test_the_floor_plan_is_never_invented():
-    with pytest.raises(GraphicUnavailable, match="no real plan"):
-        graphic("floor_plan").render({"rooms": [{"id": "a", "label": "A", "x": 0, "y": 0, "w": 1, "h": 1}],
-                                      "markers": [{"kind": "found", "room": "a", "text": "t", "fact_id": "F"}]},
-                                     16.0, [2.0], "en")
-    plan = S.floor_plan()
-    plan["doors"] = [{"x": 2, "y": 5, "axis": "x"}]
-    with pytest.raises(GraphicUnavailable, match="axis"):
-        graphic("floor_plan").render(plan, 16.0, [2.0, 5.0, 8.0], "en")
-    assert graphic("floor_plan").render(S.floor_plan(), 16.0, [2.0, 5.0, 8.0], "en").image_at(14.0).size == (1920, 1080)
-
-
-def test_the_board_lists_one_to_twelve_conflicts_and_names_the_new_one():
-    data, duration, cues = sample("conflict_board", "en")
-    data["new_card"] = "C9"
-    with pytest.raises(GraphicUnavailable, match="new_card"):
-        graphic("conflict_board").render(data, duration, cues, "en")
-    many = {"cards": [{"id": f"C{n}", "number": n, "title": "t", "a": "a", "b": "b", "status": "open"}
-                      for n in range(1, 13)], "new_card": "C12"}
-    assert graphic("conflict_board").render(many, 14.0, [2.0], "en").image_at(8.0).size == (1920, 1080)
-
-
 def test_every_graphic_type_has_labels_in_the_four_languages_and_is_registered():
-    assert set(GRAPHICS) >= set(KINDS) | {"floor_plan"}
+    assert set(GRAPHICS) >= set(KINDS)
     labels = ai_config.graphics_settings().labels
     assert all(set(labels[lang]) == set(labels["en"]) for lang in LANGUAGES)
     assert labels["de"]["detective_board"] == "DETEKTIVTAFEL" and labels["en"]["detective_board"] == "DETECTIVE BOARD"
-
-
-def test_the_conflict_board_shows_only_what_has_been_told_never_what_is_still_to_come():
-    data, duration, cues = sample("conflict_board", "en")
-    plain = graphic("conflict_board").render(data, duration, cues, "en")
-    with_total = graphic("conflict_board").render({**data, "total": 6}, duration, cues, "en")
-    assert np.array_equal(plain.frame_at(1.0), with_total.frame_at(1.0))        # a total in the data changes nothing
-    assert np.array_equal(plain.frame_at(duration - 1), with_total.frame_at(duration - 1))
-    before, after = plain.frame_at(1.0), plain.frame_at(duration - 1)
-    assert before.shape == after.shape and not np.array_equal(before, after)       # the new card appears on its cue
-    assert not ai_config.graphics_settings().labels["en"].get("not_yet_told")
 
 
 def test_the_conflict_label_is_amber_as_in_the_design():
@@ -262,39 +221,53 @@ def test_a_page_that_would_have_to_shrink_too_far_is_refused():
         LowPage(1075).render({}, 8.0, [1.0], "en")
 
 
-def _road(count: int, shown: int = 0) -> dict:
-    events = [{"date": {"year": 2026, "month": 2 + n // 3, "day": 10 + n}, "label": f"Event {n}", "fact_id": f"F{n}"}
-              for n in range(count)]
-    return {"events": events, "shown": shown}
+def _points(count: int) -> dict:
+    return {"points": [{"date": {"year": 2026, "month": 1 + n // 3, "day": 10 + n}, "labels": [f"Event {n}"],
+                        "fact_id": f"F{n}"} for n in range(count)]}
 
 
-def test_a_timeline_card_continues_the_road_of_the_card_before_it():
+def test_a_timeline_runs_later_with_every_point_and_events_of_one_date_share_a_point():
     from app.documentary.graphics import timeline as TL
 
     card = TL.Timeline()
-    first, second = _road(5), _road(8, shown=5)
-    assert card.can_render(second) is None and card.required_cues(second) == 3 and card.required_cues(first) == 5
-    assert card.can_render(_road(5, shown=5)) is not None                         # nothing new to reveal
-    before_end = card.draw_state(first, "en", 5)
-    after_start = card.draw_state(second, "en", 0)
-    assert list(before_end.getdata()) == list(after_start.getdata())            # the next card opens where this one ended
+    assert card.can_render(_points(8)) is None and "at most 8" in card.can_render(_points(9))
+    data = _points(3)
+    data["points"][2]["date"] = data["points"][1]["date"]
+    assert "later than the one before" in card.can_render(data), "two points of one date must be one point"
+    data = _points(3)
+    data["points"][1]["date"] = {"year": 2025, "month": 1, "day": 1}
+    assert "later than the one before" in card.can_render(data)
+    data = _points(2)
+    data["points"][0]["labels"] = ["a", "b", "c", "d"]
+    assert card.can_render(data) is not None
 
 
-def test_every_point_of_the_road_stays_on_the_line_when_it_has_panned_away():
-    import math
+def test_the_timeline_turns_at_the_page_edge_like_a_snake_and_every_point_is_on_the_page():
+    from app.documentary.graphics import timeline as TL
+
+    nodes = TL.node_positions(8)
+    assert TL.rows_of(4) == 1 and TL.rows_of(5) == 2
+    assert [y for _, y in nodes[:4]] == [TL.ROW_Y[2][0]] * 4 and [y for _, y in nodes[4:]] == [TL.ROW_Y[2][1]] * 4
+    assert [x for x, _ in nodes[:4]] == sorted(x for x, _ in nodes[:4]), "the first row runs to the right"
+    assert [x for x, _ in nodes[4:]] == sorted((x for x, _ in nodes[4:]), reverse=True), "the second row runs back"
+    pts, at = TL.path_points(8)
+    assert at == sorted(at) and all(0 <= x <= 1920 and 0 <= y <= 1080 for x, y in pts), "the whole snake is on the page"
+    assert max(x for x, _ in pts) > TL.ROW_X1, "the line turns beyond the last point of a row"
+
+
+def test_the_snake_starts_at_the_right_in_persian_and_arabic_and_grows_with_each_point():
+    import numpy as np
 
     from app.documentary.graphics import timeline as TL
 
-    data = _road(9, shown=6)
-    frame = TL.Timeline().draw_state(data, "en", 3).convert("RGB")
-    offset, history = TL.layout(8)
-    away = math.ceil(offset - TL.SLOT_FIRST / TL.SLOT_STEP)
-    assert away >= 4
-    ground = frame.getpixel((TL.LINE_LEFT + 4, TL.LINE_Y - 40))
-    for j in range(away):
-        x = round(TL.LINE_LEFT + TL.HISTORY_LEFT + history / away * j)
-        assert frame.getpixel((x, TL.LINE_Y - 6)) != ground                       # a mark above the line at every point
-        assert frame.getpixel((x, TL.LINE_Y - 6)) != ground                        # the kind's accent, not background
+    card = TL.Timeline()
+    data = _points(8)
+    en, fa = card.draw_state(data, "en", 6), card.draw_state(data, "fa", 6)
+    assert en.size == (1920, 1080)
+    a, b = np.asarray(card.draw_state(data, "en", 2).convert("RGB")), np.asarray(en.convert("RGB"))
+    assert not np.array_equal(a, b), "a new point appears with each reveal"
+    first_en = np.argwhere(np.asarray(card.draw_state(data, "en", 1).convert("RGB")).sum(axis=2) > 0)
+    assert first_en.size and card.draw_state(data, "fa", 1).size == (1920, 1080) and fa.size == (1920, 1080)
 
 
 def test_quote_card_accepts_only_a_listed_newspaper_or_tv_broadcaster():

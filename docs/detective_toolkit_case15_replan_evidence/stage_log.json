@@ -1,0 +1,364 @@
+[
+ {
+  "stage": "toolkit",
+  "started": "2026-10-29T07:34:45.699408+00:00",
+  "first_call_id_exclusive": 79411,
+  "detail": {
+   "enabled": true,
+   "called": false,
+   "reason": "a current detective plan already covers every beat of this graph; alternatives fill 50.7% of the film after 0 fill pass(es)",
+   "scene_count": 159,
+   "units_registered": 0,
+   "chunks_total": 9,
+   "chunks_called": 0,
+   "uncovered_beats": [],
+   "stopped": null,
+   "alternative_share": 0.507,
+   "target_met": true,
+   "fill_passes": 0,
+   "filler_cards": 0,
+   "pruned_actions": 0,
+   "failed_chunks": [],
+   "graph_id": 1,
+   "narration_units": 509,
+   "scenes_by_mode": {
+    "map_film": 43,
+    "direct_scenes": 116
+   },
+   "actions_by_tool": {
+    "fact_card": 66,
+    "key_facts": 33,
+    "detective_board": 11,
+    "timeline": 6,
+    "evidence_check": 5,
+    "conflict": 4,
+    "unknowns": 1
+   },
+   "claims": 276,
+   "questions": 19,
+   "relations": 33,
+   "knowledge_events": 471
+  },
+  "ok": true,
+  "seconds": 42.5,
+  "last_call_id": 79411,
+  "calls": [],
+  "stage_eur": 0,
+  "run_eur_so_far": 0.0
+ },
+ {
+  "stage": "needs",
+  "started": "2026-10-29T07:35:29.322934+00:00",
+  "first_call_id_exclusive": 79411,
+  "detail": {
+   "visual_plan_id": 23,
+   "reveal_graph_id": 1,
+   "graph_nodes": 170,
+   "entities": 22,
+   "beats_with_needs": 51,
+   "warnings": 14,
+   "plan_id": 23,
+   "version": 9,
+   "narration_units": 509,
+   "scenes_by_mode": {
+    "map_film": 43,
+    "direct_scenes": 116
+   },
+   "actions_by_tool": {
+    "fact_card": 66,
+    "key_facts": 33,
+    "detective_board": 11,
+    "timeline": 6,
+    "evidence_check": 5,
+    "conflict": 4,
+    "unknowns": 1
+   },
+   "claims": 276,
+   "questions": 19,
+   "relations": 33,
+   "knowledge_events": 471
+  },
+  "ok": true,
+  "seconds": 163.0,
+  "last_call_id": 79412,
+  "calls": [
+   {
+    "stage": "Main Visual Planner: needs",
+    "model": "gemini-3.8-flash",
+    "host": "budget-ledger",
+    "calls": 1,
+    "eur": 0.2518,
+    "tokens_in": 60114,
+    "tokens_out": 63093,
+    "estimated_rows": 0
+   }
+  ],
+  "stage_eur": 0.2518,
+  "run_eur_so_far": 0.2518
+ },
+ {
+  "stage": "verify",
+  "started": "2026-10-29T07:38:13.463768+00:00",
+  "first_call_id_exclusive": 79412,
+  "detail": {
+   "created": 670,
+   "reused": 0,
+   "requirements_without_candidates": 10,
+   "assets": 237,
+   "judged": 237,
+   "budget_stopped": false,
+   "sync": {
+    "verified": 299,
+    "rejected": 1427,
+    "needs_review": 113
+   },
+   "by_status": {
+    "approved": 200,
+    "rejected": 393,
+    "needs_review": 77,
+    "pending": 0,
+    "transient_failure": 0
+   }
+  },
+  "ok": true,
+  "seconds": 592.8,
+  "last_call_id": 79722,
+  "calls": [
+   {
+    "stage": "Main Visual Planner: verify",
+    "model": "claude-sonnet-5-5",
+    "host": "budget-ledger",
+    "calls": 237,
+    "eur": 6.9895,
+    "tokens_in": 3148331,
+    "tokens_out": 112798,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Main Visual Planner: verify",
+    "model": "gpt-6.1-sol",
+    "host": "budget-ledger",
+    "calls": 73,
+    "eur": 0.9983,
+    "tokens_in": 676441,
+    "tokens_out": 18696,
+    "estimated_rows": 0
+   }
+  ],
+  "stage_eur": 7.9878,
+  "run_eur_so_far": 8.2396
+ },
+ {
+  "stage": "research",
+  "started": "2026-10-29T09:06:54.624320+00:00",
+  "first_call_id_exclusive": 79934,
+  "detail": {
+   "rounds": [],
+   "shortages": 31,
+   "shortage_ids": [
+    "B19.1",
+    "B20.1",
+    "B22.2",
+    "B49.1",
+    "B08.1",
+    "B08.2",
+    "B11.1",
+    "B13.1",
+    "B14.1",
+    "B15.1",
+    "B16.1",
+    "B17.1",
+    "B29.1",
+    "B30.1",
+    "B36.1",
+    "B39.1",
+    "B40.1",
+    "B41.1",
+    "B42.1",
+    "B45.1",
+    "B01.1",
+    "B02.2",
+    "B04.1",
+    "B05.1",
+    "B05.2",
+    "B06.1",
+    "B23.1",
+    "B26.1",
+    "B27.1",
+    "B28.1",
+    "B37.1"
+   ]
+  },
+  "ok": true,
+  "seconds": 0.9,
+  "last_call_id": 79934,
+  "calls": [],
+  "stage_eur": 0,
+  "run_eur_so_far": 11.2247
+ },
+ {
+  "stage": "direct",
+  "started": "2026-10-29T09:06:56.496547+00:00",
+  "first_call_id_exclusive": 79934,
+  "detail": {
+   "language_plan_id": 24,
+   "shots": 272,
+   "gap_seconds": 869.4,
+   "agent_directed_beats": 8,
+   "assets_used": 56,
+   "alternatives": {
+    "fact_card": 880.0,
+    "key_facts": 556.4,
+    "conflict": 43.2,
+    "evidence_check": 120.0,
+    "unknowns": 30.0
+   },
+   "alternatives_unplaced": null,
+   "neighbour_cover": 0,
+   "reuse": {
+    "VIS_002853": 2,
+    "VIS_002915": 2,
+    "VIS_002854": 2,
+    "VIS_003231": 2,
+    "VIS_003233": 2,
+    "VIS_002917": 2,
+    "VIS_002851": 2,
+    "VIS_002852": 2,
+    "VIS_004122": 2,
+    "VIS_002814": 2,
+    "VIS_004207": 2,
+    "VIS_004101": 2,
+    "VIS_004102": 2,
+    "VIS_003820": 2,
+    "VIS_003666": 2,
+    "VIS_002738": 2,
+    "VIS_004286": 2,
+    "VIS_004300": 2,
+    "VIS_002772": 2,
+    "VIS_003772": 2,
+    "VIS_002874": 2,
+    "VIS_002870": 2,
+    "VIS_002869": 2,
+    "VIS_002871": 2,
+    "VIS_002873": 2,
+    "VIS_002819": 2,
+    "VIS_002821": 2,
+    "VIS_002875": 2,
+    "VIS_002908": 2,
+    "VIS_002865": 2
+   },
+   "rounds": null,
+   "gaps": 94,
+   "complete": {
+    "awaiting_picture_review": "Awaiting picture review: 94 moment(s) (869.4s) of the en film have no picture, video or graphic, in beats B03, B05, B08, B09, B10, B11, B13, B14, B15, B16, B17, B18.... Review the pictures the planner rejected or was unsure about (Review pictures), then resume. On resume the planner searches public "
+   }
+  },
+  "ok": true,
+  "seconds": 3693.5,
+  "last_call_id": 80431,
+  "calls": [
+   {
+    "stage": "Main Visual Planner: verify",
+    "model": "claude-sonnet-5-5",
+    "host": "budget-ledger",
+    "calls": 253,
+    "eur": 4.9485,
+    "tokens_in": 2258051,
+    "tokens_out": 102034,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Moment cutting: cut",
+    "model": "claude-sonnet-5-5",
+    "host": "budget-ledger",
+    "calls": 93,
+    "eur": 1.375,
+    "tokens_in": 438868,
+    "tokens_out": 66063,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Main Visual Planner: verify",
+    "model": "gpt-6.1-sol",
+    "host": "budget-ledger",
+    "calls": 63,
+    "eur": 0.8674,
+    "tokens_in": 595840,
+    "tokens_out": 19271,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Main Visual Planner: direct",
+    "model": "claude-sonnet-5-5",
+    "host": "budget-ledger",
+    "calls": 44,
+    "eur": 0.5699,
+    "tokens_in": 99645,
+    "tokens_out": 43831,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Topical fill: match",
+    "model": "gemini-3.8-flash",
+    "host": "budget-ledger",
+    "calls": 15,
+    "eur": 0.3752,
+    "tokens_in": 149225,
+    "tokens_out": 82086,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Moment cutting: pick",
+    "model": "gemini-3.8-flash",
+    "host": "budget-ledger",
+    "calls": 15,
+    "eur": 0.2744,
+    "tokens_in": 123392,
+    "tokens_out": 57190,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Overlay scan",
+    "model": "gpt-6.1-sol",
+    "host": "budget-ledger",
+    "calls": 6,
+    "eur": 0.073,
+    "tokens_in": 39585,
+    "tokens_out": 247,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Moment cutting: check",
+    "model": "gpt-6.1-sol",
+    "host": "budget-ledger",
+    "calls": 6,
+    "eur": 0.064,
+    "tokens_in": 31226,
+    "tokens_out": 918,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Story timing",
+    "model": "claude-sonnet-5-5",
+    "host": "budget-ledger",
+    "calls": 1,
+    "eur": 0.0421,
+    "tokens_in": 6292,
+    "tokens_out": 3448,
+    "estimated_rows": 0
+   },
+   {
+    "stage": "Clip edges",
+    "model": "gpt-6.1-sol",
+    "host": "budget-ledger",
+    "calls": 1,
+    "eur": 0.0217,
+    "tokens_in": 12042,
+    "tokens_out": 19,
+    "estimated_rows": 0
+   }
+  ],
+  "stage_eur": 8.6112,
+  "run_eur_so_far": 19.8358
+ }
+]

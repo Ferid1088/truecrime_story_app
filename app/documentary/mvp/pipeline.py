@@ -278,7 +278,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     overlays = await scan_overlays(db, case, needs_plan)      # first the marks: cut away, or the picture is out
     timing = await label_timing(db, case, needs_plan, bp_row)  # then what is left is labelled for its place in the story
     sequence = reference_sequence(db, needs_plan, language)       # other languages show the English film's material
-    timeline = TL.timeline_for(db, graph_id, manifest, language, top_up=sequence is None)   # the toolkit's fixed cards
+    timeline = TL.timeline_for(db, graph_id, manifest, language)   # the toolkit's fixed cards
     region = case_region(case)
     async def direct(matches=None, last: bool = False) -> dict:
         return await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,

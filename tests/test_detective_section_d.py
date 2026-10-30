@@ -85,23 +85,6 @@ def test_fact_card_dispatches_and_carves_a_real_shot_T09(db_session):
     assert shots[0]["graphic"]["data"] == resolved[0]["data"] and shots[0]["detective_reuse_reason"] is None
 
 
-def test_floor_plan_dispatches_when_payload_has_real_plan_data_T14(db_session):
-    """Section A found `floor_plan` fully implemented but never called (dead). This proves it is
-    now reachable via a detective tool action - with a fixture, since no case has real plan
-    geometry (the renderer refuses an invented layout by design, see floorplan.py:can_render)."""
-    graph, _, _ = _graph(db_session, beats=[{"id": "B01"}])
-    plan_data = {
-        "source": {"document_id": 1, "page": 2}, "rooms": [{"id": "r1", "label": "Kitchen", "x": 0, "y": 0, "w": 10, "h": 10}],
-        "markers": [{"kind": "found", "room": "r1", "text": "Knife found here", "fact_id": "claim-1"}],
-    }
-    _, action = _scene_with_action(db_session, graph, "B01", 0, "floor_plan", payload=plan_data)
-    resolved = D.resolve_dispatchable_actions(db_session, graph.id)
-    assert resolved[0]["data"] == plan_data
-    shots: list[dict] = []
-    records = D.place_detective_graphics(shots, [{"beat_id": "B01", "start": 0.0, "end": 20.0}], "en", resolved)
-    assert records[0]["result"] == "placed" and shots[0]["graphic"]["type"] == "floor_plan"
-
-
 def test_unsupported_tool_id_is_reported_not_silently_dropped(db_session):
     # every one of the 20 named tools now has a route; a tool_id outside them must still be an
     # honest skip, not a silent drop.
