@@ -209,6 +209,22 @@ def test_the_review_of_the_trimmed_and_cut_pictures_shows_only_those_and_the_run
     assert PL.cut_items(db_session, plan) == [], "an untouched picture is not shown again in review 2"
 
 
+def test_the_candidate_list_can_be_limited_to_the_trimmed_and_cut_pictures(db_session):
+    from app.db.models import VisualAsset
+
+    case, _, cand = _seed(db_session)
+    cand.final_status = "approved"
+    asset = db_session.get(VisualAsset, cand.visual_asset_id)
+    db_session.commit()
+    url = f"/api/cases/{case.id}/mvp/candidates?status=all&group=true&cut_only=true"
+    client = TestClient(app)
+    assert client.get(url).json() == []
+    asset.spec_json = json.dumps({"overlays": {"status": "cut", "marks": [{"kind": "logo", "what": "a channel logo"}],
+                                                "crop": [0.0, 0.0, 0.9, 1.0]}})
+    db_session.commit()
+    assert [g["asset_id"] for g in client.get(url).json()] == [asset.id]
+
+
 def test_a_picture_the_owner_checked_is_put_into_the_film_when_the_direction_left_it_out(db_session):
     from app.db.models import VisualAsset, VisualPlan
     from app.documentary.mvp.must_use import place_must_use

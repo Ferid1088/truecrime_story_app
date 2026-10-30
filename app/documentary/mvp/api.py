@@ -130,15 +130,22 @@ def grouped(db: Session, rows: list[tuple[MvpCandidate, MvpRequirement]]) -> lis
 
 @router.get("/api/cases/{case_id}/mvp/candidates")
 def mvp_candidates(case_id: int, status: str = "needs_review", beat: str | None = None, limit: int = 100,
-                   group: bool = False, db: Session = Depends(get_db)):
+                   group: bool = False, cut_only: bool = False, db: Session = Depends(get_db)):
     """The pictures the planner was unsure about (needs_review) or rejected, optionally of one beat only. With
-    `group` each picture appears once (for each entity it was judged for), however many requirements offered it."""
+    `group` each picture appears once (for each entity it was judged for), however many requirements offered it. With
+    `cut_only` only the trimmed and cut pictures and clips of the film: what the owner looks at in review 2."""
+    from app.documentary.mvp import pipeline as MVP
+
+
     wanted = list(STATUSES) if status == "all" else [s for s in status.split(",") if s in STATUSES]
     query = (db.query(MvpCandidate, MvpRequirement)
              .join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
              .filter(MvpRequirement.case_id == case_id, MvpCandidate.final_status.in_(wanted or ["needs_review"])))
     if beat:
         query = query.filter(MvpRequirement.beat_id == beat)
+    if cut_only:
+        cut_assets = [c.visual_asset_id for c in MVP.cut_items(db, needs_plan_of(db, case_id))]
+        query = query.filter(MvpCandidate.visual_asset_id.in_(cut_assets or [0]))
     rows = query.order_by(MvpCandidate.final_status, MvpCandidate.id).all()
     if group:
         return grouped(db, rows)[:min(max(limit, 1), 5000)]

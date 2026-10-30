@@ -2356,6 +2356,8 @@ export interface MvpCandidate {
   source: string | null;
   rights: string;
   owner_note: string | null;
+  must_use: boolean;
+  draw_priority: number | null;
   thumb_url: string;
   role: string | null;
   status: string;

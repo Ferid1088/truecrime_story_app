@@ -25,6 +25,7 @@ const SHOWN = [
   { key: "rejected", label: "Rejected" },
   { key: "approved", label: "Approved" },
   { key: "all", label: "All" },
+  { key: "cut", label: "Trimmed & cut" },
 ] as const;
 
 const SHOWN_TEXT: Record<(typeof SHOWN)[number]["key"], string> = {
@@ -32,6 +33,7 @@ const SHOWN_TEXT: Record<(typeof SHOWN)[number]["key"], string> = {
   rejected: "pictures the planner rejected",
   approved: "pictures that are approved",
   all: "every picture, whatever the agents decided",
+  cut: "the pictures and clips that were trimmed or cut for the film",
 };
 
 const KINDS = [
@@ -59,6 +61,64 @@ function clipUrl(group: MvpCandidateGroup): string {
 function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): Verdict | undefined {
   if (decided[group.id]) return decided[group.id];
   return group.status === "approved" || group.status === "rejected" ? group.status : undefined;
+}
+
+const PRIORITIES = Array.from({ length: 10 }, (_, i) => i + 1);
+
+/** The owner's selection of one picture or clip: checked, it is used 100 % in the film (a clip: its whole approved cut
+ * once); a photo can also be given a drawing priority from 1 to 10 (the planner draws in that order). Saved at once. */
+function Selection({ caseId, item }: { caseId: number; item: MvpCandidateGroup }) {
+  const [mustUse, setMustUse] = useState(item.must_use);
+  const [priority, setPriority] = useState<number | null>(item.draw_priority);
+  const [status, setStatus] = useState("");
+
+  async function save(selection: { must_use?: boolean; draw_priority?: number | null }) {
+    const before = { mustUse, priority };
+    if (selection.must_use !== undefined) setMustUse(selection.must_use);
+    if (selection.draw_priority !== undefined) setPriority(selection.draw_priority);
+    try {
+      const out = await mvpApi.saveSelection(caseId, item.asset_id, selection);
+      setMustUse(out.must_use);
+      setPriority(out.draw_priority);
+      setStatus("Saved.");
+    } catch (e) {
+      setMustUse(before.mustUse);
+      setPriority(before.priority);
+      setStatus(e instanceof ApiError ? e.message : "Could not save your selection.");
+    }
+  }
+
+  return (
+    <div className="space-y-2" data-testid="review-queue-selection">
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={mustUse}
+          data-testid="review-queue-must-use"
+          onChange={(e) => void save({ must_use: e.target.checked })}
+        />
+        Must be used in the film (100 %{isVideo(item) ? ", the whole approved cut once" : ""})
+      </label>
+      {!isVideo(item) && (
+        <label className="flex items-center gap-2 text-sm">
+          Drawing priority
+          <select
+            className="rounded border bg-background px-2 py-1 text-sm"
+            value={priority ?? ""}
+            data-testid="review-queue-draw-priority"
+            onChange={(e) => void save({ draw_priority: e.target.value === "" ? null : Number(e.target.value) })}
+          >
+            <option value="">not for drawing</option>
+            {PRIORITIES.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+          <span className="text-xs text-muted-foreground">1 is drawn first</span>
+        </label>
+      )}
+      {status && <p role="status" className="text-xs text-muted-foreground">{status}</p>}
+    </div>
+  );
 }
 
 const NOTE_MAX = 400;
@@ -133,7 +193,9 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [chosenShown, setShown] = useState<(typeof SHOWN)[number]["key"] | null>(null);
   const [chosenKind, setKind] = useState<Kind | null>(null);
   const [beat, setBeat] = useState<string | undefined>(undefined);
-  const { data, loading, error, refetch } = useApi(() => mvpApi.candidates(caseId, "all", beat), [caseId, beat]);
+  const cutOnly = chosenShown === "cut";
+  const { data, loading, error, refetch } = useApi(
+    () => mvpApi.candidates(caseId, "all", beat, cutOnly), [caseId, beat, cutOnly]);
   const { data: gaps, refetch: refetchGaps } = useApi(() => mvpApi.gaps(caseId), [caseId]);
   const [index, setIndex] = useState(0);
   const [decided, setDecided] = useState<Record<number, Verdict>>({});
@@ -143,10 +205,10 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
   const [busy, setBusy] = useState(false);
   // the list is fixed while you work: a decision never reshuffles it or brings a picture back
   const loaded: MvpCandidateGroup[] = useMemo(() => data ?? [], [data]);
-  // open on something to look at: "Not sure" if anything is, else "Rejected"; the kind that has items
-  const shown = chosenShown ?? (loaded.some((g) => g.status === "needs_review") ? "needs_review" : "rejected");
+  // the first review shows everything, approved and rejected; the trimmed and cut list is the second review
+  const shown = chosenShown ?? "all";
   const everything = useMemo(
-    () => (shown === "all" ? loaded : loaded.filter((g) => g.status === shown)),
+    () => (shown === "all" || shown === "cut" ? loaded : loaded.filter((g) => g.status === shown)),
     [loaded, shown],
   );
   const kindCount = (k: Kind) => everything.filter((g) => kindOf(g) === k).length;
@@ -443,6 +505,7 @@ export function ReviewQueuePage({ caseId }: { caseId: number }) {
                 )}
               </p>
             </div>
+            <Selection key={`selection-${item.asset_id}`} caseId={caseId} item={item} />
             <OwnerNote key={item.asset_id} caseId={caseId} item={item} flushRef={flushNote} />
             <div className="flex flex-wrap gap-2" data-testid="review-queue-decisions">
               {DECISIONS.map((key) => (

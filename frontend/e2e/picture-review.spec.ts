@@ -44,4 +44,14 @@ test.describe("Main Visual Planner picture review", () => {
     await expect(page.getByText(/Rejected VIS_205/)).toBeVisible();
     await expect(page.getByTestId("review-queue-counter")).toHaveText(/0 left to review.*2 decided/);
   });
+
+  test("a picture can be checked as must-be-used and given a drawing priority, a clip only the checkbox", async ({ page }) => {
+    await mockApi(page);
+    await page.goto("/documentary/1/review");
+    await page.getByTestId("review-queue-must-use").check();
+    await expect(page.getByTestId("review-queue-selection")).toContainText("Saved.");
+    await page.getByTestId("review-queue-draw-priority").selectOption("3");
+    await expect(page.getByTestId("review-queue-draw-priority")).toHaveValue("3");
+    await expect(page.getByRole("button", { name: "Trimmed & cut" })).toBeVisible();
+  });
 });

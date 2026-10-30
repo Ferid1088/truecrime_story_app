@@ -539,7 +539,7 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
   const candidate = (id: number, code: string, entity: string, need: string, reason: string) => ({
     id, requirement: `B0${id}.1`, beat_id: `B0${id}`, entity, function: "human_connection",
     role_needed: "evidence", need, asset_id: id + 100, asset_code: code, asset_type: "photo",
-    title: `${entity} photo`, source: "Local news", rights: "editorial_review_required",
+    title: `${entity} photo`, source: "Local news", rights: "editorial_review_required", must_use: false, draw_priority: null,
     thumb_url: `/api/visuals/${id + 100}/file?thumb=1`, role: "evidence", status: "needs_review",
     provenance: "passed", identity: "needs_review", rights_decision: "preview_only", ethics: "approved",
     scene: "approved", reasons: [reason], verifiers: [],
@@ -663,6 +663,11 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
     if (path === "/api/cases/1/mvp/candidates/decision" && method === "POST") {
       const body = route.request().postDataJSON() as { candidate_ids: number[]; decision: string };
       return json(route, { decided: body.candidate_ids.length, skipped: [], decision: body.decision });
+    }
+    const selection = path.match(/^\/api\/cases\/1\/mvp\/assets\/(\d+)\/selection$/);
+    if (selection && method === "PUT") {
+      const body = route.request().postDataJSON() as { must_use?: boolean; draw_priority?: number | null };
+      return json(route, { asset_id: Number(selection[1]), must_use: body.must_use ?? false, draw_priority: body.draw_priority ?? null });
     }
     if (path === "/api/cases/1/mvp/gaps") return json(route, { detail: "No en direction for this case yet" }, 404);
     if (path === "/api/cases/1/mvp/plan") return json(route, { detail: "No Main Visual Planner plan for this case yet" }, 404);

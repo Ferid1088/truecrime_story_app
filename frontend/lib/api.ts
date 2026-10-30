@@ -1048,10 +1048,13 @@ export const monitoringApi = {
 
 export const mvpApi = {
   plan: (caseId: number) => request<MvpPlan>(`/api/cases/${caseId}/mvp/plan`),
-  candidates: (caseId: number, status = "needs_review", beat?: string) =>
+  candidates: (caseId: number, status = "needs_review", beat?: string, cutOnly = false) =>
     request<MvpCandidateGroup[]>(
-      `/api/cases/${caseId}/mvp/candidates?status=${status}&group=true&limit=5000${beat ? `&beat=${encodeURIComponent(beat)}` : ""}`,
+      `/api/cases/${caseId}/mvp/candidates?status=${status}&group=true&limit=5000${beat ? `&beat=${encodeURIComponent(beat)}` : ""}${cutOnly ? "&cut_only=true" : ""}`,
     ),
+  saveSelection: (caseId: number, assetId: number, selection: { must_use?: boolean; draw_priority?: number | null }) =>
+    put<{ asset_id: number; must_use: boolean; draw_priority: number | null }>(
+      `/api/cases/${caseId}/mvp/assets/${assetId}/selection`, selection),
   saveNote: (caseId: number, assetId: number, note: string) =>
     put<{ asset_id: number; owner_note: string | null }>(`/api/cases/${caseId}/mvp/assets/${assetId}/note`, { note }),
   decideGroup: (caseId: number, candidateIds: number[], decision: "approve" | "reject", overrideRights = false,
