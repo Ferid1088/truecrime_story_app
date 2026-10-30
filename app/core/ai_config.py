@@ -2799,6 +2799,12 @@ class MotionConfig(BaseModel):
     # One picture (with its reframes) is never on screen longer than this:
     # a longer hold becomes a sequence of earned pictures.
     max_hold_seconds: float = Field(default=20.0, gt=0.0)
+    # No picture is ever on screen longer than this: what is left of a longer hold is a bare moment (the drawing covers it).
+    max_picture_seconds: float = Field(default=27.0, gt=0.0)
+    # A person the text names gets a photo of that person on screen: at the first mention always, at later mentions up to
+    # `person_replacements` times for each person, in pieces of at least `person_min_seconds`.
+    person_replacements: int = Field(default=10, ge=0)
+    person_min_seconds: float = Field(default=4.0, gt=0.0)
     # A map is orientation, not a backdrop: after this many seconds the
     # story's pictures take over (zoom levels only when nothing else may
     # be shown).

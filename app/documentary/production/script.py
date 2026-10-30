@@ -45,6 +45,7 @@ from app.documentary import storage
 from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.mvp.overlays import crop_of
 from app.documentary.production import card_audit as CA
+from app.documentary.production import picture_rules as PR
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
 from app.services.video_rights import TRUE_CRIME_CHANNEL
@@ -963,6 +964,34 @@ def _carve(shots: list[dict], card: dict) -> None:
     shots[:] = final
 
 
+def _picture_rules(final: list[dict], manifest: dict, spans: list[dict], plan: dict, assets: dict[str, VisualAsset],
+                   order: list[str], guard: SP.Firewall) -> dict:
+    """The audience can follow the pictures: a named person is shown, a repeat fits its text, no picture is held too long."""
+    sentences = manifest["timeline"].get("sentences") or []
+    facts = _facts(assets)
+    persons: dict[str, list[str]] = {}
+    for code, f in facts.items():
+        if f.get("entity_type") == "person" and assets[code].asset_type == "photo":
+            for entity in f["entities"]:
+                persons.setdefault(entity, []).append(code)
+
+    def beat_at(t: float) -> str | None:
+        return next((sp["beat_id"] for sp in spans if sp["start"] <= t < sp["end"]), None)
+
+    def make(target: dict, asset: VisualAsset, start: float, end: float, why: str) -> dict:
+        return {**_base(target), **_media(asset), "start": round(start, 3), "end": round(end, 3), "why": why,
+                "transition_in": "CROSSFADE", "motion": "SLOW_PUSH"}
+
+    def words_of(code: str) -> set[str]:
+        asset = assets.get(code)
+        return PR.tokens(f"{asset.title or ''} {' '.join(facts[code]['entities'])}") if asset else set()
+
+    return {"people": PR.cover_people(final, sentences, persons, lambda beat: _earned_pool(beat, final, plan, assets, order, guard),
+                                      make, beat_at, lambda a: facts[a.asset_code]["entities"]),
+            "repeats": PR.drop_unrelated_repeats(final, sentences, words_of),
+            "held_too_long": PR.limit_picture_seconds(final)}
+
+
 def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
             texts: dict[str, str], language: str, incident_beat: str | None = None, *,
             case_status: str | None = None, production_type: str | None = "original",
@@ -1248,6 +1277,7 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
     shots = _cap_black(shots, plan, assets, order, guard, att.max_black_seconds,
                        starts, tracker, named_sents)
     final = _vary_long_holds(shots, plan, assets, order, guard, starts, tracker, named_sents)
+    picture_fixes = _picture_rules(final, manifest, spans, plan, assets, order, guard)
     cards_left_out, intro = insert_chapter_cards(final, cards, spans, overlays)
     board_appearances = insert_detective_board_cards(final, board, spans, overlays, language)
     detective_graphics = []
@@ -1306,6 +1336,8 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         "board": board_appearances,
         # what the planner's check of the cards' times changed
         "card_audit": card_fixes,
+        # what the checks of the pictures changed (people shown, repeats that did not fit the text, pictures held too long)
+        "picture_rules": picture_fixes,
         # Detective Director tool actions dispatched into real shots, and why each one was or
         # was not placed (Section D live evidence)
         "detective_graphics": detective_graphics,

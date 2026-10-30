@@ -6,7 +6,10 @@ from fastapi.testclient import TestClient
 
 from app.db.models import (Case, EditorialBlueprint, MvpCandidate, MvpRequirement, StoryVersion,
                            VisualAsset, VisualPlan)
+from app.documentary.mvp import pipeline as PL_MODULE
 from app.main import app
+
+REAL_OWNER_GATE = PL_MODULE.stage_owner_attention        # taken when the file loads: other test files patch the gate away
 
 
 def _seed(db, rights="public_domain"):
@@ -158,8 +161,11 @@ def test_the_owner_note_is_stored_listed_and_limited(db_session):
     assert client.put(f"/api/cases/{case.id + 999}/mvp/assets/{asset.id}/note", json={"note": "a"}).status_code == 404
 
 
-def test_the_run_always_stops_once_for_the_owners_review_of_every_picture_and_goes_on_after_it(db_session):
-    from app.documentary.mvp.pipeline import request_review, stage_owner_attention
+def test_the_run_always_stops_once_for_the_owners_review_of_every_picture_and_goes_on_after_it(db_session, monkeypatch):
+    from app.documentary.mvp.pipeline import request_review
+
+    monkeypatch.setattr(PL_MODULE, "stage_owner_attention", REAL_OWNER_GATE)
+    stage_owner_attention = REAL_OWNER_GATE
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
     case, plan, cand = _seed(db_session)
@@ -257,7 +263,9 @@ def test_a_picture_the_owner_checked_is_put_into_the_film_when_the_direction_lef
 
 
 def test_a_new_run_stops_for_review_1_even_when_an_earlier_run_was_reviewed(db_session):
-    from app.documentary.mvp.pipeline import request_review, restart_reviews, stage_owner_attention
+    from app.documentary.mvp.pipeline import request_review, restart_reviews
+
+    stage_owner_attention = REAL_OWNER_GATE
     from app.documentary.pipeline.errors import AwaitingPictureReview
 
     _, plan, _ = _seed(db_session)

@@ -240,12 +240,15 @@ def test_compose_timeline_from_real_audio():
     # no picture twice: with nothing new to show, the picture on screen
     # stays, and the black beat becomes a short pause at its end (never
     # 20 s of black, never a return of an earlier picture)
-    assert [x["kind"] for x in shots] == ["image", "image", "black"]
+    # (no picture is held longer than motion.max_picture_seconds: what is left of the hold is a bare moment)
+    assert [x["kind"] for x in shots] == ["image", "image", "black", "black"]
     assert shots[0]["start"] == 0 and shots[0]["end"] == 20.0  # date extends the image
     assert shots[1]["asset_id"] == "VIS_000002" and shots[1]["start"] == 20.0
+    assert shots[1]["end"] - shots[1]["start"] == pytest.approx(ai_config.motion.max_picture_seconds)
     assert "no picture twice" in shots[1]["held_reason"]
-    assert shots[2]["end"] == 60.0
-    assert shots[2]["end"] - shots[2]["start"] == pytest.approx(
+    assert shots[2].get("bare") is True and shots[2]["start"] == pytest.approx(shots[1]["end"])
+    assert shots[3]["end"] == 60.0
+    assert shots[3]["end"] - shots[3]["start"] == pytest.approx(
         ai_config.attention.max_black_seconds
     )
     # credits and the illustration label follow the final cut
@@ -289,9 +292,11 @@ def test_compose_folds_flash_cuts_and_swaps_long_holds():
     assert s["shots"][0]["asset_id"] == "VIS_000002" and s["shots"][0]["start"] == 0.0
     # a 60 s still becomes a sequence of the beat's pictures — each picture
     # once; when they are all shown, the last one stays
-    shots = s["shots"]
+    shots = [x for x in s["shots"] if x["kind"] == "image"]
     assert [x["asset_id"] for x in shots] == ["VIS_000002", "VIS_000001", "VIS_000003"]
-    assert shots[-1]["end"] == 60.0 and "no picture twice" in shots[-1]["held_reason"]
+    assert "no picture twice" in shots[-1]["held_reason"]
+    assert shots[-1]["end"] - shots[-1]["start"] <= ai_config.motion.max_picture_seconds + 1e-6
+    assert s["shots"][-1]["end"] == 60.0 and s["shots"][-1]["kind"] == "black", "what the limit cuts is a bare moment"
     assert all(x["command"] == "NEW_IMAGE" for x in shots[1:])
     # (a cut may move up to 4 s to land where a sentence begins)
     assert all(
