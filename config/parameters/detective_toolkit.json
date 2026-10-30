@@ -35,7 +35,7 @@
     "max_fact_cards": 10,
     "repeat_overlap": 0.6,
     "timeline_cards": 3,
-    "timeline_events": 6,
+    "timeline_events": 3,
     "card_kinds": {
       "fact_card": {
         "purpose": "Emphasise one to three consequential facts the narration has just told.",
