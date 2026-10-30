@@ -219,7 +219,7 @@ class AssetSelection(BaseModel):
     """What the owner changed: a field that is not sent keeps its value."""
 
     must_use: bool = False
-    draw_priority: int | None = Field(default=None, ge=1, le=10)
+    draw_priority: int | None = Field(default=None, ge=0, le=10)       # 0 (or none) unselects the photo and frees its number
 
 
 @router.put("/api/cases/{case_id}/mvp/assets/{asset_id}/selection")
@@ -231,6 +231,7 @@ def set_asset_selection(case_id: int, asset_id: int, payload: AssetSelection, db
         raise HTTPException(404, "No such picture in this case")
     must_use = payload.must_use if "must_use" in payload.model_fields_set else asset.must_use
     draw_priority = payload.draw_priority if "draw_priority" in payload.model_fields_set else asset.draw_priority
+    draw_priority = draw_priority or None             # 0 means "not for drawing": the photo is unselected and its number is free
     if draw_priority is not None and "draw_priority" in payload.model_fields_set:
         if asset.asset_type != "photo":
             raise HTTPException(422, "Only a photo can be drawn")

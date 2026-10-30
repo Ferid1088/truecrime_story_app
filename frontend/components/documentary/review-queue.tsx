@@ -65,6 +65,9 @@ function verdictOf(group: MvpCandidateGroup, decided: Record<number, Verdict>): 
 
 const PRIORITIES = Array.from({ length: 10 }, (_, i) => i + 1);
 
+/** The border and the badge of a photo the owner chose for the pencil drawing. */
+const CHOSEN_BORDER = "border-violet-500 ring-2 ring-violet-500/60";
+
 type SelectionValue = { must_use: boolean; draw_priority: number | null };
 
 /** The owner's selection of one picture or clip: checked, it is used 100 % in the film (a clip: its whole approved cut
@@ -105,11 +108,11 @@ function Selection({ caseId, item, value, onSaved }: {
           Drawing priority
           <select
             className="rounded border bg-background px-2 py-1 text-sm"
-            value={value.draw_priority ?? ""}
+            value={value.draw_priority ?? 0}
             data-testid="review-queue-draw-priority"
-            onChange={(e) => void save({ draw_priority: e.target.value === "" ? null : Number(e.target.value) })}
+            onChange={(e) => void save({ draw_priority: Number(e.target.value) })}
           >
-            <option value="">not for drawing</option>
+            <option value={0}>0 · not for drawing (frees the number)</option>
             {PRIORITIES.map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
@@ -296,6 +299,7 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
   if (error && !data) return <p className="p-8 text-sm text-rose-700">{error}</p>;
 
   const verdict = item ? verdictOf(item, decided) : undefined;
+  const chosenPriority = item ? (selections[item.asset_id] ? selections[item.asset_id].draw_priority : item.draw_priority) : null;
   const height = "lg:h-[calc(100vh-17rem)]";
   return (
     <main className="w-full px-6 py-5" data-testid="review-queue-page">
@@ -410,6 +414,7 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
           <ol className={`max-h-80 space-y-1 overflow-y-auto pr-1 lg:max-h-none ${height}`} aria-label="Pictures to review" data-testid="review-queue-list">
             {queue.map((g, n) => {
               const v = verdictOf(g, decided);
+              const priority = selections[g.asset_id] ? selections[g.asset_id].draw_priority : g.draw_priority;
               return (
                 <li key={g.id}>
                   <button
@@ -417,9 +422,10 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
                     ref={n === safeIndex ? activeRef : undefined}
                     onClick={() => go(n)}
                     aria-current={n === safeIndex}
+                    data-testid={priority ? "review-queue-chosen" : undefined}
                     className={`flex w-full cursor-pointer items-center gap-2 rounded border p-1.5 text-left text-xs ${
-                      n === safeIndex ? "border-primary bg-muted" : "border-border hover:bg-muted/50"
-                    }`}
+                      priority ? CHOSEN_BORDER : n === safeIndex ? "border-primary" : "border-border"
+                    } ${n === safeIndex ? "bg-muted" : "hover:bg-muted/50"}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={apiFileUrl(g.thumb_url)} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-sm bg-muted object-cover" />
@@ -427,6 +433,12 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
                       <span className="block truncate font-medium">{labelOf(g)}</span>
                       <span className="block truncate text-muted-foreground">{g.beat_id} · {n + 1}</span>
                     </span>
+                    {priority ? (
+                      <span className="shrink-0 rounded bg-violet-600 px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                            title="Drawing priority" aria-label={`Drawing priority ${priority}`}>
+                        ✎ {priority}
+                      </span>
+                    ) : null}
                     {v && (
                       <span className={`size-2 shrink-0 rounded-full ${v === "approved" ? "bg-emerald-500" : "bg-rose-500"}`}
                             title={v} aria-label={v} />
@@ -439,7 +451,8 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
 
           <section className={`flex h-[60vh] min-h-[320px] flex-col items-center justify-center gap-2 rounded bg-muted/40 p-3 lg:h-[calc(100vh-17rem)]`}>
             <div
-              className="relative max-h-full max-w-full"
+              className={`relative max-h-full max-w-full ${chosenPriority ? `rounded ${CHOSEN_BORDER} ring-4` : ""}`}
+              data-testid={chosenPriority ? "review-queue-chosen-viewer" : undefined}
               style={{ height: "100%", aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : undefined }}
             >
               {isVideo(item) ? (
@@ -460,6 +473,11 @@ export function ReviewQueuePage({ caseId, portraits = false }: { caseId: number;
                   className="h-full w-full object-fill"
                 />
               )}
+              {chosenPriority ? (
+                <span className="absolute left-2 top-2 rounded bg-violet-600 px-2 py-1 text-sm font-semibold text-white shadow">
+                  ✎ Drawing priority {chosenPriority}
+                </span>
+              ) : null}
               {item.cut?.crop && (
                 <div
                   className="pointer-events-none absolute inset-0"

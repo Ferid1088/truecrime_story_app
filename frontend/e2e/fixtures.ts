@@ -670,7 +670,9 @@ export async function mockApi(page: Page, opts: MockOptions = {}) {
       const body = route.request().postDataJSON() as { must_use?: boolean; draw_priority?: number | null };
       const id = Number(selection[1]);
       selections.set(id, { must_use: false, draw_priority: null, ...selections.get(id), ...body });
-      return json(route, { asset_id: id, ...selections.get(id) });
+      const saved = selections.get(id)!;
+      saved.draw_priority = saved.draw_priority || null;                   // 0 unselects the photo
+      return json(route, { asset_id: id, ...saved });
     }
     if (path === "/api/cases/1/mvp/gaps") return json(route, { detail: "No en direction for this case yet" }, 404);
     if (path === "/api/cases/1/mvp/plan") return json(route, { detail: "No Main Visual Planner plan for this case yet" }, 404);

@@ -58,6 +58,11 @@ test.describe("Main Visual Planner picture review", () => {
     await page.getByRole("button", { name: "Previous", exact: false }).click();
     await expect(page.getByTestId("review-queue-draw-priority")).toHaveValue("3");
     await expect(page.getByTestId("review-queue-must-use")).toBeChecked();
+    await expect(page.getByTestId("review-queue-chosen").first()).toContainText("3");
+    await expect(page.getByTestId("review-queue-chosen-viewer")).toContainText("Drawing priority 3");
+    await page.getByTestId("review-queue-draw-priority").selectOption("0");
+    await expect(page.getByTestId("review-queue-chosen")).toHaveCount(0);
+    await expect(page.getByTestId("review-queue-draw-priority")).toHaveValue("0");
   });
 
   test("opened from the portrait stop it explains what to do and shows the approved photos", async ({ page }) => {

@@ -311,3 +311,20 @@ def test_rejecting_a_picture_rejects_it_for_every_person_and_requirement_it_was_
                        json={"candidate_ids": [cand.id], "decision": "approve"}).json()["decided"] == 1
     db_session.expire_all()
     assert db_session.get(MvpCandidate, sibling.id).final_status == "rejected", "an approval covers the entry that was approved"
+
+
+def test_priority_zero_unselects_a_photo_and_frees_its_number_for_another(db_session):
+    from app.db.models import VisualAsset
+
+    case, _, cand = _seed(db_session)
+    first = db_session.get(VisualAsset, cand.visual_asset_id)
+    first.asset_type = "photo"
+    second = VisualAsset(case_id=case.id, asset_code="SECOND", local_path="s.jpg", asset_type="photo")
+    db_session.add(second)
+    db_session.commit()
+    client = TestClient(app)
+    url = lambda a: f"/api/cases/{case.id}/mvp/assets/{a.id}/selection"       # noqa: E731
+    assert client.put(url(first), json={"draw_priority": 3}).json()["draw_priority"] == 3
+    assert client.put(url(second), json={"draw_priority": 3}).status_code == 409
+    assert client.put(url(first), json={"draw_priority": 0}).json()["draw_priority"] is None
+    assert client.put(url(second), json={"draw_priority": 3}).json()["draw_priority"] == 3, "the number is free again"
