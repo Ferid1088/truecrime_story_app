@@ -243,6 +243,13 @@ def set_asset_selection(case_id: int, asset_id: int, payload: AssetSelection, db
     return {"asset_id": asset.id, "must_use": asset.must_use, "draw_priority": asset.draw_priority}
 
 
+def reject_scope(db: Session, case_id: int, cands: list[MvpCandidate]) -> list[MvpCandidate]:
+    """The candidates a rejection covers: all of the case's candidates of the rejected pictures."""
+    assets = {c.visual_asset_id for c in cands}
+    return (db.query(MvpCandidate).join(MvpRequirement, MvpRequirement.id == MvpCandidate.requirement_id)
+            .filter(MvpCandidate.visual_asset_id.in_(assets), MvpRequirement.case_id == case_id).all())
+
+
 class GroupDecision(BaseModel):
     candidate_ids: list[int]
     decision: str
@@ -260,6 +267,8 @@ def decide_group(case_id: int, payload: GroupDecision, db: Session = Depends(get
              .filter(MvpCandidate.id.in_(payload.candidate_ids), MvpRequirement.case_id == case_id).all())
     if not cands:
         raise HTTPException(404, "No such candidates in this case")
+    if payload.decision == "reject":      # a rejected picture is rejected for every person and requirement it was offered for
+        cands = reject_scope(db, case_id, cands)
     skipped = [c.id for c in cands if payload.decision == "approve" and c.rights_status == "blocked"
                and not payload.override_rights]
     if len(skipped) == len(cands):

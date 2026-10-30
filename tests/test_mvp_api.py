@@ -281,3 +281,25 @@ def test_saving_one_selection_field_keeps_the_other(db_session):
     assert client.put(url, json={"draw_priority": 4}).json() == {"asset_id": asset.id, "must_use": True, "draw_priority": 4}
     assert client.put(url, json={"must_use": False}).json()["draw_priority"] == 4
     assert client.put(url, json={"draw_priority": None}).json() == {"asset_id": asset.id, "must_use": False, "draw_priority": None}
+
+
+def test_rejecting_a_picture_rejects_it_for_every_person_and_requirement_it_was_offered_for(db_session):
+    case, plan, cand = _seed(db_session)
+    other_req = MvpRequirement(case_id=case.id, visual_plan_id=plan.id, requirement_key="B02.1", beat_id="B02",
+                               function="evidence", entity_key="ashley", role_needed="evidence", priority="high", spec_json="{}")
+    db_session.add(other_req)
+    db_session.commit()
+    sibling = MvpCandidate(requirement_id=other_req.id, visual_asset_id=cand.visual_asset_id, final_status="approved",
+                           identity_status="approved", provenance_status="passed", ethics_status="approved",
+                           scene_status="approved", rights_status="cleared")
+    db_session.add(sibling)
+    db_session.commit()
+    client = TestClient(app)
+    assert client.post(f"/api/cases/{case.id}/mvp/candidates/decision",
+                       json={"candidate_ids": [cand.id], "decision": "reject"}).json()["decided"] == 2
+    db_session.expire_all()
+    assert db_session.get(MvpCandidate, sibling.id).final_status == "rejected"
+    assert client.post(f"/api/cases/{case.id}/mvp/candidates/decision",
+                       json={"candidate_ids": [cand.id], "decision": "approve"}).json()["decided"] == 1
+    db_session.expire_all()
+    assert db_session.get(MvpCandidate, sibling.id).final_status == "rejected", "an approval covers the entry that was approved"
