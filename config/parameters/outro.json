@@ -4,8 +4,11 @@
     "after_seconds": 30.0,
     "lead_seconds": 5.0,
     "music": {
-      "kind": "bridge",
-      "mood": "uncertainty"
+      "track_code": "outro-deep-thinking",
+      "prompt": "seamless loop, deep contemplative closing music for a true crime documentary, warm low strings and sparse soft piano with a long reverb, unresolved suspended harmonies, spacious, slow and patient, inviting quiet reflection once everything has been said, no percussion, no vocals",
+      "seconds": 22.0,
+      "fallback_kind": "bridge",
+      "fallback_mood": "uncertainty"
     },
     "start_db": -42.0,
     "speech_db": -26.0,

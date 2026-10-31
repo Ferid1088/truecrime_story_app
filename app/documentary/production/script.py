@@ -1512,7 +1512,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
             storage.resolve)
         script["audio"] = {"path": storage.rel(spliced), "with_host": True}
     script["avatar_used"] = bool(host)      # A2/A3: the one flag "draft, no avatar" is read from
-    script = OUTRO.apply(db, script, version.case_id, language, version.id)     # after the last word: the music goes on, the logo fades in
+    script = await OUTRO.apply(db, script, version.case_id, language, version.id)     # after the last word: the music goes on, the logo fades in
     from app.documentary.render.logo import windows_of
 
     script["logo"] = windows_of(script)     # when the channel logo is in its corner (picture and clip shots only)

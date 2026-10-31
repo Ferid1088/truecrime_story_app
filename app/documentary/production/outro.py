@@ -5,6 +5,8 @@ generated, nothing is paid. The film's audio gets a new file with the music mixe
 
 from __future__ import annotations
 
+import json
+import logging
 import subprocess
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from app.db.models import MusicTrack
 from app.documentary import storage
 
 FLOOR_DB = -60.0
+log = logging.getLogger(__name__)
 
 
 class OutroError(RuntimeError):
@@ -52,15 +55,47 @@ def expression(lead: float, total: float) -> str:
     return expr
 
 
-def track_path(db: Session) -> Path:
-    """The library's loopable track of the configured kind and mood (an unresolved, reflective interlude), the first variant whose file
-    exists. Nothing is generated: a library without such a file stops the run with a clear message."""
+def library_fallback(db: Session) -> Path:
+    """A loopable track of the library of the configured fallback kind and mood: the first variant whose file exists."""
     cfg = ai_config.outro_settings().music
-    for track in db.query(MusicTrack).filter_by(kind=cfg.kind, mood=cfg.mood).order_by(MusicTrack.variant).all():
+    for track in db.query(MusicTrack).filter_by(kind=cfg.fallback_kind, mood=cfg.fallback_mood).order_by(MusicTrack.variant).all():
         path = storage.resolve(track.file_path)
         if path is not None and path.exists():
             return path
-    raise OutroError(f"the music library has no {cfg.kind} track of the mood {cfg.mood!r} for the end of the film")
+    raise OutroError(f"the closing music could not be made and the library has no {cfg.fallback_kind} track of the mood "
+                     f"{cfg.fallback_mood!r} to use instead")
+
+
+async def track_path(db: Session, case_id: int | None = None) -> tuple[Path, str]:
+    """The closing music and a note on where it came from. The track made for the ending is generated through the music library the first
+    time a film needs it (a few cents, booked to the case) and kept: every language and film uses the same file. It is inactive in the
+    library, so the director never chooses it for another scene. When it cannot be made the library's fallback track is used, and the
+    note says so."""
+    from app.documentary.music import MusicLibrary
+
+    cfg = ai_config.outro_settings().music
+    track = db.query(MusicTrack).filter_by(track_code=cfg.track_code).first()
+    library = MusicLibrary()
+    if track is None:
+        track = MusicTrack(track_code=cfg.track_code, kind=cfg.fallback_kind, mood=cfg.fallback_mood,
+                           variant=library._next_variant(db, cfg.fallback_kind, cfg.fallback_mood), seconds=cfg.seconds, loop=True,
+                           prompt=cfg.prompt, situation="The closing music of a film: deep and reflective, from the avatar's last words to the end",
+                           tags_json=json.dumps(["outro", "closing", "reflective"]), provider=library.cfg.provider, active=False)
+        db.add(track)
+        db.commit()
+    try:
+        path, paid = await library.ensure_track(db, track)
+    except Exception as e:  # noqa: BLE001 - a provider or normalisation failure must not stop the film's ending
+        log.warning("the closing music could not be made: %s", e)
+        return library_fallback(db), f"the library's {ai_config.outro_settings().music.fallback_kind} track (the closing music could not be made: {type(e).__name__})"
+    if paid is not None and case_id is not None:
+        try:
+            from app.documentary.music_cost import book_track
+
+            book_track(db, track, int(case_id))
+        except Exception as e:  # noqa: BLE001 - booking never breaks the film
+            log.warning("music cost booking failed for %s: %s", track.track_code, e)
+    return path, f"{track.track_code}" + (" (made now)" if paid is not None else "")
 
 
 def audio_format(path: Path) -> tuple[int, str]:
@@ -69,6 +104,24 @@ def audio_format(path: Path) -> tuple[int, str]:
                             "-of", "csv=p=0", str(path)], capture_output=True, text=True)
     rate, channels = (probe.stdout.strip().split(",") + ["44100", "2"])[:2]
     return int(rate), "mono" if int(channels) == 1 else "stereo"
+
+
+CROSSFADE_SECONDS = 2.0
+
+
+def audio_seconds(path: Path) -> float:
+    probe = subprocess.run([ffprobe_bin(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                           capture_output=True, text=True)
+    return float(probe.stdout.strip() or 0.0)
+
+
+def repeats_needed(track_seconds: float, total: float) -> tuple[int, float]:
+    """How many copies of the track, one crossfaded into the next, make `total` seconds, and the crossfade's length."""
+    fade = min(CROSSFADE_SECONDS, track_seconds / 4)
+    n = 1
+    while track_seconds * n - fade * (n - 1) < total:
+        n += 1
+    return n, fade
 
 
 def mix_command(base: Path, music: Path, out: Path, speech_end: float, new_duration: float) -> list[str]:
@@ -80,12 +133,18 @@ def mix_command(base: Path, music: Path, out: Path, speech_end: float, new_durat
     total = new_duration - start
     lead = speech_end - start
     delay = round(start * 1000)
-    graph = (f"[0:a]apad=whole_dur={new_duration:.3f}[b];"
-             f"[1:a]aformat=channel_layouts={layout},aresample={rate},atrim=0:{total:.3f},asetpts=PTS-STARTPTS,"
+    copies, fade = repeats_needed(audio_seconds(music), total)
+    joined = "[1:a]"
+    chain = []
+    for n in range(2, copies + 1):                                   # the track repeats, each copy crossfaded into the one before
+        chain.append(f"{joined}[{n}:a]acrossfade=d={fade:.3f}:c1=tri:c2=tri[c{n}]")
+        joined = f"[c{n}]"
+    graph = (f"[0:a]apad=whole_dur={new_duration:.3f}[b];" + "".join(c + ";" for c in chain) +
+             f"{joined}aformat=channel_layouts={layout},aresample={rate},atrim=0:{total:.3f},asetpts=PTS-STARTPTS,"
              f"volume='{expression(lead, total)}':eval=frame,adelay={delay}|{delay}[m];"
              f"[b][m]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,atrim=0:{new_duration:.3f}[a]")
-    return [ffmpeg_bin(), "-y", "-v", "error", "-i", str(base), "-stream_loop", "-1", "-i", str(music),
-            "-filter_complex", graph, "-map", "[a]", "-c:a", "pcm_s16le", str(out)]
+    inputs = [item for _ in range(copies) for item in ("-i", str(music))]
+    return [ffmpeg_bin(), "-y", "-v", "error", "-i", str(base), *inputs, "-filter_complex", graph, "-map", "[a]", "-c:a", "pcm_s16le", str(out)]
 
 
 def speech_end_of(script: dict) -> float:
@@ -94,13 +153,13 @@ def speech_end_of(script: dict) -> float:
     return float(host[-1]["end"]) if host else float(script["duration"])
 
 
-def apply(db: Session, script: dict, case_id: int, language: str, version_id: int) -> dict:
+async def apply(db: Session, script: dict, case_id: int, language: str, version_id: int) -> dict:
     """The ending of this film: the script is `after_seconds` longer, ends with an `outro` shot, and its audio carries the music."""
     cfg = ai_config.outro_settings()
     if not cfg.enabled:
         return script
     base = storage.resolve(script["audio"]["path"])
-    music = track_path(db)
+    music, music_note = await track_path(db, case_id)
     speech_end = speech_end_of(script)
     new_duration = round(speech_end + cfg.after_seconds, 3)
     out = storage.production_dir(case_id, language) / f"audio_outro_v{version_id}.wav"
@@ -114,9 +173,9 @@ def apply(db: Session, script: dict, case_id: int, language: str, version_id: in
                             "why": "the story is told: the music goes on and the logo fades in"})
     script["audio"] = {**script["audio"], "path": storage.rel(out), "outro": True}
     script["duration"] = new_duration
-    script["music"] = [*(script.get("music") or []), {"role": "outro", "cue_id": None, "mood": cfg.music.mood, "start": round(start, 3),
+    script["music"] = [*(script.get("music") or []), {"role": "outro", "cue_id": None, "mood": "reflective", "start": round(start, 3),
                                                        "duration": round(new_duration - start, 3), "level_db": cfg.full_db,
-                                                       "track_code": music.name,
+                                                       "track_code": music_note,
                                                        "why": "deep, reflective music from the avatar's last words to the end"}]
     script["outro"] = {"start": round(speech_end, 3), "seconds": cfg.after_seconds, "music_start": round(start, 3)}
     return script

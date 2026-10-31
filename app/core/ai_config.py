@@ -3114,8 +3114,14 @@ class OutroLogoConfig(BaseModel):
 
 
 class OutroMusicConfig(BaseModel):
-    kind: str
-    mood: str
+    """The closing music: one track made for it (generated once through the music library, the same for every language and film, kept out of
+    the director's choices for other scenes); when it cannot be made, a track of the library of `fallback_kind` and `fallback_mood`."""
+
+    track_code: str
+    prompt: str
+    seconds: float = Field(gt=0.0)
+    fallback_kind: str
+    fallback_mood: str
 
 
 class OutroConfig(BaseModel):

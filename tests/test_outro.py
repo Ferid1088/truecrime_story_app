@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import subprocess
 
 import numpy as np
@@ -86,28 +88,75 @@ def test_the_film_is_thirty_seconds_longer_than_the_avatars_last_word_and_the_mu
     assert abs(rms_db(silent_before) - rms_db(samples(base)[int(20 * RATE):int(34.5 * RATE)])) < 0.2, "nothing before the lead"
 
 
+def _fake_library(monkeypatch, track_file, fail=False):
+    """The music library without a provider: it 'generates' the track by copying a prepared file."""
+    from app.documentary import music as M
+
+    calls = []
+
+    async def ensure_track(self, db, track):
+        calls.append(track.track_code)
+        if fail:
+            raise RuntimeError("provider down")
+        track.file_path = str(track_file)
+        db.commit()
+        return track_file, 1234
+
+    monkeypatch.setattr(M.MusicLibrary, "ensure_track", ensure_track)
+    booked = []
+    monkeypatch.setattr("app.documentary.music_cost.book_track", lambda db, track, case_id: booked.append((track.track_code, case_id)))
+    return calls, booked
+
+
 def test_the_script_gets_an_outro_shot_the_new_length_and_the_new_audio(tmp_path, db_session, monkeypatch):
-    base, track = tmp_path / "film.wav", tmp_path / "bed.wav"
+    base, track = tmp_path / "film.wav", tmp_path / "closing.wav"
     tone(base, 12, 220); tone(track, 20, 440)
-    db_session.add(MusicTrack(kind="bridge", mood="uncertainty", variant=1, file_path=str(tmp_path / "never_made.wav"), track_code="a_test",
-                              situation="its file was never made", tags_json='["bridge"]'))
-    db_session.add(MusicTrack(kind="bridge", mood="uncertainty", variant=2, file_path=str(track), track_code="b_test",
-                              situation="unresolved, reflective interlude", tags_json='["bridge", "reflective"]'))
+    db_session.query(MusicTrack).filter_by(track_code=ai_config.outro_settings().music.track_code).delete()
     db_session.commit()
+    calls, booked = _fake_library(monkeypatch, track)
     monkeypatch.setattr("app.documentary.storage.production_dir", lambda case, language: tmp_path)
     script = {"duration": 12.0, "audio": {"path": str(base)}, "shots": [{"kind": "video", "start": 6.0, "end": 12.0}],
               "host": [{"position": "final", "start": 6.0, "end": 12.0}], "music": []}
-    done = REAL_APPLY(db_session, script, 1, "en", 7)
+    done = asyncio.run(REAL_APPLY(db_session, script, 1, "en", 7))
     assert done["duration"] == 42.0 and done["shots"][-1]["kind"] == "outro" and done["shots"][-1]["start"] == 12.0 and done["shots"][-1]["end"] == 42.0
     assert done["audio"]["outro"] is True and done["music"][-1]["start"] == 7.0 and done["music"][-1]["role"] == "outro"
     assert done["outro"] == {"start": 12.0, "seconds": 30.0, "music_start": 7.0}
+    assert done["music"][-1]["track_code"] == "outro-deep-thinking (made now)" and booked == [("outro-deep-thinking", 1)], "paid once, booked to the case"
 
 
-def test_a_library_without_the_track_stops_the_run_with_a_clear_message(db_session):
+def test_the_closing_track_is_made_once_kept_out_of_the_directors_choices_and_the_same_for_every_language(tmp_path, db_session, monkeypatch):
+    track = tmp_path / "closing.wav"
+    tone(track, 5, 440)
+    db_session.query(MusicTrack).filter_by(track_code="outro-deep-thinking").delete()
+    db_session.commit()
+    calls, booked = _fake_library(monkeypatch, track)
+    first, note = asyncio.run(OUTRO.track_path(db_session, 1))
+    assert first == track and note.endswith("(made now)")
+    row = db_session.query(MusicTrack).filter_by(track_code="outro-deep-thinking").one()
+    assert row.active is False, "inactive: no film's director is offered it for another scene"
+    assert row.prompt == ai_config.outro_settings().music.prompt and "outro" in json.loads(row.tags_json)
+    again, _ = asyncio.run(OUTRO.track_path(db_session, 2))
+    assert again == first and db_session.query(MusicTrack).filter_by(track_code="outro-deep-thinking").count() == 1
+
+
+def test_when_the_closing_track_cannot_be_made_the_librarys_fallback_is_used_and_the_script_says_so(tmp_path, db_session, monkeypatch):
+    fallback = tmp_path / "bridge.wav"
+    tone(fallback, 5, 330)
+    db_session.query(MusicTrack).delete()
+    db_session.add(MusicTrack(kind="bridge", mood="uncertainty", variant=1, file_path=str(fallback), track_code="fb_test",
+                              situation="an unresolved interlude", tags_json='["bridge"]'))
+    db_session.commit()
+    _fake_library(monkeypatch, tmp_path / "x.wav", fail=True)
+    path, note = asyncio.run(OUTRO.track_path(db_session, 1))
+    assert path == fallback and "could not be made" in note and "RuntimeError" in note
+
+
+def test_without_the_track_and_without_a_fallback_the_run_stops_with_a_clear_message(tmp_path, db_session, monkeypatch):
     db_session.query(MusicTrack).delete()
     db_session.commit()
-    with pytest.raises(OUTRO.OutroError, match="no bridge track of the mood 'uncertainty'"):
-        OUTRO.track_path(db_session)
+    _fake_library(monkeypatch, tmp_path / "x.wav", fail=True)
+    with pytest.raises(OUTRO.OutroError, match="no bridge track of the mood 'uncertainty' to use instead"):
+        asyncio.run(OUTRO.track_path(db_session, 1))
 
 
 def test_the_logo_fades_in_slowly_on_the_dark_ground_and_stays():
@@ -148,10 +197,24 @@ def test_every_language_closes_with_its_own_channel_logo_while_the_music_is_the_
     for i, a in enumerate(languages):
         for b in languages[i + 1:]:
             assert np.abs(frames[a] - frames[b]).mean() > 0.3, f"{a} and {b} show different logos at the end"
-    db_session.query(MusicTrack).delete()
-    track = tmp_path / "bridge.wav"
-    tone(track, 5, 440)
-    db_session.add(MusicTrack(kind="bridge", mood="uncertainty", variant=1, file_path=str(track), track_code="shared_test",
-                              situation="an unresolved interlude", tags_json='["bridge"]'))
-    db_session.commit()
-    assert OUTRO.track_path(db_session) == track, "one track, whatever the language: the music has no language in it"
+    assert not hasattr(ai_config.outro_settings().music, "language"), "the music has no language in it: one track for every channel"
+
+
+def test_the_closing_music_repeats_without_a_dip_each_copy_crossfaded_into_the_next(tmp_path):
+    base, track, out = tmp_path / "film.wav", tmp_path / "closing.wav", tmp_path / "out.wav"
+    tone(base, 40, 220, 0.5)
+    t = np.arange(int(10 * RATE)) / RATE
+    swell = (np.sin(2 * np.pi * 440 * t) * 0.5 * np.minimum(1.0, (10 - t) / 2.5) * 32767).astype("<i2")      # the track decays at its end
+    import wave as _w
+
+    with _w.open(str(track), "wb") as w:
+        w.setnchannels(2); w.setsampwidth(2); w.setframerate(RATE)
+        w.writeframes(np.repeat(swell[:, None], 2, axis=1).tobytes())
+    assert OUTRO.repeats_needed(10.0, 35.0) == (5, 2.0) and OUTRO.repeats_needed(22.0, 35.0)[0] == 2
+    assert subprocess.run(OUTRO.mix_command(base, track, out, 40.0, 70.0), capture_output=True).returncode == 0
+    x = samples(out)
+    level = lambda a, b: rms_db(x[int(a * RATE):int(b * RATE)])         # noqa: E731
+    start = 35.0                                                        # the music begins 5 s before the voice ends
+    steady = level(start + 13.5, start + 14.5)                          # the music holds its full level from 13 s on
+    for join in (17.0, 25.0):                                           # copies hand over in the middle of the crossfade
+        assert level(start + join - 0.3, start + join + 0.3) > steady - 4.0, f"no dip at {join} s"
