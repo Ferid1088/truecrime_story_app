@@ -158,12 +158,13 @@ def test_only_checked_library_photos_are_used_for_a_video(db_session, monkeypatc
     from app.outfits import library as outfit_library
     from app.documentary import looks as LK
 
+    monkeypatch.setattr(outfit_library, "ROOT", tmp_path)      # before the outfit is made: it must not read the real library
+    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
     case = _case(db_session)
     outfit = _outfit(db_session, case, "de", ref="de/navySuit", name="Navy suit")
     root = tmp_path / "data" / "outfits" / "de" / "navySuit"
     root.mkdir(parents=True)
-    monkeypatch.setattr(outfit_library, "ROOT", tmp_path)
-    monkeypatch.setattr(LK.storage, "ROOT", tmp_path)
+    db_session.query(OutfitItem).filter_by(studio="de", outfit_slug="navySuit").delete()      # an earlier test may have synced the real library
     rows = []
     for situation in ("stand", "standPockets"):
         path = root / f"de_navySuit_{situation}.png"
