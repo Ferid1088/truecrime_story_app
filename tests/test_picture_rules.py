@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.documentary.production import picture_rules as PR
 
 
@@ -133,14 +135,18 @@ def test_a_card_before_and_a_picture_after_share_the_gap_half_each():
     assert "gap_cover_seconds" not in shots[0], "(a card has no picture limit to note)"
 
 
-def test_a_clip_before_cannot_be_held_so_the_picture_after_starts_earlier_and_a_card_after_cannot_start_earlier():
+def test_a_clip_before_cannot_be_held_so_the_picture_after_starts_earlier_and_with_a_card_after_the_clips_last_frame_is_held():
     clip_then_picture = [{"kind": "video", "start": 0.0, "end": 10.0}, black(10, 14), image(14, 40, "B")]
     PR.cover_short_gaps(clip_then_picture)
     assert clip_then_picture[1]["start"] == 10 and len(clip_then_picture) == 2
     clip_then_card = [{"kind": "video", "start": 0.0, "end": 10.0}, black(10, 14), card(14, 30)]
-    left = PR.cover_short_gaps(clip_then_card)
-    assert [s["kind"] for s in clip_then_card] == ["video", "black", "graphic"], "nothing can take it: it stays black, it is never drawn"
-    assert left == [{"fix": "short_gap_left", "start": 10.0, "seconds": 4.0, "before": "video", "after": "graphic"}]
+    PR.cover_short_gaps(clip_then_card)
+    assert [s["kind"] for s in clip_then_card] == ["video", "graphic"] and clip_then_card[0]["end"] == 14.0
+    assert clip_then_card[0]["frozen_tail_seconds"] == 4.0, "the clip's last frame is held for the gap (the renderer does that once a shot outlasts its clip)"
+    map_then_card = [{"kind": "map", "zoom_video": True, "start": 0.0, "end": 10.0}, black(10, 14), card(14, 30)]
+    left = PR.cover_short_gaps(map_then_card)
+    assert [s["kind"] for s in map_then_card] == ["map", "black", "graphic"], "a zoom map has its own length: nothing can take the gap, it is never drawn"
+    assert left == [{"fix": "short_gap_left", "start": 10.0, "seconds": 4.0, "before": "map", "after": "graphic"}]
 
 
 def test_two_black_stretches_next_to_each_other_are_one_gap_and_a_gap_of_eight_seconds_or_the_films_fade_is_left_alone():
@@ -151,3 +157,33 @@ def test_two_black_stretches_next_to_each_other_are_one_gap_and_a_gap_of_eight_s
     assert [s["kind"] for s in seven] == ["image", "image"] and seven[0]["end"] == 17
     fade = [image(0, 10, "A"), black(10, 12)]
     assert PR.cover_short_gaps(fade, 12.0) == [] and fade[-1]["kind"] == "black"
+
+
+def test_a_picture_between_two_gaps_is_held_fifteen_seconds_the_time_taken_half_from_each_gap():
+    shots = [image(0, 20, "A"), black(20, 38), image(38, 44.5, "B"), black(44.5, 112.5), image(112.5, 130, "C")]
+    done = PR.hold_pictures_between_gaps(shots)
+    pic = next(s for s in shots if s.get("asset_id") == "B")
+    assert pic["end"] - pic["start"] == pytest.approx(15.0) and done == [{"fix": "picture_held_between_gaps", "start": 33.8, "from": 6.5, "to": 15.0}]
+    blacks = [s for s in shots if s["kind"] == "black"]
+    assert [round(b["end"] - b["start"], 2) for b in blacks] == [13.75, 63.75], "4.25 s from each gap"
+    assert shots[0]["end"] == 20 and shots[-1]["start"] == 112.5, "nothing else moves"
+
+
+def test_a_gap_that_is_used_up_gives_what_it_has_and_the_rest_comes_from_the_other_and_the_gaps_are_judged_again_by_the_general_rules():
+    shots = [image(0, 20, "A"), black(20, 23), image(23, 29, "B"), black(29, 59), image(59, 80, "C")]
+    PR.hold_pictures_between_gaps(shots)
+    pic = next(s for s in shots if s.get("asset_id") == "B")
+    assert pic["end"] - pic["start"] == pytest.approx(15.0) and [s["kind"] for s in shots] == ["image", "image", "black", "image"]
+    short = [image(0, 20, "A"), black(20, 28.5), image(28.5, 33, "B"), black(33, 80), image(80, 90, "C")]
+    PR.hold_pictures_between_gaps(short)
+    done = PR.cover_short_gaps(short)
+    assert [d["fix"] for d in done] == ["short_gap_covered"] and [s["kind"] for s in short].count("black") == 1, "the 4.2 s that is left is covered by a neighbour"
+
+
+def test_a_picture_that_is_long_enough_or_not_between_two_gaps_or_a_clip_is_not_touched():
+    long_enough = [image(0, 10, "A"), black(10, 30), image(30, 45, "B"), black(45, 70), image(70, 80, "C")]
+    assert PR.hold_pictures_between_gaps(long_enough) == []
+    next_to_card = [black(0, 20), image(20, 25, "B"), card(25, 40)]
+    assert PR.hold_pictures_between_gaps(next_to_card) == []
+    clip = [black(0, 20), {"kind": "video", "start": 20.0, "end": 25.0}, black(25, 70)]
+    assert PR.hold_pictures_between_gaps(clip) == []

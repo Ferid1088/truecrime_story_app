@@ -74,6 +74,7 @@ class DocumentaryCritics:
                 # a fix may have moved a card: every card gets its own time again
                 report["card_audit"] = CA.audit(script.get("shots") or [], script.get("board"))
                 report["picture_limit"] = PR.limit_picture_seconds(script.get("shots") or [])     # and no picture stays too long
+                report["between_gaps"] = PR.hold_pictures_between_gaps(script.get("shots") or [])
                 report["short_gaps"] = PR.cover_short_gaps(script.get("shots") or [], script.get("duration"))
                 finalize_graphics(script.get("shots") or [], script.get("language"))      # a card held longer gets its cues for its new length
                 for n, sh in enumerate(script.get("shots") or []):

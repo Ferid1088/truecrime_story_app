@@ -21,6 +21,7 @@
       "angle_degrees": 36
     },
     "creation_wait_seconds": 2400.0,
-    "poll_seconds": 10.0
+    "poll_seconds": 10.0,
+    "picture_between_gaps_seconds": 15.0
   }
 }

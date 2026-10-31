@@ -1305,7 +1305,9 @@ def compose(manifest: dict, plan: dict, assets: dict[str, VisualAsset],
         detective_graphics = place_detective_graphics(final, spans, language, detective_actions)
     card_fixes = CA.audit(final, board_appearances)               # every card is held for a logical time, cut by nothing
     picture_fixes["held_too_long"] += PR.limit_picture_seconds(final)      # (closing a hole may have stretched a picture again)
-    picture_fixes["short_gaps"] = PR.cover_short_gaps(final, duration)     # a gap under four seconds: the neighbours cover it
+    picture_fixes["between_gaps"] = PR.hold_pictures_between_gaps(final)    # a picture between two gaps is held 15 s, the gaps then judged again
+    picture_fixes["between_gaps"] = PR.hold_pictures_between_gaps(final)    # a picture between two gaps is held 15 s, the gaps then judged again
+    picture_fixes["short_gaps"] = PR.cover_short_gaps(final, duration)     # a gap under eight seconds: the neighbours cover it
     graphics_dropped = finalize_graphics(final, language)
     for n, sh in enumerate(final):
         sh["index"] = n

@@ -145,14 +145,8 @@ CARD_KINDS = ("graphic", "detective_board", "chapter", "title")
 HOLDS_LONGER = ("image", *CARD_KINDS)             # a shot that can be held longer than planned (a clip plays once, a map zoom has its length)
 
 
-def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[dict]:
-    """A black stretch shorter than the drawing's gap length (8 s) is covered by its neighbours, whatever the limit a picture may stay:
-    - the shot before it is held longer (a picture or a card, the same);
-    - a card before it and a picture after it share the gap, half each (the card is held longer, the picture starts earlier);
-    - a clip before it cannot be held, so the picture after it starts earlier.
-    A stretch with no such neighbour stays black (it is reported, never drawn). Black stretches next to each other are one stretch first,
-    and a stretch at the very start or end of the film (its fades) stays. A picture held longer for a gap carries `gap_cover_seconds`."""
-    gap = ai_config.drawing_settings().gap_full_seconds
+def merge_adjacent_black(shots: list[dict]) -> None:
+    """Black stretches next to each other are one stretch (in place)."""
     shots.sort(key=lambda s: (s["start"], s["end"]))
     merged: list[dict] = []
     for shot in shots:
@@ -162,6 +156,47 @@ def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[d
         else:
             merged.append(shot)
     shots[:] = merged
+
+
+def hold_pictures_between_gaps(shots: list[dict]) -> list[dict]:
+    """A picture with a gap on both sides is held at least `picture_between_gaps_seconds`: the time is taken from the two gaps, half each
+    (all of a gap that is shorter than its half, the rest from the other). Without it the portrait would grow, shrink to the corner for a
+    flash of a picture and grow again. The gaps that are left are judged by the general rules afterwards. Returns what was changed."""
+    minimum = ai_config.drawing_settings().picture_between_gaps_seconds
+    merge_adjacent_black(shots)
+    done = []
+    i = 1
+    while i + 1 < len(shots):
+        pic, before, after = shots[i], shots[i - 1], shots[i + 1]
+        length = pic["end"] - pic["start"]
+        if pic["kind"] != "image" or before["kind"] != "black" or after["kind"] != "black" or length >= minimum - 1e-6:
+            i += 1
+            continue
+        need = minimum - length
+        take_before = min(need / 2, before["end"] - before["start"])
+        take_after = min(need - take_before, after["end"] - after["start"])
+        take_before = min(need - take_after, before["end"] - before["start"])
+        pic["start"], pic["end"] = round(pic["start"] - take_before, 3), round(pic["end"] + take_after, 3)
+        before["end"], after["start"] = round(before["end"] - take_before, 3), round(after["start"] + take_after, 3)
+        done.append({"fix": "picture_held_between_gaps", "start": round(pic["start"], 1), "from": round(length, 1),
+                     "to": round(pic["end"] - pic["start"], 1)})
+        for gap in (after, before):                                   # a gap that was used up is gone
+            if gap["end"] - gap["start"] < 0.05:
+                shots.remove(gap)
+        i = shots.index(pic) + 1
+    return done
+
+
+def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[dict]:
+    """A black stretch shorter than the drawing's gap length (8 s) is covered by its neighbours, whatever the limit a picture may stay:
+    - the shot before it is held longer (a picture or a card, the same);
+    - a card before it and a picture after it share the gap, half each (the card is held longer, the picture starts earlier);
+    - a clip before it cannot be held, so the picture after it starts earlier;
+    - when that is not possible either, the clip's last frame is held for the gap (`frozen_tail_seconds`).
+    A stretch with no such neighbour stays black (it is reported, never drawn). Black stretches next to each other are one stretch first,
+    and a stretch at the very start or end of the film (its fades) stays. A picture held longer for a gap carries `gap_cover_seconds`."""
+    gap = ai_config.drawing_settings().gap_full_seconds
+    merge_adjacent_black(shots)
     end = film_end if film_end is not None else max((s["end"] for s in shots), default=0.0)
     done = []
     i = 0
@@ -175,6 +210,7 @@ def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[d
             continue
         holds_before = before is not None and before["kind"] in HOLDS_LONGER and not before.get("zoom_video")
         starts_earlier = after is not None and after["kind"] == "image"
+        freezes_before = before is not None and before["kind"] == "video" and not before.get("zoom_video")
         if holds_before and before["kind"] in CARD_KINDS and starts_earlier:
             mid = round(g["start"] + length / 2, 3)
             before["end"], after["start"] = mid, mid
@@ -186,6 +222,9 @@ def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[d
         elif starts_earlier:
             after["start"] = g["start"]
             after["gap_cover_seconds"] = round(after.get("gap_cover_seconds", 0.0) + length, 3)
+        elif freezes_before:
+            before["end"] = g["end"]                                    # the renderer holds the clip's last frame once its shot outlasts it
+            before["frozen_tail_seconds"] = round(before.get("frozen_tail_seconds", 0.0) + length, 3)
         else:
             done.append({"fix": "short_gap_left", "start": round(g["start"], 1), "seconds": round(length, 1),
                          "before": before["kind"] if before else None, "after": after["kind"] if after else None})

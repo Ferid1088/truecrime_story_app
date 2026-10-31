@@ -3088,6 +3088,9 @@ class DrawingConfig(BaseModel):
     min_speed: float = Field(gt=0.0)
     max_speed: float = Field(gt=0.0)
     gap_full_seconds: float = Field(gt=0.0)
+    # A picture between two gaps is held at least this long (the time is taken from the two gaps), so the window does not shrink and grow
+    # again around a flash of a picture; the gaps are then judged by the general rules again.
+    picture_between_gaps_seconds: float = Field(gt=0.0)
     # A film run that needs portraits that are not made yet orders them and waits for them: it looks every `poll_seconds` and stops with a
     # message only when they are still not made after `creation_wait_seconds`.
     creation_wait_seconds: float = Field(gt=0.0)
