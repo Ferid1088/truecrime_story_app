@@ -142,8 +142,8 @@ def test_the_closing_track_is_made_once_kept_out_of_the_directors_choices_and_th
 def test_when_the_closing_track_cannot_be_made_the_librarys_fallback_is_used_and_the_script_says_so(tmp_path, db_session, monkeypatch):
     fallback = tmp_path / "bridge.wav"
     tone(fallback, 5, 330)
-    db_session.query(MusicTrack).delete()
-    db_session.add(MusicTrack(kind="bridge", mood="uncertainty", variant=1, file_path=str(fallback), track_code="fb_test",
+    monkeypatch.setattr(ai_config.outro_settings().music, "fallback_mood", "outro_test_fallback")      # a mood of its own: no other test's tracks
+    db_session.add(MusicTrack(kind="bridge", mood="outro_test_fallback", variant=1, file_path=str(fallback), track_code=f"fb_{tmp_path.name}",
                               situation="an unresolved interlude", tags_json='["bridge"]'))
     db_session.commit()
     _fake_library(monkeypatch, tmp_path / "x.wav", fail=True)
@@ -152,10 +152,11 @@ def test_when_the_closing_track_cannot_be_made_the_librarys_fallback_is_used_and
 
 
 def test_without_the_track_and_without_a_fallback_the_run_stops_with_a_clear_message(tmp_path, db_session, monkeypatch):
-    db_session.query(MusicTrack).delete()
+    monkeypatch.setattr(ai_config.outro_settings().music, "fallback_mood", "outro_test_none")
+    db_session.query(MusicTrack).filter_by(track_code="outro-deep-thinking").delete()
     db_session.commit()
     _fake_library(monkeypatch, tmp_path / "x.wav", fail=True)
-    with pytest.raises(OUTRO.OutroError, match="no bridge track of the mood 'uncertainty' to use instead"):
+    with pytest.raises(OUTRO.OutroError, match="no bridge track of the mood 'outro_test_none' to use instead"):
         asyncio.run(OUTRO.track_path(db_session, 1))
 
 
