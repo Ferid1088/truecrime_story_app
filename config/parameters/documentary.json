@@ -281,6 +281,7 @@
   "chapters": {
     "enabled": true,
     "title_card": true,
+    "chapter_cards": false,
     "card_seconds": 4.5,
     "min_card_seconds": 3.0,
     "lead_out_seconds": 0.4,

@@ -9,6 +9,7 @@ import json
 import uuid
 
 import numpy as np
+import pytest
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, EditorialBlueprint, Fact, StoryVersion
@@ -248,6 +249,19 @@ def _shot(start, end, beat, kind="image", **kw):
     return {"beat_id": beat, "start": start, "end": end, "kind": kind, "command": "NEW_IMAGE",
             "asset_id": f"VIS_{int(start):06d}", "path": "x.jpg", "motion": "SLOW_PUSH",
             "transition_in": "CROSSFADE", **kw}
+
+
+@pytest.fixture(autouse=True)
+def chapter_cards_on(monkeypatch):
+    monkeypatch.setattr(ai_config.chapters, "chapter_cards", True)
+
+
+def test_no_chapter_card_when_the_film_does_not_need_one(monkeypatch):
+    monkeypatch.setattr(ai_config.chapters, "chapter_cards", False)
+    spans = _manifest()["timeline"]["beats"]
+    shots = [_shot(0, 21.0, "B01"), _shot(21.0, 40.0, "B02"), _shot(40.0, 59.0, "B02"), _shot(59.0, 100.0, "B03")]
+    insert_chapter_cards(shots, CARDS, spans, [])
+    assert not [s for s in shots if s["kind"] == "chapter"]
 
 
 def test_cards_sit_at_the_end_of_the_chapter_break():

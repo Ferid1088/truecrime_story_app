@@ -91,6 +91,11 @@ def _shot(a, b, beat):
             "transition_in": "CROSSFADE"}
 
 
+@pytest.fixture(autouse=True)
+def chapter_cards_on(monkeypatch):
+    monkeypatch.setattr(ai_config.chapters, "chapter_cards", True)
+
+
 def test_the_intro_follows_the_cold_open():
     spans = [{"beat_id": "B01", "start": 0.0, "end": 6.0},
              {"beat_id": "B02", "start": 28.0, "end": 50.0},

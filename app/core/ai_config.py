@@ -2364,6 +2364,8 @@ class ChaptersConfig(BaseModel):
     enabled: bool = True
     # the film's title card after a cold open
     title_card: bool = True
+    # a card "Chapter N" with the chapter's title in the break before each chapter (owner decision 2026-10-31: off)
+    chapter_cards: bool = False
     card_seconds: float = Field(default=4.5, ge=2.0, le=10.0)
     min_card_seconds: float = Field(default=3.0, ge=1.5, le=8.0)
     # the first picture of the new chapter appears this long before the
