@@ -141,11 +141,17 @@ def cover_people(shots: list[dict], sentences: list[dict], persons: dict[str, li
     return done
 
 
+CARD_KINDS = ("graphic", "detective_board", "chapter", "title")
+HOLDS_LONGER = ("image", *CARD_KINDS)             # a shot that can be held longer than planned (a clip plays once, a map zoom has its length)
+
+
 def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[dict]:
-    """A black stretch shorter than the drawing's gap length is covered by its neighbours: the picture before it is held longer, else
-    the one after it starts earlier, else the two share it, always within the limit a picture may stay. Black stretches next to each
-    other are one stretch first. A stretch at the very start or end of the film (its fades) stays."""
-    limit = ai_config.motion.max_picture_seconds
+    """A black stretch shorter than the drawing's gap length (8 s) is covered by its neighbours, whatever the limit a picture may stay:
+    - the shot before it is held longer (a picture or a card, the same);
+    - a card before it and a picture after it share the gap, half each (the card is held longer, the picture starts earlier);
+    - a clip before it cannot be held, so the picture after it starts earlier.
+    A stretch with no such neighbour stays black (it is reported, never drawn). Black stretches next to each other are one stretch first,
+    and a stretch at the very start or end of the film (its fades) stays. A picture held longer for a gap carries `gap_cover_seconds`."""
     gap = ai_config.drawing_settings().gap_full_seconds
     shots.sort(key=lambda s: (s["start"], s["end"]))
     merged: list[dict] = []
@@ -167,19 +173,22 @@ def cover_short_gaps(shots: list[dict], film_end: float | None = None) -> list[d
         if g["kind"] != "black" or not 0.05 < length < gap or g["start"] < 0.5 or g["end"] > end - 0.5:
             i += 1
             continue
-
-        def room(shot):
-            return shot is not None and shot["kind"] == "image" and shot["end"] - shot["start"] + length <= limit + 1e-6
-
-        if room(before):
-            before["end"] = g["end"]
-        elif room(after):
-            after["start"] = g["start"]
-        elif (before is not None and before["kind"] == "image" and after is not None and after["kind"] == "image"
-              and before["end"] - before["start"] + length / 2 <= limit and after["end"] - after["start"] + length / 2 <= limit):
+        holds_before = before is not None and before["kind"] in HOLDS_LONGER and not before.get("zoom_video")
+        starts_earlier = after is not None and after["kind"] == "image"
+        if holds_before and before["kind"] in CARD_KINDS and starts_earlier:
             mid = round(g["start"] + length / 2, 3)
             before["end"], after["start"] = mid, mid
+            after["gap_cover_seconds"] = round(after.get("gap_cover_seconds", 0.0) + length / 2, 3)
+        elif holds_before:
+            before["end"] = g["end"]
+            if before["kind"] == "image":
+                before["gap_cover_seconds"] = round(before.get("gap_cover_seconds", 0.0) + length, 3)
+        elif starts_earlier:
+            after["start"] = g["start"]
+            after["gap_cover_seconds"] = round(after.get("gap_cover_seconds", 0.0) + length, 3)
         else:
+            done.append({"fix": "short_gap_left", "start": round(g["start"], 1), "seconds": round(length, 1),
+                         "before": before["kind"] if before else None, "after": after["kind"] if after else None})
             i += 1
             continue
         done.append({"fix": "short_gap_covered", "start": round(g["start"], 1), "seconds": round(length, 1)})

@@ -20,7 +20,6 @@
       "thickness": 3.6,
       "angle_degrees": 36
     },
-    "leftover_gap_seconds": 3.0,
     "creation_wait_seconds": 2400.0,
     "poll_seconds": 10.0
   }

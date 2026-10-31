@@ -44,15 +44,21 @@ class DrawingPlan:
 
 
 def intervals_of(shots: list[dict]) -> list[Interval]:
-    """The moments the drawing is on screen: a window over every picture and clip, the whole screen in every black stretch that is left
-    once the neighbouring pictures have covered the gaps they could (a gap under `gap_full_seconds`), cards hide the drawing. Gaps one
-    after the other are one gap."""
+    """The moments the drawing is on screen: a window over every picture and clip, the whole screen in every black stretch of
+    `gap_full_seconds` or more (a shorter one is covered by its neighbours and never drawn), cards hide the drawing. Gaps one after the
+    other are one gap."""
     cfg = ai_config.drawing_settings()
     out = []
-    for shot in sorted(shots, key=lambda s: s["start"]):
+    ordered: list[dict] = []
+    for shot in sorted(shots, key=lambda s: s["start"]):                  # black stretches next to each other are one stretch
+        if ordered and shot.get("kind") == "black" and ordered[-1].get("kind") == "black" and shot["start"] - ordered[-1]["end"] < 1e-3:
+            ordered[-1] = {**ordered[-1], "end": shot["end"], "bare": bool(ordered[-1].get("bare") or shot.get("bare"))}
+        else:
+            ordered.append(shot)
+    for shot in ordered:
         if shot.get("kind") in ("image", "video"):
             out.append(Interval(shot["start"], shot["end"], "window"))
-        elif (shot.get("bare") or shot.get("kind") == "black") and shot["end"] - shot["start"] >= cfg.leftover_gap_seconds:
+        elif (shot.get("bare") or shot.get("kind") == "black") and shot["end"] - shot["start"] >= cfg.gap_full_seconds:
             out.append(Interval(shot["start"], shot["end"], "full"))
     merged: list[Interval] = []
     for item in out:                                          # gaps one after the other are one gap: the window grows once

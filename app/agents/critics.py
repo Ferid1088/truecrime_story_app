@@ -11,6 +11,7 @@ from app.db.models import ProductionScript, VisualAsset
 from app.documentary.visuals.usage import annotate, asset_facts, record_media_usage
 from app.providers.generation import get_generation_provider
 from app.services.tracking import stamp_run, track_run
+from app.documentary.graphics.shots import finalize as finalize_graphics
 from app.documentary.production import card_audit as CA
 from app.documentary.production import picture_rules as PR
 from app.documentary.production.critics import (
@@ -74,6 +75,7 @@ class DocumentaryCritics:
                 report["card_audit"] = CA.audit(script.get("shots") or [], script.get("board"))
                 report["picture_limit"] = PR.limit_picture_seconds(script.get("shots") or [])     # and no picture stays too long
                 report["short_gaps"] = PR.cover_short_gaps(script.get("shots") or [], script.get("duration"))
+                finalize_graphics(script.get("shots") or [], script.get("language"))      # a card held longer gets its cues for its new length
                 for n, sh in enumerate(script.get("shots") or []):
                     sh["index"] = n
                 # appearance numbers and justifications follow the fixed cut

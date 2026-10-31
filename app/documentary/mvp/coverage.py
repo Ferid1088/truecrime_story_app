@@ -52,7 +52,7 @@ def measure(script: dict, plan: VisualPlan, db: Session, sentences: list[dict]) 
     longest_black = max(left, default=0.0)
     long_stills = [{"asset": s.get("asset_id"), "start": s["start"], "seconds": round(s["end"] - s["start"], 2)}
                    for s in shots if s.get("kind") == "image"
-                   and s["end"] - s["start"] > ai_config.motion.max_picture_seconds + 0.5]
+                   and s["end"] - s["start"] - s.get("gap_cover_seconds", 0.0) > ai_config.motion.max_picture_seconds + 0.5]
     asset_rows = {a.asset_code: a for a in db.query(VisualAsset).filter(
         VisualAsset.case_id == plan.case_id, VisualAsset.asset_code.in_(
             {s["asset_id"] for s in shots if s.get("asset_id")} or {""})).all()}

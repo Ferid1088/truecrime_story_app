@@ -27,11 +27,13 @@ def film(total=2700.0, gaps=((100, 130), (1500, 1520))):
     return shots
 
 
-def test_the_drawing_is_on_screen_over_pictures_and_in_gaps_of_four_seconds_or_more_not_over_cards_or_short_gaps():
-    shots = [pic(0, 20), card(20, 40), gap(40, 42), gap(42, 60), pic(60, 70)]
+def test_the_drawing_is_on_screen_over_pictures_and_in_gaps_of_eight_seconds_or_more_not_over_cards_or_short_gaps():
+    shots = [pic(0, 20), card(20, 40), gap(40, 47), gap(47, 49), pic(49, 60), gap(60, 71), pic(71, 80)]
     got = [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)]
-    assert got == [(0, 20, "window"), (42, 60, "full"), (60, 70, "window")] or got == [(0, 20, "window"), (60, 70, "window")]
-    assert (40, 42, "full") not in got, "a gap under four seconds is covered by the neighbours"
+    assert got == [(0, 20, "window"), (49, 60, "window"), (60, 71, "full"), (71, 80, "window")] or (40, 49, "full") in got
+    assert (40, 49, "full") in got, "7 s and 2 s next to each other are one 9 s gap"
+    assert not any(i.mode == "full" and i.start == 20 for i in DP.intervals_of(shots)), "nothing over the card"
+
 
 
 def test_the_number_of_portraits_and_the_speed_make_every_drawing_finish_by_the_end_nearest_to_normal_speed():
@@ -73,9 +75,13 @@ def test_a_film_too_short_to_finish_even_one_portrait_uses_one_at_the_fastest_sp
     assert plan.portraits[0]["finished"] is None, "it is not finished: the film ends first"
 
 
-def test_a_black_stretch_of_four_seconds_or_more_is_a_gap_whether_or_not_it_is_flagged_bare():
-    shots = [pic(0, 20), {"kind": "black", "start": 20.0, "end": 26.0}, {"kind": "black", "start": 26.0, "end": 28.0}, pic(28, 40)]
-    assert [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)] == [(0, 20, "window"), (20.0, 26.0, "full"), (28, 40, "window")]
+def test_a_black_stretch_of_eight_seconds_or_more_is_a_drawing_gap_whether_or_not_it_is_flagged_bare_and_a_shorter_one_never_is():
+    shots = [pic(0, 20), {"kind": "black", "start": 20.0, "end": 29.0}, {"kind": "black", "start": 29.0, "end": 31.0}, pic(31, 50),
+             {"kind": "black", "start": 50.0, "end": 57.0}, pic(57, 70)]
+    assert [(i.start, i.end, i.mode) for i in DP.intervals_of(shots)] == [(0, 20, "window"), (20.0, 31.0, "full"), (31, 50, "window"),
+                                                                           (57, 70, "window")]
+    assert not any(i.mode == "full" and i.start == 50.0 for i in DP.intervals_of(shots)), "7 s is covered by the neighbours, not drawn"
+
 
 
 def test_gaps_one_after_the_other_are_one_gap_so_the_window_grows_once():

@@ -107,3 +107,10 @@ def test_a_picture_approved_in_an_earlier_round_is_not_flagged_and_a_picture_may
     script = {"duration": 27.0, "shots": [shot(0, 27, asset="OLDV")]}
     report = C.measure(script, plan, db_session, [])
     assert report["unapproved_assets"] == [] and report["long_stills"] == []
+
+
+def test_a_picture_held_longer_to_cover_a_gap_is_not_a_picture_held_too_long(db_session):
+    plan = _plan(db_session)
+    covered = {**shot(0, 33), "gap_cover_seconds": 6.0}                      # 27 s of its own + 6 s of a gap its neighbour could not
+    assert C.measure({"duration": 33.0, "shots": [covered]}, plan, db_session, [])["long_stills"] == []
+    assert len(C.measure({"duration": 33.0, "shots": [shot(0, 33)]}, plan, db_session, [])["long_stills"]) == 1

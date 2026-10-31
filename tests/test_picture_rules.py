@@ -107,23 +107,47 @@ def black(start, end):
     return {"kind": "black", "start": start, "end": end}
 
 
-def test_a_black_stretch_under_four_seconds_is_covered_by_the_picture_before_it():
+def card(start, end, kind="graphic"):
+    return {"kind": kind, "start": start, "end": end}
+
+
+def test_a_black_stretch_under_eight_seconds_is_covered_by_the_picture_before_it_whatever_its_length():
     shots = [image(0, 10, "A"), black(10, 12.5), image(12.5, 30, "B")]
     done = PR.cover_short_gaps(shots)
     assert [s["kind"] for s in shots] == ["image", "image"] and shots[0]["end"] == 12.5 and done[0]["seconds"] == 2.5
+    long_hold = [image(0, 27, "A"), black(27, 33), image(33, 50, "B")]          # no 27 s limit when a neighbour covers a gap
+    PR.cover_short_gaps(long_hold)
+    assert long_hold[0]["end"] == 33 and long_hold[0]["gap_cover_seconds"] == 6 and len(long_hold) == 2
 
 
-def test_when_the_picture_before_is_at_its_limit_the_picture_after_starts_earlier_and_else_the_two_share_the_gap():
-    after = [image(0, 27, "A"), black(27, 29), image(29, 40, "B")]
-    PR.cover_short_gaps(after)
-    assert after[1]["start"] == 27
-    shared = [image(0, 25.5, "A"), black(25.5, 28.5), image(28.5, 54, "B")]
-    PR.cover_short_gaps(shared)
-    assert shared[0]["end"] == shared[1]["start"] == 27.0 and len(shared) == 2
+def test_two_cards_around_a_gap_the_card_before_is_held_longer_until_the_gap_is_covered():
+    shots = [card(0, 20), black(20, 26), card(26, 45, "detective_board")]
+    PR.cover_short_gaps(shots)
+    assert [s["kind"] for s in shots] == ["graphic", "detective_board"] and shots[0]["end"] == 26 and shots[1]["start"] == 26
 
 
-def test_two_black_stretches_next_to_each_other_are_one_gap_and_a_long_gap_or_the_films_fade_is_left_alone():
+def test_a_card_before_and_a_picture_after_share_the_gap_half_each():
+    shots = [card(0, 20), black(20, 26), image(26, 50, "B")]
+    PR.cover_short_gaps(shots)
+    assert shots[0]["end"] == shots[1]["start"] == 23.0 and len(shots) == 2 and shots[1]["gap_cover_seconds"] == 3.0
+    assert "gap_cover_seconds" not in shots[0], "(a card has no picture limit to note)"
+
+
+def test_a_clip_before_cannot_be_held_so_the_picture_after_starts_earlier_and_a_card_after_cannot_start_earlier():
+    clip_then_picture = [{"kind": "video", "start": 0.0, "end": 10.0}, black(10, 14), image(14, 40, "B")]
+    PR.cover_short_gaps(clip_then_picture)
+    assert clip_then_picture[1]["start"] == 10 and len(clip_then_picture) == 2
+    clip_then_card = [{"kind": "video", "start": 0.0, "end": 10.0}, black(10, 14), card(14, 30)]
+    left = PR.cover_short_gaps(clip_then_card)
+    assert [s["kind"] for s in clip_then_card] == ["video", "black", "graphic"], "nothing can take it: it stays black, it is never drawn"
+    assert left == [{"fix": "short_gap_left", "start": 10.0, "seconds": 4.0, "before": "video", "after": "graphic"}]
+
+
+def test_two_black_stretches_next_to_each_other_are_one_gap_and_a_gap_of_eight_seconds_or_the_films_fade_is_left_alone():
     shots = [image(0, 10, "A"), black(10, 14), black(14, 19), image(19, 30, "B")]       # 9 s together: a drawing gap, not covered
     assert PR.cover_short_gaps(shots) == [] and [s["kind"] for s in shots] == ["image", "black", "image"]
+    seven = [image(0, 10, "A"), black(10, 14), black(14, 17), image(17, 30, "B")]       # 7 s together: one gap, covered by the neighbour
+    PR.cover_short_gaps(seven)
+    assert [s["kind"] for s in seven] == ["image", "image"] and seven[0]["end"] == 17
     fade = [image(0, 10, "A"), black(10, 12)]
     assert PR.cover_short_gaps(fade, 12.0) == [] and fade[-1]["kind"] == "black"
