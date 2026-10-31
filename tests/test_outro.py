@@ -219,3 +219,19 @@ def test_the_closing_music_repeats_without_a_dip_each_copy_crossfaded_into_the_n
     steady = level(start + 13.5, start + 14.5)                          # the music holds its full level from 13 s on
     for join in (17.0, 25.0):                                           # copies hand over in the middle of the crossfade
         assert level(start + join - 0.3, start + join + 0.3) > steady - 4.0, f"no dip at {join} s"
+
+
+def test_the_outro_shot_is_numbered_like_every_shot_so_the_critique_can_describe_the_cut(tmp_path, db_session, monkeypatch):
+    from app.documentary.production.critics import describe_cut
+
+    base, track = tmp_path / "film.wav", tmp_path / "closing.wav"
+    tone(base, 12, 220); tone(track, 20, 440)
+    _fake_library(monkeypatch, track)
+    monkeypatch.setattr("app.documentary.storage.production_dir", lambda case, language: tmp_path)
+    shots = [{"kind": "image", "index": 0, "start": 0.0, "end": 6.0, "beat_id": "B01", "asset_id": None},
+             {"kind": "video", "index": 1, "start": 6.0, "end": 12.0, "beat_id": "B02", "asset_id": None}]
+    script = {"duration": 12.0, "audio": {"path": str(base)}, "shots": shots, "host": [{"position": "final", "start": 6.0, "end": 12.0}],
+              "music": [], "language": "en", "subtitles": []}
+    done = asyncio.run(REAL_APPLY(db_session, script, 1, "en", 7))
+    assert [s["index"] for s in done["shots"]] == [0, 1, 2]
+    assert "shot 2" in describe_cut(done, {}, [])

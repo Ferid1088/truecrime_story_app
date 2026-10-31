@@ -168,7 +168,8 @@ async def apply(db: Session, script: dict, case_id: int, language: str, version_
     if run.returncode != 0:
         raise OutroError(f"ffmpeg could not mix the music of the ending: {run.stderr[-300:]}")
     start = max(speech_end - cfg.lead_seconds, 0.0)
-    script["shots"].append({"kind": "outro", "command": "OUTRO", "beat_id": None, "start": round(speech_end, 3), "end": new_duration,
+    script["shots"].append({"kind": "outro", "command": "OUTRO", "beat_id": None, "index": len(script["shots"]),
+                            "start": round(speech_end, 3), "end": new_duration,
                             "motion": "NONE", "speed": 1.0, "transition_in": "CROSSFADE",
                             "why": "the story is told: the music goes on and the logo fades in"})
     script["audio"] = {**script["audio"], "path": storage.rel(out), "outro": True}
