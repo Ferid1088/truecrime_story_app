@@ -95,13 +95,15 @@ def test_the_table_has_the_text_position_the_photo_and_its_rank_a_spoiler_is_lef
     monkeypatch.setattr(PE, "get_generation_provider", lambda: object())
     monkeypatch.setattr(PE, "stamp_run", lambda *a: None)
     monkeypatch.setattr(PE, "reveal_blocked", lambda *a: False)
-    rows = asyncio.run(PE.inspect(db_session, case, plan, "en", SENTENCES, PERSONS, items, lambda t: "B01", 1, {"B01": 0}))
+    result = asyncio.run(PE.inspect(db_session, case, plan, "en", SENTENCES, PERSONS, items, lambda t: "B01", 1, {"B01": 0}))
+    rows = result.rows
+    assert [w["entity_key"] for w in result.without] == ["caleb_flynn"] and result.without[0]["why"] == ["no approved photo of this person"]
     assert asked == [("ashley_flynn", ["CALM", "GRAVE"], 20.0)] or sorted(asked[0][1]) == ["CALM", "GRAVE"], "the injury photo was never asked about"
     assert [(r["entity_key"], r["asset"], r["rank"], r["mention_start"]) for r in rows] == [("ashley_flynn", "CALM", 1, 20.0)]
     table = db_session.query(PersonPhotoHint).filter_by(case_id=case.id).all()
     assert len(table) == 1 and table[0].mention_text.startswith("Ashley Flynn had taught") and table[0].reason == "a calm portrait"
     again = asyncio.run(PE.inspect(db_session, case, plan, "en", SENTENCES, PERSONS, items, lambda t: "B01", 1, {"B01": 0}))
-    assert db_session.query(PersonPhotoHint).filter_by(case_id=case.id).count() == 1 and len(again) == 1
+    assert db_session.query(PersonPhotoHint).filter_by(case_id=case.id).count() == 1 and len(again.rows) == 1
     assert PE.hints_of(db_session, case.id, "en")[0]["asset"] == "CALM"
 
 
@@ -137,3 +139,24 @@ def test_at_a_mention_the_photo_the_inspector_ranked_first_is_shown_even_when_an
                     lambda t: "B01", lambda a: ["ashley_flynn"], lambda a, text: 5 if a.asset_code == "FITS" else 0,
                     {"ashley_flynn": ["INSPECTOR"]})
     assert next(s for s in shots if s["start"] <= 25 < s["end"])["asset_id"] == "INSPECTOR"
+
+
+def test_a_person_whose_every_photo_is_refused_is_reported_with_the_agents_reasons(db_session, monkeypatch):
+    case, plan = _film(db_session)
+    items = _items(db_session, case, [("COURT", "ashley_flynn", ["ashley_flynn"], "She testifies on the witness stand.")])
+
+    async def fake_run_agent(name, gen, body, images=None):
+        return {"photos": [{"asset": "COURT", "ok": False, "reason": "a courtroom: no trial has been told yet"}]}, SimpleNamespace(model="m", provider="p", usage=None)
+
+    monkeypatch.setattr(PE, "run_agent", fake_run_agent)
+    monkeypatch.setattr(PE, "get_generation_provider", lambda: object())
+    monkeypatch.setattr(PE, "stamp_run", lambda *a: None)
+    monkeypatch.setattr(PE, "reveal_blocked", lambda *a: False)
+    result = asyncio.run(PE.inspect(db_session, case, plan, "en", SENTENCES, PERSONS[:1], items, lambda t: "B01", 1, {"B01": 0}))
+    assert result.rows == [] and result.without[0]["why"] == ["COURT: a courtroom: no trial has been told yet"]
+    assert db_session.query(PersonPhotoHint).filter_by(case_id=case.id).count() == 0
+
+
+def test_an_older_rounds_key_with_the_ent_prefix_is_the_same_person():
+    item = photo("OLD", "ent_jill_smith", ["ent_jill_smith", "caleb_flynn"])
+    assert item.people == ["jill_smith", "caleb_flynn"] and DR.plain_key("jill_smith") == "jill_smith"

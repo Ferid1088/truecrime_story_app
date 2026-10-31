@@ -229,7 +229,7 @@ def test_the_marks_are_cut_away_before_the_pictures_are_labelled_for_their_place
 
     async def inspect(*args, **kw):
         calls.append("people")
-        return []
+        return SimpleNamespace(rows=[], without=[])
 
     monkeypatch.setattr(PL.PE, "inspect", inspect)
     monkeypatch.setattr(PL.DR, "beat_windows", lambda manifest: [])

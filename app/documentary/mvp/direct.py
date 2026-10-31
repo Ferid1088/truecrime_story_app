@@ -55,7 +55,7 @@ class Item:
     @property
     def people(self) -> list[str]:
         """The case's people the picture's card says it shows (the picture's own entity first)."""
-        return list(dict.fromkeys(([self.entity] if self.entity else []) + DS.people_of(self.asset)))
+        return list(dict.fromkeys(plain_key(e) for e in ([self.entity] if self.entity else []) + DS.people_of(self.asset)))
 
     @property
     def clip_seconds(self) -> float | None:
@@ -148,6 +148,11 @@ def approved_items(db: Session, plan: VisualPlan) -> dict[str, list[Item]]:
     if case_wide:
         out[CASE_WIDE] = case_wide
     return out
+
+
+def plain_key(entity: str) -> str:
+    """An entity key without the prefix an earlier planning round gave it ('ent_jill_smith' is 'jill_smith')."""
+    return entity[4:] if entity.startswith("ent_") else entity
 
 
 def readable(entity: str | None) -> str | None:

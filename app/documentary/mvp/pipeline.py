@@ -289,7 +289,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     described = await DS.describe_approved(db, case, DS.approved_assets(db, needs_plan) + DS.portrait_assets(db, case.id, needs_plan),
                                            entities_with_dossiers(db, case, requirements))   # and what each approved one shows
     windows = DR.beat_windows(manifest)
-    people = await PE.inspect(                                     # before the plan: who is named first, and which photos of them are no spoiler
+    inspection = await PE.inspect(                                     # before the plan: who is named first, and which photos of them are no spoiler
         db, case, needs_plan, language, manifest["timeline"].get("sentences") or [],
         [e for e in entities_with_dossiers(db, case, requirements) if e.get("type") == "person"], DR.approved_items(db, needs_plan),
         lambda t: next((w["beat_id"] for w in windows if w["start"] <= t < w["end"]), None), graph_id, order)
@@ -299,7 +299,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     async def direct(matches=None, last: bool = False) -> dict:
         return await DR.direct_film(db, case, needs_plan, manifest, graph_id, order, beats,
                                     director if use_agent else None, target, None, region, matches,
-                                    cover_last=last, timeline=timeline, sequence=sequence, person_hints=people)
+                                    cover_last=last, timeline=timeline, sequence=sequence, person_hints=inspection.rows)
 
     report = await direct()
     for _ in range(ai_config.mvp().topup.passes):
@@ -334,7 +334,8 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         report = await direct(matches, last=True)
         report.update(kept_before)
     report["overlays"], report["timing"], report["described"] = overlays, timing, described
-    report["people"] = {"first_mentions": len({h["entity_key"] for h in people}), "photos": len(people)}
+    report["people"] = {"with_photos": len({h["entity_key"] for h in inspection.rows}), "photos": len(inspection.rows),
+                        "without_photo": inspection.without}
     report["must_use"] = place_must_use(db, case.id, needs_plan, target)
     kept = {k: report[k] for k in ("moments", "topical", "overlays", "timing", "described", "people", "must_use") if k in report}
     if kept:                   # what the extra passes did stays with the plan (the report above is the plan's own)

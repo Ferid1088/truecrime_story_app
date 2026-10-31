@@ -30,6 +30,14 @@ TOLD_SO_FAR_CHARS = 3000
 
 
 @dataclass
+class Inspection:
+    """The inspector's answer: the table rows for the planner, and the persons for whom no photo may be shown (with the reasons)."""
+
+    rows: list[dict]
+    without: list[dict]
+
+
+@dataclass
 class FirstMention:
     key: str
     name: str
@@ -96,7 +104,7 @@ async def _ask(db: Session, case: Case, mention: FirstMention, person: dict, pho
 
 
 async def inspect(db: Session, case: Case, needs_plan: VisualPlan, language: str, sentences: list[dict], persons: list[dict],
-                  items: dict[str, list[Item]], beat_at, graph_id: int | None, beat_order: dict[str, int]) -> list[dict]:
+                  items: dict[str, list[Item]], beat_at, graph_id: int | None, beat_order: dict[str, int]) -> Inspection:
     """The table for this film: for each person named for the first time, the photos that may be shown there, best first. A photo the
     firewall blocks at that beat or that shows an injury is left out before the agent is asked; the agent judges the rest."""
     from app.documentary.drawing.portraits import INJURY
@@ -106,12 +114,18 @@ async def inspect(db: Session, case: Case, needs_plan: VisualPlan, language: str
     money = BudgetService(db)
     gate = asyncio.Semaphore(CALLS_AT_ONCE)
     rows: list[dict] = []
+    without: list[dict] = []
+
+    def none(mention: FirstMention, asked: int, why: list[str]) -> None:
+        without.append({"entity_key": mention.key, "person_name": mention.name, "mention_start": mention.start,
+                        "candidates": len(candidates(items, mention.key)), "asked": asked, "why": why[:3]})
 
     async def one(mention: FirstMention) -> None:
-        pool = [i for i in candidates(items, mention.key)
-                if not INJURY.search(DS.depicts(i.asset))
+        every = candidates(items, mention.key)
+        pool = [i for i in every if not INJURY.search(DS.depicts(i.asset))
                 and not (mention.beat_id and reveal_blocked(db, graph_id, beat_order, mention.beat_id, i.asset))]
         if not pool:
+            none(mention, 0, ["no approved photo of this person" if not every else "every photo is blocked by the story's reveal order or shows an injury"])
             return
         async with gate:
             snapshot = money.snapshot(case.id)
@@ -119,8 +133,11 @@ async def inspect(db: Session, case: Case, needs_plan: VisualPlan, language: str
                 return
             verdicts = await _ask(db, case, mention, by_key[mention.key], pool, _told_so_far(sentences, mention.end))
         if not verdicts:
+            none(mention, len(pool), ["the inspector could not be asked or gave no answer"])
             return
         by_code = {i.code: i for i in pool}
+        if not any(v["ok"] for v in verdicts):
+            none(mention, len(pool), [f"{v['asset']}: {v['reason']}" for v in verdicts])
         for rank, v in enumerate((v for v in verdicts if v["ok"]), 1):
             if rank > MAX_HINTS:
                 break
@@ -130,7 +147,7 @@ async def inspect(db: Session, case: Case, needs_plan: VisualPlan, language: str
 
     await asyncio.gather(*(one(m) for m in mentions))
     save(db, case, needs_plan, language, rows)
-    return sorted(rows, key=lambda r: (r["mention_start"], r["rank"]))
+    return Inspection(sorted(rows, key=lambda r: (r["mention_start"], r["rank"])), sorted(without, key=lambda w: w["mention_start"]))
 
 
 def save(db: Session, case: Case, needs_plan: VisualPlan, language: str, rows: list[dict]) -> None:
