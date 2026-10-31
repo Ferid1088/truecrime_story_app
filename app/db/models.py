@@ -3191,6 +3191,22 @@ class PersonPhotoHint(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
 
 
+class EntityNameForm(Base):
+    """How the narration of one language (of one text) writes the name of one entity of the case: its full name, first and last name as the
+    text spells them. The planner's rules that find a named person or place read it; a Latin-script language is matched by the slug alone."""
+
+    __tablename__ = "entity_name_forms"
+    __table_args__ = (UniqueConstraint("case_id", "language", "entity_key", name="uq_entity_name_forms"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), index=True)
+    language: Mapped[str] = mapped_column(String(20))
+    entity_key: Mapped[str] = mapped_column(String(120))
+    text_hash: Mapped[str] = mapped_column(String(64))              # the narration the forms were read from
+    forms_json: Mapped[str] = mapped_column(Text, default="{}")      # {"full": [...], "first": [...], "last": [...]}
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utc_now)
+
+
 class MvpFilmReview(Base):
     """The persisted owner-review state of one rendered film. A film is a review candidate until
     the owner approves its exact checksum; nothing runs past AWAITING_OWNER_REVIEW without it."""

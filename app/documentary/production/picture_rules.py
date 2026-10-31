@@ -9,6 +9,7 @@ from collections import Counter
 from collections.abc import Callable
 
 from app.core.ai_config import ai_config
+from app.language_pipeline.glossary import fold
 
 PICTURE_KINDS = ("image",)
 STOP = {"that", "this", "with", "from", "were", "have", "been", "their", "about", "which", "after", "before", "there"}
@@ -38,6 +39,30 @@ def mentions(text: str, slug: str, person: bool = True) -> bool:
     return bool((full and full in low) or (person and last and re.search(rf"\b{re.escape(last)}", low)))
 
 
+class NameForms:
+    """How one language's narration writes the names of the case's entities, for a language whose script is not Latin (the slug
+    'caleb_flynn' does not appear in a Persian text). `forms` is {entity key: {"full": [...], "first": [...], "last": [...]}} as the text
+    spells them. Without stored forms an entity is found by its slug alone, which is how the Latin-script languages are matched."""
+
+    def __init__(self, forms: dict[str, dict[str, list[str]]] | None = None, prefixes: list[str] | None = None):
+        self.forms = {key: {part: [f for f in (fold(x) for x in found) if f] for part, found in parts.items()}
+                      for key, parts in (forms or {}).items()}
+        self.prefix = f"(?:{'|'.join(re.escape(p) for p in prefixes)})?" if prefixes else ""
+
+    def _found(self, text: str, slug: str, parts: tuple[str, ...]) -> bool:
+        low = fold(text)
+        spelled = self.forms.get(slug, {})
+        return any(re.search(rf"(?<!\w){self.prefix}{re.escape(f)}(?!\w)", low) for part in parts for f in spelled.get(part, ()))
+
+    def mentions(self, text: str, slug: str, person: bool = True) -> bool:
+        """The text names this entity: its full name, or for a person its last name too."""
+        return mentions(text, slug, person) or self._found(text, slug, ("full", "last") if person else ("full",))
+
+    def named_by(self, text: str, slug: str) -> bool:
+        """The text names this very person: the full name or the first name."""
+        return named_by(text, slug) or self._found(text, slug, ("full", "first"))
+
+
 def bare(start: float, end: float, beat_id: str | None) -> dict:
     """A moment with no picture: black for now, the drawing covers it."""
     return {"kind": "black", "command": "BLACK_SCREEN", "beat_id": beat_id, "start": round(start, 3), "end": round(end, 3),
@@ -64,7 +89,8 @@ def limit_picture_seconds(shots: list[dict]) -> list[dict]:
     return done
 
 
-def drop_unrelated_repeats(shots: list[dict], sentences: list[dict], words_of: Callable[[str], set[str]]) -> list[dict]:
+def drop_unrelated_repeats(shots: list[dict], sentences: list[dict], words_of: Callable[[str], set[str]],
+                           names: NameForms | None = None) -> list[dict]:
     """A picture that comes again must be about the text where it comes: a person the text names, or a word the picture's own
     description shares with it. Otherwise that appearance becomes a bare moment. `words_of(code)` is the picture's description."""
     seen: Counter = Counter()
@@ -75,7 +101,7 @@ def drop_unrelated_repeats(shots: list[dict], sentences: list[dict], words_of: C
         if seen[code] == 1:
             continue
         text = _text_between(sentences, shot["start"], shot["end"])
-        related = (any(mentions(text, e) for e in shot.get("entities") or [])
+        related = (any((names.mentions if names else mentions)(text, e) for e in shot.get("entities") or [])
                    or bool(tokens(text) & words_of(code)))
         if related:
             continue
@@ -87,7 +113,8 @@ def drop_unrelated_repeats(shots: list[dict], sentences: list[dict], words_of: C
 def cover_people(shots: list[dict], sentences: list[dict], persons: dict[str, list[str]],
                  pool_for: Callable[[str], list], make_shot: Callable[[dict, object, float, float, str], dict],
                  beat_at: Callable[[float], str | None], entities_of: Callable[[object], list[str]],
-                 fit: Callable[[object, str], int] | None = None, preferred: dict[str, list[str]] | None = None) -> list[dict]:
+                 fit: Callable[[object, str], int] | None = None, preferred: dict[str, list[str]] | None = None,
+                 names: NameForms | None = None) -> list[dict]:
     """A person the text names has a photo of that person on screen: at the first mention always, at later mentions up to the
     configured number of times. `persons` maps an entity slug to its photos' codes; `pool_for(beat)` gives the photos the story
     has earned and the firewall allows at that beat. Only a picture shot is replaced, and only by a photo of that person."""
@@ -98,7 +125,7 @@ def cover_people(shots: list[dict], sentences: list[dict], persons: dict[str, li
     for sentence in sorted(sentences, key=lambda s: s["start"]):
         text = sentence.get("display") or sentence.get("speech") or ""
         for slug in persons:
-            if not mentions(text, slug):
+            if not (names.mentions if names else mentions)(text, slug):
                 continue
             first = slug not in first_seen
             first_seen.add(slug)

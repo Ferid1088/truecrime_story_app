@@ -10,17 +10,18 @@ from sqlalchemy.orm import Session
 from app.db.models import VisualAsset
 from app.documentary.mvp import describe as DS
 from app.documentary.drawing.plan import Portrait
-from app.documentary.production.picture_rules import named_by
+from app.documentary.production.picture_rules import NameForms, named_by
 from app.documentary.visuals.usage import asset_facts
 
 INJURY = re.compile(r"\b(injur\w*|wound\w*|blood\w*|bleeding|corpse|dead body|victim'?s body)\b", re.I)
 NEVER = float("inf")
 
 
-def first_named(slug: str, sentences: list[dict]) -> float:
+def first_named(slug: str, sentences: list[dict], names: NameForms | None = None) -> float:
     """The start of the first sentence that names this person, or never."""
+    named = names.named_by if names else named_by
     return next((s["start"] for s in sorted(sentences, key=lambda s: s["start"])
-                 if named_by(s.get("display") or s.get("speech") or "", slug)), NEVER)
+                 if named(s.get("display") or s.get("speech") or "", slug)), NEVER)
 
 
 def people_shown(asset: VisualAsset, person_keys: set[str]) -> list[str]:
@@ -29,12 +30,12 @@ def people_shown(asset: VisualAsset, person_keys: set[str]) -> list[str]:
     return [k for k in dict.fromkeys(keys) if k in person_keys]
 
 
-def portrait_pool(db: Session, case_id: int, sentences: list[dict], person_keys: set[str]) -> list[Portrait]:
+def portrait_pool(db: Session, case_id: int, sentences: list[dict], person_keys: set[str], names: NameForms | None = None) -> list[Portrait]:
     """The owner's photos with a drawing priority, best first. A photo may start once every person it shows has been named."""
     pool = []
     for asset in (db.query(VisualAsset).filter(VisualAsset.case_id == case_id, VisualAsset.draw_priority.isnot(None))
                   .order_by(VisualAsset.draw_priority).all()):
-        earned = max((first_named(e, sentences) for e in people_shown(asset, person_keys)), default=0.0)
+        earned = max((first_named(e, sentences, names) for e in people_shown(asset, person_keys)), default=0.0)
         refused = None
         if asset.asset_type != "photo":
             refused = "only a photo can be drawn"

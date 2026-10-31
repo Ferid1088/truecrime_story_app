@@ -278,6 +278,10 @@
       "final": "HOST_WIDE"
     }
   },
+  "names": {
+    "native_script_languages": ["fa", "ar"],
+    "min_form_chars": 3
+  },
   "chapters": {
     "enabled": true,
     "title_card": true,

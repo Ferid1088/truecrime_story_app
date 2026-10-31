@@ -16,7 +16,7 @@ from app.core.ai_config import ai_config
 from app.db.models import Case, PersonPhotoHint, VisualAsset, VisualPlan
 from app.documentary.mvp import describe as DS
 from app.documentary.mvp.direct import Item, readable, reveal_blocked
-from app.documentary.production.picture_rules import named_by
+from app.documentary.production.picture_rules import NameForms, named_by
 from app.providers.generation import get_generation_provider
 from app.providers.generation.base import GenerationError
 from app.services.budget import BudgetService
@@ -47,12 +47,12 @@ class FirstMention:
     beat_id: str | None
 
 
-def first_mentions(sentences: list[dict], persons: list[dict], beat_at) -> list[FirstMention]:
+def first_mentions(sentences: list[dict], persons: list[dict], beat_at, names: NameForms | None = None) -> list[FirstMention]:
     """For each person of the case the first sentence that names them (full name or first name), in the order of the film."""
     out = []
     for person in persons:
         hit = next((s for s in sorted(sentences, key=lambda s: s["start"])
-                    if named_by(s.get("display") or s.get("speech") or "", person["key"])), None)
+                    if (names.named_by if names else named_by)(s.get("display") or s.get("speech") or "", person["key"])), None)
         if hit is not None:
             out.append(FirstMention(person["key"], person.get("name") or readable(person["key"]) or person["key"], hit["start"], hit["end"],
                                     (hit.get("display") or hit.get("speech") or "")[:300], beat_at(hit["start"])))
@@ -104,12 +104,13 @@ async def _ask(db: Session, case: Case, mention: FirstMention, person: dict, pho
 
 
 async def inspect(db: Session, case: Case, needs_plan: VisualPlan, language: str, sentences: list[dict], persons: list[dict],
-                  items: dict[str, list[Item]], beat_at, graph_id: int | None, beat_order: dict[str, int]) -> Inspection:
+                  items: dict[str, list[Item]], beat_at, graph_id: int | None, beat_order: dict[str, int],
+                  names: NameForms | None = None) -> Inspection:
     """The table for this film: for each person named for the first time, the photos that may be shown there, best first. A photo the
     firewall blocks at that beat or that shows an injury is left out before the agent is asked; the agent judges the rest."""
     from app.documentary.drawing.portraits import INJURY
 
-    mentions = first_mentions(sentences, persons, beat_at)
+    mentions = first_mentions(sentences, persons, beat_at, names)
     by_key = {p["key"]: p for p in persons}
     money = BudgetService(db)
     gate = asyncio.Semaphore(CALLS_AT_ONCE)

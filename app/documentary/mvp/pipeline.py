@@ -23,6 +23,7 @@ from app.db.models import (
     VisualAsset,
     VisualPlan,
 )
+from app.documentary import names as NS
 from app.documentary.detective import buildable as BD
 from app.documentary.detective import timeline as TL
 from app.documentary.detective import toolkit as TK
@@ -289,10 +290,13 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
     described = await DS.describe_approved(db, case, DS.approved_assets(db, needs_plan) + DS.portrait_assets(db, case.id, needs_plan),
                                            entities_with_dossiers(db, case, requirements))   # and what each approved one shows
     windows = DR.beat_windows(manifest)
+    every_entity = entities_with_dossiers(db, case, requirements)
+    name_forms = await NS.ensure(db, case, language, manifest["timeline"].get("sentences") or [], every_entity)   # how this language writes the names
     inspection = await PE.inspect(                                     # before the plan: who is named first, and which photos of them are no spoiler
         db, case, needs_plan, language, manifest["timeline"].get("sentences") or [],
-        [e for e in entities_with_dossiers(db, case, requirements) if e.get("type") == "person"], DR.approved_items(db, needs_plan),
-        lambda t: next((w["beat_id"] for w in windows if w["start"] <= t < w["end"]), None), graph_id, order)
+        [e for e in every_entity if e.get("type") == "person"], DR.approved_items(db, needs_plan),
+        lambda t: next((w["beat_id"] for w in windows if w["start"] <= t < w["end"]), None), graph_id, order,
+        NS.load(db, case.id, language))
     sequence = reference_sequence(db, needs_plan, language)       # other languages show the English film's material
     timeline = TL.timeline_for(db, graph_id, manifest, language)   # the toolkit's fixed cards
     region = case_region(case)
@@ -334,6 +338,7 @@ async def stage_direct(db: Session, case: Case, needs_plan: VisualPlan, bp_row: 
         report = await direct(matches, last=True)
         report.update(kept_before)
     report["overlays"], report["timing"], report["described"] = overlays, timing, described
+    report["name_forms"] = name_forms
     report["people"] = {"with_photos": len({h["entity_key"] for h in inspection.rows}), "photos": len(inspection.rows),
                         "without_photo": inspection.without}
     report["must_use"] = place_must_use(db, case.id, needs_plan, target)
@@ -421,7 +426,7 @@ def stage_portraits(db: Session, case: Case, plan_row: VisualPlan, manifest: dic
     from app.documentary.pipeline.errors import AwaitingPortrait
 
     sentences = manifest["timeline"].get("sentences") or []
-    pool = DRP.portrait_pool(db, case.id, sentences, DRP.person_keys(db, case, plan_row))
+    pool = DRP.portrait_pool(db, case.id, sentences, DRP.person_keys(db, case, plan_row), NS.load(db, case.id, language))
     usable = [p for p in pool if p.refused is None]
     if not usable:
         raise AwaitingPortrait(

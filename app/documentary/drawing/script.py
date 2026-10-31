@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ai_config import ai_config
 from app.db.models import Case, VisualAsset, VisualPlan
+from app.documentary import names as NS
 from app.documentary.drawing import plan as DP
 from app.documentary.drawing import portrait as PD
 from app.documentary.drawing import portraits as DRP
@@ -36,7 +37,7 @@ def awaiting_creation(missing: list[str], needed: int, ordered: list[str] | None
 def build(db: Session, case: Case, plan_row: VisualPlan, script: dict, language: str) -> dict:
     """The drawing of this film: every gap has a portrait and every portrait it uses is made, or the run stops and says why."""
     sentences = [{"start": x["start"], "end": x["end"], "display": x["text"]} for x in script.get("subtitles") or []]
-    pool = DRP.portrait_pool(db, case.id, sentences, DRP.person_keys(db, case, plan_row))
+    pool = DRP.portrait_pool(db, case.id, sentences, DRP.person_keys(db, case, plan_row), NS.load(db, case.id, language))
     plan = DP.plan_drawing(script["shots"], pool)
     if plan.uncovered:
         raise AwaitingPortrait(DRP.no_portrait_message(language, plan.uncovered, pool))

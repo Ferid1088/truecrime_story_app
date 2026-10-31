@@ -121,6 +121,7 @@
         "mvp_overlay_scanner": "sol",
         "mvp_picture_describer": "sol",
         "mvp_person_inspector": "premium",
+        "name_forms_reader": "premium",
         "mvp_timing_classifier": "premium",
         "mvp_scene_director": "premium",
         "detective_text_analyser": "writer",
@@ -416,6 +417,10 @@
     "mvp_person_inspector": {
       "temperature": 0.0,
       "max_tokens": 4000
+    },
+    "name_forms_reader": {
+      "temperature": 0.0,
+      "max_tokens": 8000
     },
     "mvp_picture_describer": {
       "temperature": 0.0,

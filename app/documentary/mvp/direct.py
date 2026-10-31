@@ -23,7 +23,8 @@ from app.documentary.mvp import neighbours as NC
 from app.documentary.mvp import satisfy as SA
 from app.documentary.mvp import timing as TM
 from app.documentary.mvp.coverage import counted_requirements
-from app.documentary.production.picture_rules import mentions
+from app.documentary import names as NS
+from app.documentary.production.picture_rules import NameForms, mentions
 from app.documentary.mvp.needs import fold
 from app.documentary.visuals.usage import UsageTracker, asset_facts
 from app.providers.generation import get_generation_provider
@@ -208,14 +209,14 @@ def first_mentions_in(hints: list[dict], window: dict) -> dict[str, str]:
     return {h["asset"]: h["person_name"] for h in hints if window["start"] <= h["mention_start"] < window["end"]}
 
 
-def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str) -> list[Item]:
+def named_in_text(items: dict[str, list[Item]], pool: list[Item], text: str, names: NameForms | None = None) -> list[Item]:
     """The approved items of a person or place that the beat's own words name, approved for other beats (the beat's pool holds
     only what was approved for the beat's requirements): the director may show them where the name is spoken."""
     have = {i.code for i in pool}
     out: list[Item] = []
     for group in items.values():
         for item in group:
-            if item.code in have or not any(mentions(text, e, _is_person(item) or e != item.entity) for e in item.people):
+            if item.code in have or not any((names.mentions if names else mentions)(text, e, _is_person(item) or e != item.entity) for e in item.people):
                 continue
             have.add(item.code)
             out.append(item)
@@ -744,6 +745,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
     mapped: set[str] = set()
     cfg = ai_config.mvp().shots
     language = json.loads(target.validation_json or "{}").get("mvp", {}).get("language")
+    forms = NS.load(db, case.id, language) if language else None       # how this language's narration writes the names
     items = approved_items(db, plan)
     tracker = UsageTracker({i.code: asset_facts(i.asset) for group in items.values() for i in group})
     moment_clips = [i for group in items.values() for i in group if i.moment and i.moment.get("language") == language]
@@ -789,7 +791,7 @@ async def _direct_pass(db: Session, case: Case, plan: VisualPlan, manifest: dict
             continue
         pool = [i for i in items.get(bid, []) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
         beat_text = " ".join(x["speech"] for x in window["sentences"])
-        named = [i for i in named_in_text(items, pool, beat_text) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
+        named = [i for i in named_in_text(items, pool, beat_text, forms) if not reveal_blocked(db, graph_id, beat_order, bid, i.asset)]
         named_codes = {i.code for i in named}
         pool += named
         first_here = first_mentions_in(person_hints or [], window)         # the inspector's photos for the persons named here first

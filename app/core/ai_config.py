@@ -144,6 +144,8 @@ REQUIRED_ROLES = {
     "mvp_picture_describer",
     # Before the film is planned: for each person the text names for the first time, which approved photos of them give nothing away there.
     "mvp_person_inspector",
+    # Before the film is directed in a language with its own script: how that language's narration writes the names of the case's people and places.
+    "name_forms_reader",
     # When in the story a picture or clip may first be shown: the earliest beat that has told what it shows.
     "mvp_timing_classifier",
     "mvp_scene_director",
@@ -2347,6 +2349,14 @@ class VideoAuditConfig(BaseModel):
     frame_width: int = Field(default=384, ge=160, le=1280)
 
 
+class NamesConfig(BaseModel):
+    """Languages whose script is not Latin: the narration writes a name in that script, so its forms are read from the text once
+    (documentary.name_forms) and the planner's name rules match those forms instead of the entity's slug."""
+
+    native_script_languages: list[str] = Field(default_factory=list)
+    min_form_chars: int = Field(default=3, ge=2, le=10)
+
+
 class ChaptersConfig(BaseModel):
     """Chapter cards and the running case timeline (on-screen cards made
     from the story's acts and the case's dated facts). Chapters are the
@@ -4172,6 +4182,7 @@ class AIConfig(BaseModel):
     visual_verification: VisualVerificationConfig = Field(
         default_factory=VisualVerificationConfig)
     video_audit: VideoAuditConfig = Field(default_factory=VideoAuditConfig)
+    names: NamesConfig = Field(default_factory=NamesConfig)
     chapters: ChaptersConfig = Field(default_factory=ChaptersConfig)
     detective_board: DetectiveBoardConfig = Field(default_factory=DetectiveBoardConfig)
     detective_toolkit: DetectiveToolkitConfig = Field(default_factory=DetectiveToolkitConfig)

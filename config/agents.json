@@ -518,6 +518,13 @@
       "description": "Before the film is planned: for each person the text names for the first time, which approved photos of them give nothing away there.",
       "used_by": "app/documentary/mvp/people.py"
     },
+    "documentary.name_forms": {
+      "role": "name_forms_reader",
+      "prompt": "documentary/mvp/name_forms_system",
+      "output": "json",
+      "description": "Before the film is directed in a language with its own script: how the narration writes each person and place of the case (full, first and last name).",
+      "used_by": "app/documentary/names.py"
+    },
     "mvp.overlay_scan": {
       "role": "mvp_overlay_scanner",
       "prompt": "documentary/mvp/overlay_scan_system",
