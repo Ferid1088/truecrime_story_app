@@ -1139,18 +1139,9 @@ def test_one_button_pipeline_pilot_end_to_end(db_session, documentary_env, isola
 
         review = RV.current(db_session, case.id, lang)
         assert review.state in ("AWAITING_OWNER_REVIEW", "PRODUCING") and review.render_sha256
-        # after the cold open: the film's title, then chapter 1 — at the end
-        # of the chapter break, the new chapter's picture before its first word
+        # after the cold open: the film's title; the film needs no chapter card
         cards = [x for x in script["shots"] if x["kind"] in ("title", "chapter")]
-        assert [x["kind"] for x in cards] == ["title", "chapter"]
-        assert cards[1]["card"] == {
-            "label": "Chapter 1" if lang == "en" else "Kapitel 1",
-            "title": f"Part 1 ({lang})",
-        }
-        b02 = next(b for b in script["beats"] if b["beat_id"] == "B02")
-        assert abs(cards[1]["end"] - (b02["start"] - ai_config.chapters.lead_out_seconds)) < 0.01
-        after = script["shots"][script["shots"].index(cards[1]) + 1]
-        assert after["start"] == cards[1]["end"]
+        assert [x["kind"] for x in cards] == ["title"]
         # every render is remembered as a Video with status + YouTube title
         from app.db.models import Video
 
