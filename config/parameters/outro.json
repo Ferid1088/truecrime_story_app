@@ -1,0 +1,26 @@
+{
+  "outro": {
+    "enabled": true,
+    "after_seconds": 30.0,
+    "lead_seconds": 5.0,
+    "music": {
+      "kind": "bridge",
+      "mood": "uncertainty"
+    },
+    "start_db": -42.0,
+    "speech_db": -26.0,
+    "full_db": -5.0,
+    "rise_seconds": 8.0,
+    "fade_out_seconds": 5.0,
+    "logo": {
+      "height_fraction": 0.34,
+      "delay_seconds": 1.5,
+      "fade_seconds": 9.0
+    },
+    "ground": [
+      18,
+      22,
+      28
+    ]
+  }
+}

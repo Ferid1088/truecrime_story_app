@@ -705,6 +705,7 @@ def the_owner_has_reviewed(monkeypatch):
     monkeypatch.setattr(MVP, "stage_owner_attention", lambda db, plan, language: None)
     monkeypatch.setattr(MVP, "stage_portraits", lambda *args, **kw: {"portraits": 1, "usable": 1, "gaps_checked": 0})   # (tested on its own)
     monkeypatch.setattr("app.documentary.drawing.script.build", lambda *args, **kw: {"segments": [], "portraits": {}})
+    monkeypatch.setattr("app.documentary.production.outro.apply", lambda db, script, *args, **kw: script)     # (tested on its own)
 
 
 @pytest.fixture

@@ -14,7 +14,8 @@
         "bottom_clear_fraction": 0.2
       },
       "except_kinds": [
-        "intro"
+        "intro",
+        "outro"
       ]
     }
   }

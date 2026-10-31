@@ -408,7 +408,7 @@ def apply_fixes(script: dict, problems: list[dict],
         s = by_index.get(p["shot"])
         if s is None or p["shot"] in seen or s not in shots:
             continue
-        if s.get("kind") in ("chapter", "title", "timeline"):
+        if s.get("kind") in ("chapter", "title", "timeline", "outro"):
             # cards were approved by their own auditor and sit in their gap
             continue
         seen.add(p["shot"])

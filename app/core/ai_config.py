@@ -3107,6 +3107,36 @@ class DrawingConfig(BaseModel):
         return self
 
 
+class OutroLogoConfig(BaseModel):
+    height_fraction: float = Field(gt=0.0, le=1.0)
+    delay_seconds: float = Field(ge=0.0)
+    fade_seconds: float = Field(gt=0.0)
+
+
+class OutroMusicConfig(BaseModel):
+    kind: str
+    mood: str
+
+
+class OutroConfig(BaseModel):
+    """The end of the film (config/parameters/outro.json): a deep, reflective music starts `lead_seconds` before the avatar's last word, quiet
+    (`start_db`) and rising so that it never covers the voice (`speech_db` where the avatar ends), grows to `full_db` over `rise_seconds`
+    and goes on for `after_seconds` after the avatar has finished, fading out in its last `fade_out_seconds`; the film is that much longer.
+    Then the channel's logo fades in slowly on the dark ground and stays. Levels are dB below the library's reference loudness."""
+
+    enabled: bool
+    after_seconds: float = Field(gt=0.0)
+    lead_seconds: float = Field(ge=0.0)
+    music: OutroMusicConfig
+    start_db: float
+    speech_db: float
+    full_db: float
+    rise_seconds: float = Field(gt=0.0)
+    fade_out_seconds: float = Field(ge=0.0)
+    logo: OutroLogoConfig
+    ground: list[int]
+
+
 class LogoLapConfig(BaseModel):
     """Every `every_seconds` of the film the logo leaves its corner, goes once around the screen and returns, taking
     `seconds` (it eases out of and into its place); it is on screen for the whole lap, over any kind of shot. The
@@ -4122,6 +4152,7 @@ class AIConfig(BaseModel):
     graphics: GraphicsConfig | None = None
     branding: BrandingConfig | None = None
     drawing: DrawingConfig | None = None
+    outro: OutroConfig | None = None
     monitoring: MonitoringConfig | None = None
     main_visual_planner: MainVisualPlannerConfig | None = None
     fill_ways: FillWaysConfig = Field(default_factory=FillWaysConfig)
@@ -4339,6 +4370,12 @@ class AIConfig(BaseModel):
         if self.main_visual_planner is None:
             raise RuntimeError("config/parameters/main_visual_planner.json is missing")
         return self.main_visual_planner
+
+    def outro_settings(self) -> OutroConfig:
+        """The film's ending (config/parameters/outro.json)."""
+        if self.outro is None:
+            raise RuntimeError("config/parameters/outro.json is missing")
+        return self.outro
 
     def drawing_settings(self) -> DrawingConfig:
         """The pencil drawing's settings (config/parameters/drawing.json)."""

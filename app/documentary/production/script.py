@@ -48,6 +48,7 @@ from app.documentary.drawing import script as DRS
 from app.documentary.mvp import describe as DS
 from app.documentary.mvp import people as PE
 from app.documentary.production import card_audit as CA
+from app.documentary.production import outro as OUTRO
 from app.documentary.production import picture_rules as PR
 from app.documentary.visuals import rights as R
 from app.documentary.visuals import spoilers as SP
@@ -1511,6 +1512,7 @@ async def build_production_script(db: Session, version: StoryVersion, plan_row: 
             storage.resolve)
         script["audio"] = {"path": storage.rel(spliced), "with_host": True}
     script["avatar_used"] = bool(host)      # A2/A3: the one flag "draft, no avatar" is read from
+    script = OUTRO.apply(db, script, version.case_id, language, version.id)     # after the last word: the music goes on, the logo fades in
     from app.documentary.render.logo import windows_of
 
     script["logo"] = windows_of(script)     # when the channel logo is in its corner (picture and clip shots only)

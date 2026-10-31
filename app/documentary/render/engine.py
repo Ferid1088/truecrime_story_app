@@ -40,7 +40,7 @@ from app.documentary.render.cards import (
     title_image,
 )
 from app.documentary.render.drawing_layer import DrawingLayer
-from app.documentary.render.logo import LogoBug
+from app.documentary.render.logo import LogoBug, _bug, logo_path
 from app.documentary.visuals.typography import RTL
 from app.documentary.visuals.typography import overlay as text_layer
 
@@ -317,6 +317,8 @@ class FrameMaker:
             return self.intro_frame(t - float(shot["start"]))
         if kind in CARD_KINDS:
             return self._card_frame(shot, t)
+        if kind == "outro":
+            return self._outro_frame(shot, t)
         if kind == "black" or not shot.get("path"):
             return self.black
         if kind == "video" or (kind in ("image", None) and is_video_path(shot["path"])):
@@ -345,6 +347,31 @@ class FrameMaker:
         if shot.get("motion") == "SUBTLE_2_5D":
             frame = self._parallax_frame(shot, canvas, p, z, vx, vy, frame)
         return frame
+
+    def _outro_frame(self, shot: dict, t: float) -> np.ndarray:
+        """The end of the film: the dark ground, and the channel's logo fading in slowly in the middle and staying."""
+        cfg = ai_config.outro_settings()
+        key = ("outro", float(shot["start"]))
+        if key not in self._cards:
+            W, H = self.W, self.H
+            yy, xx = np.mgrid[0:H, 0:W]
+            d = np.clip(np.sqrt(((xx - W / 2) / (W * 0.75)) ** 2 + ((yy - H / 2) / (H * 0.75)) ** 2), 0.0, 1.0)
+            ground = (np.array(cfg.ground, np.float32) * (1.0 + 0.45 * (1.0 - d))[..., None]).clip(0, 255)    # a soft glow behind the logo
+            path = logo_path(self.script.get("language") or "en")
+            logo = None
+            if path is not None:
+                rgb, alpha = _bug(str(path), max(8, round(H * cfg.logo.height_fraction)), ai_config.branding_settings().logo.black_key_below, 0.0)
+                logo = (rgb, alpha[..., None])
+            self._cards[key] = (ground, logo)
+        ground, logo = self._cards[key]
+        frame = ground.copy()
+        k = _ease((t - float(shot["start"]) - cfg.logo.delay_seconds) / cfg.logo.fade_seconds)
+        if logo is not None and k > 0:
+            rgb, alpha = logo
+            h, w = alpha.shape[:2]
+            y0, x0 = (self.H - h) // 2, (self.W - w) // 2
+            frame[y0:y0 + h, x0:x0 + w] = frame[y0:y0 + h, x0:x0 + w] * (1 - alpha * k) + rgb * (alpha * k)
+        return frame.astype(np.uint8)
 
     def _card_frame(self, shot: dict, t: float) -> np.ndarray:
         """Chapter / title / timeline card (drawn once, then moved)."""
